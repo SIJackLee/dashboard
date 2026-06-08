@@ -2,12 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Leaf, ChevronsUpDown } from "lucide-react";
+import { Leaf, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems } from "./nav-items";
+import { signOut } from "@/app/auth/actions";
 
-export function AppSidebar() {
+type Role = "admin" | "operator" | "viewer";
+
+const roleLabel: Record<Role, string> = {
+  admin: "관리자",
+  operator: "운영자",
+  viewer: "뷰어",
+};
+
+type AppSidebarProps = {
+  user: {
+    displayName: string | null;
+    email: string | null;
+    role: Role | null;
+  };
+};
+
+export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
+  const name = user.displayName?.trim() || user.email || "사용자";
+  const initial = name.charAt(0).toUpperCase();
 
   return (
     <aside className="flex h-full w-60 flex-col border-r bg-background">
@@ -45,16 +64,27 @@ export function AppSidebar() {
       </nav>
 
       {/* 계정 */}
-      <div className="border-t p-3">
-        <button className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-muted">
-          <span className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-medium">
-              관
-            </span>
-            관리자
+      <div className="space-y-2 border-t p-3">
+        <div className="flex items-center gap-2 px-1">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+            {initial}
           </span>
-          <ChevronsUpDown className="size-4 text-muted-foreground" />
-        </button>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-sm font-medium">{name}</p>
+            <p className="text-xs text-muted-foreground">
+              {user.role ? roleLabel[user.role] : "권한 없음"}
+            </p>
+          </div>
+        </div>
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="size-4" />
+            로그아웃
+          </button>
+        </form>
       </div>
     </aside>
   );

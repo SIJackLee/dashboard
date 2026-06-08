@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-export async function middleware(request: NextRequest) {
+// Next.js 16: middleware → proxy 규칙. 세션 갱신 + 라우트 보호.
+export async function proxy(request: NextRequest) {
   return await updateSession(request);
 }
 

@@ -1,0 +1,68 @@
+import { cache } from "react";
+import { createClient } from "@/lib/supabase/server";
+
+export type Role = "admin" | "operator" | "viewer";
+
+export type UserAccess = {
+  scope_type: "farm" | "module" | "ctrl";
+  farm_uid: number;
+  module_uid: number | null;
+  ctrl_idx: number | null;
+  can_read: boolean;
+  can_command: boolean;
+};
+
+export type CurrentUser = {
+  id: string;
+  email: string | null;
+  role: Role | null;
+  displayName: string | null;
+  accesses: UserAccess[];
+  isAdmin: boolean;
+  /** 데이터 조회 권한 보유 여부 (관리자이거나 can_read 스코프 1개 이상) */
+  hasAccess: boolean;
+};
+
+// React cache() 로 동일 요청 내 중복 조회 제거
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const [{ data: profile }, { data: accesses }] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("role, display_name")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("user_access")
+      .select("scope_type, farm_uid, module_uid, ctrl_idx, can_read, can_command")
+      .eq("user_id", user.id),
+  ]);
+
+  const role = (profile?.role as Role | undefined) ?? null;
+  const accessList = (accesses ?? []) as UserAccess[];
+  const isAdmin = role === "admin";
+  const hasAccess = isAdmin || accessList.some((a) => a.can_read);
+
+  return {
+    id: user.id,
+    email: user.email ?? null,
+    role,
+    displayName: (profile?.display_name as string | null) ?? null,
+    accesses: accessList,
+    isAdmin,
+    hasAccess,
+  };
+});
+
+/** 명령 권한 보유 여부 (관리자이거나 can_command 스코프 1개 이상) */
+export function canCommand(user: CurrentUser | null): boolean {
+  if (!user) return false;
+  return user.isAdmin || user.accesses.some((a) => a.can_command);
+}

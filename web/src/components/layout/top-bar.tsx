@@ -1,5 +1,6 @@
-import { Bell, User, Wifi, Radio } from "lucide-react";
+import { Bell, Wifi, Radio, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { signOut } from "@/app/auth/actions";
 
 type TopBarProps = {
   title: string;
@@ -25,11 +26,15 @@ export function TopBar({ title }: TopBarProps) {
           <Bell className="size-5" />
           <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
         </button>
-        <button className="rounded-full p-1 hover:bg-muted">
-          <span className="flex size-8 items-center justify-center rounded-full bg-muted">
-            <User className="size-4" />
-          </span>
-        </button>
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="size-4" />
+            로그아웃
+          </button>
+        </form>
       </div>
     </header>
   );
