@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 스마트 축사 IoT 대시보드
 
-## Getting Started
+IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase에 적재된 디코딩 센서 데이터를 권한별로 조회하고, 컨트롤러에 제어 명령을 발행한다.
 
-First, run the development server:
+## 기술 스택
+
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (Auth + Postgres, `@supabase/ssr`)
+
+## 시작하기
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+# .env.local 설정 (아래 환경변수 참고)
+npm run dev      # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+검증:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build    # 타입체크 + 프로덕션 빌드
+npm run lint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 환경변수 (`.env.local`)
 
-## Learn More
+`.env.example`에 이름만 기록되어 있다. 실제 값은 커밋하지 않는다.
 
-To learn more about Next.js, take a look at the following resources:
+| 이름 | 용도 |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon key (RLS 전제) |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role key (서버 전용, 관리자 기능) |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 인증 / 권한
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- 이메일/비밀번호 로그인 (Supabase Auth). `/` 접속 시 `/login`으로 이동.
+- 권한은 DB의 RLS로 강제(`user_can_read_farm`, `is_admin` 등). 앱은 `lib/auth/get-current-user.ts`로 user+profile+access를 조합.
+- 데이터 접근 권한이 없으면 `/pending`, 관리자만 `/admin/users` 접근.
 
-## Deploy on Vercel
+## 디렉터리 개요
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `src/app/(dashboard)/*` — 농장/축사/컨트롤러/관리자 등 페이지 (인증 게이트 적용)
+- `src/components/*` — `layout` / `common` / 도메인별(farm, barns, controllers, admin)
+- `src/lib/data/iot.ts` — decoded 데이터 파싱·집계(핵심)
+- `src/lib/supabase/*` — Supabase 클라이언트(client/server/admin/middleware)
+- `src/proxy.ts` — Next 16 미들웨어(세션 갱신 + 라우트 보호)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 더 보기
+
+전체 작업 맥락·데이터 구조·의사결정은 [`../docs/PROJECT_CONTEXT.md`](../docs/PROJECT_CONTEXT.md) 참고.
