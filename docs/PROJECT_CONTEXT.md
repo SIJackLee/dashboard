@@ -91,6 +91,13 @@ flowchart TB
 - **현재값** = 각 ES/EC 배열의 **마지막 원소** (`READING_AT` 상수로 변경 가능)
 - **통신상태** = `received_at` 신선도: 15분 이내 `normal` / 60분 이내 `caution` / 그 외 `offline`
 
+### 데이터 모듈 분리
+| 파일 | 용도 |
+| --- | --- |
+| `lib/data/iot.ts` | 서버 전용 (`server-only`). Supabase 조회·집계 |
+| `lib/data/iot-chart.ts` | 클라이언트·서버 공용. 차트용 순수 함수 (`buildControllerSlotSeries` 등) |
+| `lib/data/barn-meta.ts` | `profiles.ui_config` 축사 메타 CRUD |
+
 ## 6. 인증 / 권한 (RLS)
 
 DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
@@ -119,14 +126,17 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 | 로그인 / 로그아웃 / 세션 미들웨어 | 완료 |
 | 접근 게이트 / `/pending` / RoleGuard | 완료 |
 | 관리자 사용자·농장 접근 권한 관리(`/admin/users`) | 완료 (service_role 액션) |
-| 축사 페이지 실데이터 (요약 + 컨트롤러 목록) | 완료 |
+| 축사 페이지 실데이터 (요약 + 차트 + 컨트롤러 목록) | 완료 |
+| 축사 페이지 차트 (상태 도넛 / 온습도 비교 / 팬 비교) | 완료 |
 | 컨트롤러 페이지 실데이터 (캐스케이드 선택 + 상세/목록/팬 추이) | 완료 |
+| 컨트롤러 페이지 명령 패널·이력 | 완료 (`ctrl_thermo_command`) |
 | 농장 페이지 실데이터 (요약/환경평균/최근수신/연결상태) | 완료 |
 | 농장 지도 (2D 그리드 카드 맵 + 축사 메타데이터) | 완료 |
 | 축사 메타데이터 설정 (`/settings?tab=barn`) | 완료 |
-| 명령 발행(쓰기) / 명령 이력 | 완료 (`ctrl_thermo_command` insert·조회) |
-| 차트(도넛/환경비교/스파크라인 일부) | 미구현 (placeholder) |
+| 로그·알람 페이지 차트 | 미구현 (placeholder) |
+| 컨트롤러 페이지 스파크라인 일부 | 미구현 (placeholder) |
 | 컨트롤러 이름 메타데이터 (설정탭 UI만 골격) | 미구현 (저장 연동) |
+| 명령 downlink Agent (`pending` → MQTT → `sent`) | 미구현 (대시보드는 insert만) |
 
 ## 9. 주요 의사결정
 
@@ -135,6 +145,9 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - `controller_stall_map` 등 **양방향 매핑 DB migration 보류·취소**.
 - 농장 지도는 **2D 그리드 카드 맵** (아이소메트릭은 후속). NH3/CO2·신호강도·지리좌표는 미표시.
 - **축사(`/barns`)** stallNo 기준 전환은 **펌웨어 `ver=0x04` 이후**. 현재는 **컨트롤러(idx) 단위** 임시 표시.
+- **축사 페이지 차트** x축 = 컨트롤러 **1~50** (`idx+1`) 고정 슬롯. 외부 차트 라이브러리 없이 `CompactColumnChart`(CSS/SVG).
+- **`iot-chart.ts` 분리**: 클라이언트 컴포넌트가 `server-only`인 `iot.ts`를 import 하지 않도록 차트 집계만 별도 모듈.
+- **빠른 비교** UI는 제거. 온습도·팬 비교로 역할 분리.
 - **컨트롤러 제품 UI** (AVR-2000 / AUTOFAN 사진 기반)는 **추후**.
 - 제어 명령 의도는 4종: **최저환기 / 최고환기 / 설정온도 / 온도편차** (`ctrl_thermo_command`).
 - 인증은 OAuth가 아니라 이메일/비밀번호 (계정이 이미 `auth.users`에 존재).
@@ -177,7 +190,27 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 | 온도, 습도, 팬% | 표시 |
 | 게이트웨이 신호강도 | placeholder (`--`) |
 
-## 11. 진행 중 / 대기 작업: 컨트롤러 제품 UI
+## 11. 축사 페이지 (`/barns`) UI
+
+### 레이아웃 (상→하)
+
+1. **요약 카드** — 총/정상/주의/오프라인 (`summarizeBarns`)
+2. **3열 그리드** — 상태 분포 | 온습도 비교 | 팬 비교
+3. **축사 목록** — 컨트롤러 단위 테이블 (`getBarnReadings`)
+
+### 차트 컴포넌트
+
+| 컴포넌트 | 데이터 | 설명 |
+| --- | --- | --- |
+| `BarnStatusDonut` | `BarnSummary` | 정상/주의/오프라인 SVG 도넛 + 범례 |
+| `TempHumidityCompareChart` | `readings` | 온도·습도, x축 1~50 |
+| `FanCompareChart` | `readings` | 송풍·배기·입기팬 %, x축 1~50 |
+
+- 공통 렌더: `BarnMetricChartStack` → `buildControllerSlotSeries()` (`iot-chart.ts`)
+- 막대: `CompactColumnChart` — `fillWidth`로 50슬롯 균등 분할, 마지막 행에만 x축 눈금 (1, 5, 10, …, 50)
+- 동일 슬롯에 복수 모듈 데이터가 있으면 해당 슬롯 값 **평균**
+
+## 12. 진행 중 / 대기 작업: 컨트롤러 제품 UI
 
 컨트롤러 페이지를 **실제 회사 컨트롤러 제품(성일전자 AVR-2000 / AUTOFAN)**처럼 조작하는 UI로 만들기로 함.
 
@@ -190,34 +223,41 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 목업(AUTOFAN)은 `현재 RPM`, `팬 레벨(1~10)`, `모드(자동/수동/정지/급기/배기/알람)`를 표시하지만, 현재 `decoded_json`에는 **RPM·모드 데이터가 없음**. 따라서 패널은 실제 보유 값(EC% / 온도 / 습도) 기준으로 재구성한다.
 
 ### 사진 수령 후 계획
-1. 제품 사진 기반 패널 UI (실데이터 표시)
-2. 조작부: 최저환기% / 최고환기% / 설정온도 / 온도편차 입력 → `ctrl_thermo_command` insert
-   - `can_command` 권한자만 활성화, 미권한자 읽기 전용
-   - 쓰기 전 `ctrl_thermo_command` 스키마/RLS 확인 및 SQL·영향 범위 설명 선행
-3. 명령 히스토리: `ctrl_thermo_command` 최근 이력 조회(읽기)
+1. 제품 사진 기반 패널 UI (실데이터 표시) — 현재 `CommandPanel`·이력 테이블은 일반 폼 UI로 **이미 구현**
+2. 외형·조작부를 실제 제품( AVR-2000 / AUTOFAN ) 레이아웃에 맞게 재배치
 
-## 12. Git / 브랜치
+## 13. Git / 브랜치
 
 - 원격: `github.com/SIJackLee/dashboard`
 - 작업 브랜치(스택): `feature/auth-access-gate` → `feature/admin-user-access`
-  - `feature/admin-user-access`에 관리자 기능 + 실데이터 매칭 커밋 누적
+  - `feature/admin-user-access`에 관리자·실데이터·명령·축사 차트 커밋 누적
+- 최근 커밋 예: `3374425` 축사 차트, `386537a` 원격 명령
 - 규칙: main 직접 push 금지, 기능 단위 브랜치/커밋, push/merge는 승인 후.
 
-## 13. 주요 경로
+## 14. 주요 경로
 
 ```
 web/src/
   app/
     (dashboard)/{farm,barns,controllers,alarms,logs,settings}/page.tsx
+    (dashboard)/controllers/actions.ts   # 명령 발행 server action
     (dashboard)/admin/users/{page.tsx,actions.ts}
     login/page.tsx  pending/page.tsx  auth/{actions.ts,callback/route.ts}
   components/
     layout/{app-sidebar,top-bar,page-shell,nav-items}
-    common/{stat-card,section-card,status-badge,env-chip,fan-indicator,sparkline,...}
+    common/{stat-card,section-card,compact-column-chart,status-badge,...}
     farm/  barns/  controllers/  admin/
+    barns/
+      barn-status-donut.tsx
+      temp-humidity-compare-chart.tsx
+      fan-compare-chart.tsx
+      barn-metric-chart-stack.tsx
+      barn-table.tsx  barn-summary-grid.tsx
+    controllers/
+      command-panel.tsx  command-history-table.tsx  controllers-view.tsx
   lib/
-    data/{iot.ts,barn-meta.ts}  # decoded 파싱·집계, 축사 메타데이터
-    farm/{farm-map-view,farm-map-card,...}
+    data/{iot.ts,iot-chart.ts,barn-meta.ts,commands.ts}
+    farm/{farm-map-view,farm-map-canvas,...}
     auth/{get-current-user,require-admin}.ts
     supabase/{client,server,admin,middleware}.ts
   proxy.ts                 # Next 16 미들웨어(세션/보호)
