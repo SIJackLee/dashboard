@@ -123,7 +123,7 @@ export async function getBarnReadings(): Promise<BarnReading[]> {
     const status = statusFromAge(row.received_at);
     const controllers = row.decoded_json?.controllers ?? [];
     for (const c of controllers) {
-      const idx = c.idx ?? 0;
+      const idx = Number(c.idx ?? 0);
       const eqpmnNo = c.eqpmnNo ?? String(idx + 1).padStart(2, "0");
       const stallNo = pickStallField(c.stallNo);
       const stallTyCode = pickStallField(c.stallTyCode);
