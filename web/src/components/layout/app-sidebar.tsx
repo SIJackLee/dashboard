@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Leaf, LogOut } from "lucide-react";
+import { Leaf, LogOut, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems } from "./nav-items";
 import { signOut } from "@/app/auth/actions";
@@ -61,6 +61,21 @@ export function AppSidebar({ user }: AppSidebarProps) {
             </Link>
           );
         })}
+
+        {user.role === "admin" && (
+          <Link
+            href="/admin/users"
+            className={cn(
+              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              pathname.startsWith("/admin")
+                ? "bg-emerald-50 text-emerald-700"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <ShieldCheck className="size-4" />
+            사용자 관리
+          </Link>
+        )}
       </nav>
 
       {/* 계정 */}
