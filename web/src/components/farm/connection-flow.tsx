@@ -1,14 +1,23 @@
 import { Radio, Wifi, Boxes, Cpu, ChevronRight } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
+import type { FarmOverview } from "@/lib/data/iot";
 
-const steps = [
-  { label: "게이트웨이", icon: Radio },
-  { label: "네트워크", icon: Wifi },
-  { label: "모듈", icon: Boxes },
-  { label: "컨트롤러", icon: Cpu },
-];
+export function ConnectionFlow({ overview }: { overview?: FarmOverview }) {
+  const steps = [
+    { label: "게이트웨이", icon: Radio, value: "--" },
+    { label: "네트워크", icon: Wifi, value: "--" },
+    {
+      label: "모듈",
+      icon: Boxes,
+      value: overview ? `${overview.moduleCount}개` : "--",
+    },
+    {
+      label: "컨트롤러",
+      icon: Cpu,
+      value: overview ? `${overview.controllerCount}개` : "--",
+    },
+  ];
 
-export function ConnectionFlow() {
   return (
     <SectionCard title="연결 상태">
       <div className="flex items-center justify-between">
@@ -19,7 +28,7 @@ export function ConnectionFlow() {
                 <s.icon className="size-5 text-muted-foreground" />
               </span>
               <span className="text-xs font-medium">{s.label}</span>
-              <span className="text-[10px] text-muted-foreground">--</span>
+              <span className="text-[10px] text-muted-foreground">{s.value}</span>
             </div>
             {i < steps.length - 1 && (
               <ChevronRight className="size-4 shrink-0 text-muted-foreground" />

@@ -1,28 +1,50 @@
 import { SectionCard } from "@/components/common/section-card";
 import { StatusBadge } from "@/components/common/status-badge";
+import type { ModuleReceipt } from "@/lib/data/iot";
 
-// 최근 활동(센서 수신/명령) 골격. 항목은 추후 매칭.
-export function RecentActivityList() {
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return d.toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Seoul",
+  });
+}
+
+// 최근 활동(센서 수신): 모듈별 최신 수신 시각
+export function RecentActivityList({
+  receipts = [],
+}: {
+  receipts?: ModuleReceipt[];
+}) {
+  const items = receipts.slice(0, 6);
   return (
-    <SectionCard
-      title="최근 활동"
-      action={
-        <button className="text-xs text-muted-foreground hover:text-foreground">
-          더보기
-        </button>
-      }
-    >
-      <ul className="space-y-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <li key={i} className="flex items-center gap-3">
-            <StatusBadge tone="normal" />
-            <span className="flex-1 truncate text-sm text-muted-foreground">
-              활동 내용 (데이터 추후 매칭)
-            </span>
-            <span className="text-xs text-muted-foreground">--:--</span>
-          </li>
-        ))}
-      </ul>
+    <SectionCard title="최근 활동" description="모듈별 센서 수신">
+      {items.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          최근 수신 데이터가 없습니다.
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {items.map((r) => (
+            <li
+              key={`${r.farmUid}-${r.moduleUid}`}
+              className="flex items-center gap-3"
+            >
+              <StatusBadge tone={r.status} />
+              <span className="flex-1 truncate text-sm">
+                농장 {r.farmUid} · 모듈 {r.moduleUid} 센서 수신
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {fmtTime(r.receivedAt)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </SectionCard>
   );
 }
