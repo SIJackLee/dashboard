@@ -171,6 +171,54 @@ export function summarizeBarns(readings: BarnReading[]): BarnSummary {
   };
 }
 
+/** 축사 페이지 차트·비교용. stallNo 있으면 축사별 평균, 없으면 컨트롤러 단위. */
+export type BarnCompareRow = {
+  key: string;
+  label: string;
+  tempC: number | null;
+  humidityPct: number | null;
+  fanSupply: number | null;
+  fanExhaust: number | null;
+  fanIntake: number | null;
+  status: ControllerStatus;
+};
+
+export {
+  buildControllerSlotSeries,
+  CONTROLLER_SLOT_COUNT,
+  type ControllerMetricKey,
+  type ControllerSlotReading,
+  type ChartSlotItem,
+} from "@/lib/data/iot-chart";
+
+export function buildBarnCompareRows(readings: BarnReading[]): BarnCompareRow[] {
+  const groups = new Map<string, BarnReading[]>();
+  for (const r of readings) {
+    const gk = r.stallNo
+      ? `${r.farmUid}-${r.moduleUid}-${r.stallNo}`
+      : r.key;
+    const list = groups.get(gk) ?? [];
+    list.push(r);
+    groups.set(gk, list);
+  }
+
+  return [...groups.entries()]
+    .map(([key, matched]) => {
+      const head = matched[0];
+      return {
+        key,
+        label: head.stallNo ? `축사 ${head.stallNo}` : head.label,
+        tempC: avg(matched.map((m) => m.tempC)),
+        humidityPct: avg(matched.map((m) => m.humidityPct)),
+        fanSupply: avg(matched.map((m) => m.fanSupply)),
+        fanExhaust: avg(matched.map((m) => m.fanExhaust)),
+        fanIntake: avg(matched.map((m) => m.fanIntake)),
+        status: worstStatus(matched.map((m) => m.status)),
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "ko"));
+}
+
 export type ModuleReceipt = {
   farmUid: number;
   moduleUid: number;
