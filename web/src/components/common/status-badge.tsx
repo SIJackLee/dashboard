@@ -13,14 +13,24 @@ const toneMap: Record<StatusTone, { label: string; className: string }> = {
 type StatusBadgeProps = {
   tone: StatusTone;
   label?: string;
+  /** 지도 카드 등 좁은 공간용 */
+  compact?: boolean;
 };
 
-export function StatusBadge({ tone, label }: StatusBadgeProps) {
+export function StatusBadge({ tone, label, compact }: StatusBadgeProps) {
   const conf = toneMap[tone];
+  const text = label ?? conf.label;
   return (
-    <Badge variant="secondary" className={cn("gap-1", conf.className)}>
-      <span className="size-1.5 rounded-full bg-current" />
-      {label ?? conf.label}
+    <Badge
+      variant="secondary"
+      className={cn(
+        "gap-1 shrink-0 max-w-full",
+        compact && "px-1.5 py-0 text-[10px]",
+        conf.className
+      )}
+    >
+      <span className="size-1.5 shrink-0 rounded-full bg-current" />
+      <span className={cn(compact && "truncate")}>{text}</span>
     </Badge>
   );
 }

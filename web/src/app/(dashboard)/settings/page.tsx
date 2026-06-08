@@ -1,34 +1,51 @@
 import { PageShell } from "@/components/layout/page-shell";
-import { SettingsTabNav } from "@/components/settings/settings-tab-nav";
-import { DisplaySettingsForm } from "@/components/settings/display-settings-form";
-import { DataCollectionForm } from "@/components/settings/data-collection-form";
-import { AlarmThresholdForm } from "@/components/settings/alarm-threshold-form";
-import { ControllerMetaForm } from "@/components/settings/controller-meta-form";
-import { MqttConfigForm } from "@/components/settings/mqtt-config-form";
-import { LiveSummaryPanel } from "@/components/settings/live-summary-panel";
+import { SettingsView } from "@/components/settings/settings-view";
+import { getBarnMetas } from "@/lib/data/barn-meta";
+import { buildStallCatalog, getBarnReadings } from "@/lib/data/iot";
+import type { SettingsTabId } from "@/components/settings/settings-tab-nav";
 
-export default function SettingsPage() {
+const barnNotices: Record<string, { tone: "ok" | "error"; text: string }> = {
+  saved: { tone: "ok", text: "축사 설정을 저장했습니다." },
+  invalid: { tone: "error", text: "입력값이 올바르지 않습니다." },
+  save: { tone: "error", text: "저장에 실패했습니다. 권한을 확인하세요." },
+};
+
+const validTabs = new Set<SettingsTabId>([
+  "dashboard",
+  "farm",
+  "barn",
+  "controller",
+  "alarm",
+  "log",
+]);
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; ok?: string; error?: string }>;
+}) {
+  const { tab, ok, error } = await searchParams;
+  const [barnMetas, readings] = await Promise.all([
+    getBarnMetas(),
+    getBarnReadings(),
+  ]);
+  const stallCatalog = buildStallCatalog(readings);
+  const initialTab =
+    tab && validTabs.has(tab as SettingsTabId) ? (tab as SettingsTabId) : "dashboard";
+  const barnNotice = ok
+    ? barnNotices[ok]
+    : error
+      ? barnNotices[error]
+      : null;
+
   return (
     <PageShell title="설정">
-      <SettingsTabNav />
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
-          <DisplaySettingsForm />
-          <DataCollectionForm />
-          <AlarmThresholdForm />
-          <ControllerMetaForm />
-          <MqttConfigForm />
-          <div className="flex justify-end gap-2">
-            <button className="rounded-md border px-4 py-2 text-sm hover:bg-muted">
-              초기화
-            </button>
-            <button className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-              저장
-            </button>
-          </div>
-        </div>
-        <LiveSummaryPanel />
-      </div>
+      <SettingsView
+        barnMetas={barnMetas}
+        stallCatalog={stallCatalog}
+        barnNotice={barnNotice}
+        initialTab={initialTab}
+      />
     </PageShell>
   );
 }

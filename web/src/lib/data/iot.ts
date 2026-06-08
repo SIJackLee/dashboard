@@ -1,5 +1,8 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import type { BarnMeta } from "@/lib/data/barn-meta";
+export type { StallCatalogEntry } from "@/lib/data/stall-catalog";
+export { buildStallCatalog } from "@/lib/data/stall-catalog";
 
 // ES/EC 배열의 어느 원소를 "현재값"으로 볼지. (가정: 마지막 원소가 최신)
 const READING_AT: "last" | "first" = "last";
@@ -12,6 +15,8 @@ export type BarnReading = {
   moduleUid: number;
   idx: number;
   eqpmnNo: string;
+  stallNo: string | null;
+  stallTyCode: string | null;
   label: string;
   tempC: number | null;
   humidityPct: number | null;
@@ -39,6 +44,8 @@ export type BarnSummary = {
 type DecodedController = {
   idx?: number;
   eqpmnNo?: string;
+  stallNo?: unknown;
+  stallTyCode?: unknown;
   ES01?: unknown;
   ES02?: unknown;
   EC01?: unknown;
@@ -46,6 +53,12 @@ type DecodedController = {
   EC03?: unknown;
   mesureDt?: string;
 };
+
+function pickStallField(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s.length > 0 ? s : null;
+}
 
 type DecodedJson = {
   controllers?: DecodedController[];
@@ -83,9 +96,9 @@ function statusFromAge(receivedAt: string): ControllerStatus {
 }
 
 /**
- * 접근 가능한 농장의 최신 decoded 스냅샷을 컨트롤러(idx) 단위로 반환.
- * RLS(user_can_read_farm)가 농장 단위 읽기를 강제하므로 추가 필터 불필요.
- * 사용자 정의 "축사 지정" 메타데이터 도입 전까지 컨트롤러를 행 단위로 노출.
+ * 최신 decoded 스냅샷을 컨트롤러(idx) 단위로 반환.
+ * 계층: farm → module(통신모듈, ctrl 최대 50) → idx. 축사(stallNo)는 통신모듈 전송(decoded_json).
+ * 농장 지도 등 축사 UI 는 aggregateByBarn() 으로 stallNo 별 집계.
  */
 export async function getBarnReadings(): Promise<BarnReading[]> {
   const supabase = await createClient();
@@ -112,13 +125,17 @@ export async function getBarnReadings(): Promise<BarnReading[]> {
     for (const c of controllers) {
       const idx = c.idx ?? 0;
       const eqpmnNo = c.eqpmnNo ?? String(idx + 1).padStart(2, "0");
+      const stallNo = pickStallField(c.stallNo);
+      const stallTyCode = pickStallField(c.stallTyCode);
       readings.push({
         key: `${row.farm_uid}-${row.module_uid}-${idx}`,
         farmUid: row.farm_uid,
         moduleUid: row.module_uid,
         idx,
         eqpmnNo,
-        label: `컨트롤러 ${eqpmnNo}`,
+        stallNo,
+        stallTyCode,
+        label: stallNo ? `축사 ${stallNo}` : `컨트롤러 ${eqpmnNo}`,
         tempC: pick(c.ES01),
         humidityPct: pick(c.ES02),
         fanSupply: pick(c.EC01),
@@ -177,6 +194,63 @@ export type FarmOverview = {
 function avg(nums: (number | null)[]): number | null {
   const v = nums.filter((n): n is number => n !== null);
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+
+const STATUS_RANK: Record<ControllerStatus, number> = {
+  normal: 0,
+  caution: 1,
+  offline: 2,
+};
+
+function worstStatus(statuses: ControllerStatus[]): ControllerStatus {
+  if (statuses.length === 0) return "offline";
+  return statuses.reduce((w, s) =>
+    STATUS_RANK[s] > STATUS_RANK[w] ? s : w
+  );
+}
+
+export type BarnMapSnapshot = {
+  meta: BarnMeta;
+  controllerCount: number;
+  tempC: number | null;
+  humidityPct: number | null;
+  fanSupply: number | null;
+  fanExhaust: number | null;
+  fanIntake: number | null;
+  status: ControllerStatus;
+  receivedAt: string | null;
+};
+
+/** stallNo 기준 집계. 축사 1개에 컨트롤러 여러 대 (통신모듈 idx별 동일 stall_no). */
+export function aggregateByBarn(
+  readings: BarnReading[],
+  barnMetas: BarnMeta[]
+): BarnMapSnapshot[] {
+  return barnMetas.map((meta) => {
+    const matched = readings.filter(
+      (r) =>
+        r.farmUid === meta.farmUid &&
+        r.moduleUid === meta.moduleUid &&
+        r.stallNo === meta.stallNo
+    );
+
+    const latestReceived = matched.reduce<string | null>((latest, r) => {
+      if (!latest) return r.receivedAt;
+      return new Date(r.receivedAt) > new Date(latest) ? r.receivedAt : latest;
+    }, null);
+
+    return {
+      meta,
+      controllerCount: matched.length,
+      tempC: avg(matched.map((r) => r.tempC)),
+      humidityPct: avg(matched.map((r) => r.humidityPct)),
+      fanSupply: avg(matched.map((r) => r.fanSupply)),
+      fanExhaust: avg(matched.map((r) => r.fanExhaust)),
+      fanIntake: avg(matched.map((r) => r.fanIntake)),
+      status: worstStatus(matched.map((r) => r.status)),
+      receivedAt: latestReceived,
+    };
+  });
 }
 
 export function summarizeFarm(readings: BarnReading[]): FarmOverview {

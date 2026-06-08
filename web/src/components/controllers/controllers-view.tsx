@@ -13,10 +13,22 @@ function uniqueOptions(values: number[], prefix: string): Option[] {
     .map((v) => ({ value: String(v), label: `${prefix} ${v}` }));
 }
 
+function pickInitial(
+  options: Option[],
+  preferred: string | undefined
+): string {
+  if (preferred && options.some((o) => o.value === preferred)) return preferred;
+  return options[0]?.value ?? "";
+}
+
 export function ControllersView({
   readings,
+  initialFarm,
+  initialModule,
 }: {
   readings: ControllerReading[];
+  initialFarm?: string;
+  initialModule?: string;
 }) {
   const router = useRouter();
 
@@ -25,7 +37,9 @@ export function ControllersView({
     [readings]
   );
 
-  const [farm, setFarm] = useState(farmOptions[0]?.value ?? "");
+  const [farm, setFarm] = useState(() =>
+    pickInitial(farmOptions, initialFarm)
+  );
 
   const moduleOptions = useMemo(
     () =>
@@ -36,7 +50,14 @@ export function ControllersView({
     [readings, farm]
   );
 
-  const [module, setModule] = useState(moduleOptions[0]?.value ?? "");
+  const [module, setModule] = useState(() => {
+    const f = pickInitial(farmOptions, initialFarm);
+    const mods = uniqueOptions(
+      readings.filter((r) => String(r.farmUid) === f).map((r) => r.moduleUid),
+      "모듈"
+    );
+    return pickInitial(mods, initialModule);
+  });
 
   const controllerList = useMemo(
     () =>
