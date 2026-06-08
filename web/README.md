@@ -47,6 +47,27 @@ npm run lint
 - `src/lib/supabase/*` — Supabase 클라이언트(client/server/admin/middleware)
 - `src/proxy.ts` — Next 16 미들웨어(세션 갱신 + 라우트 보호)
 
+## Vercel 배포
+
+이 저장소는 Next.js 앱이 **`web/`** 폴더에 있다. Vercel 프로젝트에서 아래를 설정한다.
+
+| 설정 | 값 |
+| --- | --- |
+| **Root Directory** | `web` |
+| Framework Preset | Next.js (자동 감지) |
+| Build Command | `npm run build` (기본값) |
+| Output Directory | `.next` (기본값) |
+
+**Environment Variables** (Production·Preview·Development 모두):
+
+| 이름 | 형식 예시 |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<project-ref>.supabase.co` (프로젝트 ref만 넣으면 안 됨) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Dashboard → Settings → API → anon |
+| `SUPABASE_SERVICE_ROLE_KEY` | 동일 화면 service_role (서버 전용) |
+
+설정 후 **Redeploy**. 정상이면 `/` → `/login` 리다이렉트가 보인다. `404 NOT_FOUND`가 나오면 Root Directory가 `web`인지 먼저 확인한다.
+
 ## 더 보기
 
 전체 작업 맥락·데이터 구조·의사결정은 [`../docs/PROJECT_CONTEXT.md`](../docs/PROJECT_CONTEXT.md) 참고.
