@@ -1,8 +1,7 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { listManagedUsers, type ManagedUser } from "@/lib/admin/list-users";
-import { GrantAccessForm } from "@/components/admin/grant-access-form";
-import { UserTable } from "@/components/admin/user-table";
+import { AdminUsersView } from "@/components/admin/admin-users-view";
 
 const noticeByCode: Record<string, { tone: "ok" | "error"; text: string }> = {
   granted: { tone: "ok", text: "권한을 부여했습니다." },
@@ -48,8 +47,7 @@ export default async function AdminUsersPage({
           {notice.text}
         </p>
       )}
-      <GrantAccessForm />
-      <UserTable users={users} />
+      <AdminUsersView users={users} />
     </PageShell>
   );
 }

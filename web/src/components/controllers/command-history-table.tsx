@@ -69,7 +69,7 @@ export function CommandHistoryTable({ commands = [] }: Props) {
                 </TableCell>
                 <TableCell className="text-xs">{fmtCommand(c)}</TableCell>
                 <TableCell className="text-xs">
-                  F{c.farmUid}/M{c.moduleUid} #{c.ctrlIdx + 1}
+                  농장{c.farmUid}/통신박스{c.moduleUid} #{c.ctrlIdx + 1}
                 </TableCell>
                 <TableCell>
                   <Badge variant={statusVariant(c.status)}>

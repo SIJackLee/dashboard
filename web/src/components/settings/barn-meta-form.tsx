@@ -106,7 +106,7 @@ export function BarnMetaForm({ initialBarns, stallCatalog, notice }: Props) {
 
       <SectionCard
         title="축사 설정"
-        description="농장(farm) 내 축사(stallNo)를 지정합니다. 축사 하나에 컨트롤러 여러 대가 연결될 수 있으며, 통신모듈당 컨트롤러는 최대 50대(idx 0~49)입니다."
+        description="농장(farm) 내 축사(stallNo)를 지정합니다. 축사 하나에 컨트롤러 여러 대가 연결될 수 있으며, 통신박스당 컨트롤러는 최대 50대(idx 0~49)입니다."
         action={
           <button
             type="button"
@@ -120,7 +120,7 @@ export function BarnMetaForm({ initialBarns, stallCatalog, notice }: Props) {
       >
         {stallCatalog.length === 0 && (
           <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            수집 데이터에 축사번호(stallNo)가 아직 없습니다. 통신모듈이 컨트롤러 데이터와
+            수집 데이터에 축사번호(stallNo)가 아직 없습니다. 통신박스가 컨트롤러 데이터와
             함께 stallNo를 전송하면 아래 목록에서 선택할 수 있습니다.
           </p>
         )}
@@ -184,7 +184,7 @@ export function BarnMetaForm({ initialBarns, stallCatalog, notice }: Props) {
                               <SelectItem key={catalogKey(c)} value={catalogKey(c)}>
                                 stallNo {c.stallNo}
                                 {c.stallTyCode ? ` (${c.stallTyCode})` : ""}
-                                {" · "}farm {c.farmUid} / module {c.moduleUid}
+                                {" · "}farm {c.farmUid} / 통신박스 {c.moduleUid}
                                 {c.controllerCount > 1
                                   ? ` · ctrl ${c.controllerCount}`
                                   : ""}
@@ -225,7 +225,7 @@ export function BarnMetaForm({ initialBarns, stallCatalog, notice }: Props) {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label>모듈 UID</Label>
+                      <Label>통신박스 UID</Label>
                       <Input
                         type="number"
                         min={0}

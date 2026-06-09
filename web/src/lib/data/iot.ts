@@ -97,7 +97,7 @@ function statusFromAge(receivedAt: string): ControllerStatus {
 
 /**
  * 최신 decoded 스냅샷을 컨트롤러(idx) 단위로 반환.
- * 계층: farm → module(통신모듈, ctrl 최대 50) → idx. 축사(stallNo)는 통신모듈 전송(decoded_json).
+ * 계층: farm → module(통신박스, ctrl 최대 50) → idx. 축사(stallNo)는 통신박스 전송(decoded_json).
  * 농장 지도 등 축사 UI 는 aggregateByBarn() 으로 stallNo 별 집계.
  */
 export async function getBarnReadings(): Promise<BarnReading[]> {
@@ -218,7 +218,6 @@ export function buildBarnCompareRows(readings: BarnReading[]): BarnCompareRow[] 
     })
     .sort((a, b) => a.label.localeCompare(b.label, "ko"));
 }
-
 export type ModuleReceipt = {
   farmUid: number;
   moduleUid: number;
@@ -269,7 +268,7 @@ export type BarnMapSnapshot = {
   receivedAt: string | null;
 };
 
-/** stallNo 기준 집계. 축사 1개에 컨트롤러 여러 대 (통신모듈 idx별 동일 stall_no). */
+/** stallNo 기준 집계. 축사 1개에 컨트롤러 여러 대 (통신박스 idx별 동일 stall_no). */
 export function aggregateByBarn(
   readings: BarnReading[],
   barnMetas: BarnMeta[]
@@ -332,3 +331,4 @@ export function summarizeFarm(readings: BarnReading[]): FarmOverview {
     receipts,
   };
 }
+

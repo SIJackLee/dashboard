@@ -13,7 +13,7 @@ export function FarmSummaryGrid({ overview }: { overview?: FarmOverview }) {
         value={fmt(overview?.farmCount)}
       />
       <StatCard
-        label="모듈 수"
+        label="통신박스 수"
         icon={Boxes}
         accent="sky"
         value={fmt(overview?.moduleCount)}

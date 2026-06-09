@@ -1,8 +1,11 @@
+"use client";
+
 import { Trash2 } from "lucide-react";
 import { revokeAccess } from "@/app/(dashboard)/admin/users/actions";
 import type { ManagedUser } from "@/lib/admin/list-users";
 import { SectionCard } from "@/components/common/section-card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -18,7 +21,13 @@ const roleLabel: Record<string, string> = {
   viewer: "뷰어",
 };
 
-export function UserTable({ users }: { users: ManagedUser[] }) {
+type Props = {
+  users: ManagedUser[];
+  selectedEmail?: string;
+  onEmailSelect: (email: string) => void;
+};
+
+export function UserTable({ users, selectedEmail, onEmailSelect }: Props) {
   return (
     <SectionCard title="사용자 목록" description={`총 ${users.length}명`}>
       <Table>
@@ -33,7 +42,22 @@ export function UserTable({ users }: { users: ManagedUser[] }) {
           {users.map((u) => (
             <TableRow key={u.id}>
               <TableCell className="font-medium">
-                {u.email ?? "(이메일 없음)"}
+                {u.email ? (
+                  <button
+                    type="button"
+                    onClick={() => onEmailSelect(u.email!)}
+                    className={cn(
+                      "text-left hover:text-emerald-700 hover:underline",
+                      selectedEmail === u.email &&
+                        "text-emerald-700 underline decoration-emerald-600/60"
+                    )}
+                    title="클릭하면 위 권한 부여 폼에 이메일이 채워집니다"
+                  >
+                    {u.email}
+                  </button>
+                ) : (
+                  "(이메일 없음)"
+                )}
               </TableCell>
               <TableCell>
                 {u.role ? (

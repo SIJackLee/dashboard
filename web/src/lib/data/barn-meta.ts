@@ -8,7 +8,7 @@ export type BarnMeta = {
   id: string;
   farmUid: number;
   moduleUid: number;
-  /** 통신모듈 전송 축사(칸) 식별자 (decoded_json.stallNo) */
+  /** 통신박스 전송 축사(칸) 식별자 (decoded_json.stallNo) */
   stallNo: string;
   name: string;
   grid: { col: number; row: number };

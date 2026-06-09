@@ -26,7 +26,7 @@ export function FarmMapGateway({ online, moduleCount }: Props) {
         통신 게이트웨이
       </p>
       <p className="w-full truncate text-[9px] leading-tight text-muted-foreground">
-        {online ? "온라인" : "오프라인"} · 모듈 {moduleCount}
+        {online ? "온라인" : "오프라인"} · 통신박스 {moduleCount}
       </p>
     </div>
   );

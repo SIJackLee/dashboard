@@ -57,7 +57,7 @@ export function buildControllerSlotSeries(
         : matched
             .map((m) => {
               const v = m[metric];
-              return `${m.label} (farm ${m.farmUid}/mod ${m.moduleUid}): ${
+              return `${m.label} (farm ${m.farmUid}/통신박스 ${m.moduleUid}): ${
                 v === null ? "--" : v.toFixed(1)
               }`;
             })

@@ -7,7 +7,7 @@ export function ConnectionFlow({ overview }: { overview?: FarmOverview }) {
     { label: "게이트웨이", icon: Radio, value: "--" },
     { label: "네트워크", icon: Wifi, value: "--" },
     {
-      label: "모듈",
+      label: "통신박스",
       icon: Boxes,
       value: overview ? `${overview.moduleCount}개` : "--",
     },

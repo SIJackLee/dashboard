@@ -54,7 +54,7 @@ export function ControllersView({
     () =>
       uniqueOptions(
         readings.filter((r) => String(r.farmUid) === farm).map((r) => r.moduleUid),
-        "모듈"
+        "통신박스"
       ),
     [readings, farm]
   );
@@ -63,7 +63,7 @@ export function ControllersView({
     const f = pickInitial(farmOptions, initialFarm);
     const mods = uniqueOptions(
       readings.filter((r) => String(r.farmUid) === f).map((r) => r.moduleUid),
-      "모듈"
+      "통신박스"
     );
     return pickInitial(mods, initialModule);
   });
@@ -103,7 +103,7 @@ export function ControllersView({
                       String(r.farmUid) === pickInitial(farmOptions, initialFarm)
                   )
                   .map((r) => r.moduleUid),
-                "모듈"
+                "통신박스"
               ),
               initialModule
             )
@@ -127,7 +127,7 @@ export function ControllersView({
     setFarm(v);
     const firstModule = uniqueOptions(
       readings.filter((r) => String(r.farmUid) === v).map((r) => r.moduleUid),
-      "모듈"
+      "통신박스"
     )[0]?.value;
     const nextModule = firstModule ?? "";
     setModule(nextModule);

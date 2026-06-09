@@ -53,7 +53,7 @@ export function BarnTable({ rows = [] }: { rows?: BarnReading[] }) {
             <TableHead>온도</TableHead>
             <TableHead>습도</TableHead>
             <TableHead>송풍/배기/입기 (%)</TableHead>
-            <TableHead>모듈</TableHead>
+            <TableHead>통신박스</TableHead>
             <TableHead>최근 업데이트</TableHead>
             <TableHead className="w-8" />
           </TableRow>
@@ -89,7 +89,7 @@ export function BarnTable({ rows = [] }: { rows?: BarnReading[] }) {
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  농장 {r.farmUid} · 모듈 {r.moduleUid}
+                  농장 {r.farmUid} · 통신박스 {r.moduleUid}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {fmtTime(r.receivedAt)}

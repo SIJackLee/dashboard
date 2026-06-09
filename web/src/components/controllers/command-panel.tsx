@@ -90,7 +90,7 @@ export function CommandPanel({ target, canCommand }: Props) {
           대상:{" "}
           {target ? (
             <span className="font-medium text-foreground">
-              농장 {target.farmUid} · 모듈 {target.moduleUid} · ctrl{" "}
+              농장 {target.farmUid} · 통신박스 {target.moduleUid} · ctrl{" "}
               {target.eqpmnNo} (idx {target.idx})
             </span>
           ) : (

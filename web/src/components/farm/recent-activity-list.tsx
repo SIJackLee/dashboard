@@ -14,7 +14,7 @@ function fmtTime(iso: string): string {
   });
 }
 
-// 최근 활동(센서 수신): 모듈별 최신 수신 시각
+// 최근 활동(센서 수신): 통신박스별 최신 수신 시각
 export function RecentActivityList({
   receipts = [],
 }: {
@@ -22,7 +22,7 @@ export function RecentActivityList({
 }) {
   const items = receipts.slice(0, 6);
   return (
-    <SectionCard title="최근 활동" description="모듈별 센서 수신">
+    <SectionCard title="최근 활동" description="통신박스별 센서 수신">
       {items.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           최근 수신 데이터가 없습니다.
@@ -36,7 +36,7 @@ export function RecentActivityList({
             >
               <StatusBadge tone={r.status} />
               <span className="flex-1 truncate text-sm">
-                농장 {r.farmUid} · 모듈 {r.moduleUid} 센서 수신
+                농장 {r.farmUid} · 통신박스 {r.moduleUid} 센서 수신
               </span>
               <span className="text-xs text-muted-foreground">
                 {fmtTime(r.receivedAt)}

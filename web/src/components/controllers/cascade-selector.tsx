@@ -63,7 +63,7 @@ function Field({
   );
 }
 
-// 농장 > 축사(모듈) > 컨트롤러 계층 선택
+// 농장 > 통신박스 > 컨트롤러 계층 선택
 export function CascadeSelector({
   farmOptions,
   moduleOptions,
@@ -87,8 +87,8 @@ export function CascadeSelector({
           onChange={onFarmChange}
         />
         <Field
-          label="축사(모듈) 선택"
-          placeholder="모듈 선택"
+          label="통신박스 선택"
+          placeholder="통신박스 선택"
           value={module}
           options={moduleOptions}
           onChange={onModuleChange}

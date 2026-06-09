@@ -13,7 +13,7 @@ type Props = {
   onSelect?: (key: string) => void;
 };
 
-// 축사(모듈) 내 컨트롤러 목록 (최대 50대). 클릭 시 상세 선택.
+// 통신박스 내 컨트롤러 목록 (최대 50대). 클릭 시 상세 선택.
 export function ControllerListPanel({ items = [], selectedKey, onSelect }: Props) {
   return (
     <SectionCard title="축사 내 컨트롤러 목록" description={`${items.length}대`}>

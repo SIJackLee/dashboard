@@ -1,3 +1,5 @@
+"use client";
+
 import { UserPlus } from "lucide-react";
 import { grantFarmAccess } from "@/app/(dashboard)/admin/users/actions";
 import { SectionCard } from "@/components/common/section-card";
@@ -5,7 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 
-export function GrantAccessForm() {
+type Props = {
+  email: string;
+  onEmailChange: (email: string) => void;
+};
+
+export function GrantAccessForm({ email, onEmailChange }: Props) {
   return (
     <SectionCard
       title="농장 접근 권한 부여"
@@ -22,6 +29,8 @@ export function GrantAccessForm() {
             name="email"
             type="email"
             placeholder="name@example.com"
+            value={email}
+            onChange={(e) => onEmailChange(e.target.value)}
             required
           />
         </div>
