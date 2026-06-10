@@ -8,13 +8,14 @@ import { RecentActivityList } from "@/components/farm/recent-activity-list";
 import { getBarnMetas } from "@/lib/data/barn-meta";
 import {
   aggregateByBarn,
-  getBarnReadings,
+  getLiveReadings,
   summarizeFarm,
 } from "@/lib/data/iot";
+import { FIRMWARE_CTRL_COUNT } from "@/lib/data/iot-firmware";
 
 export default async function FarmPage() {
   const [readings, barnMetas] = await Promise.all([
-    getBarnReadings(),
+    getLiveReadings(),
     getBarnMetas(),
   ]);
   const overview = summarizeFarm(readings);
@@ -36,7 +37,10 @@ export default async function FarmPage() {
           <SignalStrengthBar />
         </div>
         <div className="space-y-6">
-          <FarmSummaryGrid overview={overview} />
+          <FarmSummaryGrid
+            overview={overview}
+            liveCtrlHint={`LIVE ${overview.controllerCount} ctrl (v0x06: ${FIRMWARE_CTRL_COUNT})`}
+          />
           <EnvAveragePanel overview={overview} />
           <RecentActivityList receipts={overview.receipts} />
         </div>

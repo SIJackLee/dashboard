@@ -11,18 +11,29 @@ import { BarnMetaForm } from "./barn-meta-form";
 import { SettingsTabNav, type SettingsTabId } from "./settings-tab-nav";
 import type { BarnMeta } from "@/lib/data/barn-meta";
 import type { StallCatalogEntry } from "@/lib/data/stall-catalog";
+import type { BarnReading } from "@/lib/data/iot";
+import type { LiveSummary } from "@/lib/data/iot-live";
+import type { ControllerMetaEntry } from "@/lib/data/controller-meta";
 
 type Props = {
   barnMetas: BarnMeta[];
   stallCatalog: StallCatalogEntry[];
+  readings: BarnReading[];
+  liveSummary: LiveSummary;
+  controllerMetas: ControllerMetaEntry[];
   barnNotice?: { tone: "ok" | "error"; text: string } | null;
+  controllerNotice?: { tone: "ok" | "error"; text: string } | null;
   initialTab?: SettingsTabId;
 };
 
 export function SettingsView({
   barnMetas,
   stallCatalog,
+  readings,
+  liveSummary,
+  controllerMetas,
   barnNotice,
+  controllerNotice,
   initialTab = "dashboard",
 }: Props) {
   const [tab, setTab] = useState<SettingsTabId>(initialTab);
@@ -51,7 +62,13 @@ export function SettingsView({
               notice={barnNotice}
             />
           )}
-          {tab === "controller" && <ControllerMetaForm />}
+          {tab === "controller" && (
+            <ControllerMetaForm
+              readings={readings}
+              initialMetas={controllerMetas}
+              notice={controllerNotice}
+            />
+          )}
           {tab === "alarm" && (
             <p className="rounded-md border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
               알람 설정은 추후 구현 예정입니다.
@@ -82,7 +99,7 @@ export function SettingsView({
             </>
           )}
         </div>
-        <LiveSummaryPanel />
+        <LiveSummaryPanel summary={liveSummary} />
       </div>
     </>
   );

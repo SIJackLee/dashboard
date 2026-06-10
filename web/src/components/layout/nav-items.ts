@@ -6,6 +6,7 @@ import {
   Bell,
   ScrollText,
   Settings,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -20,6 +21,7 @@ export const navItems: NavItem[] = [
   { label: "농장", href: "/farm", icon: Tractor },
   { label: "축사", href: "/barns", icon: Warehouse },
   { label: "컨트롤러", href: "/controllers", icon: Cpu },
+  { label: "백필(REPLAY)", href: "/replay", icon: History },
   { label: "알람", href: "/alarms", icon: Bell },
   { label: "로그", href: "/logs", icon: ScrollText },
   { label: "설정", href: "/settings", icon: Settings },

@@ -3,16 +3,17 @@ import { LogFilterBar } from "@/components/logs/log-filter-bar";
 import { LogSummaryGrid } from "@/components/logs/log-summary-grid";
 import { HourlyEventChart } from "@/components/logs/hourly-event-chart";
 import { LogTable } from "@/components/logs/log-table";
+import { getLogEvents } from "@/lib/data/iot-replay";
 
-export default function LogsPage() {
+export default async function LogsPage() {
+  const events = await getLogEvents(50);
+
   return (
     <PageShell title="시간대별 기록">
-      <LogFilterBar />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <LogSummaryGrid />
-        <HourlyEventChart />
-      </div>
-      <LogTable />
+      <LogFilterBar replayCount={events.length} />
+      <LogSummaryGrid events={events} />
+      <HourlyEventChart events={events} />
+      <LogTable events={events} />
     </PageShell>
   );
 }

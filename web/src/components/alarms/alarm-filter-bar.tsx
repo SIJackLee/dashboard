@@ -2,9 +2,10 @@ import { Search, RefreshCw } from "lucide-react";
 import { FilterBar, SimpleSelect } from "@/components/common/filter-bar";
 import { Input } from "@/components/ui/input";
 
-export function AlarmFilterBar() {
+export function AlarmFilterBar({ total = 0 }: { total?: number }) {
   return (
     <FilterBar>
+      <p className="self-center text-sm text-muted-foreground">활성 {total}건</p>
       <SimpleSelect label="축사" placeholder="전체 축사" />
       <SimpleSelect label="심각도" placeholder="전체 심각도" />
       <SimpleSelect label="상태" placeholder="전체 상태" />

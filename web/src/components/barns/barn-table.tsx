@@ -89,7 +89,7 @@ export function BarnTable({ rows = [] }: { rows?: BarnReading[] }) {
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  농장 {r.farmUid} · 통신박스 {r.moduleUid}
+                  {r.farmKey.lsindRegistNo}/{r.farmKey.itemCode} · 통신박스 {r.moduleUid}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {fmtTime(r.receivedAt)}

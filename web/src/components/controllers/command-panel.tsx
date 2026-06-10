@@ -65,7 +65,8 @@ export function CommandPanel({ target, canCommand }: Props) {
 
     setMessage(null);
     const formData = new FormData();
-    formData.set("farm_uid", String(target.farmUid));
+    formData.set("lsind_regist_no", target.farmKey.lsindRegistNo);
+    formData.set("item_code", target.farmKey.itemCode);
     formData.set("module_uid", String(target.moduleUid));
     formData.set("ctrl_idx", String(target.idx));
     for (const f of fields) {
@@ -90,7 +91,7 @@ export function CommandPanel({ target, canCommand }: Props) {
           대상:{" "}
           {target ? (
             <span className="font-medium text-foreground">
-              농장 {target.farmUid} · 통신박스 {target.moduleUid} · ctrl{" "}
+              {target.farmKey.lsindRegistNo}/{target.farmKey.itemCode} · 통신박스 {target.moduleUid} · ctrl{" "}
               {target.eqpmnNo} (idx {target.idx})
             </span>
           ) : (

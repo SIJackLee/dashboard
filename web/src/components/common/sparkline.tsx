@@ -19,7 +19,7 @@ export function Sparkline({ data = [], className }: SparklineProps) {
           className
         )}
       >
-        추이 데이터 추후 매칭
+        추이 없음
       </div>
     );
   }

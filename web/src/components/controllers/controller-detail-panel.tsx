@@ -36,6 +36,23 @@ export function ControllerDetailPanel({
         <EnvChip kind="temp" value={fmtNum(reading?.tempC)} />
         <EnvChip kind="humidity" value={fmtNum(reading?.humidityPct)} />
       </div>
+      {(reading?.stallNo || reading?.stallTyCode) && (
+        <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+          <div>
+            <dt className="text-muted-foreground">stallNo</dt>
+            <dd>{reading?.stallNo ?? "--"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">stallTyCode</dt>
+            <dd>{reading?.stallTyCode ?? "--"}</dd>
+          </div>
+        </dl>
+      )}
+      {reading?.wireVer != null && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          wire 0x{reading.wireVer.toString(16)} · {reading.packetMode}
+        </p>
+      )}
     </SectionCard>
   );
 }

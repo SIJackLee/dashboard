@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export type FarmAccess = {
   id: number;
-  farm_uid: number;
+  lsindRegistNo: string;
+  itemCode: string;
   can_read: boolean;
   can_command: boolean;
 };
@@ -34,7 +35,7 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
     admin.from("profiles").select("user_id, role, display_name").in("user_id", ids),
     admin
       .from("user_access")
-      .select("id, user_id, farm_uid, can_read, can_command")
+      .select("id, user_id, lsind_regist_no, item_code, can_read, can_command")
       .eq("scope_type", "farm")
       .in("user_id", ids),
   ]);
@@ -47,7 +48,8 @@ export async function listManagedUsers(): Promise<ManagedUser[]> {
     const list = accessMap.get(a.user_id as string) ?? [];
     list.push({
       id: a.id as number,
-      farm_uid: a.farm_uid as number,
+      lsindRegistNo: a.lsind_regist_no as string,
+      itemCode: a.item_code as string,
       can_read: a.can_read as boolean,
       can_command: a.can_command as boolean,
     });

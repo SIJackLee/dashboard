@@ -5,7 +5,8 @@ export type Role = "admin" | "operator" | "viewer";
 
 export type UserAccess = {
   scope_type: "farm" | "module" | "ctrl";
-  farm_uid: number;
+  lsind_regist_no: string;
+  item_code: string;
   module_uid: number | null;
   ctrl_idx: number | null;
   can_read: boolean;
@@ -41,7 +42,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       .maybeSingle(),
     supabase
       .from("user_access")
-      .select("scope_type, farm_uid, module_uid, ctrl_idx, can_read, can_command")
+      .select(
+        "scope_type, lsind_regist_no, item_code, module_uid, ctrl_idx, can_read, can_command"
+      )
       .eq("user_id", user.id),
   ]);
 

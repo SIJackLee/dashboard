@@ -47,11 +47,15 @@ npm run build    # 프로덕션 빌드 검증
 | `module_uid` (smallint) | 통신 모듈 식별자 |
 | `mesure_dt` (text) | 측정 시각 |
 | `received_at` (timestamptz) | 수신 시각 |
+| `mode` (text) | `live` \| `replay` (v0x06) |
+| `chunk_seq` (smallint) | REPLAY burst 청크 (LIVE=0) |
 | `decoded_json` (jsonb) | 디코딩 결과 |
 
-`decoded_json.controllers[]` = 모듈당 컨트롤러 50개 배열. 각 항목:
+**조회 view:** `v_iot_replay_burst_summary`, `v_iot_replay_controllers` 등 (`dashboard/web/supabase/migrations/20260610000000_iot_replay_views.sql`)
 
-- `idx` (0~49), `eqpmnNo` ("01"~"50")
+`decoded_json.controllers[]` — v0x06 LIVE: idx 0~47 (48건). REPLAY: SW 그룹별 ctrl (idx 0~47). 각 항목:
+
+- `idx` (0~47), `eqpmnNo` ("01"~"48")
 - `ES01`: 온도(℃) 배열 (문자열) — 예 `["25.0","24.2"]`
 - `ES02`: 습도(%) 배열 (문자열)
 - `EC01`: **송풍팬** %, `EC02`: **배기팬** %, `EC03`: **입기팬** % (각 10포인트 시계열, 문자열)
@@ -63,8 +67,8 @@ npm run build    # 프로덕션 빌드 검증
 flowchart TB
   F[농장 farm_uid] --> M1[통신모듈 module_uid 1]
   F --> M2[통신모듈 module_uid 2]
-  M1 --> C1["컨트롤러 idx 0~49 (최대 50대/모듈)"]
-  M2 --> C2["컨트롤러 idx 0~49"]
+  M1 --> C1["컨트롤러 idx 0~47 (최대 48대/모듈, SW 12×4)"]
+  M2 --> C2["컨트롤러 idx 0~47"]
   NVM[통신모듈 NVM idx→stall_no] --> C1
   C1 --> S1[축사 stallNo]
   C1 --> S1
@@ -74,19 +78,21 @@ flowchart TB
 | 계층 | 식별자 | 설명 |
 | --- | --- | --- |
 | **농장** | `farm_uid` | 다농장 확장. 농장 하나에 **여러 축사**·**여러 통신모듈** |
-| **통신모듈** | `module_uid` | RS-485 마스터 1대. **모듈당 컨트롤러 최대 50대** (`idx` 0~49, `eqpmnNo` 01~50) |
+| **통신모듈** | `module_uid` | RS-485 마스터 1대. **모듈당 컨트롤러 최대 48대** (`idx` 0~47, `eqpmnNo` 01~48), SW 12개×4 ctrl |
 | **컨트롤러** | `idx` / `eqpmnNo` | 모듈 로컬 번호. 측정값(ES/EC) 보유 단위 |
 | **축사(칸)** | `stallNo` | **통신모듈이 idx별 `stall_no` 설정·전송** (`ver=0x04`). **축사 1개에 컨트롤러 여러 대** 가능 |
 
-- `idx` 50개 상한 = **축사 수가 아니라 통신모듈 1대가 수용하는 컨트롤러 수**.
+- `idx` 48개 상한 = **축사 수가 아니라 통신모듈 1대가 수용하는 컨트롤러 수** (레거시 v0x04는 50).
 - 농장 지도 카드 1장 = **`stallNo` 1개** (소속 컨트롤러 readings 를 평균·최악 상태로 집계).
-- MQTT 1건 = 모듈 1대 스냅샷 (`controllers[]` 길이 ≤ 50).
+- MQTT 1건 = 모듈 1대 스냅샷 (`controllers[]` 길이 ≤ 48 LIVE).
 
 **데이터 계층**: `farm_uid` → `module_uid` → `controllers[idx]` + **통신모듈 NVM `stall_no`** → `decoded_json.stallNo`
 
 **제외 데이터**: NH3, CO2 (수집 불가로 미구현)
 
 ### 파싱 가정 (`web/src/lib/data/iot.ts`)
+- **LIVE UI** = `getLiveReadings()` — 모듈별 최신 `mode=live` 패킷만
+- **REPLAY UI** = `lib/data/iot-replay.ts` — burst·ctrl별 타임라인 (`/replay?idx=`)
 - **축사 식별** = `stallNo` (통신모듈 전송, `stallTyCode` 는 Registry/LUT 보조)
 - **현재값** = 각 ES/EC 배열의 **마지막 원소** (`READING_AT` 상수로 변경 가능)
 - **통신상태** = `received_at` 신선도: 15분 이내 `normal` / 60분 이내 `caution` / 그 외 `offline`
@@ -94,9 +100,14 @@ flowchart TB
 ### 데이터 모듈 분리
 | 파일 | 용도 |
 | --- | --- |
-| `lib/data/iot.ts` | 서버 전용 (`server-only`). Supabase 조회·집계 |
-| `lib/data/iot-chart.ts` | 클라이언트·서버 공용. 차트용 순수 함수 (`buildControllerSlotSeries` 등) |
+| `lib/data/iot.ts` | LIVE readings (`getLiveReadings`) |
+| `lib/data/iot-replay.ts` | REPLAY burst·컨트롤러·로그 이벤트 |
+| `lib/data/iot-live.ts` | 모듈별 LIVE 스냅샷 요약 |
+| `lib/data/iot-chart.ts` | 차트 (`LIVE_SLOT_COUNT=48`, 레거시 50 fallback) |
+| `lib/data/iot-firmware.ts` | 48 ctrl / SW 12×4 상수·헬퍼 |
 | `lib/data/barn-meta.ts` | `profiles.ui_config` 축사 메타 CRUD |
+| `lib/data/controller-meta.ts` | `profiles.ui_config.controllers` 이름 |
+| `lib/data/alarms.ts` | LIVE 기준 파생 알람 |
 
 ## 6. 인증 / 권한 (RLS)
 
@@ -133,9 +144,12 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 | 농장 페이지 실데이터 (요약/환경평균/최근수신/연결상태) | 완료 |
 | 농장 지도 (2D 그리드 카드 맵 + 축사 메타데이터) | 완료 |
 | 축사 메타데이터 설정 (`/settings?tab=barn`) | 완료 |
-| 로그·알람 페이지 차트 | 미구현 (placeholder) |
-| 컨트롤러 페이지 스파크라인 일부 | 미구현 (placeholder) |
-| 컨트롤러 이름 메타데이터 (설정탭 UI만 골격) | 미구현 (저장 연동) |
+| v0x06 LIVE/REPLAY 분리 (`/replay`, `/logs`) | 완료 |
+| 컨트롤러 REPLAY 이력 패널 (ctrl/SW 그룹) | 완료 |
+| 알람 페이지 (LIVE 파생) | 완료 |
+| 통합 대시보드 (`/dashboard`) | 완료 (요약 위젯) |
+| 컨트롤러 이름 메타데이터 | 완료 (`profiles.ui_config.controllers`) |
+| 컨트롤러 EC 스파크라인 | 완료 (EC 시계열 데이터 있을 때) |
 | 명령 downlink Agent (`pending` → MQTT → `sent`) | 미구현 (대시보드는 insert만) |
 
 ## 9. 주요 의사결정

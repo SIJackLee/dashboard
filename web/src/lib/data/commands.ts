@@ -1,12 +1,13 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import type { FarmKey } from "@/lib/data/farm-key";
 
 export type ThermoCommandStatus = "pending" | "sent" | "failed" | "cancelled";
 
 export type ThermoCommand = {
   id: string;
   createdAt: string;
-  farmUid: number;
+  farmKey: FarmKey;
   moduleUid: number;
   ctrlIdx: number;
   minVentPct: number;
@@ -21,7 +22,8 @@ export type ThermoCommand = {
 type Row = {
   id: string;
   created_at: string;
-  farm_uid: number;
+  lsind_regist_no: string;
+  item_code: string;
   module_uid: number;
   ctrl_idx: number;
   min_vent_pct: number;
@@ -37,7 +39,10 @@ function mapRow(row: Row): ThermoCommand {
   return {
     id: row.id,
     createdAt: row.created_at,
-    farmUid: row.farm_uid,
+    farmKey: {
+      lsindRegistNo: row.lsind_regist_no,
+      itemCode: row.item_code,
+    },
     moduleUid: row.module_uid,
     ctrlIdx: row.ctrl_idx,
     minVentPct: row.min_vent_pct,
@@ -59,7 +64,7 @@ export async function getThermoCommandHistory(
   const { data, error } = await supabase
     .from("ctrl_thermo_command")
     .select(
-      "id, created_at, farm_uid, module_uid, ctrl_idx, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg"
+      "id, created_at, lsind_regist_no, item_code, module_uid, ctrl_idx, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg"
     )
     .order("created_at", { ascending: false })
     .limit(limit);

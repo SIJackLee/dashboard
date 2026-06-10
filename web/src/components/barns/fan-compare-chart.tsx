@@ -4,6 +4,7 @@ import {
   type BarnMetricDef,
 } from "@/components/barns/barn-metric-chart-stack";
 import type { ControllerSlotReading } from "@/lib/data/iot-chart";
+import { FIRMWARE_CTRL_COUNT } from "@/lib/data/iot-firmware";
 
 const METRICS: BarnMetricDef[] = [
   { key: "fanSupply", label: "송풍팬", unit: "%", max: 100, barClassName: "bg-emerald-500" },
@@ -17,7 +18,7 @@ type FanCompareChartProps = {
 
 export function FanCompareChart({ readings = [] }: FanCompareChartProps) {
   return (
-    <SectionCard title="팬 비교" description="컨트롤러 1~50">
+    <SectionCard title="팬 비교" description={`LIVE 컨트롤러 1~${FIRMWARE_CTRL_COUNT} (v0x06)`}>
       <BarnMetricChartStack readings={readings} metrics={METRICS} />
     </SectionCard>
   );

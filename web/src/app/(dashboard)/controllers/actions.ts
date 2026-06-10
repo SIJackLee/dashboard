@@ -14,7 +14,8 @@ export async function sendThermoCommandAction(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "unauthorized" };
 
-  const farmUid = Number(formData.get("farm_uid"));
+  const lsindRegistNo = String(formData.get("lsind_regist_no") ?? "").trim();
+  const itemCode = String(formData.get("item_code") ?? "").trim();
   const moduleUid = Number(formData.get("module_uid"));
   const ctrlIdx = Number(formData.get("ctrl_idx"));
   const minVentPct = Number(formData.get("min_vent_pct"));
@@ -24,7 +25,8 @@ export async function sendThermoCommandAction(
   const note = String(formData.get("note") ?? "").trim() || null;
 
   if (
-    !Number.isInteger(farmUid) ||
+    !lsindRegistNo ||
+    !itemCode ||
     !Number.isInteger(moduleUid) ||
     !Number.isInteger(ctrlIdx) ||
     ctrlIdx < 0 ||
@@ -66,7 +68,8 @@ export async function sendThermoCommandAction(
     .from("ctrl_thermo_command")
     .insert({
       created_by: user.id,
-      farm_uid: farmUid,
+      lsind_regist_no: lsindRegistNo,
+      item_code: itemCode,
       module_uid: moduleUid,
       ctrl_idx: ctrlIdx,
       min_vent_pct: Math.round(minVentPct),

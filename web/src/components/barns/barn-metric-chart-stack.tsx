@@ -1,6 +1,7 @@
 import { CompactColumnChart } from "@/components/common/compact-column-chart";
 import {
   buildControllerSlotSeries,
+  resolveSlotCount,
   type ControllerMetricKey,
   type ControllerSlotReading,
 } from "@/lib/data/iot-chart";
@@ -25,6 +26,7 @@ export function BarnMetricChartStack({
   metrics,
   barHeight = 52,
 }: BarnMetricChartStackProps) {
+  const slotCount = resolveSlotCount(readings);
   return (
     <div className="space-y-4">
       {metrics.map((m, i) => (
@@ -42,7 +44,7 @@ export function BarnMetricChartStack({
             </span>
           </div>
           <CompactColumnChart
-            items={buildControllerSlotSeries(readings, m.key)}
+            items={buildControllerSlotSeries(readings, m.key, slotCount)}
             unit={m.unit}
             maxValue={m.max}
             barClassName={m.barClassName}

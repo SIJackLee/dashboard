@@ -4,10 +4,10 @@ import { BarnTable } from "@/components/barns/barn-table";
 import { BarnStatusDonut } from "@/components/barns/barn-status-donut";
 import { TempHumidityCompareChart } from "@/components/barns/temp-humidity-compare-chart";
 import { FanCompareChart } from "@/components/barns/fan-compare-chart";
-import { getBarnReadings, summarizeBarns } from "@/lib/data/iot";
+import { getLiveReadings, summarizeBarns } from "@/lib/data/iot";
 
 export default async function BarnsPage() {
-  const readings = await getBarnReadings();
+  const readings = await getLiveReadings();
   const summary = summarizeBarns(readings);
 
   return (

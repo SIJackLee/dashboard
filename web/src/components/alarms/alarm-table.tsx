@@ -8,11 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { AlarmRow } from "@/lib/data/alarms";
 
-// 온도/습도 임계 초과 파생 알람 중심 (NH3/CO2 제외)
-export function AlarmTable() {
+export function AlarmTable({ alarms }: { alarms: AlarmRow[] }) {
   return (
-    <SectionCard>
+    <SectionCard title="알람 목록" description="LIVE readings 기준 파생 (온습도·통신)">
       <Table>
         <TableHeader>
           <TableRow>
@@ -21,26 +21,36 @@ export function AlarmTable() {
             <TableHead>컨트롤러</TableHead>
             <TableHead>알람유형</TableHead>
             <TableHead>심각도</TableHead>
-            <TableHead>상태</TableHead>
             <TableHead>상세</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <TableRow key={i} className="cursor-pointer">
-              <TableCell className="text-muted-foreground">--</TableCell>
-              <TableCell>--</TableCell>
-              <TableCell>--</TableCell>
-              <TableCell>--</TableCell>
-              <TableCell>
-                <Badge variant="secondary">--</Badge>
+          {alarms.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-muted-foreground">
+                활성 알람 없음
               </TableCell>
-              <TableCell>
-                <Badge variant="outline">--</Badge>
-              </TableCell>
-              <TableCell className="text-muted-foreground">--</TableCell>
             </TableRow>
-          ))}
+          ) : (
+            alarms.map((a) => (
+              <TableRow key={a.id} className="cursor-pointer">
+                <TableCell className="text-xs text-muted-foreground">
+                  {new Date(a.occurredAt).toLocaleString("ko-KR")}
+                </TableCell>
+                <TableCell>{a.stallNo ?? "--"}</TableCell>
+                <TableCell>{a.eqpmnNo}</TableCell>
+                <TableCell>{a.alarmType}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant={a.severity === "critical" ? "destructive" : "secondary"}
+                  >
+                    {a.severity === "critical" ? "심각" : "주의"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-sm">{a.detail}</TableCell>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </Table>
     </SectionCard>

@@ -1,13 +1,13 @@
-import { FileText, Bell, Send, Wifi } from "lucide-react";
+import { ScrollText, History } from "lucide-react";
 import { StatCard } from "@/components/common/stat-card";
+import type { LogEvent } from "@/lib/data/iot-replay";
 
-export function LogSummaryGrid() {
+export function LogSummaryGrid({ events }: { events: LogEvent[] }) {
+  const replay = events.filter((e) => e.eventType === "replay_burst").length;
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <StatCard label="오늘 로그 수" sub="전일 대비" icon={FileText} accent="emerald" />
-      <StatCard label="알람 로그" sub="전일 대비" icon={Bell} accent="red" />
-      <StatCard label="명령 로그" sub="전일 대비" icon={Send} accent="sky" />
-      <StatCard label="데이터 수신율" sub="전일 대비" icon={Wifi} />
+      <StatCard label="전체 이벤트" icon={ScrollText} value={String(events.length)} />
+      <StatCard label="REPLAY burst" icon={History} accent="sky" value={String(replay)} />
     </div>
   );
 }

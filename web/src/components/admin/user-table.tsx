@@ -76,7 +76,7 @@ export function UserTable({ users, selectedEmail, onEmailSelect }: Props) {
                         key={a.id}
                         className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
                       >
-                        농장 {a.farm_uid}
+                        {a.lsindRegistNo}/{a.itemCode}
                         {a.can_command && (
                           <Badge variant="outline" className="h-4 px-1 text-[10px]">
                             명령

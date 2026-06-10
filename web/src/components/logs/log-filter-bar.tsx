@@ -2,9 +2,12 @@ import { Search, RotateCcw } from "lucide-react";
 import { FilterBar, SimpleSelect } from "@/components/common/filter-bar";
 import { Input } from "@/components/ui/input";
 
-export function LogFilterBar() {
+export function LogFilterBar({ replayCount = 0 }: { replayCount?: number }) {
   return (
     <FilterBar>
+      <p className="self-center text-sm text-muted-foreground">
+        REPLAY burst {replayCount}건
+      </p>
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-muted-foreground">날짜</label>
         <Input type="date" className="w-40" />

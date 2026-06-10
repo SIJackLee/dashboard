@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_FARM } from "@/lib/data/farm-key";
 
 const ADMIN_USERS_PATH = "/admin/users";
 
@@ -18,10 +19,15 @@ export async function grantFarmAccess(formData: FormData) {
   await assertAdmin();
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const farmUid = Number(formData.get("farm_uid"));
+  const lsindRegistNo = String(
+    formData.get("lsind_regist_no") ?? DEFAULT_FARM.lsindRegistNo
+  ).trim();
+  const itemCode = String(
+    formData.get("item_code") ?? DEFAULT_FARM.itemCode
+  ).trim();
   const canCommand = formData.get("can_command") === "on";
 
-  if (!email || !Number.isInteger(farmUid) || farmUid < 0) {
+  if (!email || !lsindRegistNo || !itemCode) {
     redirect(`${ADMIN_USERS_PATH}?error=invalid`);
   }
 
@@ -52,7 +58,8 @@ export async function grantFarmAccess(formData: FormData) {
     .select("id")
     .eq("user_id", target.id)
     .eq("scope_type", "farm")
-    .eq("farm_uid", farmUid)
+    .eq("lsind_regist_no", lsindRegistNo)
+    .eq("item_code", itemCode)
     .maybeSingle();
 
   if (dup) {
@@ -64,7 +71,8 @@ export async function grantFarmAccess(formData: FormData) {
     await admin.from("user_access").insert({
       user_id: target.id,
       scope_type: "farm",
-      farm_uid: farmUid,
+      lsind_regist_no: lsindRegistNo,
+      item_code: itemCode,
       can_read: true,
       can_command: canCommand,
     });

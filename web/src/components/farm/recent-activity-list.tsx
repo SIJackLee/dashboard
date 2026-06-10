@@ -1,6 +1,7 @@
 import { SectionCard } from "@/components/common/section-card";
 import { StatusBadge } from "@/components/common/status-badge";
 import type { ModuleReceipt } from "@/lib/data/iot";
+import { farmKeyId } from "@/lib/data/farm-key";
 
 function fmtTime(iso: string): string {
   const d = new Date(iso);
@@ -31,12 +32,12 @@ export function RecentActivityList({
         <ul className="space-y-3">
           {items.map((r) => (
             <li
-              key={`${r.farmUid}-${r.moduleUid}`}
+              key={`${farmKeyId(r.farmKey)}-${r.moduleUid}`}
               className="flex items-center gap-3"
             >
               <StatusBadge tone={r.status} />
               <span className="flex-1 truncate text-sm">
-                농장 {r.farmUid} · 통신박스 {r.moduleUid} 센서 수신
+                {r.farmKey.lsindRegistNo}/{r.farmKey.itemCode} · 통신박스 {r.moduleUid} 센서 수신
               </span>
               <span className="text-xs text-muted-foreground">
                 {fmtTime(r.receivedAt)}

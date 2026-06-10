@@ -1,5 +1,11 @@
+import {
+  compareFarmKey,
+  stallCatalogKey,
+  type FarmKey,
+} from "@/lib/data/farm-key";
+
 export type StallCatalogEntry = {
-  farmUid: number;
+  farmKey: FarmKey;
   moduleUid: number;
   stallNo: string;
   stallTyCode: string | null;
@@ -7,7 +13,7 @@ export type StallCatalogEntry = {
 };
 
 type StallReading = {
-  farmUid: number;
+  farmKey: FarmKey;
   moduleUid: number;
   stallNo: string | null;
   stallTyCode: string | null;
@@ -18,7 +24,7 @@ export function buildStallCatalog(readings: StallReading[]): StallCatalogEntry[]
   const map = new Map<string, StallCatalogEntry>();
   for (const r of readings) {
     if (!r.stallNo) continue;
-    const key = `${r.farmUid}-${r.moduleUid}-${r.stallNo}`;
+    const key = stallCatalogKey(r.farmKey, r.moduleUid, r.stallNo);
     const existing = map.get(key);
     if (existing) {
       existing.controllerCount += 1;
@@ -27,7 +33,7 @@ export function buildStallCatalog(readings: StallReading[]): StallCatalogEntry[]
       }
     } else {
       map.set(key, {
-        farmUid: r.farmUid,
+        farmKey: r.farmKey,
         moduleUid: r.moduleUid,
         stallNo: r.stallNo,
         stallTyCode: r.stallTyCode,
@@ -35,11 +41,11 @@ export function buildStallCatalog(readings: StallReading[]): StallCatalogEntry[]
       });
     }
   }
-  return [...map.values()].sort((a, b) =>
-    a.farmUid !== b.farmUid
-      ? a.farmUid - b.farmUid
-      : a.moduleUid !== b.moduleUid
-        ? a.moduleUid - b.moduleUid
-        : a.stallNo.localeCompare(b.stallNo, undefined, { numeric: true })
-  );
+  return [...map.values()].sort((a, b) => {
+    const farmCmp = compareFarmKey(a.farmKey, b.farmKey);
+    if (farmCmp !== 0) return farmCmp;
+    return a.moduleUid !== b.moduleUid
+      ? a.moduleUid - b.moduleUid
+      : a.stallNo.localeCompare(b.stallNo, undefined, { numeric: true });
+  });
 }

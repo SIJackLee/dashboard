@@ -29,7 +29,7 @@ export function FarmMapCard({
   const router = useRouter();
   const { meta } = snapshot;
   const Icon = meta.type === "office" ? Building2 : Warehouse;
-  const href = `/controllers?farm=${meta.farmUid}&module=${meta.moduleUid}`;
+  const href = `/controllers?lsind=${encodeURIComponent(meta.farmKey.lsindRegistNo)}&item=${encodeURIComponent(meta.farmKey.itemCode)}&module=${meta.moduleUid}`;
 
   const handleNavigate = () => {
     if (!isDragging) router.push(href);
