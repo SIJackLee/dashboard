@@ -1,15 +1,20 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_ALARM_SETTINGS,
   DEFAULT_ALARM_THRESHOLDS,
   type AlarmSettings,
   type AlarmThresholds,
 } from "@/lib/data/alarms";
+import { mergeProfileUiConfig } from "@/lib/data/profile-ui-config";
+import { createClient } from "@/lib/supabase/server";
 
 export type { AlarmSettings, AlarmThresholds };
-export { DEFAULT_ALARM_SETTINGS, DEFAULT_ALARM_THRESHOLDS, resolveThresholds } from "@/lib/data/alarms";
+export {
+  DEFAULT_ALARM_SETTINGS,
+  DEFAULT_ALARM_THRESHOLDS,
+  resolveThresholds,
+} from "@/lib/data/alarms";
 
 function parseThresholds(raw: unknown, fallback: AlarmThresholds): AlarmThresholds {
   if (!raw || typeof raw !== "object") return fallback;
@@ -62,32 +67,9 @@ export async function getAlarmSettings(): Promise<AlarmSettings> {
 export async function saveAlarmSettings(
   settings: AlarmSettings
 ): Promise<{ ok: boolean; error?: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "unauthorized" };
-
-  const { data, error: loadErr } = await supabase
-    .from("profiles")
-    .select("ui_config")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (loadErr) return { ok: false, error: loadErr.message };
-
-  const prev =
-    data?.ui_config && typeof data.ui_config === "object"
-      ? (data.ui_config as Record<string, unknown>)
-      : {};
-
-  const ui_config = { ...prev, alarmSettings: settings };
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ ui_config })
-    .eq("user_id", user.id);
-
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  const normalized = parseAlarmSettings(settings);
+  return mergeProfileUiConfig((prev) => ({
+    ...prev,
+    alarmSettings: normalized,
+  }));
 }

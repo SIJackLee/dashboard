@@ -24,7 +24,6 @@ type Props = {
   initialSettings: AlarmSettings;
   stallCatalog: StallCatalogEntry[];
   readings: BarnReading[];
-  notice?: { tone: "ok" | "error"; text: string } | null;
 };
 
 const fields: { key: keyof AlarmThresholds; label: string; unit: string }[] = [
@@ -53,12 +52,13 @@ function ThresholdGrid({
             step={f.unit === "℃" ? 0.5 : 1}
             className="h-11 text-xl"
             value={values[f.key]}
-            onChange={(e) =>
+            onChange={(e) => {
+              const next = Number(e.target.value);
               onChange({
                 ...values,
-                [f.key]: Number(e.target.value),
-              })
-            }
+                [f.key]: Number.isFinite(next) ? next : values[f.key],
+              });
+            }}
           />
         </div>
       ))}
@@ -74,7 +74,6 @@ export function AlarmThresholdForm({
   initialSettings,
   stallCatalog,
   readings,
-  notice,
 }: Props) {
   const [scope, setScope] = useState<string>("global");
   const [settings, setSettings] = useState<AlarmSettings>(initialSettings);
@@ -148,20 +147,6 @@ export function AlarmThresholdForm({
           </PageActionButton>
         }
       >
-        {notice ? (
-          <p
-            className={cn(
-              "mb-4 rounded-lg border px-4 py-3",
-              dashboardUi.body,
-              notice.tone === "ok"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-red-200 bg-red-50 text-red-800"
-            )}
-          >
-            {notice.text}
-          </p>
-        ) : null}
-
         <div
           className={cn(
             "mb-5 rounded-lg border bg-muted/20 px-4 py-3",

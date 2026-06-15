@@ -2,10 +2,12 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
-import { farmKeysFromAccess } from "@/lib/auth/farm-access";
+import {
+  canEditFarmScope,
+  farmKeysFromAccess,
+} from "@/lib/auth/farm-access";
 import {
   compareFarmKey,
-  farmKeyEq,
   type FarmKey,
 } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
@@ -154,10 +156,9 @@ export async function saveFarmLocation(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "unauthorized" };
 
-  const allowed =
-    user.isAdmin ||
-    farmKeysFromAccess(user).some((fk) => farmKeyEq(fk, input.farmKey));
-  if (!allowed) return { ok: false, error: "forbidden" };
+  if (!canEditFarmScope(user, input.farmKey)) {
+    return { ok: false, error: "forbidden" };
+  }
 
   const supabase = await createClient();
   const payload = {
@@ -202,7 +203,9 @@ export async function getEditableFarmLocationOptions(): Promise<
     }
     farmKeys = [...seen.values()].sort(compareFarmKey);
   } else {
-    farmKeys = farmKeysFromAccess(user);
+    farmKeys = farmKeysFromAccess(user).filter((fk) =>
+      canEditFarmScope(user, fk)
+    );
   }
 
   return farmKeys.map((farmKey) => {

@@ -2,12 +2,23 @@ import { PageShell } from "@/components/layout/page-shell";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { listManagedUsers, type ManagedUser } from "@/lib/admin/list-users";
 import { AdminUsersView } from "@/components/admin/admin-users-view";
+import { getLiveReadings } from "@/lib/data/iot";
+import {
+  farmShortLabel,
+  uniqueFarmKeysFromReadings,
+} from "@/lib/data/farm-summaries";
 
 const noticeByCode: Record<string, { tone: "ok" | "error"; text: string }> = {
   granted: { tone: "ok", text: "권한을 부여했습니다." },
   revoked: { tone: "ok", text: "권한을 회수했습니다." },
+  role_updated: { tone: "ok", text: "역할을 변경했습니다." },
   notfound: { tone: "error", text: "해당 이메일의 가입자를 찾을 수 없습니다." },
   invalid: { tone: "error", text: "입력값이 올바르지 않습니다." },
+  forbidden: { tone: "error", text: "관리자 권한이 필요합니다." },
+  self_demote: {
+    tone: "error",
+    text: "본인 계정의 관리자 역할은 해제할 수 없습니다.",
+  },
 };
 
 export default async function AdminUsersPage({
@@ -15,7 +26,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
-  await requireAdmin();
+  const admin = await requireAdmin();
 
   const { ok, error } = await searchParams;
   const notice = ok ? noticeByCode[ok] : error ? noticeByCode[error] : null;
@@ -27,6 +38,12 @@ export default async function AdminUsersPage({
   } catch {
     configError = true;
   }
+
+  const readings = await getLiveReadings();
+  const farmOptions = uniqueFarmKeysFromReadings(readings).map((farmKey) => ({
+    farmKey,
+    label: farmShortLabel(farmKey),
+  }));
 
   return (
     <PageShell title="사용자 관리">
@@ -47,7 +64,11 @@ export default async function AdminUsersPage({
           {notice.text}
         </p>
       )}
-      <AdminUsersView users={users} />
+      <AdminUsersView
+        users={users}
+        farmOptions={farmOptions}
+        currentUserId={admin.id}
+      />
     </PageShell>
   );
 }

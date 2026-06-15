@@ -10,10 +10,9 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   initialPlayerId: string;
-  notice?: { tone: "ok" | "error"; text: string } | null;
 };
 
-export function PiggyPlayerIdForm({ initialPlayerId, notice }: Props) {
+export function PiggyPlayerIdForm({ initialPlayerId }: Props) {
   const [playerId, setPlayerId] = useState(initialPlayerId);
   const [pending, startTransition] = useTransition();
 
@@ -36,20 +35,6 @@ export function PiggyPlayerIdForm({ initialPlayerId, notice }: Props) {
           </PageActionButton>
         }
       >
-        {notice ? (
-          <p
-            className={cn(
-              "mb-4 rounded-lg border px-4 py-3",
-              dashboardUi.body,
-              notice.tone === "ok"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-red-200 bg-red-50 text-red-800"
-            )}
-          >
-            {notice.text}
-          </p>
-        ) : null}
-
         <label className="block space-y-2">
           <span className={cn("font-medium", dashboardUi.body)}>게임 아이디</span>
           <input

@@ -1,11 +1,12 @@
 import "server-only";
 
-import { createClient } from "@/lib/supabase/server";
 import {
   DEFAULT_DISPLAY_SETTINGS,
   parseDisplaySettings,
   type DisplaySettings,
 } from "@/lib/data/display-settings-shared";
+import { mergeProfileUiConfig } from "@/lib/data/profile-ui-config";
+import { createClient } from "@/lib/supabase/server";
 
 export type {
   DisplaySettingKey,
@@ -39,32 +40,9 @@ export async function getDisplaySettings(): Promise<DisplaySettings> {
 export async function saveDisplaySettings(
   settings: DisplaySettings
 ): Promise<{ ok: boolean; error?: string }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "unauthorized" };
-
-  const { data, error: loadErr } = await supabase
-    .from("profiles")
-    .select("ui_config")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (loadErr) return { ok: false, error: loadErr.message };
-
-  const prev =
-    data?.ui_config && typeof data.ui_config === "object"
-      ? (data.ui_config as Record<string, unknown>)
-      : {};
-
-  const ui_config = { ...prev, displaySettings: settings };
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ ui_config })
-    .eq("user_id", user.id);
-
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
+  const normalized = parseDisplaySettings(settings);
+  return mergeProfileUiConfig((prev) => ({
+    ...prev,
+    displaySettings: normalized,
+  }));
 }

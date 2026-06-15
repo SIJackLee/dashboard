@@ -1,35 +1,16 @@
 "use client";
 
-import {
-  LayoutGrid,
-  Tractor,
-  Cpu,
-  Bell,
-  History,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, LayoutGrid, MapPin, type LucideIcon } from "lucide-react";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { getVisibleSettingsTabIds } from "@/lib/dashboard-sections";
 import { cn } from "@/lib/utils";
 
-export type SettingsTabId =
-  | "dashboard"
-  | "farm"
-  | "barn"
-  | "controller"
-  | "alarm"
-  | "replay";
+export type SettingsTabId = "dashboard" | "farm" | "alarm";
 
-const TAB_META: Record<
-  SettingsTabId,
-  { label: string; icon: LucideIcon }
-> = {
+const TAB_META: Record<SettingsTabId, { label: string; icon: LucideIcon }> = {
   dashboard: { label: "표시", icon: LayoutGrid },
-  farm: { label: "농장", icon: Tractor },
-  barn: { label: "축사", icon: Tractor },
-  controller: { label: "컨트롤러", icon: Cpu },
+  farm: { label: "농장", icon: MapPin },
   alarm: { label: "알람", icon: Bell },
-  replay: { label: "연결 복구", icon: History },
 };
 
 type Props = {

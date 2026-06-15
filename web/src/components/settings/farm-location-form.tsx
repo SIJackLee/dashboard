@@ -11,10 +11,9 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   options: EditableFarmOption[];
-  notice?: { tone: "ok" | "error"; text: string } | null;
 };
 
-export function FarmLocationForm({ options, notice }: Props) {
+export function FarmLocationForm({ options }: Props) {
   const [selectedId, setSelectedId] = useState(
     () =>
       options[0]
@@ -81,7 +80,8 @@ export function FarmLocationForm({ options, notice }: Props) {
   if (options.length === 0) {
     return (
       <p className={cn("rounded-xl border bg-muted/30 px-5 py-8", dashboardUi.body)}>
-        편집 가능한 농장이 없습니다.
+        편집 가능한 농장이 없습니다. 농장 위치 수정은 관리자 또는 해당 농장의
+        명령 권한이 필요합니다.
       </p>
     );
   }
@@ -103,20 +103,6 @@ export function FarmLocationForm({ options, notice }: Props) {
           </PageActionButton>
         }
       >
-        {notice ? (
-          <p
-            className={cn(
-              "mb-4 rounded-lg border px-4 py-3",
-              dashboardUi.body,
-              notice.tone === "ok"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-red-200 bg-red-50 text-red-800"
-            )}
-          >
-            {notice.text}
-          </p>
-        ) : null}
-
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-2">
             <span className={cn("font-medium", dashboardUi.body)}>농장</span>

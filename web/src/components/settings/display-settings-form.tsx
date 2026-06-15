@@ -20,10 +20,9 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   initialSettings: DisplaySettings;
-  notice?: { tone: "ok" | "error"; text: string } | null;
 };
 
-export function DisplaySettingsForm({ initialSettings, notice }: Props) {
+export function DisplaySettingsForm({ initialSettings }: Props) {
   const [settings, setSettings] = useState<DisplaySettings>(initialSettings);
   const [pending, startTransition] = useTransition();
 
@@ -64,20 +63,6 @@ export function DisplaySettingsForm({ initialSettings, notice }: Props) {
           </PageActionButton>
         }
       >
-        {notice ? (
-          <p
-            className={cn(
-              "mb-4 rounded-lg border px-4 py-3",
-              dashboardUi.body,
-              notice.tone === "ok"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                : "border-red-200 bg-red-50 text-red-800"
-            )}
-          >
-            {notice.text}
-          </p>
-        ) : null}
-
         <div className="space-y-5">
           {groups.map((group) => (
             <div key={group.pageId} className="rounded-xl border p-5">

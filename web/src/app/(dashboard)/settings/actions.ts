@@ -5,13 +5,8 @@ import { redirect } from "next/navigation";
 import { saveAlarmSettings } from "@/lib/data/alarm-settings";
 import { saveDisplaySettings } from "@/lib/data/display-settings";
 import { savePiggyPlayerId } from "@/lib/data/piggy-settings";
-import type { DisplaySettings } from "@/lib/data/display-settings-shared";
+import { parseDisplaySettings } from "@/lib/data/display-settings-shared";
 import { validateAlarmThresholds, type AlarmSettings } from "@/lib/data/alarms";
-import { saveBarnMetas, type BarnMeta } from "@/lib/data/barn-meta";
-import {
-  saveControllerMetas,
-  type ControllerMetaEntry,
-} from "@/lib/data/controller-meta";
 import { saveFarmLocation } from "@/lib/data/farm-location";
 
 export async function saveFarmLocationAction(formData: FormData) {
@@ -36,52 +31,15 @@ export async function saveFarmLocationAction(formData: FormData) {
     if (result.error === "invalid_region") {
       redirect("/settings?tab=farm&error=invalid");
     }
+    if (result.error === "forbidden") {
+      redirect("/settings?tab=farm&error=forbidden");
+    }
     redirect("/settings?tab=farm&error=save");
   }
 
   revalidatePath("/farm");
   revalidatePath("/settings");
   redirect("/settings?tab=farm&ok=saved");
-}
-
-export async function saveBarnMetasAction(formData: FormData) {
-  const raw = String(formData.get("barns_json") ?? "[]");
-  let barns: BarnMeta[];
-  try {
-    barns = JSON.parse(raw) as BarnMeta[];
-    if (!Array.isArray(barns)) throw new Error("invalid");
-  } catch {
-    redirect("/settings?tab=barn&error=invalid");
-  }
-
-  const result = await saveBarnMetas(barns);
-  if (!result.ok) {
-    redirect("/settings?tab=barn&error=save");
-  }
-
-  revalidatePath("/farm");
-  revalidatePath("/settings");
-  redirect("/settings?tab=barn&ok=saved");
-}
-
-export async function saveControllerMetasAction(formData: FormData) {
-  const raw = String(formData.get("controllers_json") ?? "[]");
-  let controllers: ControllerMetaEntry[];
-  try {
-    controllers = JSON.parse(raw) as ControllerMetaEntry[];
-    if (!Array.isArray(controllers)) throw new Error("invalid");
-  } catch {
-    redirect("/settings?tab=controller&error=invalid");
-  }
-
-  const result = await saveControllerMetas(controllers);
-  if (!result.ok) {
-    redirect("/settings?tab=controller&error=save");
-  }
-
-  revalidatePath("/controllers");
-  revalidatePath("/settings");
-  redirect("/settings?tab=controller&ok=saved");
 }
 
 export async function saveAlarmSettingsAction(formData: FormData) {
@@ -115,13 +73,14 @@ export async function saveAlarmSettingsAction(formData: FormData) {
 
 export async function saveDisplaySettingsAction(formData: FormData) {
   const raw = String(formData.get("settings_json") ?? "{}");
-  let settings: DisplaySettings;
+  let parsed: unknown;
   try {
-    settings = JSON.parse(raw) as DisplaySettings;
+    parsed = JSON.parse(raw);
   } catch {
     redirect("/settings?tab=dashboard&error=invalid");
   }
 
+  const settings = parseDisplaySettings(parsed);
   const result = await saveDisplaySettings(settings);
   if (!result.ok) {
     redirect("/settings?tab=dashboard&error=save");
