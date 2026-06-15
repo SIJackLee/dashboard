@@ -1,13 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   saveFarmLocationInlineAction,
   saveFarmLocationsBatchInlineAction,
 } from "@/app/(dashboard)/settings/actions";
-import { AppNavLink } from "@/components/layout/app-nav-link";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { SectionCard } from "@/components/common/section-card";
 import { FarmLocationEditFields } from "@/components/settings/farm-location-edit-fields";
@@ -101,7 +100,8 @@ export function AdminFarmLocationPanel({ options, initialFarmKey }: Props) {
   const [draft, setDraft] = useState<LocationDraft>(() =>
     draftFromOption(findOptionById(options, initialId))
   );
-  const [viewMode, setViewMode] = useState<ViewMode>("split");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState<FarmLocationFilter>("all");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(
@@ -304,16 +304,6 @@ export function AdminFarmLocationPanel({ options, initialFarmKey }: Props) {
           >
             테이블 일괄
           </PageActionButton>
-          <AppNavLink
-            href="/farm"
-            message="농장 지도로 이동 중…"
-            className={cn(
-              "inline-flex items-center rounded-lg border px-4 py-2 hover:bg-muted",
-              dashboardUi.body
-            )}
-          >
-            전국 지도
-          </AppNavLink>
         </div>
       </div>
 
@@ -338,24 +328,24 @@ export function AdminFarmLocationPanel({ options, initialFarmKey }: Props) {
         <PageActionButton type="button" variant="outline" onClick={handleExportConfigured}>
           CSV 내보내기
         </PageActionButton>
-        <label
-          className={cn(
-            "inline-flex cursor-pointer items-center rounded-lg border px-4 py-2 hover:bg-muted",
-            dashboardUi.body
-          )}
+        <PageActionButton
+          type="button"
+          variant="outline"
+          onClick={() => csvInputRef.current?.click()}
         >
           CSV 가져오기
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void handleImportCsv(file);
-              e.target.value = "";
-            }}
-          />
-        </label>
+        </PageActionButton>
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleImportCsv(file);
+            e.target.value = "";
+          }}
+        />
       </div>
 
       {viewMode === "table" ? (

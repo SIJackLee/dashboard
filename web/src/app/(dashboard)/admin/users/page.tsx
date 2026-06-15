@@ -10,6 +10,7 @@ import {
 
 const noticeByCode: Record<string, { tone: "ok" | "error"; text: string }> = {
   granted: { tone: "ok", text: "권한을 부여했습니다." },
+  bulk_granted: { tone: "ok", text: "농장 권한을 일괄 부여했습니다." },
   revoked: { tone: "ok", text: "권한을 회수했습니다." },
   role_updated: { tone: "ok", text: "역할을 변경했습니다." },
   notfound: { tone: "error", text: "해당 이메일의 가입자를 찾을 수 없습니다." },
@@ -24,12 +25,18 @@ const noticeByCode: Record<string, { tone: "ok" | "error"; text: string }> = {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ ok?: string; error?: string }>;
+  searchParams: Promise<{ ok?: string; error?: string; count?: string }>;
 }) {
   const admin = await requireAdmin();
 
-  const { ok, error } = await searchParams;
-  const notice = ok ? noticeByCode[ok] : error ? noticeByCode[error] : null;
+  const { ok, error, count } = await searchParams;
+  let notice = ok ? noticeByCode[ok] : error ? noticeByCode[error] : null;
+  if (ok === "bulk_granted" && count) {
+    notice = {
+      tone: "ok",
+      text: `${count}개 농장 권한을 일괄 부여했습니다.`,
+    };
+  }
 
   let users: ManagedUser[] = [];
   let configError = false;
