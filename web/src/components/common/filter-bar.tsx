@@ -41,6 +41,7 @@ type SimpleSelectProps = {
   placeholder?: string;
   options?: { value: string; label: string }[];
   className?: string;
+  triggerClassName?: string;
   value?: string;
   onValueChange?: (value: string | null) => void;
 };
@@ -51,6 +52,7 @@ export function SimpleSelect({
   placeholder = FILTER_ALL_LABEL,
   options = [],
   className,
+  triggerClassName,
   value,
   onValueChange,
 }: SimpleSelectProps) {
@@ -64,7 +66,7 @@ export function SimpleSelect({
       {label && <label className={dashboardUi.filterLabel}>{label}</label>}
       {mounted ? (
         <Select value={value} onValueChange={onValueChange}>
-          <SelectTrigger className="h-11 w-48 text-xl">
+          <SelectTrigger className={cn("h-11 w-48 text-xl", triggerClassName)}>
             <SelectValue placeholder={placeholder}>
               {displayLabel}
             </SelectValue>
@@ -83,7 +85,10 @@ export function SimpleSelect({
         </Select>
       ) : (
         <div
-          className="flex h-11 w-48 items-center rounded-lg border px-2.5 text-xl text-muted-foreground"
+          className={cn(
+            "flex h-11 w-48 items-center rounded-lg border px-2.5 text-xl text-muted-foreground",
+            triggerClassName
+          )}
           aria-hidden
         >
           {displayLabel}

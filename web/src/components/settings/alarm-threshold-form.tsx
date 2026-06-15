@@ -17,7 +17,7 @@ import {
   type AlarmThresholds,
 } from "@/lib/data/alarms";
 import type { StallCatalogEntry } from "@/lib/data/stall-catalog";
-import { formatStallTypeLabel } from "@/lib/data/stall-type";
+import { formatStallTypeLabel, listStallTypeCodesFromReadings, normalizeStallTyCode, stallTyCodeSortKey } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -96,18 +96,33 @@ export function AlarmThresholdForm({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const spOptions = useMemo(
-    () => [
+  const spOptions = useMemo(() => {
+    const options: { value: string; label: string }[] = [
       { value: "global", label: "전체 (기본)" },
-      ...stallCatalog
-        .filter((s): s is typeof s & { stallTyCode: string } => !!s.stallTyCode)
-        .map((s) => ({
-          value: s.stallTyCode,
-          label: formatStallTypeLabel(s.stallTyCode),
-        })),
-    ],
-    [stallCatalog]
-  );
+    ];
+    const codes = new Set<string>();
+
+    for (const code of listStallTypeCodesFromReadings(readings)) {
+      codes.add(code);
+    }
+    for (const code of Object.keys(settings.byStallTyCode)) {
+      const normalized = normalizeStallTyCode(code);
+      if (normalized !== "UNK") codes.add(normalized);
+    }
+    for (const s of stallCatalog) {
+      if (s.stallTyCode) codes.add(normalizeStallTyCode(s.stallTyCode));
+    }
+
+    for (const code of [...codes].sort(
+      (a, b) => stallTyCodeSortKey(a) - stallTyCodeSortKey(b)
+    )) {
+      options.push({
+        value: code,
+        label: formatStallTypeLabel(code),
+      });
+    }
+    return options;
+  }, [readings, settings.byStallTyCode, stallCatalog]);
 
   const activeThresholds =
     scope === "global"
@@ -247,6 +262,7 @@ export function AlarmThresholdForm({
                 options={spOptions}
                 value={scope}
                 onValueChange={(v) => v && setScope(v)}
+                triggerClassName="w-full max-w-md"
               />
               <p className={cn("text-muted-foreground", dashboardUi.tableMeta)}>
                 {scope === "global"

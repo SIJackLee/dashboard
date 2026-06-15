@@ -21,6 +21,7 @@ export function AdminUsersView({ users, farmOptions, currentUserId }: Props) {
         email={email}
         onEmailChange={setEmail}
         farmOptions={farmOptions}
+        users={users}
       />
       <UserTable
         users={users}

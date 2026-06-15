@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SimpleSelect } from "@/components/common/filter-bar";
+import type { ManagedUser } from "@/lib/admin/list-users";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,7 @@ type Props = {
   email: string;
   onEmailChange: (email: string) => void;
   farmOptions: GrantFarmOption[];
+  users: ManagedUser[];
 };
 
 type GrantMode = "single" | "bulk";
@@ -36,10 +38,56 @@ function parseFarmValue(raw: string): FarmKey | null {
   return { lsindRegistNo: lsindRegistNo.trim(), itemCode: itemCode.trim() };
 }
 
+function buildUserEmailOptions(users: ManagedUser[]) {
+  return users
+    .filter((u): u is ManagedUser & { email: string } => !!u.email)
+    .map((u) => ({
+      value: u.email,
+      label: u.displayName ? `${u.displayName} · ${u.email}` : u.email,
+    }));
+}
+
+function UserEmailSelect({
+  id,
+  email,
+  users,
+  onEmailChange,
+}: {
+  id: string;
+  email: string;
+  users: ManagedUser[];
+  onEmailChange: (email: string) => void;
+}) {
+  const emailOptions = useMemo(() => buildUserEmailOptions(users), [users]);
+
+  if (emailOptions.length === 0) {
+    return (
+      <p className={cn("text-muted-foreground", dashboardUi.body)}>
+        선택 가능한 가입자가 없습니다.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <SimpleSelect
+        label=""
+        placeholder="사용자 선택"
+        options={emailOptions}
+        value={email || undefined}
+        onValueChange={(v) => v && onEmailChange(v)}
+        triggerClassName="w-full max-w-xl"
+      />
+      <input type="hidden" id={id} name="email" value={email} required />
+    </>
+  );
+}
+
 export function GrantAccessForm({
   email,
   onEmailChange,
   farmOptions,
+  users,
 }: Props) {
   const [mode, setMode] = useState<GrantMode>("bulk");
   const [canCommand, setCanCommand] = useState(false);
@@ -139,17 +187,13 @@ export function GrantAccessForm({
           <div className="grid gap-4 lg:grid-cols-[2fr_auto] lg:items-end">
             <div className="space-y-2">
               <Label htmlFor="bulk_email" className={dashboardUi.filterLabel}>
-                이메일
+                사용자
               </Label>
-              <Input
-                className="h-11 text-xl"
+              <UserEmailSelect
                 id="bulk_email"
-                name="email"
-                type="email"
-                placeholder="name@example.com"
-                value={email}
-                onChange={(e) => onEmailChange(e.target.value)}
-                required
+                email={email}
+                users={users}
+                onEmailChange={onEmailChange}
               />
             </div>
             <label className={cn("flex items-center gap-3 pb-2", dashboardUi.body)}>
@@ -244,17 +288,13 @@ export function GrantAccessForm({
         >
           <div className="space-y-2">
             <Label htmlFor="email" className={dashboardUi.filterLabel}>
-              이메일
+              사용자
             </Label>
-            <Input
-              className="h-11 text-xl"
+            <UserEmailSelect
               id="email"
-              name="email"
-              type="email"
-              placeholder="name@example.com"
-              value={email}
-              onChange={(e) => onEmailChange(e.target.value)}
-              required
+              email={email}
+              users={users}
+              onEmailChange={onEmailChange}
             />
           </div>
 

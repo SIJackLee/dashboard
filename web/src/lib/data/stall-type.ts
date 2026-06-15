@@ -77,6 +77,48 @@ export function formatStallTypeLabel(code: string | null | undefined): string {
   return getStallTypeName(key);
 }
 
+/** itemCode 첫 글자 → stallTyCode 접두 (P→SP, W→SW …) */
+export function stallTyPrefixFromItemCode(
+  itemCode: string | null | undefined
+): string {
+  const item = (itemCode ?? "").trim().toUpperCase();
+  if (!item) return "SP";
+  const expectedPrefix: Record<string, string> = {
+    W: "SW",
+    D: "SD",
+    P: "SP",
+    H: "SH",
+    T: "ST",
+    R: "SR",
+    I: "SI",
+    B: "SB",
+  };
+  return expectedPrefix[item.charAt(0)] ?? "SP";
+}
+
+/** 축종 접두(SP/SW/…)별 등록된 전체 축사유형 코드 (정렬) */
+export function listStallTypeCodesForPrefixes(prefixes: Iterable<string>): string[] {
+  const prefixSet = new Set(
+    [...prefixes].map((p) => p.trim().toUpperCase()).filter(Boolean)
+  );
+  if (prefixSet.size === 0) prefixSet.add("SP");
+
+  return Object.keys(STALL_TYPE_NAMES)
+    .filter((code) => prefixSet.has(code.slice(0, 2)))
+    .sort((a, b) => stallTyCodeSortKey(a) - stallTyCodeSortKey(b));
+}
+
+/** LIVE readings의 farm itemCode 기준 축종별 전체 축사유형 */
+export function listStallTypeCodesFromReadings(
+  readings: { farmKey?: { itemCode?: string } }[]
+): string[] {
+  const prefixes = new Set<string>();
+  for (const r of readings) {
+    prefixes.add(stallTyPrefixFromItemCode(r.farmKey?.itemCode));
+  }
+  return listStallTypeCodesForPrefixes(prefixes);
+}
+
 /** itemCode 접두(WDPHTRIB)와 stallTyCode 접두(SW/SD/SP/…) 정합성 */
 export function isStallTyValidForItemCode(
   stallTyCode: string | null | undefined,
