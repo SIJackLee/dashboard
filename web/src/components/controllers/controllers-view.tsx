@@ -1,246 +1,389 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { CascadeSelector, type Option } from "./cascade-selector";
-import { ControllerDetailPanel } from "./controller-detail-panel";
-import { ControllerListPanel } from "./controller-list-panel";
-import { CommandPanel } from "./command-panel";
-import { CommandHistoryTable } from "./command-history-table";
-import { ReplayHistoryPanel } from "./replay-history-panel";
-import type { ControllerReading } from "@/lib/data/iot";
-import type { ReplayControllerRow } from "@/lib/data/iot-replay";
-import type { ThermoCommand } from "@/lib/data/commands";
-import {
-  appendFarmKeyParams,
-  farmKeyEq,
-  farmKeyId,
-  parseFarmKeyFromQuery,
-  type FarmKey,
-} from "@/lib/data/farm-key";
-
-function uniqueFarmOptions(readings: ControllerReading[]): Option[] {
-  const seen = new Map<string, FarmKey>();
-  for (const r of readings) {
-    const id = farmKeyId(r.farmKey);
-    if (!seen.has(id)) seen.set(id, r.farmKey);
-  }
-  return [...seen.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([id, fk]) => ({
-      value: id,
-      label: `${fk.lsindRegistNo} / ${fk.itemCode}`,
-    }));
-}
-
-function uniqueModuleOptions(
-  readings: ControllerReading[],
-  farmId: string
-): Option[] {
-  return [...new Set(
-    readings
-      .filter((r) => farmKeyId(r.farmKey) === farmId)
-      .map((r) => r.moduleUid)
-  )]
-    .sort((a, b) => a - b)
-    .map((v) => ({ value: String(v), label: `통신박스 ${v}` }));
-}
-
-function pickInitial(
-  options: Option[],
-  preferred: string | undefined
-): string {
-  if (preferred && options.some((o) => o.value === preferred)) return preferred;
-  return options[0]?.value ?? "";
-}
-
-export function ControllersView({
-  readings,
-  replayHistory = [],
-  initialLsind,
-  initialItem,
-  initialModule,
-  initialCtrl,
-  canCommand,
-  commands = [],
-}: {
-  readings: ControllerReading[];
-  replayHistory?: ReplayControllerRow[];
-  initialLsind?: string;
-  initialItem?: string;
-  initialModule?: string;
-  initialCtrl?: string;
-  canCommand: boolean;
-  commands?: ThermoCommand[];
-}) {
-  const router = useRouter();
-  const initialFarmKey = parseFarmKeyFromQuery(initialLsind, initialItem);
-  const initialFarmId = initialFarmKey ? farmKeyId(initialFarmKey) : undefined;
-
-  const farmOptions = useMemo(
-    () => uniqueFarmOptions(readings),
-    [readings]
-  );
-
-  const [farmId, setFarmId] = useState(() =>
-    pickInitial(farmOptions, initialFarmId)
-  );
-
-  const selectedFarmKey = useMemo((): FarmKey | undefined => {
-    const hit = readings.find((r) => farmKeyId(r.farmKey) === farmId);
-    return hit?.farmKey;
-  }, [readings, farmId]);
-
-  const moduleOptions = useMemo(
-    () => uniqueModuleOptions(readings, farmId),
-    [readings, farmId]
-  );
-
-  const [module, setModule] = useState(() => {
-    const f = pickInitial(farmOptions, initialFarmId);
-    const mods = uniqueModuleOptions(readings, f);
-    return pickInitial(mods, initialModule);
-  });
-
-  const controllerList = useMemo(
-    () =>
-      readings
-        .filter(
-          (r) =>
-            farmKeyId(r.farmKey) === farmId && String(r.moduleUid) === module
-        )
-        .sort((a, b) => a.idx - b.idx),
-    [readings, farmId, module]
-  );
-
-  const moduleReplayHistory = useMemo(
-    () =>
-      replayHistory.filter(
-        (r) =>
-          farmKeyId(r.farmKey) === farmId && String(r.moduleUid) === module
-      ),
-    [replayHistory, farmId, module]
-  );
-
-  const controllerOptions = useMemo(
-    () => controllerList.map((r) => ({ value: r.key, label: r.label })),
-    [controllerList]
-  );
-
-  const pickCtrlKey = (list: ControllerReading[], preferredIdx?: string) => {
-    if (preferredIdx !== undefined) {
-      const hit = list.find((r) => r.idx === Number(preferredIdx));
-      if (hit) return hit.key;
-    }
-    return list[0]?.key ?? "";
-  };
-
-  const [controllerKey, setControllerKey] = useState(() => {
-    const f = pickInitial(farmOptions, initialFarmId);
-    const m = pickInitial(uniqueModuleOptions(readings, f), initialModule);
-    return pickCtrlKey(
-      readings.filter(
-        (r) => farmKeyId(r.farmKey) === f && String(r.moduleUid) === m
-      ),
-      initialCtrl
-    );
-  });
-
-  const selected =
-    controllerList.find((r) => r.key === controllerKey) ?? controllerList[0];
-
-  const selectedReplayRows = useMemo(
-    () =>
-      selected
-        ? moduleReplayHistory.filter((r) => r.idx === selected.idx)
-        : [],
-    [moduleReplayHistory, selected]
-  );
-
-  const syncUrl = (
-    fk: FarmKey | undefined,
-    m: string,
-    ctrl: ControllerReading | undefined
-  ) => {
-    const params = new URLSearchParams();
-    if (fk) appendFarmKeyParams(params, fk);
-    if (m) params.set("module", m);
-    if (ctrl) params.set("ctrl", String(ctrl.idx));
-    router.replace(`/controllers?${params.toString()}`, { scroll: false });
-  };
-
-  const handleFarmChange = (v: string) => {
-    setFarmId(v);
-    const fk = readings.find((r) => farmKeyId(r.farmKey) === v)?.farmKey;
-    const firstModule = uniqueModuleOptions(readings, v)[0]?.value;
-    const nextModule = firstModule ?? "";
-    setModule(nextModule);
-    const list = readings.filter(
-      (r) => farmKeyId(r.farmKey) === v && String(r.moduleUid) === nextModule
-    );
-    const firstCtrl = list[0];
-    setControllerKey(firstCtrl?.key ?? "");
-    syncUrl(fk, nextModule, firstCtrl);
-  };
-
-  const handleModuleChange = (v: string) => {
-    setModule(v);
-    const list = readings.filter(
-      (r) => farmKeyId(r.farmKey) === farmId && String(r.moduleUid) === v
-    );
-    const firstCtrl = list[0];
-    setControllerKey(firstCtrl?.key ?? "");
-    syncUrl(selectedFarmKey, v, firstCtrl);
-  };
-
-  const handleControllerChange = (key: string) => {
-    setControllerKey(key);
-    const ctrl = controllerList.find((r) => r.key === key);
-    syncUrl(selectedFarmKey, module, ctrl);
-  };
-
-  useEffect(() => {
-    if (!initialFarmKey && farmId && module && selected) {
-      syncUrl(selectedFarmKey, module, selected);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount URL bootstrap only
-  }, []);
-
-  return (
-    <>
-      <CascadeSelector
-        farmOptions={farmOptions}
-        moduleOptions={moduleOptions}
-        controllerOptions={controllerOptions}
-        farm={farmId}
-        module={module}
-        controller={selected?.key ?? ""}
-        onFarmChange={handleFarmChange}
-        onModuleChange={handleModuleChange}
-        onControllerChange={handleControllerChange}
-        onRefresh={() => router.refresh()}
-      />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ControllerDetailPanel reading={selected} />
-        <ControllerListPanel
-          items={controllerList}
-          selectedKey={selected?.key}
-          onSelect={handleControllerChange}
-        />
-      </div>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <CommandPanel target={selected} canCommand={canCommand} />
-        <CommandHistoryTable commands={commands} />
-      </div>
-      {selected && selectedFarmKey && (
-        <ReplayHistoryPanel
-          rows={selectedReplayRows}
-          farmKey={selectedFarmKey}
-          moduleUid={Number(module)}
-          ctrlIdx={selected.idx}
-        />
-      )}
-    </>
-  );
-}
-
+"use client";
+
+import dynamic from "next/dynamic";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ControllerContextBar } from "./controller-context-bar";
+import { ControllerPanelFace } from "./controller-panel-face";
+import { CommandHistoryTable } from "./command-history-table";
+import type { ControllerReading } from "@/lib/data/iot";
+import type { ThermoCommand } from "@/lib/data/commands";
+import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
+import { resolveThermoSettings } from "@/lib/controllers/controller-settings";
+import {
+  appendFarmKeyParams,
+  farmKeyId,
+  parseFarmKeyFromQuery,
+  type FarmKey,
+} from "@/lib/data/farm-key";
+import {
+  filterReadingsByFarmAndSp,
+  filterReadingsByHierarchy,
+  stallLabelFromKey,
+  uniqueSpCodes,
+  uniqueStallKeys,
+} from "@/lib/data/reading-hierarchy";
+import { formatStallTypeLabel } from "@/lib/data/stall-type";
+import { farmShortLabel, type FarmSummaryRow } from "@/lib/data/farm-summaries";
+import { useDisplayEnabled } from "@/components/display/display-settings-provider";
+
+const AdminControllerFarmHints = dynamic(
+  () =>
+    import("@/components/admin/admin-controller-farm-hints").then(
+      (m) => m.AdminControllerFarmHints
+    ),
+  { ssr: false }
+);
+
+const AdminControllerPlaceholderClient = dynamic(
+  () =>
+    import("@/components/admin/admin-controller-placeholder").then(
+      (m) => m.AdminControllerPlaceholder
+    ),
+  { ssr: false }
+);
+
+type Option = { value: string; label: string };
+
+type ControllersViewProps = {
+  readings: ControllerReading[];
+  initialLsind?: string;
+  initialItem?: string;
+  initialSp?: string;
+  initialStall?: string;
+  initialCtrl?: string;
+  initialModule?: string;
+  canCommand: boolean;
+  commands?: ThermoCommand[];
+  thermoSettings?: Record<string, ControllerThermoSettings>;
+  isAdmin?: boolean;
+  adminAllFarms?: boolean;
+  farmSummaries?: FarmSummaryRow[];
+};
+
+function uniqueFarmOptions(readings: ControllerReading[]): Option[] {
+  const seen = new Map<string, FarmKey>();
+  for (const r of readings) {
+    const id = farmKeyId(r.farmKey);
+    if (!seen.has(id)) seen.set(id, r.farmKey);
+  }
+  return [...seen.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, fk]) => ({
+      value: id,
+      label: farmShortLabel(fk),
+    }));
+}
+
+function spOptionsForFarm(readings: ControllerReading[], farmId: string): Option[] {
+  return uniqueSpCodes(readings, farmId).map((code) => ({
+    value: code,
+    label: formatStallTypeLabel(code),
+  }));
+}
+
+function stallOptionsForFarmSp(
+  readings: ControllerReading[],
+  farmId: string,
+  spCode: string
+): Option[] {
+  return uniqueStallKeys(readings, farmId, spCode).map((key) => ({
+    value: key,
+    label: stallLabelFromKey(key),
+  }));
+}
+
+function filterControllersForScope(
+  readings: ControllerReading[],
+  farmId: string,
+  spCode: string,
+  stallKey: string
+): ControllerReading[] {
+  if (stallKey) {
+    return filterReadingsByHierarchy(readings, farmId, spCode, stallKey);
+  }
+  return filterReadingsByFarmAndSp(readings, farmId, spCode);
+}
+
+function stallKeyFromControllerParam(ctrl: string | undefined): string | null {
+  if (!ctrl) return null;
+  try {
+    const parts = decodeURIComponent(ctrl).split(":");
+    if (parts.length === 3 && parts[1]?.trim()) {
+      return parts[1]!.trim();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function pickInitialStall(
+  readings: ControllerReading[],
+  farmId: string,
+  spCode: string,
+  preferred?: string,
+  ctrlParam?: string
+): string {
+  const keys = uniqueStallKeys(readings, farmId, spCode);
+  if (preferred && keys.includes(preferred)) return preferred;
+  const fromCtrl = stallKeyFromControllerParam(ctrlParam);
+  if (fromCtrl && keys.includes(fromCtrl)) return fromCtrl;
+  return keys[0] ?? "";
+}
+
+function pickInitial(options: Option[], preferred: string | undefined): string {
+  if (preferred && options.some((o) => o.value === preferred)) return preferred;
+  return options[0]?.value ?? "";
+}
+
+function pickCtrlKey(list: ControllerReading[], preferred?: string) {
+  if (preferred) {
+    const decoded = decodeURIComponent(preferred);
+    const hit = list.find(
+      (r) =>
+        r.controllerKey === decoded ||
+        r.eqpmnNo === preferred ||
+        (r.idx != null && String(r.idx) === preferred)
+    );
+    if (hit) return hit.key;
+  }
+  return list[0]?.key ?? "";
+}
+
+/** URL 농장 스코프 변경 시 remount — soft navigation hydration 불일치 방지 */
+export function ControllersView(props: ControllersViewProps) {
+  const searchParams = useSearchParams();
+  const scopeKey = `${searchParams.get("lsind") ?? ""}-${searchParams.get("item") ?? ""}`;
+  return <ControllersViewBody key={scopeKey} {...props} />;
+}
+
+function ControllersViewBody({
+  readings,
+  initialLsind,
+  initialItem,
+  initialSp,
+  initialStall,
+  initialCtrl,
+  canCommand,
+  commands = [],
+  thermoSettings = {},
+  isAdmin = false,
+  adminAllFarms = false,
+  farmSummaries = [],
+}: ControllersViewProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const showContextBar = useDisplayEnabled("controller.contextBar");
+  const showCommandHistory = useDisplayEnabled("controller.commandHistory");
+
+  const urlFarmKey = parseFarmKeyFromQuery(
+    searchParams.get("lsind") ?? initialLsind,
+    searchParams.get("item") ?? initialItem
+  );
+  const urlFarmId = urlFarmKey ? farmKeyId(urlFarmKey) : undefined;
+  const urlSp = searchParams.get("sp") ?? initialSp;
+  const urlStall = searchParams.get("stall") ?? initialStall;
+  const urlCtrl = searchParams.get("ctrl") ?? initialCtrl;
+  const adminAllNoFarm = isAdmin && adminAllFarms && !urlFarmId;
+
+  const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
+
+  const [farmId, setFarmId] = useState(() =>
+    adminAllNoFarm ? "" : pickInitial(farmOptions, urlFarmId)
+  );
+
+  const spOptions = useMemo(
+    () => spOptionsForFarm(readings, farmId),
+    [readings, farmId]
+  );
+
+  const [spCode, setSpCode] = useState(() => {
+    if (adminAllNoFarm) return "";
+    const f = pickInitial(farmOptions, urlFarmId);
+    return pickInitial(spOptionsForFarm(readings, f), urlSp);
+  });
+
+  const [stallKey, setStallKey] = useState(() => {
+    if (adminAllNoFarm) return "";
+    const f = pickInitial(farmOptions, urlFarmId);
+    const sp = pickInitial(spOptionsForFarm(readings, f), urlSp);
+    return pickInitialStall(readings, f, sp, urlStall ?? undefined, urlCtrl);
+  });
+
+  const stallOptions = useMemo(
+    () => stallOptionsForFarmSp(readings, farmId, spCode),
+    [readings, farmId, spCode]
+  );
+
+  const controllerList = useMemo(
+    () => filterControllersForScope(readings, farmId, spCode, stallKey),
+    [readings, farmId, spCode, stallKey]
+  );
+
+  const [controllerKey, setControllerKey] = useState(() => {
+    if (adminAllNoFarm) return "";
+    const f = pickInitial(farmOptions, urlFarmId);
+    const sp = pickInitial(spOptionsForFarm(readings, f), urlSp);
+    const stall = pickInitialStall(readings, f, sp, urlStall ?? undefined, urlCtrl);
+    return pickCtrlKey(
+      filterControllersForScope(readings, f, sp, stall),
+      urlCtrl
+    );
+  });
+
+  const selectedFarmKey = useMemo((): FarmKey | undefined => {
+    const hit = readings.find((r) => farmKeyId(r.farmKey) === farmId);
+    return hit?.farmKey;
+  }, [readings, farmId]);
+
+  const selected =
+    controllerList.find((r) => r.key === controllerKey) ?? controllerList[0];
+
+  const selectedSettings = useMemo(
+    () =>
+      resolveThermoSettings(
+        thermoSettings,
+        selectedFarmKey,
+        selected?.moduleUid,
+        selected?.controllerKey
+      ),
+    [thermoSettings, selectedFarmKey, selected?.moduleUid, selected?.controllerKey]
+  );
+
+  const latestCommand = useMemo(() => {
+    if (!selected || !selectedFarmKey) return null;
+    return (
+      commands.find(
+        (c) =>
+          farmKeyId(c.farmKey) === farmKeyId(selectedFarmKey) &&
+          c.moduleUid === selected.moduleUid &&
+          c.controllerKey === selected.controllerKey
+      ) ?? null
+    );
+  }, [commands, selected, selectedFarmKey]);
+
+  useEffect(() => {
+    if (
+      !latestCommand ||
+      latestCommand.status === "applied" ||
+      latestCommand.status === "failed" ||
+      latestCommand.status === "cancelled"
+    ) {
+      return;
+    }
+    const timer = setInterval(() => router.refresh(), 5000);
+    return () => clearInterval(timer);
+  }, [latestCommand?.id, latestCommand?.status, router]);
+
+  const syncUrl = (
+    fk: FarmKey | undefined,
+    sp: string,
+    stall: string,
+    ctrl: ControllerReading | undefined
+  ) => {
+    const params = new URLSearchParams();
+    if (fk) appendFarmKeyParams(params, fk);
+    if (sp) params.set("sp", sp);
+    if (stall) params.set("stall", stall);
+    if (ctrl) params.set("ctrl", encodeURIComponent(ctrl.controllerKey));
+    router.replace(`/controllers?${params.toString()}`, { scroll: false });
+  };
+
+  const handleFarmChange = (v: string) => {
+    setFarmId(v);
+    const fk = readings.find((r) => farmKeyId(r.farmKey) === v)?.farmKey;
+    const nextSp = spOptionsForFarm(readings, v)[0]?.value ?? "";
+    setSpCode(nextSp);
+    const nextStall = pickInitialStall(readings, v, nextSp);
+    setStallKey(nextStall);
+    const list = filterControllersForScope(readings, v, nextSp, nextStall);
+    const firstCtrl = list[0];
+    setControllerKey(firstCtrl?.key ?? "");
+    syncUrl(fk, nextSp, nextStall, firstCtrl);
+  };
+
+  const handleSpChange = (v: string) => {
+    setSpCode(v);
+    const nextStall = pickInitialStall(readings, farmId, v);
+    setStallKey(nextStall);
+    const list = filterControllersForScope(readings, farmId, v, nextStall);
+    const firstCtrl = list[0];
+    setControllerKey(firstCtrl?.key ?? "");
+    syncUrl(selectedFarmKey, v, nextStall, firstCtrl);
+  };
+
+  const handleStallChange = (v: string) => {
+    setStallKey(v);
+    const list = filterControllersForScope(readings, farmId, spCode, v);
+    const firstCtrl = list[0];
+    setControllerKey(firstCtrl?.key ?? "");
+    syncUrl(selectedFarmKey, spCode, v, firstCtrl);
+  };
+
+  const handleControllerChange = (key: string) => {
+    setControllerKey(key);
+    const ctrl = controllerList.find((r) => r.key === key);
+    syncUrl(selectedFarmKey, spCode, stallKey, ctrl);
+  };
+
+  useEffect(() => {
+    if (isAdmin && adminAllFarms) return;
+    if (!urlFarmKey && farmId && spCode && selected) {
+      syncUrl(selectedFarmKey, spCode, stallKey, selected);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount URL bootstrap only
+  }, []);
+
+  const showAdminPlaceholder = adminAllNoFarm && !farmId;
+  const showFarmHints =
+    isAdmin && adminAllFarms && !urlFarmId && farmSummaries.length > 0;
+
+  return (
+    <>
+      {showFarmHints ? (
+        <AdminControllerFarmHints farms={farmSummaries} />
+      ) : null}
+
+      {showContextBar && !showAdminPlaceholder ? (
+        <ControllerContextBar
+          lsindRegistNo={selectedFarmKey?.lsindRegistNo ?? "—"}
+          stallTypeLabel={spCode ? formatStallTypeLabel(spCode) : "—"}
+          spOptions={spOptions}
+          activeSp={spCode}
+          stallOptions={stallOptions}
+          activeStall={stallKey}
+          onStallChange={handleStallChange}
+          farmOptions={farmOptions}
+          activeFarm={farmId}
+          onSpChange={handleSpChange}
+          onFarmChange={handleFarmChange}
+          onRefresh={() => router.refresh()}
+        />
+      ) : null}
+
+      {showAdminPlaceholder ? (
+        <AdminControllerPlaceholderClient />
+      ) : (
+        <>
+          <ControllerPanelFace
+            reading={selected}
+            knownSettings={selectedSettings}
+            latestCommand={latestCommand}
+            canCommand={canCommand}
+            controllerList={controllerList}
+            selectedControllerKey={selected?.key}
+            onControllerSelect={handleControllerChange}
+            spLabel={
+              stallKey
+                ? `${formatStallTypeLabel(spCode)} · ${stallLabelFromKey(stallKey)}`
+                : formatStallTypeLabel(spCode)
+            }
+          />
+
+          {showCommandHistory ? <CommandHistoryTable commands={commands} /> : null}
+        </>
+      )}
+    </>
+  );
+}

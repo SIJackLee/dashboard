@@ -1,24 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
-import {
-  GRID_COLS,
-  GRID_ROWS,
-  isGatewayCell,
-} from "@/lib/data/barn-grid";
-import { saveBarnGridsAction } from "@/app/(dashboard)/farm/actions";
+import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
+import { DisplayGate } from "@/components/display/display-settings-provider";
 import { FarmMapLegend } from "./farm-map-legend";
-import { FarmMapGateway } from "./farm-map-gateway";
 import { FarmMapCard } from "./farm-map-card";
 import { cn } from "@/lib/utils";
 
 type Props = {
   initialBarns: BarnMapSnapshot[];
-  gatewayOnline: boolean;
-  moduleCount: number;
+  gridCols: number;
+  gridRows: number;
 };
 
 function moveBarn(
@@ -27,8 +21,6 @@ function moveBarn(
   toCol: number,
   toRow: number
 ): BarnMapSnapshot[] {
-  if (isGatewayCell(toCol, toRow)) return barns;
-
   const dragged = barns.find((b) => b.meta.id === draggedId);
   if (!dragged) return barns;
   if (dragged.meta.grid.col === toCol && dragged.meta.grid.row === toRow) {
@@ -60,6 +52,24 @@ function moveBarn(
   });
 }
 
+function layoutPatch(
+  prev: BarnMapSnapshot[],
+  next: BarnMapSnapshot[]
+): Record<string, { col: number; row: number }> {
+  const patch: Record<string, { col: number; row: number }> = {};
+  for (const b of next) {
+    const old = prev.find((p) => p.meta.id === b.meta.id);
+    if (!old) continue;
+    if (
+      old.meta.grid.col !== b.meta.grid.col ||
+      old.meta.grid.row !== b.meta.grid.row
+    ) {
+      patch[b.meta.id] = { col: b.meta.grid.col, row: b.meta.grid.row };
+    }
+  }
+  return patch;
+}
+
 function readCellFromPoint(clientX: number, clientY: number): { col: number; row: number } | null {
   const el = document.elementFromPoint(clientX, clientY);
   const cell = el?.closest("[data-grid-cell]") as HTMLElement | null;
@@ -72,48 +82,61 @@ function readCellFromPoint(clientX: number, clientY: number): { col: number; row
 
 export function FarmMapCanvas({
   initialBarns,
-  gatewayOnline,
-  moduleCount,
+  gridCols,
+  gridRows,
 }: Props) {
-  const router = useRouter();
   const [barns, setBarns] = useState(initialBarns);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [pendingSaves, setPendingSaves] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const draggedIdRef = useRef<string | null>(null);
   const barnsRef = useRef(barns);
   barnsRef.current = barns;
+
+  const minHeight = useMemo(() => {
+    if (gridRows <= 4) return "22rem";
+    if (gridRows <= 6) return "28rem";
+    return "34rem";
+  }, [gridRows]);
 
   useEffect(() => {
     setBarns(initialBarns);
   }, [initialBarns]);
 
-  const persist = useCallback(
-    (next: BarnMapSnapshot[]) => {
-      setSaving(true);
-      void saveBarnGridsAction(
-        next.map((b) => ({
-          id: b.meta.id,
-          col: b.meta.grid.col,
-          row: b.meta.grid.row,
-        }))
-      )
-        .then(() => router.refresh())
-        .finally(() => setSaving(false));
+  const persistPatch = useCallback(
+    (prev: BarnMapSnapshot[], next: BarnMapSnapshot[]) => {
+      const patch = layoutPatch(prev, next);
+      if (Object.keys(patch).length === 0) return;
+
+      setSaveError(null);
+      setPendingSaves((n) => n + 1);
+      void patchBarnGridsAction(patch)
+        .then((result) => {
+          if (!result.ok) {
+            setBarns(prev);
+            setSaveError("위치 저장에 실패했습니다.");
+          }
+        })
+        .catch(() => {
+          setBarns(prev);
+          setSaveError("위치 저장에 실패했습니다.");
+        })
+        .finally(() => setPendingSaves((n) => Math.max(0, n - 1)));
     },
-    [router]
+    []
   );
 
   const handleDrop = useCallback(
     (draggedIdValue: string, col: number, row: number) => {
-      if (!draggedIdValue || isGatewayCell(col, row)) return;
+      if (!draggedIdValue) return;
       const prev = barnsRef.current;
       const next = moveBarn(prev, draggedIdValue, col, row);
       if (next === prev) return;
       setBarns(next);
-      persist(next);
+      persistPatch(prev, next);
     },
-    [persist]
+    [persistPatch]
   );
 
   const endDrag = useCallback(() => {
@@ -123,25 +146,21 @@ export function FarmMapCanvas({
     document.body.style.cursor = "";
   }, []);
 
-  const startDrag = useCallback(
-    (id: string, e: React.PointerEvent) => {
-      if (saving) return;
-      e.preventDefault();
-      e.stopPropagation();
-      draggedIdRef.current = id;
-      setDraggedId(id);
-      document.body.style.cursor = "grabbing";
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    },
-    [saving]
-  );
+  const startDrag = useCallback((id: string, e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    draggedIdRef.current = id;
+    setDraggedId(id);
+    document.body.style.cursor = "grabbing";
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  }, []);
 
   useEffect(() => {
     if (!draggedId) return;
 
     const onMove = (e: PointerEvent) => {
       const cell = readCellFromPoint(e.clientX, e.clientY);
-      if (cell && !isGatewayCell(cell.col, cell.row)) {
+      if (cell) {
         setDropTarget(`${cell.col}-${cell.row}`);
       }
     };
@@ -174,8 +193,8 @@ export function FarmMapCanvas({
     };
   }, [draggedId, handleDrop, endDrag]);
 
-  const cells = Array.from({ length: GRID_ROWS }, (_, ri) =>
-    Array.from({ length: GRID_COLS }, (_, ci) => ({
+  const cells = Array.from({ length: gridRows }, (_, ri) =>
+    Array.from({ length: gridCols }, (_, ci) => ({
       col: ci + 1,
       row: ri + 1,
     }))
@@ -184,30 +203,39 @@ export function FarmMapCanvas({
   const isDragging = draggedId !== null;
 
   return (
-    <div className="relative hidden min-h-[28rem] rounded-md border md:block">
-      <FarmMapLegend />
-      {saving && (
+    <div
+      className="relative hidden rounded-md border md:block"
+      style={{ minHeight }}
+    >
+      <DisplayGate setting="farm.legend">
+        <FarmMapLegend />
+      </DisplayGate>
+      {pendingSaves > 0 && (
         <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
           <Loader2 className="size-3 animate-spin" />
           위치 저장 중…
         </div>
       )}
-      <p className="absolute bottom-3 right-3 z-30 text-[10px] text-muted-foreground">
-        ⋮⋮ 핸들을 드래그해 축사 위치 변경
-      </p>
-
+      {saveError ? (
+        <div className="absolute bottom-3 right-3 z-30 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive shadow">
+          {saveError}
+        </div>
+      ) : null}
       <div
         className={cn(
-          "grid h-full min-h-[28rem] gap-2 p-3",
-          "grid-cols-4 grid-rows-4",
+          "grid h-full gap-1.5 overflow-auto p-3",
           "bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)]",
           "bg-[size:20px_20px] bg-muted/15",
           isDragging && "select-none"
         )}
+        style={{
+          minHeight,
+          gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${gridRows}, minmax(3.25rem, auto))`,
+        }}
       >
         {cells.map(({ col, row }) => {
           const key = `${col}-${row}`;
-          const isGw = isGatewayCell(col, row);
           const isTarget = dropTarget === key;
           return (
             <div
@@ -216,16 +244,13 @@ export function FarmMapCanvas({
               data-col={col}
               data-row={row}
               className={cn(
-                "z-0 rounded-md border border-transparent transition-colors",
-                isTarget && !isGw && "border-emerald-400 bg-emerald-50/60",
-                isGw && "border-dashed border-muted-foreground/20 bg-muted/10"
+                "z-0 min-h-[3.25rem] rounded-md border border-transparent transition-colors",
+                isTarget && "border-emerald-400 bg-emerald-50/60"
               )}
               style={{ gridColumn: col, gridRow: row }}
             />
           );
         })}
-
-        <FarmMapGateway online={gatewayOnline} moduleCount={moduleCount} />
 
         {barns.map((b) => {
           const { col, row } = b.meta.grid;
@@ -239,8 +264,8 @@ export function FarmMapCanvas({
               data-col={col}
               data-row={row}
               className={cn(
-                "relative z-20 flex min-h-0 min-w-0 flex-col",
-                isTarget && "ring-2 ring-emerald-400 ring-offset-1 rounded-lg",
+                "relative z-20 flex min-h-0 min-w-0 flex-col self-start",
+                isTarget && "rounded-lg ring-2 ring-emerald-400 ring-offset-1",
                 isDragging && "pointer-events-none",
                 isThisDragging && "z-30 opacity-60"
               )}
@@ -249,6 +274,7 @@ export function FarmMapCanvas({
               <FarmMapCard
                 snapshot={b}
                 layout="stack"
+                compact
                 draggable
                 isDragging={isThisDragging}
                 onGripPointerDown={startDrag}

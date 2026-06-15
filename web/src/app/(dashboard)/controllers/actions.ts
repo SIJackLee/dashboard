@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { canCommand, getCurrentUser } from "@/lib/auth/get-current-user";
+import { upsertControllerDisplayName } from "@/lib/data/controller-meta";
+import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 
 export type SendThermoCommandResult =
   | { ok: true; id: string }
@@ -17,7 +19,9 @@ export async function sendThermoCommandAction(
   const lsindRegistNo = String(formData.get("lsind_regist_no") ?? "").trim();
   const itemCode = String(formData.get("item_code") ?? "").trim();
   const moduleUid = Number(formData.get("module_uid"));
-  const ctrlIdx = Number(formData.get("ctrl_idx"));
+  const stallTyCode = String(formData.get("stall_ty_code") ?? "").trim();
+  const stallNo = String(formData.get("stall_no") ?? "").trim();
+  const eqpmnNo = normalizeEqpmnNo(formData.get("eqpmn_no") ?? "01");
   const minVentPct = Number(formData.get("min_vent_pct"));
   const maxVentPct = Number(formData.get("max_vent_pct"));
   const setpointTemp = Number(formData.get("setpoint_temp"));
@@ -28,9 +32,10 @@ export async function sendThermoCommandAction(
     !lsindRegistNo ||
     !itemCode ||
     !Number.isInteger(moduleUid) ||
-    !Number.isInteger(ctrlIdx) ||
-    ctrlIdx < 0 ||
-    ctrlIdx >= 50
+    !stallTyCode ||
+    !/^SP(0[1-9]|10)$/.test(stallTyCode) ||
+    !stallNo ||
+    !/^(0[1-9]|[12][0-9]|3[0-2])$/.test(stallNo)
   ) {
     return { ok: false, error: "invalid_target" };
   }
@@ -71,7 +76,9 @@ export async function sendThermoCommandAction(
       lsind_regist_no: lsindRegistNo,
       item_code: itemCode,
       module_uid: moduleUid,
-      ctrl_idx: ctrlIdx,
+      stall_ty_code: stallTyCode,
+      stall_no: stallNo,
+      eqpmn_no: eqpmnNo,
       min_vent_pct: Math.round(minVentPct),
       max_vent_pct: Math.round(maxVentPct),
       setpoint_temp: setpointTemp,
@@ -89,4 +96,34 @@ export async function sendThermoCommandAction(
 
   revalidatePath("/controllers");
   return { ok: true, id: data.id as string };
+}
+
+export async function saveControllerDisplayNameAction(
+  controllerKey: string,
+  eqpmnNo: string,
+  displayName: string
+): Promise<{ ok: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "unauthorized" };
+  if (!canCommand(user)) return { ok: false, error: "forbidden" };
+
+  if (!controllerKey.trim()) {
+    return { ok: false, error: "invalid_controller_key" };
+  }
+
+  const trimmed = displayName.trim();
+  if (trimmed.length > 32) {
+    return { ok: false, error: "name_too_long" };
+  }
+
+  const result = await upsertControllerDisplayName(
+    controllerKey,
+    eqpmnNo,
+    trimmed
+  );
+  if (!result.ok) return result;
+
+  revalidatePath("/controllers");
+  revalidatePath("/alarms");
+  return { ok: true };
 }

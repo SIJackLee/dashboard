@@ -11,7 +11,18 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      let target = next;
+      if (next === "/farm" || next.startsWith("/farm?")) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
+          .maybeSingle();
+        if (profile?.role === "admin") {
+          target = "/farm";
+        }
+      }
+      return NextResponse.redirect(`${origin}${target}`);
     }
   }
 

@@ -1,4 +1,5 @@
 import { Thermometer, Droplets } from "lucide-react";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type EnvKind = "temp" | "humidity";
@@ -31,16 +32,18 @@ export function EnvChip({ kind, value = "--", tone }: EnvChipProps) {
   const conf = kindMap[kind];
   const Icon = conf.icon;
   return (
-    <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-      <Icon className={cn("size-4", conf.className)} />
-      <div className="leading-tight">
-        <p className="text-xs text-muted-foreground">{conf.label}</p>
-        <p className="text-sm font-semibold">
+    <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-3">
+      <Icon className={cn(dashboardUi.iconSm, conf.className)} />
+      <div className="min-w-0 leading-tight">
+        <p className={dashboardUi.tableMeta}>{conf.label}</p>
+        <p className={cn(dashboardUi.value, "text-foreground")}>
           {value}
-          <span className="ml-0.5 text-xs font-normal">{conf.unit}</span>
+          <span className={cn("ml-1", dashboardUi.tableMeta)}>{conf.unit}</span>
         </p>
       </div>
-      {tone && <span className="ml-auto text-xs text-muted-foreground">{tone}</span>}
+      {tone && (
+        <span className={cn("ml-auto shrink-0", dashboardUi.tableMeta)}>{tone}</span>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   type ControllerMetricKey,
   type ControllerSlotReading,
 } from "@/lib/data/iot-chart";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 export type BarnMetricDef = {
@@ -24,7 +25,7 @@ type BarnMetricChartStackProps = {
 export function BarnMetricChartStack({
   readings,
   metrics,
-  barHeight = 52,
+  barHeight = 88,
 }: BarnMetricChartStackProps) {
   const slotCount = resolveSlotCount(readings);
   return (
@@ -36,7 +37,7 @@ export function BarnMetricChartStack({
               className={cn("size-2 rounded-sm", m.barClassName)}
               aria-hidden
             />
-            <span className="text-xs font-medium">
+            <span className={dashboardUi.chartLabel}>
               {m.label}
               <span className="ml-1 font-normal text-muted-foreground">
                 ({m.unit})

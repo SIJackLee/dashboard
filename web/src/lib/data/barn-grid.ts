@@ -1,53 +1,82 @@
-type GridPos = { col: number; row: number };
+export type GridPos = { col: number; row: number };
 type WithGrid = { grid: GridPos };
 
-/** 게이트웨이(col:2, row:1) 인근부터 축사 카드 배치 우선 순위 */
-export const BARN_GRID_SLOTS: GridPos[] = [
-  { col: 1, row: 2 },
-  { col: 3, row: 2 },
-  { col: 4, row: 2 },
-  { col: 1, row: 3 },
-  { col: 3, row: 3 },
-  { col: 4, row: 3 },
-  { col: 1, row: 4 },
-  { col: 2, row: 4 },
-  { col: 3, row: 4 },
-  { col: 4, row: 4 },
-  { col: 1, row: 1 },
-  { col: 3, row: 1 },
-  { col: 4, row: 1 },
-  { col: 2, row: 2 },
-  { col: 2, row: 3 },
-];
+export const GRID_COLS_DEFAULT = 4;
+export const GRID_ROWS_DEFAULT = 4;
+
+export function resolveGridDimensions(barnCount: number): {
+  cols: number;
+  rows: number;
+} {
+  if (barnCount <= 12) return { cols: 4, rows: 4 };
+  if (barnCount <= 24) return { cols: 6, rows: 4 };
+  if (barnCount <= 36) return { cols: 6, rows: 6 };
+  return { cols: 8, rows: 6 };
+}
+
+/** 저장된 좌표가 잘리지 않도록 그리드 최소 크기 보장 */
+export function resolveGridDimensionsWithLayouts(
+  barnCount: number,
+  layouts: Record<string, { col: number; row: number }>
+): { cols: number; rows: number } {
+  const base = resolveGridDimensions(barnCount);
+  let cols = base.cols;
+  let rows = base.rows;
+  for (const g of Object.values(layouts)) {
+    cols = Math.max(cols, g.col);
+    rows = Math.max(rows, g.row);
+  }
+  return { cols, rows };
+}
 
 export function gridKey(col: number, row: number): string {
   return `${col},${row}`;
 }
 
-/** 통신 게이트웨이 고정 칸 (드롭 불가) */
-export function isGatewayCell(col: number, row: number): boolean {
-  return col === 2 && row === 1;
+/** 행 우선(좌→우, 상→하) 슬롯 — SP01~ 순서와 지도 읽기 방향 일치 */
+export function buildGridSlots(cols: number, rows: number): GridPos[] {
+  const slots: GridPos[] = [];
+  for (let row = 1; row <= rows; row++) {
+    for (let col = 1; col <= cols; col++) {
+      slots.push({ col, row });
+    }
+  }
+  return slots;
 }
 
-export const GRID_COLS = 4;
-export const GRID_ROWS = 4;
+/** @deprecated — use buildGridSlots */
+export const BARN_GRID_SLOTS: GridPos[] = buildGridSlots(4, 4);
 
-/** 기존 항목과 겹치지 않는 다음 그리드 칸 */
-export function pickNextGridSlot(existing: WithGrid[]): GridPos {
+export const GRID_COLS = GRID_COLS_DEFAULT;
+export const GRID_ROWS = GRID_ROWS_DEFAULT;
+
+export function pickNextGridSlot(
+  existing: WithGrid[],
+  cols = GRID_COLS_DEFAULT,
+  rows = GRID_ROWS_DEFAULT
+): GridPos {
   const used = new Set(existing.map((b) => gridKey(b.grid.col, b.grid.row)));
-  for (const slot of BARN_GRID_SLOTS) {
+  const slots = buildGridSlots(cols, rows);
+  for (const slot of slots) {
     if (!used.has(gridKey(slot.col, slot.row))) return slot;
   }
-  return BARN_GRID_SLOTS[existing.length % BARN_GRID_SLOTS.length];
+  return slots[existing.length % slots.length] ?? { col: 1, row: 2 };
 }
 
-/** 동일 그리드 칸 충돌 시 빈 칸으로 자동 재배치 */
-export function resolveBarnGridCollisions<T extends WithGrid>(barns: T[]): T[] {
+export function resolveBarnGridCollisions<T extends WithGrid>(
+  barns: T[],
+  cols = GRID_COLS_DEFAULT,
+  rows = GRID_ROWS_DEFAULT
+): T[] {
   const placed: T[] = [];
   for (const barn of barns) {
     const key = gridKey(barn.grid.col, barn.grid.row);
     const occupied = new Set(placed.map((b) => gridKey(b.grid.col, b.grid.row)));
-    const grid = occupied.has(key) ? pickNextGridSlot(placed) : barn.grid;
+    const invalid = barn.grid.col > cols || barn.grid.row > rows;
+    const grid =
+      invalid || occupied.has(key)
+        ? pickNextGridSlot(placed, cols, rows)
+        : barn.grid;
     placed.push({ ...barn, grid });
   }
   return placed;

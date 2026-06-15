@@ -128,3 +128,182 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  .ctrl-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 1.75rem;
+    background: transparent;
+    cursor: grab;
+    accent-color: var(--primary);
+  }
+
+  .ctrl-range:active {
+    cursor: grabbing;
+  }
+
+  .ctrl-range:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+
+  .ctrl-range::-webkit-slider-runnable-track {
+    height: 0.75rem;
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--muted) 75%, var(--border));
+  }
+
+  .ctrl-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    margin-top: -0.5rem;
+    border-radius: 9999px;
+    background: var(--primary);
+    border: 3px solid var(--background);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+  }
+
+  .ctrl-range:focus-visible::-webkit-slider-thumb {
+    box-shadow:
+      0 0 0 3px color-mix(in oklch, var(--ring) 45%, transparent),
+      0 1px 4px rgb(0 0 0 / 0.18);
+  }
+
+  .ctrl-range::-moz-range-track {
+    height: 0.75rem;
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--muted) 75%, var(--border));
+  }
+
+  .ctrl-range::-moz-range-progress {
+    height: 0.75rem;
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--primary) 40%, var(--muted));
+  }
+
+  .ctrl-range::-moz-range-thumb {
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 3px solid var(--background);
+    border-radius: 9999px;
+    background: var(--primary);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+  }
+
+  /* enriched slider — 목표 채움·현재 눈금·메뉴별 accent */
+  .ctrl-slider-wrap {
+    display: flex;
+    align-items: center;
+    min-height: 1.75rem;
+  }
+
+  .ctrl-slider-track {
+    position: absolute;
+    left: 0.875rem;
+    right: 0.875rem;
+    height: 0.75rem;
+    border-radius: 9999px;
+    background: color-mix(in oklch, var(--muted) 75%, var(--border));
+    pointer-events: none;
+  }
+
+  .ctrl-slider-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: var(--slider-fill, 0%);
+    border-radius: 9999px;
+    opacity: 0.45;
+    background: var(--slider-accent, var(--primary));
+  }
+
+  .ctrl-slider-tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: 100%;
+    margin-left: -0.5px;
+    background: color-mix(in oklch, var(--border) 80%, var(--muted-foreground));
+    opacity: 0.55;
+  }
+
+  .ctrl-slider-current {
+    position: absolute;
+    top: -0.25rem;
+    width: 3px;
+    height: 1.25rem;
+    margin-left: -1.5px;
+    border-radius: 2px;
+    background: var(--muted-foreground);
+    opacity: 0.75;
+  }
+
+  .ctrl-slider-wrap[data-menu="setpoint"] {
+    --slider-accent: oklch(0.62 0.19 45);
+  }
+
+  .ctrl-slider-wrap[data-menu="deviation"] {
+    --slider-accent: oklch(0.75 0.15 85);
+  }
+
+  .ctrl-slider-wrap[data-menu="minVent"] {
+    --slider-accent: oklch(0.62 0.14 240);
+  }
+
+  .ctrl-slider-wrap[data-menu="maxVent"] {
+    --slider-accent: oklch(0.55 0.14 155);
+  }
+
+  .ctrl-range-enriched {
+    position: relative;
+    z-index: 1;
+  }
+
+  .ctrl-range-enriched::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  .ctrl-range-enriched::-moz-range-track {
+    background: transparent;
+  }
+
+  .ctrl-range-enriched::-moz-range-progress {
+    background: transparent;
+  }
+
+  .ctrl-range-enriched[data-menu="setpoint"]::-webkit-slider-thumb {
+    background: oklch(0.62 0.19 45);
+  }
+
+  .ctrl-range-enriched[data-menu="deviation"]::-webkit-slider-thumb {
+    background: oklch(0.75 0.15 85);
+  }
+
+  .ctrl-range-enriched[data-menu="minVent"]::-webkit-slider-thumb {
+    background: oklch(0.62 0.14 240);
+  }
+
+  .ctrl-range-enriched[data-menu="maxVent"]::-webkit-slider-thumb {
+    background: oklch(0.55 0.14 155);
+  }
+
+  .ctrl-range-enriched[data-menu="setpoint"]::-moz-range-thumb {
+    background: oklch(0.62 0.19 45);
+  }
+
+  .ctrl-range-enriched[data-menu="deviation"]::-moz-range-thumb {
+    background: oklch(0.75 0.15 85);
+  }
+
+  .ctrl-range-enriched[data-menu="minVent"]::-moz-range-thumb {
+    background: oklch(0.62 0.14 240);
+  }
+
+  .ctrl-range-enriched[data-menu="maxVent"]::-moz-range-thumb {
+    background: oklch(0.55 0.14 155);
+  }
+}

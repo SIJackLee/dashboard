@@ -1,8 +1,5 @@
-import {
-  compareFarmKey,
-  stallCatalogKey,
-  type FarmKey,
-} from "@/lib/data/farm-key";
+import { compareCatalogEntries, entryFromParts } from "@/lib/data/barn-catalog";
+import { stallCatalogKey, type FarmKey } from "@/lib/data/farm-key";
 
 export type StallCatalogEntry = {
   farmKey: FarmKey;
@@ -41,11 +38,10 @@ export function buildStallCatalog(readings: StallReading[]): StallCatalogEntry[]
       });
     }
   }
-  return [...map.values()].sort((a, b) => {
-    const farmCmp = compareFarmKey(a.farmKey, b.farmKey);
-    if (farmCmp !== 0) return farmCmp;
-    return a.moduleUid !== b.moduleUid
-      ? a.moduleUid - b.moduleUid
-      : a.stallNo.localeCompare(b.stallNo, undefined, { numeric: true });
-  });
+  return [...map.values()].sort((a, b) =>
+    compareCatalogEntries(
+      entryFromParts(a.farmKey, a.moduleUid, a.stallTyCode),
+      entryFromParts(b.farmKey, b.moduleUid, b.stallTyCode)
+    )
+  );
 }

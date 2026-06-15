@@ -8,31 +8,36 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatKst } from "@/lib/datetime/kst";
+import { commandStatusLabel } from "@/lib/controllers/controller-settings";
 import type { ThermoCommand } from "@/lib/data/commands";
+import {
+  formatCommandDetail,
+  formatCommandTarget,
+} from "@/lib/ui/controller-labels";
+import { ctrlUi } from "@/lib/ui/controller-page-ui";
+import { cn } from "@/lib/utils";
 
 const statusLabel: Record<string, string> = {
-  pending: "대기",
-  sent: "전송됨",
-  failed: "실패",
-  cancelled: "취소",
+  pending: commandStatusLabel("pending"),
+  sent: commandStatusLabel("sent"),
+  applied: commandStatusLabel("applied"),
+  failed: commandStatusLabel("failed"),
+  cancelled: commandStatusLabel("cancelled"),
 };
 
 const statusVariant = (
   status: string
 ): "default" | "secondary" | "destructive" | "outline" => {
-  if (status === "sent") return "default";
+  if (status === "applied") return "default";
+  if (status === "sent") return "secondary";
   if (status === "failed") return "destructive";
-  if (status === "pending") return "secondary";
+  if (status === "pending") return "outline";
   return "outline";
 };
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleString("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatKst(iso, "short");
 }
 
 function fmtCommand(c: ThermoCommand) {
@@ -45,13 +50,13 @@ type Props = {
 
 export function CommandHistoryTable({ commands = [] }: Props) {
   return (
-    <SectionCard title="명령 히스토리">
+    <SectionCard size="lg" title="명령 히스토리">
       {commands.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
+        <p className={cn("py-6 text-center", ctrlUi.body, "text-muted-foreground")}>
           등록된 명령이 없습니다.
         </p>
       ) : (
-        <Table>
+        <Table className={ctrlUi.body}>
           <TableHeader>
             <TableRow>
               <TableHead>시간</TableHead>
@@ -67,17 +72,18 @@ export function CommandHistoryTable({ commands = [] }: Props) {
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   {fmtTime(c.createdAt)}
                 </TableCell>
-                <TableCell className="text-xs">{fmtCommand(c)}</TableCell>
-                <TableCell className="text-xs">
-                  {c.farmKey.lsindRegistNo}/{c.farmKey.itemCode}/통신박스{c.moduleUid} #{c.ctrlIdx + 1}
-                </TableCell>
+                <TableCell>{fmtCommand(c)}</TableCell>
+                <TableCell>{formatCommandTarget(c)}</TableCell>
                 <TableCell>
-                  <Badge variant={statusVariant(c.status)}>
+                  <Badge
+                    variant={statusVariant(c.status)}
+                    className={ctrlUi.badgeLg}
+                  >
                     {statusLabel[c.status] ?? c.status}
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-[8rem] truncate text-xs text-muted-foreground">
-                  {c.errorMsg ?? c.note ?? "—"}
+                <TableCell className="max-w-[8rem] truncate text-muted-foreground">
+                  {formatCommandDetail(c.errorMsg, c.note)}
                 </TableCell>
               </TableRow>
             ))}

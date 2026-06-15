@@ -1,38 +1,64 @@
-import { Bell, Wifi, Radio, LogOut } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { LogOut } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
+import { TopBarAlarmSlot } from "@/components/layout/top-bar-alarm-slot";
+import { GlobalContextStrip } from "@/components/layout/global-context-strip";
+import { FarmSwitcher } from "@/components/layout/farm-switcher";
+import type { AlarmRow } from "@/lib/data/alarms";
+import type { FarmKey } from "@/lib/data/farm-key";
+import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
+import type { FarmOverview } from "@/lib/data/iot";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
 
 type TopBarProps = {
   title: string;
+  overview?: FarmOverview;
+  alarms?: AlarmRow[];
+  isAdmin?: boolean;
+  farmOptions?: FarmKey[];
+  activeFarmKey?: FarmKey | null;
+  farmSummaries?: FarmSummaryRow[];
 };
 
-export function TopBar({ title }: TopBarProps) {
+export function TopBar({
+  title,
+  overview,
+  alarms = [],
+  isAdmin = false,
+  farmOptions = [],
+  activeFarmKey = null,
+  farmSummaries = [],
+}: TopBarProps) {
+  const showFarmSwitcher = isAdmin && farmOptions.length > 0;
+
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-background px-6">
-      <h1 className="text-xl font-bold">{title}</h1>
+    <header className={cn(dashboardUi.topBar, "gap-3 md:gap-4")}>
+      <div className="flex min-w-0 shrink-0 flex-col gap-2">
+        <h1
+          className={cn(
+            dashboardUi.pageTitle,
+            "max-w-[12rem] truncate md:max-w-none"
+          )}
+        >
+          {title}
+        </h1>
+        {showFarmSwitcher ? (
+          <FarmSwitcher
+            farmOptions={farmOptions}
+            activeFarmKey={activeFarmKey}
+            farmSummaries={farmSummaries}
+          />
+        ) : null}
+      </div>
 
-      <div className="flex items-center gap-3">
-        <Badge variant="outline" className="gap-1 text-emerald-600">
-          <span className="size-2 rounded-full bg-emerald-500" /> ONLINE
-        </Badge>
-        <Badge variant="outline" className="gap-1">
-          <Radio className="size-3.5" /> MQTT 연결
-        </Badge>
-        <Badge variant="outline" className="gap-1 text-sky-600">
-          <Wifi className="size-3.5" /> 마지막 수신 --
-        </Badge>
+      <GlobalContextStrip overview={overview} alarmCount={alarms.length} />
 
-        <button className="relative rounded-md p-2 hover:bg-muted">
-          <Bell className="size-5" />
-          <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
-        </button>
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:gap-3">
+        <TopBarAlarmSlot alarms={alarms} />
         <form action={signOut}>
-          <button
-            type="submit"
-            className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <LogOut className="size-4" />
-            로그아웃
+          <button type="submit" className={dashboardUi.topLogoutBtn}>
+            <LogOut className={dashboardUi.topLogoutIcon} />
+            <span className="hidden sm:inline">로그아웃</span>
           </button>
         </form>
       </div>

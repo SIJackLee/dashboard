@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type StatCardProps = {
@@ -9,6 +10,10 @@ type StatCardProps = {
   sub?: string;
   icon?: LucideIcon;
   accent?: "default" | "emerald" | "amber" | "red" | "sky";
+  compact?: boolean;
+  /** 요약 스트립 등 동일 높이 셀 채우기 */
+  fill?: boolean;
+  className?: string;
 };
 
 const accentMap: Record<NonNullable<StatCardProps["accent"]>, string> = {
@@ -26,21 +31,51 @@ export function StatCard({
   sub,
   icon: Icon,
   accent = "default",
+  compact = false,
+  fill = false,
+  className,
 }: StatCardProps) {
-  return (
-    <Card>
-      <CardContent className="flex items-start justify-between gap-3 p-5">
-        <div className="space-y-1">
-          <p className="text-sm text-muted-foreground">{label}</p>
-          <p className={cn("text-2xl font-bold", accentMap[accent])}>
+  if (compact) {
+    return (
+      <div className={cn(dashboardUi.statCompact, fill && "h-full", className)}>
+        <div className="min-w-0">
+          <p className={dashboardUi.statCompactLabel}>{label}</p>
+          <p
+            className={cn(
+              dashboardUi.statCompactValue,
+              accentMap[accent]
+            )}
+          >
             {value}
-            {unit && <span className="ml-1 text-base font-medium">{unit}</span>}
+            {unit && (
+              <span className={dashboardUi.statCompactUnit}>{unit}</span>
+            )}
           </p>
-          {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+          {sub && <p className={dashboardUi.statCompactSub}>{sub}</p>}
         </div>
         {Icon && (
-          <span className={cn("rounded-md bg-muted p-2", accentMap[accent])}>
-            <Icon className="size-5" />
+          <Icon
+            className={cn(dashboardUi.statCompactIcon, accentMap[accent])}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Card className={dashboardUi.statCard}>
+      <CardContent className={dashboardUi.statCardPad}>
+        <div className="min-w-0 space-y-1">
+          <p className={dashboardUi.statLabel}>{label}</p>
+          <p className={cn(dashboardUi.statValue, accentMap[accent])}>
+            {value}
+            {unit && <span className={dashboardUi.statUnit}>{unit}</span>}
+          </p>
+          {sub && <p className={dashboardUi.statSub}>{sub}</p>}
+        </div>
+        {Icon && (
+          <span className={cn(dashboardUi.statIconWrap, accentMap[accent])}>
+            <Icon className={dashboardUi.statIcon} />
           </span>
         )}
       </CardContent>

@@ -18,9 +18,16 @@ type FanIndicatorProps = {
   /** 0~100 (%) — 데이터 매칭 추후 */
   value?: number | null;
   compact?: boolean;
+  /** 컨트롤러 페이지 등 큰 글씨 */
+  large?: boolean;
 };
 
-export function FanIndicator({ kind, value = null, compact }: FanIndicatorProps) {
+export function FanIndicator({
+  kind,
+  value = null,
+  compact,
+  large,
+}: FanIndicatorProps) {
   const conf = fanMap[kind];
   const Icon = conf.icon;
   const pct = value ?? 0;
@@ -28,23 +35,28 @@ export function FanIndicator({ kind, value = null, compact }: FanIndicatorProps)
 
   if (compact) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs">
-        <Icon className={cn("size-3.5", conf.className)} />
+      <span
+        className={cn(
+          "inline-flex items-center gap-1",
+          large ? "text-xl leading-none" : "text-xs"
+        )}
+      >
+        <Icon className={cn(large ? "size-6" : "size-3.5", conf.className)} />
         <span className="font-medium">{display}</span>
       </span>
     );
   }
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-xs">
-        <span className="flex items-center gap-1 text-muted-foreground">
-          <Icon className={cn("size-3.5", conf.className)} />
+    <div className="space-y-2 rounded-lg border bg-background px-4 py-3">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2 text-xl text-muted-foreground">
+          <Icon className={cn("size-6", conf.className)} />
           {conf.label}
         </span>
-        <span className="font-semibold">{display}</span>
+        <span className="text-2xl font-semibold tabular-nums">{display}</span>
       </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+      <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={cn("h-full rounded-full bg-current", conf.className)}
           style={{ width: `${pct}%` }}

@@ -1,9 +1,13 @@
 "use client";
 
-import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Leaf, LogOut, ShieldCheck } from "lucide-react";
+import { AppNavLink } from "@/components/layout/app-nav-link";
+import { LogOut, ShieldCheck } from "lucide-react";
+import { useDisplayEnabled } from "@/components/display/display-settings-provider";
+import { isPiggyPlayEnabled } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { navItems } from "./nav-items";
 import { signOut } from "@/app/auth/actions";
 
@@ -25,78 +29,90 @@ type AppSidebarProps = {
 
 export function AppSidebar({ user }: AppSidebarProps) {
   const pathname = usePathname();
+  const showPiggyMenu = isPiggyPlayEnabled(useDisplayEnabled("global.piggyMenu"));
   const name = user.displayName?.trim() || user.email || "사용자";
   const initial = name.charAt(0).toUpperCase();
 
   return (
-    <aside className="flex h-full w-60 flex-col border-r bg-background">
-      {/* 브랜드 */}
-      <div className="flex h-16 items-center gap-2 px-5">
-        <div className="flex size-8 items-center justify-center rounded-md bg-emerald-600 text-white">
-          <Leaf className="size-5" />
+    <aside
+      className={cn(
+        "flex h-full shrink-0 flex-col border-r bg-background",
+        dashboardUi.sidebarWidth
+      )}
+    >
+      <div className={cn(dashboardUi.sidebarBrand, "shrink-0")}>
+        <div
+          className={cn(
+            "relative flex shrink-0 items-center justify-center rounded-lg bg-muted/40",
+            dashboardUi.sidebarBrandIcon
+          )}
+        >
+          <Image
+            src="/logo.jpg"
+            alt="IoT Board"
+            width={40}
+            height={40}
+            className="h-full w-full object-contain p-1"
+            priority
+          />
         </div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">스마트 축사</p>
-          <p className="text-xs text-muted-foreground">IoT</p>
+        <div className="min-w-0 leading-tight">
+          <p className={dashboardUi.sidebarBrandTitle}>IoT Board</p>
         </div>
       </div>
 
-      {/* 네비게이션 */}
-      <nav className="flex-1 space-y-1 px-3 py-2">
-        {navItems.map((item) => {
+      <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+        {navItems
+          .filter((item) => item.href !== "/play" || showPiggyMenu)
+          .map((item) => {
           const active = pathname.startsWith(item.href);
           return (
-            <Link
+            <AppNavLink
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                dashboardUi.navLink,
                 active
                   ? "bg-emerald-50 text-emerald-700"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
-              <item.icon className="size-4" />
+              <item.icon className={dashboardUi.navIcon} />
               {item.label}
-            </Link>
+            </AppNavLink>
           );
         })}
 
         {user.role === "admin" && (
-          <Link
+          <AppNavLink
             href="/admin/users"
+            message="사용자 관리로 이동 중…"
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+              dashboardUi.navLink,
               pathname.startsWith("/admin")
                 ? "bg-emerald-50 text-emerald-700"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
-            <ShieldCheck className="size-4" />
+            <ShieldCheck className={dashboardUi.navIcon} />
             사용자 관리
-          </Link>
+          </AppNavLink>
         )}
       </nav>
 
-      {/* 계정 */}
-      <div className="space-y-2 border-t p-3">
-        <div className="flex items-center gap-2 px-1">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-            {initial}
-          </span>
+      <div className={dashboardUi.accountBlock}>
+        <div className="flex items-center gap-3 px-1">
+          <span className={dashboardUi.accountAvatar}>{initial}</span>
           <div className="min-w-0 leading-tight">
-            <p className="truncate text-sm font-medium">{name}</p>
-            <p className="text-xs text-muted-foreground">
+            <p className={dashboardUi.accountName}>{name}</p>
+            <p className={dashboardUi.accountRole}>
               {user.role ? roleLabel[user.role] : "권한 없음"}
             </p>
           </div>
         </div>
         <form action={signOut}>
-          <button
-            type="submit"
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <LogOut className="size-4" />
+          <button type="submit" className={dashboardUi.logoutBtn}>
+            <LogOut className={dashboardUi.navIcon} />
             로그아웃
           </button>
         </form>

@@ -1,105 +1,89 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DisplaySettingsForm } from "./display-settings-form";
-import { DataCollectionForm } from "./data-collection-form";
+import { FarmLocationForm } from "./farm-location-form";
+import { PiggyPlayerIdForm } from "./piggy-player-id-form";
 import { AlarmThresholdForm } from "./alarm-threshold-form";
-import { ControllerMetaForm } from "./controller-meta-form";
-import { MqttConfigForm } from "./mqtt-config-form";
-import { LiveSummaryPanel } from "./live-summary-panel";
-import { BarnMetaForm } from "./barn-meta-form";
 import { SettingsTabNav, type SettingsTabId } from "./settings-tab-nav";
-import type { BarnMeta } from "@/lib/data/barn-meta";
+import type { AlarmSettings } from "@/lib/data/alarms";
+import type { DisplaySettings } from "@/lib/data/display-settings-shared";
+import type { EditableFarmOption } from "@/lib/data/farm-location";
 import type { StallCatalogEntry } from "@/lib/data/stall-catalog";
 import type { BarnReading } from "@/lib/data/iot";
-import type { LiveSummary } from "@/lib/data/iot-live";
-import type { ControllerMetaEntry } from "@/lib/data/controller-meta";
+import { getVisibleSettingsTabIds } from "@/lib/dashboard-sections";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { PIGGY_PLAY_ENABLED } from "@/lib/feature-flags";
+import { cn } from "@/lib/utils";
 
 type Props = {
-  barnMetas: BarnMeta[];
   stallCatalog: StallCatalogEntry[];
   readings: BarnReading[];
-  liveSummary: LiveSummary;
-  controllerMetas: ControllerMetaEntry[];
-  barnNotice?: { tone: "ok" | "error"; text: string } | null;
-  controllerNotice?: { tone: "ok" | "error"; text: string } | null;
+  alarmSettings: AlarmSettings;
+  displaySettings: DisplaySettings;
+  alarmNotice?: { tone: "ok" | "error"; text: string } | null;
+  displayNotice?: { tone: "ok" | "error"; text: string } | null;
+  farmNotice?: { tone: "ok" | "error"; text: string } | null;
+  farmLocationOptions?: EditableFarmOption[];
+  piggyPlayerId?: string;
   initialTab?: SettingsTabId;
 };
 
 export function SettingsView({
-  barnMetas,
   stallCatalog,
   readings,
-  liveSummary,
-  controllerMetas,
-  barnNotice,
-  controllerNotice,
+  alarmSettings,
+  displaySettings,
+  alarmNotice,
+  displayNotice,
+  farmNotice,
+  farmLocationOptions = [],
+  piggyPlayerId = "",
   initialTab = "dashboard",
 }: Props) {
-  const [tab, setTab] = useState<SettingsTabId>(initialTab);
+  const visibleTabs = useMemo(() => getVisibleSettingsTabIds(), []);
+  const [tab, setTab] = useState<SettingsTabId>(() =>
+    visibleTabs.includes(initialTab) ? initialTab : visibleTabs[0] ?? "dashboard"
+  );
+
+  useEffect(() => {
+    if (!visibleTabs.includes(tab)) {
+      setTab(visibleTabs[0] ?? "dashboard");
+    }
+  }, [tab, visibleTabs]);
 
   return (
     <>
       <SettingsTabNav active={tab} onChange={setTab} />
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
-          {tab === "dashboard" && (
-            <>
-              <DisplaySettingsForm />
-              <DataCollectionForm />
-              <AlarmThresholdForm />
-            </>
-          )}
-          {tab === "farm" && (
-            <p className="rounded-md border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              농장 설정은 추후 구현 예정입니다.
-            </p>
-          )}
-          {tab === "barn" && (
-            <BarnMetaForm
-              initialBarns={barnMetas}
-              stallCatalog={stallCatalog}
-              notice={barnNotice}
+      <div className="space-y-6">
+        {tab === "dashboard" && (
+          <>
+            {PIGGY_PLAY_ENABLED ? (
+              <PiggyPlayerIdForm
+                initialPlayerId={piggyPlayerId}
+                notice={displayNotice}
+              />
+            ) : null}
+            <DisplaySettingsForm
+              initialSettings={displaySettings}
+              notice={PIGGY_PLAY_ENABLED ? null : displayNotice}
             />
-          )}
-          {tab === "controller" && (
-            <ControllerMetaForm
-              readings={readings}
-              initialMetas={controllerMetas}
-              notice={controllerNotice}
-            />
-          )}
-          {tab === "alarm" && (
-            <p className="rounded-md border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              알람 설정은 추후 구현 예정입니다.
-            </p>
-          )}
-          {tab === "log" && (
-            <p className="rounded-md border bg-muted/30 px-4 py-8 text-center text-sm text-muted-foreground">
-              로그 설정은 추후 구현 예정입니다.
-            </p>
-          )}
-          {tab === "dashboard" && (
-            <>
-              <MqttConfigForm />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="rounded-md border px-4 py-2 text-sm hover:bg-muted"
-                >
-                  초기화
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-                >
-                  저장
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-        <LiveSummaryPanel summary={liveSummary} />
+          </>
+        )}
+        {tab === "farm" && (
+          <FarmLocationForm
+            options={farmLocationOptions}
+            notice={farmNotice}
+          />
+        )}
+        {tab === "alarm" && (
+          <AlarmThresholdForm
+            initialSettings={alarmSettings}
+            stallCatalog={stallCatalog}
+            readings={readings}
+            notice={alarmNotice}
+          />
+        )}
       </div>
     </>
   );

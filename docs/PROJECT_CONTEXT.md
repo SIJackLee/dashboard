@@ -45,8 +45,9 @@ npm run build    # 프로덕션 빌드 검증
 | --- | --- |
 | `farm_uid` (smallint) | 농장 식별자 |
 | `module_uid` (smallint) | 통신 모듈 식별자 |
-| `mesure_dt` (text) | 측정 시각 |
-| `received_at` (timestamptz) | 수신 시각 |
+| `mesure_dt` (text) | 측정 시각 (KST wall-clock `YYYY-MM-DD HH:MM:SS`) |
+| `mesure_at` (timestamptz) | 측정 시각 timestamptz (KST 문자열에서 파생, 시계열 정렬용) |
+| `received_at` (timestamptz) | 수신 시각 (UTC 저장, UI는 KST 표시) |
 | `mode` (text) | `live` \| `replay` (v0x06) |
 | `chunk_seq` (smallint) | REPLAY burst 청크 (LIVE=0) |
 | `decoded_json` (jsonb) | 디코딩 결과 |

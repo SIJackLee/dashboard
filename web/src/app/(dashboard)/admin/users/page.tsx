@@ -31,7 +31,7 @@ export default async function AdminUsersPage({
   return (
     <PageShell title="사용자 관리">
       {configError && (
-        <p className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p className="rounded-xl bg-amber-50 px-5 py-4 text-[1.75rem] text-amber-800">
           SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다. <code>web/.env.local</code>에
           service_role 키를 입력해야 사용자 목록/권한 부여가 동작합니다.
         </p>
@@ -40,8 +40,8 @@ export default async function AdminUsersPage({
         <p
           className={
             notice.tone === "ok"
-              ? "rounded-md bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-              : "rounded-md bg-red-50 px-4 py-3 text-sm text-red-700"
+              ? "rounded-xl bg-emerald-50 px-5 py-4 text-[1.75rem] text-emerald-700"
+              : "rounded-xl bg-red-50 px-5 py-4 text-[1.75rem] text-red-700"
           }
         >
           {notice.text}

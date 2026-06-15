@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { sendThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
 import type { ControllerReading } from "@/lib/data/iot";
+import {
+  COMMAND_REGISTER_SUCCESS,
+  formatControllerRef,
+  formatUserError,
+} from "@/lib/ui/controller-labels";
 
 const fields = [
   { key: "min_vent_pct", label: "최저환기", unit: "%", step: "1" },
@@ -20,17 +25,6 @@ type Props = {
   target: ControllerReading | undefined;
   canCommand: boolean;
 };
-
-function formatError(error: string): string {
-  if (error === "invalid_vent_range") {
-    return "환기 범위를 확인하세요. (0~100%, 최저 ≤ 최고)";
-  }
-  if (error === "unauthorized") return "권한이 없습니다.";
-  if (error.includes("row-level security")) {
-    return "명령 권한이 없습니다. (RLS: 해당 컨트롤러 can_command 확인)";
-  }
-  return `명령 등록에 실패했습니다. (${error})`;
-}
 
 export function CommandPanel({ target, canCommand }: Props) {
   const router = useRouter();
@@ -68,7 +62,9 @@ export function CommandPanel({ target, canCommand }: Props) {
     formData.set("lsind_regist_no", target.farmKey.lsindRegistNo);
     formData.set("item_code", target.farmKey.itemCode);
     formData.set("module_uid", String(target.moduleUid));
-    formData.set("ctrl_idx", String(target.idx));
+    formData.set("stall_ty_code", target.stallTyCode ?? "SP01");
+    formData.set("stall_no", target.stallNo ?? "01");
+    formData.set("eqpmn_no", target.eqpmnNo);
     for (const f of fields) {
       formData.set(f.key, values[f.key]);
     }
@@ -76,10 +72,10 @@ export function CommandPanel({ target, canCommand }: Props) {
     startTransition(async () => {
       const result = await sendThermoCommandAction(formData);
       if (result.ok) {
-        setMessage({ tone: "ok", text: "명령을 등록했습니다. (pending)" });
+        setMessage({ tone: "ok", text: COMMAND_REGISTER_SUCCESS });
         router.refresh();
       } else {
-        setMessage({ tone: "error", text: formatError(result.error) });
+        setMessage({ tone: "error", text: formatUserError(result.error) });
       }
     });
   };
@@ -91,8 +87,11 @@ export function CommandPanel({ target, canCommand }: Props) {
           대상:{" "}
           {target ? (
             <span className="font-medium text-foreground">
-              {target.farmKey.lsindRegistNo}/{target.farmKey.itemCode} · 통신박스 {target.moduleUid} · ctrl{" "}
-              {target.eqpmnNo} (idx {target.idx})
+              {formatControllerRef({
+                farmKey: target.farmKey,
+                eqpmnNo: target.eqpmnNo,
+                stallTyCode: target.stallTyCode,
+              })}
             </span>
           ) : (
             "컨트롤러를 선택하세요"

@@ -3,8 +3,10 @@
 import { Trash2 } from "lucide-react";
 import { revokeAccess } from "@/app/(dashboard)/admin/users/actions";
 import type { ManagedUser } from "@/lib/admin/list-users";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
 import { SectionCard } from "@/components/common/section-card";
 import { Badge } from "@/components/ui/badge";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -61,24 +63,32 @@ export function UserTable({ users, selectedEmail, onEmailSelect }: Props) {
               </TableCell>
               <TableCell>
                 {u.role ? (
-                  <Badge variant="secondary">{roleLabel[u.role] ?? u.role}</Badge>
+                  <Badge variant="secondary" className={dashboardUi.badgeMd}>
+                    {roleLabel[u.role] ?? u.role}
+                  </Badge>
                 ) : (
-                  <span className="text-xs text-muted-foreground">미설정</span>
+                  <span className={dashboardUi.tableMeta}>미설정</span>
                 )}
               </TableCell>
               <TableCell>
                 {u.farmAccess.length === 0 ? (
-                  <span className="text-xs text-muted-foreground">권한 없음</span>
+                  <span className={dashboardUi.tableMeta}>권한 없음</span>
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {u.farmAccess.map((a) => (
                       <span
                         key={a.id}
-                        className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
+                        className={cn(
+                          "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5",
+                          dashboardUi.body
+                        )}
                       >
-                        {a.lsindRegistNo}/{a.itemCode}
+                        {farmShortLabel({
+                          lsindRegistNo: a.lsindRegistNo,
+                          itemCode: a.itemCode,
+                        })}
                         {a.can_command && (
-                          <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                          <Badge variant="outline" className={dashboardUi.badgeMd}>
                             명령
                           </Badge>
                         )}
@@ -89,7 +99,7 @@ export function UserTable({ users, selectedEmail, onEmailSelect }: Props) {
                             className="text-muted-foreground hover:text-red-600"
                             title="권한 회수"
                           >
-                            <Trash2 className="size-3.5" />
+                            <Trash2 className={dashboardUi.iconSm} />
                           </button>
                         </form>
                       </span>

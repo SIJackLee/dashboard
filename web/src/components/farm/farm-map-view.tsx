@@ -1,45 +1,42 @@
-import Link from "next/link";
-import { Settings } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { FarmMapCanvas } from "./farm-map-canvas";
 import { FarmMapList } from "./farm-map-list";
+import { FarmMapResetButton } from "./farm-map-reset-button";
 
 type Props = {
   barns: BarnMapSnapshot[];
-  gatewayOnline?: boolean;
-  moduleCount?: number;
+  gridCols?: number;
+  gridRows?: number;
 };
 
 export function FarmMapView({
   barns,
-  gatewayOnline = false,
-  moduleCount = 0,
+  gridCols = 4,
+  gridRows = 4,
 }: Props) {
   return (
     <SectionCard
       title="농장 지도"
-      description="축사별 환경 요약 · 드래그로 배치 변경"
+      description={`⋮⋮ 드래그로 위치 변경 · ${gridCols}×${gridRows}`}
+      action={<FarmMapResetButton />}
+      className="overflow-hidden"
     >
       {barns.length === 0 ? (
-        <div className="flex min-h-[20rem] flex-col items-center justify-center gap-3 rounded-md border border-dashed bg-muted/30">
+        <div className="flex min-h-[24rem] flex-col items-center justify-center gap-3 rounded-md border border-dashed bg-muted/30">
           <p className="text-sm text-muted-foreground">
-            축사가 설정되지 않았습니다. 설정에서 축사를 추가하면 지도에 표시됩니다.
+            LIVE 데이터에 stallNo가 포함된 축사가 없습니다.
           </p>
-          <Link
-            href="/settings?tab=barn"
-            className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-          >
-            <Settings className="size-4" />
-            축사 설정으로 이동
-          </Link>
+          <p className="text-xs text-muted-foreground">
+            통신모듈 수신 후 자동으로 지도에 표시됩니다.
+          </p>
         </div>
       ) : (
         <>
           <FarmMapCanvas
             initialBarns={barns}
-            gatewayOnline={gatewayOnline}
-            moduleCount={moduleCount}
+            gridCols={gridCols}
+            gridRows={gridRows}
           />
           <FarmMapList barns={barns} />
         </>

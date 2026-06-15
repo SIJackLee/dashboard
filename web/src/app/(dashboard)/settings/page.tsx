@@ -1,25 +1,17 @@
 import { PageShell } from "@/components/layout/page-shell";
 import { SettingsView } from "@/components/settings/settings-view";
-import { getBarnMetas } from "@/lib/data/barn-meta";
-import { getControllerMetas } from "@/lib/data/controller-meta";
+import { getAlarmSettings } from "@/lib/data/alarm-settings";
+import { getDisplaySettings } from "@/lib/data/display-settings";
+import { getEditableFarmLocationOptions } from "@/lib/data/farm-location";
+import { getPiggyPlayerId } from "@/lib/data/piggy-settings";
 import { buildStallCatalog, getLiveReadings } from "@/lib/data/iot";
-import { getLiveSummary } from "@/lib/data/iot-live";
-import type { SettingsTabId } from "@/components/settings/settings-tab-nav";
+import { resolveSettingsTab } from "@/lib/dashboard-sections";
 
-const barnNotices: Record<string, { tone: "ok" | "error"; text: string }> = {
+const notices: Record<string, { tone: "ok" | "error"; text: string }> = {
   saved: { tone: "ok", text: "저장했습니다." },
   invalid: { tone: "error", text: "입력값이 올바르지 않습니다." },
   save: { tone: "error", text: "저장에 실패했습니다. 권한을 확인하세요." },
 };
-
-const validTabs = new Set<SettingsTabId>([
-  "dashboard",
-  "farm",
-  "barn",
-  "controller",
-  "alarm",
-  "log",
-]);
 
 export default async function SettingsPage({
   searchParams,
@@ -27,31 +19,30 @@ export default async function SettingsPage({
   searchParams: Promise<{ tab?: string; ok?: string; error?: string }>;
 }) {
   const { tab, ok, error } = await searchParams;
-  const [barnMetas, readings, liveSummary, controllerMetas] = await Promise.all([
-    getBarnMetas(),
-    getLiveReadings(),
-    getLiveSummary(),
-    getControllerMetas(),
-  ]);
+  const [readings, alarmSettings, displaySettings, piggyPlayerId, farmLocationOptions] =
+    await Promise.all([
+      getLiveReadings(),
+      getAlarmSettings(),
+      getDisplaySettings(),
+      getPiggyPlayerId(),
+      getEditableFarmLocationOptions(),
+    ]);
   const stallCatalog = buildStallCatalog(readings);
-  const initialTab =
-    tab && validTabs.has(tab as SettingsTabId) ? (tab as SettingsTabId) : "dashboard";
-  const notice = ok
-    ? barnNotices[ok]
-    : error
-      ? barnNotices[error]
-      : null;
+  const initialTab = resolveSettingsTab(tab);
+  const notice = ok ? notices[ok] : error ? notices[error] : null;
 
   return (
     <PageShell title="설정">
       <SettingsView
-        barnMetas={barnMetas}
         stallCatalog={stallCatalog}
         readings={readings}
-        liveSummary={liveSummary}
-        controllerMetas={controllerMetas}
-        barnNotice={initialTab === "barn" ? notice : null}
-        controllerNotice={initialTab === "controller" ? notice : null}
+        alarmSettings={alarmSettings}
+        displaySettings={displaySettings}
+        alarmNotice={initialTab === "alarm" ? notice : null}
+        displayNotice={initialTab === "dashboard" ? notice : null}
+        farmNotice={initialTab === "farm" ? notice : null}
+        farmLocationOptions={farmLocationOptions}
+        piggyPlayerId={piggyPlayerId ?? ""}
         initialTab={initialTab}
       />
     </PageShell>

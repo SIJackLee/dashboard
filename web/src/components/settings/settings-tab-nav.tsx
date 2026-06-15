@@ -3,11 +3,13 @@
 import {
   LayoutGrid,
   Tractor,
-  Warehouse,
   Cpu,
   Bell,
-  ScrollText,
+  History,
+  type LucideIcon,
 } from "lucide-react";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { getVisibleSettingsTabIds } from "@/lib/dashboard-sections";
 import { cn } from "@/lib/utils";
 
 export type SettingsTabId =
@@ -16,16 +18,19 @@ export type SettingsTabId =
   | "barn"
   | "controller"
   | "alarm"
-  | "log";
+  | "replay";
 
-const tabs: { id: SettingsTabId; label: string; icon: typeof LayoutGrid }[] = [
-  { id: "dashboard", label: "대시보드 설정", icon: LayoutGrid },
-  { id: "farm", label: "농장 설정", icon: Tractor },
-  { id: "barn", label: "축사 설정", icon: Warehouse },
-  { id: "controller", label: "컨트롤러 설정", icon: Cpu },
-  { id: "alarm", label: "알람 설정", icon: Bell },
-  { id: "log", label: "로그 설정", icon: ScrollText },
-];
+const TAB_META: Record<
+  SettingsTabId,
+  { label: string; icon: LucideIcon }
+> = {
+  dashboard: { label: "표시", icon: LayoutGrid },
+  farm: { label: "농장", icon: Tractor },
+  barn: { label: "축사", icon: Tractor },
+  controller: { label: "컨트롤러", icon: Cpu },
+  alarm: { label: "알람", icon: Bell },
+  replay: { label: "연결 복구", icon: History },
+};
 
 type Props = {
   active: SettingsTabId;
@@ -33,21 +38,28 @@ type Props = {
 };
 
 export function SettingsTabNav({ active, onChange }: Props) {
+  const visibleIds = getVisibleSettingsTabIds();
+  const tabs = visibleIds.map((id) => ({
+    id,
+    ...TAB_META[id],
+  }));
+
   return (
-    <div className="flex flex-wrap gap-1 border-b">
+    <div className="flex flex-wrap gap-2 border-b pb-1">
       {tabs.map((t) => (
         <button
           key={t.id}
           type="button"
           onClick={() => onChange(t.id)}
           className={cn(
-            "flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors",
+            "flex items-center gap-2 border-b-2 transition-colors",
+            dashboardUi.tabNav,
             active === t.id
               ? "border-emerald-600 text-emerald-700"
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
-          <t.icon className="size-4" />
+          <t.icon className={dashboardUi.iconSm} />
           {t.label}
         </button>
       ))}

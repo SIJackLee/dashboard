@@ -1,14 +1,12 @@
 import {
-  LayoutDashboard,
   Tractor,
-  Warehouse,
   Cpu,
   Bell,
-  ScrollText,
   Settings,
-  History,
+  Gamepad2,
   type LucideIcon,
 } from "lucide-react";
+import { APP_NAV_SECTIONS } from "@/lib/dashboard-sections";
 
 export type NavItem = {
   label: string;
@@ -16,13 +14,19 @@ export type NavItem = {
   icon: LucideIcon;
 };
 
+const NAV_ICONS: Record<string, LucideIcon> = {
+  "/farm": Tractor,
+  "/controllers": Cpu,
+  "/alarms": Bell,
+  "/play": Gamepad2,
+};
+
+/** 사이드바 메뉴 — APP_NAV_SECTIONS + 설정 */
 export const navItems: NavItem[] = [
-  { label: "대시보드", href: "/dashboard", icon: LayoutDashboard },
-  { label: "농장", href: "/farm", icon: Tractor },
-  { label: "축사", href: "/barns", icon: Warehouse },
-  { label: "컨트롤러", href: "/controllers", icon: Cpu },
-  { label: "백필(REPLAY)", href: "/replay", icon: History },
-  { label: "알람", href: "/alarms", icon: Bell },
-  { label: "로그", href: "/logs", icon: ScrollText },
+  ...APP_NAV_SECTIONS.map((section) => ({
+    label: section.label,
+    href: section.href,
+    icon: NAV_ICONS[section.href] ?? Settings,
+  })),
   { label: "설정", href: "/settings", icon: Settings },
 ];

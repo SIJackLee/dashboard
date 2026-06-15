@@ -1,6 +1,7 @@
 import { FanIndicator, type FanKind } from "@/components/common/fan-indicator";
 import { Sparkline } from "@/components/common/sparkline";
 import type { ControllerReading } from "@/lib/data/iot";
+import { sensorValueForDisplay } from "@/lib/data/reading-display";
 
 type FanConf = {
   kind: FanKind;
@@ -10,21 +11,22 @@ type FanConf = {
 
 // 송풍/배기/입기 팬 % 게이지 + 추이 스파크라인
 export function FanGaugeGroup({ reading }: { reading?: ControllerReading }) {
+  const online = reading?.status !== "offline";
   const fans: FanConf[] = [
     {
       kind: "supply",
-      value: reading?.fanSupply ?? null,
-      series: reading?.fanSupplySeries ?? [],
+      value: sensorValueForDisplay(reading?.status, reading?.fanSupply),
+      series: online ? (reading?.fanSupplySeries ?? []) : [],
     },
     {
       kind: "exhaust",
-      value: reading?.fanExhaust ?? null,
-      series: reading?.fanExhaustSeries ?? [],
+      value: sensorValueForDisplay(reading?.status, reading?.fanExhaust),
+      series: online ? (reading?.fanExhaustSeries ?? []) : [],
     },
     {
       kind: "intake",
-      value: reading?.fanIntake ?? null,
-      series: reading?.fanIntakeSeries ?? [],
+      value: sensorValueForDisplay(reading?.status, reading?.fanIntake),
+      series: online ? (reading?.fanIntakeSeries ?? []) : [],
     },
   ];
 

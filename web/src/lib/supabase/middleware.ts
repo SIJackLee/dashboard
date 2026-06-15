@@ -45,7 +45,18 @@ export async function updateSession(request: NextRequest) {
   // 이미 로그인된 사용자가 /login 접근 시 대시보드로
   if (user && pathname.startsWith("/login")) {
     const url = request.nextUrl.clone();
-    url.pathname = "/farm";
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    url.pathname =
+      profile?.role === "admin" ? "/farm" : "/farm";
+    if (profile?.role === "admin") {
+      url.searchParams.set("view", "overview");
+    } else {
+      url.searchParams.delete("view");
+    }
     return NextResponse.redirect(url);
   }
 

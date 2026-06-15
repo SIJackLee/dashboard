@@ -1,0 +1,91 @@
+export type FarmKey = { lsindRegistNo: string; itemCode: string };
+
+export const DEFAULT_FARM: FarmKey = {
+  lsindRegistNo: "FARM01",
+  itemCode: "P00",
+};
+
+export function farmKeyId(fk: FarmKey): string {
+  return `${fk.lsindRegistNo}/${fk.itemCode}`;
+}
+
+export function farmKeyEq(a: FarmKey, b: FarmKey): boolean {
+  return a.lsindRegistNo === b.lsindRegistNo && a.itemCode === b.itemCode;
+}
+
+export function parseFarmKeyFromQuery(
+  lsind?: string | null,
+  item?: string | null
+): FarmKey | null {
+  const lsindRegistNo = lsind?.trim();
+  const itemCode = item?.trim();
+  if (!lsindRegistNo || !itemCode) return null;
+  return { lsindRegistNo, itemCode };
+}
+
+export function compareFarmKey(a: FarmKey, b: FarmKey): number {
+  const byLsind = a.lsindRegistNo.localeCompare(b.lsindRegistNo);
+  return byLsind !== 0 ? byLsind : a.itemCode.localeCompare(b.itemCode);
+}
+
+/** Reading composite key: `{lsind}/{item}-{module}-{controllerKey}` */
+export function readingKey(
+  fk: FarmKey,
+  moduleUid: number,
+  controllerKey: string
+): string {
+  return `${farmKeyId(fk)}-${moduleUid}-${controllerKey}`;
+}
+
+/** @deprecated use readingKey with controllerKey */
+export function readingKeyLegacyIdx(
+  fk: FarmKey,
+  moduleUid: number,
+  idx: number
+): string {
+  return readingKey(fk, moduleUid, `legacy:idx:${idx}`);
+}
+
+export function moduleKey(fk: FarmKey, moduleUid: number): string {
+  return `${farmKeyId(fk)}-${moduleUid}`;
+}
+
+export function stallCatalogKey(
+  fk: FarmKey,
+  moduleUid: number,
+  stallNo: string
+): string {
+  return `${farmKeyId(fk)}-${moduleUid}-${stallNo}`;
+}
+
+export function appendFarmKeyParams(
+  params: URLSearchParams,
+  fk: FarmKey
+): URLSearchParams {
+  params.set("lsind", fk.lsindRegistNo);
+  params.set("item", fk.itemCode);
+  return params;
+}
+
+/** Legacy ui_config / farm_uid rows → v0x07 identity */
+export function legacyFarmUidToKey(farmUid: number): FarmKey {
+  return {
+    lsindRegistNo: `FARM${String(farmUid).padStart(2, "0")}`,
+    itemCode: DEFAULT_FARM.itemCode,
+  };
+}
+
+export function parseFarmKeyFields(raw: Record<string, unknown>): FarmKey | null {
+  const lsindRegistNo = String(
+    raw.lsindRegistNo ?? raw.lsind_regist_no ?? ""
+  ).trim();
+  const itemCode = String(raw.itemCode ?? raw.item_code ?? "").trim();
+  if (lsindRegistNo && itemCode) {
+    return { lsindRegistNo, itemCode };
+  }
+  const farmUid = Number(raw.farmUid ?? raw.farm_uid);
+  if (Number.isInteger(farmUid) && farmUid >= 0) {
+    return legacyFarmUidToKey(farmUid);
+  }
+  return null;
+}

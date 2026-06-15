@@ -1,0 +1,232 @@
+/* 클러스터 hover 카드 — 전 줌 단계 공통 스케일 (~1.4×) */
+.farm-map-tooltip {
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 1.4;
+  min-width: 220px;
+  max-width: 340px;
+}
+
+.farm-map-tooltip__title {
+  font-weight: 700;
+  font-size: 1.12em;
+  color: #14532d;
+  margin-bottom: 4px;
+}
+
+.farm-map-tooltip__meta {
+  color: #64748b;
+  font-size: 0.88em;
+  margin-bottom: 8px;
+}
+
+.farm-map-tooltip__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.farm-map-tooltip__chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.82em;
+  font-weight: 600;
+  color: #fff;
+}
+
+.farm-map-tooltip__chip--muted {
+  background: #64748b;
+}
+
+.farm-map-tooltip__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid #e2e8f0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.farm-map-tooltip__row:first-of-type {
+  border-top: none;
+}
+
+.farm-map-tooltip__row:hover .farm-map-tooltip__row-label {
+  color: #047857;
+}
+
+.farm-map-tooltip__row-label {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 0.88em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.farm-map-tooltip__more {
+  margin-top: 6px;
+  font-size: 0.82em;
+  color: #64748b;
+}
+
+.leaflet-tooltip.farm-map-leaflet-tooltip {
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+}
+
+.leaflet-tooltip.farm-map-leaflet-tooltip::before {
+  border-top-color: #bbf7d0;
+}
+
+.leaflet-popup.farm-map-leaflet-popup .leaflet-popup-content-wrapper {
+  border-radius: 10px;
+  border: 1px solid #bbf7d0;
+}
+
+.leaflet-popup.farm-map-leaflet-popup .leaflet-popup-content {
+  margin: 12px 14px;
+}
+
+/* 06 · 임계값 펄스 */
+@keyframes farm-map-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(220, 38, 38, 0);
+  }
+}
+
+.farm-map-marker--pulse {
+  border-radius: 9999px;
+  animation: farm-map-pulse 1.6s ease-out infinite;
+}
+
+/* 30 · 하이브리드 핀+칩 */
+.farm-map-item-chip {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(124, 58, 237, 0.85);
+  padding: 1px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+  max-width: 48px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 12 · 전국(Z8) 컴팩트 시·도 클러스터 */
+.farm-map-region-marker--national .farm-map-region-marker__bubble {
+  transform: scale(1);
+}
+
+.farm-map-region-marker--regional .farm-map-region-marker__bubble {
+  transform: scale(1);
+}
+
+.leaflet-marker-icon {
+  transition: opacity 0.15s ease;
+}
+
+/* Z4/4 농장 카드 — 툴팁 hover 불가, 마커 내 좌·우 클릭 분기 */
+.farm-map-farm-marker--split {
+  pointer-events: auto !important;
+}
+
+.farm-map-farm-marker__split-row {
+  display: flex;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.farm-map-farm-marker__zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 36px;
+  padding: 3px 2px;
+  margin: 0;
+  border: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.1;
+  pointer-events: auto;
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+
+.farm-map-farm-marker__zone--ctrl {
+  border-right-width: 1px;
+}
+
+.farm-map-farm-marker__zone--alarm {
+  border-left-width: 1px;
+}
+
+.farm-map-farm-marker__zone:hover {
+  filter: brightness(1.08);
+}
+
+.farm-map-farm-marker__zone:active {
+  transform: scale(0.97);
+}
+
+.farm-map-farm-marker__zone-count {
+  font-weight: 800;
+  line-height: 1;
+}
+
+.farm-map-farm-marker__zone-label {
+  font-size: 8px;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.farm-map-farm-marker__id {
+  text-align: center;
+  font-weight: 700;
+  color: #14532d;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid #bbf7d0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.farm-map-farm-marker--split .farm-map-item-chip {
+  align-self: center;
+  pointer-events: none;
+}
+
+.farm-map-alarm-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  background: #d97706;
+  margin-top: 2px;
+}

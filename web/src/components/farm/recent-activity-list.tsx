@@ -1,45 +1,57 @@
 import { SectionCard } from "@/components/common/section-card";
 import { StatusBadge } from "@/components/common/status-badge";
 import type { ModuleReceipt } from "@/lib/data/iot";
+import { isValidFarmKey } from "@/lib/data/barn-catalog";
+import { formatKst } from "@/lib/datetime/kst";
 import { farmKeyId } from "@/lib/data/farm-key";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
 
 function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "--:--";
-  return d.toLocaleString("ko-KR", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Seoul",
-  });
+  return formatKst(iso, "short");
 }
 
-// 최근 활동(센서 수신): 통신박스별 최신 수신 시각
 export function RecentActivityList({
   receipts = [],
+  variant = "default",
 }: {
   receipts?: ModuleReceipt[];
+  variant?: "default" | "compact";
 }) {
-  const items = receipts.slice(0, 6);
+  const items = receipts
+    .filter((r) => isValidFarmKey(r.farmKey))
+    .slice(0, variant === "compact" ? 4 : 6);
   return (
-    <SectionCard title="최근 활동" description="통신박스별 센서 수신">
+    <SectionCard
+      title="최근 활동"
+      description={variant === "compact" ? undefined : "통신박스별 센서 수신"}
+      className={
+        variant === "compact"
+          ? cn("h-full w-full", dashboardUi.overviewPanelMinH)
+          : undefined
+      }
+      contentClassName={
+        variant === "compact" ? "flex flex-1 flex-col min-h-0" : undefined
+      }
+    >
       {items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
+        <p className={cn("py-6 text-center", dashboardUi.body, "text-muted-foreground")}>
           최근 수신 데이터가 없습니다.
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="flex flex-1 flex-col justify-center space-y-4">
           {items.map((r) => (
             <li
               key={`${farmKeyId(r.farmKey)}-${r.moduleUid}`}
               className="flex items-center gap-3"
             >
-              <StatusBadge tone={r.status} />
-              <span className="flex-1 truncate text-sm">
-                {r.farmKey.lsindRegistNo}/{r.farmKey.itemCode} · 통신박스 {r.moduleUid} 센서 수신
+              <StatusBadge tone={r.status} large />
+              <span className={cn("min-w-0 flex-1", dashboardUi.body)}>
+                {farmShortLabel(r.farmKey)} · 통신박스{" "}
+                {r.moduleUid} 센서 수신
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className={cn("shrink-0", dashboardUi.tableMeta)}>
                 {fmtTime(r.receivedAt)}
               </span>
             </li>

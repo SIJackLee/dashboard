@@ -27,7 +27,7 @@ export function CompactColumnChart({
   maxValue,
   barClassName = "bg-orange-500",
   emptyLabel = "표시할 데이터가 없습니다",
-  height = 112,
+  height = 140,
   fillWidth = false,
   tickEvery = 5,
   showSummary = true,
@@ -40,7 +40,7 @@ export function CompactColumnChart({
 
   if (items.length === 0) {
     return (
-      <p className="py-6 text-center text-sm text-muted-foreground">{emptyLabel}</p>
+      <p className="py-6 text-center text-[1.75rem] text-muted-foreground">{emptyLabel}</p>
     );
   }
 
@@ -51,7 +51,7 @@ export function CompactColumnChart({
 
   const summary =
     withValue.length > 0 ? (
-      <p className="text-[11px] tabular-nums text-muted-foreground">
+      <p className="text-xl tabular-nums text-muted-foreground">
         {Math.min(...withValue.map((i) => i.value)).toFixed(1)}
         {unit} ~ {Math.max(...withValue.map((i) => i.value)).toFixed(1)}
         {unit}
@@ -63,7 +63,7 @@ export function CompactColumnChart({
         {unit}
       </p>
     ) : (
-      <p className="text-[11px] text-muted-foreground">데이터 없음</p>
+      <p className="text-xl text-muted-foreground">데이터 없음</p>
     );
 
   const barRowClass = fillWidth
@@ -123,8 +123,8 @@ export function CompactColumnChart({
                   className={cn(
                     "text-center leading-none text-muted-foreground",
                     fillWidth
-                      ? "min-w-0 flex-1 text-[7px]"
-                      : "w-2.5 shrink-0 truncate text-[8px] sm:w-3 md:w-3.5"
+                      ? "min-w-0 flex-1 text-sm"
+                      : "w-3 shrink-0 truncate text-sm sm:w-4 md:w-5"
                   )}
                 >
                   {showTick ? item.label : ""}

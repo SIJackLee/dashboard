@@ -13,7 +13,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { ControllerMetaEntry } from "@/lib/data/controller-meta";
-import { FIRMWARE_CTRL_IDX_MAX } from "@/lib/data/iot-firmware";
 import type { BarnReading } from "@/lib/data/iot";
 
 type Props = {
@@ -24,16 +23,18 @@ type Props = {
 
 export function ControllerMetaForm({ readings, initialMetas, notice }: Props) {
   const slots = useMemo(() => {
-    const map = new Map<number, BarnReading>();
+    const map = new Map<string, BarnReading>();
     for (const r of readings) {
-      if (!map.has(r.idx)) map.set(r.idx, r);
+      if (!map.has(r.controllerKey)) map.set(r.controllerKey, r);
     }
-    return [...map.values()].sort((a, b) => a.idx - b.idx);
+    return [...map.values()].sort((a, b) =>
+      a.controllerKey.localeCompare(b.controllerKey, "ko", { numeric: true })
+    );
   }, [readings]);
 
-  const [names, setNames] = useState<Record<number, string>>(() => {
-    const init: Record<number, string> = {};
-    for (const m of initialMetas) init[m.idx] = m.displayName;
+  const [names, setNames] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const m of initialMetas) init[m.controllerKey] = m.displayName;
     return init;
   });
 
@@ -41,9 +42,9 @@ export function ControllerMetaForm({ readings, initialMetas, notice }: Props) {
     () =>
       JSON.stringify(
         slots.map((r) => ({
-          idx: r.idx,
+          controllerKey: r.controllerKey,
           eqpmnNo: r.eqpmnNo,
-          displayName: (names[r.idx] ?? "").trim(),
+          displayName: (names[r.controllerKey] ?? "").trim(),
         }))
       ),
     [slots, names]
@@ -65,7 +66,7 @@ export function ControllerMetaForm({ readings, initialMetas, notice }: Props) {
       )}
       <SectionCard
         title="4. 컨트롤러 이름(메타데이터) 설정"
-        description={`LIVE 컨트롤러(idx 0~${FIRMWARE_CTRL_IDX_MAX})에 사용자 지정 이름을 부여합니다. REPLAY는 SW 그룹별 ctrl 이력으로 확인합니다.`}
+        description="LIVE 컨트롤러(축사·장비번호)에 사용자 지정 이름을 부여합니다."
         action={
           <button
             type="submit"
@@ -78,7 +79,7 @@ export function ControllerMetaForm({ readings, initialMetas, notice }: Props) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-24">idx</TableHead>
+              <TableHead className="w-36">식별 키</TableHead>
               <TableHead className="w-28">장비 번호</TableHead>
               <TableHead>사용자 지정 이름</TableHead>
             </TableRow>
@@ -93,15 +94,15 @@ export function ControllerMetaForm({ readings, initialMetas, notice }: Props) {
             ) : (
               slots.map((r) => (
                 <TableRow key={r.key}>
-                  <TableCell>{r.idx}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.controllerKey}</TableCell>
                   <TableCell>{r.eqpmnNo}</TableCell>
                   <TableCell>
                     <Input
-                      value={names[r.idx] ?? ""}
+                      value={names[r.controllerKey] ?? ""}
                       onChange={(e) =>
                         setNames((prev) => ({
                           ...prev,
-                          [r.idx]: e.target.value,
+                          [r.controllerKey]: e.target.value,
                         }))
                       }
                       placeholder={`예) ${r.eqpmnNo}번 라인`}

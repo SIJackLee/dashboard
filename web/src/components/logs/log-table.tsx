@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppNavLink } from "@/components/layout/app-nav-link";
 import { Download } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { Badge } from "@/components/ui/badge";
@@ -10,20 +10,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatKst } from "@/lib/datetime/kst";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
 import type { LogEvent } from "@/lib/data/iot-replay";
 
 function fmtTime(iso: string) {
-  try {
-    return new Date(iso).toLocaleString("ko-KR");
-  } catch {
-    return iso;
-  }
+  return formatKst(iso, "short");
 }
 
 export function LogTable({ events }: { events: LogEvent[] }) {
   return (
     <SectionCard
-      title="이벤트 로그"
+      title="REPLAY 백필 이력"
+      description="통신 재연결 시 이전 구간 데이터가 채워진 기록"
       action={
         <button
           type="button"
@@ -63,14 +62,18 @@ export function LogTable({ events }: { events: LogEvent[] }) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {e.farmKey.lsindRegistNo}/{e.farmKey.itemCode} / {e.moduleUid}
+                  {farmShortLabel(e.farmKey)} / {e.moduleUid}
                 </TableCell>
                 <TableCell className="font-medium">{e.title}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {e.linkHref ? (
-                    <Link href={e.linkHref} className="text-emerald-700 hover:underline">
+                    <AppNavLink
+                      href={e.linkHref}
+                      message="관련 페이지로 이동 중…"
+                      className="text-emerald-700 hover:underline"
+                    >
                       {e.detail}
-                    </Link>
+                    </AppNavLink>
                   ) : (
                     e.detail
                   )}
