@@ -8,6 +8,7 @@ import {
 } from "@/lib/auth/farm-access";
 import {
   compareFarmKey,
+  farmKeyId,
   type FarmKey,
 } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
@@ -31,6 +32,7 @@ export type FarmLocationRow = {
   lng: number;
   geocodeSource: string;
   updatedAt: string;
+  updatedBy: string | null;
 };
 
 type DbRow = {
@@ -43,6 +45,7 @@ type DbRow = {
   lat: number;
   lng: number;
   geocode_source: string;
+  updated_by: string | null;
   updated_at: string;
 };
 
@@ -60,6 +63,7 @@ function mapRow(row: DbRow): FarmLocationRow {
     lng: row.lng,
     geocodeSource: row.geocode_source,
     updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
   };
 }
 
@@ -77,6 +81,7 @@ function synthesizeDevLocation(farmKey: FarmKey): FarmLocationRow {
     lng: jitterCoordForFarmKey(region.lng, farmKey, "lng"),
     geocodeSource: "dev_synthetic",
     updatedAt: new Date().toISOString(),
+    updatedBy: null,
   };
 }
 
@@ -85,7 +90,7 @@ export async function getFarmLocations(): Promise<FarmLocationRow[]> {
   const { data, error } = await supabase
     .from("farm_location")
     .select(
-      "lsind_regist_no, item_code, sido, sigungu, address_detail, address_text, lat, lng, geocode_source, updated_at"
+      "lsind_regist_no, item_code, sido, sigungu, address_detail, address_text, lat, lng, geocode_source, updated_at, updated_by"
     );
 
   if (!error && data && data.length > 0) {
@@ -130,7 +135,10 @@ export function buildLocationFromRegion(
   input: SaveFarmLocationInput,
   region: KoreaRegion,
   farmNoForJitter = 0
-): Omit<DbRow, "updated_at"> & { updated_at?: string } {
+): Omit<DbRow, "updated_at" | "updated_by"> & {
+  updated_at?: string;
+  updated_by?: string | null;
+} {
   const detail = input.addressDetail?.trim() || null;
   return {
     lsind_regist_no: input.farmKey.lsindRegistNo,
@@ -175,10 +183,39 @@ export async function saveFarmLocation(
   return { ok: true };
 }
 
+export type FarmLocationSaveResult =
+  | { ok: true }
+  | { ok: false; error: string; farmKey?: FarmKey };
+
+export type FarmLocationBatchResult = {
+  ok: boolean;
+  saved: number;
+  failed: { farmKey: FarmKey; error: string }[];
+};
+
+export async function saveFarmLocationsBatch(
+  inputs: SaveFarmLocationInput[]
+): Promise<FarmLocationBatchResult> {
+  const failed: { farmKey: FarmKey; error: string }[] = [];
+  let saved = 0;
+
+  for (const input of inputs) {
+    const result = await saveFarmLocation(input);
+    if (result.ok) {
+      saved += 1;
+    } else {
+      failed.push({ farmKey: input.farmKey, error: result.error });
+    }
+  }
+
+  return { ok: failed.length === 0, saved, failed };
+}
+
 export type EditableFarmOption = {
   farmKey: FarmKey;
   label: string;
   location: FarmLocationRow | null;
+  hasLiveData: boolean;
 };
 
 export async function getEditableFarmLocationOptions(): Promise<
@@ -193,27 +230,35 @@ export async function getEditableFarmLocationOptions(): Promise<
   ]);
 
   const locMap = farmLocationMap(locations);
+  const liveIds = new Set<string>();
 
   let farmKeys: FarmKey[];
   if (user.isAdmin) {
     const seen = new Map<string, FarmKey>();
     for (const r of readings) {
-      const id = `${r.farmKey.lsindRegistNo}/${r.farmKey.itemCode}`;
+      const id = farmKeyId(r.farmKey);
+      liveIds.add(id);
       if (!seen.has(id)) seen.set(id, r.farmKey);
+    }
+    for (const loc of locations) {
+      const id = farmKeyId(loc.farmKey);
+      if (!seen.has(id)) seen.set(id, loc.farmKey);
     }
     farmKeys = [...seen.values()].sort(compareFarmKey);
   } else {
     farmKeys = farmKeysFromAccess(user).filter((fk) =>
       canEditFarmScope(user, fk)
     );
+    for (const fk of farmKeys) liveIds.add(farmKeyId(fk));
   }
 
   return farmKeys.map((farmKey) => {
-    const id = `${farmKey.lsindRegistNo}/${farmKey.itemCode}`;
+    const id = farmKeyId(farmKey);
     return {
       farmKey,
       label: farmShortLabel(farmKey),
       location: locMap.get(id) ?? null,
+      hasLiveData: liveIds.has(id),
     };
   });
 }

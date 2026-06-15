@@ -1,7 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { AppNavLink } from "@/components/layout/app-nav-link";
 import type { SidoClusterSummary } from "@/lib/data/farm-geo-summary";
+import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { buildSettingsFarmLocationHref } from "@/lib/auth/farm-access";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +13,7 @@ type Props = {
   activeSido: string | null;
   onSelectSido: (sido: string | null) => void;
   unlocatedCount: number;
+  unlocatedFarms?: FarmSummaryRow[];
   className?: string;
 };
 
@@ -29,16 +33,11 @@ export function FarmRegionPanel({
   activeSido,
   onSelectSido,
   unlocatedCount,
+  unlocatedFarms = [],
   className,
 }: Props) {
-  const totalFarms = useMemo(
-    () => clusters.reduce((n, c) => n + c.farmCount, 0),
-    [clusters]
-  );
-  const totalAlarms = useMemo(
-    () => clusters.reduce((n, c) => n + c.alarmCount, 0),
-    [clusters]
-  );
+  const totalFarms = clusters.reduce((n, c) => n + c.farmCount, 0);
+  const totalAlarms = clusters.reduce((n, c) => n + c.alarmCount, 0);
 
   return (
     <aside
@@ -70,9 +69,26 @@ export function FarmRegionPanel({
         </button>
       ))}
       {unlocatedCount > 0 ? (
-        <p className={cn("px-1 pt-1 text-muted-foreground", dashboardUi.tableMeta)}>
-          위치 미설정 {unlocatedCount}
-        </p>
+        <div className={cn("space-y-2 px-1 pt-2", dashboardUi.tableMeta)}>
+          <p className="text-muted-foreground">위치 미설정 {unlocatedCount}</p>
+          <AppNavLink
+            href="/settings?tab=farm&filter=unconfigured"
+            message="위치 설정으로 이동…"
+            className="block text-emerald-700 underline-offset-2 hover:underline"
+          >
+            설정에서 위치 등록
+          </AppNavLink>
+          {unlocatedFarms.slice(0, 5).map((f) => (
+            <AppNavLink
+              key={`${f.farmKey.lsindRegistNo}/${f.farmKey.itemCode}`}
+              href={buildSettingsFarmLocationHref(f.farmKey)}
+              message="위치 설정으로 이동…"
+              className="block truncate text-foreground hover:text-emerald-700"
+            >
+              {farmShortLabel(f.farmKey)}
+            </AppNavLink>
+          ))}
+        </div>
       ) : null}
     </aside>
   );

@@ -8,6 +8,7 @@ import { getEditableFarmLocationOptions } from "@/lib/data/farm-location";
 import { getPiggyPlayerId } from "@/lib/data/piggy-settings";
 import { buildStallCatalog, getLiveReadings } from "@/lib/data/iot";
 import { resolveSettingsTab } from "@/lib/dashboard-sections";
+import { parseFarmKeyFromQuery } from "@/lib/data/farm-key";
 
 const notices: Record<string, { tone: "ok" | "error"; text: string }> = {
   saved: { tone: "ok", text: "저장했습니다." },
@@ -42,6 +43,7 @@ export default async function SettingsPage({
   const stallCatalog = buildStallCatalog(scopedReadings);
   const initialTab = resolveSettingsTab(tab);
   const notice = ok ? notices[ok] : error ? notices[error] : null;
+  const initialFarmKey = parseFarmKeyFromQuery(lsind, item);
 
   return (
     <PageShell title="설정" searchParams={{ lsind, item }}>
@@ -54,6 +56,8 @@ export default async function SettingsPage({
         farmLocationOptions={farmLocationOptions}
         piggyPlayerId={piggyPlayerId ?? ""}
         initialTab={initialTab}
+        isAdmin={Boolean(user?.isAdmin)}
+        initialFarmKey={initialFarmKey}
       />
     </PageShell>
   );

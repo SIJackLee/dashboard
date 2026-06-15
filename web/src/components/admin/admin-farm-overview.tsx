@@ -45,10 +45,11 @@ export function AdminFarmOverview({ farms, locations }: Props) {
     [farms, locations]
   );
   const clusters = useMemo(() => clusterBySido(mapPoints), [mapPoints]);
-  const unlocatedCount = useMemo(
-    () => pointsWithoutLocation(farms, locations).length,
+  const unlocatedFarms = useMemo(
+    () => pointsWithoutLocation(farms, locations),
     [farms, locations]
   );
+  const unlocatedCount = unlocatedFarms.length;
 
   return (
     <div className="flex w-full items-start gap-3">
@@ -65,6 +66,7 @@ export function AdminFarmOverview({ farms, locations }: Props) {
         activeSido={activeSido}
         onSelectSido={setActiveSido}
         unlocatedCount={unlocatedCount}
+        unlocatedFarms={unlocatedFarms}
       />
     </div>
   );

@@ -85,6 +85,12 @@ export function buildFarmOverviewHref(): string {
   return "/farm";
 }
 
+export function buildSettingsFarmLocationHref(farmKey?: FarmKey): string {
+  const params = new URLSearchParams({ tab: "farm" });
+  if (farmKey) appendFarmKeyParams(params, farmKey);
+  return `/settings?${params.toString()}`;
+}
+
 export function buildControllerHref(opts: {
   farmKey: FarmKey;
   sp?: string | null;

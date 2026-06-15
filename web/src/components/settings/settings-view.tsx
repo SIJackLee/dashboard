@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { DisplaySettingsForm } from "./display-settings-form";
 import { FarmLocationForm } from "./farm-location-form";
 import { PiggyPlayerIdForm } from "./piggy-player-id-form";
@@ -10,12 +11,21 @@ import { SettingsTabNav, type SettingsTabId } from "./settings-tab-nav";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { DisplaySettings } from "@/lib/data/display-settings-shared";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
+import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
 import type { StallCatalogEntry } from "@/lib/data/stall-catalog";
 import type { BarnReading } from "@/lib/data/iot";
 import { getVisibleSettingsTabIds, resolveSettingsTab } from "@/lib/dashboard-sections";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { PIGGY_PLAY_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
+
+const AdminFarmLocationPanel = dynamic(
+  () =>
+    import("@/components/settings/admin-farm-location-panel").then(
+      (m) => m.AdminFarmLocationPanel
+    ),
+  { ssr: false }
+);
 
 export type SettingsNotice = { tone: "ok" | "error"; text: string };
 
@@ -28,6 +38,8 @@ type Props = {
   farmLocationOptions?: EditableFarmOption[];
   piggyPlayerId?: string;
   initialTab?: SettingsTabId;
+  isAdmin?: boolean;
+  initialFarmKey?: FarmKey | null;
 };
 
 export function SettingsView({
@@ -39,6 +51,8 @@ export function SettingsView({
   farmLocationOptions = [],
   piggyPlayerId = "",
   initialTab = "dashboard",
+  isAdmin = false,
+  initialFarmKey = null,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,6 +76,11 @@ export function SettingsView({
   const activeTab = visibleTabs.includes(tab)
     ? tab
     : visibleTabs[0] ?? "dashboard";
+
+  const farmKeyFromUrl = parseFarmKeyFromQuery(
+    searchParams.get("lsind"),
+    searchParams.get("item")
+  );
 
   const handleTabChange = (id: SettingsTabId) => {
     setTab(id);
@@ -99,9 +118,15 @@ export function SettingsView({
             <DisplaySettingsForm initialSettings={displaySettings} />
           </>
         )}
-        {activeTab === "farm" && (
-          <FarmLocationForm options={farmLocationOptions} />
-        )}
+        {activeTab === "farm" &&
+          (isAdmin ? (
+            <AdminFarmLocationPanel
+              options={farmLocationOptions}
+              initialFarmKey={farmKeyFromUrl ?? initialFarmKey}
+            />
+          ) : (
+            <FarmLocationForm options={farmLocationOptions} />
+          ))}
         {activeTab === "alarm" && (
           <AlarmThresholdForm
             initialSettings={alarmSettings}
