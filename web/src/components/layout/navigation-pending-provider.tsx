@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { NavigationLoadingOverlay } from "@/components/common/navigation-loading-overlay";
 import {
   NAV_MIN_DISPLAY_MS,
   shouldUseGlobalNav,
@@ -20,8 +20,6 @@ import {
   resolveNavMessage,
   type NavMessageOptions,
 } from "@/lib/navigation/nav-messages";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
-import { cn } from "@/lib/utils";
 
 type PendingState = {
   message: string;
@@ -89,32 +87,10 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
     >
       {children}
       {pending ? (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/55 backdrop-blur-[2px]"
-          role="status"
-          aria-live="polite"
-          aria-busy="true"
-        >
-          <div
-            className={cn(
-              "flex flex-col items-center gap-2 rounded-xl border border-emerald-200/80 bg-background/95 px-6 py-4 shadow-lg",
-              dashboardUi.body
-            )}
-          >
-            <span className="inline-flex items-center gap-2 font-medium text-emerald-900">
-              <Loader2
-                className={cn(dashboardUi.iconSm, "animate-spin")}
-                aria-hidden
-              />
-              {pending.message}
-            </span>
-            {pending.sublabel ? (
-              <span className={cn("text-muted-foreground", dashboardUi.tableMeta)}>
-                {pending.sublabel}
-              </span>
-            ) : null}
-          </div>
-        </div>
+        <NavigationLoadingOverlay
+          message={pending.message}
+          sublabel={pending.sublabel}
+        />
       ) : null}
     </NavigationPendingContext.Provider>
   );
