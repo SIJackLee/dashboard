@@ -29,10 +29,11 @@ import {
   type FarmKey,
 } from "@/lib/data/farm-key";
 import {
-  isLivePacketMode,
-  pickLatestMergedLiveSnapshots,
-  type LiveDecodedRow,
-} from "@/lib/data/iot-live-merge";
+  pickLatestLiveControllerRows,
+  type RawLiveControllerRow,
+} from "@/lib/data/iot-raw-live";
+import { decodeV0bPayloadFromDb } from "@/lib/data/wire-decode-v0b";
+import { isLivePacketMode } from "@/lib/data/iot-live-merge";
 import {
   legacyFieldsFromChannels,
   mapDecodedChannels,
@@ -384,9 +385,86 @@ export const getLiveReadings = cache(async (): Promise<BarnReading[]> => {
   return readings.filter((r) => isValidFarmKey(r.farmKey));
 });
 
-const GLOBAL_LIVE_ROW_LIMIT = 200;
-/** 비관리자 농장 스코프 — 모듈별 최신 LIVE chunk 수집용 */
-const SCOPED_LIVE_ROW_LIMIT = 2000;
+const GLOBAL_LIVE_ROW_LIMIT = 500;
+/** row-stream: many raw rows per module — higher scoped limit */
+const SCOPED_LIVE_ROW_LIMIT = 5000;
+/** Prefer v_iot_raw_live view; fallback raw table name for pre-migration envs */
+const LIVE_RAW_SOURCE = "v_iot_raw_live" as const;
+
+function rawDbRowToLiveRow(row: {
+  id: number;
+  lsind_regist_no: string;
+  item_code: string;
+  module_uid: number;
+  payload_bytea: unknown;
+  received_at: string;
+}): RawLiveControllerRow | null {
+  const decoded = decodeV0bPayloadFromDb(row.payload_bytea);
+  if (!decoded) return null;
+  return {
+    rawId: row.id,
+    lsind_regist_no: row.lsind_regist_no,
+    item_code: row.item_code,
+    module_uid: row.module_uid,
+    received_at: row.received_at,
+    wire_ver: decoded.wireVer,
+    packet_mode: decoded.packetMode,
+    controller_key: decoded.controllerKey,
+    mesure_dt: decoded.mesureDt,
+    channels: decoded.channels,
+  };
+}
+
+function expandRawLiveRowToReading(row: RawLiveControllerRow): BarnReading {
+  const farmKey: FarmKey = {
+    lsindRegistNo: row.lsind_regist_no,
+    itemCode: row.item_code,
+  };
+  const packetMode = isLivePacketMode(row.packet_mode) ? "live" : "replay";
+  const status = statusFromAge(row.received_at);
+  const c = {
+    controllerKey: row.controller_key,
+    eqpmnNo: row.controller_key.split(":")[2] ?? "01",
+    stallNo: row.controller_key.split(":")[1] ?? null,
+    stallTyCode: row.controller_key.split(":")[0] ?? null,
+    mesureDt: row.mesure_dt,
+    channels: row.channels,
+  };
+  const controllerKey = resolveControllerKey(c);
+  const eqpmnNo = normalizeEqpmnNo(c.eqpmnNo);
+  const stallNo = pickStallField(c.stallNo);
+  const stallTyCode = pickStallField(c.stallTyCode);
+  const channels = mapDecodedChannels(c.channels);
+  const fromChannels =
+    channels.length > 0 ? legacyFieldsFromChannels(channels) : null;
+
+  return {
+    key: readingKey(farmKey, row.module_uid, controllerKey),
+    farmKey,
+    moduleUid: row.module_uid,
+    controllerKey,
+    eqpmnNo,
+    stallNo,
+    stallTyCode,
+    label: formatControllerSlotLabel({ stallNo, eqpmnNo }),
+    tempC: fromChannels?.tempC ?? null,
+    humidityPct: fromChannels?.humidityPct ?? null,
+    fanSupply: fromChannels?.fanSupply ?? null,
+    fanExhaust: fromChannels?.fanExhaust ?? null,
+    fanIntake: fromChannels?.fanIntake ?? null,
+    fanSupplySeries: fromChannels?.fanSupplySeries ?? [],
+    fanExhaustSeries: fromChannels?.fanExhaustSeries ?? [],
+    fanIntakeSeries: fromChannels?.fanIntakeSeries ?? [],
+    mesureDt: row.mesure_dt,
+    receivedAt: row.received_at,
+    status,
+    packetMode,
+    wireVer: row.wire_ver,
+    decodedId: row.rawId,
+    thermo: fromChannels?.thermo ?? null,
+    channels: channels.length > 0 ? channels : undefined,
+  };
+}
 
 async function fetchLiveReadingsRaw(): Promise<BarnReading[]> {
   const supabase = await createClient();
@@ -394,11 +472,12 @@ async function fetchLiveReadingsRaw(): Promise<BarnReading[]> {
   const scopedFarms =
     user && !user.isAdmin ? farmKeysFromAccess(user) : null;
 
+  const selectCols =
+    "id, lsind_regist_no, item_code, module_uid, payload_bytea, received_at";
+
   let query = supabase
-    .from("iot_room_state_decoded")
-    .select(
-      "id, lsind_regist_no, item_code, module_uid, wire_ver, mode, mesure_dt, received_at, chunk_seq, session_id, decoded_json"
-    )
+    .from(LIVE_RAW_SOURCE)
+    .select(selectCols)
     .order("received_at", { ascending: false });
 
   if (scopedFarms && scopedFarms.length > 0) {
@@ -421,19 +500,50 @@ async function fetchLiveReadingsRaw(): Promise<BarnReading[]> {
     query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  if (error) {
+    query = supabase
+      .from("iot_room_state_raw")
+      .select(selectCols)
+      .order("received_at", { ascending: false });
+    if (scopedFarms && scopedFarms.length === 1) {
+      const fk = scopedFarms[0]!;
+      query = query
+        .eq("lsind_regist_no", fk.lsindRegistNo)
+        .eq("item_code", fk.itemCode)
+        .limit(SCOPED_LIVE_ROW_LIMIT);
+    } else if (scopedFarms && scopedFarms.length > 1) {
+      const orClause = scopedFarms
+        .map(
+          (fk) =>
+            `and(lsind_regist_no.eq.${fk.lsindRegistNo},item_code.eq.${fk.itemCode})`
+        )
+        .join(",");
+      query = query.or(orClause).limit(SCOPED_LIVE_ROW_LIMIT);
+    } else {
+      query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
+    }
+    const fallback = await query;
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error || !data) return [];
 
-  const mergedSnapshots = pickLatestMergedLiveSnapshots(
-    data as LiveDecodedRow[]
-  );
+  const decodedRows = (data as Array<{
+    id: number;
+    lsind_regist_no: string;
+    item_code: string;
+    module_uid: number;
+    payload_bytea: unknown;
+    received_at: string;
+  }>)
+    .map(rawDbRowToLiveRow)
+    .filter((r): r is RawLiveControllerRow => r != null);
 
-  const readings = mergedSnapshots.flatMap((row) =>
-    expandDecodedRowToReadings(row as DecodedRow)
-  );
-
-  return sortReadings(readings);
+  const latest = pickLatestLiveControllerRows(decodedRows);
+  return sortReadings(latest.map(expandRawLiveRowToReading));
 }
 
 

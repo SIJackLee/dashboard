@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export const getLatestReceivedAt = cache(async (): Promise<string | null> => {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("iot_room_state_decoded")
+    .from("iot_room_state_raw")
     .select("received_at")
     .order("received_at", { ascending: false })
     .limit(1)

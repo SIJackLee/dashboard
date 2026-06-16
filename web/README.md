@@ -1,6 +1,9 @@
 # 스마트 축사 IoT 대시보드
 
-IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase에 적재된 디코딩 센서 데이터를 권한별로 조회하고, 컨트롤러에 제어 명령을 발행한다.
+IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase raw uplink를 **조회 시 decode**하여 권한별로 표시하고, 컨트롤러에 제어 명령을 발행한다.
+
+> **RS-DB-C (2026-06-14~):** LIVE 데이터는 `v_iot_raw_live` + TS decode. `iot_room_state_decoded` 쓰기는 EC2에서 중단.  
+> **Cloud Agent:** [CLOUD_DEPLOY.md](CLOUD_DEPLOY.md) · [../../docs/CLOUD_DEPLOY_RS-DB-C.md](../../docs/CLOUD_DEPLOY_RS-DB-C.md)
 
 ## 기술 스택
 
@@ -43,7 +46,9 @@ npm run lint
 
 - `src/app/(dashboard)/*` — 농장/축사/컨트롤러/관리자 등 페이지 (인증 게이트 적용)
 - `src/components/*` — `layout` / `common` / 도메인별(farm, barns, controllers, admin)
-- `src/lib/data/iot.ts` — decoded 데이터 파싱·집계(핵심)
+- `src/lib/data/iot.ts` — LIVE raw/View 조회 + decode (RS-DB-C)
+- `src/lib/data/wire-decode-v0b.ts` — wire v0x0B decode
+- `src/lib/data/iot-raw-live.ts` — controllerKey별 최신 merge
 - `src/lib/supabase/*` — Supabase 클라이언트(client/server/admin/middleware)
 - `src/proxy.ts` — Next 16 미들웨어(세션 갱신 + 라우트 보호)
 
