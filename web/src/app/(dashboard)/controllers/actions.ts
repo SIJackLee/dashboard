@@ -27,6 +27,14 @@ export async function sendThermoCommandAction(
   const setpointTemp = Number(formData.get("setpoint_temp"));
   const tempDeviation = Number(formData.get("temp_deviation"));
   const note = String(formData.get("note") ?? "").trim() || null;
+  const channelRaw = String(formData.get("channel") ?? "").trim().toUpperCase();
+  const channel =
+    channelRaw === "A" || channelRaw === "B" || channelRaw === "C"
+      ? channelRaw
+      : null;
+  const eqpmnCode = String(formData.get("eqpmn_code") ?? "").trim() || null;
+  const action =
+    channel && eqpmnCode ? "SET_CHANNEL_THERMO" : "SET_CTRL_THERMO";
 
   if (
     !lsindRegistNo ||
@@ -67,6 +75,10 @@ export async function sendThermoCommandAction(
     return { ok: false, error: "invalid_deviation" };
   }
 
+  if (channel && !/^EC(0[1-9]|[1-9][0-9])$/.test(eqpmnCode ?? "")) {
+    return { ok: false, error: "invalid_eqpmn_code" };
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -76,15 +88,18 @@ export async function sendThermoCommandAction(
       lsind_regist_no: lsindRegistNo,
       item_code: itemCode,
       module_uid: moduleUid,
+      ctrl_idx: Math.max(0, parseInt(eqpmnNo, 10) - 1),
       stall_ty_code: stallTyCode,
       stall_no: stallNo,
       eqpmn_no: eqpmnNo,
+      channel,
+      eqpmn_code: eqpmnCode,
       min_vent_pct: Math.round(minVentPct),
       max_vent_pct: Math.round(maxVentPct),
       setpoint_temp: setpointTemp,
       temp_deviation: tempDeviation,
       note,
-      action: "SET_CTRL_THERMO",
+      action,
       status: "pending",
     })
     .select("id")

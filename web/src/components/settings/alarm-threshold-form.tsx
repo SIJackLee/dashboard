@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { Droplets, RotateCcw, Thermometer, WifiOff } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { Droplets, RotateCcw, Thermometer } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { SimpleSelect } from "@/components/common/filter-bar";
 import { Input } from "@/components/ui/input";
@@ -10,35 +10,57 @@ import { PageActionButton } from "@/components/common/page-action-button";
 import { saveAlarmSettingsAction } from "@/app/(dashboard)/settings/actions";
 import type { BarnReading } from "@/lib/data/iot";
 import {
-  deriveAlarmsFromReadings,
+  activeScopeKeyFromSelection,
+  clearScopeThreshold,
+  describeAlarmScope,
+  filterReadingsForAlarmScope,
+  hasScopeOverride,
+  mergeScopeThreshold,
+  resolveThresholdsForScope,
+} from "@/lib/data/alarm-scope";
+import {
   validateAlarmThresholds,
-  DEFAULT_ALARM_THRESHOLDS,
   type AlarmSettings,
   type AlarmThresholds,
 } from "@/lib/data/alarms";
-import type { StallCatalogEntry } from "@/lib/data/stall-catalog";
-import { formatStallTypeLabel, listStallTypeCodesFromReadings, normalizeStallTyCode, stallTyCodeSortKey } from "@/lib/data/stall-type";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { farmKeyId } from "@/lib/data/farm-key";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
+import {
+  filterReadingsByHierarchy,
+  stallLabelFromKey,
+  uniqueSpCodes,
+  uniqueStallKeys,
+} from "@/lib/data/reading-hierarchy";
+import { formatStallTypeLabel } from "@/lib/data/stall-type";
+import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Props = {
   initialSettings: AlarmSettings;
-  stallCatalog: StallCatalogEntry[];
   readings: BarnReading[];
 };
 
+const SCOPE_ALL = "__all__";
+
 const tempFields: { key: keyof AlarmThresholds; label: string; unit: string }[] = [
-  { key: "tempHigh", label: "온도 상한", unit: "℃" },
-  { key: "tempLow", label: "온도 하한", unit: "℃" },
+  { key: "tempHigh", label: "상한", unit: "℃" },
+  { key: "tempLow", label: "하한", unit: "℃" },
 ];
 
 const humidityFields: { key: keyof AlarmThresholds; label: string; unit: string }[] = [
-  { key: "humidityHigh", label: "습도 상한", unit: "%" },
-  { key: "humidityLow", label: "습도 하한", unit: "%" },
+  { key: "humidityHigh", label: "상한", unit: "%" },
+  { key: "humidityLow", label: "하한", unit: "%" },
 ];
 
-function formatThresholdSummary(t: AlarmThresholds) {
-  return `온도 ${t.tempLow}~${t.tempHigh}℃ · 습도 ${t.humidityLow}~${t.humidityHigh}%`;
+function uniqueFarmOptions(readings: BarnReading[]) {
+  const seen = new Map<string, string>();
+  for (const r of readings) {
+    const id = farmKeyId(r.farmKey);
+    if (!seen.has(id)) seen.set(id, farmShortLabel(r.farmKey));
+  }
+  return [...seen.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([value, label]) => ({ value, label }));
 }
 
 function ThresholdFieldGroup({
@@ -47,30 +69,38 @@ function ThresholdFieldGroup({
   fields,
   values,
   onChange,
+  disabled,
 }: {
   title: string;
   icon: React.ReactNode;
   fields: { key: keyof AlarmThresholds; label: string; unit: string }[];
   values: AlarmThresholds;
   onChange: (next: AlarmThresholds) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div className="rounded-xl border bg-muted/10 p-4">
+    <div
+      className={cn(
+        "rounded-xl border bg-background p-4",
+        disabled && "pointer-events-none opacity-50"
+      )}
+    >
       <div className="mb-3 flex items-center gap-2">
         {icon}
-        <p className={cn("font-medium", dashboardUi.body)}>{title}</p>
+        <p className={cn(dashboardTypography.sectionTitle, "text-foreground")}>{title}</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-2 gap-3">
         {fields.map((f) => (
-          <div key={f.key} className="space-y-1.5 rounded-lg border bg-background p-4">
-            <Label className={dashboardUi.tableMeta}>
+          <div key={f.key} className="space-y-2">
+            <Label size="dashboard">
               {f.label} ({f.unit})
             </Label>
             <Input
               type="number"
+              uiSize="dashboard"
               step={f.unit === "℃" ? 0.5 : 1}
-              className="h-11 text-xl"
               value={values[f.key]}
+              disabled={disabled}
               onChange={(e) => {
                 const next = Number(e.target.value);
                 onChange({
@@ -86,158 +116,177 @@ function ThresholdFieldGroup({
   );
 }
 
-export function AlarmThresholdForm({
-  initialSettings,
-  stallCatalog,
-  readings,
-}: Props) {
-  const [scope, setScope] = useState<string>("global");
+export function AlarmThresholdForm({ initialSettings, readings }: Props) {
   const [settings, setSettings] = useState<AlarmSettings>(initialSettings);
+  const [draft, setDraft] = useState<AlarmThresholds>(initialSettings.global);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
+
+  const [farmId, setFarmId] = useState(() => farmOptions[0]?.value ?? "");
+  const [spCode, setSpCode] = useState(SCOPE_ALL);
+  const [stallKey, setStallKey] = useState(SCOPE_ALL);
+  const [controllerReadingKey, setControllerReadingKey] = useState(SCOPE_ALL);
+
   const spOptions = useMemo(() => {
-    const options: { value: string; label: string }[] = [
-      { value: "global", label: "전체 (기본)" },
-    ];
-    const codes = new Set<string>();
+    if (!farmId) return [];
+    return uniqueSpCodes(readings, farmId).map((code) => ({
+      value: code,
+      label: formatStallTypeLabel(code),
+    }));
+  }, [readings, farmId]);
 
-    for (const code of listStallTypeCodesFromReadings(readings)) {
-      codes.add(code);
-    }
-    for (const code of Object.keys(settings.byStallTyCode)) {
-      const normalized = normalizeStallTyCode(code);
-      if (normalized !== "UNK") codes.add(normalized);
-    }
-    for (const s of stallCatalog) {
-      if (s.stallTyCode) codes.add(normalizeStallTyCode(s.stallTyCode));
-    }
+  const stallOptions = useMemo(() => {
+    if (!farmId || spCode === SCOPE_ALL) return [];
+    const stalls = uniqueStallKeys(readings, farmId, spCode).map((key) => ({
+      value: key,
+      label: stallLabelFromKey(key),
+    }));
+    return [{ value: SCOPE_ALL, label: "전체 (축사유형 일괄)" }, ...stalls];
+  }, [readings, farmId, spCode]);
 
-    for (const code of [...codes].sort(
-      (a, b) => stallTyCodeSortKey(a) - stallTyCodeSortKey(b)
-    )) {
-      options.push({
-        value: code,
-        label: formatStallTypeLabel(code),
-      });
-    }
-    return options;
-  }, [readings, settings.byStallTyCode, stallCatalog]);
+  const controllerList = useMemo(() => {
+    if (!farmId || spCode === SCOPE_ALL || stallKey === SCOPE_ALL) return [];
+    return filterReadingsByHierarchy(readings, farmId, spCode, stallKey);
+  }, [readings, farmId, spCode, stallKey]);
 
-  const activeThresholds =
-    scope === "global"
-      ? settings.global
-      : (settings.byStallTyCode[scope] ?? { ...settings.global });
-
-  const previewAlarms = useMemo(
-    () => deriveAlarmsFromReadings(readings, settings),
-    [readings, settings]
+  const controllerOptions = useMemo(
+    () => [
+      { value: SCOPE_ALL, label: "전체 (축사)" },
+      ...controllerList.map((r) => ({
+        value: r.key,
+        label: r.label || r.eqpmnNo || r.controllerKey,
+      })),
+    ],
+    [controllerList]
   );
 
-  const previewCount = previewAlarms.length;
-  const overrideSpList = Object.keys(settings.byStallTyCode);
-  const hasScopeOverride = scope !== "global" && settings.byStallTyCode[scope] != null;
+  const resolvedStallKey = stallKey === SCOPE_ALL ? "" : stallKey;
+  const resolvedCtrlKey =
+    controllerReadingKey === SCOPE_ALL ? "" : controllerReadingKey;
 
-  const updateActive = (next: AlarmThresholds) => {
-    setValidationError(validateAlarmThresholds(next));
-    if (scope === "global") {
-      setSettings((prev) => ({ ...prev, global: next }));
+  const activeScopeKey = useMemo(
+    () =>
+      activeScopeKeyFromSelection(
+        farmId,
+        spCode === SCOPE_ALL ? "" : spCode,
+        resolvedStallKey,
+        resolvedCtrlKey,
+        readings
+      ),
+    [farmId, spCode, resolvedStallKey, resolvedCtrlKey, readings]
+  );
+
+  const scopeReady = Boolean(farmId && spCode !== SCOPE_ALL);
+
+  useEffect(() => {
+    if (!scopeReady || !activeScopeKey) {
+      setDraft(settings.global);
       return;
     }
-    setSettings((prev) => ({
-      ...prev,
-      byStallTyCode: { ...prev.byStallTyCode, [scope]: next },
-    }));
-  };
-
-  const resetActiveToDefaults = () => {
-    if (scope === "global") {
-      updateActive({ ...DEFAULT_ALARM_THRESHOLDS });
-      return;
-    }
-    updateActive({ ...settings.global });
-  };
-
-  const clearScopeOverride = () => {
-    if (scope === "global") return;
-    setSettings((prev) => {
-      const next = { ...prev.byStallTyCode };
-      delete next[scope];
-      return { ...prev, byStallTyCode: next };
-    });
+    setDraft(resolveThresholdsForScope(settings, activeScopeKey));
     setValidationError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scope 전환 시에만 상속값 로드
+  }, [activeScopeKey, scopeReady]);
+
+  const scopeReadings = useMemo(
+    () =>
+      filterReadingsForAlarmScope(
+        readings,
+        farmId,
+        spCode === SCOPE_ALL ? "" : spCode,
+        resolvedStallKey,
+        resolvedCtrlKey
+      ),
+    [readings, farmId, spCode, resolvedStallKey, resolvedCtrlKey]
+  );
+
+  const scopeHasOverride = hasScopeOverride(settings, activeScopeKey);
+
+  const scopeDescription = describeAlarmScope(
+    farmId,
+    spCode === SCOPE_ALL ? "" : spCode,
+    resolvedStallKey,
+    resolvedCtrlKey,
+    readings
+  );
+
+  const handleFarmChange = (id: string | null) => {
+    if (!id) return;
+    setFarmId(id);
+    setSpCode(SCOPE_ALL);
+    setStallKey(SCOPE_ALL);
+    setControllerReadingKey(SCOPE_ALL);
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const err =
-      validateAlarmThresholds(settings.global) ??
-      Object.values(settings.byStallTyCode)
-        .map(validateAlarmThresholds)
-        .find(Boolean) ??
-      null;
+  const handleSpChange = (code: string | null) => {
+    if (!code) return;
+    setSpCode(code);
+    setStallKey(SCOPE_ALL);
+    setControllerReadingKey(SCOPE_ALL);
+  };
+
+  const handleStallChange = (key: string | null) => {
+    if (!key) return;
+    setStallKey(key);
+    setControllerReadingKey(SCOPE_ALL);
+  };
+
+  const updateDraft = (next: AlarmThresholds) => {
+    setValidationError(validateAlarmThresholds(next));
+    setDraft(next);
+  };
+
+  const handleSaveScope = () => {
+    if (!activeScopeKey) return;
+    const err = validateAlarmThresholds(draft);
     if (err) {
       setValidationError(err);
       return;
     }
-    const formData = new FormData(e.currentTarget);
+    const nextSettings = mergeScopeThreshold(settings, activeScopeKey, draft);
+    setSettings(nextSettings);
+    const formData = new FormData();
+    formData.set("settings_json", JSON.stringify(nextSettings));
     startTransition(() => {
       void saveAlarmSettingsAction(formData);
     });
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <input type="hidden" name="settings_json" value={JSON.stringify(settings)} />
+  const handleClearScope = () => {
+    if (!activeScopeKey) return;
+    const nextSettings = clearScopeThreshold(settings, activeScopeKey);
+    setSettings(nextSettings);
+    setDraft(resolveThresholdsForScope(nextSettings, activeScopeKey));
+    const formData = new FormData();
+    formData.set("settings_json", JSON.stringify(nextSettings));
+    startTransition(() => {
+      void saveAlarmSettingsAction(formData);
+    });
+  };
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className={cn(dashboardUi.metricTile, "space-y-1")}>
-          <p className={dashboardUi.tableMeta}>기본 임계값</p>
-          <p className={cn("font-medium leading-snug", dashboardUi.body)}>
-            {formatThresholdSummary(settings.global)}
-          </p>
-        </div>
-        <div className={cn(dashboardUi.metricTile, "space-y-1")}>
-          <p className={dashboardUi.tableMeta}>축사유형별 오버라이드</p>
-          <p className={cn("font-medium", dashboardUi.body)}>
-            {overrideSpList.length > 0
-              ? `${overrideSpList.length}개 유형`
-              : "없음"}
-          </p>
-          {overrideSpList.length > 0 ? (
-            <p className={cn("truncate text-muted-foreground", dashboardUi.tableMeta)}>
-              {overrideSpList.map((c) => formatStallTypeLabel(c)).join(", ")}
-            </p>
-          ) : null}
-        </div>
-        <div
-          className={cn(
-            dashboardUi.metricTile,
-            "space-y-1",
-            previewCount > 0 && "border-amber-300 bg-amber-50/80"
-          )}
-        >
-          <p className={dashboardUi.tableMeta}>LIVE 예상 알람</p>
-          <p
-            className={cn(
-              "font-semibold tabular-nums",
-              dashboardUi.body,
-              previewCount > 0 ? "text-amber-800" : "text-emerald-800"
-            )}
-          >
-            {previewCount}건
-          </p>
-        </div>
-      </div>
+  const handleResetDraft = () => {
+    if (!activeScopeKey) return;
+    updateDraft(resolveThresholdsForScope(settings, activeScopeKey));
+  };
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (scopeReady && activeScopeKey) handleSaveScope();
+      }}
+    >
+      <input type="hidden" name="settings_json" value={JSON.stringify(settings)} />
 
       <SectionCard
         title="알람 임계값"
-        description="온·습도 임계값 초과 및 통신 두절 시 알람 페이지·TopBar 알림에 표시됩니다."
         action={
           <PageActionButton
             type="submit"
             variant="primary"
-            disabled={pending || !!validationError}
+            disabled={pending || !!validationError || !scopeReady}
           >
             {pending ? "저장 중…" : "저장"}
           </PageActionButton>
@@ -254,82 +303,122 @@ export function AlarmThresholdForm({
           </p>
         ) : null}
 
-        <div className="mb-5 rounded-xl border bg-muted/15 p-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-            <div className="max-w-md space-y-1.5">
-              <Label className={dashboardUi.filterLabel}>적용 범위</Label>
-              <SimpleSelect
-                options={spOptions}
-                value={scope}
-                onValueChange={(v) => v && setScope(v)}
-                triggerClassName="w-full max-w-md"
-              />
-              <p className={cn("text-muted-foreground", dashboardUi.tableMeta)}>
-                {scope === "global"
-                  ? "모든 축사유형에 기본값으로 적용됩니다."
-                  : `${formatStallTypeLabel(scope)} 전용 · 미설정 시 기본값(${formatThresholdSummary(DEFAULT_ALARM_THRESHOLDS)}) 사용`}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
+        <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-2">
+            <Label size="dashboard">농장</Label>
+            <SimpleSelect
+              options={farmOptions}
+              value={farmId || undefined}
+              onValueChange={handleFarmChange}
+              triggerClassName="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label size="dashboard">축사유형</Label>
+            <SimpleSelect
+              placeholder="선택"
+              options={spOptions}
+              value={spCode === SCOPE_ALL ? undefined : spCode}
+              onValueChange={handleSpChange}
+              triggerClassName="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label size="dashboard">축사번호</Label>
+            <SimpleSelect
+              placeholder={spCode === SCOPE_ALL ? "—" : "전체 (축사유형 일괄)"}
+              options={stallOptions}
+              value={stallOptions.length > 0 ? stallKey : undefined}
+              onValueChange={handleStallChange}
+              triggerClassName="w-full"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label size="dashboard">컨트롤러</Label>
+            <SimpleSelect
+              placeholder={stallKey === SCOPE_ALL ? "—" : "전체 (축사)"}
+              options={controllerOptions}
+              value={
+                controllerOptions.length > 0 ? controllerReadingKey : undefined
+              }
+              onValueChange={(v) => v && setControllerReadingKey(v)}
+              triggerClassName="w-full"
+            />
+          </div>
+        </div>
+
+        {scopeReady ? (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                "inline-flex min-h-[2rem] items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-900",
+                dashboardTypography.badge
+              )}
+            >
+              {scopeDescription}
+            </span>
+            {stallKey === SCOPE_ALL ? (
+              <span
+                className={cn(
+                  "inline-flex min-h-[2rem] items-center rounded-full border border-emerald-300 bg-emerald-50/80 px-3 py-1 text-emerald-800",
+                  dashboardTypography.badge
+                )}
+              >
+                축사유형 일괄
+              </span>
+            ) : null}
+            <span className={cn("text-muted-foreground", dashboardTypography.meta)}>
+              {scopeReadings.length}대
+            </span>
+            {scopeHasOverride ? (
+              <span className={cn("text-amber-700", dashboardTypography.meta)}>
+                저장됨
+              </span>
+            ) : (
+              <span className={cn("text-muted-foreground", dashboardTypography.meta)}>
+                상위/기본값 상속
+              </span>
+            )}
+            <div className="ml-auto flex flex-wrap gap-2">
               <PageActionButton
                 type="button"
                 variant="outline"
-                onClick={resetActiveToDefaults}
+                onClick={handleResetDraft}
               >
                 <RotateCcw className={dashboardUi.iconSm} />
-                {scope === "global" ? "기본값 복원" : "전역값 복사"}
+                값 되돌리기
               </PageActionButton>
-              {hasScopeOverride ? (
+              {scopeHasOverride ? (
                 <PageActionButton
                   type="button"
                   variant="outline"
-                  onClick={clearScopeOverride}
+                  disabled={pending}
+                  onClick={handleClearScope}
                 >
-                  오버라이드 삭제
+                  설정 삭제
                 </PageActionButton>
               ) : null}
             </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
           <ThresholdFieldGroup
             title="온도"
             icon={<Thermometer className={cn(dashboardUi.iconSm, "text-orange-600")} />}
             fields={tempFields}
-            values={activeThresholds}
-            onChange={updateActive}
+            values={draft}
+            onChange={updateDraft}
+            disabled={!scopeReady || pending}
           />
           <ThresholdFieldGroup
             title="습도"
             icon={<Droplets className={cn(dashboardUi.iconSm, "text-sky-600")} />}
             fields={humidityFields}
-            values={activeThresholds}
-            onChange={updateActive}
+            values={draft}
+            onChange={updateDraft}
+            disabled={!scopeReady || pending}
           />
-        </div>
-
-        <div
-          className={cn(
-            "mt-5 flex items-start gap-3 rounded-xl border bg-muted/15 px-4 py-3",
-            dashboardUi.body
-          )}
-        >
-          <WifiOff className={cn(dashboardUi.iconSm, "mt-0.5 shrink-0 text-muted-foreground")} />
-          <p className="text-muted-foreground">
-            통신 두절 알람은 컨트롤러가 offline일 때 자동 발생합니다. 임계값
-            설정과 별도로 적용됩니다.
-          </p>
-        </div>
-
-        <div className="mt-5 flex justify-end border-t pt-4">
-          <PageActionButton
-            type="submit"
-            variant="primary"
-            disabled={pending || !!validationError}
-          >
-            {pending ? "저장 중…" : "저장"}
-          </PageActionButton>
         </div>
       </SectionCard>
     </form>

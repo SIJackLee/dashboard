@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import {
   FILTER_ALL,
   FILTER_ALL_LABEL,
@@ -63,20 +63,27 @@ export function SimpleSelect({
 
   return (
     <div className={cn("space-y-2", className)}>
-      {label && <label className={dashboardUi.filterLabel}>{label}</label>}
+      {label && (
+        <label className={dashboardTypography.formLabel}>{label}</label>
+      )}
       {mounted ? (
         <Select value={value} onValueChange={onValueChange}>
-          <SelectTrigger className={cn("h-11 w-48 text-xl", triggerClassName)}>
+          <SelectTrigger
+            size="dashboard"
+            className={cn("w-full min-w-0", triggerClassName)}
+          >
             <SelectValue placeholder={placeholder}>
               {displayLabel}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {options.length === 0 ? (
-              <SelectItem value={FILTER_ALL}>{placeholder}</SelectItem>
+              <SelectItem size="dashboard" value={FILTER_ALL}>
+                {placeholder}
+              </SelectItem>
             ) : (
               options.map((o) => (
-                <SelectItem key={o.value} value={o.value} className="text-xl">
+                <SelectItem key={o.value} size="dashboard" value={o.value}>
                   {isFilterAll(o.value) ? FILTER_ALL_LABEL : o.label}
                 </SelectItem>
               ))
@@ -86,7 +93,7 @@ export function SimpleSelect({
       ) : (
         <div
           className={cn(
-            "flex h-11 w-48 items-center rounded-lg border px-2.5 text-xl text-muted-foreground",
+            "flex h-12 min-h-12 w-full min-w-0 items-center rounded-lg border px-3 text-[1.75rem] text-muted-foreground",
             triggerClassName
           )}
           aria-hidden

@@ -3,6 +3,7 @@ import {
   compareFarmKey,
   farmKeyEq,
   farmKeyId,
+  parseFarmKeyId,
   type FarmKey,
 } from "@/lib/data/farm-key";
 import type { BarnReading } from "@/lib/data/iot";
@@ -85,13 +86,19 @@ export function formatReceivedAgo(iso: string | null): string {
 
 export function farmLabel(farmKey: FarmKey): string {
   const itemName = getItemCodeName(farmKey.itemCode);
-  return `${farmKey.lsindRegistNo} · ${itemName} (${farmKey.itemCode})`;
+  return `${farmKey.lsindRegistNo} · ${itemName}`;
 }
 
 /** Pill·드롭다운·트리용 짧은 라벨 */
 export function farmShortLabel(farmKey: FarmKey): string {
   const itemName = getItemCodeName(farmKey.itemCode);
   return `${farmKey.lsindRegistNo} · ${itemName}`;
+}
+
+/** 내부 farmKeyId(lsind/itemCode) → 사용자 표시 라벨 */
+export function farmShortLabelFromId(farmId: string): string {
+  const fk = parseFarmKeyId(farmId);
+  return fk ? farmShortLabel(fk) : farmId;
 }
 
 export function formatHumidityPct(v: number | null): string {

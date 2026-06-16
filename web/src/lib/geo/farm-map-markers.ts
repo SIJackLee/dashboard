@@ -1,6 +1,7 @@
 import type { FarmMapPoint } from "@/lib/data/farm-geo-summary";
 import { buildFarmAlarmsHref } from "@/lib/auth/farm-access";
 import { farmKeyId } from "@/lib/data/farm-key";
+import { formatItemCodeLabel } from "@/lib/data/item-code";
 import type { MapZoomStage } from "@/lib/geo/farm-map-zoom";
 import {
   farmRiskLevel,
@@ -152,11 +153,12 @@ export function buildFarmMarkerIconSpec(opts: {
   const pulse =
     point.alarmCount >= PULSE_ALARM_THRESHOLD ? " farm-map-marker--pulse" : "";
   const vis = markerVisibilityStyle(visible);
+  const itemLabel = escapeHtml(formatItemCodeLabel(point.itemCode));
 
   if (pinMode) {
     const pinH = size + 10;
     const html = `
-      <div class="farm-map-farm-marker farm-map-farm-marker--pin${pulse}" role="img" aria-label="${escapeHtml(point.lsindRegistNo)} ${escapeHtml(point.itemCode)} 컨트롤러 ${point.controllerCount}" style="position:relative;width:${Math.max(20, size - 8)}px;height:${pinH}px;${vis}">
+      <div class="farm-map-farm-marker farm-map-farm-marker--pin${pulse}" role="img" aria-label="${escapeHtml(point.lsindRegistNo)} ${itemLabel} 컨트롤러 ${point.controllerCount}" style="position:relative;width:${Math.max(20, size - 8)}px;height:${pinH}px;${vis}">
         <div style="position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:0;height:0;border-left:${Math.max(8, size / 3)}px solid transparent;border-right:${Math.max(8, size / 3)}px solid transparent;border-top:${Math.max(10, size / 2)}px solid ${style.fill}"></div>
         <div style="position:absolute;top:0;left:50%;transform:translateX(-50%);width:${Math.max(18, size - 6)}px;height:${Math.max(18, size - 6)}px;border-radius:9999px;background:${style.fill};border:2px solid ${style.border};color:${style.text};font-size:${Math.max(8, fontSize - 2)}px;font-weight:800;display:flex;align-items:center;justify-content:center">${point.controllerCount}</div>
       </div>`;
@@ -178,7 +180,7 @@ export function buildFarmMarkerIconSpec(opts: {
     const splitH = Math.max(36, core);
     const html = `
     <div class="farm-map-farm-marker farm-map-farm-marker--split farm-map-risk--${risk}${pulse}" data-farm-key="${keyAttr}" style="display:flex;flex-direction:column;align-items:stretch;gap:3px;width:${cardW}px;${vis}">
-      <div class="farm-map-farm-marker__split-row" role="group" aria-label="${escapeHtml(point.lsindRegistNo)} ${escapeHtml(point.itemCode)}">
+      <div class="farm-map-farm-marker__split-row" role="group" aria-label="${escapeHtml(point.lsindRegistNo)} ${itemLabel}">
         <button type="button" class="farm-map-farm-marker__zone farm-map-farm-marker__zone--ctrl" data-farm-nav="controllers" aria-label="컨트롤러 ${point.controllerCount}대 페이지로 이동" style="background:${style.fill};border-color:${style.border};color:${style.text};font-size:${fontSize}px">
           <span class="farm-map-farm-marker__zone-count">${point.controllerCount}</span>
           <span class="farm-map-farm-marker__zone-label">컨트롤러</span>
@@ -189,17 +191,17 @@ export function buildFarmMarkerIconSpec(opts: {
         </button>
       </div>
       <span class="farm-map-farm-marker__id" style="font-size:${labelSize}px">${escapeHtml(point.lsindRegistNo)}</span>
-      <span class="farm-map-item-chip">${escapeHtml(point.itemCode)}</span>
+      <span class="farm-map-item-chip">${itemLabel}</span>
     </div>`;
     const totalH = splitH + 30;
-    return { html, w: cardW, h: totalH, anchorX: cardW / 2, anchorY: splitH / 2 + 4 };
+    return { html, w: cardW, h: totalH, anchorX: cardW / 2, anchorY: totalH };
   }
 
   const html = `
-    <div class="farm-map-farm-marker farm-map-risk--${risk}${pulse}" role="img" aria-label="${escapeHtml(point.lsindRegistNo)} ${escapeHtml(point.itemCode)} 컨트롤러 ${point.controllerCount}" style="display:flex;flex-direction:column;align-items:center;gap:2px;${vis}">
+    <div class="farm-map-farm-marker farm-map-risk--${risk}${pulse}" role="img" aria-label="${escapeHtml(point.lsindRegistNo)} ${itemLabel} 컨트롤러 ${point.controllerCount}" style="display:flex;flex-direction:column;align-items:center;gap:2px;${vis}">
       <div style="width:${core}px;height:${core}px;border-radius:9999px;background:${style.fill};border:2px solid ${style.border};color:${style.text};font-size:${fontSize}px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1">${point.controllerCount}</div>
       <span style="font-size:${labelSize}px;font-weight:700;color:#14532d;background:rgba(255,255,255,0.94);padding:1px 4px;border-radius:4px;border:1px solid #bbf7d0;white-space:nowrap;max-width:88px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(point.lsindRegistNo)}</span>
-      <span class="farm-map-item-chip">${escapeHtml(point.itemCode)}</span>
+      <span class="farm-map-item-chip">${itemLabel}</span>
     </div>`;
 
   return { html, w: 88, h: core + 28, anchorX: 44, anchorY: core / 2 + 4 };
@@ -244,7 +246,7 @@ export function buildClusterListHtml(
       const risk = farmRiskLevel(p);
       return `
         <a class="farm-map-tooltip__row" href="${href}">
-          <span class="farm-map-tooltip__row-label">${escapeHtml(p.lsindRegistNo)} · ${escapeHtml(p.itemCode)}</span>
+          <span class="farm-map-tooltip__row-label">${escapeHtml(p.lsindRegistNo)} · ${escapeHtml(formatItemCodeLabel(p.itemCode))}</span>
           <span class="farm-map-tooltip__chip" style="background:${RISK_STYLE[risk].fill}">${p.controllerCount}대</span>
         </a>`;
     })

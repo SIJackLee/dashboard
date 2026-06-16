@@ -10,7 +10,7 @@ import {
 
 } from "@/components/ui/card";
 
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 
 import { cn } from "@/lib/utils";
 
@@ -60,7 +60,7 @@ export function SectionCard({
 
   return (
 
-    <Card className={cn(lg && "rounded-xl", className)}>
+    <Card className={cn(lg && "rounded-xl text-[1.75rem] leading-snug", className)}>
 
       {(title || action) && (
 
@@ -82,7 +82,7 @@ export function SectionCard({
 
               <CardTitle
 
-                className={lg ? dashboardUi.cardTitle : "text-base"}
+                className={lg ? dashboardTypography.cardTitle : "text-base"}
 
               >
 
@@ -100,7 +100,7 @@ export function SectionCard({
 
                   lg
 
-                    ? cn("mt-1.5", dashboardUi.cardDesc)
+                    ? cn("mt-1.5", dashboardTypography.cardDesc)
 
                     : "mt-1 text-sm text-muted-foreground"
 

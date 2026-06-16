@@ -116,9 +116,6 @@ export function GlobalContextStrip({
           unit="%"
         />
       </div>
-      <p className={cn("mt-1 text-muted-foreground", dashboardUi.tableMeta)}>
-        온·습도: 온라인 컨트롤러 평균
-      </p>
     </div>
   );
 }

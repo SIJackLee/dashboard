@@ -14,7 +14,7 @@ import {
   displayKeyPageId,
   getVisibleDisplayPageIds,
 } from "@/lib/dashboard-sections";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { PIGGY_PLAY_ENABLED } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +66,7 @@ export function DisplaySettingsForm({ initialSettings }: Props) {
         <div className="space-y-5">
           {groups.map((group) => (
             <div key={group.pageId} className="rounded-xl border p-5">
-              <p className={dashboardUi.cardTitle}>{group.page}</p>
+              <p className={dashboardTypography.sectionTitle}>{group.page}</p>
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                 {group.items.map((item) => (
                   <label

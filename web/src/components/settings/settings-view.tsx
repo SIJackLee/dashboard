@@ -188,7 +188,6 @@ export function SettingsView({
         {activeTab === "alarm" && (
           <AlarmThresholdForm
             initialSettings={alarmSettings}
-            stallCatalog={stallCatalog}
             readings={readings}
           />
         )}

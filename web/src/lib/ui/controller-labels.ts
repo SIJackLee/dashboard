@@ -2,7 +2,7 @@ import type { ControllerThermoSettings } from "@/lib/controllers/controller-sett
 import type { ThermoCommand } from "@/lib/data/commands";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { getItemCodeName } from "@/lib/data/item-code";
-import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import { formatStallTypeLabel } from "@/lib/data/stall-type";
 
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 
@@ -74,7 +74,7 @@ export function formatFarmItemLabel(
   stallTyCode?: string | null
 ): string {
   const item = stallTyCode
-    ? normalizeStallTyCode(stallTyCode)
+    ? formatStallTypeLabel(stallTyCode)
     : getItemCodeName(farmKey.itemCode);
   return `${farmKey.lsindRegistNo} · ${item}`;
 }

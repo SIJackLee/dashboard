@@ -9,6 +9,7 @@ import {
   Droplets,
   Fan,
   GripVertical,
+  Layers,
   Loader2,
   Minus,
   Plus,
@@ -30,7 +31,6 @@ import { commandStatusLabel } from "@/lib/controllers/controller-settings";
 import type { ThermoCommand } from "@/lib/data/commands";
 import {
   pipelineDetailMessage,
-  settingsSourceLabel,
   SLIDER_VALUE_SLOT_MIN_H,
   UNKNOWN_SETTINGS_HINT,
 } from "@/lib/ui/controller-labels";
@@ -41,12 +41,19 @@ import {
   type PanelMenuId,
 } from "@/lib/controllers/controller-panel-map";
 import { useControllerPanel } from "./use-controller-panel";
-import { cn } from "@/lib/utils";
+import {
+  CHANNEL_SLOT_LABELS,
+  channelBySlot,
+  DEFAULT_CHANNEL_EQPMN,
+  formatChannelEquipmentLabel,
+  type ChannelSlot,
+} from "@/lib/data/iot-channel";
 import { ctrlUi } from "@/lib/ui/controller-page-ui";
 import {
   isReadingOnline,
   sensorValueForDisplay,
 } from "@/lib/data/reading-display";
+import { cn } from "@/lib/utils";
 
 function operationPct(reading?: ControllerReading): number {
   if (!reading) return 0;
@@ -157,7 +164,85 @@ type PanelControlProps = {
   selectedControllerKey?: string;
   onControllerSelect?: (key: string) => void;
   spLabel?: string;
+  activeChannel?: ChannelSlot;
+  onChannelChange?: (channel: ChannelSlot) => void;
 };
+
+function ChannelSlotIcon({ slot }: { slot: ChannelSlot }) {
+  return (
+    <span className="text-3xl font-bold font-mono leading-none">{slot}</span>
+  );
+}
+
+function ChannelSettingsBar({
+  reading,
+  activeChannel,
+  onChannelChange,
+}: {
+  reading?: ControllerReading;
+  activeChannel: ChannelSlot;
+  onChannelChange?: (channel: ChannelSlot) => void;
+}) {
+  const slots: ChannelSlot[] = ["A", "B", "C"];
+  const channels = reading?.channels ?? [];
+
+  return (
+    <div className={cn(ctrlUi.sectionMuted, "mb-3")}>
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "inline-flex items-center gap-2",
+            ctrlUi.sectionTitle
+          )}
+        >
+          <Layers className={cn(ctrlUi.iconMd, "text-primary")} aria-hidden />
+          채널 설정
+        </span>
+      </div>
+      <div className={cn("mt-3 grid grid-cols-3", ctrlUi.gridGap)}>
+        {slots.map((slot) => {
+          const ch = channelBySlot(channels, slot);
+          const equipmentLabel = formatChannelEquipmentLabel(
+            slot,
+            ch?.eqpmnCode
+          );
+          const active = slot === activeChannel;
+          return (
+            <button
+              key={slot}
+              type="button"
+              disabled={!onChannelChange}
+              onClick={() => onChannelChange?.(slot)}
+              aria-pressed={active}
+              aria-label={`${CHANNEL_SLOT_LABELS[slot]} · ${equipmentLabel}`}
+              className={cn(
+                ctrlUi.metricTile,
+                "flex items-center gap-3 p-4 md:p-5 text-left transition-colors",
+                active
+                  ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
+                  : "hover:bg-muted/40",
+                !onChannelChange && "cursor-default opacity-70"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary",
+                  active && "bg-primary/20"
+                )}
+              >
+                <ChannelSlotIcon slot={slot} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className={ctrlUi.label}>{CHANNEL_SLOT_LABELS[slot]}</p>
+                <p className={cn("mt-1", ctrlUi.valueLg)}>{equipmentLabel}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function CommandPipelineStatus({
   command,
@@ -635,8 +720,19 @@ export function ControllerPanelFace({
   selectedControllerKey,
   onControllerSelect,
   spLabel,
+  activeChannel = "A",
+  onChannelChange,
 }: PanelControlProps) {
-  const panel = useControllerPanel(reading, knownSettings, canCommand);
+  const channelReading = channelBySlot(reading?.channels ?? [], activeChannel);
+  const channelEqpmnCode =
+    channelReading?.eqpmnCode ?? DEFAULT_CHANNEL_EQPMN[activeChannel];
+  const panel = useControllerPanel(
+    reading,
+    knownSettings,
+    canCommand,
+    reading?.channels?.length ? activeChannel : undefined,
+    reading?.channels?.length ? channelEqpmnCode : undefined
+  );
   const { resolveName } = useControllerMeta();
   const showControllerList = useDisplayEnabled("controller.controllerList");
   const showLiveMonitor = useDisplayEnabled("controller.liveMonitor");
@@ -689,6 +785,14 @@ export function ControllerPanelFace({
       )}
 
       <div className={ctrlUi.stack}>
+        {reading?.channels?.length ? (
+          <ChannelSettingsBar
+            reading={reading}
+            activeChannel={activeChannel}
+            onChannelChange={onChannelChange}
+          />
+        ) : null}
+
         {showLiveMonitor ? (
           <LiveMonitor
             reading={reading}
@@ -747,20 +851,7 @@ export function ControllerPanelFace({
 
       <div className={cn("mt-3 space-y-2 text-center", ctrlUi.footer)}>
         <CommandPipelineStatus command={latestCommand} />
-        <p>
-          데스크톱: 슬라이더 드래그 · 모바일: 스와이프 존 드래그 · ± 미세 조정 후{" "}
-          <strong className="text-foreground">저장</strong>
-        </p>
-        {panel.settingsKnown ? (
-          <p className="text-emerald-700">
-            설정값:{" "}
-            {panel.settingsSource
-              ? settingsSourceLabel(panel.settingsSource)
-              : "설정값"}
-            {panel.hasEdited && " · 수정됨 — 저장 필요"}
-            {!panel.hasChanges && panel.settingsKnown && " · 변경 없음"}
-          </p>
-        ) : (
+        {!panel.settingsKnown && (
           <p className="text-amber-700">
             {UNKNOWN_SETTINGS_HINT}
           </p>

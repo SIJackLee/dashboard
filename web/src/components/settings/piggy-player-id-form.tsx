@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { AppNavLink } from "@/components/layout/app-nav-link";
 import { SectionCard } from "@/components/common/section-card";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { savePiggyPlayerIdAction } from "@/app/(dashboard)/settings/actions";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -35,24 +37,25 @@ export function PiggyPlayerIdForm({ initialPlayerId }: Props) {
           </PageActionButton>
         }
       >
-        <label className="block space-y-2">
-          <span className={cn("font-medium", dashboardUi.body)}>게임 아이디</span>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="player_id" size="dashboard">
+            게임 아이디
+          </Label>
+          <Input
+            id="player_id"
             type="text"
             name="player_id"
-            className={cn(
-              "w-full max-w-md rounded-lg border bg-background px-4 py-2.5",
-              dashboardUi.body
-            )}
+            uiSize="dashboard"
+            className="max-w-md"
             maxLength={20}
             placeholder="예: piggy_01"
             value={playerId}
             onChange={(e) => setPlayerId(e.target.value)}
             autoComplete="nickname"
           />
-        </label>
+        </div>
 
-        <p className={cn("mt-3 text-muted-foreground", dashboardUi.body)}>
+        <p className={cn("mt-3 text-muted-foreground", dashboardTypography.meta)}>
           게임은{" "}
           <AppNavLink
             href="/play"

@@ -34,6 +34,8 @@ export type ThermoCommand = {
   status: ThermoCommandStatus;
   note: string | null;
   errorMsg: string | null;
+  channel?: import("@/lib/data/iot-channel").ChannelSlot;
+  eqpmnCode?: string;
 };
 
 type Row = {
@@ -55,6 +57,9 @@ type Row = {
   status: string;
   note: string | null;
   error_msg: string | null;
+  channel: string | null;
+  eqpmn_code: string | null;
+  action: string | null;
 };
 
 function mapRow(row: Row): ThermoCommand {
@@ -69,6 +74,12 @@ function mapRow(row: Row): ThermoCommand {
   const controllerKey =
     controllerKeyFromParts(stallTyCode, stallNo, eqpmnNo) ??
     (row.ctrl_idx != null ? legacyControllerKey(row.ctrl_idx) : "legacy:unknown");
+
+  const channelRaw = row.channel?.trim().toUpperCase();
+  const channel =
+    channelRaw === "A" || channelRaw === "B" || channelRaw === "C"
+      ? channelRaw
+      : undefined;
 
   return {
     id: row.id,
@@ -92,6 +103,8 @@ function mapRow(row: Row): ThermoCommand {
     status: row.status as ThermoCommandStatus,
     note: row.note,
     errorMsg: row.error_msg,
+    channel,
+    eqpmnCode: row.eqpmn_code?.trim() || undefined,
   };
 }
 
@@ -104,7 +117,7 @@ export async function getThermoCommandHistory(
   const { data, error } = await supabase
     .from("ctrl_thermo_command")
     .select(
-      "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg"
+      "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg"
     )
     .order("created_at", { ascending: false })
     .limit(limit);

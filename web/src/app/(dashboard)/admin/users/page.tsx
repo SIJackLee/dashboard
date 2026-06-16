@@ -27,7 +27,7 @@ export default async function AdminUsersPage({
 }: {
   searchParams: Promise<{ ok?: string; error?: string; count?: string }>;
 }) {
-  const admin = await requireAdmin();
+  await requireAdmin();
 
   const { ok, error, count } = await searchParams;
   let notice = ok ? noticeByCode[ok] : error ? noticeByCode[error] : null;
@@ -71,11 +71,7 @@ export default async function AdminUsersPage({
           {notice.text}
         </p>
       )}
-      <AdminUsersView
-        users={users}
-        farmOptions={farmOptions}
-        currentUserId={admin.id}
-      />
+      <AdminUsersView users={users} farmOptions={farmOptions} />
     </PageShell>
   );
 }

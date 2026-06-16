@@ -6,7 +6,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { Badge } from "@/components/ui/badge";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { ControllerNameLabel } from "@/components/common/controller-name-label";
 import { buildControllerHref } from "@/lib/auth/farm-access";
@@ -249,16 +249,16 @@ function AlarmFarmGroupRows({
           </TableCell>
         ) : (
           <>
-            <TableCell className="text-xs text-muted-foreground">
+            <TableCell className={dashboardTypography.meta}>
               {summary.latestOccurredAt
                 ? formatKst(summary.latestOccurredAt, "short")
                 : "—"}
             </TableCell>
             <TableCell className="py-2">{labelCell}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">
+            <TableCell className={cn("text-muted-foreground", dashboardTypography.meta)}>
               {summary.dominantAlarmType ?? "—"}
             </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
+            <TableCell className={cn("text-muted-foreground", dashboardTypography.meta)}>
               {avgSeverity != null ? (
                 <span>
                   평균 {avgSeverity.toFixed(1)}
@@ -270,7 +270,7 @@ function AlarmFarmGroupRows({
                 "—"
               )}
             </TableCell>
-            <TableCell className="text-sm text-muted-foreground">—</TableCell>
+            <TableCell className={cn("text-muted-foreground", dashboardTypography.meta)}>—</TableCell>
           </>
         )}
       </TableRow>
@@ -349,16 +349,16 @@ function AlarmSpGroupRows({
           </TableCell>
         ) : (
           <>
-            <TableCell className="text-xs text-muted-foreground">
+            <TableCell className={dashboardTypography.meta}>
               {summary.latestOccurredAt
                 ? formatKst(summary.latestOccurredAt, "short")
                 : "—"}
             </TableCell>
             <TableCell className="py-2">{labelCell}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">
+            <TableCell className={cn("text-muted-foreground", dashboardTypography.meta)}>
               {summary.dominantAlarmType ?? "—"}
             </TableCell>
-            <TableCell className="text-sm text-muted-foreground">
+            <TableCell className={cn("text-muted-foreground", dashboardTypography.meta)}>
               {avgSeverity != null ? (
                 <span>
                   평균 {avgSeverity.toFixed(1)}
@@ -370,7 +370,7 @@ function AlarmSpGroupRows({
                 "—"
               )}
             </TableCell>
-            <TableCell className="text-sm text-muted-foreground">—</TableCell>
+            <TableCell className={cn("text-muted-foreground", dashboardTypography.meta)}>—</TableCell>
           </>
         )}
       </TableRow>
@@ -381,7 +381,8 @@ function AlarmSpGroupRows({
               <TableCell
                 colSpan={colSpan}
                 className={cn(
-                  "py-1.5 text-sm font-medium text-muted-foreground",
+                  "py-1.5 font-medium text-muted-foreground",
+                  dashboardTypography.formLabel,
                   indent === 0 ? "pl-8" : "pl-12"
                 )}
               >
@@ -399,7 +400,7 @@ function AlarmSpGroupRows({
                   selectedId === a.id && "bg-primary/5"
                 )}
               >
-                <TableCell className="text-xs text-muted-foreground">
+                <TableCell className={dashboardTypography.meta}>
                   <Link href={`/alarms?alarm=${encodeURIComponent(a.id)}`} className="block">
                     {formatKst(a.occurredAt, "short")}
                   </Link>
@@ -439,7 +440,7 @@ function AlarmSpGroupRows({
                     </Badge>
                   </Link>
                 </TableCell>
-                <TableCell className="text-sm">
+                <TableCell className={dashboardTypography.tableCell}>
                   <Link href={`/alarms?alarm=${encodeURIComponent(a.id)}`} className="block">
                     {a.detail}
                   </Link>

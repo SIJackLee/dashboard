@@ -10,7 +10,8 @@ import {
 
 } from "@/lib/data/iot-firmware";
 
-import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { type FarmKey } from "@/lib/data/farm-key";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
 
 
 
@@ -158,7 +159,7 @@ export function buildControllerSlotSeries(
 
               const v = m[metric];
 
-              return `${m.label} (${farmKeyId(m.farmKey)}/통신박스 ${m.moduleUid}): ${
+              return `${m.label} (${farmShortLabel(m.farmKey)}/통신박스 ${m.moduleUid}): ${
 
                 v === null ? "--" : v.toFixed(1)
 

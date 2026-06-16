@@ -25,6 +25,7 @@ import {
 } from "@/lib/controllers/controller-panel-map";
 
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
+import type { ChannelSlot } from "@/lib/data/iot-channel";
 
 import { formatUserError } from "@/lib/ui/controller-labels";
 
@@ -128,7 +129,11 @@ export function useControllerPanel(
 
   knownSettings: ControllerThermoSettings | null,
 
-  canCommand: boolean
+  canCommand: boolean,
+
+  activeChannel?: ChannelSlot,
+
+  channelEqpmnCode?: string
 
 ) {
 
@@ -162,31 +167,18 @@ export function useControllerPanel(
 
   const targetKey = target?.key;
 
-  const settingsStamp = knownSettings?.updatedAt ?? "";
+  const channelKey = activeChannel ?? "";
 
-
-
-  /** 컨트롤러 전환 시에만 편집 상태 초기화 */
-
+  /** 컨트롤러·채널 전환 시 편집 상태 초기화 */
   useEffect(() => {
-
     setHasEdited(false);
-
     setMessage(null);
-
     if (knownSettings) {
-
       setDraft(draftFromSettings(knownSettings));
-
     } else {
-
       setDraft(null);
-
     }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- target 전환 시점의 knownSettings만 반영
-
-  }, [targetKey]);
+  }, [targetKey, channelKey]);
 
 
 
@@ -195,6 +187,8 @@ export function useControllerPanel(
    * 폴링·LIVE 갱신 시: 편집 중이면 draft 유지, baseline(currentValues)만 갱신.
 
    * 편집 중이 아니면 서버 설정값으로 draft 동기화.
+
+   * 채널 전환은 위 effect가 처리 — channelKey는 deps에 넣지 않음.
 
    */
 
@@ -222,7 +216,7 @@ export function useControllerPanel(
 
     });
 
-  }, [targetKey, settingsStamp, knownSettings]);
+  }, [knownSettings, targetKey]);
 
 
 
@@ -379,6 +373,11 @@ export function useControllerPanel(
 
     formData.set("temp_deviation", String(values.tempDeviation));
 
+    if (activeChannel && channelEqpmnCode) {
+      formData.set("channel", activeChannel);
+      formData.set("eqpmn_code", channelEqpmnCode);
+    }
+
 
 
     startTransition(async () => {
@@ -407,7 +406,7 @@ export function useControllerPanel(
 
     });
 
-  }, [canCommand, draft, knownSettings, router, target]);
+  }, [activeChannel, canCommand, channelEqpmnCode, draft, knownSettings, router, target]);
 
 
 

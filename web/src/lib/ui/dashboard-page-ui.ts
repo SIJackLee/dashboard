@@ -1,7 +1,36 @@
 /**
  * 대시보드 공통 — 타이포·레이아웃 스케일 (기준 대비 약 2배)
  * 컨트롤러·농장·축사·알람·로그·설정·관리 페이지 및 레이아웃 공유
+ *
+ * 역할 기반 타이포: canvases/dashboard-typography-guide.canvas.tsx 참고
  */
+export const dashboardTypography = {
+  pageTitle: "text-4xl font-bold",
+  cardTitle: "text-[2rem] font-semibold leading-tight",
+  sectionTitle: "text-2xl font-medium",
+  cardDesc: "text-[1.75rem] text-muted-foreground leading-snug",
+  formLabel: "text-2xl font-medium text-muted-foreground leading-snug",
+  body: "text-[1.75rem] leading-snug",
+  meta: "text-[1.75rem] text-muted-foreground leading-snug",
+  tableCell: "text-[1.75rem] leading-snug",
+  tableHead: "text-2xl font-medium",
+  control: "text-[1.75rem] leading-snug",
+  badge: "text-xl font-medium",
+  value: "text-[1.75rem] font-mono font-semibold tabular-nums leading-tight",
+  valueLg: "text-4xl font-mono font-bold tabular-nums leading-tight",
+  tabNav: "text-[1.75rem] font-medium",
+} as const;
+
+export const dashboardControl = {
+  input:
+    "h-12 min-h-12 px-3 text-[1.75rem] leading-snug md:text-[1.75rem]",
+  selectTrigger:
+    "h-12 min-h-12 w-full px-3 text-[1.75rem] leading-snug md:text-[1.75rem] [&_svg]:size-5",
+  selectItem: "py-2.5 pl-2.5 text-[1.75rem] leading-snug",
+  button: "h-12 min-h-12 px-5 text-[1.75rem] font-medium leading-snug",
+  buttonOutline: "h-11 min-h-11 px-4 text-[1.75rem] font-medium leading-snug",
+} as const;
+
 export const dashboardUi = {
   /* 레이아웃 — 사이드바·탑바 */
   sidebarWidth: "w-[20rem] shrink-0",
@@ -99,8 +128,8 @@ export const dashboardUi = {
   cardDesc: "text-[1.75rem] text-muted-foreground",
   table: "text-[1.75rem]",
   tableHead: "text-2xl font-medium",
-  tableMeta: "text-xl text-muted-foreground",
-  filterLabel: "text-2xl font-medium text-muted-foreground",
+  tableMeta: "text-[1.75rem] text-muted-foreground leading-snug",
+  filterLabel: "text-2xl font-medium text-muted-foreground leading-snug",
   tabNav: "rounded-lg px-5 py-3 text-[1.75rem] font-medium",
 
   /* 간격 */
@@ -119,7 +148,7 @@ export const dashboardUi = {
   btnMicro: "h-11 min-w-[5.5rem] gap-2 px-4 text-[1.75rem]",
   btnMenuTab: "h-11 px-5 text-[1.75rem]",
   btnDefault: "h-11 px-5 text-[1.75rem] font-medium",
-  btnSmAction: "h-11 min-h-[2.75rem] px-4 text-xl font-medium",
+  btnSmAction: "h-11 min-h-[2.75rem] px-4 text-[1.75rem] font-medium leading-snug",
   spChip: "rounded-full border px-4 py-2.5 text-2xl font-medium",
   refreshBtn: "rounded-lg border px-4 py-2.5 text-xl font-medium",
 

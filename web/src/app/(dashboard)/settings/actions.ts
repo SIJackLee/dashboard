@@ -88,6 +88,9 @@ export async function saveAlarmSettingsAction(formData: FormData) {
     validateAlarmThresholds(settings.global) ??
     Object.values(settings.byStallTyCode ?? {})
       .map(validateAlarmThresholds)
+      .find(Boolean) ??
+    Object.values(settings.byScope ?? {})
+      .map(validateAlarmThresholds)
       .find(Boolean);
   if (validationErr) {
     redirect("/settings?tab=alarm&error=invalid");

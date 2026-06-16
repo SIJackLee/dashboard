@@ -31,7 +31,8 @@ export function FanIndicator({
   const conf = fanMap[kind];
   const Icon = conf.icon;
   const pct = value ?? 0;
-  const display = value === null ? "--" : `${value}%`;
+  const display =
+    value === null || value === undefined ? "--" : `${value.toFixed(1)}%`;
 
   if (compact) {
     return (

@@ -8,6 +8,7 @@ import {
   buildFarmAlarmsHref,
 } from "@/lib/auth/farm-access";
 import { farmKeyId } from "@/lib/data/farm-key";
+import { formatItemCodeLabel } from "@/lib/data/item-code";
 import { FARM_GEO_MAP_SHELL } from "@/components/admin/farm-geo-map-shell";
 import { FarmGeoMapLegend } from "@/components/admin/farm-geo-map-legend";
 import {
@@ -46,6 +47,44 @@ type Props = {
 
 type LeafletModule = typeof import("leaflet");
 type LeafletMarker = import("leaflet").Marker;
+type LeafletLayerGroup = import("leaflet").LayerGroup;
+
+type MarkerTooltipBind = {
+  html: string;
+  options: import("leaflet").TooltipOptions;
+};
+
+/** 비활성 줌 단계 마커 — 레이어 제거 + tooltip 해제 (Leaflet 1.9는 setInteractive 없음) */
+function syncMarkerForStage(
+  marker: LeafletMarker,
+  layer: LeafletLayerGroup,
+  active: boolean,
+  tooltip?: MarkerTooltipBind
+) {
+  marker.closeTooltip();
+  if (active) {
+    if (tooltip) {
+      if (marker.getTooltip()) {
+        marker.setTooltipContent(tooltip.html);
+      } else {
+        marker.bindTooltip(tooltip.html, tooltip.options);
+      }
+    }
+    if (!layer.hasLayer(marker)) {
+      layer.addLayer(marker);
+    }
+    return;
+  }
+
+  marker.unbindTooltip();
+  if (layer.hasLayer(marker)) {
+    layer.removeLayer(marker);
+  }
+}
+
+function hiddenMarkerIconClass(active: boolean): string {
+  return active ? "" : "farm-map-marker--hidden";
+}
 
 export function FarmGeoMap({
   points,
@@ -116,7 +155,7 @@ export function FarmGeoMap({
       closeAllMapTooltips();
       navigate(buildFarmAlarmsHref(point.farmKey), {
         message: "알람 페이지로 이동 중…",
-        sublabel: `${point.lsindRegistNo} · ${point.itemCode}`,
+        sublabel: `${point.lsindRegistNo} · ${formatItemCodeLabel(point.itemCode)}`,
       });
     },
     [closeAllMapTooltips, isPending, navigate]
@@ -128,7 +167,7 @@ export function FarmGeoMap({
       closeAllMapTooltips();
       navigate(buildControllerHref({ farmKey: point.farmKey }), {
         message: "컨트롤러 페이지로 이동 중…",
-        sublabel: `${point.lsindRegistNo} · ${point.itemCode}`,
+        sublabel: `${point.lsindRegistNo} · ${formatItemCodeLabel(point.itemCode)}`,
       });
     },
     [closeAllMapTooltips, isPending, navigate]
@@ -291,6 +330,8 @@ export function FarmGeoMap({
     ) => {
       for (const [key, marker] of cache) {
         if (!keep.has(key)) {
+          marker.closeTooltip();
+          marker.unbindTooltip();
           layer?.removeLayer(marker);
           cache.delete(key);
         }
@@ -321,6 +362,22 @@ export function FarmGeoMap({
       syncSigunguControllerAudit(null, null);
     }
 
+    if (!showSido) {
+      for (const marker of sidoMarkersRef.current.values()) {
+        syncMarkerForStage(marker, sidoLayer, false);
+      }
+    }
+    if (!showSigungu) {
+      for (const marker of sigunguMarkersRef.current.values()) {
+        syncMarkerForStage(marker, sigunguLayer, false);
+      }
+    }
+    if (!showFarm) {
+      for (const marker of farmMarkersRef.current.values()) {
+        syncMarkerForStage(marker, farmLayer, false);
+      }
+    }
+
     const sidoKeys = new Set<string>();
     const sidoRows = aggregateBySido(points);
     const maxSidoControllers = maxInCohort(sidoRows.map((r) => r.controllerSum));
@@ -349,7 +406,7 @@ export function FarmGeoMap({
       let marker = sidoMarkersRef.current.get(row.sido);
       const icon = L.divIcon({
         html: spec.html,
-        className: "",
+        className: hiddenMarkerIconClass(showSido),
         iconSize: [spec.w, spec.h],
         iconAnchor: [spec.anchorX, spec.anchorY],
       });
@@ -365,12 +422,15 @@ export function FarmGeoMap({
             ? "클릭 → 시·도 확대 (줌 2)"
             : "클릭 → 시·군·구 (줌 3)",
       });
+      const sidoTooltip = {
+        html: tooltipHtml,
+        options: {
+          direction: "top" as const,
+          className: "farm-map-leaflet-tooltip",
+        },
+      };
       if (!marker) {
         marker = L.marker([row.lat, row.lng], { icon });
-        marker.bindTooltip(tooltipHtml, {
-          direction: "top",
-          className: "farm-map-leaflet-tooltip",
-        });
         marker.on("click", () => {
           selectedSidoRef.current = row.sido;
           selectedSigunguRef.current = null;
@@ -380,13 +440,12 @@ export function FarmGeoMap({
             center: nextStage === 2 ? undefined : [row.lat, row.lng],
           });
         });
-        sidoLayer.addLayer(marker);
         sidoMarkersRef.current.set(row.sido, marker);
       } else {
         marker.setLatLng([row.lat, row.lng]);
         marker.setIcon(icon);
-        marker.setTooltipContent(tooltipHtml);
       }
+      syncMarkerForStage(marker, sidoLayer, showSido, showSido ? sidoTooltip : undefined);
     }
     purgeMarkers(sidoMarkersRef.current, sidoLayer, sidoKeys);
 
@@ -431,7 +490,7 @@ export function FarmGeoMap({
         let marker = sigunguMarkersRef.current.get(key);
         const icon = L.divIcon({
           html: spec.html,
-          className: "",
+          className: hiddenMarkerIconClass(showSigungu),
           iconSize: [spec.w, spec.h],
           iconAnchor: [spec.anchorX, spec.anchorY],
         });
@@ -444,23 +503,30 @@ export function FarmGeoMap({
           risk,
           action: "클릭 → 농장 (줌 4)",
         });
+        const sigunguTooltip = {
+          html: tooltipHtml,
+          options: {
+            direction: "top" as const,
+            className: "farm-map-leaflet-tooltip",
+          },
+        };
         if (!marker) {
           marker = L.marker([row.lat, row.lng], { icon });
-          marker.bindTooltip(tooltipHtml, {
-            direction: "top",
-            className: "farm-map-leaflet-tooltip",
-          });
           marker.on("click", () => {
             selectedSigunguRef.current = row.sigungu;
             goToStage(L, map, 3);
           });
-          sigunguLayer.addLayer(marker);
           sigunguMarkersRef.current.set(key, marker);
         } else {
           marker.setLatLng([row.lat, row.lng]);
           marker.setIcon(icon);
-          marker.setTooltipContent(tooltipHtml);
         }
+        syncMarkerForStage(
+          marker,
+          sigunguLayer,
+          showSigungu,
+          showSigungu ? sigunguTooltip : undefined
+        );
       }
     }
     purgeMarkers(sigunguMarkersRef.current, sigunguLayer, sigunguKeys);
@@ -506,25 +572,41 @@ export function FarmGeoMap({
         let marker = farmMarkersRef.current.get(key);
         const icon = L.divIcon({
           html: spec.html,
-          className: "",
+          className: hiddenMarkerIconClass(showFarm),
           iconSize: [spec.w, spec.h],
           iconAnchor: [spec.anchorX, spec.anchorY],
         });
+        const farmTooltipOpts = showFarm
+          ? {
+              direction: "bottom" as const,
+              offset: [0, 10] as [number, number],
+              className:
+                "farm-map-leaflet-tooltip farm-map-leaflet-tooltip--split",
+            }
+          : {
+              direction: "top" as const,
+              className: "farm-map-leaflet-tooltip",
+            };
+        const farmTooltip = {
+          html: buildFarmTooltipHtml(p),
+          options: farmTooltipOpts,
+        };
         if (!marker) {
           marker = L.marker([pos.lat, pos.lng], {
             icon,
             farmPoint: p,
           });
-          marker.bindTooltip(buildFarmTooltipHtml(p), {
-            direction: "top",
-            className: "farm-map-leaflet-tooltip",
-          });
-          farmLayer.addLayer(marker);
           farmMarkersRef.current.set(key, marker);
         } else {
           marker.setLatLng([pos.lat, pos.lng]);
           marker.setIcon(icon);
         }
+        syncMarkerForStage(
+          marker,
+          farmLayer,
+          showFarm,
+          showFarm ? farmTooltip : undefined
+        );
       }
     }
     purgeMarkers(farmMarkersRef.current, farmLayer, farmKeys);

@@ -13,6 +13,8 @@ import {
 import { formatKst } from "@/lib/datetime/kst";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
 import type { LogEvent } from "@/lib/data/iot-replay";
+import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
 
 function fmtTime(iso: string) {
   return formatKst(iso, "short");
@@ -65,7 +67,7 @@ export function LogTable({ events }: { events: LogEvent[] }) {
                   {farmShortLabel(e.farmKey)} / {e.moduleUid}
                 </TableCell>
                 <TableCell className="font-medium">{e.title}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell className={cn("text-muted-foreground", dashboardTypography.meta)}>
                   {e.linkHref ? (
                     <AppNavLink
                       href={e.linkHref}

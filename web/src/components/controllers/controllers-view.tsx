@@ -10,6 +10,7 @@ import type { ControllerReading } from "@/lib/data/iot";
 import type { ThermoCommand } from "@/lib/data/commands";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import { resolveThermoSettings } from "@/lib/controllers/controller-settings";
+import type { ChannelSlot } from "@/lib/data/iot-channel";
 import {
   appendFarmKeyParams,
   farmKeyId,
@@ -232,6 +233,8 @@ function ControllersViewBody({
     );
   });
 
+  const [activeChannel, setActiveChannel] = useState<ChannelSlot>("A");
+
   const selectedFarmKey = useMemo((): FarmKey | undefined => {
     const hit = readings.find((r) => farmKeyId(r.farmKey) === farmId);
     return hit?.farmKey;
@@ -246,9 +249,17 @@ function ControllersViewBody({
         thermoSettings,
         selectedFarmKey,
         selected?.moduleUid,
-        selected?.controllerKey
+        selected?.controllerKey,
+        selected?.channels?.length ? activeChannel : undefined
       ),
-    [thermoSettings, selectedFarmKey, selected?.moduleUid, selected?.controllerKey]
+    [
+      thermoSettings,
+      selectedFarmKey,
+      selected?.moduleUid,
+      selected?.controllerKey,
+      selected?.channels?.length,
+      activeChannel,
+    ]
   );
 
   const latestCommand = useMemo(() => {
@@ -258,10 +269,13 @@ function ControllersViewBody({
         (c) =>
           farmKeyId(c.farmKey) === farmKeyId(selectedFarmKey) &&
           c.moduleUid === selected.moduleUid &&
-          c.controllerKey === selected.controllerKey
+          c.controllerKey === selected.controllerKey &&
+          (selected.channels?.length
+            ? c.channel === activeChannel
+            : !c.channel)
       ) ?? null
     );
-  }, [commands, selected, selectedFarmKey]);
+  }, [commands, selected, selectedFarmKey, activeChannel]);
 
   useEffect(() => {
     if (
@@ -323,6 +337,7 @@ function ControllersViewBody({
 
   const handleControllerChange = (key: string) => {
     setControllerKey(key);
+    setActiveChannel("A");
     const ctrl = controllerList.find((r) => r.key === key);
     syncUrl(selectedFarmKey, spCode, stallKey, ctrl);
   };
@@ -367,6 +382,7 @@ function ControllersViewBody({
       ) : (
         <>
           <ControllerPanelFace
+            key={`${selected?.key ?? "none"}-${activeChannel}`}
             reading={selected}
             knownSettings={selectedSettings}
             latestCommand={latestCommand}
@@ -374,6 +390,8 @@ function ControllersViewBody({
             controllerList={controllerList}
             selectedControllerKey={selected?.key}
             onControllerSelect={handleControllerChange}
+            activeChannel={activeChannel}
+            onChannelChange={setActiveChannel}
             spLabel={
               stallKey
                 ? `${formatStallTypeLabel(spCode)} · ${stallLabelFromKey(stallKey)}`

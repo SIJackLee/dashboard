@@ -1,23 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { UserPlus, Users } from "lucide-react";
-import { grantBulkFarmAccess, grantFarmAccess } from "@/app/(dashboard)/admin/users/actions";
-import { SectionCard } from "@/components/common/section-card";
+import { grantBulkFarmAccess } from "@/app/(dashboard)/admin/users/actions";
+import { FarmAccessGrantTable } from "@/components/admin/farm-access-grant-table";
+import type {
+  FarmAccessState,
+  GrantFarmOption,
+} from "@/components/admin/farm-access-grant-table";
+import { ComboSearchBar } from "@/components/common/combo-search-bar";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { SimpleSelect } from "@/components/common/filter-bar";
+import { SectionCard } from "@/components/common/section-card";
 import type { ManagedUser } from "@/lib/admin/list-users";
 import type { FarmKey } from "@/lib/data/farm-key";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
-export type GrantFarmOption = {
-  farmKey: FarmKey;
-  label: string;
-};
+export type { GrantFarmOption } from "@/components/admin/farm-access-grant-table";
 
 type Props = {
   email: string;
@@ -26,16 +25,11 @@ type Props = {
   users: ManagedUser[];
 };
 
-type GrantMode = "single" | "bulk";
+type GrantMode = "bulk" | "single";
+type FarmAccessFilter = "all" | "selected" | "unselected";
 
-function farmValue(fk: FarmKey) {
+export function farmValue(fk: FarmKey) {
   return `${fk.lsindRegistNo}/${fk.itemCode}`;
-}
-
-function parseFarmValue(raw: string): FarmKey | null {
-  const [lsindRegistNo, itemCode] = raw.split("/");
-  if (!lsindRegistNo?.trim() || !itemCode?.trim()) return null;
-  return { lsindRegistNo: lsindRegistNo.trim(), itemCode: itemCode.trim() };
 }
 
 function buildUserEmailOptions(users: ManagedUser[]) {
@@ -47,39 +41,132 @@ function buildUserEmailOptions(users: ManagedUser[]) {
     }));
 }
 
-function UserEmailSelect({
-  id,
-  email,
-  users,
-  onEmailChange,
-}: {
-  id: string;
-  email: string;
-  users: ManagedUser[];
-  onEmailChange: (email: string) => void;
-}) {
-  const emailOptions = useMemo(() => buildUserEmailOptions(users), [users]);
+function filterGrantFarmOptions(
+  options: GrantFarmOption[],
+  filter: FarmAccessFilter,
+  query: string,
+  selectedIds: Set<string>
+) {
+  const q = query.trim().toLowerCase();
+  return options.filter((o) => {
+    const id = farmValue(o.farmKey);
+    if (filter === "selected" && !selectedIds.has(id)) return false;
+    if (filter === "unselected" && selectedIds.has(id)) return false;
+    if (q && !o.label.toLowerCase().includes(q) && !id.toLowerCase().includes(q)) {
+      return false;
+    }
+    return true;
+  });
+}
 
-  if (emailOptions.length === 0) {
-    return (
-      <p className={cn("text-muted-foreground", dashboardUi.body)}>
-        선택 가능한 가입자가 없습니다.
-      </p>
-    );
-  }
+function FarmSearchControls({
+  farmOptions,
+  farmQuery,
+  onFarmQueryChange,
+  farmPickId,
+  onFarmPickIdChange,
+  filter,
+  onFilterChange,
+  filteredCount,
+  totalCount,
+  showBulkActions,
+  onSelectAllFiltered,
+  onClearFiltered,
+}: {
+  farmOptions: GrantFarmOption[];
+  farmQuery: string;
+  onFarmQueryChange: (q: string) => void;
+  farmPickId?: string;
+  onFarmPickIdChange: (id: string | undefined) => void;
+  filter: FarmAccessFilter;
+  onFilterChange: (f: FarmAccessFilter) => void;
+  filteredCount: number;
+  totalCount: number;
+  showBulkActions: boolean;
+  onSelectAllFiltered: () => void;
+  onClearFiltered: () => void;
+}) {
+  const farmSelectOptions = useMemo(
+    () =>
+      farmOptions.map((o) => ({
+        value: farmValue(o.farmKey),
+        label: o.label,
+      })),
+    [farmOptions]
+  );
 
   return (
-    <>
-      <SimpleSelect
-        label=""
-        placeholder="사용자 선택"
-        options={emailOptions}
-        value={email || undefined}
-        onValueChange={(v) => v && onEmailChange(v)}
-        triggerClassName="w-full max-w-xl"
+    <div className="space-y-3">
+      <ComboSearchBar
+        label="농장"
+        className="max-w-xl"
+        options={farmSelectOptions}
+        value={farmPickId}
+        onValueChange={(v) => {
+          onFarmPickIdChange(v);
+          const picked = farmOptions.find((o) => farmValue(o.farmKey) === v);
+          if (picked) onFarmQueryChange(picked.label);
+        }}
+        searchQuery={farmQuery}
+        onSearchQueryChange={(q) => {
+          onFarmQueryChange(q);
+          onFarmPickIdChange(undefined);
+        }}
+        searchPlaceholder="농장 검색…"
       />
-      <input type="hidden" id={id} name="email" value={email} required />
-    </>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["all", "전체"],
+            ["selected", "선택됨"],
+            ["unselected", "미선택"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onFilterChange(id)}
+            className={cn(
+              "rounded-lg border px-3 py-1.5",
+              dashboardUi.body,
+              filter === id
+                ? "border-emerald-500 bg-emerald-50 text-emerald-900"
+                : "text-muted-foreground hover:bg-muted"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+        {showBulkActions ? (
+          <>
+            <PageActionButton
+              type="button"
+              variant="outline"
+              onClick={onSelectAllFiltered}
+            >
+              {farmQuery.trim() || filter !== "all"
+                ? "표시 항목 선택"
+                : "전체 선택"}
+            </PageActionButton>
+            <PageActionButton
+              type="button"
+              variant="outline"
+              onClick={onClearFiltered}
+            >
+              {farmQuery.trim() || filter !== "all"
+                ? "표시 항목 해제"
+                : "전체 해제"}
+            </PageActionButton>
+          </>
+        ) : null}
+        <span
+          className={cn("ml-auto text-muted-foreground", dashboardTypography.meta)}
+        >
+          표시 {filteredCount}/{totalCount}곳
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -89,35 +176,63 @@ export function GrantAccessForm({
   farmOptions,
   users,
 }: Props) {
-  const [mode, setMode] = useState<GrantMode>("bulk");
-  const [canCommand, setCanCommand] = useState(false);
-  const [farmValueRaw, setFarmValueRaw] = useState(
-    () => (farmOptions[0] ? farmValue(farmOptions[0].farmKey) : "")
-  );
+  const [mode, setMode] = useState<GrantMode>("single");
+  const [bulkCanCommand, setBulkCanCommand] = useState(false);
+  const [userQuery, setUserQuery] = useState("");
   const [farmQuery, setFarmQuery] = useState("");
+  const [farmPickId, setFarmPickId] = useState<string | undefined>();
+  const [filter, setFilter] = useState<FarmAccessFilter>("all");
   const [selectedFarmIds, setSelectedFarmIds] = useState<Set<string>>(
     () => new Set(farmOptions.map((o) => farmValue(o.farmKey)))
   );
+  const [accessOverrides, setAccessOverrides] = useState<
+    Map<string, FarmAccessState>
+  >(() => new Map());
 
-  const selectOptions = useMemo(
-    () =>
-      farmOptions.map((o) => ({
-        value: farmValue(o.farmKey),
-        label: o.label,
-      })),
-    [farmOptions]
+  const selectedUser = useMemo(
+    () => users.find((u) => u.email === email),
+    [users, email]
   );
 
-  const selectedFarm = parseFarmValue(farmValueRaw);
+  useEffect(() => {
+    setAccessOverrides(new Map());
+  }, [email]);
 
-  const filteredFarmOptions = useMemo(() => {
-    const q = farmQuery.trim().toLowerCase();
-    if (!q) return farmOptions;
-    return farmOptions.filter((o) => {
+  const accessByFarmId = useMemo(() => {
+    const map = new Map<string, FarmAccessState>();
+    for (const o of farmOptions) {
       const id = farmValue(o.farmKey);
-      return o.label.toLowerCase().includes(q) || id.toLowerCase().includes(q);
+      if (accessOverrides.has(id)) {
+        map.set(id, accessOverrides.get(id)!);
+        continue;
+      }
+      const row = selectedUser?.farmAccess.find(
+        (a) =>
+          a.lsindRegistNo === o.farmKey.lsindRegistNo &&
+          a.itemCode === o.farmKey.itemCode
+      );
+      map.set(id, {
+        can_read: row?.can_read ?? false,
+        can_command: row?.can_command ?? false,
+      });
+    }
+    return map;
+  }, [farmOptions, selectedUser, accessOverrides]);
+
+  const handleAccessChange = (farmId: string, access: FarmAccessState) => {
+    setAccessOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(farmId, access);
+      return next;
     });
-  }, [farmOptions, farmQuery]);
+  };
+
+  const emailOptions = useMemo(() => buildUserEmailOptions(users), [users]);
+
+  const filteredFarmOptions = useMemo(
+    () => filterGrantFarmOptions(farmOptions, filter, farmQuery, selectedFarmIds),
+    [farmOptions, filter, farmQuery, selectedFarmIds]
+  );
 
   const toggleFarm = (id: string, checked: boolean) => {
     setSelectedFarmIds((prev) => {
@@ -158,194 +273,150 @@ export function GrantAccessForm({
     [farmOptions, selectedFarmIds]
   );
 
+  const selectedCount = selectedFarmIds.size;
+  const totalCount = farmOptions.length;
+
+  const modeToggle = (
+    <div className="flex flex-wrap items-center gap-2">
+      <PageActionButton
+        type="button"
+        variant={mode === "single" ? "primary" : "outline"}
+        onClick={() => setMode("single")}
+      >
+        행별 부여
+      </PageActionButton>
+      <PageActionButton
+        type="button"
+        variant={mode === "bulk" ? "primary" : "outline"}
+        onClick={() => setMode("bulk")}
+      >
+        <Users className={dashboardUi.iconSm} />
+        일괄 부여
+      </PageActionButton>
+    </div>
+  );
+
   return (
-    <SectionCard
-      title="농장 접근 권한 부여"
-      description="가입자 이메일로 농장(farm) 단위 조회·명령 권한을 부여합니다."
-      action={
-        <div className="flex flex-wrap gap-2">
-          <PageActionButton
-            type="button"
-            variant={mode === "bulk" ? "primary" : "outline"}
-            onClick={() => setMode("bulk")}
-          >
-            <Users className={dashboardUi.iconSm} />
-            일괄 부여
-          </PageActionButton>
-          <PageActionButton
-            type="button"
-            variant={mode === "single" ? "primary" : "outline"}
-            onClick={() => setMode("single")}
-          >
-            단일 부여
-          </PageActionButton>
-        </div>
-      }
-    >
-      {mode === "bulk" ? (
+    <SectionCard title="농장 접근 권한 부여" action={modeToggle}>
+      {farmOptions.length === 0 ? (
+        <p className={cn("text-muted-foreground", dashboardUi.body)}>
+          LIVE 데이터에 등록된 농장이 없습니다.
+        </p>
+      ) : emailOptions.length === 0 ? (
+        <p className={cn("text-muted-foreground", dashboardUi.body)}>
+          선택 가능한 가입자가 없습니다.
+        </p>
+      ) : mode === "bulk" ? (
         <form action={grantBulkFarmAccess} className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[2fr_auto] lg:items-end">
-            <div className="space-y-2">
-              <Label htmlFor="bulk_email" className={dashboardUi.filterLabel}>
-                사용자
-              </Label>
-              <UserEmailSelect
-                id="bulk_email"
-                email={email}
-                users={users}
-                onEmailChange={onEmailChange}
-              />
-            </div>
-            <label className={cn("flex items-center gap-3 pb-2", dashboardUi.body)}>
-              <input type="hidden" name="can_command" value={canCommand ? "on" : ""} />
-              <Checkbox
-                checked={canCommand}
-                onCheckedChange={(v) => setCanCommand(v === true)}
-                className="size-5"
-              />
-              명령 권한 포함
-            </label>
+          <div className="space-y-3">
+            <ComboSearchBar
+              label="사용자"
+              className="max-w-xl"
+              options={emailOptions}
+              value={email || undefined}
+              onValueChange={(v) => v && onEmailChange(v)}
+              searchQuery={userQuery}
+              onSearchQueryChange={setUserQuery}
+              searchPlaceholder="사용자 검색…"
+            />
+            <input type="hidden" name="email" value={email} required />
+
+            <FarmSearchControls
+              farmOptions={farmOptions}
+              farmQuery={farmQuery}
+              onFarmQueryChange={setFarmQuery}
+              farmPickId={farmPickId}
+              onFarmPickIdChange={setFarmPickId}
+              filter={filter}
+              onFilterChange={setFilter}
+              filteredCount={filteredFarmOptions.length}
+              totalCount={totalCount}
+              showBulkActions
+              onSelectAllFiltered={selectAllFiltered}
+              onClearFiltered={clearFiltered}
+            />
           </div>
 
+          <input
+            type="hidden"
+            name="can_command"
+            value={bulkCanCommand ? "on" : ""}
+          />
           <input type="hidden" name="farms_json" value={bulkFarmsJson} />
 
-          {farmOptions.length === 0 ? (
-            <p className={cn("text-muted-foreground", dashboardUi.body)}>
-              LIVE 데이터에 등록된 농장이 없습니다.
-            </p>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className={cn("font-medium", dashboardUi.body)}>
-                  농장 선택 · {selectedFarmIds.size}/{farmOptions.length}곳
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <PageActionButton type="button" variant="outline" onClick={selectAllFiltered}>
-                    {farmQuery.trim() ? "검색 결과 전체 선택" : "전체 선택"}
-                  </PageActionButton>
-                  <PageActionButton type="button" variant="outline" onClick={clearFiltered}>
-                    {farmQuery.trim() ? "검색 결과 해제" : "전체 해제"}
-                  </PageActionButton>
-                </div>
-              </div>
+          <FarmAccessGrantTable
+            options={filteredFarmOptions}
+            mode="bulk"
+            email={email}
+            selectedIds={selectedFarmIds}
+            onToggle={toggleFarm}
+            farmValue={farmValue}
+            accessByFarmId={accessByFarmId}
+            onAccessChange={handleAccessChange}
+          />
 
-              <Input
-                value={farmQuery}
-                onChange={(e) => setFarmQuery(e.target.value)}
-                placeholder="농장 이름·코드 검색"
-                className="h-11 max-w-xl text-xl"
-                aria-label="농장 검색"
-              />
-
-              <div className="max-h-72 space-y-2 overflow-y-auto rounded-xl border p-3">
-                {filteredFarmOptions.length === 0 ? (
-                  <p className={cn("px-2 py-4 text-muted-foreground", dashboardUi.body)}>
-                    검색 조건에 맞는 농장이 없습니다.
-                  </p>
-                ) : (
-                  filteredFarmOptions.map((o) => {
-                    const id = farmValue(o.farmKey);
-                    const checked = selectedFarmIds.has(id);
-                    return (
-                      <label
-                        key={id}
-                        className={cn(
-                          "flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-colors",
-                          checked ? "border-emerald-400 bg-emerald-50/70" : "hover:bg-muted/40"
-                        )}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(v) => toggleFarm(id, v === true)}
-                        />
-                        <span className={dashboardUi.body}>{o.label}</span>
-                        <span className={cn("ml-auto text-muted-foreground", dashboardUi.tableMeta)}>
-                          {id}
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-
-              <div className="flex justify-end border-t pt-4">
-                <PageActionButton
-                  type="submit"
-                  variant="primary"
-                  disabled={selectedFarmIds.size === 0 || !email.trim()}
-                  icon={<UserPlus className={dashboardUi.iconSm} />}
-                >
-                  {selectedFarmIds.size}개 농장 권한 부여
-                </PageActionButton>
-              </div>
-            </>
-          )}
+          <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+            <PageActionButton
+              type="submit"
+              variant="outline"
+              disabled={selectedCount === 0 || !email.trim()}
+              icon={<UserPlus className={dashboardUi.iconSm} />}
+              onClick={() => setBulkCanCommand(false)}
+            >
+              {selectedCount}개 조회권한 부여
+            </PageActionButton>
+            <PageActionButton
+              type="submit"
+              variant="primary"
+              disabled={selectedCount === 0 || !email.trim()}
+              icon={<UserPlus className={dashboardUi.iconSm} />}
+              onClick={() => setBulkCanCommand(true)}
+            >
+              {selectedCount}개 명령권한 부여
+            </PageActionButton>
+          </div>
         </form>
       ) : (
-        <form
-          action={grantFarmAccess}
-          className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1.2fr_auto_auto] lg:items-end"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="email" className={dashboardUi.filterLabel}>
-              사용자
-            </Label>
-            <UserEmailSelect
-              id="email"
-              email={email}
-              users={users}
-              onEmailChange={onEmailChange}
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <ComboSearchBar
+              label="사용자"
+              className="max-w-xl"
+              options={emailOptions}
+              value={email || undefined}
+              onValueChange={(v) => v && onEmailChange(v)}
+              searchQuery={userQuery}
+              onSearchQueryChange={setUserQuery}
+              searchPlaceholder="사용자 검색…"
+            />
+
+            <FarmSearchControls
+              farmOptions={farmOptions}
+              farmQuery={farmQuery}
+              onFarmQueryChange={setFarmQuery}
+              farmPickId={farmPickId}
+              onFarmPickIdChange={setFarmPickId}
+              filter={filter}
+              onFilterChange={setFilter}
+              filteredCount={filteredFarmOptions.length}
+              totalCount={totalCount}
+              showBulkActions={false}
+              onSelectAllFiltered={selectAllFiltered}
+              onClearFiltered={clearFiltered}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="farm_select" className={dashboardUi.filterLabel}>
-              농장
-            </Label>
-            {selectOptions.length > 0 ? (
-              <>
-                <SimpleSelect
-                  value={farmValueRaw}
-                  onValueChange={(v) => setFarmValueRaw(v ?? farmValueRaw)}
-                  options={selectOptions}
-                />
-                <input
-                  type="hidden"
-                  name="lsind_regist_no"
-                  value={selectedFarm?.lsindRegistNo ?? ""}
-                />
-                <input
-                  type="hidden"
-                  name="item_code"
-                  value={selectedFarm?.itemCode ?? ""}
-                />
-              </>
-            ) : (
-              <p className={cn("text-muted-foreground", dashboardUi.body)}>
-                LIVE 데이터에 등록된 농장이 없습니다.
-              </p>
-            )}
-          </div>
-
-          <label className={cn("flex items-center gap-3 pb-2", dashboardUi.body)}>
-            <input type="hidden" name="can_command" value={canCommand ? "on" : ""} />
-            <Checkbox
-              checked={canCommand}
-              onCheckedChange={(v) => setCanCommand(v === true)}
-              className="size-5"
-            />
-            명령 권한
-          </label>
-
-          <PageActionButton
-            type="submit"
-            variant="primary"
-            disabled={!selectedFarm}
-            icon={<UserPlus className={dashboardUi.iconSm} />}
-          >
-            부여
-          </PageActionButton>
-        </form>
+          <FarmAccessGrantTable
+            options={filteredFarmOptions}
+            mode="single"
+            email={email}
+            selectedIds={selectedFarmIds}
+            onToggle={toggleFarm}
+            farmValue={farmValue}
+            accessByFarmId={accessByFarmId}
+            onAccessChange={handleAccessChange}
+          />
+        </div>
       )}
     </SectionCard>
   );

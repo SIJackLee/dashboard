@@ -9,6 +9,16 @@ export function farmKeyId(fk: FarmKey): string {
   return `${fk.lsindRegistNo}/${fk.itemCode}`;
 }
 
+/** `{lsind}/{itemCode}` 내부 ID → FarmKey (표시용 변환 등) */
+export function parseFarmKeyId(id: string): FarmKey | null {
+  const slash = id.indexOf("/");
+  if (slash <= 0) return null;
+  const lsindRegistNo = id.slice(0, slash).trim();
+  const itemCode = id.slice(slash + 1).trim();
+  if (!lsindRegistNo || !itemCode) return null;
+  return { lsindRegistNo, itemCode };
+}
+
 export function farmKeyEq(a: FarmKey, b: FarmKey): boolean {
   return a.lsindRegistNo === b.lsindRegistNo && a.itemCode === b.itemCode;
 }

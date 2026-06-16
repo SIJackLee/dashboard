@@ -43,7 +43,15 @@ function parseAlarmSettings(raw: unknown): AlarmSettings {
       if (code.trim()) byStallTyCode[code] = parseThresholds(val, global);
     }
   }
-  return { global, byStallTyCode };
+  const byScope: Record<string, AlarmThresholds> = {};
+  if (obj.byScope && typeof obj.byScope === "object") {
+    for (const [key, val] of Object.entries(
+      obj.byScope as Record<string, unknown>
+    )) {
+      if (key.trim()) byScope[key] = parseThresholds(val, global);
+    }
+  }
+  return { global, byStallTyCode, byScope };
 }
 
 export async function getAlarmSettings(): Promise<AlarmSettings> {

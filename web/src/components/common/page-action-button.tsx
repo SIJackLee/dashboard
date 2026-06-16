@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardControl } from "@/lib/ui/dashboard-page-ui";
 
 type PageActionButtonProps = {
   children: ReactNode;
@@ -29,7 +29,7 @@ export function PageActionButton({
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-2 rounded-lg border font-medium transition-colors disabled:opacity-50",
-        dashboardUi.btnSmAction,
+        dashboardControl.buttonOutline,
         variant === "outline" && "hover:bg-muted",
         variant === "primary" &&
           "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700",

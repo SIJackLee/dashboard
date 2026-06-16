@@ -14,18 +14,25 @@ export type ControllerThermoSettings = {
 export function thermoSettingsKey(
   farmKey: FarmKey,
   moduleUid: number,
-  controllerKey: string
+  controllerKey: string,
+  channel?: import("@/lib/data/iot-channel").ChannelSlot
 ): string {
-  return `${farmKeyId(farmKey)}:${moduleUid}:${controllerKey}`;
+  const base = `${farmKeyId(farmKey)}:${moduleUid}:${controllerKey}`;
+  return channel ? `${base}:${channel}` : base;
 }
 
 export function resolveThermoSettings(
   map: Record<string, ControllerThermoSettings>,
   farmKey: FarmKey | undefined,
   moduleUid: number | undefined,
-  controllerKey: string | undefined
+  controllerKey: string | undefined,
+  channel?: import("@/lib/data/iot-channel").ChannelSlot
 ): ControllerThermoSettings | null {
   if (!farmKey || moduleUid == null || !controllerKey) return null;
+  if (channel) {
+    const ch = map[thermoSettingsKey(farmKey, moduleUid, controllerKey, channel)];
+    if (ch) return ch;
+  }
   return map[thermoSettingsKey(farmKey, moduleUid, controllerKey)] ?? null;
 }
 
@@ -75,7 +82,12 @@ export function buildThermoSettingsMap(
 
   for (const cmd of commands) {
     if (cmd.status === "failed" || cmd.status === "cancelled") continue;
-    const key = thermoSettingsKey(cmd.farmKey, cmd.moduleUid, cmd.controllerKey);
+    const key = thermoSettingsKey(
+      cmd.farmKey,
+      cmd.moduleUid,
+      cmd.controllerKey,
+      cmd.channel
+    );
     if (cmd.status === "sent" || cmd.status === "applied") {
       if (!sent.has(key)) sent.set(key, cmd);
     } else if (cmd.status === "pending") {
@@ -136,7 +148,7 @@ export function thermoFromDecoded(
   return { setpointTemp, tempDeviation, minVentPct, maxVentPct };
 }
 
-/** LIVE decoded_json thermo → ctrl별 설정 (최신 receivedAt 우선) */
+/** LIVE decoded_json — ctrl·채널별 설정 (최신 receivedAt 우선) */
 export function buildThermoSettingsFromReadings(
   readings: Array<{
     farmKey: import("@/lib/data/farm-key").FarmKey;
@@ -149,10 +161,27 @@ export function buildThermoSettingsFromReadings(
       minVentPct?: number;
       maxVentPct?: number;
     } | null;
+    channels?: import("@/lib/data/iot-channel").ChannelReading[];
   }>
 ): Record<string, ControllerThermoSettings> {
   const out: Record<string, ControllerThermoSettings> = {};
   for (const r of readings) {
+    if (r.channels?.length) {
+      for (const ch of r.channels) {
+        const parsed = thermoFromDecoded(ch.thermo);
+        if (!parsed) continue;
+        const key = thermoSettingsKey(
+          r.farmKey,
+          r.moduleUid,
+          r.controllerKey,
+          ch.channel
+        );
+        const existing = out[key];
+        if (existing && existing.updatedAt >= r.receivedAt) continue;
+        out[key] = { ...parsed, source: "live", updatedAt: r.receivedAt };
+      }
+      continue;
+    }
     const parsed = thermoFromDecoded(r.thermo);
     if (!parsed) continue;
     const key = thermoSettingsKey(r.farmKey, r.moduleUid, r.controllerKey);

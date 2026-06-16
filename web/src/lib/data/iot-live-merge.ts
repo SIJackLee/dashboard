@@ -12,6 +12,7 @@ export type LiveDecodedController = {
   EC02?: unknown;
   EC03?: unknown;
   mesureDt?: string;
+  channels?: import("@/lib/data/iot-channel").DecodedChannel[];
   thermo?: {
     setpointTemp?: string | number;
     tempDeviation?: string | number;
@@ -25,6 +26,7 @@ export type LiveDecodedJson = {
   chunk_seq?: number;
   partial?: boolean;
   last_chunk?: boolean;
+  session_id?: number;
   controllers?: LiveDecodedController[];
 };
 
@@ -39,6 +41,7 @@ export type LiveDecodedRow = {
   mesure_dt: string | null;
   received_at: string;
   chunk_seq?: number | null;
+  session_id?: number | null;
   decoded_json: LiveDecodedJson | null;
 };
 
@@ -57,6 +60,12 @@ export function liveChunkSeq(row: LiveDecodedRow): number {
 
 export function liveSnapshotKey(row: LiveDecodedRow): string {
   const mk = moduleKey(rowFarmKey(row), row.module_uid);
+  const wireVer = row.wire_ver != null ? Number(row.wire_ver) : 0;
+  const sessionId =
+    row.session_id ?? row.decoded_json?.session_id ?? null;
+  if (wireVer >= 0x0b && sessionId != null) {
+    return `${mk}|sess:${sessionId}`;
+  }
   const mesure = row.mesure_dt ?? row.received_at;
   return `${mk}|${mesure}`;
 }
@@ -78,7 +87,14 @@ function controllerMergeKey(ctrl: LiveDecodedController): string | null {
   const ty = pickStr(ctrl.stallTyCode);
   const sn = pickStr(ctrl.stallNo);
   const eq = pickStr(ctrl.eqpmnNo);
-  if (ty && sn && eq) return `${ty}:${sn}:${eq}`;
+  if (ty && sn && eq) {
+    const base = `${ty}:${sn}:${eq}`;
+    if (Array.isArray(ctrl.channels) && ctrl.channels.length > 0) {
+      const md = pickStr(ctrl.mesureDt);
+      return md ? `${base}|${md}` : base;
+    }
+    return base;
+  }
 
   return null;
 }
@@ -119,9 +135,15 @@ export function mergeLiveChunkRows(rows: LiveDecodedRow[]): LiveDecodedRow {
   };
 }
 
+function isCompleteSnapshotGroup(group: LiveDecodedRow[]): boolean {
+  if (group.length === 0) return false;
+  if (group.some((r) => r.decoded_json?.last_chunk === true)) return true;
+  return !group.some((r) => r.decoded_json?.partial === true);
+}
+
 /**
- * 모듈별 최신 LIVE snapshot 선택 후 chunk 병합.
- * v0x08 multi-chunk LIVE: chunk0+chunk1을 mesure_dt 기준으로 합침.
+ * 모듈별 LIVE snapshot 선택 후 chunk 병합.
+ * partial-only 스냅샷이 더 최신이어도, 완료(last_chunk) 스냅샷을 우선한다.
  */
 export function pickLatestMergedLiveSnapshots(
   rows: LiveDecodedRow[]
@@ -140,7 +162,7 @@ export function pickLatestMergedLiveSnapshots(
 
   const latestByModule = new Map<
     string,
-    { rows: LiveDecodedRow[]; latestReceived: string }
+    { rows: LiveDecodedRow[]; latestReceived: string; isComplete: boolean }
   >();
 
   for (const [, group] of snapshotGroups) {
@@ -150,10 +172,21 @@ export function pickLatestMergedLiveSnapshots(
       (max, r) => (r.received_at > max ? r.received_at : max),
       group[0].received_at
     );
+    const isComplete = isCompleteSnapshotGroup(group);
 
     const existing = latestByModule.get(mk);
-    if (!existing || latestReceived > existing.latestReceived) {
-      latestByModule.set(mk, { rows: group, latestReceived });
+    if (!existing) {
+      latestByModule.set(mk, { rows: group, latestReceived, isComplete });
+      continue;
+    }
+
+    const keepExisting =
+      (existing.isComplete && !isComplete) ||
+      (existing.isComplete === isComplete &&
+        latestReceived <= existing.latestReceived);
+
+    if (!keepExisting) {
+      latestByModule.set(mk, { rows: group, latestReceived, isComplete });
     }
   }
 

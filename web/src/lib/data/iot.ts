@@ -1,6 +1,8 @@
 import "server-only";
 
 import { cache } from "react";
+import { farmKeysFromAccess } from "@/lib/auth/farm-access";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createClient } from "@/lib/supabase/server";
 import {
   summarizeControllers,
@@ -31,6 +33,11 @@ import {
   pickLatestMergedLiveSnapshots,
   type LiveDecodedRow,
 } from "@/lib/data/iot-live-merge";
+import {
+  legacyFieldsFromChannels,
+  mapDecodedChannels,
+  type ChannelReading,
+} from "@/lib/data/iot-channel";
 
 export type { StallCatalogEntry } from "@/lib/data/stall-catalog";
 
@@ -104,6 +111,9 @@ export type BarnReading = {
 
   thermo?: DecodedController["thermo"];
 
+  /** v0x0B schema 2.0 — A/B/C channel readings */
+  channels?: ChannelReading[];
+
 };
 
 
@@ -151,6 +161,8 @@ type DecodedController = {
   EC03?: unknown;
 
   mesureDt?: string;
+
+  channels?: import("@/lib/data/iot-channel").DecodedChannel[];
 
   thermo?: {
     setpointTemp?: string | number;
@@ -294,6 +306,9 @@ function expandDecodedRowToReadings(row: DecodedRow): BarnReading[] {
     );
     const stallNo = pickStallField(c.stallNo);
     const stallTyCode = pickStallField(c.stallTyCode);
+    const channels = mapDecodedChannels(c.channels);
+    const fromChannels =
+      channels.length > 0 ? legacyFieldsFromChannels(channels) : null;
 
     return {
 
@@ -315,21 +330,21 @@ function expandDecodedRowToReadings(row: DecodedRow): BarnReading[] {
 
       label: formatControllerSlotLabel({ stallNo, eqpmnNo, idx }),
 
-      tempC: pick(c.ES01),
+      tempC: fromChannels?.tempC ?? pick(c.ES01),
 
-      humidityPct: pick(c.ES02),
+      humidityPct: fromChannels?.humidityPct ?? pick(c.ES02),
 
-      fanSupply: pick(c.EC01),
+      fanSupply: fromChannels?.fanSupply ?? pick(c.EC01),
 
-      fanExhaust: pick(c.EC02),
+      fanExhaust: fromChannels?.fanExhaust ?? pick(c.EC02),
 
-      fanIntake: pick(c.EC03),
+      fanIntake: fromChannels?.fanIntake ?? pick(c.EC03),
 
-      fanSupplySeries: pickSeries(c.EC01),
+      fanSupplySeries: fromChannels?.fanSupplySeries ?? pickSeries(c.EC01),
 
-      fanExhaustSeries: pickSeries(c.EC02),
+      fanExhaustSeries: fromChannels?.fanExhaustSeries ?? pickSeries(c.EC02),
 
-      fanIntakeSeries: pickSeries(c.EC03),
+      fanIntakeSeries: fromChannels?.fanIntakeSeries ?? pickSeries(c.EC03),
 
       mesureDt: c.mesureDt ?? row.mesure_dt,
 
@@ -343,7 +358,9 @@ function expandDecodedRowToReadings(row: DecodedRow): BarnReading[] {
 
       decodedId: row.id,
 
-      thermo: c.thermo ?? null,
+      thermo: fromChannels?.thermo ?? c.thermo ?? null,
+
+      channels: channels.length > 0 ? channels : undefined,
 
     };
 
@@ -367,47 +384,56 @@ export const getLiveReadings = cache(async (): Promise<BarnReading[]> => {
   return readings.filter((r) => isValidFarmKey(r.farmKey));
 });
 
+const GLOBAL_LIVE_ROW_LIMIT = 200;
+/** 비관리자 농장 스코프 — 모듈별 최신 LIVE chunk 수집용 */
+const SCOPED_LIVE_ROW_LIMIT = 2000;
+
 async function fetchLiveReadingsRaw(): Promise<BarnReading[]> {
   const supabase = await createClient();
+  const user = await getCurrentUser();
+  const scopedFarms =
+    user && !user.isAdmin ? farmKeysFromAccess(user) : null;
 
-
-
-  const { data, error } = await supabase
-
+  let query = supabase
     .from("iot_room_state_decoded")
-
     .select(
-
-      "id, lsind_regist_no, item_code, module_uid, wire_ver, mode, mesure_dt, received_at, chunk_seq, decoded_json"
-
+      "id, lsind_regist_no, item_code, module_uid, wire_ver, mode, mesure_dt, received_at, chunk_seq, session_id, decoded_json"
     )
+    .order("received_at", { ascending: false });
 
-    .order("received_at", { ascending: false })
+  if (scopedFarms && scopedFarms.length > 0) {
+    if (scopedFarms.length === 1) {
+      const fk = scopedFarms[0]!;
+      query = query
+        .eq("lsind_regist_no", fk.lsindRegistNo)
+        .eq("item_code", fk.itemCode);
+    } else {
+      const orClause = scopedFarms
+        .map(
+          (fk) =>
+            `and(lsind_regist_no.eq.${fk.lsindRegistNo},item_code.eq.${fk.itemCode})`
+        )
+        .join(",");
+      query = query.or(orClause);
+    }
+    query = query.limit(SCOPED_LIVE_ROW_LIMIT);
+  } else {
+    query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
+  }
 
-    .limit(200);
-
-
+  const { data, error } = await query;
 
   if (error || !data) return [];
-
-
 
   const mergedSnapshots = pickLatestMergedLiveSnapshots(
     data as LiveDecodedRow[]
   );
 
-
-
   const readings = mergedSnapshots.flatMap((row) =>
-
     expandDecodedRowToReadings(row as DecodedRow)
-
   );
 
-
-
   return sortReadings(readings);
-
 }
 
 

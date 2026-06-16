@@ -1,6 +1,7 @@
 import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { compareReadings } from "@/lib/data/reading-hierarchy";
+import { resolveThresholdsForReading } from "@/lib/data/alarm-scope";
 
 export type AlarmSeverity = "warning" | "critical";
 
@@ -37,12 +38,16 @@ export const DEFAULT_ALARM_THRESHOLDS: AlarmThresholds = {
 
 export type AlarmSettings = {
   global: AlarmThresholds;
+  /** @deprecated farm-scoped overrides in byScope preferred */
   byStallTyCode: Record<string, AlarmThresholds>;
+  /** farm → sp → stall → controller hierarchical overrides */
+  byScope?: Record<string, AlarmThresholds>;
 };
 
 export const DEFAULT_ALARM_SETTINGS: AlarmSettings = {
   global: DEFAULT_ALARM_THRESHOLDS,
   byStallTyCode: {},
+  byScope: {},
 };
 
 export function resolveThresholds(
@@ -64,7 +69,7 @@ export function deriveAlarmsFromReadings(
   for (const r of readings) {
     const thresholds =
       "global" in settings
-        ? resolveThresholds(settings, r.stallTyCode)
+        ? resolveThresholdsForReading(settings, r)
         : settings;
 
     if (r.tempC != null) {
