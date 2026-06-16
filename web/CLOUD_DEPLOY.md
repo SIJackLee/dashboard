@@ -1,6 +1,11 @@
-# Dashboard Cloud Deploy — RS-DB-C
+# Dashboard Cloud Deploy — RS-DB-C (Step 1 + 3)
 
-> **Supabase migration + Vercel(또는 호스팅) Cloud Agent 실행 지침**
+> **Supabase migration + Vercel Cloud Agent 실행 지침**  
+> **Git repo:** `https://github.com/SIJackLee/dashboard` (branch `main`)  
+> **앱 경로:** `web/`
+
+> **3단계 중 Step 1·3.** Step 2(EC2)는 `https://github.com/SIJackLee/rsd` → `CLOUD_DEPLOY.md`  
+> 통합 프롬프트: repo 루트 [AGENTS.md](../AGENTS.md)
 
 ---
 
@@ -13,9 +18,9 @@
 | `iot_room_state_decoded` 조회 (D.py가 INSERT) | `v_iot_raw_live` → TS decode (`wire-decode-v0b.ts`) |
 | burst merge (`live_chunk_merge`) | `iot-raw-live.ts` — controllerKey별 최신 row |
 
-EC2는 `RS.py`만 raw INSERT. decode는 **이 dashboard 앱**에서 수행.
+EC2는 `RS.py`만 raw INSERT. decode는 **이 dashboard 앱**에서 수행 — **EC2만 배포하고 dashboard redeploy를 생략하면 LIVE가 RS-DB-C로 동작하지 않습니다.**
 
-통합 지침: [../../docs/CLOUD_DEPLOY_RS-DB-C.md](../../docs/CLOUD_DEPLOY_RS-DB-C.md)
+통합 지침: [AGENTS.md](../AGENTS.md) (3단계 전체)
 
 ---
 
@@ -110,23 +115,23 @@ npm run lint
 
 ---
 
-## Cloud Agent 지시 템플릿
+## Cloud Agent 지시 템플릿 (Step 1 + 3)
 
 ```text
-Project: dashboard/web (Next.js)
-Architecture: RS-DB-C — decode at read time, not iot_room_state_decoded writes
-Read first: CLOUD_DEPLOY.md, ../../docs/CLOUD_DEPLOY_RS-DB-C.md
+Repo: https://github.com/SIJackLee/dashboard (branch main)
+Role: Step 1 (Supabase) + Step 3 (Vercel) of RS-DB-C rollout
+Read first: AGENTS.md, web/CLOUD_DEPLOY.md
+Prerequisite Step 2: https://github.com/SIJackLee/rsd (RS.py + C.py on EC2)
 
 Tasks:
-1. Apply supabase/migrations/20260614000000_rs_live_views.sql to production Supabase
+1. Apply web/supabase/migrations/20260614000000_rs_live_views.sql to production Supabase
 2. Verify v_iot_raw_live exists
-3. npm ci && npm run build && npm run lint
-4. Deploy to Vercel (or hosting) with Supabase env vars
-5. Smoke: login → farm LIVE page shows controller data after RS uplink
-
-Prerequisite: EC2 RS.py running (see RSD/CLOUD_DEPLOY.md)
+3. git pull origin main && cd web && npm ci && npm run build && npm run lint
+4. Vercel Redeploy Production (Root Directory=web)
+5. Smoke: /login → farm LIVE page (live data needs EC2 RS uplink)
 
 Do NOT:
+- Skip Vercel redeploy after EC2-only deploy
 - Expect D.py / iot_room_state_decoded writes for new LIVE data
 - Drop iot_room_state_decoded (legacy read-only OK)
 ```
