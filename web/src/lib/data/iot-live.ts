@@ -8,7 +8,7 @@ import {
 import {
   pickLatestLiveControllerRows,
 } from "@/lib/data/iot-raw-live";
-import { decodeV0bPayloadFromDb } from "@/lib/data/wire-decode-v0b";
+import { decodeLivePayloadFromDb } from "@/lib/data/wire-decode-live";
 
 export type PacketMode = "live" | "replay";
 
@@ -50,7 +50,7 @@ export async function getLiveModuleSnapshots(): Promise<LiveModuleSnapshot[]> {
 
   const liveRows = (data as RawRow[])
     .map((row) => {
-      const decoded = decodeV0bPayloadFromDb(row.payload_bytea);
+      const decoded = decodeLivePayloadFromDb(row.payload_bytea);
       if (!decoded || !isLivePacketMode(decoded.packetMode)) return null;
       return {
         rawId: row.id,

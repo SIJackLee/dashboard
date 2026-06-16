@@ -139,7 +139,7 @@ function decodeChannelBlock(
   };
 }
 
-function decodeRow(row: Uint8Array): Omit<
+export function decodeRow(row: Uint8Array): Omit<
   DecodedControllerPayload,
   "wireVer" | "packetMode" | "sessionId" | "chunkSeq" | "partial" | "lastChunk"
 > {

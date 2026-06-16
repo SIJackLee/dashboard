@@ -32,7 +32,7 @@ import {
   pickLatestLiveControllerRows,
   type RawLiveControllerRow,
 } from "@/lib/data/iot-raw-live";
-import { decodeV0bPayloadFromDb } from "@/lib/data/wire-decode-v0b";
+import { decodeLivePayloadFromDb } from "@/lib/data/wire-decode-live";
 import { isLivePacketMode } from "@/lib/data/iot-live-merge";
 import {
   legacyFieldsFromChannels,
@@ -399,7 +399,7 @@ function rawDbRowToLiveRow(row: {
   payload_bytea: unknown;
   received_at: string;
 }): RawLiveControllerRow | null {
-  const decoded = decodeV0bPayloadFromDb(row.payload_bytea);
+  const decoded = decodeLivePayloadFromDb(row.payload_bytea);
   if (!decoded) return null;
   return {
     rawId: row.id,
