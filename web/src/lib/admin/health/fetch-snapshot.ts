@@ -44,6 +44,7 @@ import { worstStatus } from "@/lib/admin/health/staleness";
 import type {
   CollectorNodeState,
   CommandFailureItem,
+  CommandTimelineItem,
   ControllerHealthRow,
   D11Hint,
   HealthPoint,
@@ -289,6 +290,7 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
     points: [] as HealthPoint[],
     activeFailures: [] as CommandFailureItem[],
     checkpointCount: 0,
+    timeline: [] as CommandTimelineItem[],
   };
   const ekapeHealth = await fetchEkapeHealth();
 
@@ -311,7 +313,7 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
     ]);
 
     let resolvedCountRes = liveCountRes;
-    let resolvedRowsRes = liveRowsRes;
+    let resolvedRowsRes: typeof liveRowsRes = liveRowsRes;
     let useLiveLatest = !liveCountRes.error && !liveRowsRes.error;
 
     if (!useLiveLatest) {
@@ -327,8 +329,8 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
           .order("received_at", { ascending: false })
           .limit(GLOBAL_LIVE_ROW_LIMIT),
       ]);
-      resolvedCountRes = rawCountRes;
-      resolvedRowsRes = rawRowsRes;
+      resolvedCountRes = rawCountRes as typeof liveCountRes;
+      resolvedRowsRes = rawRowsRes as typeof liveRowsRes;
       useLiveLatest = false;
     }
 
