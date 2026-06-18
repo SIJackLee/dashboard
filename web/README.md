@@ -2,7 +2,7 @@
 
 IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase raw uplink를 **조회 시 decode**하여 권한별로 표시하고, 컨트롤러에 제어 명령을 발행한다.
 
-> **RS-DB-C (2026-06-14~):** LIVE 데이터는 `v_iot_raw_live` + TS decode. `iot_room_state_decoded` 쓰기는 EC2에서 중단.  
+> **RS-DB-C:** LIVE UI는 `v_iot_live_latest` (v0x0C SQL DISTINCT ON) + TS decode. `v_iot_raw_live`는 이력·fallback.  
 > **Cloud Agent:** [CLOUD_DEPLOY.md](CLOUD_DEPLOY.md) · [../../docs/CLOUD_DEPLOY_RS-DB-C.md](../../docs/CLOUD_DEPLOY_RS-DB-C.md)
 
 ## 기술 스택
@@ -40,7 +40,7 @@ npm run lint
 
 - 이메일/비밀번호 로그인 (Supabase Auth). `/` 접속 시 `/login`으로 이동.
 - 권한은 DB의 RLS로 강제(`user_can_read_farm`, `is_admin` 등). 앱은 `lib/auth/get-current-user.ts`로 user+profile+access를 조합.
-- 데이터 접근 권한이 없으면 `/pending`, 관리자만 `/admin/users` 접근.
+- 데이터 접근 권한이 없으면 `/pending`, 관리자만 `/admin/users`, `/admin/health`(시스템 상태), `/admin/health/farm/[key]`(농장 drill-down), `/admin/health/group/[groupId]`(수집 그룹 R3) 접근.
 
 ## 디렉터리 개요
 

@@ -12,6 +12,9 @@ export type RawLiveControllerRow = {
   packet_mode: string;
   controller_key: string;
   mesure_dt: string;
+  run_mode?: number;
+  temps_c?: (string | null)[];
+  humidity_pct?: string | null;
   channels: DecodedControllerPayload["channels"];
 };
 
@@ -24,7 +27,8 @@ function rowFarmKey(row: RawLiveControllerRow): FarmKey {
 }
 
 /**
- * Row-stream LIVE: keep newest row per (module, controllerKey).
+ * Row-stream fallback: keep newest row per (module, controllerKey).
+ * Prefer v_iot_live_latest (SQL DISTINCT ON) when available.
  */
 export function pickLatestLiveControllerRows(
   rows: RawLiveControllerRow[]

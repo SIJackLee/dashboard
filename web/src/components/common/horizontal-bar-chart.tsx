@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 
 export type HorizontalBarItem = {
+  /** React key — label alone may duplicate across farms */
+  id?: string;
   label: string;
   value: number | null;
   title?: string;
@@ -36,7 +38,7 @@ export function HorizontalBarChart({
         const v = item.value;
         const pct = v === null ? 0 : Math.min(100, (v / peak) * 100);
         return (
-          <div key={item.label} className="space-y-1">
+          <div key={item.id ?? item.label} className="space-y-1">
             <div className="flex items-center justify-between gap-2 text-xs">
               <span className="truncate text-muted-foreground">{item.label}</span>
               <span className="shrink-0 font-medium tabular-nums">

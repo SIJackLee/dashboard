@@ -21,8 +21,8 @@ export type DecodedThermo = {
 export type DecodedChannel = {
   channel: string;
   eqpmnCode: string;
-  tempC: string | null;
-  humidityPct: string | null;
+  tempC?: string | null;
+  humidityPct?: string | null;
   outputs: Record<string, string>;
   thermo: DecodedThermo | null;
 };
@@ -39,6 +39,12 @@ export type DecodedControllerPayload = {
   stallTyCode: string;
   stallNo: string;
   mesureDt: string;
+  /** v0x0C — controller run mode (uint8) */
+  runMode?: number;
+  /** v0x0C — row-level temperature probes (×10 decoded strings) */
+  tempsC?: (string | null)[];
+  /** v0x0C — row-level humidity */
+  humidityPct?: string | null;
   channels: DecodedChannel[];
 };
 

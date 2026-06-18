@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { AppNavLink } from "@/components/layout/app-nav-link";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck, Activity } from "lucide-react";
 import { useDisplayEnabled } from "@/components/display/display-settings-provider";
 import { isPiggyPlayEnabled } from "@/lib/feature-flags";
 import { cn } from "@/lib/utils";
@@ -84,19 +84,34 @@ export function AppSidebar({ user }: AppSidebarProps) {
         })}
 
         {user.role === "admin" && (
-          <AppNavLink
-            href="/admin/users"
-            message="사용자 관리로 이동 중…"
-            className={cn(
-              dashboardUi.navLink,
-              pathname.startsWith("/admin")
-                ? "bg-emerald-50 text-emerald-700"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            <ShieldCheck className={dashboardUi.navIcon} />
-            사용자 관리
-          </AppNavLink>
+          <>
+            <AppNavLink
+              href="/admin/health"
+              message="시스템 상태로 이동 중…"
+              className={cn(
+                dashboardUi.navLink,
+                pathname.startsWith("/admin/health")
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <Activity className={dashboardUi.navIcon} />
+              시스템 상태
+            </AppNavLink>
+            <AppNavLink
+              href="/admin/users"
+              message="사용자 관리로 이동 중…"
+              className={cn(
+                dashboardUi.navLink,
+                pathname.startsWith("/admin/users")
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <ShieldCheck className={dashboardUi.navIcon} />
+              사용자 관리
+            </AppNavLink>
+          </>
         )}
       </nav>
 

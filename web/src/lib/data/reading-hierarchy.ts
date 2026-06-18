@@ -6,7 +6,6 @@ import {
 } from "@/lib/data/stall-type";
 import { farmKeyId } from "@/lib/data/farm-key";
 import type { BarnReading } from "@/lib/data/iot";
-import type { ReplayControllerRow } from "@/lib/data/iot-replay";
 
 export function stallKeyFromReading(r: {
   stallNo: string | null;
@@ -51,31 +50,8 @@ export function compareReadings(a: BarnReading, b: BarnReading): number {
   return ak.localeCompare(bk, "ko", { numeric: true });
 }
 
-export function compareReplayRows(
-  a: ReplayControllerRow,
-  b: ReplayControllerRow
-): number {
-  const catalogCmp = compareCatalogEntries(
-    entryFromParts(a.farmKey, a.moduleUid, a.stallTyCode),
-    entryFromParts(b.farmKey, b.moduleUid, b.stallTyCode)
-  );
-  if (catalogCmp !== 0) return catalogCmp;
-  const stallCmp = compareStallNo(a.stallNo, b.stallNo);
-  if (stallCmp !== 0) return stallCmp;
-  const timeCmp =
-    new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
-  if (timeCmp !== 0) return timeCmp;
-  const ak = a.controllerKey ?? (a.idx != null ? `legacy:idx:${a.idx}` : "");
-  const bk = b.controllerKey ?? (b.idx != null ? `legacy:idx:${b.idx}` : "");
-  return ak.localeCompare(bk, "ko", { numeric: true });
-}
-
 export function sortReadings<T extends BarnReading>(readings: T[]): T[] {
   return [...readings].sort(compareReadings);
-}
-
-export function sortReplayRows(rows: ReplayControllerRow[]): ReplayControllerRow[] {
-  return [...rows].sort(compareReplayRows);
 }
 
 export type ReadingHierarchyStall = {

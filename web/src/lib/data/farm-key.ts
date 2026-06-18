@@ -19,6 +19,19 @@ export function parseFarmKeyId(id: string): FarmKey | null {
   return { lsindRegistNo, itemCode };
 }
 
+/** Health farm drill-down URL segment (`FARM01/P00` → `FARM01--P00`) */
+export function farmKeyUrlSlug(id: string): string {
+  return id.replace("/", "--");
+}
+
+export function parseFarmKeyUrlSlug(slug: string): FarmKey | null {
+  const dash = slug.indexOf("--");
+  if (dash > 0) {
+    return parseFarmKeyId(`${slug.slice(0, dash)}/${slug.slice(dash + 2)}`);
+  }
+  return parseFarmKeyId(slug);
+}
+
 export function farmKeyEq(a: FarmKey, b: FarmKey): boolean {
   return a.lsindRegistNo === b.lsindRegistNo && a.itemCode === b.itemCode;
 }

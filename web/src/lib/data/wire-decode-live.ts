@@ -20,6 +20,9 @@ export function decodeLivePayloadFromDb(
       stallTyCode: v0c.stallTyCode,
       stallNo: v0c.stallNo,
       mesureDt: v0c.mesureDt,
+      runMode: v0c.runMode,
+      tempsC: v0c.tempsC,
+      humidityPct: v0c.humidityPct,
       channels: v0c.channels,
     };
   }
