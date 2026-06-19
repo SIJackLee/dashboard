@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   saveFarmLocationInlineAction,
   saveFarmLocationsBatchInlineAction,
-} from "@/app/(dashboard)/settings/actions";
+} from "@/lib/actions/app-settings-actions";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { SectionCard } from "@/components/common/section-card";
 import { Input } from "@/components/ui/input";

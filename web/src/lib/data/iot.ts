@@ -1,19 +1,14 @@
 import "server-only";
 
 import { cache } from "react";
-import { farmKeysFromAccess } from "@/lib/auth/farm-access";
-import { getCurrentUser } from "@/lib/auth/get-current-user";
-import { createClient } from "@/lib/supabase/server";
+import { isValidFarmKey } from "@/lib/data/barn-catalog";
 import {
   summarizeControllers,
   toBarnSummary,
   toFarmOverview,
 } from "@/lib/data/dashboard-summary";
-
 import type { BarnMeta } from "@/lib/data/barn-meta";
-
-import { isValidFarmKey } from "@/lib/data/barn-catalog";
-import { compareReadings, sortReadings } from "@/lib/data/reading-hierarchy";
+import { compareReadings } from "@/lib/data/reading-hierarchy";
 import {
   normalizeEqpmnNo,
   resolveControllerKey,
@@ -28,26 +23,20 @@ import {
   stallCatalogKey,
   type FarmKey,
 } from "@/lib/data/farm-key";
-import { GLOBAL_LIVE_ROW_LIMIT } from "@/lib/admin/health/constants";
-import {
-  pickLatestLiveControllerRows,
-  type RawLiveControllerRow,
-} from "@/lib/data/iot-raw-live";
-import { decodeLivePayloadFromDb } from "@/lib/data/wire-decode-live";
-import { isLivePacketMode } from "@/lib/data/iot-live-merge";
 import {
   legacyFieldsFromChannels,
   mapDecodedChannels,
   type ChannelReading,
 } from "@/lib/data/iot-channel";
+import { isLivePacketMode } from "@/lib/data/iot-live-merge";
+import {
+  fetchLiveReadings,
+  type LiveReadingsScope,
+} from "@/lib/data/iot-live-fetch";
 
 export type { StallCatalogEntry } from "@/lib/data/stall-catalog";
-
+export type { LiveReadingsScope };
 export { buildStallCatalog } from "@/lib/data/stall-catalog";
-
-
-
-// ES/EC 배열의 어느 원소를 "현재값"으로 볼지. (가정: 마지막 원소가 최신)
 
 const READING_AT: "last" | "first" = "last";
 
@@ -379,309 +368,17 @@ function expandDecodedRowToReadings(row: DecodedRow): BarnReading[] {
 
 
 /**
-
  * 모듈별 최신 LIVE snapshot(chunk 병합)을 펼쳐 컨트롤러(idx) 단위 반환.
-
  * REPLAY 수신 직후에도 LIVE UI가 깨지지 않도록 mode=live 만 채택.
-
  */
 
 /** 요청당 1회 조회 — 동일 RSC 트리 내 페이지·설정 공유 */
-export const getLiveReadings = cache(async (): Promise<BarnReading[]> => {
-  const readings = await fetchLiveReadingsRaw();
-  return readings.filter((r) => isValidFarmKey(r.farmKey));
-});
-
-const SCOPED_LIVE_ROW_LIMIT = 5000;
-/** v0x0C DISTINCT ON — 1 row per controller (SQL view) */
-const LIVE_LATEST_SOURCE = "v_iot_live_latest" as const;
-const LIVE_LATEST_COLS =
-  "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, payload_bytea, received_at";
-/** Fallback: LIVE raw stream */
-const LIVE_RAW_SOURCE = "v_iot_raw_live" as const;
-const RAW_SELECT_COLS =
-  "id, lsind_regist_no, item_code, module_uid, payload_bytea, received_at";
-
-function toNumList(values: (string | null | undefined)[] | undefined): (number | null)[] | undefined {
-  if (!values) return undefined;
-  return values.map((v) => {
-    if (v == null) return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : null;
-  });
-}
-
-function pickPrimaryTemp(
-  tempsC: (number | null)[] | undefined,
-  fromChannels: ReturnType<typeof legacyFieldsFromChannels> | null,
-): number | null {
-  if (tempsC) {
-    for (const t of tempsC) {
-      if (t != null) return t;
-    }
-  }
-  return fromChannels?.tempC ?? null;
-}
-
-function liveLatestDbRowToLiveRow(row: {
-  raw_id: number;
-  lsind_regist_no: string;
-  item_code: string;
-  module_uid: number;
-  controller_key: string;
-  payload_bytea: unknown;
-  received_at: string;
-}): RawLiveControllerRow | null {
-  const decoded = decodeLivePayloadFromDb(row.payload_bytea);
-  if (!decoded || !isLivePacketMode(decoded.packetMode)) return null;
-  return {
-    rawId: row.raw_id,
-    lsind_regist_no: row.lsind_regist_no,
-    item_code: row.item_code,
-    module_uid: row.module_uid,
-    received_at: row.received_at,
-    wire_ver: decoded.wireVer,
-    packet_mode: decoded.packetMode,
-    controller_key: row.controller_key,
-    mesure_dt: decoded.mesureDt,
-    run_mode: decoded.runMode,
-    temps_c: decoded.tempsC,
-    humidity_pct: decoded.humidityPct,
-    channels: decoded.channels,
-  };
-}
-
-function rawDbRowToLiveRow(row: {
-  id: number;
-  lsind_regist_no: string;
-  item_code: string;
-  module_uid: number;
-  payload_bytea: unknown;
-  received_at: string;
-}): RawLiveControllerRow | null {
-  const decoded = decodeLivePayloadFromDb(row.payload_bytea);
-  if (!decoded) return null;
-  return {
-    rawId: row.id,
-    lsind_regist_no: row.lsind_regist_no,
-    item_code: row.item_code,
-    module_uid: row.module_uid,
-    received_at: row.received_at,
-    wire_ver: decoded.wireVer,
-    packet_mode: decoded.packetMode,
-    controller_key: decoded.controllerKey,
-    mesure_dt: decoded.mesureDt,
-    run_mode: decoded.runMode,
-    temps_c: decoded.tempsC,
-    humidity_pct: decoded.humidityPct,
-    channels: decoded.channels,
-  };
-}
-
-function expandRawLiveRowToReading(row: RawLiveControllerRow): BarnReading {
-  const farmKey: FarmKey = {
-    lsindRegistNo: row.lsind_regist_no,
-    itemCode: row.item_code,
-  };
-  const packetMode = isLivePacketMode(row.packet_mode) ? "live" : "replay";
-  const status = statusFromAge(row.received_at);
-  const c = {
-    controllerKey: row.controller_key,
-    eqpmnNo: row.controller_key.split(":")[2] ?? "01",
-    stallNo: row.controller_key.split(":")[1] ?? null,
-    stallTyCode: row.controller_key.split(":")[0] ?? null,
-    mesureDt: row.mesure_dt,
-    channels: row.channels,
-  };
-  const controllerKey = resolveControllerKey(c);
-  const eqpmnNo = normalizeEqpmnNo(c.eqpmnNo);
-  const stallNo = pickStallField(c.stallNo);
-  const stallTyCode = pickStallField(c.stallTyCode);
-  const channels = mapDecodedChannels(c.channels);
-  const fromChannels =
-    channels.length > 0 ? legacyFieldsFromChannels(channels) : null;
-  const tempsC = toNumList(row.temps_c);
-  const humidityFromRow =
-    row.humidity_pct != null ? Number(row.humidity_pct) : null;
-  const humidityPct =
-    humidityFromRow != null && Number.isFinite(humidityFromRow)
-      ? humidityFromRow
-      : fromChannels?.humidityPct ?? null;
-
-  return {
-    key: readingKey(farmKey, row.module_uid, controllerKey),
-    farmKey,
-    moduleUid: row.module_uid,
-    controllerKey,
-    eqpmnNo,
-    stallNo,
-    stallTyCode,
-    label: formatControllerSlotLabel({ stallNo, eqpmnNo }),
-    tempC: pickPrimaryTemp(tempsC, fromChannels),
-    humidityPct,
-    fanSupply: fromChannels?.fanSupply ?? null,
-    fanExhaust: fromChannels?.fanExhaust ?? null,
-    fanIntake: fromChannels?.fanIntake ?? null,
-    fanSupplySeries: fromChannels?.fanSupplySeries ?? [],
-    fanExhaustSeries: fromChannels?.fanExhaustSeries ?? [],
-    fanIntakeSeries: fromChannels?.fanIntakeSeries ?? [],
-    mesureDt: row.mesure_dt,
-    receivedAt: row.received_at,
-    status,
-    packetMode,
-    wireVer: row.wire_ver,
-    decodedId: row.rawId,
-    thermo: fromChannels?.thermo ?? null,
-    channels: channels.length > 0 ? channels : undefined,
-    runMode: row.run_mode ?? null,
-    tempsC,
-  };
-}
-
-async function fetchLiveReadingsRaw(): Promise<BarnReading[]> {
-  const supabase = await createClient();
-  const user = await getCurrentUser();
-  const scopedFarms =
-    user && !user.isAdmin ? farmKeysFromAccess(user) : null;
-
-  const fromLatest = await fetchLiveReadingsFromLatestView(
-    supabase,
-    scopedFarms,
-  );
-  if (fromLatest !== null) {
-    return sortReadings(fromLatest);
-  }
-
-  return sortReadings(
-    await fetchLiveReadingsFromRawStream(supabase, scopedFarms),
-  );
-}
-
-async function fetchLiveReadingsFromLatestView(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  scopedFarms: ReturnType<typeof farmKeysFromAccess> | null,
-): Promise<BarnReading[] | null> {
-  let query = supabase
-    .from(LIVE_LATEST_SOURCE)
-    .select(LIVE_LATEST_COLS)
-    .order("received_at", { ascending: false });
-
-  if (scopedFarms && scopedFarms.length > 0) {
-    if (scopedFarms.length === 1) {
-      const fk = scopedFarms[0]!;
-      query = query
-        .eq("lsind_regist_no", fk.lsindRegistNo)
-        .eq("item_code", fk.itemCode);
-    } else {
-      const orClause = scopedFarms
-        .map(
-          (fk) =>
-            `and(lsind_regist_no.eq.${fk.lsindRegistNo},item_code.eq.${fk.itemCode})`,
-        )
-        .join(",");
-      query = query.or(orClause);
-    }
-    query = query.limit(SCOPED_LIVE_ROW_LIMIT);
-  } else {
-    query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
-  }
-
-  const { data, error } = await query;
-  if (error) return null;
-
-  const liveRows = (data ?? [])
-    .map(liveLatestDbRowToLiveRow)
-    .filter((r): r is RawLiveControllerRow => r != null);
-
-  return liveRows.map(expandRawLiveRowToReading);
-}
-
-async function fetchLiveReadingsFromRawStream(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  scopedFarms: ReturnType<typeof farmKeysFromAccess> | null,
-): Promise<BarnReading[]> {
-  let query = supabase
-    .from(LIVE_RAW_SOURCE)
-    .select(RAW_SELECT_COLS)
-    .order("received_at", { ascending: false });
-
-  if (scopedFarms && scopedFarms.length > 0) {
-    if (scopedFarms.length === 1) {
-      const fk = scopedFarms[0]!;
-      query = query
-        .eq("lsind_regist_no", fk.lsindRegistNo)
-        .eq("item_code", fk.itemCode);
-    } else {
-      const orClause = scopedFarms
-        .map(
-          (fk) =>
-            `and(lsind_regist_no.eq.${fk.lsindRegistNo},item_code.eq.${fk.itemCode})`
-        )
-        .join(",");
-      query = query.or(orClause);
-    }
-    query = query.limit(SCOPED_LIVE_ROW_LIMIT);
-  } else {
-    query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
-  }
-
-  let { data, error } = await query;
-
-  if (error) {
-    query = supabase
-      .from("iot_room_state_raw")
-      .select(RAW_SELECT_COLS)
-      .order("received_at", { ascending: false });
-    if (scopedFarms && scopedFarms.length === 1) {
-      const fk = scopedFarms[0]!;
-      query = query
-        .eq("lsind_regist_no", fk.lsindRegistNo)
-        .eq("item_code", fk.itemCode)
-        .limit(SCOPED_LIVE_ROW_LIMIT);
-    } else if (scopedFarms && scopedFarms.length > 1) {
-      const orClause = scopedFarms
-        .map(
-          (fk) =>
-            `and(lsind_regist_no.eq.${fk.lsindRegistNo},item_code.eq.${fk.itemCode})`
-        )
-        .join(",");
-      query = query.or(orClause).limit(SCOPED_LIVE_ROW_LIMIT);
-    } else {
-      query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
-    }
-    const fallback = await query;
-    data = fallback.data;
-    error = fallback.error;
-  }
-
-  if (error || !data) return [];
-
-  const decodedRows = (data as Array<{
-    id: number;
-    lsind_regist_no: string;
-    item_code: string;
-    module_uid: number;
-    payload_bytea: unknown;
-    received_at: string;
-  }>)
-    .map(rawDbRowToLiveRow)
-    .filter((r): r is RawLiveControllerRow => r != null);
-
-  const latest = pickLatestLiveControllerRows(decodedRows);
-  return sortReadings(latest.map(expandRawLiveRowToReading));
-}
-
-
-
-/** @deprecated getLiveReadings() 사용 */
-
-export async function getBarnReadings(): Promise<BarnReading[]> {
-
-  return getLiveReadings();
-
-}
-
-
+export const getLiveReadings = cache(
+  async (scope: LiveReadingsScope = {}): Promise<BarnReading[]> => {
+    const readings = await fetchLiveReadings(scope);
+    return readings.filter((r) => isValidFarmKey(r.farmKey));
+  },
+);
 
 export function summarizeBarns(readings: BarnReading[]): BarnSummary {
   return toBarnSummary(summarizeControllers(readings));

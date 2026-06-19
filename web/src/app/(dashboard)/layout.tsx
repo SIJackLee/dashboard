@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
-import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DashboardMetaShell } from "@/components/layout/dashboard-meta-shell";
 import { NavigationPendingProvider } from "@/components/layout/navigation-pending-provider";
 import { FarmScopeProvider } from "@/components/layout/farm-scope-provider";
@@ -36,19 +35,8 @@ export default async function DashboardLayout({
           fixedFarmKey={resolveFixedFarmKey(user)}
         >
           <NavigationPendingProvider>
-            <div className="flex h-screen overflow-hidden">
-              <Suspense fallback={null}>
-                <AppSidebar
-                  user={{
-                    displayName: user.displayName,
-                    email: user.email,
-                    role: user.role,
-                  }}
-                />
-              </Suspense>
-              <div className="flex flex-1 flex-col overflow-hidden">
-                <Suspense fallback={null}>{children}</Suspense>
-              </div>
+            <div className="flex h-screen flex-col overflow-hidden">
+              <Suspense fallback={null}>{children}</Suspense>
             </div>
           </NavigationPendingProvider>
         </FarmScopeProvider>

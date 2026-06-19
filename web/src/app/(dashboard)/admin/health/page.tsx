@@ -1,17 +1,17 @@
-import { PageShell } from "@/components/layout/page-shell";
-import { HealthOverviewView } from "@/components/admin/health/health-overview-view";
-import { fetchHealthSnapshot } from "@/lib/admin/health/fetch-snapshot";
-import { requireAdmin } from "@/lib/auth/require-admin";
+import { redirect } from "next/navigation";
+import { setAdminOpsTabParam } from "@/lib/admin/ops-tabs";
 
-export const revalidate = 300;
-
-export default async function AdminHealthPage() {
-  await requireAdmin();
-  const snapshot = await fetchHealthSnapshot();
-
-  return (
-    <PageShell title="시스템 상태">
-      <HealthOverviewView snapshot={snapshot} />
-    </PageShell>
-  );
+export default async function AdminHealthPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const params = await searchParams;
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) qs.set(key, value);
+  }
+  setAdminOpsTabParam(qs, "system");
+  const q = qs.toString();
+  redirect(q ? `/admin/ops?${q}` : "/admin/ops");
 }

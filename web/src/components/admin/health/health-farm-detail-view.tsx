@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { HealthSnapshot } from "@/lib/admin/health/types";
 import { HealthControllerTable } from "@/components/admin/health/health-controller-table";
 import { HealthFarmModuleTable } from "@/components/admin/health/health-farm-module-table";
+import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import {
   controllersForFarm,
@@ -10,7 +11,6 @@ import {
 import { worstStatus } from "@/lib/admin/health/staleness";
 import { farmKeyUrlSlug, parseFarmKeyUrlSlug } from "@/lib/data/farm-key";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
-import { cn } from "@/lib/utils";
 
 type HealthFarmDetailViewProps = {
   farmSlug: string;
@@ -48,19 +48,13 @@ export function HealthFarmDetailView({
         </span>
       </div>
 
-      <section className="rounded-xl border bg-card p-5">
-        <h2 className={cn(dashboardTypography.cardTitle, "mb-4")}>
-          모듈 (worst rollup)
-        </h2>
+      <HealthSectionCard title="모듈 (worst rollup)">
         <HealthFarmModuleTable modules={modules} />
-      </section>
+      </HealthSectionCard>
 
-      <section className="rounded-xl border bg-card p-5">
-        <h2 className={cn(dashboardTypography.cardTitle, "mb-4")}>
-          장비 (controller_key)
-        </h2>
+      <HealthSectionCard title="장비 (controller_key)">
         <HealthControllerTable controllers={controllers} />
-      </section>
+      </HealthSectionCard>
 
       <p className={dashboardTypography.meta}>
         <Link href="/admin/health/field-module" className="hover:underline">

@@ -12,6 +12,7 @@ import { ControllerNameLabel } from "@/components/common/controller-name-label";
 import { buildControllerHref } from "@/lib/auth/farm-access";
 import { formatKst } from "@/lib/datetime/kst";
 import type { AlarmRow } from "@/lib/data/alarms";
+import { alarmTargetHref } from "@/lib/data/alarms";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { farmLabel } from "@/lib/data/farm-summaries";
 import { groupReadingsByHierarchy } from "@/lib/data/reading-hierarchy";
@@ -99,11 +100,13 @@ export function AlarmTable({
   selectedId,
   initialExpandedSp,
   groupByFarm = false,
+  onAlarmSelect,
 }: {
   alarms: AlarmRow[];
   selectedId?: string;
   initialExpandedSp?: string;
   groupByFarm?: boolean;
+  onAlarmSelect?: (alarmId: string) => void;
 }) {
   const spGroups = useMemo(() => groupAlarmsByHierarchy(alarms), [alarms]);
   const farmGroups = useMemo(
@@ -170,6 +173,7 @@ export function AlarmTable({
                 farm={farm}
                 colSpan={colSpan}
                 selectedId={selectedId}
+                onAlarmSelect={onAlarmSelect}
                 isOpen={expandedFarm.has(farm.farmId)}
                 onToggleFarm={() => toggleFarm(farm.farmId)}
                 expandedSp={expandedSp}
@@ -183,6 +187,7 @@ export function AlarmTable({
                 sp={sp}
                 colSpan={colSpan}
                 selectedId={selectedId}
+                onAlarmSelect={onAlarmSelect}
                 isOpen={expandedSp.has(sp.stallTyCode)}
                 onToggle={() => toggleSp(sp.stallTyCode)}
               />
@@ -198,6 +203,7 @@ function AlarmFarmGroupRows({
   farm,
   colSpan,
   selectedId,
+  onAlarmSelect,
   isOpen,
   onToggleFarm,
   expandedSp,
@@ -206,6 +212,7 @@ function AlarmFarmGroupRows({
   farm: AlarmFarmGroup;
   colSpan: number;
   selectedId?: string;
+  onAlarmSelect?: (alarmId: string) => void;
   isOpen: boolean;
   onToggleFarm: () => void;
   expandedSp: Set<string>;
@@ -283,6 +290,7 @@ function AlarmFarmGroupRows({
               sp={sp}
               colSpan={colSpan}
               selectedId={selectedId}
+              onAlarmSelect={onAlarmSelect}
               isOpen={expandedSp.has(spKey)}
               onToggle={() => onToggleSp(spKey)}
               indent={1}
@@ -297,6 +305,7 @@ function AlarmSpGroupRows({
   sp,
   colSpan,
   selectedId,
+  onAlarmSelect,
   isOpen,
   onToggle,
   indent = 0,
@@ -304,6 +313,7 @@ function AlarmSpGroupRows({
   sp: AlarmSpGroup;
   colSpan: number;
   selectedId?: string;
+  onAlarmSelect?: (alarmId: string) => void;
   isOpen: boolean;
   onToggle: () => void;
   indent?: number;
@@ -393,62 +403,110 @@ function AlarmSpGroupRows({
               </TableCell>
             </TableRow>
             {stall.alarms.map((a) => (
-              <TableRow
+              <AlarmItemRow
                 key={a.id}
-                className={cn(
-                  "cursor-pointer",
-                  selectedId === a.id && "bg-primary/5"
-                )}
-              >
-                <TableCell className={dashboardTypography.meta}>
-                  <Link href={`/alarms?alarm=${encodeURIComponent(a.id)}`} className="block">
-                    {formatKst(a.occurredAt, "short")}
-                  </Link>
-                </TableCell>
-                <TableCell className={indent === 0 ? "pl-12" : "pl-16"}>
-                  <AppNavLink
-                    href={buildControllerHref({
-                      farmKey: a.farmKey,
-                      sp: a.stallTyCode,
-                      ctrlIdx: a.idx,
-                    })}
-                    message="컨트롤러 페이지로 이동 중…"
-                    className="block hover:text-emerald-700 hover:underline"
-                  >
-                    <ControllerNameLabel
-                      stallNo={a.stallNo}
-                      eqpmnNo={a.eqpmnNo}
-                      controllerKey={a.controllerKey}
-                      idx={a.idx}
-                    />
-                  </AppNavLink>
-                </TableCell>
-                <TableCell>
-                  <Link href={`/alarms?alarm=${encodeURIComponent(a.id)}`} className="block">
-                    {a.alarmType}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link href={`/alarms?alarm=${encodeURIComponent(a.id)}`} className="block">
-                    <Badge
-                      variant={
-                        a.severity === "critical" ? "destructive" : "secondary"
-                      }
-                      className={dashboardUi.badgeMd}
-                    >
-                      {a.severity === "critical" ? "심각" : "주의"}
-                    </Badge>
-                  </Link>
-                </TableCell>
-                <TableCell className={dashboardTypography.tableCell}>
-                  <Link href={`/alarms?alarm=${encodeURIComponent(a.id)}`} className="block">
-                    {a.detail}
-                  </Link>
-                </TableCell>
-              </TableRow>
+                alarm={a}
+                selectedId={selectedId}
+                onAlarmSelect={onAlarmSelect}
+                indent={indent}
+              />
             ))}
           </Fragment>
         ))}
     </>
+  );
+}
+
+function AlarmItemRow({
+  alarm: a,
+  selectedId,
+  onAlarmSelect,
+  indent,
+}: {
+  alarm: AlarmRow;
+  selectedId?: string;
+  onAlarmSelect?: (alarmId: string) => void;
+  indent: number;
+}) {
+  const select = () => onAlarmSelect?.(a.id);
+
+  return (
+    <TableRow
+      className={cn(
+        "cursor-pointer",
+        selectedId === a.id && "bg-primary/5"
+      )}
+      onClick={onAlarmSelect ? select : undefined}
+    >
+      <TableCell className={dashboardTypography.meta}>
+        {onAlarmSelect ? (
+          formatKst(a.occurredAt, "short")
+        ) : (
+          <Link href={alarmTargetHref(a)} className="block">
+            {formatKst(a.occurredAt, "short")}
+          </Link>
+        )}
+      </TableCell>
+      <TableCell
+        className={indent === 0 ? "pl-12" : "pl-16"}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <AppNavLink
+          href={buildControllerHref({
+            farmKey: a.farmKey,
+            sp: a.stallTyCode,
+            stallNo: a.stallNo,
+            controllerKey: a.controllerKey,
+            ctrlIdx: a.idx,
+          })}
+          message="컨트롤러 페이지로 이동 중…"
+          className="block hover:text-emerald-700 hover:underline"
+        >
+          <ControllerNameLabel
+            stallNo={a.stallNo}
+            eqpmnNo={a.eqpmnNo}
+            controllerKey={a.controllerKey}
+            idx={a.idx}
+          />
+        </AppNavLink>
+      </TableCell>
+      <TableCell>
+        {onAlarmSelect ? (
+          a.alarmType
+        ) : (
+          <Link href={alarmTargetHref(a)} className="block">
+            {a.alarmType}
+          </Link>
+        )}
+      </TableCell>
+      <TableCell>
+        {onAlarmSelect ? (
+          <Badge
+            variant={a.severity === "critical" ? "destructive" : "secondary"}
+            className={dashboardUi.badgeMd}
+          >
+            {a.severity === "critical" ? "심각" : "주의"}
+          </Badge>
+        ) : (
+          <Link href={alarmTargetHref(a)} className="block">
+            <Badge
+              variant={a.severity === "critical" ? "destructive" : "secondary"}
+              className={dashboardUi.badgeMd}
+            >
+              {a.severity === "critical" ? "심각" : "주의"}
+            </Badge>
+          </Link>
+        )}
+      </TableCell>
+      <TableCell className={dashboardTypography.tableCell}>
+        {onAlarmSelect ? (
+          a.detail
+        ) : (
+          <Link href={alarmTargetHref(a)} className="block">
+            {a.detail}
+          </Link>
+        )}
+      </TableCell>
+    </TableRow>
   );
 }

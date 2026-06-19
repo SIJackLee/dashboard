@@ -26,7 +26,7 @@ export function PiggyGame({
   playerId,
   fixedPlayer = false,
   requireSettingsId = false,
-  settingsUrl = "/settings?tab=dashboard",
+  settingsUrl = "/play",
 }: Props) {
   const configJson = JSON.stringify({
     playerId,

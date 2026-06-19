@@ -28,8 +28,10 @@ import {
   applyViewForStage,
   farmsInSigungu,
   MAP_ZOOM_STAGE,
+  mapViewportSize,
   shortSidoLabel,
   spreadFarmPointsForDisplay,
+  spreadRadiusForViewport,
   sumControllerCount,
   zoomForStage,
   type MapZoomStage,
@@ -43,6 +45,10 @@ type Props = {
   activeSido: string | null;
   onSelectSido?: (sido: string | null) => void;
   className?: string;
+  /** 기본 FARM_GEO_MAP_SHELL 대체 (허브 열 등) */
+  shellClassName?: string;
+  /** 좌하단 위험도·줌 범례 카드 */
+  showLegend?: boolean;
 };
 
 type LeafletModule = typeof import("leaflet");
@@ -91,6 +97,8 @@ export function FarmGeoMap({
   activeSido,
   onSelectSido,
   className,
+  shellClassName,
+  showLegend = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
@@ -113,6 +121,13 @@ export function FarmGeoMap({
   const renderMarkersRef = useRef<() => void>(() => {});
   const pointsRef = useRef(points);
   const { navigate, isPending } = useAppNavigate();
+
+  const getViewportCtx = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+    return { sizePx: mapViewportSize(el) };
+  }, []);
+
   const [stage, setStage] = useState<MapZoomStage>(0);
   const [liveZoom, setLiveZoom] = useState(zoomForStage(0));
   const [controllerAudit, setControllerAudit] = useState<{
@@ -220,9 +235,10 @@ export function FarmGeoMap({
     ) => {
       applyViewForStage(map, next, pointsRef.current, currentSelection(), {
         center: next === 2 || next === 3 ? undefined : opts?.center,
+        viewport: getViewportCtx(),
       });
     },
-    [currentSelection]
+    [currentSelection, getViewportCtx]
   );
 
   const goToStage = useCallback(
@@ -255,6 +271,7 @@ export function FarmGeoMap({
       if (opts?.center && next !== 2 && next !== 3) {
         applyViewForStage(map, next, pointsRef.current, currentSelection(), {
           center: opts.center,
+          viewport: getViewportCtx(),
         });
       } else {
         snapToStage(map, next, opts);
@@ -263,7 +280,7 @@ export function FarmGeoMap({
       map.once("moveend", releaseSnap);
       window.setTimeout(releaseSnap, 500);
     },
-    [closeAllMapTooltips, snapToStage, syncMapDebugAttrs, currentSelection]
+    [closeAllMapTooltips, snapToStage, syncMapDebugAttrs, currentSelection, getViewportCtx]
   );
 
   const applyStageStep = useCallback(
@@ -552,7 +569,12 @@ export function FarmGeoMap({
         sigunguRow?.controllerSum ?? null,
         showFarm ? farmCtrlSum : null
       );
-      const displayCoords = spreadFarmPointsForDisplay(farmList);
+      const mapSizePx = containerRef.current
+        ? mapViewportSize(containerRef.current)
+        : undefined;
+      const displayCoords = spreadFarmPointsForDisplay(farmList, {
+        radiusDeg: spreadRadiusForViewport(mapSizePx ?? 720),
+      });
       const maxFarmControllers = maxInCohort(
         farmList.map((p) => p.controllerCount)
       );
@@ -649,7 +671,7 @@ export function FarmGeoMap({
       applyViewForStage(map, 0, pointsRef.current, {
         sido: null,
         sigungu: null,
-      }, { animate: false });
+      }, { animate: false, viewport: getViewportCtx() });
 
       const mapContainer = map.getContainer();
       wheelHandler = (e: WheelEvent) => {
@@ -752,7 +774,29 @@ export function FarmGeoMap({
       setStage(0);
       renderMarkersRef.current();
 
-      observer = new ResizeObserver(() => map.invalidateSize());
+      observer = new ResizeObserver(() => {
+        map.invalidateSize();
+        if (
+          suppressSnapRef.current ||
+          stageSnapPendingRef.current ||
+          internalNavRef.current
+        ) {
+          return;
+        }
+        applyViewForStage(
+          map,
+          stageRef.current,
+          pointsRef.current,
+          {
+            sido: selectedSidoRef.current,
+            sigungu: selectedSigunguRef.current,
+          },
+          { animate: false, viewport: getViewportCtx() }
+        );
+        lastZoomRef.current = map.getZoom();
+        syncMapDebugAttrs(map);
+        renderMarkersRef.current();
+      });
       observer.observe(containerRef.current);
       map.invalidateSize();
     }
@@ -778,7 +822,7 @@ export function FarmGeoMap({
       farmMarkersRef.current.clear();
       leafletRef.current = null;
     };
-  }, [closeAllMapTooltips, onSelectSido, snapToStage, syncMapDebugAttrs]);
+  }, [closeAllMapTooltips, getViewportCtx, onSelectSido, snapToStage, syncMapDebugAttrs]);
 
   useEffect(() => {
     const L = leafletRef.current;
@@ -803,11 +847,13 @@ export function FarmGeoMap({
     goToStage(L, map, 2);
   }, [activeSido, goToStage]);
 
+  const shell = shellClassName ?? FARM_GEO_MAP_SHELL;
+
   if (points.length === 0) {
     return (
       <p
         className={cn(
-          FARM_GEO_MAP_SHELL,
+          shell,
           "flex items-center justify-center bg-muted/30 px-5 text-center",
           dashboardUi.body,
           className
@@ -819,7 +865,7 @@ export function FarmGeoMap({
   }
 
   return (
-    <div className={cn(FARM_GEO_MAP_SHELL, "relative", className)}>
+    <div className={cn(shell, "relative", className)}>
       <div
         ref={containerRef}
         className="absolute inset-0 z-0"
@@ -833,11 +879,13 @@ export function FarmGeoMap({
       >
         줌 {stage + 1}/4 · {MAP_ZOOM_STAGE[stage].label} (Z{liveZoom})
       </div>
-      <FarmGeoMapLegend
-        stage={stage}
-        sigunguControllerSum={controllerAudit?.sigungu}
-        farmControllerSum={controllerAudit?.farm}
-      />
+      {showLegend ? (
+        <FarmGeoMapLegend
+          stage={stage}
+          sigunguControllerSum={controllerAudit?.sigungu}
+          farmControllerSum={controllerAudit?.farm}
+        />
+      ) : null}
     </div>
   );
 }

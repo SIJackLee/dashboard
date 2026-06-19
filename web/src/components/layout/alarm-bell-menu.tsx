@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmTargetHref } from "@/lib/data/alarms";
+import { alarmControlHref } from "@/lib/data/alarms";
+import { monitoringHref } from "@/lib/monitoring/monitoring-tabs";
 import { formatKst } from "@/lib/datetime/kst";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
@@ -36,6 +37,15 @@ export function AlarmBellMenu({ alarms }: Props) {
 
   const triggerLabel = count > 0 ? `알림 ${count}건` : "알림";
 
+  const countBadge = count > 0 ? (
+    <span
+      className="absolute -right-0.5 -top-0.5 flex min-h-[1.5rem] min-w-[1.5rem] items-center justify-center rounded-full bg-red-500 px-1 text-[1rem] font-bold leading-none text-white"
+      suppressHydrationWarning
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  ) : null;
+
   if (!mounted) {
     return (
       <button
@@ -44,14 +54,7 @@ export function AlarmBellMenu({ alarms }: Props) {
         aria-label={triggerLabel}
       >
         <Bell className={dashboardUi.topBellIcon} />
-        {count > 0 ? (
-          <span
-            className="absolute -right-0.5 -top-0.5 flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.85rem] font-bold leading-none text-white"
-            suppressHydrationWarning
-          >
-            {count > 99 ? "99+" : count}
-          </span>
-        ) : null}
+        {countBadge}
       </button>
     );
   }
@@ -63,53 +66,49 @@ export function AlarmBellMenu({ alarms }: Props) {
         aria-label={triggerLabel}
       >
         <Bell className={dashboardUi.topBellIcon} />
-        {count > 0 ? (
-          <span
-            className="absolute -right-0.5 -top-0.5 flex min-h-[1.35rem] min-w-[1.35rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.85rem] font-bold leading-none text-white"
-            suppressHydrationWarning
-          >
-            {count > 99 ? "99+" : count}
-          </span>
-        ) : null}
+        {countBadge}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[22rem]">
+      <DropdownMenuContent
+        align="end"
+        className={dashboardUi.alarmMenuContent}
+      >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center justify-between gap-2">
-            <span>활성 알림</span>
-            {count > 0 ? (
-              <Badge variant="destructive" className={dashboardUi.badgeMd}>
-                {count}건
-              </Badge>
-            ) : null}
+          <DropdownMenuLabel className={dashboardUi.alarmMenuLabel}>
+            <span className="flex w-full items-center justify-between gap-3">
+              <span>활성 알림</span>
+              {count > 0 ? (
+                <Badge variant="destructive" className={dashboardUi.badgeMd}>
+                  {count}건
+                </Badge>
+              ) : null}
+            </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="my-2" />
         {preview.length === 0 ? (
-          <p className="px-3 py-4 text-center text-muted-foreground text-sm">
-            활성 알림 없음
-          </p>
+          <p className={dashboardUi.alarmMenuEmpty}>활성 알림 없음</p>
         ) : (
           preview.map((a) => (
             <DropdownMenuItem
               key={a.id}
-              className="cursor-pointer flex-col items-start gap-0.5 py-2.5"
+              className={dashboardUi.alarmMenuItem}
               disabled={isPending}
               onClick={() =>
-                navigate(alarmTargetHref(a), {
-                  message: "알람 페이지로 이동 중…",
+                navigate(alarmControlHref(a), {
+                  message: "컨트롤러 제어로 이동 중…",
                 })
               }
             >
-              <span className="flex w-full items-center justify-between gap-2">
+              <span className="flex w-full items-center justify-between gap-3">
                 <span className="font-medium">{a.alarmType}</span>
                 <Badge
                   variant={a.severity === "critical" ? "destructive" : "secondary"}
-                  className="shrink-0 text-xs"
+                  className={cn(dashboardUi.badgeMd, "shrink-0")}
                 >
                   {a.severity === "critical" ? "심각" : "주의"}
                 </Badge>
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className={dashboardUi.alarmMenuMeta}>
                 {a.stallTyCode ? formatStallTypeLabel(a.stallTyCode) : "—"} ·{" "}
                 {formatControllerSlotLabel({
                   stallNo: a.stallNo,
@@ -117,8 +116,10 @@ export function AlarmBellMenu({ alarms }: Props) {
                   idx: a.idx,
                 })}
               </span>
-              <span className="truncate text-xs text-muted-foreground">{a.detail}</span>
-              <span className="text-[0.7rem] text-muted-foreground">
+              <span className={cn(dashboardUi.alarmMenuMeta, "w-full truncate")}>
+                {a.detail}
+              </span>
+              <span className={dashboardUi.alarmMenuTime}>
                 {formatKst(a.occurredAt, "short")}
               </span>
             </DropdownMenuItem>
@@ -126,15 +127,17 @@ export function AlarmBellMenu({ alarms }: Props) {
         )}
         {count > 0 ? (
           <>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="my-2" />
             <DropdownMenuItem
-              className="justify-center text-emerald-700"
+              className={dashboardUi.alarmMenuFooter}
               disabled={isPending}
               onClick={() =>
-                navigate("/alarms", { message: "알람 페이지로 이동 중…" })
+                navigate(monitoringHref("ops"), {
+                  message: "이상 탭으로 이동 중…",
+                })
               }
             >
-              {count > preview.length ? `전체 ${count}건 보기` : "알람 페이지로 이동"}
+              {count > preview.length ? `전체 ${count}건 보기` : "이상 탭으로 이동"}
             </DropdownMenuItem>
           </>
         ) : null}

@@ -1,25 +1,37 @@
+import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
-import { AdminFarmOverview } from "@/components/admin/admin-farm-overview";
-import { FarmPageContent } from "@/components/farm/farm-page-content";
+import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
+import { MonitoringTabs } from "@/components/monitoring/monitoring-tabs";
+import { MonitoringTabPanel } from "@/components/monitoring/monitoring-tab-panel";
+import { OpsTriageView } from "@/components/ops/ops-triage-view";
 import {
   filterReadingsByFarmKey,
   resolveActiveFarmKey,
 } from "@/lib/auth/farm-access";
-import { getCurrentUser } from "@/lib/auth/get-current-user";
-import { deriveAlarmsFromReadings } from "@/lib/data/alarms";
-import { getAlarmSettings } from "@/lib/data/alarm-settings";
+import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { getBarnLayoutPrefs, mergeBarnLayouts } from "@/lib/data/barn-meta";
 import {
   buildAutoBarnMap,
   gridDimensionsForBarnMap,
 } from "@/lib/data/barn-map";
-import { buildFarmSummaries } from "@/lib/data/farm-summaries";
 import { getFarmLocations } from "@/lib/data/farm-location";
+import { getPageShellContext } from "@/lib/data/page-shell-data";
 import { getLiveReadings } from "@/lib/data/iot";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
-import { cn } from "@/lib/utils";
+import {
+  summarizeControllers,
+  toFarmOverview,
+} from "@/lib/data/dashboard-summary";
+import { FIRMWARE_CTRL_COUNT } from "@/lib/data/iot-firmware";
+import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
+import { mergeThermoSettingsMaps } from "@/lib/controllers/controller-settings";
+import { deriveAlarmsFromReadings, summarizeAlarms } from "@/lib/data/alarms";
+import { getAlarmSettings } from "@/lib/data/alarm-settings";
+import { getDisplaySettings } from "@/lib/data/display-settings";
+import { getEditableFarmLocationOptions } from "@/lib/data/farm-location";
+import { parseMonitoringTab } from "@/lib/monitoring/monitoring-tabs";
+import { parseDevicesPanel } from "@/lib/monitoring/devices-panel";
 
 function stripLegacyOverviewView(params: {
   view?: string;
@@ -36,58 +48,227 @@ function stripLegacyOverviewView(params: {
   redirect(q ? `/farm?${q}` : "/farm");
 }
 
-/** 관리자 /farm 은 전국 지리 지도만 — 구 drill-down 쿼리 제거 */
-function stripAdminFarmDrillDown(params: {
-  view?: string;
-  lsind?: string;
-  item?: string;
-  sp?: string;
-}) {
-  if (!params.lsind && !params.item && !params.sp && params.view !== "list") {
-    return null;
-  }
-  redirect("/farm");
-}
-
 export default async function FarmPage({
   searchParams,
 }: {
   searchParams: Promise<{
+    tab?: string;
     view?: string;
     lsind?: string;
     item?: string;
     sp?: string;
+    stall?: string;
+    ctrl?: string;
+    module?: string;
+    alarm?: string;
+    panel?: string;
+    ok?: string;
+    error?: string;
   }>;
 }) {
   const params = await searchParams;
   stripLegacyOverviewView(params);
 
-  const user = await getCurrentUser();
-  const isAdmin = Boolean(user?.isAdmin);
-
-  if (isAdmin) {
-    stripAdminFarmDrillDown(params);
+  if (params.tab === "devices" || params.tab === "alarms") {
+    const legacy = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value && key !== "tab") legacy.set(key, value);
+    }
+    legacy.set("tab", "ops");
+    redirect(`/farm?${legacy.toString()}`);
   }
 
+  if (params.panel === "alarm") {
+    const legacy = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value && key !== "panel") legacy.set(key, value);
+    }
+    if (!legacy.has("tab")) legacy.set("tab", "ops");
+    redirect(`/farm?${legacy.toString()}`);
+  }
+
+  const tab = parseMonitoringTab(params.tab);
+  const user = await getCurrentUser();
+  const isAdmin = Boolean(user?.isAdmin);
   const activeFarmKey = user ? resolveActiveFarmKey(user, params) : null;
+  /** Admin 전국 허브 — 컨트롤러 선택(tab=ops) 후에도 3열 유지 */
+  const isAdminMonitoringHub =
+    isAdmin && (!activeFarmKey || tab === "ops");
 
-  const [readings, layoutPrefs, alarmSettings, farmLocations] = await Promise.all([
-    getLiveReadings(),
-    getBarnLayoutPrefs(),
-    getAlarmSettings(),
-    getFarmLocations(),
-  ]);
+  const shellParams = {
+    lsind: params.lsind,
+    item: params.item,
+    view: params.view,
+  };
 
-  if (isAdmin) {
-    const alarms = deriveAlarmsFromReadings(readings, alarmSettings);
-    const farmSummaries = buildFarmSummaries(readings, alarms);
+  const pageBody = (
+    content: ReactNode,
+    options?: { hideTabs?: boolean }
+  ) => (
+    <div className="space-y-4 md:space-y-5">
+      {!options?.hideTabs ? (
+        <Suspense fallback={null}>
+          <MonitoringTabs active={tab} />
+        </Suspense>
+      ) : null}
+      <Suspense fallback={null}>
+        <MonitoringTabPanel serverTab={tab}>{content}</MonitoringTabPanel>
+      </Suspense>
+    </div>
+  );
+
+  /** Admin 전국 — 지도·농장목록·컨트롤러 가로 3열 허브 */
+  if (isAdminMonitoringHub) {
+    const devicesPanel = parseDevicesPanel(params.panel, true);
+
+    const [shellCtx, history, commandThermoMap, readings, alarmSettings, farmLocations] =
+      await Promise.all([
+        getPageShellContext(shellParams),
+        getThermoCommandHistory(100),
+        getThermoSettingsMap(500),
+        getLiveReadings({}),
+        getAlarmSettings(),
+        getFarmLocations(),
+      ]);
+
+    const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+    const scopedReadings = filterReadingsByFarmKey(readings, null);
+    const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
+    const alarmSummary = summarizeAlarms(alarms);
+
+    const deviceNotices: Record<string, { tone: "ok" | "error"; text: string }> = {
+      saved: { tone: "ok", text: "저장했습니다." },
+      invalid: { tone: "error", text: "입력값이 올바르지 않습니다." },
+      save: { tone: "error", text: "저장에 실패했습니다. 권한을 확인하세요." },
+      forbidden: {
+        tone: "error",
+        text: "이 항목을 수정할 권한이 없습니다. 명령 권한 또는 관리자 역할이 필요합니다.",
+      },
+    };
+    const settingsNotice = params.ok
+      ? deviceNotices[params.ok]
+      : params.error
+        ? deviceNotices[params.error]
+        : null;
 
     return (
-      <PageShell title="농장" wide>
-        <AdminFarmOverview farms={farmSummaries} locations={farmLocations} />
+      <PageShell wide searchParams={shellParams}>
+        {pageBody(
+          <Suspense fallback={null}>
+            <OpsTriageView
+              readings={scopedReadings}
+              alarms={alarms}
+              alarmSummary={alarmSummary}
+              initialLsind={params.lsind}
+              initialItem={params.item}
+              initialSp={params.sp}
+              initialStall={params.stall}
+              initialCtrl={params.ctrl}
+              initialAlarm={params.alarm}
+              canCommand={canCommand(user)}
+              commands={history}
+              thermoSettings={thermoSettings}
+              isAdmin={isAdmin}
+              adminAllFarms
+              farmSummaries={shellCtx.farmSummaries}
+              adminFarmOptions={shellCtx.farmOptions}
+              adminActiveFarmKey={shellCtx.activeFarmKey}
+              alarmSettings={alarmSettings}
+              settingsNotice={settingsNotice}
+              initialDevicesPanel={devicesPanel}
+              geoHub={{
+                farmSummaries: shellCtx.farmSummaries,
+                locations: farmLocations,
+              }}
+            />
+          </Suspense>,
+          { hideTabs: true }
+        )}
       </PageShell>
     );
   }
+
+  const [shellCtx, history, commandThermoMap] = await Promise.all([
+    getPageShellContext(shellParams),
+    getThermoCommandHistory(100),
+    getThermoSettingsMap(500),
+  ]);
+  const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+
+  /** 운영 탭 — 3열 트리아지 (장비+이상 통합) */
+  if (tab === "ops") {
+    const devicesPanel = parseDevicesPanel(params.panel, isAdmin);
+    const needsReadings =
+      devicesPanel === "display" || devicesPanel === "control";
+
+    const [readings, alarmSettings, displaySettings, farmLocationOptions] =
+      await Promise.all([
+        needsReadings
+          ? getLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {})
+          : Promise.resolve([]),
+        getAlarmSettings(),
+        !isAdmin ? getDisplaySettings() : Promise.resolve(undefined),
+        !isAdmin ? getEditableFarmLocationOptions() : Promise.resolve([]),
+      ]);
+
+    const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
+    const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
+    const alarmSummary = summarizeAlarms(alarms);
+
+    const deviceNotices: Record<string, { tone: "ok" | "error"; text: string }> = {
+      saved: { tone: "ok", text: "저장했습니다." },
+      invalid: { tone: "error", text: "입력값이 올바르지 않습니다." },
+      save: { tone: "error", text: "저장에 실패했습니다. 권한을 확인하세요." },
+      forbidden: {
+        tone: "error",
+        text: "이 항목을 수정할 권한이 없습니다. 명령 권한 또는 관리자 역할이 필요합니다.",
+      },
+    };
+    const settingsNotice = params.ok
+      ? deviceNotices[params.ok]
+      : params.error
+        ? deviceNotices[params.error]
+        : null;
+
+    return (
+      <PageShell wide searchParams={shellParams}>
+        {pageBody(
+          <Suspense fallback={null}>
+            <OpsTriageView
+              readings={scopedReadings}
+              alarms={alarms}
+              alarmSummary={alarmSummary}
+              initialLsind={params.lsind}
+              initialItem={params.item}
+              initialSp={params.sp}
+              initialStall={params.stall}
+              initialCtrl={params.ctrl}
+              initialAlarm={params.alarm}
+              canCommand={canCommand(user)}
+              commands={history}
+              thermoSettings={thermoSettings}
+              isAdmin={isAdmin}
+              adminAllFarms={false}
+              farmSummaries={shellCtx.farmSummaries}
+              adminFarmOptions={shellCtx.farmOptions}
+              adminActiveFarmKey={shellCtx.activeFarmKey}
+              alarmSettings={alarmSettings}
+              displaySettings={displaySettings}
+              farmLocationOptions={farmLocationOptions}
+              settingsNotice={settingsNotice}
+              initialDevicesPanel={devicesPanel}
+            />
+          </Suspense>
+        )}
+      </PageShell>
+    );
+  }
+
+  /** 현황 탭 · scoped grid */
+  const [readings, layoutPrefs] = await Promise.all([
+    getLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {}),
+    getBarnLayoutPrefs(),
+  ]);
 
   const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
   const { snapshots: barnSnapshots, layoutsToPersist } = buildAutoBarnMap(
@@ -102,26 +283,28 @@ export default async function FarmPage({
   const mergedLayouts = { ...layoutPrefs.layouts, ...layoutsToPersist };
   const gridSize = gridDimensionsForBarnMap(barnSnapshots, mergedLayouts);
 
-  const shellParams = {
-    lsind: params.lsind,
-    item: params.item,
-    view: params.view,
-  };
+  const overview = toFarmOverview(
+    summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT)
+  );
 
   return (
-    <PageShell title="농장 현황" wide searchParams={shellParams}>
-      <Suspense
-        fallback={
-          <p className={cn("text-muted-foreground", dashboardUi.body)}>로딩…</p>
-        }
-      >
-        <FarmPageContent
+    <PageShell wide searchParams={shellParams}>
+      {pageBody(
+        <FarmDashboardShell
+          mapMode="grid"
+          overview={overview}
           readings={scopedReadings}
           barnSnapshots={barnSnapshots}
           gridCols={gridSize.cols}
           gridRows={gridSize.rows}
+          isAdmin={isAdmin}
+          farmOptions={shellCtx.farmOptions}
+          activeFarmKey={shellCtx.activeFarmKey}
+          farmSummaries={shellCtx.farmSummaries}
+          sp={params.sp}
+          view={params.view}
         />
-      </Suspense>
+      )}
     </PageShell>
   );
 }

@@ -49,7 +49,20 @@ export const dashboardUi = {
   logoutBtn:
     "flex w-full items-center gap-4 rounded-xl px-5 py-3.5 text-2xl font-medium leading-snug text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
 
-  topBar: "flex min-h-[5.5rem] items-center justify-between border-b bg-background px-6 py-3",
+  headerNavLink:
+    "inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg px-3 py-2 text-[1.75rem] font-medium leading-snug transition-colors md:px-4",
+  headerNavIcon: "size-7 shrink-0 [&_svg]:size-7",
+  headerBrand:
+    "flex min-w-0 items-center gap-2.5 pr-1 md:gap-3 md:pr-2",
+  headerBrandIcon: "size-10 rounded-lg md:size-11",
+  headerBrandTitle:
+    "hidden truncate text-2xl font-semibold leading-tight sm:block",
+  headerAccountAvatar:
+    "flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-lg font-medium md:size-10 md:text-xl",
+  headerAccountName: "truncate text-xl font-medium leading-tight",
+  headerAccountRole: "text-lg text-muted-foreground",
+
+  topBar: "flex min-h-[5.5rem] flex-wrap items-center justify-between gap-3 border-b bg-background px-4 py-3 md:gap-4 md:px-6",
   pageTitle: "text-4xl font-bold",
   topBadge:
     "!h-auto min-h-[2.25rem] gap-2 px-4 py-1.5 text-xl font-medium leading-none",
@@ -62,8 +75,24 @@ export const dashboardUi = {
     "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-2xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
   topLogoutIcon: "size-6",
 
+  alarmMenuContent:
+    "w-[min(100vw-2rem,38rem)] min-w-[28rem] p-2 text-[1.75rem] leading-snug",
+  alarmMenuLabel:
+    "px-4 py-3 text-2xl font-medium text-foreground data-inset:pl-4",
+  alarmMenuItem:
+    "cursor-pointer flex-col items-start gap-1 rounded-lg px-4 py-3 text-[1.75rem] leading-snug",
+  alarmMenuMeta: "text-[1.5rem] leading-snug text-muted-foreground",
+  alarmMenuTime: "text-[1.375rem] leading-snug text-muted-foreground",
+  alarmMenuEmpty:
+    "px-4 py-6 text-center text-[1.75rem] leading-snug text-muted-foreground",
+  alarmMenuFooter:
+    "justify-center rounded-lg py-3.5 text-[1.75rem] font-medium text-emerald-700",
+
   mainPad: "flex-1 overflow-y-auto p-6 md:p-8",
+  /** 모니터링·운영 등 wide — 좌우 dead space 최소화 */
+  mainPadWide: "flex-1 overflow-y-auto p-4 md:p-5",
   pageStack: "mx-auto space-y-6 md:space-y-8",
+  pageStackWide: "w-full max-w-none space-y-4 md:space-y-5",
 
   /* 농장 요약 스트립 · 컨텍스트 패널 */
   overviewStrip: "grid grid-cols-1 items-stretch gap-6 2xl:grid-cols-12",
@@ -152,9 +181,42 @@ export const dashboardUi = {
   spChip: "rounded-full border px-4 py-2.5 text-2xl font-medium",
   refreshBtn: "rounded-lg border px-4 py-2.5 text-xl font-medium",
 
+  /* ScopeBar — Phase 2 통합 (farm · SP · stall · Refresh) */
+  scopeBar:
+    "rounded-xl border bg-muted/20 px-4 py-3 md:px-5 md:py-4",
+  scopeBarSticky:
+    "sticky top-0 z-20 border-b backdrop-blur supports-[backdrop-filter]:bg-background/90",
+  scopeChip: "rounded-full border px-4 py-2 text-[1.625rem] font-medium leading-snug",
+  scopeLabel: "text-2xl font-medium text-muted-foreground",
+
+  /** OpsScopeBar — Active Pill + Popover (FarmRegionPanel 스타일) */
+  opsScopeBar: "py-3 md:py-4",
+  scopePill:
+    "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-left font-medium transition-colors",
+  scopePillText: "text-[1.75rem] leading-snug",
+  scopePillActive:
+    "border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
+  scopePillIdle:
+    "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+  scopePillMenu:
+    "max-h-80 min-w-[14rem] overflow-y-auto rounded-xl p-2 text-[1.75rem] leading-snug",
+  scopePillMenuItem:
+    "gap-2 rounded-lg px-3 py-1.5 text-[1.75rem] leading-snug",
+  scopePillSeparator: "size-5 shrink-0 text-muted-foreground/70",
+
   /* SectionCard lg */
   cardHeaderLg: "px-6 pt-6 pb-4",
   cardContentLg: "px-6 pb-6",
+
+  /** 운영 3열 좌·우 사이드 패널 — compact typography */
+  opsSideBody: "text-sm leading-snug",
+  opsSideMeta: "text-xs text-muted-foreground leading-snug",
+  opsSideTableHead: "text-xs font-medium",
+  opsSideTableCell: "text-sm leading-snug",
+  opsSideBadge: "text-xs font-medium",
+  opsSideFieldLabel: "text-xs font-medium text-muted-foreground",
+  opsSideBtn: "h-8 min-h-8 gap-1.5 px-3 text-sm font-medium leading-snug",
+  opsSideInnerCard: "rounded-lg border p-3",
 
   /* 차트·지도 */
   chartLabel: "text-2xl font-medium",

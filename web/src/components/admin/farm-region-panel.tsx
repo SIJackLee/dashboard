@@ -4,6 +4,7 @@ import { AppNavLink } from "@/components/layout/app-nav-link";
 import type { SidoClusterSummary } from "@/lib/data/farm-geo-summary";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { adminOpsHref } from "@/lib/admin/ops-tabs";
 import { buildSettingsFarmLocationHref } from "@/lib/auth/farm-access";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -72,16 +73,16 @@ export function FarmRegionPanel({
         <div className={cn("space-y-2 px-1 pt-2", dashboardUi.tableMeta)}>
           <p className="text-muted-foreground">위치 미설정 {unlocatedCount}</p>
           <AppNavLink
-            href="/settings?tab=farm&filter=unconfigured"
+            href={`${adminOpsHref("farms")}&filter=unconfigured`}
             message="위치 설정으로 이동…"
             className="block text-emerald-700 underline-offset-2 hover:underline"
           >
-            설정에서 위치 등록
+            운영에서 위치 등록
           </AppNavLink>
           {unlocatedFarms.slice(0, 5).map((f) => (
             <AppNavLink
               key={`${f.farmKey.lsindRegistNo}/${f.farmKey.itemCode}`}
-              href={buildSettingsFarmLocationHref(f.farmKey)}
+              href={buildSettingsFarmLocationHref(f.farmKey, { isAdmin: true })}
               message="위치 설정으로 이동…"
               className="block truncate text-foreground hover:text-emerald-700"
             >

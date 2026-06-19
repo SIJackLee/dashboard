@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { AppNavLink } from "@/components/layout/app-nav-link";
 import { SectionCard } from "@/components/common/section-card";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { savePiggyPlayerIdAction } from "@/app/(dashboard)/settings/actions";
+import { savePiggyPlayerIdAction } from "@/lib/actions/app-settings-actions";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 

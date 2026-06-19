@@ -8,6 +8,11 @@ import {
   type FarmKey,
 } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import {
+  setMonitoringTabParam,
+} from "@/lib/monitoring/monitoring-tabs";
+import { adminOpsHref } from "@/lib/admin/ops-tabs";
+import { devicesFarmPanelHref } from "@/lib/monitoring/devices-panel";
 
 export type FarmQueryParams = {
   lsind?: string | null;
@@ -72,23 +77,27 @@ export function filterReadingsByFarmKey<T extends { farmKey: FarmKey }>(
 export function buildFarmDetailHref(farmKey: FarmKey): string {
   const params = new URLSearchParams();
   appendFarmKeyParams(params, farmKey);
+  setMonitoringTabParam(params, "map");
   return `/farm?${params.toString()}`;
 }
 
 export function buildFarmAlarmsHref(farmKey: FarmKey): string {
   const params = new URLSearchParams();
   appendFarmKeyParams(params, farmKey);
-  return `/alarms?${params.toString()}`;
+  setMonitoringTabParam(params, "ops");
+  return `/farm?${params.toString()}`;
 }
 
 export function buildFarmOverviewHref(): string {
   return "/farm";
 }
 
-export function buildSettingsFarmLocationHref(farmKey?: FarmKey): string {
-  const params = new URLSearchParams({ tab: "farm" });
-  if (farmKey) appendFarmKeyParams(params, farmKey);
-  return `/settings?${params.toString()}`;
+export function buildSettingsFarmLocationHref(
+  farmKey?: FarmKey,
+  options: { isAdmin?: boolean } = {}
+): string {
+  if (options.isAdmin) return adminOpsHref("farms");
+  return devicesFarmPanelHref(farmKey);
 }
 
 export function buildControllerHref(opts: {
@@ -99,6 +108,7 @@ export function buildControllerHref(opts: {
   controllerKey?: string | null;
   /** @deprecated legacy idx URL */
   ctrlIdx?: number | null;
+  alarmId?: string | null;
 }): string {
   const params = new URLSearchParams();
   appendFarmKeyParams(params, opts.farmKey);
@@ -111,5 +121,7 @@ export function buildControllerHref(opts: {
   } else if (opts.ctrlIdx != null && Number.isFinite(opts.ctrlIdx)) {
     params.set("ctrl", String(opts.ctrlIdx));
   }
-  return `/controllers?${params.toString()}`;
+  if (opts.alarmId) params.set("alarm", opts.alarmId);
+  setMonitoringTabParam(params, "ops");
+  return `/farm?${params.toString()}`;
 }

@@ -44,9 +44,6 @@ export function buildGridSlots(cols: number, rows: number): GridPos[] {
   return slots;
 }
 
-/** @deprecated — use buildGridSlots */
-export const BARN_GRID_SLOTS: GridPos[] = buildGridSlots(4, 4);
-
 export const GRID_COLS = GRID_COLS_DEFAULT;
 export const GRID_ROWS = GRID_ROWS_DEFAULT;
 

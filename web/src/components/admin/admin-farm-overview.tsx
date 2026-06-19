@@ -1,15 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useState } from "react";
-import { FARM_GEO_MAP_SHELL } from "@/components/admin/farm-geo-map-shell";
-import { FarmRegionPanel } from "@/components/admin/farm-region-panel";
-import type { FarmLocationRow } from "@/lib/data/farm-location";
+import { useMemo } from "react";
 import {
-  buildFarmMapPoints,
-  clusterBySido,
-  pointsWithoutLocation,
-} from "@/lib/data/farm-geo-summary";
+  FARM_GEO_MAP_HUB_SHELL,
+  FARM_GEO_MAP_SHELL,
+} from "@/components/admin/farm-geo-map-shell";
+import type { FarmLocationRow } from "@/lib/data/farm-location";
+import { buildFarmMapPoints } from "@/lib/data/farm-geo-summary";
 import { farmShortLabel, type FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -23,7 +21,7 @@ const FarmGeoMap = dynamic(
       <div
         className={cn(
           FARM_GEO_MAP_SHELL,
-          "mx-0 w-full max-w-none flex items-center justify-center bg-muted/20"
+          "mx-0 flex w-full max-w-none items-center justify-center bg-muted/20"
         )}
       >
         <p className={cn("text-muted-foreground", dashboardUi.body)}>지도 로딩…</p>
@@ -32,41 +30,63 @@ const FarmGeoMap = dynamic(
   }
 );
 
-type Props = {
+type HubProps = {
+  layout: "hub";
   farms: FarmSummaryRow[];
   locations: FarmLocationRow[];
+  activeSido: string | null;
+  onSelectSido: (sido: string | null) => void;
+  className?: string;
 };
 
-export function AdminFarmOverview({ farms, locations }: Props) {
-  const [activeSido, setActiveSido] = useState<string | null>(null);
+type StandaloneProps = {
+  layout?: "standalone";
+  farms: FarmSummaryRow[];
+  locations: FarmLocationRow[];
+  activeSido?: string | null;
+  onSelectSido?: (sido: string | null) => void;
+  className?: string;
+};
+
+type Props = HubProps | StandaloneProps;
+
+function isHubLayout(props: Props): props is HubProps {
+  return props.layout === "hub";
+}
+
+export function AdminFarmOverview(props: Props) {
+  const { farms, locations, className } = props;
+  const hub = isHubLayout(props);
+  const activeSido = hub ? props.activeSido : (props.activeSido ?? null);
+  const onSelectSido = hub ? props.onSelectSido : (props.onSelectSido ?? (() => {}));
 
   const mapPoints = useMemo(
     () => buildFarmMapPoints(farms, locations, (farm) => farmShortLabel(farm.farmKey)),
     [farms, locations]
   );
-  const clusters = useMemo(() => clusterBySido(mapPoints), [mapPoints]);
-  const unlocatedFarms = useMemo(
-    () => pointsWithoutLocation(farms, locations),
-    [farms, locations]
-  );
-  const unlocatedCount = unlocatedFarms.length;
 
-  return (
-    <div className="flex w-full items-start gap-3">
-      <div className="min-w-0 flex-1">
+  if (hub) {
+    return (
+      <div className={cn(FARM_GEO_MAP_HUB_SHELL, className)}>
         <FarmGeoMap
           points={mapPoints}
           activeSido={activeSido}
-          onSelectSido={setActiveSido}
-          className="mx-0 w-full max-w-none"
+          onSelectSido={onSelectSido}
+          showLegend={false}
+          shellClassName="absolute inset-0 h-full w-full overflow-hidden rounded-xl border-0 bg-transparent"
+          className="h-full w-full"
         />
       </div>
-      <FarmRegionPanel
-        clusters={clusters}
+    );
+  }
+
+  return (
+    <div className={cn("min-w-0 flex-1", className)}>
+      <FarmGeoMap
+        points={mapPoints}
         activeSido={activeSido}
-        onSelectSido={setActiveSido}
-        unlocatedCount={unlocatedCount}
-        unlocatedFarms={unlocatedFarms}
+        onSelectSido={onSelectSido}
+        className="mx-0 w-full max-w-none"
       />
     </div>
   );

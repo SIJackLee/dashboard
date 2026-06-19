@@ -33,7 +33,7 @@ export const DISPLAY_SETTING_GROUPS = [
     pageId: "alarm",
     items: [
       { key: "alarm.filterBar", label: "알람 필터·검색" },
-      { key: "alarm.detailPanel", label: "알람 상세 패널" },
+      { key: "alarm.detailPanel", label: "설정값 패널" },
       { key: "global.topBarBell", label: "TopBar 알림 벨" },
     ],
   },

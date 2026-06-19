@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { canCommand, getCurrentUser } from "@/lib/auth/get-current-user";
 import { upsertControllerDisplayName } from "@/lib/data/controller-meta";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
+import { revalidateLiveCache } from "@/lib/data/live-cache";
+import { farmScopeCacheKey } from "@/lib/data/live-config";
 
 export type SendThermoCommandResult =
   | { ok: true; id: string }
@@ -109,6 +111,8 @@ export async function sendThermoCommandAction(
     return { ok: false, error: error?.message ?? "insert_failed" };
   }
 
+  revalidateLiveCache(farmScopeCacheKey(lsindRegistNo, itemCode));
+  revalidatePath("/farm");
   revalidatePath("/controllers");
   return { ok: true, id: data.id as string };
 }
@@ -138,7 +142,9 @@ export async function saveControllerDisplayNameAction(
   );
   if (!result.ok) return result;
 
+  revalidatePath("/farm");
   revalidatePath("/controllers");
+  revalidatePath("/farm");
   revalidatePath("/alarms");
   return { ok: true };
 }

@@ -3,13 +3,16 @@
 import { AppNavLink } from "@/components/layout/app-nav-link";
 import { useMemo } from "react";
 import { AlertTriangle, WifiOff } from "lucide-react";
-import { buildFarmAlarmsHref } from "@/lib/auth/farm-access";
+import {
+  buildControllerHref,
+  buildFarmAlarmsHref,
+} from "@/lib/auth/farm-access";
 import {
   farmLabel,
   farmShortLabel,
   type FarmSummaryRow,
 } from "@/lib/data/farm-summaries";
-import { appendFarmKeyParams, farmKeyId } from "@/lib/data/farm-key";
+import { farmKeyId } from "@/lib/data/farm-key";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -17,14 +20,14 @@ type Props = {
   farms: FarmSummaryRow[];
   /** 오프라인·알람 상위 농장만 (기본 5) */
   limit?: number;
-  /** controllers 페이지용 lsind/item 쿼리 */
-  targetPath?: "/controllers" | "/alarms";
+  /** ops deep link — alarms: farm scope only */
+  targetTab?: "ops" | "alarms";
 };
 
 export function AdminControllerFarmHints({
   farms,
   limit = 5,
-  targetPath = "/controllers",
+  targetTab = "ops",
 }: Props) {
   const highlights = useMemo(() => {
     return [...farms]
@@ -53,28 +56,20 @@ export function AdminControllerFarmHints({
         전체 농장 모드 · 이상 농장 바로가기
       </p>
       <p className={cn("mt-1 text-muted-foreground", dashboardUi.tableMeta)}>
-        TopBar에서 농장을 선택하거나 아래 링크로 이동하세요.
+        ScopeBar에서 농장을 선택하거나 아래 링크로 이동하세요.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {highlights.map((farm) => {
           const href =
-            targetPath === "/alarms"
+            targetTab === "alarms"
               ? buildFarmAlarmsHref(farm.farmKey)
-              : (() => {
-                  const params = new URLSearchParams();
-                  appendFarmKeyParams(params, farm.farmKey);
-                  return `${targetPath}?${params.toString()}`;
-                })();
+              : buildControllerHref({ farmKey: farm.farmKey });
 
           return (
             <AppNavLink
               key={farmKeyId(farm.farmKey)}
               href={href}
-              message={
-                targetPath === "/alarms"
-                  ? "알람 페이지로 이동 중…"
-                  : "컨트롤러 페이지로 이동 중…"
-              }
+              message="컨트롤러 탭으로 이동 중…"
               className={cn(
                 "inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 transition-colors hover:border-emerald-400/60 hover:bg-emerald-50/40",
                 dashboardUi.body

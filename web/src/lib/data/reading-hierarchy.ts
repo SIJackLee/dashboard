@@ -131,11 +131,39 @@ export function uniqueStallKeys(
     const key = stallKeyFromReading(r);
     if (!keys.includes(key)) keys.push(key);
   }
+  return sortStallKeys(keys);
+}
+
+function sortStallKeys(keys: string[]): string[] {
   return keys.sort((a, b) => {
     if (a.startsWith("__idx_") && !b.startsWith("__idx_")) return 1;
     if (!a.startsWith("__idx_") && b.startsWith("__idx_")) return -1;
     return a.localeCompare(b, "ko", { numeric: true });
   });
+}
+
+/** 농장 내 모든 SP의 축사번호 (전체유형 선택 시) */
+export function uniqueStallKeysForFarm(
+  readings: BarnReading[],
+  farmId: string
+): string[] {
+  const keys: string[] = [];
+  for (const sp of uniqueSpCodes(readings, farmId)) {
+    for (const key of uniqueStallKeys(readings, farmId, sp)) {
+      if (!keys.includes(key)) keys.push(key);
+    }
+  }
+  return sortStallKeys(keys);
+}
+
+/** 농장 단위 필터 (전체유형) */
+export function filterReadingsByFarm(
+  readings: BarnReading[],
+  farmId: string
+): BarnReading[] {
+  return sortReadings(
+    readings.filter((r) => farmKeyId(r.farmKey) === farmId)
+  );
 }
 
 export function filterReadingsByHierarchy(

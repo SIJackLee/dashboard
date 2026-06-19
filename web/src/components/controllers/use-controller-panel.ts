@@ -276,6 +276,64 @@ export function useControllerPanel(
 
 
 
+  const setTempControl = useCallback(
+
+    (setpointTemp: number, tempDeviation: number) => {
+
+      setDraft((prev) => {
+
+        const base = prev ?? resolveDraftBase();
+
+        return {
+
+          ...base,
+
+          setpointTemp: clampMenuValue("setpoint", setpointTemp),
+
+          tempDeviation: clampMenuValue("deviation", tempDeviation),
+
+        };
+
+      });
+
+      setHasEdited(true);
+
+    },
+
+    [resolveDraftBase]
+
+  );
+
+
+
+  const setVentRange = useCallback(
+
+    (minVentPct: number, maxVentPct: number) => {
+
+      setDraft((prev) => {
+
+        const base = prev ?? resolveDraftBase();
+
+        let min = clampMenuValue("minVent", minVentPct);
+
+        let max = clampMenuValue("maxVent", maxVentPct);
+
+        if (min > max) [min, max] = [max, min];
+
+        return { ...base, minVentPct: min, maxVentPct: max };
+
+      });
+
+      setHasEdited(true);
+
+    },
+
+    [resolveDraftBase]
+
+  );
+
+
+
   const adjust = useCallback(
 
     (direction: 1 | -1, menu?: PanelMenuId) => {
@@ -308,14 +366,16 @@ export function useControllerPanel(
 
 
 
+  const applyDefaults = useCallback(() => {
+    setDraft({ ...EDIT_START_DRAFT });
+    setHasEdited(true);
+    setMessage(null);
+  }, []);
+
   const save = useCallback(() => {
-
     if (!target) {
-
       setMessage({ tone: "error", text: "대상 컨트롤러를 선택하세요." });
-
       return;
-
     }
 
     if (!canCommand) {
@@ -566,7 +626,13 @@ export function useControllerPanel(
 
     setField,
 
+    setTempControl,
+
+    setVentRange,
+
     adjust,
+
+    applyDefaults,
 
     save,
 

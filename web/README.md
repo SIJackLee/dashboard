@@ -1,8 +1,8 @@
 # 스마트 축사 IoT 대시보드
 
-IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase raw uplink를 **조회 시 decode**하여 권한별로 표시하고, 컨트롤러에 제어 명령을 발행한다.
+IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase **Edge decode** 결과를 **List/Detail tier**로 권한별 조회하고, 컨트롤러에 제어 명령을 발행한다.
 
-> **RS-DB-C:** LIVE UI는 `v_iot_live_latest` (v0x0C SQL DISTINCT ON) + TS decode. `v_iot_raw_live`는 이력·fallback.  
+> **RS-DB-C:** LIVE 목록 `v_iot_dashboard_list`, 상세 `v_iot_decoded_latest`, Admin 지도 `v_iot_farm_overview`. Health insert rate는 `iot_room_state_raw` 직접 조회.  
 > **Cloud Agent:** [CLOUD_DEPLOY.md](CLOUD_DEPLOY.md) · [../../docs/CLOUD_DEPLOY_RS-DB-C.md](../../docs/CLOUD_DEPLOY_RS-DB-C.md)
 
 ## 기술 스택
@@ -35,6 +35,15 @@ npm run lint
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase 프로젝트 URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon key (RLS 전제) |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role key (서버 전용, 관리자 기능) |
+| `NEXT_PUBLIC_LIVE_READ_TIER` | (선택) `list`(기본) \| `legacy` — 목록 tier 롤백 |
+
+## LIVE read path (perf)
+
+- **List:** `v_iot_dashboard_list` — flat env + fan, no `decoded_json`
+- **Overview:** `v_iot_farm_overview` — admin `/farm` aggregate
+- **Detail:** `GET /api/live/controller` — 1 ctrl + channels/thermo
+- **Cache:** 300s `unstable_cache` + `revalidateTag('live')` on thermo save
+- **Baseline:** `npm run measure:live` · [`docs/PERF_BASELINE.md`](docs/PERF_BASELINE.md)
 
 ## 인증 / 권한
 
@@ -45,10 +54,10 @@ npm run lint
 ## 디렉터리 개요
 
 - `src/app/(dashboard)/*` — 농장/축사/컨트롤러/관리자 등 페이지 (인증 게이트 적용)
-- `src/components/*` — `layout` / `common` / 도메인별(farm, barns, controllers, admin)
-- `src/lib/data/iot.ts` — LIVE raw/View 조회 + decode (RS-DB-C)
-- `src/lib/data/wire-decode-v0b.ts` — wire v0x0B decode
-- `src/lib/data/iot-raw-live.ts` — controllerKey별 최신 merge
+- `src/components/*` — `layout` / `common` / 도메인별(farm, controllers, admin)
+- `src/lib/data/iot.ts` — LIVE types + `getLiveReadings(scope)`
+- `src/lib/data/iot-live-fetch.ts` — list/detail/overview fetch + cache
+- `src/lib/data/live-config.ts` — tier flag, cache TTL, farm row limit
 - `src/lib/supabase/*` — Supabase 클라이언트(client/server/admin/middleware)
 - `src/proxy.ts` — Next 16 미들웨어(세션 갱신 + 라우트 보호)
 
@@ -72,6 +81,54 @@ npm run lint
 | `SUPABASE_SERVICE_ROLE_KEY` | 동일 화면 service_role (서버 전용) |
 
 설정 후 **Redeploy**. 정상이면 `/` → `/login` 리다이렉트가 보인다. `404 NOT_FOUND`가 나오면 Root Directory가 `web`인지 먼저 확인한다.
+
+## UI 개선 Phase 1 (적용됨)
+
+- **TopBar KPI:** `GlobalContextStrip` — 농장·컨트롤러·오프라인·알람 4칸만 (온습 제거). Admin 전국 `/farm` 지도는 KPI 숨김.
+- **로그아웃:** 사이드바 account block만 (TopBar 중복 제거).
+- **`/farm` 본문:** `FarmOverviewStrip` — 최근 활동(drill-down)만, KPI·환경 평균 strip 제거.
+- **알람 필터 칩:** 라벨만 표시 (건수는 `aria-label`).
+- **컨트롤러 목록:** `EnvChip` 온·습 추가 (패널과 동일 컴포넌트).
+- **Admin 배지:** `FarmStatusBadge` → 공통 `StatusBadge` + `lib/ui/status-tone.ts`.
+- **Admin nav:** `nav-items.ts`의 `adminNavItems`.
+
+## UI 개선 Phase 2 (적용됨)
+
+- **ScopeBar:** `components/layout/scope-bar.tsx` — farm · SP · stall · Refresh 통합. TopBar `FarmSwitcher` 제거 → `/controllers`·`/alarms` ScopeBar.
+- **Sticky:** `/controllers`·Admin `/alarms` ScopeBar 상단 고정.
+- **MasterDetailLayout:** `components/common/master-detail-layout.tsx` — alarms 2열 공통화.
+- **O2 triage:** `AlarmTriagePanel` — 상세 + embedded `ControllerPanelFace` (1-screen Act).
+- **O2bell:** TopBar bell 항목 → `alarmControlHref()` → `/controllers?ctrl=…` deep link.
+- **알람 행 선택:** `router.replace` 클라이언트 선택 (페이지 전환 없음).
+
+## UI 개선 Phase 3 (적용됨)
+
+- **`FarmDashboardShell`:** `mapMode=geo|grid` — Admin 전국 지도 vs Operator/Admin scoped 그리드 단일 shell.
+- **Admin scoped `/farm`:** `stripAdminFarmDrillDown` 리다이렉트 제거 → ScopeBar + `FarmDrillStrip` + Operator와 동일 그리드.
+- **`FarmDrillStrip`:** lsind · item · sp query 시각화 + «전국 지도로» CTA.
+- **A1 합류:** Admin scoped 이후 `/controllers`·`/alarms`와 동일 ScopeBar·URL 규칙.
+
+다음 단계: Phase 4 — Monitoring 3탭 IA (선택).
+
+## UI 개선 Phase 4 (적용됨)
+
+- **Monitoring 3탭:** `/farm` + `?tab=map|devices|alarms` — 현황 · 장비 · 이상 단일 허브.
+- **`MonitoringTabs`:** 탭 전환 시 `lsind`·`ctrl`·`alarm` 등 scope query 유지.
+- **사이드바:** 농장·컨트롤러·알람 3항목 → **모니터링** 1항목 (+ 설정 · Admin 운영).
+- **레거시 URL:** `/controllers`·`/alarms` → `/farm?tab=…` redirect (deep link 호환).
+- **href helpers:** `buildControllerHref`·`buildFarmAlarmsHref`·`alarmTargetHref` → `/farm?tab=…`.
+
+## UI 개선 Phase 5 (적용됨)
+
+- **A2 health:** `HealthSectionCard` — health 전역 `SectionCard(lg)` 통일 (overview · drill-down · node detail).
+- **운영 KPI 분리:** health 메타 문구에서 경로 표기 정리, TopBar KPI 혼합 없음 유지.
+
+## UI 개선 Phase 6 (적용됨)
+
+- **Admin Ops 허브:** `/admin/ops` + `?tab=system|users|farms` — 시스템 · 사용자 · 농장 메타 3탭.
+- **사이드바:** 시스템 상태·사용자 관리 → **운영** 1항목.
+- **레거시:** `/admin/health`·`/admin/users` → `/admin/ops?tab=…` redirect. health drill-down 경로 유지.
+- **설정:** Admin `farm` 탭 → 운영 **농장 메타** 탭으로 이전.
 
 ## 더 보기
 

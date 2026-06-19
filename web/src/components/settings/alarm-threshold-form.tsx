@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Droplets, RotateCcw, Thermometer } from "lucide-react";
+import { Droplets, Thermometer } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { SimpleSelect } from "@/components/common/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { saveAlarmSettingsAction } from "@/app/(dashboard)/settings/actions";
+import { saveAlarmSettingsAction } from "@/lib/actions/app-settings-actions";
 import type { BarnReading } from "@/lib/data/iot";
 import {
   activeScopeKeyFromSelection,
@@ -19,6 +19,7 @@ import {
   resolveThresholdsForScope,
 } from "@/lib/data/alarm-scope";
 import {
+  DEFAULT_ALARM_THRESHOLDS,
   validateAlarmThresholds,
   type AlarmSettings,
   type AlarmThresholds,
@@ -32,12 +33,37 @@ import {
   uniqueStallKeys,
 } from "@/lib/data/reading-hierarchy";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
+import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+
+export type AlarmThresholdHeaderState = {
+  scopeDescription: string;
+  scopeHasOverride: boolean;
+  scopeReady: boolean;
+  pending: boolean;
+  validationError: string | null;
+  onSave: () => void;
+  onApplyDefaults: () => void;
+  onClear: () => void;
+};
 
 type Props = {
   initialSettings: AlarmSettings;
   readings: BarnReading[];
+  /** 3열 우측 — 선택 컨트롤러 scope 고정 */
+  fixedScope?: {
+    farmId: string;
+    spCode: string;
+    stallKey: string;
+    readingKey: string;
+  } | null;
+  /** SectionCard 없이 필드만 (부모가 제목·카드 제공) */
+  embedded?: boolean;
+  /** embedded 시 compact(우측 사이드) | default(중앙 패널) */
+  density?: "compact" | "default";
+  /** embedded + SectionCard 헤더에 저장·scope 상태 위임 */
+  onHeaderState?: (state: AlarmThresholdHeaderState | null) => void;
 };
 
 const SCOPE_ALL = "__all__";
@@ -70,6 +96,7 @@ function ThresholdFieldGroup({
   values,
   onChange,
   disabled,
+  compact,
 }: {
   title: string;
   icon: React.ReactNode;
@@ -77,27 +104,38 @@ function ThresholdFieldGroup({
   values: AlarmThresholds;
   onChange: (next: AlarmThresholds) => void;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "rounded-xl border bg-background p-4",
+        compact
+          ? dashboardUi.opsSideInnerCard
+          : cn(dashboardUi.innerCard, "bg-background"),
         disabled && "pointer-events-none opacity-50"
       )}
     >
-      <div className="mb-3 flex items-center gap-2">
+      <div className={cn("mb-3 flex items-center gap-2", compact && "mb-2")}>
         {icon}
-        <p className={cn(dashboardTypography.sectionTitle, "text-foreground")}>{title}</p>
+        <p
+          className={cn(
+            compact ? "text-sm font-medium" : dashboardTypography.sectionTitle,
+            "text-foreground"
+          )}
+        >
+          {title}
+        </p>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className={cn("grid grid-cols-2", compact ? "gap-2" : "gap-3 md:gap-4")}>
         {fields.map((f) => (
-          <div key={f.key} className="space-y-2">
-            <Label size="dashboard">
+          <div key={f.key} className={compact ? "space-y-1" : "space-y-2"}>
+            <Label size={compact ? "default" : "dashboard"} className={compact ? dashboardUi.opsSideFieldLabel : undefined}>
               {f.label} ({f.unit})
             </Label>
             <Input
               type="number"
-              uiSize="dashboard"
+              uiSize={compact ? "default" : "dashboard"}
+              className={compact ? "h-9 text-sm" : undefined}
               step={f.unit === "℃" ? 0.5 : 1}
               value={values[f.key]}
               disabled={disabled}
@@ -116,7 +154,17 @@ function ThresholdFieldGroup({
   );
 }
 
-export function AlarmThresholdForm({ initialSettings, readings }: Props) {
+export function AlarmThresholdForm({
+  initialSettings,
+  readings,
+  fixedScope = null,
+  embedded = false,
+  density = "compact",
+  onHeaderState,
+}: Props) {
+  const compact = embedded && density !== "default";
+  const hideScopeSelectors = embedded && Boolean(fixedScope);
+  const externalHeader = embedded && Boolean(onHeaderState);
   const [settings, setSettings] = useState<AlarmSettings>(initialSettings);
   const [draft, setDraft] = useState<AlarmThresholds>(initialSettings.global);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -127,7 +175,17 @@ export function AlarmThresholdForm({ initialSettings, readings }: Props) {
   const [farmId, setFarmId] = useState(() => farmOptions[0]?.value ?? "");
   const [spCode, setSpCode] = useState(SCOPE_ALL);
   const [stallKey, setStallKey] = useState(SCOPE_ALL);
-  const [controllerReadingKey, setControllerReadingKey] = useState(SCOPE_ALL);
+  const [controllerReadingKey, setControllerReadingKey] = useState(
+    () => fixedScope?.readingKey ?? SCOPE_ALL
+  );
+
+  useEffect(() => {
+    if (!fixedScope) return;
+    setFarmId(fixedScope.farmId);
+    setSpCode(fixedScope.spCode);
+    setStallKey(fixedScope.stallKey);
+    setControllerReadingKey(fixedScope.readingKey);
+  }, [fixedScope]);
 
   const spOptions = useMemo(() => {
     if (!farmId) return [];
@@ -266,43 +324,54 @@ export function AlarmThresholdForm({ initialSettings, readings }: Props) {
     });
   };
 
-  const handleResetDraft = () => {
-    if (!activeScopeKey) return;
-    updateDraft(resolveThresholdsForScope(settings, activeScopeKey));
+  const handleApplyDefaults = () => {
+    updateDraft({ ...DEFAULT_ALARM_THRESHOLDS });
   };
 
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (scopeReady && activeScopeKey) handleSaveScope();
-      }}
-    >
-      <input type="hidden" name="settings_json" value={JSON.stringify(settings)} />
+  useEffect(() => {
+    if (!onHeaderState) return;
+    if (!scopeReady || !activeScopeKey) {
+      onHeaderState(null);
+      return;
+    }
+    onHeaderState({
+      scopeDescription,
+      scopeHasOverride,
+      scopeReady,
+      pending,
+      validationError,
+      onSave: handleSaveScope,
+      onApplyDefaults: handleApplyDefaults,
+      onClear: handleClearScope,
+    });
+    return () => onHeaderState(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- header action sync
+  }, [
+    onHeaderState,
+    scopeDescription,
+    scopeHasOverride,
+    scopeReady,
+    pending,
+    validationError,
+    activeScopeKey,
+    draft,
+    settings,
+  ]);
 
-      <SectionCard
-        title="알람 임계값"
-        action={
-          <PageActionButton
-            type="submit"
-            variant="primary"
-            disabled={pending || !!validationError || !scopeReady}
-          >
-            {pending ? "저장 중…" : "저장"}
-          </PageActionButton>
-        }
-      >
-        {validationError ? (
-          <p
-            className={cn(
-              "mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700",
-              dashboardUi.body
-            )}
-          >
-            {validationError}
-          </p>
-        ) : null}
+  const formBody = (
+    <>
+      {validationError ? (
+        <p
+          className={cn(
+            "mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700",
+            embedded ? dashboardUi.opsSideBody : dashboardUi.body
+          )}
+        >
+          {validationError}
+        </p>
+      ) : null}
 
+      {!hideScopeSelectors ? (
         <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
             <Label size="dashboard">농장</Label>
@@ -346,81 +415,185 @@ export function AlarmThresholdForm({ initialSettings, readings }: Props) {
             />
           </div>
         </div>
+      ) : null}
 
-        {scopeReady ? (
-          <div className="mb-5 flex flex-wrap items-center gap-2">
+      {scopeReady && !externalHeader ? (
+        <div className="mb-5 flex flex-wrap items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex min-h-[2rem] items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-900",
+              dashboardTypography.badge
+            )}
+          >
+            {scopeDescription}
+          </span>
+          {!hideScopeSelectors && stallKey === SCOPE_ALL ? (
             <span
               className={cn(
-                "inline-flex min-h-[2rem] items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-900",
+                "inline-flex min-h-[2rem] items-center rounded-full border border-emerald-300 bg-emerald-50/80 px-3 py-1 text-emerald-800",
                 dashboardTypography.badge
               )}
             >
-              {scopeDescription}
+              축사유형 일괄
             </span>
-            {stallKey === SCOPE_ALL ? (
-              <span
-                className={cn(
-                  "inline-flex min-h-[2rem] items-center rounded-full border border-emerald-300 bg-emerald-50/80 px-3 py-1 text-emerald-800",
-                  dashboardTypography.badge
-                )}
-              >
-                축사유형 일괄
-              </span>
-            ) : null}
+          ) : null}
+          {!hideScopeSelectors ? (
             <span className={cn("text-muted-foreground", dashboardTypography.meta)}>
               {scopeReadings.length}대
             </span>
+          ) : null}
+          {scopeHasOverride ? (
+            <span className={cn("text-amber-700", dashboardTypography.meta)}>
+              저장됨
+            </span>
+          ) : (
+            <span className={cn("text-muted-foreground", dashboardTypography.meta)}>
+              상위/기본값 상속
+            </span>
+          )}
+          <div className="ml-auto flex flex-wrap gap-2">
+            <PageActionButton
+              type="button"
+              variant="outline"
+              onClick={handleApplyDefaults}
+            >
+              기본값
+            </PageActionButton>
             {scopeHasOverride ? (
-              <span className={cn("text-amber-700", dashboardTypography.meta)}>
-                저장됨
-              </span>
-            ) : (
-              <span className={cn("text-muted-foreground", dashboardTypography.meta)}>
-                상위/기본값 상속
-              </span>
-            )}
-            <div className="ml-auto flex flex-wrap gap-2">
               <PageActionButton
                 type="button"
                 variant="outline"
-                onClick={handleResetDraft}
+                disabled={pending}
+                onClick={handleClearScope}
               >
-                <RotateCcw className={dashboardUi.iconSm} />
-                값 되돌리기
+                설정 삭제
               </PageActionButton>
-              {scopeHasOverride ? (
-                <PageActionButton
-                  type="button"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={handleClearScope}
-                >
-                  설정 삭제
-                </PageActionButton>
-              ) : null}
-            </div>
+            ) : null}
+            {embedded ? (
+              <PageActionButton
+                type="submit"
+                variant="primary"
+                disabled={pending || !!validationError || !scopeReady}
+              >
+                {pending ? "저장 중…" : "저장"}
+              </PageActionButton>
+            ) : null}
           </div>
-        ) : null}
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          <ThresholdFieldGroup
-            title="온도"
-            icon={<Thermometer className={cn(dashboardUi.iconSm, "text-orange-600")} />}
-            fields={tempFields}
-            values={draft}
-            onChange={updateDraft}
-            disabled={!scopeReady || pending}
-          />
-          <ThresholdFieldGroup
-            title="습도"
-            icon={<Droplets className={cn(dashboardUi.iconSm, "text-sky-600")} />}
-            fields={humidityFields}
-            values={draft}
-            onChange={updateDraft}
-            disabled={!scopeReady || pending}
-          />
         </div>
-      </SectionCard>
+      ) : null}
+
+      <div
+        className={cn(
+          "grid gap-4",
+          compact ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"
+        )}
+      >
+        {compact ? (
+          <>
+            <ThresholdFieldGroup
+              title="온도"
+              icon={
+                <Thermometer
+                  className={cn("size-4", "text-orange-600")}
+                  aria-hidden
+                />
+              }
+              fields={tempFields}
+              values={draft}
+              onChange={updateDraft}
+              disabled={!scopeReady || pending}
+              compact
+            />
+            <ThresholdFieldGroup
+              title="습도"
+              icon={
+                <Droplets
+                  className={cn("size-4", "text-sky-600")}
+                  aria-hidden
+                />
+              }
+              fields={humidityFields}
+              values={draft}
+              onChange={updateDraft}
+              disabled={!scopeReady || pending}
+              compact
+            />
+          </>
+        ) : (
+          <>
+            <ThresholdRangeSlider
+              title="온도"
+              icon={
+                <Thermometer
+                  className={cn(dashboardUi.iconSm, "text-orange-600")}
+                  aria-hidden
+                />
+              }
+              min={-40}
+              max={60}
+              step={0.5}
+              low={draft.tempLow}
+              high={draft.tempHigh}
+              unit="℃"
+              accentClass="bg-orange-500/35"
+              disabled={!scopeReady || pending}
+              onChange={(tempLow, tempHigh) =>
+                updateDraft({ ...draft, tempLow, tempHigh })
+              }
+            />
+            <ThresholdRangeSlider
+              title="습도"
+              icon={
+                <Droplets
+                  className={cn(dashboardUi.iconSm, "text-sky-600")}
+                  aria-hidden
+                />
+              }
+              min={0}
+              max={100}
+              step={1}
+              low={draft.humidityLow}
+              high={draft.humidityHigh}
+              unit="%"
+              accentClass="bg-sky-500/35"
+              disabled={!scopeReady || pending}
+              onChange={(humidityLow, humidityHigh) =>
+                updateDraft({ ...draft, humidityLow, humidityHigh })
+              }
+            />
+          </>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (scopeReady && activeScopeKey) handleSaveScope();
+      }}
+    >
+      <input type="hidden" name="settings_json" value={JSON.stringify(settings)} />
+
+      {embedded ? (
+        formBody
+      ) : (
+        <SectionCard
+          title="알람 임계값"
+          action={
+            <PageActionButton
+              type="submit"
+              variant="primary"
+              disabled={pending || !!validationError || !scopeReady}
+            >
+              {pending ? "저장 중…" : "저장"}
+            </PageActionButton>
+          }
+        >
+          {formBody}
+        </SectionCard>
+      )}
     </form>
   );
 }

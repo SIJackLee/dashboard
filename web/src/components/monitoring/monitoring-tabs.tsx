@@ -1,0 +1,90 @@
+"use client";
+
+import { useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  MONITORING_TABS,
+  MONITORING_BASE_PATH,
+  type MonitoringTabId,
+  sanitizeMonitoringSearchParams,
+} from "@/lib/monitoring/monitoring-tabs";
+import { setDevicesPanelParam } from "@/lib/monitoring/devices-panel";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
+
+type Props = {
+  active: MonitoringTabId;
+};
+
+export function MonitoringTabs({ active }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  const selectTab = (tab: MonitoringTabId) => {
+    if (isPending) return;
+
+    if (tab === "map") {
+      startTransition(() => {
+        router.replace(MONITORING_BASE_PATH, { scroll: false });
+      });
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (tab === active && tab === "ops" && params.has("panel")) {
+      setDevicesPanelParam(params, "control");
+      params.delete("ok");
+      params.delete("error");
+      const q = params.toString();
+      const href = q ? `${MONITORING_BASE_PATH}?${q}` : MONITORING_BASE_PATH;
+      startTransition(() => {
+        router.replace(href, { scroll: false });
+      });
+      return;
+    }
+
+    if (tab === active) return;
+    sanitizeMonitoringSearchParams(params, tab);
+    const q = params.toString();
+    const href = q ? `${MONITORING_BASE_PATH}?${q}` : MONITORING_BASE_PATH;
+
+    startTransition(() => {
+      router.replace(href, { scroll: false });
+    });
+  };
+
+  return (
+    <nav
+      className={cn(
+        "flex flex-wrap gap-2 border-b pb-1",
+        isPending && "opacity-80"
+      )}
+      aria-label="모니터링 탭"
+      aria-busy={isPending || undefined}
+    >
+      {MONITORING_TABS.map((tab) => {
+        const isActive = active === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            disabled={isPending}
+            onClick={() => selectTab(tab.id)}
+            aria-current={isActive ? "page" : undefined}
+            className={cn(
+              "border-b-2 transition-colors disabled:pointer-events-none",
+              dashboardUi.tabNav,
+              isActive
+                ? "border-emerald-600 text-emerald-700"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}

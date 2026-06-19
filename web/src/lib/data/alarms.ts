@@ -1,5 +1,7 @@
 import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
 import type { FarmKey } from "@/lib/data/farm-key";
+import { buildControllerHref } from "@/lib/auth/farm-access";
+import { monitoringHref } from "@/lib/monitoring/monitoring-tabs";
 import { compareReadings } from "@/lib/data/reading-hierarchy";
 import { resolveThresholdsForReading } from "@/lib/data/alarm-scope";
 
@@ -162,7 +164,23 @@ export function summarizeAlarms(alarms: AlarmRow[]) {
 }
 
 export function alarmTargetHref(alarm: Pick<AlarmRow, "id">): string {
-  return `/alarms?alarm=${encodeURIComponent(alarm.id)}`;
+  return monitoringHref("ops", { alarm: alarm.id });
+}
+
+/** O2bell — TopBar bell → 컨트롤러 제어 deep link */
+export function alarmControlHref(
+  alarm: Pick<
+    AlarmRow,
+    "farmKey" | "stallTyCode" | "stallNo" | "controllerKey" | "idx"
+  >
+): string {
+  return buildControllerHref({
+    farmKey: alarm.farmKey,
+    sp: alarm.stallTyCode,
+    stallNo: alarm.stallNo,
+    controllerKey: alarm.controllerKey,
+    ctrlIdx: alarm.idx,
+  });
 }
 
 export function validateAlarmThresholds(t: AlarmThresholds): string | null {

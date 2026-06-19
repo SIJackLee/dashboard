@@ -1,19 +1,10 @@
 import type { ReactNode } from "react";
-import {
-  Cpu,
-  Bell,
-  Droplets,
-  Thermometer,
-  Tractor,
-  WifiOff,
-} from "lucide-react";
+import { Cpu, Bell, Tractor, WifiOff } from "lucide-react";
 import type { FarmOverview } from "@/lib/data/iot";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 const fmt = (n?: number) => (n === undefined ? "--" : String(n));
-const fmtNum = (v: number | null | undefined, digits = 1) =>
-  v === null || v === undefined ? "--" : v.toFixed(digits);
 
 function Kpi({
   icon,
@@ -70,14 +61,21 @@ function Kpi({
   );
 }
 
-/** 모든 페이지 TopBar — 농장 요약 + 환경 평균 */
+/** TopBar scoped 스냅샷 — 농장·컨트롤러·오프라인·알람 (온습은 본문/패널 전용) */
 export function GlobalContextStrip({
   overview,
   alarmCount,
+  hidden = false,
 }: {
   overview?: FarmOverview;
   alarmCount?: number;
+  /** Admin 전국 지도 등 — 운영 KPI TopBar 미표시 */
+  hidden?: boolean;
 }) {
+  if (hidden) {
+    return <div className="min-w-0 flex-1" aria-hidden />;
+  }
+
   const offline = overview?.offlineCount ?? 0;
   const alarms = alarmCount ?? 0;
 
@@ -101,19 +99,6 @@ export function GlobalContextStrip({
           label="알람"
           value={fmt(alarmCount)}
           alert={alarms > 0}
-        />
-        <span className="hidden w-px shrink-0 self-stretch bg-border sm:block" aria-hidden />
-        <Kpi
-          icon={<Thermometer aria-hidden />}
-          label="온도"
-          value={fmtNum(overview?.avgTempC)}
-          unit="℃"
-        />
-        <Kpi
-          icon={<Droplets aria-hidden />}
-          label="습도"
-          value={fmtNum(overview?.avgHumidityPct)}
-          unit="%"
         />
       </div>
     </div>

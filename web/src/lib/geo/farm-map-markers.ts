@@ -278,19 +278,4 @@ export function summarizeClusterStats(points: FarmMapPoint[]) {
   };
 }
 
-/** @deprecated use buildFarmMarkerIconSpec */
-export function buildFarmPinIconSpec(
-  point: FarmMapPoint,
-  _showLabel: boolean,
-  visible = true
-) {
-  return buildFarmMarkerIconSpec({
-    point,
-    totalControllers: point.controllerCount,
-    cohortMax: point.controllerCount,
-    pinMode: false,
-    visible,
-  });
-}
-
 export type RegionMarkerDensity = "national" | "regional";

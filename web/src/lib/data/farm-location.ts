@@ -12,7 +12,6 @@ import {
   type FarmKey,
 } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
-import { getLiveReadings } from "@/lib/data/iot";
 import {
   findRegion,
   formatAddressText,
@@ -100,15 +99,16 @@ export async function getFarmLocations(): Promise<FarmLocationRow[]> {
   }
 
   if (process.env.NODE_ENV === "development") {
-    const readings = await getLiveReadings();
-    const seen = new Map<string, FarmKey>();
-    for (const r of readings) {
-      const id = `${r.farmKey.lsindRegistNo}/${r.farmKey.itemCode}`;
-      if (!seen.has(id)) seen.set(id, r.farmKey);
-    }
-    return [...seen.values()]
-      .sort(compareFarmKey)
-      .map(synthesizeDevLocation);
+    const { fetchFarmOverviewRows } = await import("@/lib/data/iot-live-fetch");
+    const rows = await fetchFarmOverviewRows();
+    return rows
+      .map((r) =>
+        synthesizeDevLocation({
+          lsindRegistNo: r.lsind_regist_no,
+          itemCode: r.item_code,
+        }),
+      )
+      .sort((a, b) => compareFarmKey(a.farmKey, b.farmKey));
   }
 
   return [];
@@ -224,9 +224,9 @@ export async function getEditableFarmLocationOptions(): Promise<
   const user = await getCurrentUser();
   if (!user) return [];
 
-  const [locations, readings] = await Promise.all([
+  const [locations, overviewRows] = await Promise.all([
     getFarmLocations(),
-    getLiveReadings(),
+    import("@/lib/data/iot-live-fetch").then((m) => m.fetchFarmOverviewRows()),
   ]);
 
   const locMap = farmLocationMap(locations);
@@ -235,10 +235,14 @@ export async function getEditableFarmLocationOptions(): Promise<
   let farmKeys: FarmKey[];
   if (user.isAdmin) {
     const seen = new Map<string, FarmKey>();
-    for (const r of readings) {
-      const id = farmKeyId(r.farmKey);
+    for (const r of overviewRows) {
+      const fk: FarmKey = {
+        lsindRegistNo: r.lsind_regist_no,
+        itemCode: r.item_code,
+      };
+      const id = farmKeyId(fk);
       liveIds.add(id);
-      if (!seen.has(id)) seen.set(id, r.farmKey);
+      if (!seen.has(id)) seen.set(id, fk);
     }
     for (const loc of locations) {
       const id = farmKeyId(loc.farmKey);

@@ -4,9 +4,14 @@ import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ControllerContextBar } from "./controller-context-bar";
+import { ScopeBar } from "@/components/layout/scope-bar";
 import { ControllerPanelFace } from "./controller-panel-face";
 import { CommandHistoryTable } from "./command-history-table";
+import { DevicesPanelNav } from "./devices-panel-nav";
 import type { ControllerReading } from "@/lib/data/iot";
+import type { AlarmSettings } from "@/lib/data/alarms";
+import type { DisplaySettings } from "@/lib/data/display-settings-shared";
+import type { EditableFarmOption } from "@/lib/data/farm-location";
 import type { ThermoCommand } from "@/lib/data/commands";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import { resolveThermoSettings } from "@/lib/controllers/controller-settings";
@@ -26,7 +31,12 @@ import {
 } from "@/lib/data/reading-hierarchy";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { farmShortLabel, type FarmSummaryRow } from "@/lib/data/farm-summaries";
+import { useControllerDetail } from "@/components/controllers/use-controller-detail";
 import { useDisplayEnabled } from "@/components/display/display-settings-provider";
+import { setMonitoringTabParam } from "@/lib/monitoring/monitoring-tabs";
+import { parseDevicesPanel, type DevicesPanelId } from "@/lib/monitoring/devices-panel";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
 
 const AdminControllerFarmHints = dynamic(
   () =>
@@ -42,6 +52,34 @@ const AdminControllerPlaceholderClient = dynamic(
       (m) => m.AdminControllerPlaceholder
     ),
   { ssr: false }
+);
+
+const DisplaySettingsForm = dynamic(
+  () =>
+    import("@/components/settings/display-settings-form").then(
+      (m) => m.DisplaySettingsForm
+    ),
+  {
+    loading: () => (
+      <div className={cn("text-muted-foreground", dashboardUi.body)}>
+        표시 설정 불러오는 중…
+      </div>
+    ),
+  }
+);
+
+const FarmLocationForm = dynamic(
+  () =>
+    import("@/components/settings/farm-location-form").then(
+      (m) => m.FarmLocationForm
+    ),
+  {
+    loading: () => (
+      <div className={cn("text-muted-foreground", dashboardUi.body)}>
+        농장 설정 불러오는 중…
+      </div>
+    ),
+  }
 );
 
 type Option = { value: string; label: string };
@@ -60,6 +98,15 @@ type ControllersViewProps = {
   isAdmin?: boolean;
   adminAllFarms?: boolean;
   farmSummaries?: FarmSummaryRow[];
+  adminFarmOptions?: FarmKey[];
+  adminActiveFarmKey?: FarmKey | null;
+  alarmSettings?: AlarmSettings;
+  displaySettings?: DisplaySettings;
+  farmLocationOptions?: EditableFarmOption[];
+  settingsNotice?: { tone: "ok" | "error"; text: string } | null;
+  initialDevicesPanel?: DevicesPanelId;
+  /** Monitoring 허브(/farm) 내 embedded — URL sync 대상 */
+  embedded?: boolean;
 };
 
 function uniqueFarmOptions(readings: ControllerReading[]): Option[] {
@@ -172,9 +219,22 @@ function ControllersViewBody({
   isAdmin = false,
   adminAllFarms = false,
   farmSummaries = [],
+  adminFarmOptions = [],
+  adminActiveFarmKey = null,
+  alarmSettings,
+  displaySettings,
+  farmLocationOptions = [],
+  settingsNotice = null,
+  initialDevicesPanel = "control",
+  embedded = false,
 }: ControllersViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const devicesPanel = parseDevicesPanel(
+    searchParams.get("panel") ?? initialDevicesPanel,
+    isAdmin
+  );
+  const showControlPanel = devicesPanel === "control";
   const showContextBar = useDisplayEnabled("controller.contextBar");
   const showCommandHistory = useDisplayEnabled("controller.commandHistory");
 
@@ -186,7 +246,7 @@ function ControllersViewBody({
   const urlSp = searchParams.get("sp") ?? initialSp;
   const urlStall = searchParams.get("stall") ?? initialStall;
   const urlCtrl = searchParams.get("ctrl") ?? initialCtrl;
-  const adminAllNoFarm = isAdmin && adminAllFarms && !urlFarmId;
+  const adminAllNoFarm = isAdmin && !urlFarmId;
 
   const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
 
@@ -243,52 +303,42 @@ function ControllersViewBody({
   const selected =
     controllerList.find((r) => r.key === controllerKey) ?? controllerList[0];
 
+  const { reading: selectedDetail, loading: detailLoading } =
+    useControllerDetail(selected);
+
   const selectedSettings = useMemo(
     () =>
       resolveThermoSettings(
         thermoSettings,
         selectedFarmKey,
-        selected?.moduleUid,
-        selected?.controllerKey,
-        selected?.channels?.length ? activeChannel : undefined
+        selectedDetail?.moduleUid,
+        selectedDetail?.controllerKey,
+        selectedDetail?.channels?.length ? activeChannel : undefined
       ),
     [
       thermoSettings,
       selectedFarmKey,
-      selected?.moduleUid,
-      selected?.controllerKey,
-      selected?.channels?.length,
+      selectedDetail?.moduleUid,
+      selectedDetail?.controllerKey,
+      selectedDetail?.channels?.length,
       activeChannel,
     ]
   );
 
   const latestCommand = useMemo(() => {
-    if (!selected || !selectedFarmKey) return null;
+    if (!selectedDetail || !selectedFarmKey) return null;
     return (
       commands.find(
         (c) =>
           farmKeyId(c.farmKey) === farmKeyId(selectedFarmKey) &&
-          c.moduleUid === selected.moduleUid &&
-          c.controllerKey === selected.controllerKey &&
-          (selected.channels?.length
+          c.moduleUid === selectedDetail.moduleUid &&
+          c.controllerKey === selectedDetail.controllerKey &&
+          (selectedDetail.channels?.length
             ? c.channel === activeChannel
             : !c.channel)
       ) ?? null
     );
-  }, [commands, selected, selectedFarmKey, activeChannel]);
-
-  useEffect(() => {
-    if (
-      !latestCommand ||
-      latestCommand.status === "applied" ||
-      latestCommand.status === "failed" ||
-      latestCommand.status === "cancelled"
-    ) {
-      return;
-    }
-    const timer = setInterval(() => router.refresh(), 5000);
-    return () => clearInterval(timer);
-  }, [latestCommand?.id, latestCommand?.status, router]);
+  }, [commands, selectedDetail, selectedFarmKey, activeChannel]);
 
   const syncUrl = (
     fk: FarmKey | undefined,
@@ -301,7 +351,9 @@ function ControllersViewBody({
     if (sp) params.set("sp", sp);
     if (stall) params.set("stall", stall);
     if (ctrl) params.set("ctrl", encodeURIComponent(ctrl.controllerKey));
-    router.replace(`/controllers?${params.toString()}`, { scroll: false });
+    const base = embedded ? "/farm" : "/controllers";
+    if (embedded) setMonitoringTabParam(params, "ops");
+    router.replace(`${base}?${params.toString()}`, { scroll: false });
   };
 
   const handleFarmChange = (v: string) => {
@@ -343,7 +395,7 @@ function ControllersViewBody({
   };
 
   useEffect(() => {
-    if (isAdmin && adminAllFarms) return;
+    if (isAdmin && !urlFarmId) return;
     if (!urlFarmKey && farmId && spCode && selected) {
       syncUrl(selectedFarmKey, spCode, stallKey, selected);
     }
@@ -352,16 +404,58 @@ function ControllersViewBody({
 
   const showAdminPlaceholder = adminAllNoFarm && !farmId;
   const showFarmHints =
-    isAdmin && adminAllFarms && !urlFarmId && farmSummaries.length > 0;
+    isAdmin && !urlFarmId && farmSummaries.length > 0;
+
+  const showAdminScopeSwitcher =
+    isAdmin && adminFarmOptions.length > 0;
+
+  const resolvedAdminActiveFarmKey = urlFarmKey ?? adminActiveFarmKey;
 
   return (
     <>
-      {showFarmHints ? (
+      <DevicesPanelNav active={devicesPanel} isAdmin={isAdmin} />
+
+      {settingsNotice ? (
+        <p
+          className={cn(
+            "rounded-xl border px-5 py-4",
+            dashboardUi.body,
+            settingsNotice.tone === "ok"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-red-200 bg-red-50 text-red-800"
+          )}
+        >
+          {settingsNotice.text}
+        </p>
+      ) : null}
+
+      {devicesPanel === "display" && displaySettings ? (
+        <DisplaySettingsForm initialSettings={displaySettings} />
+      ) : null}
+
+      {devicesPanel === "farm" ? (
+        <FarmLocationForm options={farmLocationOptions} />
+      ) : null}
+
+      {showControlPanel && showFarmHints ? (
         <AdminControllerFarmHints farms={farmSummaries} />
       ) : null}
 
-      {showContextBar && !showAdminPlaceholder ? (
+      {showControlPanel && showAdminScopeSwitcher ? (
+        <ScopeBar
+          sticky
+          adminFarmSwitcher={{
+            farmOptions: adminFarmOptions,
+            activeFarmKey: resolvedAdminActiveFarmKey,
+            farmSummaries,
+          }}
+          onRefresh={() => router.refresh()}
+        />
+      ) : null}
+
+      {showControlPanel && showContextBar && !showAdminPlaceholder ? (
         <ControllerContextBar
+          sticky
           lsindRegistNo={selectedFarmKey?.lsindRegistNo ?? "—"}
           stallTypeLabel={spCode ? formatStallTypeLabel(spCode) : "—"}
           spOptions={spOptions}
@@ -377,13 +471,14 @@ function ControllersViewBody({
         />
       ) : null}
 
-      {showAdminPlaceholder ? (
+      {showControlPanel && showAdminPlaceholder ? (
         <AdminControllerPlaceholderClient />
-      ) : (
+      ) : showControlPanel ? (
         <>
           <ControllerPanelFace
-            key={`${selected?.key ?? "none"}-${activeChannel}`}
-            reading={selected}
+            key={`${selectedDetail?.key ?? "none"}-${activeChannel}`}
+            reading={selectedDetail}
+            detailLoading={detailLoading}
             knownSettings={selectedSettings}
             latestCommand={latestCommand}
             canCommand={canCommand}
@@ -401,7 +496,7 @@ function ControllersViewBody({
 
           {showCommandHistory ? <CommandHistoryTable commands={commands} /> : null}
         </>
-      )}
+      ) : null}
     </>
   );
 }

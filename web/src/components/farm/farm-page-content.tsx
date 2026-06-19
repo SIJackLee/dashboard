@@ -5,7 +5,7 @@ import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import { FarmMapView } from "@/components/farm/farm-map-view";
-import { BarnTable } from "@/components/barns/barn-table";
+import { BarnTable } from "@/components/farm/barn-table";
 import { useDisplayEnabled } from "@/components/display/display-settings-provider";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";

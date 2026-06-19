@@ -25,6 +25,8 @@ type FarmSwitcherProps = {
   farmOptions: FarmKey[];
   activeFarmKey: FarmKey | null;
   farmSummaries?: FarmSummaryRow[];
+  /** OpsScopeBar — compact pill trigger */
+  compact?: boolean;
 };
 
 /** useSearchParams — 클라이언트 마운트 후 렌더로 hydration 불일치 방지 */
@@ -35,7 +37,11 @@ export function FarmSwitcher(props: FarmSwitcherProps) {
   if (!mounted) {
     return (
       <div
-        className={cn("min-h-[3rem] max-w-full", dashboardUi.body)}
+        className={cn(
+          "max-w-full",
+          props.compact ? "min-h-[3.25rem]" : "min-h-[3rem]",
+          !props.compact && dashboardUi.body
+        )}
         aria-hidden
       />
     );
@@ -48,6 +54,7 @@ function FarmSwitcherBody({
   farmOptions,
   activeFarmKey,
   farmSummaries = [],
+  compact = false,
 }: FarmSwitcherProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -92,29 +99,49 @@ function FarmSwitcherBody({
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "inline-flex shrink-0 items-center gap-3 rounded-xl px-5 py-2 font-medium transition-colors",
-          dashboardUi.body,
-          activeId === null
-            ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          "inline-flex shrink-0 items-center gap-2 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          compact
+            ? cn(
+                dashboardUi.scopePill,
+                dashboardUi.scopePillText,
+                dashboardUi.scopePillActive
+              )
+            : cn(
+                "gap-3 rounded-xl px-5 py-2",
+                dashboardUi.body,
+                activeId === null
+                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )
         )}
         aria-label="농장 선택"
       >
-        <span>{triggerLabel}</span>
-        <ChevronDown className="size-8 shrink-0 opacity-70" aria-hidden />
+        <span className={compact ? "max-w-[18rem] truncate" : undefined}>
+          {triggerLabel}
+        </span>
+        <ChevronDown
+          className={cn(
+            "shrink-0 opacity-70",
+            compact ? "size-6" : "size-8"
+          )}
+          aria-hidden
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
         sideOffset={8}
         className={cn(
-          "min-w-[28rem] p-2 text-[1.75rem] leading-snug rounded-xl",
-          "!w-auto"
+          compact
+            ? cn(dashboardUi.scopePillMenu, "!w-auto min-w-[var(--anchor-width)]")
+            : "min-w-[28rem] rounded-xl p-2 text-[1.75rem] leading-snug !w-auto"
         )}
       >
         <DropdownMenuItem
           onClick={() => navigate(null)}
           className={cn(
-            "gap-3 rounded-lg px-3 py-2.5 text-[1.75rem] leading-snug",
+            compact
+              ? dashboardUi.scopePillMenuItem
+              : "gap-3 rounded-lg px-3 py-2.5 text-[1.75rem] leading-snug",
             activeId === null && "bg-emerald-50 dark:bg-emerald-950/30"
           )}
         >
@@ -130,7 +157,9 @@ function FarmSwitcherBody({
               key={id}
               onClick={() => navigate(farmKey)}
               className={cn(
-                "gap-3 rounded-lg px-3 py-2.5 text-[1.75rem] leading-snug",
+                compact
+                  ? dashboardUi.scopePillMenuItem
+                  : "gap-3 rounded-lg px-3 py-2.5 text-[1.75rem] leading-snug",
                 activeId === id && "bg-emerald-50 dark:bg-emerald-950/30"
               )}
             >
@@ -138,7 +167,8 @@ function FarmSwitcherBody({
               {alarms !== undefined ? (
                 <span
                   className={cn(
-                    "tabular-nums text-[1.75rem] font-semibold leading-snug",
+                    "tabular-nums font-semibold",
+                    compact ? "text-[1.75rem] leading-snug" : "text-[1.75rem] leading-snug",
                     alarms > 0
                       ? "text-amber-700 dark:text-amber-400"
                       : "text-muted-foreground"

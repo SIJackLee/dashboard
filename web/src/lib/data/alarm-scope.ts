@@ -233,8 +233,3 @@ export function hasScopeOverride(
 ): boolean {
   return Boolean(scopeKey && settings.byScope?.[scopeKey]);
 }
-
-/** @deprecated legacy helper — prefer scopeCandidatesForReading */
-export function farmKeyToFarmId(fk: FarmKey): string {
-  return farmKeyId(fk);
-}

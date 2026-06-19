@@ -22,7 +22,7 @@ export default async function AdminHealthGroupPage({
   if (!group) notFound();
 
   return (
-    <PageShell title={`${group.label} · 수집 그룹`}>
+    <PageShell>
       <div className="flex flex-wrap gap-4">
         <Link
           href="/admin/health"

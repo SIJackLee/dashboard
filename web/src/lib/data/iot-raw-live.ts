@@ -28,7 +28,7 @@ function rowFarmKey(row: RawLiveControllerRow): FarmKey {
 
 /**
  * Row-stream fallback: keep newest row per (module, controllerKey).
- * Prefer v_iot_live_latest (SQL DISTINCT ON) when available.
+ * Prefer v_iot_decoded_latest (Edge decode). Legacy raw+TS pick removed.
  */
 export function pickLatestLiveControllerRows(
   rows: RawLiveControllerRow[]

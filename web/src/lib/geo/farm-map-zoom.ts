@@ -28,8 +28,63 @@ export const NATIONAL_VIEW_BOUNDS = {
   northEast: [38.05, 129.0] as [number, number],
 };
 
-/** Z1/4 고정 줌 */
+/** Z1/4 고정 줌 (레거시·기본 참조) */
 export const NATIONAL_VIEW_ZOOM = 8;
+
+/** 줌·패딩 보정 기준 컨테이너 짧은 변 (px) */
+export const MAP_VIEWPORT_REFERENCE_PX = 720;
+
+export type MapViewportContext = {
+  sizePx: number;
+};
+
+/** Leaflet 컨테이너 짧은 변 */
+export function mapViewportSize(container: {
+  clientWidth: number;
+  clientHeight: number;
+}): number {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  if (w <= 0 || h <= 0) return MAP_VIEWPORT_REFERENCE_PX;
+  return Math.min(w, h);
+}
+
+/** 작은 정사각형 허브 지도일수록 줌 아웃(음수 오프셋) */
+export function viewportZoomOffset(sizePx: number): number {
+  if (sizePx < 400) return -2;
+  if (sizePx < 560) return -1;
+  if (sizePx > 960) return 1;
+  if (sizePx > 1200) return 2;
+  return 0;
+}
+
+export function fitPaddingForViewport(sizePx: number): [number, number] {
+  const pad = Math.round(Math.max(16, Math.min(52, sizePx * 0.07)));
+  return [pad, pad];
+}
+
+export function nationalFitPadding(sizePx: number): [number, number] {
+  const pad = Math.round(Math.max(10, Math.min(32, sizePx * 0.045)));
+  return [pad, pad];
+}
+
+export function spreadRadiusForViewport(sizePx: number): number {
+  const offset = viewportZoomOffset(sizePx);
+  const base = 0.012;
+  return base * Math.pow(0.82, -offset);
+}
+
+export function zoomForStage(
+  stage: MapZoomStage,
+  viewport?: MapViewportContext
+): number {
+  const base = MAP_ZOOM_STAGE[stage].zoom;
+  if (!viewport) return base;
+  const offset = viewportZoomOffset(viewport.sizePx);
+  const floor: Record<MapZoomStage, number> = { 0: 6, 1: 7, 2: 9, 3: 11 };
+  const cap: Record<MapZoomStage, number> = { 0: 9, 1: 10, 2: 12, 3: 14 };
+  return Math.max(floor[stage], Math.min(cap[stage], base + offset));
+}
 
 export const KOREA_SOUTH_CENTER: [number, number] = [36.2, 127.8];
 export const FARM_FOCUS_ZOOM = 14;
@@ -39,8 +94,36 @@ export const SIGUNGU_VIEW_MAX_ZOOM = 12;
 /** Z13 고정 대신 fitBounds — 농장 단계 최대 줌 상한 */
 export const FARM_VIEW_MAX_ZOOM = 15;
 
-export function zoomForStage(stage: MapZoomStage): number {
-  return MAP_ZOOM_STAGE[stage].zoom;
+export function nationalMaxZoomForViewport(sizePx: number): number {
+  return zoomForStage(0, { sizePx });
+}
+
+/** 허브 정사각형 등 컨테이너별 전국 단계 목표 줌 */
+export function nationalTargetZoomForViewport(sizePx: number): number {
+  if (sizePx < 420) return 6;
+  if (sizePx < 640) return 7;
+  if (sizePx < 900) return 8;
+  return 8;
+}
+
+export function sigunguMaxZoomForViewport(sizePx: number): number {
+  return Math.max(
+    9,
+    Math.min(SIGUNGU_VIEW_MAX_ZOOM, SIGUNGU_VIEW_MAX_ZOOM + viewportZoomOffset(sizePx))
+  );
+}
+
+export function farmMaxZoomForViewport(sizePx: number): number {
+  return Math.max(
+    12,
+    Math.min(FARM_VIEW_MAX_ZOOM, FARM_VIEW_MAX_ZOOM + viewportZoomOffset(sizePx))
+  );
+}
+
+export function nationalZoomThreshold(viewport?: MapViewportContext): number {
+  return viewport
+    ? nationalTargetZoomForViewport(viewport.sizePx)
+    : NATIONAL_VIEW_ZOOM;
 }
 
 type FitBoundsMap = {
@@ -57,6 +140,7 @@ type FitBoundsMap = {
 
 type SetViewMap = FitBoundsMap & {
   getCenter: () => { lat: number; lng: number };
+  getZoom: () => number;
   setView: (
     center: [number, number],
     zoom: number,
@@ -64,25 +148,28 @@ type SetViewMap = FitBoundsMap & {
   ) => void;
 };
 
-/** Z1/4 전국 뷰 — 타이트 bounds로 중심 산출 후 Z8 고정 */
+/** Z1/4 전국 뷰 — 컨테이너 크기에 맞춰 fitBounds 줌 사용 */
 export function applyNationalView(
   map: SetViewMap,
-  opts?: { animate?: boolean }
+  opts?: { animate?: boolean; viewport?: MapViewportContext }
 ): void {
   const animate = opts?.animate ?? true;
+  const sizePx = opts?.viewport?.sizePx ?? MAP_VIEWPORT_REFERENCE_PX;
+  const targetZoom = nationalTargetZoomForViewport(sizePx);
   const bounds: [[number, number], [number, number]] = [
     NATIONAL_VIEW_BOUNDS.southWest,
     NATIONAL_VIEW_BOUNDS.northEast,
   ];
 
   map.fitBounds(bounds, {
-    padding: [32, 32],
-    maxZoom: NATIONAL_VIEW_ZOOM,
+    padding: nationalFitPadding(sizePx),
+    maxZoom: targetZoom,
     animate: false,
   });
 
   const { lat, lng } = map.getCenter();
-  map.setView([lat, lng], NATIONAL_VIEW_ZOOM, {
+  const fittedZoom = map.getZoom();
+  map.setView([lat, lng], Math.max(fittedZoom, targetZoom), {
     animate,
     duration: 0.25,
   });
@@ -90,21 +177,26 @@ export function applyNationalView(
 
 export function stageFromZoom(
   zoom: number,
-  selection?: MapSelection
+  selection?: MapSelection,
+  viewport?: MapViewportContext
 ): MapZoomStage {
+  const z0 = nationalZoomThreshold(viewport);
+  const z1 = zoomForStage(1, viewport);
+  const z2 = sigunguMaxZoomForViewport(viewport?.sizePx ?? MAP_VIEWPORT_REFERENCE_PX);
+
   if (selection?.sigungu) {
-    if (zoom <= NATIONAL_VIEW_ZOOM) return 0;
-    if (zoom <= 10) return 2;
+    if (zoom <= z0) return 0;
+    if (zoom <= z1 + 1) return 2;
     return 3;
   }
   if (selection?.sido) {
-    if (zoom <= NATIONAL_VIEW_ZOOM) return 0;
-    if (zoom <= 10) return 1;
+    if (zoom <= z0) return 0;
+    if (zoom <= z1) return 1;
     return 2;
   }
-  if (zoom <= NATIONAL_VIEW_ZOOM) return 0;
-  if (zoom <= 10) return 1;
-  if (zoom <= 12) return 2;
+  if (zoom <= z0) return 0;
+  if (zoom <= z1) return 1;
+  if (zoom <= z2) return 2;
   return 3;
 }
 
@@ -290,10 +382,15 @@ export function applyFarmView(
   map: FitBoundsMap,
   farms: FarmMapPoint[],
   displayCoords: Map<string, { lat: number; lng: number }>,
-  opts?: { animate?: boolean; padding?: [number, number] }
+  opts?: {
+    animate?: boolean;
+    padding?: [number, number];
+    viewport?: MapViewportContext;
+  }
 ): void {
   if (farms.length === 0) return;
 
+  const sizePx = opts?.viewport?.sizePx ?? MAP_VIEWPORT_REFERENCE_PX;
   const coords = farms.map((p) => {
     const d = displayCoords.get(farmKeyId(p.farmKey));
     return d ?? { lat: p.lat, lng: p.lng };
@@ -302,8 +399,8 @@ export function applyFarmView(
   if (!raw) return;
 
   map.fitBounds(expandBounds(raw, farms.length === 1 ? 0.06 : 0.04), {
-    padding: opts?.padding ?? [56, 56],
-    maxZoom: FARM_VIEW_MAX_ZOOM,
+    padding: opts?.padding ?? fitPaddingForViewport(sizePx),
+    maxZoom: farmMaxZoomForViewport(sizePx),
     animate: opts?.animate ?? true,
     duration: 0.3,
   });
@@ -314,15 +411,20 @@ export function applySigunguView(
   map: FitBoundsMap,
   points: FarmMapPoint[],
   sido: string,
-  opts?: { animate?: boolean; padding?: [number, number] }
+  opts?: {
+    animate?: boolean;
+    padding?: [number, number];
+    viewport?: MapViewportContext;
+  }
 ): void {
+  const sizePx = opts?.viewport?.sizePx ?? MAP_VIEWPORT_REFERENCE_PX;
   const inSido = points.filter((p) => p.sido === sido);
   const raw = boundsForPoints(inSido);
   if (!raw) return;
 
   map.fitBounds(expandBounds(raw), {
-    padding: opts?.padding ?? [52, 52],
-    maxZoom: SIGUNGU_VIEW_MAX_ZOOM,
+    padding: opts?.padding ?? fitPaddingForViewport(sizePx),
+    maxZoom: sigunguMaxZoomForViewport(sizePx),
     animate: opts?.animate ?? true,
     duration: 0.3,
   });
@@ -338,17 +440,19 @@ export function applyViewForStage(
     center?: [number, number];
     animate?: boolean;
     farmDisplayCoords?: Map<string, { lat: number; lng: number }>;
+    viewport?: MapViewportContext;
   }
 ): void {
   const animate = opts?.animate ?? true;
+  const viewport = opts?.viewport;
 
   if (stage === 0) {
-    applyNationalView(map, { animate });
+    applyNationalView(map, { animate, viewport });
     return;
   }
 
   if (stage === 2 && selection.sido) {
-    applySigunguView(map, points, selection.sido, { animate });
+    applySigunguView(map, points, selection.sido, { animate, viewport });
     return;
   }
 
@@ -358,9 +462,13 @@ export function applyViewForStage(
       selection.sido,
       selection.sigungu
     );
+    const sizePx = viewport?.sizePx ?? MAP_VIEWPORT_REFERENCE_PX;
     const displayCoords =
-      opts?.farmDisplayCoords ?? spreadFarmPointsForDisplay(farms);
-    applyFarmView(map, farms, displayCoords, { animate });
+      opts?.farmDisplayCoords ??
+      spreadFarmPointsForDisplay(farms, {
+        radiusDeg: spreadRadiusForViewport(sizePx),
+      });
+    applyFarmView(map, farms, displayCoords, { animate, viewport });
     return;
   }
 
@@ -368,7 +476,7 @@ export function applyViewForStage(
     opts?.center ??
     resolveStageAnchor(stage, map.getCenter(), points, selection);
 
-  map.setView(center, zoomForStage(stage), {
+  map.setView(center, zoomForStage(stage, viewport), {
     animate,
     duration: 0.25,
   });

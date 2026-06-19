@@ -54,7 +54,7 @@ export default async function AdminHealthNodePage({
     nodeId === "collector-rs" ? "/admin/health/collector" : "/admin/health";
 
   return (
-    <PageShell title={title}>
+    <PageShell>
       <Link
         href={backHref}
         className={cn(

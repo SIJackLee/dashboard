@@ -1,24 +1,21 @@
 "use client";
 
-import { useCallback, useRef, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { ControllerTempTripleSlider } from "@/components/controllers/controller-temp-triple-slider";
+import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import {
   Activity,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
   Droplets,
   Fan,
-  GripVertical,
   Layers,
   Loader2,
-  Minus,
-  Plus,
   Power,
-  Save,
   Thermometer,
   Wind,
 } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
+import { PageActionButton } from "@/components/common/page-action-button";
+import type { AlarmThresholdHeaderState } from "@/components/settings/alarm-threshold-form";
 import { StatusBadge } from "@/components/common/status-badge";
 import { ControllerListPanel } from "@/components/controllers/controller-list-panel";
 import { ControllerNameLabel } from "@/components/common/controller-name-label";
@@ -31,15 +28,9 @@ import { commandStatusLabel } from "@/lib/controllers/controller-settings";
 import type { ThermoCommand } from "@/lib/data/commands";
 import {
   pipelineDetailMessage,
-  SLIDER_VALUE_SLOT_MIN_H,
   UNKNOWN_SETTINGS_HINT,
 } from "@/lib/ui/controller-labels";
-import {
-  formatMenuValue,
-  MENU_STEPS,
-  PANEL_MENU_ITEMS,
-  type PanelMenuId,
-} from "@/lib/controllers/controller-panel-map";
+import { type PanelMenuId } from "@/lib/controllers/controller-panel-map";
 import { useControllerPanel } from "./use-controller-panel";
 import {
   CHANNEL_SLOT_LABELS,
@@ -49,6 +40,7 @@ import {
   type ChannelSlot,
 } from "@/lib/data/iot-channel";
 import { ctrlUi } from "@/lib/ui/controller-page-ui";
+import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
   isReadingOnline,
   sensorValueForDisplay,
@@ -65,88 +57,6 @@ function operationPct(reading?: ControllerReading): number {
   return Math.max(0, Math.min(100, Math.round(avg)));
 }
 
-function PanelMenuIcon({
-  menu,
-  className,
-}: {
-  menu: PanelMenuId;
-  className?: string;
-}) {
-  const iconClass = cn(ctrlUi.iconMd, "text-primary", className);
-  if (menu === "setpoint" || menu === "deviation") {
-    return <Thermometer className={iconClass} aria-hidden />;
-  }
-  return <Fan className={iconClass} aria-hidden />;
-}
-
-function formatMenuDelta(menu: PanelMenuId, current: number, target: number): string {
-  const cfg = MENU_STEPS[menu];
-  const diff = target - current;
-  if (diff === 0) return "";
-  const sign = diff > 0 ? "+" : "";
-  const n =
-    cfg.decimals === 0
-      ? String(Math.round(diff))
-      : (Math.round(diff * 10) / 10).toFixed(cfg.decimals);
-  return cfg.unit === "℃" ? `${sign}${n}℃` : `${sign}${n}%`;
-}
-
-function SettingDeltaDisplay({
-  menu,
-  current,
-  target,
-}: {
-  menu: PanelMenuId;
-  current: number | null;
-  target: number;
-}) {
-  const changed = current == null || current !== target;
-  const delta =
-    current != null && changed ? formatMenuDelta(menu, current, target) : "";
-
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className={ctrlUi.valueBox}>
-        <p className={cn(ctrlUi.label, "leading-none")}>현재</p>
-        <p className={cn("mt-1", ctrlUi.value)}>
-          {current != null ? formatMenuValue(menu, current) : "--"}
-        </p>
-      </div>
-      <ArrowRight className={cn(ctrlUi.iconSm, "text-muted-foreground")} aria-hidden />
-      <div
-        className={cn(
-          changed ? ctrlUi.valueBoxPrimary : ctrlUi.valueBox,
-          !changed && "opacity-90"
-        )}
-      >
-        <p
-          className={cn(
-            ctrlUi.label,
-            "leading-none",
-            changed ? "text-primary" : "text-muted-foreground"
-          )}
-        >
-          변경
-        </p>
-        <p
-          className={cn(
-            "mt-1",
-            ctrlUi.value,
-            changed ? "text-primary" : "text-foreground"
-          )}
-        >
-          {formatMenuValue(menu, target)}
-        </p>
-      </div>
-      {delta ? (
-        <span className={ctrlUi.deltaBadge}>{delta}</span>
-      ) : (
-        <span className={cn(ctrlUi.label, "text-muted-foreground")}>변경 없음</span>
-      )}
-    </div>
-  );
-}
-
 function fmtPct(value: number | null | undefined): string {
   return value != null ? `${Math.round(value)}%` : "--";
 }
@@ -157,6 +67,7 @@ function fmtTemp(value: number | null | undefined): string {
 
 type PanelControlProps = {
   reading?: ControllerReading;
+  detailLoading?: boolean;
   knownSettings: ControllerThermoSettings | null;
   latestCommand?: ThermoCommand | null;
   canCommand: boolean;
@@ -166,6 +77,11 @@ type PanelControlProps = {
   spLabel?: string;
   activeChannel?: ChannelSlot;
   onChannelChange?: (channel: ChannelSlot) => void;
+  /** OpsScopeBar에서 컨트롤러 pill로 선택 — 중앙 목록 숨김 */
+  hideControllerList?: boolean;
+  /** 알람 임계값 — 병합「설정값」패널 슬롯 */
+  alarmThresholdHeader?: AlarmThresholdHeaderState | null;
+  alarmSettingsPanel?: ReactNode;
 };
 
 function ChannelSlotIcon({ slot }: { slot: ChannelSlot }) {
@@ -383,336 +299,199 @@ function LiveMonitor({
   );
 }
 
-function sliderPct(value: number, min: number, max: number) {
-  if (max <= min) return 0;
-  return ((value - min) / (max - min)) * 100;
-}
+type SliderGroupId = "temp" | "vent";
 
-function PanelSlider({
-  menu,
-  value,
-  current,
-  disabled,
-  onChange,
-}: {
-  menu: PanelMenuId;
-  value: number;
-  current?: number | null;
-  disabled?: boolean;
-  onChange: (v: number) => void;
-}) {
-  const cfg = MENU_STEPS[menu];
-  const fillPct = sliderPct(value, cfg.min, cfg.max);
-  const currentPct =
-    current != null ? sliderPct(current, cfg.min, cfg.max) : null;
-  const tickCount = Math.floor((cfg.max - cfg.min) / cfg.step) + 1;
-
-  return (
-    <div
-      className="ctrl-slider-wrap relative min-w-0 flex-1"
-      data-menu={menu}
-      style={{ "--slider-fill": `${fillPct}%` } as React.CSSProperties}
-    >
-      <div className="ctrl-slider-track" aria-hidden>
-        {tickCount > 2 &&
-          Array.from({ length: tickCount }, (_, i) => {
-            if (i === 0 || i === tickCount - 1) return null;
-            const left = (i / (tickCount - 1)) * 100;
-            return (
-              <span
-                key={i}
-                className="ctrl-slider-tick"
-                style={{ left: `${left}%` }}
-              />
-            );
-          })}
-        <span className="ctrl-slider-fill" />
-        {currentPct != null && current !== value && (
-          <span
-            className="ctrl-slider-current"
-            style={{ left: `${currentPct}%` }}
-          />
-        )}
-      </div>
-      <input
-        type="range"
-        min={cfg.min}
-        max={cfg.max}
-        step={cfg.step}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
-        aria-label={`${PANEL_MENU_ITEMS.find((m) => m.id === menu)?.label} 슬라이더`}
-        className={cn(ctrlUi.slider, "ctrl-range-enriched")}
-        data-menu={menu}
-      />
-    </div>
-  );
-}
-
-function DesktopSliderList({
-  activeMenu,
-  setActiveMenu,
+function DesktopGroupedSliders({
   sliderValues,
   currentValues,
   isFieldChanged,
   disabled,
-  onSetField,
-  onNudge,
+  embedded = false,
+  onTempChange,
+  onVentChange,
 }: {
-  activeMenu: PanelMenuId;
-  setActiveMenu: (id: PanelMenuId) => void;
   sliderValues: Record<PanelMenuId, number>;
   currentValues: Record<PanelMenuId, number> | null;
   isFieldChanged: (menu: PanelMenuId) => boolean;
   disabled?: boolean;
-  onSetField: (menu: PanelMenuId, value: number) => void;
-  onNudge: (menu: PanelMenuId, dir: 1 | -1) => void;
+  embedded?: boolean;
+  onTempChange: (setpoint: number, deviation: number) => void;
+  onVentChange: (minVent: number, maxVent: number) => void;
 }) {
+  const tempChanged =
+    isFieldChanged("setpoint") || isFieldChanged("deviation");
+  const ventChanged =
+    isFieldChanged("minVent") || isFieldChanged("maxVent");
+
+  const grid = (
+    <div className={ctrlUi.sliderGrid}>
+        <div
+          className={cn(
+            dashboardUi.innerCard,
+            "bg-background",
+            tempChanged && "ring-1 ring-primary/20"
+          )}
+        >
+          <div className="mb-1 flex items-center gap-2">
+            <Thermometer
+              className={cn(dashboardUi.iconSm, "text-orange-600")}
+              aria-hidden
+            />
+            <p className={dashboardTypography.sectionTitle}>온도</p>
+            {currentValues ? (
+              <span className={cn("ml-auto tabular-nums", dashboardTypography.meta, "text-muted-foreground")}>
+                현재 {currentValues.setpoint}℃ ±{currentValues.deviation}℃
+              </span>
+            ) : null}
+          </div>
+          <ControllerTempTripleSlider
+            setpoint={sliderValues.setpoint}
+            deviation={sliderValues.deviation}
+            disabled={disabled}
+            onChange={onTempChange}
+          />
+        </div>
+
+        <div className={ventChanged ? "ring-1 ring-primary/20 rounded-xl" : undefined}>
+          <ThresholdRangeSlider
+            title="환기"
+            icon={
+              <Fan className={cn(dashboardUi.iconSm, "text-sky-600")} aria-hidden />
+            }
+            min={0}
+            max={100}
+            step={5}
+            low={sliderValues.minVent}
+            high={sliderValues.maxVent}
+            unit="%"
+            lowLabel="최저환기"
+            highLabel="최고환기"
+            accentClass="bg-sky-500/35"
+            showAxis
+            disabled={disabled}
+            onChange={onVentChange}
+          />
+        </div>
+      </div>
+  );
+
+  if (embedded) {
+    return <div className="hidden md:block">{grid}</div>;
+  }
+
   return (
     <div className={cn("hidden md:block", ctrlUi.section)}>
-      <p className={ctrlUi.sectionTitle}>
-        설정 편집 — 슬라이더 드래그 · ± 미세 조정
-      </p>
-      <div className={ctrlUi.sliderGrid}>
-        {PANEL_MENU_ITEMS.map((item) => {
-          const active = activeMenu === item.id;
-          const value = sliderValues[item.id];
-          const current = currentValues?.[item.id] ?? null;
-          const changed = isFieldChanged(item.id);
-          return (
-            <div
-              key={item.id}
-              className={cn(
-                ctrlUi.sliderCard,
-                "transition-colors",
-                active ? "border-primary/50 bg-primary/5" : "border-border",
-                changed && "ring-1 ring-primary/20"
-              )}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setActiveMenu(item.id)}
-                  className={cn(
-                    "flex min-w-0 items-center gap-1.5 text-left hover:text-primary disabled:opacity-50",
-                    ctrlUi.body,
-                    active ? "font-semibold text-primary" : "font-medium",
-                    !changed && "text-muted-foreground"
-                  )}
-                >
-                  <PanelMenuIcon menu={item.id} />
-                  {item.label}
-                </button>
-                <div className="shrink-0">
-                  <SettingDeltaDisplay
-                    menu={item.id}
-                    current={current}
-                    target={value}
-                  />
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-3">
-                <PanelSlider
-                  menu={item.id}
-                  value={value}
-                  current={current}
-                  disabled={disabled}
-                  onChange={(v) => onSetField(item.id, v)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-lg"
-                  className="size-11 shrink-0"
-                  disabled={disabled}
-                  aria-label={`${item.label} 내림`}
-                  onClick={() => onNudge(item.id, -1)}
-                >
-                  <Minus className={ctrlUi.iconSm} />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon-lg"
-                  className="size-11 shrink-0"
-                  disabled={disabled}
-                  aria-label={`${item.label} 올림`}
-                  onClick={() => onNudge(item.id, 1)}
-                >
-                  <Plus className={ctrlUi.iconSm} />
-                </Button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <p className={dashboardTypography.sectionTitle}>설정값</p>
+      {grid}
     </div>
   );
 }
 
-function MobileSwipeEditor({
-  activeMenu,
-  setActiveMenu,
+function MobileGroupedSliders({
   sliderValues,
-  currentValues,
   isFieldChanged,
   disabled,
-  onSetField,
-  onNudge,
+  embedded = false,
+  onTempChange,
+  onVentChange,
 }: {
-  activeMenu: PanelMenuId;
-  setActiveMenu: (id: PanelMenuId) => void;
   sliderValues: Record<PanelMenuId, number>;
-  currentValues: Record<PanelMenuId, number> | null;
   isFieldChanged: (menu: PanelMenuId) => boolean;
   disabled?: boolean;
-  onSetField: (menu: PanelMenuId, value: number) => void;
-  onNudge: (menu: PanelMenuId, dir: 1 | -1) => void;
+  embedded?: boolean;
+  onTempChange: (setpoint: number, deviation: number) => void;
+  onVentChange: (minVent: number, maxVent: number) => void;
 }) {
-  const cfg = MENU_STEPS[activeMenu];
-  const value = sliderValues[activeMenu];
-  const current = currentValues?.[activeMenu] ?? null;
-  const label = PANEL_MENU_ITEMS.find((m) => m.id === activeMenu)?.label ?? "";
-  const changed = isFieldChanged(activeMenu);
-  const swipeRef = useRef<HTMLDivElement>(null);
+  const [group, setGroup] = useState<SliderGroupId>("temp");
+  const tempChanged =
+    isFieldChanged("setpoint") || isFieldChanged("deviation");
+  const ventChanged =
+    isFieldChanged("minVent") || isFieldChanged("maxVent");
 
-  const handleSwipePointerDown = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      if (disabled) return;
-      const el = swipeRef.current;
-      if (!el) return;
-      el.setPointerCapture(e.pointerId);
-      const startY = e.clientY;
-      const startVal = value;
-
-      const onMove = (ev: PointerEvent) => {
-        const dy = startY - ev.clientY;
-        const units = Math.round(dy / 14);
-        onSetField(activeMenu, startVal + units * cfg.step);
-      };
-      const onUp = () => {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-      };
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-    },
-    [activeMenu, cfg.step, disabled, onSetField, value]
-  );
-
-  return (
-    <div className={cn("md:hidden", ctrlUi.section)}>
-      <p className={ctrlUi.sectionTitle}>
-        설정 편집 — 항목 선택 후 스와이프 존 드래그
-      </p>
-
-      <div className={cn("mt-3 flex flex-wrap", ctrlUi.chipStripGap)}>
-        {PANEL_MENU_ITEMS.map((item) => {
-          const itemChanged = isFieldChanged(item.id);
-          return (
-            <Button
-              key={item.id}
-              type="button"
-              variant={activeMenu === item.id ? "default" : "outline"}
-              disabled={disabled}
-              onClick={() => setActiveMenu(item.id)}
-              className={cn(
-                ctrlUi.btnMenuTab,
-                itemChanged &&
-                  activeMenu !== item.id &&
-                  "border-amber-400/70 text-amber-900 dark:text-amber-100"
-              )}
-            >
-              {item.label}
-              {itemChanged ? " · Δ" : null}
-            </Button>
-          );
-        })}
+  const tabs = (
+    <>
+      <div className={cn("flex flex-wrap", ctrlUi.chipStripGap)}>
+        <Button
+          type="button"
+          variant={group === "temp" ? "default" : "outline"}
+          disabled={disabled}
+          onClick={() => setGroup("temp")}
+          className={cn(
+            ctrlUi.btnMenuTab,
+            tempChanged &&
+              group !== "temp" &&
+              "border-amber-400/70 text-amber-900 dark:text-amber-100"
+          )}
+        >
+          온도
+          {tempChanged ? " · Δ" : null}
+        </Button>
+        <Button
+          type="button"
+          variant={group === "vent" ? "default" : "outline"}
+          disabled={disabled}
+          onClick={() => setGroup("vent")}
+          className={cn(
+            ctrlUi.btnMenuTab,
+            ventChanged &&
+              group !== "vent" &&
+              "border-amber-400/70 text-amber-900 dark:text-amber-100"
+          )}
+        >
+          환기
+          {ventChanged ? " · Δ" : null}
+        </Button>
       </div>
 
       <div className={cn("mt-3", ctrlUi.swipePanel)}>
-        <p className={ctrlUi.sectionTitle}>{label}</p>
-        <div
-          className={cn(
-            "mt-2 flex items-center justify-center",
-            SLIDER_VALUE_SLOT_MIN_H
-          )}
-        >
-          <SettingDeltaDisplay
-            menu={activeMenu}
-            current={current}
-            target={value}
+        {group === "temp" ? (
+          <ControllerTempTripleSlider
+            setpoint={sliderValues.setpoint}
+            deviation={sliderValues.deviation}
+            disabled={disabled}
+            compact
+            onChange={onTempChange}
           />
-        </div>
-        <p
-          className={cn(
-            "mt-2",
-            ctrlUi.valueLg,
-            changed ? "text-primary" : "text-foreground"
-          )}
-        >
-          {formatMenuValue(activeMenu, value)}
-        </p>
-        <p className={cn("mt-1", ctrlUi.label)}>
-          {changed
-            ? "큰 숫자 = 변경값 · 스와이프 존에서 조절"
-            : "현재값 · 스와이프 존에서 조절"}
-        </p>
-      </div>
-
-      <div
-        ref={swipeRef}
-        role="slider"
-        aria-label={`${label} 조절`}
-        aria-valuemin={cfg.min}
-        aria-valuemax={cfg.max}
-        aria-valuenow={value}
-        className={cn(
-          "mt-3 touch-none",
-          ctrlUi.swipeZone,
-          disabled ? "cursor-not-allowed opacity-50" : "cursor-ns-resize"
+        ) : (
+          <ThresholdRangeSlider
+            title="환기"
+            icon={
+              <Fan className={cn("size-4", "text-sky-600")} aria-hidden />
+            }
+            min={0}
+            max={100}
+            step={5}
+            low={sliderValues.minVent}
+            high={sliderValues.maxVent}
+            unit="%"
+            lowLabel="최저환기"
+            highLabel="최고환기"
+            accentClass="bg-sky-500/35"
+            showAxis
+            disabled={disabled}
+            compact
+            onChange={onVentChange}
+          />
         )}
-        onPointerDown={handleSwipePointerDown}
-      >
-        <p className={ctrlUi.sectionTitle}>스와이프 존</p>
-        <div className="mt-1.5 flex items-center justify-center gap-2 text-muted-foreground">
-          <ChevronUp className={ctrlUi.iconMd} aria-hidden />
-          <GripVertical className={ctrlUi.iconMd} aria-hidden />
-          <ChevronDown className={ctrlUi.iconMd} aria-hidden />
-        </div>
-        <p className={cn("mt-1.5", ctrlUi.label)}>이 영역만 위·아래 드래그</p>
       </div>
+    </>
+  );
 
-      <div className={cn("mt-3 flex justify-center", ctrlUi.chipStripGap)}>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => onNudge(activeMenu, -1)}
-          className={ctrlUi.btnMicro}
-        >
-          <Minus className={ctrlUi.iconSm} />
-          미세
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          onClick={() => onNudge(activeMenu, 1)}
-          className={ctrlUi.btnMicro}
-        >
-          <Plus className={ctrlUi.iconSm} />
-          미세
-        </Button>
-      </div>
+  if (embedded) {
+    return <div className="md:hidden">{tabs}</div>;
+  }
+
+  return (
+    <div className={cn("md:hidden", ctrlUi.section)}>
+      <p className={dashboardTypography.sectionTitle}>설정값</p>
+      <div className="mt-3">{tabs}</div>
     </div>
   );
 }
 
 export function ControllerPanelFace({
   reading,
+  detailLoading = false,
   knownSettings,
   latestCommand,
   canCommand,
@@ -722,6 +501,9 @@ export function ControllerPanelFace({
   spLabel,
   activeChannel = "A",
   onChannelChange,
+  hideControllerList = false,
+  alarmThresholdHeader,
+  alarmSettingsPanel,
 }: PanelControlProps) {
   const channelReading = channelBySlot(reading?.channels ?? [], activeChannel);
   const channelEqpmnCode =
@@ -740,8 +522,84 @@ export function ControllerPanelFace({
   const opPct = operationPct(reading);
   const powerOn = reading?.status === "normal" || reading?.status === "caution";
   const controlsDisabled = !reading || !canCommand || panel.pending;
-  const saveDisabled =
-    controlsDisabled || (panel.settingsKnown && !panel.hasChanges);
+  const showAlarmSettings = Boolean(alarmSettingsPanel);
+  const showSettingsValues = showAlarmSettings || showSliders;
+
+  const isSaving =
+    panel.pending || Boolean(alarmThresholdHeader?.pending);
+
+  const canSaveAlarm =
+    showAlarmSettings &&
+    Boolean(alarmThresholdHeader) &&
+    !alarmThresholdHeader!.pending &&
+    !alarmThresholdHeader!.validationError &&
+    alarmThresholdHeader!.scopeReady;
+
+  const canSaveControl =
+    showSliders &&
+    !controlsDisabled &&
+    (!panel.settingsKnown || panel.hasChanges);
+
+  const unifiedSaveDisabled =
+    isSaving ||
+    (showAlarmSettings && showSliders
+      ? !canSaveAlarm && !canSaveControl
+      : showAlarmSettings
+        ? !canSaveAlarm
+        : !canSaveControl);
+
+  const defaultsDisabled =
+    isSaving ||
+    Boolean(
+      showAlarmSettings &&
+        alarmThresholdHeader &&
+        (!alarmThresholdHeader.scopeReady || alarmThresholdHeader.pending)
+    );
+
+  const handleApplyDefaults = () => {
+    if (showSliders) panel.applyDefaults();
+    alarmThresholdHeader?.onApplyDefaults();
+  };
+
+  const handleSaveAll = () => {
+    if (canSaveAlarm) {
+      alarmThresholdHeader!.onSave();
+    }
+    if (canSaveControl) {
+      panel.save();
+    }
+  };
+
+  const settingsHeaderActions = showSettingsValues ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <PageActionButton
+        type="button"
+        variant="outline"
+        disabled={defaultsDisabled}
+        onClick={handleApplyDefaults}
+      >
+        기본값
+      </PageActionButton>
+      {showAlarmSettings && alarmThresholdHeader?.scopeHasOverride ? (
+        <PageActionButton
+          type="button"
+          variant="outline"
+          disabled={alarmThresholdHeader.pending}
+          onClick={alarmThresholdHeader.onClear}
+        >
+          삭제
+        </PageActionButton>
+      ) : null}
+      <PageActionButton
+        type="button"
+        variant="primary"
+        disabled={unifiedSaveDisabled}
+        onClick={handleSaveAll}
+      >
+        {isSaving ? "저장 중…" : "저장"}
+      </PageActionButton>
+    </div>
+  ) : null;
 
   return (
     <SectionCard
@@ -756,6 +614,7 @@ export function ControllerPanelFace({
       }
     >
       {showControllerList &&
+      !hideControllerList &&
       controllerList.length > 0 &&
       onControllerSelect ? (
         <div className="mb-3">
@@ -767,7 +626,7 @@ export function ControllerPanelFace({
             spLabel={spLabel}
           />
         </div>
-      ) : !showControllerList ? null : (
+      ) : !showControllerList || hideControllerList ? null : (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <ControllerNameLabel
             className="text-base"
@@ -785,6 +644,12 @@ export function ControllerPanelFace({
       )}
 
       <div className={ctrlUi.stack}>
+        {detailLoading ? (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className={cn(ctrlUi.iconSm, "animate-spin")} />
+            상세 데이터 불러오는 중…
+          </p>
+        ) : null}
         {reading?.channels?.length ? (
           <ChannelSettingsBar
             reading={reading}
@@ -801,52 +666,48 @@ export function ControllerPanelFace({
           />
         ) : null}
 
-        {showSliders ? (
-          <>
-            <DesktopSliderList
-              activeMenu={panel.activeMenu}
-              setActiveMenu={panel.setActiveMenu}
-              sliderValues={panel.sliderValues}
-              currentValues={panel.currentValues}
-              isFieldChanged={panel.isFieldChanged}
-              disabled={controlsDisabled}
-              onSetField={panel.setField}
-              onNudge={(menu, dir) => panel.adjust(dir, menu)}
-            />
-
-            <MobileSwipeEditor
-              activeMenu={panel.activeMenu}
-              setActiveMenu={panel.setActiveMenu}
-              sliderValues={panel.sliderValues}
-              currentValues={panel.currentValues}
-              isFieldChanged={panel.isFieldChanged}
-              disabled={controlsDisabled}
-              onSetField={panel.setField}
-              onNudge={(menu, dir) => panel.adjust(dir, menu)}
-            />
-          </>
+        {showSettingsValues ? (
+          <div className={cn("mb-5", dashboardUi.sectionMuted)}>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className={dashboardTypography.sectionTitle}>설정값</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {settingsHeaderActions}
+              </div>
+            </div>
+            {showAlarmSettings ? alarmSettingsPanel : null}
+            {showSliders ? (
+              <>
+                {showAlarmSettings ? (
+                  <p
+                    className={cn(
+                      "mt-5 mb-3",
+                      dashboardTypography.formLabel
+                    )}
+                  >
+                    제어
+                  </p>
+                ) : null}
+                <DesktopGroupedSliders
+                  embedded
+                  sliderValues={panel.sliderValues}
+                  currentValues={panel.currentValues}
+                  isFieldChanged={panel.isFieldChanged}
+                  disabled={controlsDisabled}
+                  onTempChange={panel.setTempControl}
+                  onVentChange={panel.setVentRange}
+                />
+                <MobileGroupedSliders
+                  embedded
+                  sliderValues={panel.sliderValues}
+                  isFieldChanged={panel.isFieldChanged}
+                  disabled={controlsDisabled}
+                  onTempChange={panel.setTempControl}
+                  onVentChange={panel.setVentRange}
+                />
+              </>
+            ) : null}
+          </div>
         ) : null}
-
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            disabled={saveDisabled}
-            onClick={panel.save}
-            className={cn("w-full md:w-auto", ctrlUi.btnSave)}
-          >
-            {panel.pending ? (
-              <>
-                <Loader2 className={cn(ctrlUi.iconSm, "animate-spin")} />
-                저장 중…
-              </>
-            ) : (
-              <>
-                <Save className={ctrlUi.iconSm} aria-hidden />
-                저장
-              </>
-            )}
-          </Button>
-        </div>
       </div>
 
       <div className={cn("mt-3 space-y-2 text-center", ctrlUi.footer)}>

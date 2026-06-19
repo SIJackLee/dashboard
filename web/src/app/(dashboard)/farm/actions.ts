@@ -25,7 +25,6 @@ export async function saveBarnGridsAction(
   const result = await saveBarnLayouts(layouts);
   if (result.ok) {
     revalidatePath("/farm");
-    revalidatePath("/settings");
   }
   return result;
 }
@@ -56,7 +55,6 @@ export async function resetBarnLayoutsAction(): Promise<{
   const result = await clearBarnLayouts();
   if (result.ok) {
     revalidatePath("/farm");
-    revalidatePath("/settings");
   }
   return result;
 }

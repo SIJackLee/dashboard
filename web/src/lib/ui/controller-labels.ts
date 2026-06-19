@@ -106,6 +106,39 @@ export function formatControllerSlotSuffix(opts: {
   return "";
 }
 
+/** OpsScopeBar · 컨트롤러 pill 라벨 */
+export function formatControllerPillLabel(opts: {
+  label?: string;
+  stallNo?: string | null;
+  stallTyCode?: string | null;
+  eqpmnNo?: string;
+  displayName?: string | null;
+  /** ScopeBar에서 고정된 SP — 빈 문자열이면 전체유형 */
+  scopeSpCode?: string;
+  /** ScopeBar에서 고정된 stall — 빈 문자열이면 전체번호 */
+  scopeStallKey?: string;
+}): string {
+  const slotLabel =
+    opts.label ??
+    formatControllerSlotLabel({ stallNo: opts.stallNo, eqpmnNo: opts.eqpmnNo });
+  const metaName = opts.displayName?.trim();
+  const base = metaName
+    ? `${metaName}${formatControllerSlotSuffix({ stallNo: opts.stallNo, eqpmnNo: opts.eqpmnNo })}`
+    : slotLabel;
+
+  const prefixParts: string[] = [];
+  if (!opts.scopeSpCode?.trim()) {
+    prefixParts.push(formatStallTypeLabel(opts.stallTyCode));
+  }
+  if (!opts.scopeStallKey?.trim()) {
+    const stall = opts.stallNo?.trim();
+    if (stall) prefixParts.push(`축사 ${stall}`);
+  }
+
+  if (prefixParts.length === 0) return base;
+  return `${prefixParts.join(" · ")} · ${base}`;
+}
+
 export function formatControllerRef(opts: {
   farmKey: FarmKey;
   eqpmnNo?: string;

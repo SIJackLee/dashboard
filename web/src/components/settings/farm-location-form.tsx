@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { saveFarmLocationAction } from "@/app/(dashboard)/settings/actions";
+import { saveFarmLocationAction } from "@/lib/actions/app-settings-actions";
 import { SectionCard } from "@/components/common/section-card";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { FarmLocationEditFields } from "@/components/settings/farm-location-edit-fields";

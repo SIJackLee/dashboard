@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { SectionCard } from "@/components/common/section-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { saveDisplaySettingsAction } from "@/app/(dashboard)/settings/actions";
+import { saveDisplaySettingsAction } from "@/lib/actions/app-settings-actions";
 import {
   DISPLAY_SETTING_GROUPS,
   type DisplaySettingKey,

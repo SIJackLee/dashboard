@@ -1,32 +1,20 @@
-import type { SettingsTabId } from "@/components/settings/settings-tab-nav";
 import { PIGGY_PLAY_ENABLED } from "@/lib/feature-flags";
 import type { DisplaySettingKey } from "@/lib/data/display-settings-shared";
 
-/** 사이드바에 노출되는 앱 섹션 (설정 /admin 제외) */
+/** 모니터링 허브 — /farm + ?tab=map|devices|alarms */
+export const MONITORING_SECTION = {
+  href: "/farm",
+  label: "모니터링",
+  linkedDisplayPageIds: ["farm", "controller", "alarm"] as const,
+} as const;
+
+/** 사이드바에 노출되는 앱 섹션 (운영 /admin 제외) */
 export const APP_NAV_SECTIONS = [
-  {
-    href: "/farm",
-    label: "농장",
-    settingsTab: "farm" as const satisfies SettingsTabId,
-    displayPageId: "farm" as const,
-  },
-  {
-    href: "/controllers",
-    label: "컨트롤러",
-    settingsTab: null,
-    displayPageId: "controller" as const,
-  },
-  {
-    href: "/alarms",
-    label: "알람",
-    settingsTab: "alarm" as const satisfies SettingsTabId,
-    displayPageId: "alarm" as const,
-  },
+  MONITORING_SECTION,
   {
     href: "/play",
     label: "오락",
-    settingsTab: null,
-    displayPageId: null,
+    linkedDisplayPageIds: [] as const,
     requiresPiggy: true,
   },
 ] as const;
@@ -37,7 +25,7 @@ export type DashboardNavOptions = {
   piggyEnabled?: boolean;
 };
 
-/** 사이드바·설정 탭 동기화용 활성 경로 */
+/** 사이드바·표시 설정 동기화용 활성 경로 */
 export function getActiveAppNavHrefs(
   options: DashboardNavOptions = {}
 ): Set<string> {
@@ -52,23 +40,6 @@ export function getActiveAppNavHrefs(
   return hrefs;
 }
 
-/** 설정 페이지 탭 — 표시 + 활성 앱 섹션에 대응하는 탭만 */
-export function getVisibleSettingsTabIds(
-  options: DashboardNavOptions = {}
-): SettingsTabId[] {
-  const active = getActiveAppNavHrefs(options);
-  const tabs: SettingsTabId[] = ["dashboard"];
-
-  for (const section of APP_NAV_SECTIONS) {
-    if (!section.settingsTab) continue;
-    if (active.has(section.href)) {
-      tabs.push(section.settingsTab);
-    }
-  }
-
-  return tabs;
-}
-
 /** 표시 설정 그룹 pageId — 활성 페이지만 */
 export function getVisibleDisplayPageIds(
   options: DashboardNavOptions = {}
@@ -76,32 +47,33 @@ export function getVisibleDisplayPageIds(
   const active = getActiveAppNavHrefs(options);
   const ids = new Set<string>(["global"]);
   for (const section of APP_NAV_SECTIONS) {
-    if (section.displayPageId && active.has(section.href)) {
-      ids.add(section.displayPageId);
+    if (!active.has(section.href)) continue;
+    for (const pageId of section.linkedDisplayPageIds) {
+      ids.add(pageId);
     }
   }
   return ids;
 }
 
-export function isSettingsTabVisible(
-  tab: SettingsTabId,
-  options: DashboardNavOptions = {}
-): boolean {
-  return getVisibleSettingsTabIds(options).includes(tab);
-}
-
-export function resolveSettingsTab(
-  tab: string | undefined,
-  options: DashboardNavOptions = {}
-): SettingsTabId {
-  const visible = getVisibleSettingsTabIds(options);
-  if (tab && visible.includes(tab as SettingsTabId)) {
-    return tab as SettingsTabId;
-  }
-  return visible[0] ?? "dashboard";
-}
-
 /** 표시 설정 키 prefix → pageId */
 export function displayKeyPageId(key: DisplaySettingKey): string {
   return key.split(".")[0] ?? "global";
+}
+
+/** 모니터링 허브 경로 (레거시 /controllers·/alarms 포함) */
+export function isMonitoringNavPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/farm") ||
+    pathname.startsWith("/controllers") ||
+    pathname.startsWith("/alarms")
+  );
+}
+
+/** Admin 운영 허브 (레거시 /admin/health·/admin/users·drill-down 포함) */
+export function isAdminOpsNavPath(pathname: string): boolean {
+  return (
+    pathname.startsWith("/admin/ops") ||
+    pathname.startsWith("/admin/health") ||
+    pathname.startsWith("/admin/users")
+  );
 }

@@ -3,6 +3,8 @@ import "server-only";
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  DECODE_LAG_CRITICAL,
+  DECODE_LAG_WARN,
   GLOBAL_LIVE_ROW_LIMIT,
   INSERT_BUCKET_COUNT,
   INSERT_BUCKET_MINUTES,
@@ -16,11 +18,9 @@ import {
 import {
   aggregateControllers,
   aggregateModulesFromLive,
-  mapDbRowsToLiveHealth,
-  mapLiveLatestDbRowsToLiveHealth,
+  mapDecodedLatestDbRowsToLiveHealth,
   rollupFieldStatus,
-  type DbLiveRow,
-  type DbLiveLatestRow,
+  type DbDecodedLatestRow,
 } from "@/lib/admin/health/aggregate-controllers";
 import {
   aggregateCollectorGroups,
@@ -176,8 +176,8 @@ function fieldControllerPoints(controllers: ControllerHealthRow[]): HealthPoint[
     },
     {
       id: "ctrl.decode.live",
-      label: "live decode (샘플)",
-      value: "v_iot_live_latest 기반",
+      label: "Edge decode (LIVE)",
+      value: "v_iot_decoded_latest",
       status: worst === "critical" ? "warn" : "ok",
     },
     {
@@ -222,7 +222,55 @@ function rsPoints(buckets: InsertBucket[]): HealthPoint[] {
   ];
 }
 
-function storagePoints(dbOk: boolean): HealthPoint[] {
+function decodeLagStatus(lag: number, failedCount: number): HealthStatus {
+  if (failedCount > 0) return "warn";
+  if (lag >= DECODE_LAG_CRITICAL) return "critical";
+  if (lag >= DECODE_LAG_WARN) return "warn";
+  return "ok";
+}
+
+type DecodeHealthMetrics = {
+  lag: number;
+  failedCount: number;
+  cursorUpdatedAt: string | null;
+};
+
+async function fetchDecodeMetrics(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<DecodeHealthMetrics> {
+  const [cursorRes, maxRawRes, failedRes] = await Promise.all([
+    admin
+      .from("iot_decode_cursor")
+      .select("last_raw_id, updated_at")
+      .eq("id", 1)
+      .maybeSingle(),
+    admin
+      .from("iot_room_state_raw")
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from("iot_room_state_decode_failed")
+      .select("id", { count: "exact", head: true }),
+  ]);
+
+  const lastRawId = cursorRes.data?.last_raw_id ?? 0;
+  const maxRawId = maxRawRes.data?.id ?? lastRawId;
+
+  return {
+    lag: Math.max(0, maxRawId - lastRawId),
+    failedCount: failedRes.count ?? 0,
+    cursorUpdatedAt: cursorRes.data?.updated_at ?? null,
+  };
+}
+
+function storagePoints(
+  dbOk: boolean,
+  decode: DecodeHealthMetrics,
+): HealthPoint[] {
+  const lagStatus = decodeLagStatus(decode.lag, decode.failedCount);
+
   return [
     {
       id: "db.connectivity",
@@ -232,10 +280,24 @@ function storagePoints(dbOk: boolean): HealthPoint[] {
       d11Hint: dbOk ? undefined : "S2",
     },
     {
-      id: "db.views.live",
-      label: "v_iot_live_latest",
+      id: "db.views.decoded_latest",
+      label: "v_iot_decoded_latest",
       value: dbOk ? "accessible" : "—",
       status: dbOk ? "ok" : "critical",
+    },
+    {
+      id: "db.decode.lag",
+      label: "decode backlog (raw id)",
+      value: `${decode.lag} rows`,
+      status: lagStatus,
+      d11Hint: lagStatus !== "ok" ? "S2" : undefined,
+    },
+    {
+      id: "db.decode.failed",
+      label: "decode failed queue",
+      value: String(decode.failedCount),
+      status: decode.failedCount > 0 ? "warn" : "ok",
+      d11Hint: decode.failedCount > 0 ? "S2" : undefined,
     },
   ];
 }
@@ -282,6 +344,11 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
 
   let dbOk = false;
   let liveRowCount = 0;
+  let decodeMetrics: DecodeHealthMetrics = {
+    lag: 0,
+    failedCount: 0,
+    cursorUpdatedAt: null,
+  };
   let insertBuckets: InsertBucket[] = [];
   let modules: ModuleHealthRow[] = [];
   let controllers: ControllerHealthRow[] = [];
@@ -297,54 +364,33 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
   try {
     const admin = createAdminClient();
 
-    const [buckets, liveCountRes, liveRowsRes, cmdHealth] = await Promise.all([
+    const [buckets, liveCountRes, liveRowsRes, decodeRes, cmdHealth] =
+      await Promise.all([
       fetchInsertBuckets(admin, nowMs),
       admin
-        .from("v_iot_live_latest")
+        .from("v_iot_decoded_latest")
         .select("controller_key", { count: "exact", head: true }),
       admin
-        .from("v_iot_live_latest")
+        .from("v_iot_dashboard_list")
         .select(
-          "lsind_regist_no, item_code, module_uid, controller_key, packet_mode, received_at"
+          "lsind_regist_no, item_code, module_uid, controller_key, packet_mode, received_at",
         )
         .order("received_at", { ascending: false })
         .limit(GLOBAL_LIVE_ROW_LIMIT),
+      fetchDecodeMetrics(admin),
       fetchCommandHealth(nowMs),
     ]);
 
-    let resolvedCountRes = liveCountRes;
-    let resolvedRowsRes: typeof liveRowsRes = liveRowsRes;
-    let useLiveLatest = !liveCountRes.error && !liveRowsRes.error;
-
-    if (!useLiveLatest) {
-      const [rawCountRes, rawRowsRes] = await Promise.all([
-        admin
-          .from("v_iot_raw_live")
-          .select("id", { count: "exact", head: true }),
-        admin
-          .from("v_iot_raw_live")
-          .select(
-            "id, lsind_regist_no, item_code, module_uid, received_at, payload_bytea"
-          )
-          .order("received_at", { ascending: false })
-          .limit(GLOBAL_LIVE_ROW_LIMIT),
-      ]);
-      resolvedCountRes = rawCountRes as typeof liveCountRes;
-      resolvedRowsRes = rawRowsRes as typeof liveRowsRes;
-      useLiveLatest = false;
-    }
-
     insertBuckets = buckets;
-    dbOk = !resolvedCountRes.error && !resolvedRowsRes.error;
-    liveRowCount = resolvedCountRes.count ?? 0;
+    decodeMetrics = decodeRes;
+    dbOk = !liveCountRes.error && !liveRowsRes.error;
+    liveRowCount = liveCountRes.count ?? 0;
     commandHealth = cmdHealth;
 
-    if (resolvedRowsRes.data) {
-      const liveRows = useLiveLatest
-        ? mapLiveLatestDbRowsToLiveHealth(
-            resolvedRowsRes.data as DbLiveLatestRow[]
-          )
-        : mapDbRowsToLiveHealth(resolvedRowsRes.data as DbLiveRow[]);
+    if (liveRowsRes.data) {
+      const liveRows = mapDecodedLatestDbRowsToLiveHealth(
+        liveRowsRes.data as DbDecodedLatestRow[],
+      );
       modules = aggregateModulesFromLive(liveRows, nowMs);
       controllers = aggregateControllers(liveRows, nowMs);
     }
@@ -372,7 +418,10 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
 
   const fieldStatus = rollupFieldStatus(modules, controllers);
 
-  const storageStatus = dbOk ? "ok" : "critical";
+  const storageStatus = worstStatus([
+    dbOk ? "ok" : "critical",
+    decodeLagStatus(decodeMetrics.lag, decodeMetrics.failedCount),
+  ]);
   const dashboardStatus = worstStatus([
     dbOk ? "ok" : "critical",
     liveRowCount >= GLOBAL_LIVE_ROW_LIMIT * 0.9 ? "warn" : "ok",
@@ -497,7 +546,15 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
     d11Hints.push({
       id: "S2",
       title: "화면에 안 보임",
-      summary: "live View·ctrl 상한(1500)·decode 오류 확인 (R4)",
+      summary:
+        "v_iot_decoded_latest·ctrl 상한(1500)·decode backlog(lag) 확인 (R4)",
+    });
+  }
+  if (decodeMetrics.lag >= DECODE_LAG_WARN || decodeMetrics.failedCount > 0) {
+    d11Hints.push({
+      id: "S2",
+      title: "decode 지연",
+      summary: `raw backlog ${decodeMetrics.lag} rows · failed ${decodeMetrics.failedCount} — Edge decode-batch·cursor 확인`,
     });
   }
 
@@ -541,7 +598,7 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
       "collector-ekape": ekapeHealth.points,
       "collector-ftp": ftpPoints(),
       external: ekapeHealth.externalPoints,
-      storage: storagePoints(dbOk),
+      storage: storagePoints(dbOk, decodeMetrics),
       dashboard: dashboardPoints(liveRowCount, dbOk),
     },
   };

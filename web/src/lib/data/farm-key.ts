@@ -60,15 +60,6 @@ export function readingKey(
   return `${farmKeyId(fk)}-${moduleUid}-${controllerKey}`;
 }
 
-/** @deprecated use readingKey with controllerKey */
-export function readingKeyLegacyIdx(
-  fk: FarmKey,
-  moduleUid: number,
-  idx: number
-): string {
-  return readingKey(fk, moduleUid, `legacy:idx:${idx}`);
-}
-
 export function moduleKey(fk: FarmKey, moduleUid: number): string {
   return `${farmKeyId(fk)}-${moduleUid}`;
 }

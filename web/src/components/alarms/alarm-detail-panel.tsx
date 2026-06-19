@@ -8,6 +8,7 @@ import type { AlarmRow } from "@/lib/data/alarms";
 import { alarmTargetHref } from "@/lib/data/alarms";
 import { formatKst } from "@/lib/datetime/kst";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
+import { devicesAlarmSettingsHref } from "@/lib/monitoring/devices-panel";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -19,8 +20,8 @@ export function AlarmDetailPanel({ alarm }: { alarm?: AlarmRow }) {
           선택된 알람 없음
         </p>
         <AppNavLink
-          href="/settings?tab=alarm"
-          message="설정 페이지로 이동 중…"
+          href={devicesAlarmSettingsHref()}
+          message="알람 설정으로 이동 중…"
           className={cn("mt-4 inline-block text-emerald-700", dashboardUi.body)}
         >
           임계값 설정 →
@@ -107,8 +108,8 @@ export function AlarmDetailPanel({ alarm }: { alarm?: AlarmRow }) {
           목록에서 보기
         </Link>
         <AppNavLink
-          href="/settings?tab=alarm"
-          message="설정 페이지로 이동 중…"
+          href={devicesAlarmSettingsHref()}
+          message="알람 설정으로 이동 중…"
           className={cn(
             "inline-flex items-center rounded-lg border px-4 py-2 hover:bg-muted",
             dashboardUi.btnSmAction

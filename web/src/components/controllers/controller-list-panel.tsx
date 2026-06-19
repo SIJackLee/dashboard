@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pencil } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { ControllerNameLabel } from "@/components/common/controller-name-label";
+import { EnvChip } from "@/components/common/env-chip";
 import { StatusBadge } from "@/components/common/status-badge";
 import { FanIndicator } from "@/components/common/fan-indicator";
 import { useControllerMeta } from "@/components/controllers/controller-meta-provider";
@@ -13,6 +14,9 @@ import { cn } from "@/lib/utils";
 import type { ControllerReading } from "@/lib/data/iot";
 import { ctrlUi } from "@/lib/ui/controller-page-ui";
 import { sensorValueForDisplay } from "@/lib/data/reading-display";
+
+const fmtNum = (v: number | null | undefined) =>
+  v === null || v === undefined ? "--" : v.toFixed(1);
 
 type ListProps = {
   items?: ControllerReading[];
@@ -257,6 +261,16 @@ export function ControllerListPanel({
                   eqpmnNo={c.eqpmnNo}
                 />
                 <StatusBadge tone={c.status} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <EnvChip
+                  kind="temp"
+                  value={fmtNum(sensorValueForDisplay(c.status, c.tempC))}
+                />
+                <EnvChip
+                  kind="humidity"
+                  value={fmtNum(sensorValueForDisplay(c.status, c.humidityPct))}
+                />
               </div>
               <div className="flex gap-4">
                 <FanIndicator

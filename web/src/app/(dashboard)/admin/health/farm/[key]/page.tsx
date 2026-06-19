@@ -27,7 +27,7 @@ export default async function AdminHealthFarmPage({
   const title = `${snapshot.modules.find((m) => m.farmId === `${farmKey.lsindRegistNo}/${farmKey.itemCode}`)?.farmLabel ?? farmKey.lsindRegistNo} · 농장`;
 
   return (
-    <PageShell title={title}>
+    <PageShell>
       <Link
         href="/admin/health"
         className={cn(

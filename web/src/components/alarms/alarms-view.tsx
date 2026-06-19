@@ -1,21 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppNavLink } from "@/components/layout/app-nav-link";
+import { ScopeBar } from "@/components/layout/scope-bar";
 import { Search, RefreshCw, Bell, AlertTriangle, WifiOff, Settings } from "lucide-react";
 import { FilterBar, SimpleSelect } from "@/components/common/filter-bar";
+import { MasterDetailLayout } from "@/components/common/master-detail-layout";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { AlarmTable } from "@/components/alarms/alarm-table";
-import { AlarmDetailPanel } from "@/components/alarms/alarm-detail-panel";
+import { AlarmTriagePanel } from "@/components/alarms/alarm-triage-panel";
 import { Input } from "@/components/ui/input";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { uniqueSpCodes } from "@/lib/data/reading-hierarchy";
+import type { ThermoCommand } from "@/lib/data/commands";
+import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
+import type { ControllerReading } from "@/lib/data/iot";
+import type { FarmKey } from "@/lib/data/farm-key";
+import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { FILTER_ALL, FILTER_ALL_LABEL, isFilterAll } from "@/lib/ui/filter-all";
+import { devicesAlarmSettingsHref } from "@/lib/monitoring/devices-panel";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { useDisplayEnabled } from "@/components/display/display-settings-provider";
+import { setMonitoringTabParam } from "@/lib/monitoring/monitoring-tabs";
 
 type AlarmSummary = {
   total: number;
@@ -56,16 +64,43 @@ type Props = {
   summary: AlarmSummary;
   selectedId?: string;
   groupByFarm?: boolean;
+  readings?: ControllerReading[];
+  canCommand?: boolean;
+  commands?: ThermoCommand[];
+  thermoSettings?: Record<string, ControllerThermoSettings>;
+  isAdmin?: boolean;
+  farmOptions?: FarmKey[];
+  activeFarmKey?: FarmKey | null;
+  farmSummaries?: FarmSummaryRow[];
+  /** Monitoring 허브(/farm) 내 embedded — URL sync 대상 */
+  embedded?: boolean;
 };
 
-export function AlarmsView({ alarms, summary, selectedId, groupByFarm = false }: Props) {
+export function AlarmsView({
+  alarms,
+  summary,
+  selectedId,
+  groupByFarm = false,
+  readings = [],
+  canCommand = false,
+  commands = [],
+  thermoSettings = {},
+  isAdmin = false,
+  farmOptions = [],
+  activeFarmKey = null,
+  farmSummaries = [],
+  embedded = false,
+}: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const showFilterBar = useDisplayEnabled("alarm.filterBar");
   const showDetailPanel = useDisplayEnabled("alarm.detailPanel");
   const [chipFilter, setChipFilter] = useState<FilterKind>("all");
   const [severity, setSeverity] = useState(FILTER_ALL);
   const [spFilter, setSpFilter] = useState(FILTER_ALL);
   const [search, setSearch] = useState("");
+
+  const showAdminScope = isAdmin && farmOptions.length > 0;
 
   const spOptions = useMemo(() => {
     const codes = [...new Set(alarms.map((a) => a.stallTyCode).filter(Boolean))] as string[];
@@ -100,6 +135,14 @@ export function AlarmsView({ alarms, summary, selectedId, groupByFarm = false }:
     alarms.find((a) => a.id === selectedId) ??
     filtered[0];
 
+  const selectAlarm = (id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("alarm", id);
+    const base = embedded ? "/farm" : "/alarms";
+    if (embedded) setMonitoringTabParam(params, "ops");
+    router.replace(`${base}?${params.toString()}`, { scroll: false });
+  };
+
   const resetFilters = () => {
     setChipFilter("all");
     setSeverity(FILTER_ALL);
@@ -107,18 +150,21 @@ export function AlarmsView({ alarms, summary, selectedId, groupByFarm = false }:
     setSearch("");
   };
 
-  return (
-    <div
-      className={cn(
-        "grid grid-cols-1 gap-6",
-        showDetailPanel && "xl:grid-cols-3"
-      )}
-    >
-      <div
-        className={cn("space-y-6", showDetailPanel && "xl:col-span-2")}
-      >
-        {showFilterBar ? (
-          <FilterBar>
+  const master = (
+    <>
+      {showAdminScope ? (
+        <ScopeBar
+          sticky
+          adminFarmSwitcher={{
+            farmOptions,
+            activeFarmKey,
+            farmSummaries,
+          }}
+          onRefresh={() => router.refresh()}
+        />
+      ) : null}
+      {showFilterBar ? (
+        <FilterBar>
           <div className="flex flex-wrap items-center gap-3 self-center">
             {SUMMARY_CHIPS.map((chip) => {
               const Icon = chip.icon;
@@ -129,6 +175,7 @@ export function AlarmsView({ alarms, summary, selectedId, groupByFarm = false }:
                   key={chip.key}
                   type="button"
                   onClick={() => setChipFilter(chip.filter)}
+                  aria-label={`${chip.label} 필터${value > 0 ? ` · ${value}건` : ""}`}
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg border px-4 py-2 font-medium transition-colors",
                     dashboardUi.body,
@@ -137,7 +184,7 @@ export function AlarmsView({ alarms, summary, selectedId, groupByFarm = false }:
                   )}
                 >
                   <Icon className={dashboardUi.iconSm} />
-                  {chip.label} {value}
+                  {chip.label}
                 </button>
               );
             })}
@@ -185,8 +232,8 @@ export function AlarmsView({ alarms, summary, selectedId, groupByFarm = false }:
             초기화
           </PageActionButton>
           <AppNavLink
-            href="/settings?tab=alarm"
-            message="설정 페이지로 이동 중…"
+            href={devicesAlarmSettingsHref(searchParams)}
+            message="알람 설정으로 이동 중…"
             className={cn(
               "inline-flex items-center gap-2 rounded-lg border border-emerald-600/30 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-200",
               dashboardUi.btnSmAction
@@ -195,15 +242,24 @@ export function AlarmsView({ alarms, summary, selectedId, groupByFarm = false }:
             <Settings className={dashboardUi.iconSm} /> 임계값 설정
           </AppNavLink>
         </FilterBar>
-        ) : null}
-        <AlarmTable
-          alarms={filtered}
-          selectedId={selected?.id}
-          initialExpandedSp={!isFilterAll(spFilter) ? spFilter : undefined}
-          groupByFarm={groupByFarm}
-        />
-      </div>
-      {showDetailPanel ? <AlarmDetailPanel alarm={selected} /> : null}
-    </div>
+      ) : null}
+      <AlarmTable
+        alarms={filtered}
+        selectedId={selected?.id}
+        initialExpandedSp={!isFilterAll(spFilter) ? spFilter : undefined}
+        groupByFarm={groupByFarm}
+        onAlarmSelect={selectAlarm}
+      />
+    </>
+  );
+
+  return (
+    <MasterDetailLayout
+      showDetail={showDetailPanel}
+      master={master}
+      detail={
+        <AlarmTriagePanel alarm={selected} />
+      }
+    />
   );
 }

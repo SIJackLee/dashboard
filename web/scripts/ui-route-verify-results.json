@@ -1,0 +1,1037 @@
+{
+  "at": "2026-06-19T03:54:00.816Z",
+  "total": 45,
+  "failed": 0,
+  "results": [
+    {
+      "suite": "unauthenticated",
+      "path": "/farm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/login",
+        "finalUrl": "/login",
+        "h1": "",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "unauthenticated",
+      "path": "/admin/ops",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/login",
+        "finalUrl": "/login",
+        "h1": "",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "unauthenticated",
+      "path": "/",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/login",
+        "finalUrl": "/login",
+        "h1": "",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": true,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm?tab=devices",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?tab=devices",
+        "finalUrl": "/farm?tab=devices",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "장비"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm?tab=alarms",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?tab=alarms",
+        "finalUrl": "/farm?tab=alarms",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "이상"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm?tab=invalid",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?tab=invalid",
+        "finalUrl": "/farm?tab=invalid",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": true,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm?lsind=FARM01&item=P00",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm?lsind=FARM01&item=P00&tab=devices",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?lsind=FARM01&item=P00&tab=devices",
+        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=devices",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "장비"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm?lsind=FARM01&item=P00&tab=alarms",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?lsind=FARM01&item=P00&tab=alarms",
+        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=alarms",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "이상"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/farm?view=overview",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": true,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/controllers",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?tab=devices",
+        "finalUrl": "/farm?tab=devices",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "장비"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/controllers?lsind=FARM01&item=P00",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?lsind=FARM01&item=P00&tab=devices",
+        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=devices",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "장비"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/alarms",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?tab=alarms",
+        "finalUrl": "/farm?tab=alarms",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "이상"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/settings",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/settings",
+        "finalUrl": "/settings",
+        "h1": "설정",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": true,
+        "role": "관리자",
+        "settingsTabs": [
+          "표시",
+          "알람"
+        ],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/settings?tab=alarm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/settings?tab=alarm",
+        "finalUrl": "/settings?tab=alarm",
+        "h1": "설정",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": true,
+        "role": "관리자",
+        "settingsTabs": [
+          "표시",
+          "알람"
+        ],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/settings?tab=farm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/settings?tab=farm",
+        "finalUrl": "/settings?tab=farm",
+        "h1": "설정",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": true,
+        "role": "관리자",
+        "settingsTabs": [
+          "표시",
+          "알람"
+        ],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/ops",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/ops",
+        "finalUrl": "/admin/ops",
+        "h1": "운영",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": [
+          "시스템"
+        ]
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/ops?tab=users",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/ops?tab=users",
+        "finalUrl": "/admin/ops?tab=users",
+        "h1": "운영",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": [
+          "사용자"
+        ]
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/ops?tab=farms",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/ops?tab=farms",
+        "finalUrl": "/admin/ops?tab=farms",
+        "h1": "운영",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": [
+          "농장 메타"
+        ]
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/ops?tab=bad",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/ops?tab=bad",
+        "finalUrl": "/admin/ops?tab=bad",
+        "h1": "운영",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": [
+          "시스템"
+        ]
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/health",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/ops",
+        "finalUrl": "/admin/ops",
+        "h1": "운영",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": [
+          "시스템"
+        ]
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/users",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/ops?tab=users",
+        "finalUrl": "/admin/ops?tab=users",
+        "h1": "운영",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": [
+          "사용자"
+        ]
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/health/farm/FARM01--P00",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/health/farm/FARM01--P00",
+        "finalUrl": "/admin/health/farm/FARM01--P00",
+        "h1": "FARM01 · 양돈 · 농장",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/health/group/col-a",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/health/group/col-a",
+        "finalUrl": "/admin/health/group/col-a",
+        "h1": "수집 그룹 A · 수집 그룹",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/admin/health/collector-mqtt",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/health/collector-mqtt",
+        "finalUrl": "/admin/health/collector-mqtt",
+        "h1": "Mosquitto",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/play",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": true,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "admin",
+      "path": "/pending",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": true,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "interaction",
+      "path": "alarms→현황 (national cleanup)",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": true,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "interaction",
+      "path": "alarms→현황 (scoped keeps farm)",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "interaction",
+      "path": "monitoring tab cycle",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": true,
+        "hasOpsNav": true,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "interaction",
+      "path": "sidebar 운영 click",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/ops",
+        "finalUrl": "/admin/ops",
+        "h1": "운영",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": [
+          "시스템"
+        ]
+      }
+    },
+    {
+      "suite": "interaction",
+      "path": "health drill-down sidebar",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/admin/health/farm/FARM01--P00",
+        "finalUrl": "/admin/health/farm/FARM01--P00",
+        "h1": "FARM01 · 양돈 · 농장",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": true,
+        "opsActive": true,
+        "monitorActive": false,
+        "settingsActive": false,
+        "role": "관리자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/farm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "운영자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/farm?tab=devices",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?lsind=FARM01&item=P00&sp=SP01&stall=01&ctrl=SP01%253A01%253A01&tab=devices",
+        "finalUrl": "/farm?lsind=FARM01&item=P00&sp=SP01&stall=01&ctrl=SP01%253A01%253A01&tab=devices",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "운영자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "장비"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/farm?tab=alarms",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?tab=alarms",
+        "finalUrl": "/farm?tab=alarms",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "운영자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "이상"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/settings",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/settings",
+        "finalUrl": "/settings",
+        "h1": "설정",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": true,
+        "role": "운영자",
+        "settingsTabs": [
+          "표시",
+          "농장",
+          "알람"
+        ],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/settings?tab=farm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/settings?tab=farm",
+        "finalUrl": "/settings?tab=farm",
+        "h1": "설정",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": true,
+        "role": "운영자",
+        "settingsTabs": [
+          "표시",
+          "농장",
+          "알람"
+        ],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/admin/ops",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "운영자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/admin/health",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "운영자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "operator",
+      "path": "/controllers",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm?lsind=FARM01&item=P00&sp=SP01&stall=01&ctrl=SP01%253A01%253A01&tab=devices",
+        "finalUrl": "/farm?lsind=FARM01&item=P00&sp=SP01&stall=01&ctrl=SP01%253A01%253A01&tab=devices",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "운영자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "장비"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "interaction",
+      "path": "operator no ops nav",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "운영자",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "viewer",
+      "path": "/farm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "뷰어",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "viewer",
+      "path": "/settings?tab=farm",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/settings?tab=farm",
+        "finalUrl": "/settings?tab=farm",
+        "h1": "설정",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": false,
+        "settingsActive": true,
+        "role": "뷰어",
+        "settingsTabs": [
+          "표시",
+          "농장",
+          "알람"
+        ],
+        "monitorTabCurrent": [],
+        "opsTabCurrent": []
+      }
+    },
+    {
+      "suite": "viewer",
+      "path": "/admin/ops",
+      "pass": true,
+      "errors": [],
+      "audit": {
+        "url": "/farm",
+        "finalUrl": "/farm",
+        "h1": "모니터링",
+        "is404": false,
+        "hasGeo": false,
+        "hasOpsNav": false,
+        "opsActive": false,
+        "monitorActive": true,
+        "settingsActive": false,
+        "role": "뷰어",
+        "settingsTabs": [],
+        "monitorTabCurrent": [
+          "현황"
+        ],
+        "opsTabCurrent": []
+      }
+    }
+  ]
+}

@@ -13,7 +13,6 @@ import type {
 import { farmKeyId, moduleKey, type FarmKey } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
 import { isLivePacketMode } from "@/lib/data/iot-raw-live";
-import { decodeLivePayloadFromDb } from "@/lib/data/wire-decode-live";
 
 export type LiveHealthRow = {
   lsind_regist_no: string;
@@ -24,16 +23,7 @@ export type LiveHealthRow = {
   packet_mode?: string | null;
 };
 
-export type DbLiveRow = {
-  id?: number;
-  lsind_regist_no: string;
-  item_code: string;
-  module_uid: number;
-  received_at: string;
-  payload_bytea?: unknown;
-};
-
-export type DbLiveLatestRow = {
+export type DbDecodedLatestRow = {
   lsind_regist_no: string;
   item_code: string;
   module_uid: number;
@@ -42,9 +32,9 @@ export type DbLiveLatestRow = {
   received_at: string;
 };
 
-/** v_iot_live_latest — controller_key from SQL (v0x0C DISTINCT ON) */
-export function mapLiveLatestDbRowsToLiveHealth(
-  rows: DbLiveLatestRow[],
+/** v_iot_decoded_latest — controller_key from Edge decode pipeline */
+export function mapDecodedLatestDbRowsToLiveHealth(
+  rows: DbDecodedLatestRow[],
 ): LiveHealthRow[] {
   return rows
     .filter((row) => isLivePacketMode(row.packet_mode))
@@ -56,40 +46,6 @@ export function mapLiveLatestDbRowsToLiveHealth(
       controller_key: row.controller_key,
       packet_mode: row.packet_mode,
     }));
-}
-
-/** v_iot_raw_live fallback — decode controller_key from payload_bytea */
-export function mapDbRowsToLiveHealth(rows: DbLiveRow[]): LiveHealthRow[] {
-  const out: LiveHealthRow[] = [];
-
-  for (const row of rows) {
-    const decoded = row.payload_bytea
-      ? decodeLivePayloadFromDb(row.payload_bytea)
-      : null;
-
-    if (decoded && isLivePacketMode(decoded.packetMode)) {
-      out.push({
-        lsind_regist_no: row.lsind_regist_no,
-        item_code: row.item_code,
-        module_uid: row.module_uid,
-        received_at: row.received_at,
-        controller_key: decoded.controllerKey,
-        packet_mode: decoded.packetMode,
-      });
-      continue;
-    }
-
-    out.push({
-      lsind_regist_no: row.lsind_regist_no,
-      item_code: row.item_code,
-      module_uid: row.module_uid,
-      received_at: row.received_at,
-      controller_key: null,
-      packet_mode: "live",
-    });
-  }
-
-  return out;
 }
 
 function farmFromRow(row: LiveHealthRow): FarmKey {

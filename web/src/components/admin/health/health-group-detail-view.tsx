@@ -2,9 +2,9 @@ import type { CollectorGroupHealthRow, HealthSnapshot } from "@/lib/admin/health
 import { HealthCollectorGroupTable } from "@/components/admin/health/health-collector-group-table";
 import { HealthFarmModuleTable } from "@/components/admin/health/health-farm-module-table";
 import { HealthInsertRateChart } from "@/components/admin/health/health-insert-rate-chart";
+import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
-import { cn } from "@/lib/utils";
 
 type HealthGroupDetailViewProps = {
   group: CollectorGroupHealthRow;
@@ -42,23 +42,17 @@ export function HealthGroupDetailView({
         </div>
       ) : null}
 
-      <section className="rounded-xl border bg-card p-5">
+      <HealthSectionCard>
         <HealthInsertRateChart buckets={group.insertBuckets} />
-      </section>
+      </HealthSectionCard>
 
-      <section className="rounded-xl border bg-card p-5">
-        <h2 className={cn(dashboardTypography.cardTitle, "mb-4")}>
-          그룹 내 모듈
-        </h2>
+      <HealthSectionCard title="그룹 내 모듈">
         <HealthFarmModuleTable modules={modules} />
-      </section>
+      </HealthSectionCard>
 
-      <section className="rounded-xl border bg-card p-5">
-        <h2 className={cn(dashboardTypography.cardTitle, "mb-4")}>
-          전체 수집 그룹
-        </h2>
+      <HealthSectionCard title="전체 수집 그룹">
         <HealthCollectorGroupTable groups={snapshot.collectorGroups} />
-      </section>
+      </HealthSectionCard>
     </div>
   );
 }
