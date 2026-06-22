@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { HEALTH_REVALIDATE_SEC } from "@/lib/admin/health/constants";
 import { formatHealthTime } from "@/lib/admin/health/format-health-time";
 import { dashboardControl, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
 
 type HealthRefreshBarProps = {
   fetchedAt: string;
+  className?: string;
 };
 
-export function HealthRefreshBar({ fetchedAt }: HealthRefreshBarProps) {
+export function HealthRefreshBar({ fetchedAt, className }: HealthRefreshBarProps) {
   const router = useRouter();
   const [secondsLeft, setSecondsLeft] = useState(HEALTH_REVALIDATE_SEC);
 
@@ -39,7 +41,7 @@ export function HealthRefreshBar({ fetchedAt }: HealthRefreshBarProps) {
   const secs = secondsLeft % 60;
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className={cn("flex flex-wrap items-center gap-3", className)}>
       <p className={dashboardTypography.meta}>
         갱신 {fetchedLabel} · {mins}:{secs.toString().padStart(2, "0")} 후
       </p>

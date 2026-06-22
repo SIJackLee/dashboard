@@ -6,6 +6,8 @@ type HealthUsageBarProps = {
   used: number;
   total: number;
   tone?: "default" | "warn";
+  /** SectionCard title 사용 시 라벨 숨김 */
+  hideLabel?: boolean;
 };
 
 export function HealthUsageBar({
@@ -13,14 +15,23 @@ export function HealthUsageBar({
   used,
   total,
   tone = "default",
+  hideLabel = false,
 }: HealthUsageBarProps) {
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className={cn(dashboardTypography.sectionTitle)}>{label}</p>
-        <p className={cn(dashboardTypography.meta, "tabular-nums")}>
+        {hideLabel ? null : (
+          <p className={cn(dashboardTypography.sectionTitle)}>{label}</p>
+        )}
+        <p
+          className={cn(
+            dashboardTypography.meta,
+            "tabular-nums",
+            hideLabel ? "w-full text-right" : ""
+          )}
+        >
           {used} / {total}
         </p>
       </div>

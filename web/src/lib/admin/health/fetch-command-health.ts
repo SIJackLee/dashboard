@@ -182,16 +182,11 @@ export async function fetchCommandHealth(
     return classifyCommandFailure(row, nowMs).severity;
   });
 
-  const rollup = worstStatus([
-    pendingStatus,
-    sentStatus,
-    throughputStatus,
+  /** DAG 명령 서버: 실패(미체크) 없으면 정상 — pending/sent 지연은 포인트·상세에서만 */
+  const rollup: HealthStatus =
     activeFailures.length > 0
-      ? worstStatus(
-          failureSeverities.length > 0 ? failureSeverities : ["warn"]
-        )
-      : "ok",
-  ]);
+      ? worstStatus(failureSeverities.length > 0 ? failureSeverities : ["warn"])
+      : "ok";
 
   const ignoredNote =
     checkpointCount > 0 ? ` · 체크포인트 무시 ${checkpointCount}건` : "";

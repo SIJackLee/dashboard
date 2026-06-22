@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Droplets, Thermometer } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { SimpleSelect } from "@/components/common/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { saveAlarmSettingsAction } from "@/lib/actions/app-settings-actions";
+import {
+  saveAlarmSettingsAction,
+  saveAlarmSettingsInlineAction,
+} from "@/lib/actions/app-settings-actions";
 import type { BarnReading } from "@/lib/data/iot";
 import {
   activeScopeKeyFromSelection,
@@ -41,6 +45,7 @@ export type AlarmThresholdHeaderState = {
   scopeDescription: string;
   scopeHasOverride: boolean;
   scopeReady: boolean;
+  hasChanges: boolean;
   pending: boolean;
   validationError: string | null;
   onSave: () => void;
@@ -169,6 +174,7 @@ export function AlarmThresholdForm({
   const [draft, setDraft] = useState<AlarmThresholds>(initialSettings.global);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
 
@@ -262,6 +268,24 @@ export function AlarmThresholdForm({
 
   const scopeHasOverride = hasScopeOverride(settings, activeScopeKey);
 
+  const savedThresholds = useMemo(
+    () =>
+      scopeReady && activeScopeKey
+        ? resolveThresholdsForScope(settings, activeScopeKey)
+        : null,
+    [settings, activeScopeKey, scopeReady]
+  );
+
+  const hasChanges = useMemo(() => {
+    if (!savedThresholds) return false;
+    return (
+      draft.tempHigh !== savedThresholds.tempHigh ||
+      draft.tempLow !== savedThresholds.tempLow ||
+      draft.humidityHigh !== savedThresholds.humidityHigh ||
+      draft.humidityLow !== savedThresholds.humidityLow
+    );
+  }, [draft, savedThresholds]);
+
   const scopeDescription = describeAlarmScope(
     farmId,
     spCode === SCOPE_ALL ? "" : spCode,
@@ -296,6 +320,28 @@ export function AlarmThresholdForm({
     setDraft(next);
   };
 
+  const persistSettings = (nextSettings: AlarmSettings) => {
+    const formData = new FormData();
+    formData.set("settings_json", JSON.stringify(nextSettings));
+
+    if (embedded) {
+      startTransition(async () => {
+        const result = await saveAlarmSettingsInlineAction(formData);
+        if (!result.ok) {
+          setValidationError(result.error ?? "저장 실패");
+          return;
+        }
+        setValidationError(null);
+        router.refresh();
+      });
+      return;
+    }
+
+    startTransition(() => {
+      void saveAlarmSettingsAction(formData);
+    });
+  };
+
   const handleSaveScope = () => {
     if (!activeScopeKey) return;
     const err = validateAlarmThresholds(draft);
@@ -305,11 +351,7 @@ export function AlarmThresholdForm({
     }
     const nextSettings = mergeScopeThreshold(settings, activeScopeKey, draft);
     setSettings(nextSettings);
-    const formData = new FormData();
-    formData.set("settings_json", JSON.stringify(nextSettings));
-    startTransition(() => {
-      void saveAlarmSettingsAction(formData);
-    });
+    persistSettings(nextSettings);
   };
 
   const handleClearScope = () => {
@@ -317,11 +359,7 @@ export function AlarmThresholdForm({
     const nextSettings = clearScopeThreshold(settings, activeScopeKey);
     setSettings(nextSettings);
     setDraft(resolveThresholdsForScope(nextSettings, activeScopeKey));
-    const formData = new FormData();
-    formData.set("settings_json", JSON.stringify(nextSettings));
-    startTransition(() => {
-      void saveAlarmSettingsAction(formData);
-    });
+    persistSettings(nextSettings);
   };
 
   const handleApplyDefaults = () => {
@@ -338,6 +376,7 @@ export function AlarmThresholdForm({
       scopeDescription,
       scopeHasOverride,
       scopeReady,
+      hasChanges,
       pending,
       validationError,
       onSave: handleSaveScope,
@@ -356,6 +395,7 @@ export function AlarmThresholdForm({
     activeScopeKey,
     draft,
     settings,
+    hasChanges,
   ]);
 
   const formBody = (
@@ -473,7 +513,7 @@ export function AlarmThresholdForm({
               <PageActionButton
                 type="submit"
                 variant="primary"
-                disabled={pending || !!validationError || !scopeReady}
+                disabled={pending || !!validationError || !scopeReady || !hasChanges}
               >
                 {pending ? "저장 중…" : "저장"}
               </PageActionButton>

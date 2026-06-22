@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { SectionCard } from "@/components/common/section-card";
+import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { saveDisplaySettingsAction } from "@/lib/actions/app-settings-actions";
@@ -54,7 +54,8 @@ export function DisplaySettingsForm({ initialSettings }: Props) {
   return (
     <form onSubmit={handleSubmit}>
       <input type="hidden" name="settings_json" value={JSON.stringify(settings)} />
-      <SectionCard
+      <HealthSectionCard
+        density="hub"
         title="페이지 표시 설정"
         description="각 페이지 UI 요소의 표시 여부를 선택합니다. 저장 후 전체 페이지에 즉시 반영됩니다."
         action={
@@ -62,6 +63,7 @@ export function DisplaySettingsForm({ initialSettings }: Props) {
             {pending ? "저장 중…" : "저장"}
           </PageActionButton>
         }
+        className="w-full shrink-0"
       >
         <div className="space-y-5">
           {groups.map((group) => (
@@ -84,7 +86,7 @@ export function DisplaySettingsForm({ initialSettings }: Props) {
             </div>
           ))}
         </div>
-      </SectionCard>
+      </HealthSectionCard>
     </form>
   );
 }

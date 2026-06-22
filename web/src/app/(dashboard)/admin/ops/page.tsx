@@ -2,9 +2,10 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { AdminOpsTabPanel } from "@/components/admin/admin-ops-tab-panel";
+import { AdminOpsTabShell } from "@/components/admin/admin-ops-tab-shell";
 import { AdminOpsTabs } from "@/components/admin/admin-ops-tabs";
 import { AdminUsersView } from "@/components/admin/admin-users-view";
-import { HealthOverviewView } from "@/components/admin/health/health-overview-view";
+import { HealthSystemShell } from "@/components/admin/health/health-system-shell";
 import { AdminFarmLocationPanel } from "@/components/settings/admin-farm-location-panel";
 import { DisplaySettingsForm } from "@/components/settings/display-settings-form";
 import { CommandHistoryTable } from "@/components/controllers/command-history-table";
@@ -44,6 +45,7 @@ export default async function AdminOpsPage({
 }: {
   searchParams: Promise<{
     tab?: string;
+    view?: string;
     ok?: string;
     error?: string;
     count?: string;
@@ -64,7 +66,7 @@ export default async function AdminOpsPage({
   }
 
   const pageBody = (content: ReactNode) => (
-    <div className="space-y-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <Suspense fallback={null}>
         <AdminOpsTabs active={tab} />
       </Suspense>
@@ -72,8 +74,8 @@ export default async function AdminOpsPage({
         <p
           className={
             notice.tone === "ok"
-              ? "rounded-xl bg-emerald-50 px-5 py-4 text-[1.75rem] text-emerald-700"
-              : "rounded-xl bg-red-50 px-5 py-4 text-[1.75rem] text-red-700"
+              ? "shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800"
+              : "shrink-0 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800"
           }
         >
           {notice.text}
@@ -101,18 +103,18 @@ export default async function AdminOpsPage({
     }));
 
     return (
-      <PageShell>
+      <PageShell wide>
         {pageBody(
-          <>
+          <AdminOpsTabShell>
             {configError ? (
-              <p className="rounded-xl bg-amber-50 px-5 py-4 text-[1.75rem] text-amber-800">
+              <p className="shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
                 SUPABASE_SERVICE_ROLE_KEY가 설정되지 않았습니다.{" "}
                 <code>web/.env.local</code>에 service_role 키를 입력해야 사용자
                 목록/권한 부여가 동작합니다.
               </p>
             ) : null}
             <AdminUsersView users={users} farmOptions={farmOptions} />
-          </>
+          </AdminOpsTabShell>
         )}
       </PageShell>
     );
@@ -122,11 +124,13 @@ export default async function AdminOpsPage({
     const farmLocationOptions = await getEditableFarmLocationOptions();
 
     return (
-      <PageShell>
+      <PageShell wide>
         {pageBody(
-          <Suspense fallback={null}>
-            <AdminFarmLocationPanel options={farmLocationOptions} />
-          </Suspense>
+          <AdminOpsTabShell>
+            <Suspense fallback={null}>
+              <AdminFarmLocationPanel options={farmLocationOptions} />
+            </Suspense>
+          </AdminOpsTabShell>
         )}
       </PageShell>
     );
@@ -136,8 +140,12 @@ export default async function AdminOpsPage({
     const displaySettings = await getDisplaySettings();
 
     return (
-      <PageShell>
-        {pageBody(<DisplaySettingsForm initialSettings={displaySettings} />)}
+      <PageShell wide>
+        {pageBody(
+          <AdminOpsTabShell>
+            <DisplaySettingsForm initialSettings={displaySettings} />
+          </AdminOpsTabShell>
+        )}
       </PageShell>
     );
   }
@@ -146,8 +154,12 @@ export default async function AdminOpsPage({
     const commands = await getThermoCommandHistory(100);
 
     return (
-      <PageShell>
-        {pageBody(<CommandHistoryTable commands={commands} />)}
+      <PageShell wide>
+        {pageBody(
+          <AdminOpsTabShell>
+            <CommandHistoryTable commands={commands} />
+          </AdminOpsTabShell>
+        )}
       </PageShell>
     );
   }
@@ -155,8 +167,8 @@ export default async function AdminOpsPage({
   const snapshot = await fetchHealthSnapshot();
 
   return (
-    <PageShell>
-      {pageBody(<HealthOverviewView snapshot={snapshot} />)}
+    <PageShell wide>
+      {pageBody(<HealthSystemShell snapshot={snapshot} />)}
     </PageShell>
   );
 }

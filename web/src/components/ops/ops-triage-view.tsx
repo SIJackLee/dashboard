@@ -604,8 +604,8 @@ function OpsTriageViewBody({
                 .join(" · ")
             : undefined
       }
-      className="flex h-full min-h-0 flex-col"
-      contentClassName="flex min-h-0 flex-1 flex-col pt-0"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden pt-0"
     >
       <div className="min-h-0 flex-1 overflow-y-auto">
         <HierarchyAlarmTree
@@ -644,20 +644,22 @@ function OpsTriageViewBody({
     ) : null;
 
   const opsTriageGridClass = geoHubMode
-    ? "hidden gap-4 lg:grid lg:max-h-[calc(100vh-9rem)] lg:min-h-[360px] lg:grid-cols-[minmax(300px,24%)_minmax(260px,18%)_minmax(560px,1fr)] lg:items-start"
-    : "hidden gap-4 lg:grid lg:max-h-[calc(100vh-9rem)] lg:grid-cols-[minmax(400px,28%)_minmax(0,1fr)]";
+    ? "hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:min-h-[360px] lg:grid-cols-[minmax(300px,24%)_minmax(260px,18%)_minmax(560px,1fr)] lg:items-stretch lg:overflow-hidden"
+    : "hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:grid-cols-[minmax(400px,28%)_minmax(0,1fr)] lg:items-stretch lg:overflow-hidden";
 
   const columnShellClass =
     "max-h-[calc(100vh-9rem)] min-h-[360px] min-w-0 overflow-hidden";
 
-  const mapColumnShellClass = geoHubMode
-    ? "min-w-0 self-start overflow-hidden"
-    : columnShellClass;
-
-  const controllerColumnShellClass = cn(
+  const columnScrollShellClass = cn(
     columnShellClass,
     "flex h-full min-h-0 flex-col overflow-hidden"
   );
+
+  const mapColumnShellClass = geoHubMode
+    ? cn(columnScrollShellClass, "self-stretch")
+    : columnScrollShellClass;
+
+  const controllerColumnShellClass = columnScrollShellClass;
 
   const controllerColumn = showAdminPlaceholder ? (
     <AdminControllerPlaceholderClient />
@@ -729,7 +731,7 @@ function OpsTriageViewBody({
             {geoHubMode ? (
               <div className={mapColumnShellClass}>{mapColumn}</div>
             ) : null}
-            <div className={columnShellClass}>{farmListColumn}</div>
+            <div className={columnScrollShellClass}>{farmListColumn}</div>
             <div
               className={cn(
                 controllerColumnShellClass,
@@ -742,7 +744,9 @@ function OpsTriageViewBody({
 
           <div className="space-y-4 lg:hidden">
             {geoHubMode ? mapColumn : null}
-            {farmListColumn}
+            <div className="flex h-[min(70vh,720px)] min-h-[360px] flex-col overflow-hidden">
+              {farmListColumn}
+            </div>
             <div
               className={cn(
                 showAdminPlaceholder && "pointer-events-none opacity-50"

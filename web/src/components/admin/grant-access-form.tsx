@@ -10,7 +10,7 @@ import type {
 } from "@/components/admin/farm-access-grant-table";
 import { ComboSearchBar } from "@/components/common/combo-search-bar";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { SectionCard } from "@/components/common/section-card";
+import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import type { ManagedUser } from "@/lib/admin/list-users";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -297,7 +297,12 @@ export function GrantAccessForm({
   );
 
   return (
-    <SectionCard title="농장 접근 권한 부여" action={modeToggle}>
+    <HealthSectionCard
+      density="hub"
+      title="농장 접근 권한 부여"
+      action={modeToggle}
+      className="w-full shrink-0"
+    >
       {farmOptions.length === 0 ? (
         <p className={cn("text-muted-foreground", dashboardUi.body)}>
           LIVE 데이터에 등록된 농장이 없습니다.
@@ -418,6 +423,6 @@ export function GrantAccessForm({
           />
         </div>
       )}
-    </SectionCard>
+    </HealthSectionCard>
   );
 }

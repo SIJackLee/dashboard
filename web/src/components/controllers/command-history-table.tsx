@@ -1,4 +1,4 @@
-import { SectionCard } from "@/components/common/section-card";
+import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -50,7 +50,11 @@ type Props = {
 
 export function CommandHistoryTable({ commands = [] }: Props) {
   return (
-    <SectionCard size="lg" title="명령 히스토리">
+    <HealthSectionCard
+      density="hub"
+      title="명령 히스토리"
+      className="w-full shrink-0"
+    >
       {commands.length === 0 ? (
         <p className={cn("py-6 text-center", ctrlUi.body, "text-muted-foreground")}>
           등록된 명령이 없습니다.
@@ -90,6 +94,6 @@ export function CommandHistoryTable({ commands = [] }: Props) {
           </TableBody>
         </Table>
       )}
-    </SectionCard>
+    </HealthSectionCard>
   );
 }

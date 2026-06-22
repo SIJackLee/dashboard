@@ -2,31 +2,28 @@
 
 import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ADMIN_OPS_BASE_PATH } from "@/lib/admin/ops-tabs";
 import {
-  ADMIN_OPS_TABS,
-  ADMIN_OPS_BASE_PATH,
-  type AdminOpsTabId,
-  setAdminOpsTabParam,
-} from "@/lib/admin/ops-tabs";
+  HEALTH_SYSTEM_VIEWS,
+  type HealthSystemViewId,
+  setHealthSystemViewParam,
+} from "@/lib/admin/health/system-views";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Props = {
-  active: AdminOpsTabId;
+  active: HealthSystemViewId;
 };
 
-export function AdminOpsTabs({ active }: Props) {
+export function HealthSystemSubTabs({ active }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  const selectTab = (tab: AdminOpsTabId) => {
-    if (tab === active || isPending) return;
+  const selectView = (view: HealthSystemViewId) => {
+    if (view === active || isPending) return;
     const params = new URLSearchParams(searchParams.toString());
-    setAdminOpsTabParam(params, tab);
-    params.delete("ok");
-    params.delete("error");
-    params.delete("count");
+    setHealthSystemViewParam(params, view);
     const q = params.toString();
     const href = q ? `${ADMIN_OPS_BASE_PATH}?${q}` : ADMIN_OPS_BASE_PATH;
 
@@ -38,30 +35,30 @@ export function AdminOpsTabs({ active }: Props) {
   return (
     <nav
       className={cn(
-        "flex shrink-0 flex-wrap gap-2 border-b pb-1",
+        "flex flex-wrap gap-2 border-b border-border/60 pb-2",
         isPending && "opacity-80"
       )}
-      aria-label="운영 탭"
+      aria-label="시스템 하위 뷰"
       aria-busy={isPending || undefined}
     >
-      {ADMIN_OPS_TABS.map((tab) => {
-        const isActive = active === tab.id;
+      {HEALTH_SYSTEM_VIEWS.map((view) => {
+        const isActive = active === view.id;
         return (
           <button
-            key={tab.id}
+            key={view.id}
             type="button"
             disabled={isPending}
-            onClick={() => selectTab(tab.id)}
-            aria-current={isActive ? "page" : undefined}
+            onClick={() => selectView(view.id)}
+            aria-current={isActive ? "true" : undefined}
             className={cn(
-              "border-b-2 transition-colors disabled:pointer-events-none",
+              "rounded-lg px-3 py-1.5 transition-colors disabled:pointer-events-none",
               dashboardUi.tabNav,
               isActive
-                ? "border-emerald-600 text-emerald-700"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+                ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             )}
           >
-            {tab.label}
+            {view.label}
           </button>
         );
       })}

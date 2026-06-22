@@ -1,15 +1,10 @@
-import { HealthCommandEventGraph } from "@/components/admin/health/health-command-event-graph";
-import { HealthCommandFailurePanel } from "@/components/admin/health/health-command-failure-panel";
 import type { HealthSnapshot } from "@/lib/admin/health/types";
 import {
   CollectorSubGrid,
   HealthCollectorTopology,
 } from "@/components/admin/health/health-collector-topology";
-import { HealthD11Panel, HealthPointTable } from "@/components/admin/health/health-point-table";
-import { hintsFromPoints } from "@/lib/admin/health/d11-map";
 import { HealthAlertList } from "@/components/admin/health/health-alert-list";
 import { HealthCollectorGroupTable } from "@/components/admin/health/health-collector-group-table";
-import { HealthControllerTable } from "@/components/admin/health/health-controller-table";
 import { HealthFarmModuleTable } from "@/components/admin/health/health-farm-module-table";
 import { HealthInsertRateChart } from "@/components/admin/health/health-insert-rate-chart";
 import { HealthModuleAgeChart } from "@/components/admin/health/health-module-age-chart";
@@ -18,8 +13,12 @@ import { HealthSectionCard } from "@/components/admin/health/health-section-card
 import { HealthStatusStats } from "@/components/admin/health/health-status-stats";
 import { HealthTopologyGraph } from "@/components/admin/health/health-topology-graph";
 import { HealthUsageBar } from "@/components/admin/health/health-usage-bar";
+import { HealthOverallStatus } from "@/components/admin/health/health-overall-status";
+import { HEALTH_UI, worstHealthStatus } from "@/lib/admin/health/health-ui-labels";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+
+export { HealthNodeDetailView } from "@/components/admin/health/health-node-detail-view";
 
 type HealthOverviewViewProps = {
   snapshot: HealthSnapshot;
@@ -27,21 +26,25 @@ type HealthOverviewViewProps = {
 
 export function HealthOverviewView({ snapshot }: HealthOverviewViewProps) {
   const capWarn = snapshot.liveRowCount >= snapshot.liveRowLimit * 0.9;
+  const overallStatus = worstHealthStatus(snapshot.statusCounts);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className={cn(dashboardTypography.meta)}>
-            시스템 · 1층 개요 (민감정보 없음)
-          </p>
-          {snapshot.impactScope ? (
-            <p className={cn(dashboardTypography.body, "mt-1")}>
-              영향 범위: <strong>{snapshot.impactScope}</strong>
-            </p>
-          ) : null}
-        </div>
-        <HealthRefreshBar key={snapshot.fetchedAt} fetchedAt={snapshot.fetchedAt} />
+      <div
+        className={cn(
+          "sticky top-0 z-20 -mx-1 flex flex-wrap items-start justify-between gap-4",
+          "border-b bg-background/95 px-1 py-3 backdrop-blur supports-backdrop-filter:bg-background/80"
+        )}
+      >
+        <HealthOverallStatus
+          overallStatus={overallStatus}
+          impactScope={snapshot.impactScope}
+        />
+        <HealthRefreshBar
+          key={snapshot.fetchedAt}
+          fetchedAt={snapshot.fetchedAt}
+          className="shrink-0"
+        />
       </div>
 
       {!snapshot.dbOk ? (
@@ -53,27 +56,20 @@ export function HealthOverviewView({ snapshot }: HealthOverviewViewProps) {
         </div>
       ) : null}
 
-      {snapshot.d11Hints.length > 0 ? (
-        <div className="rounded-xl border border-amber-300/50 bg-amber-50 px-5 py-4">
-          <p className={cn(dashboardTypography.sectionTitle, "text-amber-900")}>
-            D11 힌트
-          </p>
-          <p className={cn(dashboardTypography.body, "text-amber-900")}>
-            {snapshot.d11Hints.map((h) => `${h.id} ${h.title}`).join(" · ")}
-          </p>
-        </div>
-      ) : null}
-
-      <HealthSectionCard title="6칸 파이프라인 · 토폴로지">
-        <HealthTopologyGraph
-          nodes={snapshot.pipeline}
-          downlinkBranch={snapshot.collectorSub.find((n) => n.id === "collector-c")}
-        />
-      </HealthSectionCard>
-
       <HealthStatusStats counts={snapshot.statusCounts} />
 
-      <HealthSectionCard title="활성 알림 · 스냅샷">
+      <HealthSectionCard
+        title={HEALTH_UI.activeAlerts}
+        description={HEALTH_UI.activeAlertsDesc}
+      >
+        {snapshot.d11Hints.length > 0 ? (
+          <div className="mb-4 rounded-lg border border-amber-300/40 bg-amber-50/80 px-4 py-3">
+            <p className={cn(dashboardTypography.meta, "text-amber-900")}>
+              {HEALTH_UI.actionHint}:{" "}
+              {snapshot.d11Hints.map((h) => h.title).join(" · ")}
+            </p>
+          </div>
+        ) : null}
         <HealthAlertList
           key={snapshot.fetchedAt}
           alerts={snapshot.activeAlerts}
@@ -81,30 +77,44 @@ export function HealthOverviewView({ snapshot }: HealthOverviewViewProps) {
         />
       </HealthSectionCard>
 
+      <HealthSectionCard title={HEALTH_UI.dataPath} description={HEALTH_UI.dataPathDesc}>
+        <HealthTopologyGraph
+          nodes={snapshot.pipeline}
+          downlinkBranch={snapshot.collectorSub.find((n) => n.id === "collector-c")}
+        />
+      </HealthSectionCard>
+
       {snapshot.collectorGroups.length > 0 ? (
-        <HealthSectionCard title="수집 서버 그룹 · R3">
+        <HealthSectionCard
+          title={HEALTH_UI.collectorGroups}
+          description={HEALTH_UI.collectorGroupsDesc}
+        >
           <HealthCollectorGroupTable groups={snapshot.collectorGroups} />
         </HealthSectionCard>
       ) : null}
 
-      <HealthSectionCard>
-        <HealthInsertRateChart buckets={snapshot.insertBuckets} />
+      <HealthSectionCard title={HEALTH_UI.insertRate} description={HEALTH_UI.insertRateDesc}>
+        <HealthInsertRateChart buckets={snapshot.insertBuckets} hideTitle />
       </HealthSectionCard>
 
-      <HealthSectionCard>
-        <HealthModuleAgeChart modules={snapshot.modules} />
+      <HealthSectionCard title={HEALTH_UI.moduleAge} description={HEALTH_UI.moduleAgeDesc}>
+        <HealthModuleAgeChart modules={snapshot.modules} hideTitle />
       </HealthSectionCard>
 
-      <HealthSectionCard title="관리 화면 · live 조회 상한 (D9)">
+      <HealthSectionCard title={HEALTH_UI.liveCap} description={HEALTH_UI.liveCapDesc}>
         <HealthUsageBar
-          label="관리 화면 · live 조회 상한 (D9)"
+          label={HEALTH_UI.liveCap}
           used={snapshot.liveRowCount}
           total={snapshot.liveRowLimit}
           tone={capWarn ? "warn" : "default"}
+          hideLabel
         />
       </HealthSectionCard>
 
-      <HealthSectionCard title="농장 · 모듈 (worst rollup)">
+      <HealthSectionCard
+        title={HEALTH_UI.farmModules}
+        description={HEALTH_UI.farmModulesDesc}
+      >
         <HealthFarmModuleTable modules={snapshot.modules} />
       </HealthSectionCard>
     </div>
@@ -136,175 +146,6 @@ export function HealthCollectorView({ snapshot }: HealthCollectorViewProps) {
       ) : null}
       <HealthSectionCard>
         <HealthInsertRateChart buckets={snapshot.insertBuckets} />
-      </HealthSectionCard>
-    </div>
-  );
-}
-
-type HealthNodeDetailViewProps = {
-  nodeId: string;
-  snapshot: HealthSnapshot;
-};
-
-export function HealthNodeDetailView({
-  nodeId,
-  snapshot,
-}: HealthNodeDetailViewProps) {
-  const points = snapshot.pointsByNode[nodeId as keyof typeof snapshot.pointsByNode] ?? [];
-  const hints = hintsFromPoints(points);
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
-      <div className="space-y-6">
-        <p className={dashboardTypography.meta}>
-          /admin/health/{nodeId} · 2층 상세
-        </p>
-        <HealthPointTable points={points.length ? points : [{ id: "—", label: "포인트", value: "P0 미구현", status: "unknown" }]} />
-        {nodeId === "collector-rs" ? (
-          <HealthSectionCard>
-            <HealthInsertRateChart buckets={snapshot.insertBuckets} />
-          </HealthSectionCard>
-        ) : null}
-        {nodeId === "dashboard" ? (
-          <HealthSectionCard title="v_iot_decoded_latest">
-            <HealthUsageBar
-              label="v_iot_decoded_latest"
-              used={snapshot.liveRowCount}
-              total={snapshot.liveRowLimit}
-              tone={snapshot.liveRowCount >= snapshot.liveRowLimit * 0.9 ? "warn" : "default"}
-            />
-          </HealthSectionCard>
-        ) : null}
-        {nodeId === "field-module" ? (
-          <HealthSectionCard title="모듈 목록 (전역)">
-            <HealthFarmModuleTable modules={snapshot.modules} />
-          </HealthSectionCard>
-        ) : null}
-        {nodeId === "field-controller" ? (
-          <HealthSectionCard title="장비 목록 (전역)">
-            <HealthControllerTable controllers={snapshot.controllers} limit={50} />
-          </HealthSectionCard>
-        ) : null}
-        {nodeId === "collector-c" ? (
-          <>
-            <HealthSectionCard>
-              <HealthCommandEventGraph
-                items={snapshot.commandTimeline}
-                fetchedAt={snapshot.fetchedAt}
-              />
-            </HealthSectionCard>
-            <HealthSectionCard title="C 실패 이력 · 체크포인트">
-              <HealthCommandFailurePanel
-                failures={snapshot.commandFailures}
-                checkpointCount={snapshot.commandCheckpointCount}
-              />
-            </HealthSectionCard>
-          </>
-        ) : null}
-        {nodeId === "collector-mqtt" ? (
-          <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
-            <p className={dashboardTypography.body}>
-              Mosquitto active probe 없음 — RS raw 수신으로 간접 추론 (spec §3a).
-            </p>
-          </div>
-        ) : null}
-        {nodeId === "collector-ekape" ? (
-          <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
-            <p className={dashboardTypography.body}>
-              Ekape export 비활성화 — snapshot·View·config 테이블 제거됨
-              (migration 20260619000000).
-            </p>
-          </div>
-        ) : null}
-        {nodeId === "collector-ftp" ? (
-          <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
-            <p className={dashboardTypography.body}>
-              FTP Worker 비활성화 (Ekape 미구현). 수집 서버 rollup에서 제외됩니다.
-            </p>
-          </div>
-        ) : null}
-        {nodeId === "external" ? (
-          <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
-            <p className={dashboardTypography.body}>
-              외부 연계(축평원) 비활성화 — 재개 시 D10·migration 이력 참고.
-            </p>
-          </div>
-        ) : null}
-        <HealthSectionCard title="기술 상세 (admin 2층)">
-          <details>
-            <summary className={cn(dashboardTypography.sectionTitle, "cursor-pointer")}>
-              펼치기
-            </summary>
-            <ul className={cn("mt-4 space-y-2", dashboardTypography.meta)}>
-              {nodeId === "collector-rs" && (
-                <>
-                  <li>Process: RS.py</li>
-                  <li>Table: iot_room_state_raw</li>
-                  <li>Mosquitto: RS 간접 추론 — active probe 없음</li>
-                </>
-              )}
-              {nodeId === "storage" && (
-                <>
-                  <li>View: v_iot_decoded_latest · raw: iot_room_state_raw (insert rate)</li>
-                  <li>Decode lag: max(raw.id) − iot_decode_cursor.last_raw_id</li>
-                  <li>Supabase (service role)</li>
-                </>
-              )}
-              {nodeId === "collector-c" && (
-                <>
-                  <li>Table: ctrl_thermo_command</li>
-                  <li>Checkpoint: health_command_checkpoint (admin)</li>
-                  <li>COL rollup: uplink only — C는 별도 downlink 노드</li>
-                </>
-              )}
-              {nodeId === "collector-mqtt" && (
-                <>
-                  <li>Broker: Mosquitto</li>
-                  <li>Probe: 없음 — RS raw 간접 추론</li>
-                </>
-              )}
-              {nodeId === "collector-ekape" && (
-                <>
-                  <li>상태: 비활성화 (Ekape 미구현)</li>
-                  <li>설계 참고: Diagrams/D10-external-ekape.md</li>
-                </>
-              )}
-              {nodeId === "collector-ftp" && (
-                <>
-                  <li>상태: 비활성화 (Ekape 미구현)</li>
-                </>
-              )}
-              {nodeId === "external" && (
-                <>
-                  <li>상태: 비활성화 (Ekape 미구현)</li>
-                  <li>설계 참고: Diagrams/D10-external-ekape.md</li>
-                </>
-              )}
-              {nodeId === "field-module" && (
-                <>
-                  <li>Source: v_iot_decoded_latest (module rollup)</li>
-                  <li>Staleness: D9 gap = 300÷N</li>
-                </>
-              )}
-              {nodeId === "field-controller" && (
-                <>
-                  <li>Source: v_iot_decoded_latest (controller_key)</li>
-                  <li>단일 장비 이상 → S5</li>
-                </>
-              )}
-              {nodeId === "dashboard" && (
-                <>
-                  <li>GLOBAL_LIVE_ROW_LIMIT: {snapshot.liveRowLimit}</li>
-                  <li>Decode: Dashboard TS layer</li>
-                </>
-              )}
-              <li>docs/architecture-firmware-ec2-db.md</li>
-            </ul>
-          </details>
-        </HealthSectionCard>
-      </div>
-      <HealthSectionCard title="D11 추천">
-        <HealthD11Panel hints={hints} />
       </HealthSectionCard>
     </div>
   );

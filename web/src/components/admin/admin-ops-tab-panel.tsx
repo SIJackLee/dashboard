@@ -40,6 +40,11 @@ export function AdminOpsTabPanel({ serverTab, children }: Props) {
   }
 
   return (
-    <div key={`${serverTab}-${searchParams.toString()}`}>{children}</div>
+    <div
+      key={`${serverTab}-${searchParams.get("view") ?? ""}-${searchParams.toString()}`}
+      className="flex min-h-0 flex-1 flex-col"
+    >
+      {children}
+    </div>
   );
 }

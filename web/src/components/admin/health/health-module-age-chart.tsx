@@ -9,11 +9,18 @@ import { cn } from "@/lib/utils";
 
 type HealthModuleAgeChartProps = {
   modules: ModuleHealthRow[];
+  hideTitle?: boolean;
+  limit?: number;
+  compact?: boolean;
 };
 
-export function HealthModuleAgeChart({ modules }: HealthModuleAgeChartProps) {
-  const top = modules.slice(0, 8);
-  const items = top.map((m) => ({
+export function HealthModuleAgeChart({
+  modules,
+  hideTitle = false,
+  limit = 8,
+  compact = false,
+}: HealthModuleAgeChartProps) {
+  const top = modules.slice(0, limit);  const items = top.map((m) => ({
     id: m.id,
     label: `${m.farmLabel} · ${m.moduleLabel}`,
     value: m.ageMin,
@@ -22,7 +29,9 @@ export function HealthModuleAgeChart({ modules }: HealthModuleAgeChartProps) {
 
   return (
     <div className="space-y-2">
-      <p className={cn(dashboardTypography.sectionTitle)}>모듈별 last seen age</p>
+      {hideTitle ? null : (
+        <p className={cn(dashboardTypography.sectionTitle)}>모듈별 last seen age</p>
+      )}
       <HorizontalBarChart
         items={items}
         unit=" min"
@@ -30,9 +39,10 @@ export function HealthModuleAgeChart({ modules }: HealthModuleAgeChartProps) {
         barClassName="bg-amber-500"
         emptyLabel="모듈 데이터 없음"
       />
-      <p className={dashboardTypography.meta}>
-        참조: ok ≤ {MODULE_AGE_OK_MIN}m · critical ≥ {MODULE_AGE_CRITICAL_MIN}m (D9)
-      </p>
-    </div>
+      {compact ? null : (
+        <p className={dashboardTypography.meta}>
+          참조: 정상 ≤ {MODULE_AGE_OK_MIN}m · 경고 ≥ {MODULE_AGE_CRITICAL_MIN}m (동일 컨트롤러)
+        </p>
+      )}    </div>
   );
 }

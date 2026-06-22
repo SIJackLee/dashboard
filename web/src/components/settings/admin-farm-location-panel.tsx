@@ -7,7 +7,7 @@ import {
   saveFarmLocationsBatchInlineAction,
 } from "@/lib/actions/app-settings-actions";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { SectionCard } from "@/components/common/section-card";
+import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import { Input } from "@/components/ui/input";
 import {
   buildBulkRowsFromOptions,
@@ -155,11 +155,10 @@ export function AdminFarmLocationPanel({ options }: Props) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-3">
       <div
         className={cn(
-          "flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/15 px-5 py-4",
-          dashboardUi.body
+          "flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/15 px-4 py-3 text-sm"
         )}
       >
         <div>
@@ -214,8 +213,7 @@ export function AdminFarmLocationPanel({ options }: Props) {
       {message ? (
         <p
           className={cn(
-            "rounded-xl border px-5 py-4",
-            dashboardUi.body,
+            "shrink-0 rounded-lg border px-4 py-2 text-sm",
             message.tone === "ok"
               ? "border-emerald-200 bg-emerald-50 text-emerald-800"
               : "border-red-200 bg-red-50 text-red-800"
@@ -225,7 +223,11 @@ export function AdminFarmLocationPanel({ options }: Props) {
         </p>
       ) : null}
 
-      <SectionCard title="농장 위치 설정">
+      <HealthSectionCard
+        density="hub"
+        title="농장 위치 설정"
+        className="w-full shrink-0"
+      >
         <div className="mb-4 space-y-3">
           <Input
             uiSize="dashboard"
@@ -272,7 +274,7 @@ export function AdminFarmLocationPanel({ options }: Props) {
           applyingId={applyingId}
           pending={pending}
         />
-      </SectionCard>
+      </HealthSectionCard>
     </div>
   );
 }

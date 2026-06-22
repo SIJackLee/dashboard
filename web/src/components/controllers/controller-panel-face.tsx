@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useCommandPipelineRefresh } from "@/components/controllers/use-command-pipeline-refresh";
 import { ControllerTempTripleSlider } from "@/components/controllers/controller-temp-triple-slider";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import {
@@ -79,7 +80,7 @@ type PanelControlProps = {
   onChannelChange?: (channel: ChannelSlot) => void;
   /** OpsScopeBar에서 컨트롤러 pill로 선택 — 중앙 목록 숨김 */
   hideControllerList?: boolean;
-  /** 알람 임계값 — 병합「설정값」패널 슬롯 */
+  /** 알람 임계값 — 병합「알림값」패널 슬롯 */
   alarmThresholdHeader?: AlarmThresholdHeaderState | null;
   alarmSettingsPanel?: ReactNode;
 };
@@ -165,6 +166,8 @@ function CommandPipelineStatus({
 }: {
   command: ThermoCommand | null | undefined;
 }) {
+  useCommandPipelineRefresh(command?.status, command?.id);
+
   if (!command) return null;
 
   const toneClass =
@@ -381,7 +384,7 @@ function DesktopGroupedSliders({
 
   return (
     <div className={cn("hidden md:block", ctrlUi.section)}>
-      <p className={dashboardTypography.sectionTitle}>설정값</p>
+      <p className={dashboardTypography.sectionTitle}>알림값</p>
       {grid}
     </div>
   );
@@ -483,7 +486,7 @@ function MobileGroupedSliders({
 
   return (
     <div className={cn("md:hidden", ctrlUi.section)}>
-      <p className={dashboardTypography.sectionTitle}>설정값</p>
+      <p className={dashboardTypography.sectionTitle}>알림값</p>
       <div className="mt-3">{tabs}</div>
     </div>
   );
@@ -533,7 +536,8 @@ export function ControllerPanelFace({
     Boolean(alarmThresholdHeader) &&
     !alarmThresholdHeader!.pending &&
     !alarmThresholdHeader!.validationError &&
-    alarmThresholdHeader!.scopeReady;
+    alarmThresholdHeader!.scopeReady &&
+    alarmThresholdHeader!.hasChanges;
 
   const canSaveControl =
     showSliders &&
@@ -669,7 +673,7 @@ export function ControllerPanelFace({
         {showSettingsValues ? (
           <div className={cn("mb-5", dashboardUi.sectionMuted)}>
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className={dashboardTypography.sectionTitle}>설정값</p>
+              <p className={dashboardTypography.sectionTitle}>알림값</p>
               <div className="flex flex-wrap items-center gap-2">
                 {settingsHeaderActions}
               </div>
@@ -684,7 +688,7 @@ export function ControllerPanelFace({
                       dashboardTypography.formLabel
                     )}
                   >
-                    제어
+                    컨트롤러 제어값
                   </p>
                 ) : null}
                 <DesktopGroupedSliders

@@ -1,24 +1,32 @@
 import type { HealthStatus } from "@/lib/admin/health/types";
-import { UPLINK_ROUND_SEC } from "@/lib/admin/health/constants";
+import {
+  CONTROLLER_STALE_CRITICAL_MIN,
+  CONTROLLER_STALE_WARN_MIN,
+  UPLINK_ROUND_SEC,
+} from "@/lib/admin/health/constants";
+
+const WARN_SEC = CONTROLLER_STALE_WARN_MIN * 60;
+const CRITICAL_SEC = CONTROLLER_STALE_CRITICAL_MIN * 60;
 
 export function controllerCountClamped(n: number): number {
   return Math.max(1, Math.min(50, n));
 }
 
+/** 모듈 내 컨트롤러 순환 슬롯 간격(초) — 48C 가정 시 ≈6.25s. 헬스 판정과 별개. */
 export function gapSec(controllerCount: number): number {
   return UPLINK_ROUND_SEC / controllerCountClamped(controllerCount);
 }
 
-/** Age since last received (seconds). */
-export function evaluateStaleness(
-  ageSec: number | null,
-  controllerCount: number
-): HealthStatus {
+/**
+ * 동일 컨트롤러 last seen 경과(초) → 상태.
+ * 목표: 컨트롤러당 5분(UPLINK_ROUND_SEC) 주기.
+ * warn: 10분 초과 · critical: 30분 초과.
+ */
+export function evaluateStaleness(ageSec: number | null): HealthStatus {
   if (ageSec === null || !Number.isFinite(ageSec)) return "unknown";
 
-  const gap = gapSec(controllerCount);
-  if (ageSec <= gap * 1.2) return "ok";
-  if (ageSec <= UPLINK_ROUND_SEC * 1.5) return "warn";
+  if (ageSec <= WARN_SEC) return "ok";
+  if (ageSec <= CRITICAL_SEC) return "warn";
   return "critical";
 }
 

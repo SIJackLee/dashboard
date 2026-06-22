@@ -22,6 +22,7 @@ import {
   rollupFieldStatus,
   type DbDecodedLatestRow,
 } from "@/lib/admin/health/aggregate-controllers";
+import { healthNodeTitle } from "@/lib/admin/health/health-ui-labels";
 import {
   aggregateCollectorGroups,
 } from "@/lib/admin/health/aggregate-collector-groups";
@@ -32,7 +33,6 @@ import { fetchGroupInsertBuckets } from "@/lib/admin/health/group-insert-buckets
 import { fetchCommandHealth } from "@/lib/admin/health/fetch-command-health";
 import {
   buildHealthAlerts,
-  r3GroupSummary,
 } from "@/lib/admin/health/health-events";
 import {
   fetchEkapeHealth,
@@ -569,8 +569,7 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
       summary: "uplink 정상 후 명령 대기열 pending/sent 확인 · 체크포인트로 검토 완료 표시 가능",
     });
   }
-  const impactScope =
-    r3GroupSummary(collectorGroups) ?? scopeFromModules(modules);
+  const impactScope = scopeFromModules(modules);
 
   const snapshotBody = {
     fetchedAt,
@@ -627,20 +626,7 @@ export function controllersForFarm(
 }
 
 export function nodeTitle(nodeId: string): string {
-  const map: Record<string, string> = {
-    collector: "수집 서버 · 5세분",
-    "collector-rs": "RS 수신",
-    "collector-mqtt": "Mosquitto",
-    "collector-c": "C 명령",
-    "collector-ekape": "Ekape job",
-    "collector-ftp": "FTP Worker",
-    storage: "데이터 저장소",
-    dashboard: "관리 화면",
-    external: "외부 연계",
-    "field-module": "통신 모듈",
-    "field-controller": "환경 컨트롤러",
-  };
-  return map[nodeId] ?? nodeId;
+  return healthNodeTitle(nodeId);
 }
 
 export function isKnownHealthNode(nodeId: string): boolean {

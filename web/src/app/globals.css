@@ -416,3 +416,15 @@
     cursor: grab;
   }
 }
+
+@keyframes health-dag-edge-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .health-dag-edge-flow {
+    animation: health-dag-edge-flow 1.25s linear infinite;
+  }
+}

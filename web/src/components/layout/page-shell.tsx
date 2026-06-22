@@ -34,10 +34,16 @@ export async function PageShell({
           role: user?.role ?? null,
         }}
       />
-      <main className={wide ? dashboardUi.mainPadWide : dashboardUi.mainPad}>
+      <main
+        className={cn(
+          wide ? dashboardUi.mainPadWide : dashboardUi.mainPad,
+          wide && "flex min-h-0 flex-col"
+        )}
+      >
         <div
           className={cn(
             wide ? dashboardUi.pageStackWide : dashboardUi.pageStack,
+            wide && "flex min-h-0 flex-1 flex-col",
             !wide && "max-w-screen-2xl"
           )}
         >

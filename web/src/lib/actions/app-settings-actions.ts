@@ -85,14 +85,16 @@ export async function saveFarmLocationAction(formData: FormData) {
   redirect(`${devicesFarmPanelHref(farmKey)}&ok=saved`);
 }
 
-export async function saveAlarmSettingsAction(formData: FormData) {
+function parseAlarmSettingsFormData(formData: FormData):
+  | { ok: true; settings: AlarmSettings }
+  | { ok: false; error: "invalid" | "save" } {
   const raw = String(formData.get("settings_json") ?? "{}");
   let settings: AlarmSettings;
   try {
     settings = JSON.parse(raw) as AlarmSettings;
     if (!settings.global) throw new Error("invalid");
   } catch {
-    redirect(`${devicesAlarmSettingsHref()}&error=invalid`);
+    return { ok: false, error: "invalid" };
   }
 
   const validationErr =
@@ -104,10 +106,40 @@ export async function saveAlarmSettingsAction(formData: FormData) {
       .map(validateAlarmThresholds)
       .find(Boolean);
   if (validationErr) {
-    redirect(`${devicesAlarmSettingsHref()}&error=invalid`);
+    return { ok: false, error: "invalid" };
   }
 
-  const result = await saveAlarmSettings(settings);
+  return { ok: true, settings };
+}
+
+export async function saveAlarmSettingsInlineAction(
+  formData: FormData
+): Promise<{ ok: boolean; error?: string }> {
+  const parsed = parseAlarmSettingsFormData(formData);
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      error: parsed.error === "invalid" ? "입력값이 올바르지 않습니다." : "저장 실패",
+    };
+  }
+
+  const result = await saveAlarmSettings(parsed.settings);
+  if (!result.ok) {
+    return { ok: false, error: "저장 실패" };
+  }
+
+  revalidatePath("/alarms");
+  revalidatePath("/farm");
+  return { ok: true };
+}
+
+export async function saveAlarmSettingsAction(formData: FormData) {
+  const parsed = parseAlarmSettingsFormData(formData);
+  if (!parsed.ok) {
+    redirect(`${devicesAlarmSettingsHref()}&error=${parsed.error}`);
+  }
+
+  const result = await saveAlarmSettings(parsed.settings);
   if (!result.ok) {
     redirect(`${devicesAlarmSettingsHref()}&error=save`);
   }

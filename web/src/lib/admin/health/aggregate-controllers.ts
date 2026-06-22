@@ -89,7 +89,7 @@ export function aggregateControllers(
   for (const [, agg] of byController) {
     const ageMin = ageMinFromIso(agg.lastAt, nowMs);
     const ageSec = ageSecFromIso(agg.lastAt, nowMs);
-    const status = evaluateStaleness(ageSec, 1);
+    const status = evaluateStaleness(ageSec);
 
     let d11Hint = "—";
     if (status === "critical") d11Hint = "S5";
@@ -122,7 +122,7 @@ export function aggregateModulesFromLive(
       farm: FarmKey;
       moduleUid: number;
       lastAt: string;
-      controllers: Set<string>;
+      controllerLastAt: Map<string, string>;
       recentControllers: Set<string>;
       rowCount: number;
     }
@@ -136,17 +136,24 @@ export function aggregateModulesFromLive(
     const existing = byModule.get(mk);
 
     if (!existing) {
+      const controllerLastAt = new Map<string, string>();
+      if (controllerKey) controllerLastAt.set(controllerKey, row.received_at);
       byModule.set(mk, {
         farm,
         moduleUid: row.module_uid,
         lastAt: row.received_at,
-        controllers: new Set(controllerKey ? [controllerKey] : []),
+        controllerLastAt,
         recentControllers: new Set(),
         rowCount: 1,
       });
     } else {
       if (row.received_at > existing.lastAt) existing.lastAt = row.received_at;
-      if (controllerKey) existing.controllers.add(controllerKey);
+      if (controllerKey) {
+        const prev = existing.controllerLastAt.get(controllerKey);
+        if (!prev || row.received_at > prev) {
+          existing.controllerLastAt.set(controllerKey, row.received_at);
+        }
+      }
       existing.rowCount += 1;
     }
   }
@@ -168,10 +175,16 @@ export function aggregateModulesFromLive(
   const result: ModuleHealthRow[] = [];
 
   for (const [, agg] of byModule) {
-    const n = Math.max(agg.controllers.size, agg.rowCount, 1);
+    const n = Math.max(agg.controllerLastAt.size, agg.rowCount, 1);
     const ageMin = ageMinFromIso(agg.lastAt, nowMs);
-    const ageSec = ageSecFromIso(agg.lastAt, nowMs);
-    const status = evaluateStaleness(ageSec, n);
+
+    const controllerStatuses: HealthStatus[] = [...agg.controllerLastAt.values()].map(
+      (lastAt) => evaluateStaleness(ageSecFromIso(lastAt, nowMs))
+    );
+    const status =
+      controllerStatuses.length > 0
+        ? worstStatus(controllerStatuses)
+        : evaluateStaleness(ageSecFromIso(agg.lastAt, nowMs));
     const coverage =
       n > 0 ? Math.round((agg.recentControllers.size / n) * 100) : 0;
 

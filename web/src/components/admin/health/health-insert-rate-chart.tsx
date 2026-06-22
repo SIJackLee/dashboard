@@ -1,13 +1,21 @@
-import { CompactColumnChart } from "@/components/common/compact-column-chart";
+import { CompactLineChart } from "@/components/common/compact-line-chart";
 import type { InsertBucket } from "@/lib/admin/health/types";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type HealthInsertRateChartProps = {
   buckets: InsertBucket[];
+  hideTitle?: boolean;
+  height?: number;
+  compact?: boolean;
 };
 
-export function HealthInsertRateChart({ buckets }: HealthInsertRateChartProps) {
+export function HealthInsertRateChart({
+  buckets,
+  hideTitle = false,
+  height = 110,
+  compact = false,
+}: HealthInsertRateChartProps) {
   const items = buckets.map((b) => ({
     label: b.label,
     value: b.count,
@@ -15,21 +23,28 @@ export function HealthInsertRateChart({ buckets }: HealthInsertRateChartProps) {
   }));
 
   const hasZero = buckets.some((b) => b.count === 0);
+  const tone = hasZero ? "amber" : "sky";
 
   return (
     <div className="space-y-2">
-      <p className={cn(dashboardTypography.sectionTitle)}>raw INSERT rate (5분 버킷)</p>
-      <CompactColumnChart
+      {hideTitle ? null : (
+        <p className={cn(dashboardTypography.sectionTitle)}>raw INSERT rate (5분 버킷)</p>
+      )}
+      <CompactLineChart
         items={items}
         unit=" rows"
-        height={140}
+        height={height}
         fillWidth
-        barClassName={hasZero ? "bg-amber-500" : "bg-sky-500"}
-        showSummary
+        tickEvery={1}
+        strokeClassName={tone === "amber" ? "stroke-amber-500" : "stroke-sky-500"}
+        fillClassName={tone === "amber" ? "fill-amber-500/10" : "fill-sky-500/10"}
+        showSummary={!compact}
       />
-      <p className={dashboardTypography.meta}>
-        Y: rows · X: time · 0 구간 = S1/R3 후보
-      </p>
+      {compact ? null : (
+        <p className={dashboardTypography.meta}>
+          Y: rows · X: time · 0 구간 = S1/R3 후보
+        </p>
+      )}
     </div>
   );
 }
