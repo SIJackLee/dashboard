@@ -60,7 +60,13 @@ export function SectionCard({
 
   return (
 
-    <Card className={cn(lg && "rounded-xl text-[1.75rem] leading-snug", className)}>
+    <Card
+      className={cn(
+        lg &&
+          "rounded-xl max-md:text-base max-md:leading-snug md:text-[1.75rem] md:leading-snug",
+        className
+      )}
+    >
 
       {(title || action) && (
 
@@ -68,7 +74,7 @@ export function SectionCard({
 
           className={cn(
 
-            "flex flex-row items-center justify-between space-y-0",
+            "flex flex-row items-start justify-between gap-3 space-y-0 max-md:flex-col max-md:items-stretch",
 
             lg && dashboardUi.cardHeaderLg
 
@@ -76,13 +82,17 @@ export function SectionCard({
 
         >
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
 
             {title && (
 
               <CardTitle
 
-                className={lg ? dashboardTypography.cardTitle : "text-base"}
+                className={
+                  lg
+                    ? "text-base font-semibold leading-tight md:text-lg lg:text-[2rem]"
+                    : "text-base"
+                }
 
               >
 
@@ -116,7 +126,11 @@ export function SectionCard({
 
           </div>
 
-          {action}
+          {action ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2 max-md:w-full max-md:justify-end">
+              {action}
+            </div>
+          ) : null}
 
         </CardHeader>
 

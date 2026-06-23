@@ -1,4 +1,5 @@
 import { HealthSectionCard } from "@/components/admin/health/health-section-card";
+import { CommandHistoryMobileList } from "@/components/controllers/command-history-mobile-list";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -60,7 +61,11 @@ export function CommandHistoryTable({ commands = [] }: Props) {
           등록된 명령이 없습니다.
         </p>
       ) : (
-        <Table className={ctrlUi.body}>
+        <>
+          <CommandHistoryMobileList commands={commands} />
+          <div className="hidden md:block">
+            <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1">
+              <Table className={cn(ctrlUi.body, "min-w-[36rem]")}>
           <TableHeader>
             <TableRow>
               <TableHead>시간</TableHead>
@@ -91,8 +96,11 @@ export function CommandHistoryTable({ commands = [] }: Props) {
                 </TableCell>
               </TableRow>
             ))}
-          </TableBody>
-        </Table>
+              </TableBody>
+            </Table>
+            </div>
+          </div>
+        </>
       )}
     </HealthSectionCard>
   );

@@ -8,7 +8,6 @@ import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { EnvChip } from "@/components/common/env-chip";
 import { StatusBadge } from "@/components/common/status-badge";
 import { getStallTypeName, normalizeStallTyCode } from "@/lib/data/stall-type";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 const fmt = (v: number | null, digits = 1) =>
@@ -35,6 +34,8 @@ type Props = {
   draggable?: boolean;
   isDragging?: boolean;
   onGripPointerDown?: (id: string, e: React.PointerEvent) => void;
+  /** ops 모바일 그리드 — 페이지 이동 대신 콜백 */
+  onSelect?: () => void;
 };
 
 export function FarmMapCard({
@@ -45,6 +46,7 @@ export function FarmMapCard({
   draggable,
   isDragging,
   onGripPointerDown,
+  onSelect,
 }: Props) {
   const { navigate, isPending } = useAppNavigate();
   const { meta } = snapshot;
@@ -59,7 +61,12 @@ export function FarmMapCard({
   const title = displayCardTitle(snapshot);
 
   const handleNavigate = () => {
-    if (isDragging || !controllerHref || isPending) return;
+    if (isDragging) return;
+    if (onSelect) {
+      onSelect();
+      return;
+    }
+    if (!controllerHref || isPending) return;
     navigate(controllerHref, { message: "컨트롤러 페이지로 이동 중…" });
   };
 
@@ -77,8 +84,8 @@ export function FarmMapCard({
           : undefined
       }
     >
-      <div className="flex min-h-0 items-center gap-2 border-b bg-muted/30 px-2 py-1.5">
-        {draggable && (
+      <div className="flex min-h-0 items-center gap-1.5 border-b bg-muted/30 px-2 py-1.5 lg:gap-2">
+        {draggable ? (
           <div
             role="button"
             tabIndex={0}
@@ -89,44 +96,49 @@ export function FarmMapCard({
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") e.preventDefault();
             }}
-            className="pointer-events-auto shrink-0 cursor-grab touch-none select-none rounded border border-muted-foreground/25 bg-muted/50 p-1.5 text-muted-foreground hover:border-emerald-500/50 hover:bg-emerald-50 hover:text-emerald-700 active:cursor-grabbing"
+            className="pointer-events-auto hidden shrink-0 cursor-grab touch-none select-none rounded border border-muted-foreground/25 bg-muted/50 p-1.5 text-muted-foreground hover:border-emerald-500/50 hover:bg-emerald-50 hover:text-emerald-700 active:cursor-grabbing lg:block"
             aria-label="축사 위치 이동"
           >
-            <GripVertical className="size-5 pointer-events-none" />
+            <GripVertical className="pointer-events-none size-5" />
           </div>
-        )}
+        ) : null}
         <button
           type="button"
           onClick={handleNavigate}
-          disabled={!controllerHref}
+          disabled={!onSelect && !controllerHref}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-1.5 text-left",
-            controllerHref && "cursor-pointer"
+            (onSelect || controllerHref) && "cursor-pointer"
           )}
         >
-          <Icon className="size-5 shrink-0 text-emerald-600" />
+          <Icon className="size-4 shrink-0 text-emerald-600 lg:size-5" />
           <span
             className={cn(
-              "truncate font-semibold",
-              compact ? dashboardUi.mapCardMeta : dashboardUi.mapCardTitle
+              "truncate font-semibold text-sm lg:text-lg",
+              !compact && "lg:text-xl"
             )}
           >
             {title}
           </span>
         </button>
-        <StatusBadge tone={snapshot.status} compact large />
+        <span className="lg:hidden">
+          <StatusBadge tone={snapshot.status} compact />
+        </span>
+        <span className="hidden shrink-0 lg:inline-flex">
+          <StatusBadge tone={snapshot.status} compact large />
+        </span>
       </div>
 
       <button
         type="button"
         onClick={handleNavigate}
-        disabled={!controllerHref}
+        disabled={!onSelect && !controllerHref}
         className={cn(
-          "flex min-h-0 flex-col gap-1.5 px-2.5 py-2 text-left",
-          controllerHref && "cursor-pointer hover:bg-muted/20"
+          "flex min-h-0 flex-col gap-1 px-2 py-1.5 text-left",
+          (onSelect || controllerHref) && "cursor-pointer hover:bg-muted/20"
         )}
       >
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3">
           <EnvChip kind="temp" value={fmt(snapshot.tempC)} />
           <EnvChip kind="humidity" value={fmt(snapshot.humidityPct)} />
         </div>

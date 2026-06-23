@@ -13,13 +13,13 @@ export function FarmMapList({ barns }: Props) {
   return (
     <DisplayGate setting="farm.mapList">
       {barns.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-10 text-center md:hidden">
+        <div className="flex flex-col items-center gap-3 py-10 text-center lg:hidden">
           <p className="text-sm text-muted-foreground">
             LIVE 데이터 수신 대기 중입니다.
           </p>
         </div>
       ) : (
-        <div className="space-y-3 md:hidden">
+        <div className="space-y-3 lg:hidden" data-audit-region="farm-map-list">
           {barns.map((b) => (
             <FarmMapCard key={b.meta.id} snapshot={b} layout="stack" />
           ))}

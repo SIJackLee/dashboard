@@ -39,7 +39,7 @@ export function AlarmBellMenu({ alarms }: Props) {
 
   const countBadge = count > 0 ? (
     <span
-      className="absolute -right-0.5 -top-0.5 flex min-h-[1.5rem] min-w-[1.5rem] items-center justify-center rounded-full bg-red-500 px-1 text-[1rem] font-bold leading-none text-white"
+      className="absolute -right-0.5 -top-0.5 flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-red-500 px-0.5 text-[10px] font-bold leading-none text-white lg:min-h-[1.5rem] lg:min-w-[1.5rem] lg:px-1 lg:text-[1rem]"
       suppressHydrationWarning
     >
       {count > 99 ? "99+" : count}

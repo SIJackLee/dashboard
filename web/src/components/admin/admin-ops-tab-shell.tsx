@@ -11,11 +11,11 @@ export function AdminOpsTabShell({ children, className }: Props) {
   return (
     <div
       className={cn(
-        "flex min-h-0 min-h-[calc(100vh-9rem)] flex-1 flex-col overflow-hidden",
+        "flex min-h-0 flex-1 flex-col overflow-hidden max-md:min-h-0 md:min-h-[calc(100vh-9rem)]",
         className
       )}
     >
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain md:gap-3">
         {children}
       </div>
     </div>

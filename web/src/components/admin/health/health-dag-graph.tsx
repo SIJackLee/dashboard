@@ -18,6 +18,7 @@ import {
   type HealthDagNodeSelectPayload,
 } from "@/lib/admin/health/health-node-peek-content";
 import { HEALTH_STATUS_LABEL } from "@/lib/admin/health/types";
+import { HealthDagMobileList } from "@/components/admin/health/health-dag-mobile-list";
 import { healthStatusBorderClass } from "@/components/admin/health/health-status-badge";
 import { dashboardControl } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -156,18 +157,30 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
           onClick={() => setFieldExpanded((v) => !v)}
           className={cn(
             dashboardControl.buttonOutline,
-            "rounded-lg px-2.5 py-1 text-sm"
+            "h-8 min-h-8 w-full rounded-lg px-2.5 text-xs sm:w-auto sm:text-sm"
           )}
         >
           {fieldExpanded ? "농장 접기" : "농장 펼치기"}
         </button>
       </div>
+
+      <div className="lg:hidden">
+        <HealthDagMobileList
+          snapshot={snapshot}
+          fieldExpanded={fieldExpanded}
+          onToggleField={() => setFieldExpanded(true)}
+          onNodeSelect={onNodeSelect}
+          activeDrillId={activeDrillId}
+        />
+      </div>
+
       <div
         ref={containerRef}
-        className="w-full overflow-visible rounded-xl border bg-muted/10 p-3"
+        className="hidden w-full overflow-x-auto overscroll-x-contain rounded-xl border bg-muted/10 p-2 [-webkit-overflow-scrolling:touch] lg:block md:p-3"
       >
+        <div className="mx-auto" style={{ width: svgW, minWidth: "100%" }}>
         <svg
-          width="100%"
+          width={svgW}
           height={svgH}
           viewBox={`0 0 ${svgW} ${svgH}`}
           className="block overflow-visible"
@@ -259,10 +272,10 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
                   )}
                   aria-hidden
                 />
-                <span className="line-clamp-2 text-center text-[28px] font-semibold leading-tight">
+                <span className="line-clamp-2 text-center text-xs font-semibold leading-tight md:text-lg lg:text-[28px]">
                   {meta.short}
                 </span>
-                <span className="line-clamp-1 text-center text-2xl leading-tight text-muted-foreground tabular-nums">
+                <span className="line-clamp-1 text-center text-[10px] leading-tight text-muted-foreground tabular-nums md:text-sm lg:text-2xl">
                   {meta.metric ?? HEALTH_STATUS_LABEL[meta.status]}
                 </span>
                 {meta.id === "mqtt" ? (
@@ -319,6 +332,7 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
             );
           })}
         </svg>
+        </div>
       </div>
     </div>
   );

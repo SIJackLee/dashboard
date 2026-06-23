@@ -158,10 +158,10 @@ export function AdminFarmLocationPanel({ options }: Props) {
     <div className="flex flex-col gap-3">
       <div
         className={cn(
-          "flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/15 px-4 py-3 text-sm"
+          "flex shrink-0 flex-col gap-3 rounded-lg border bg-muted/15 px-3 py-3 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-4"
         )}
       >
-        <div>
+        <div className="min-w-0">
           <p className="font-medium">
             농장 {summary.total}곳 · 위치 설정 {summary.configured}/{summary.total}
           </p>
@@ -182,7 +182,7 @@ export function AdminFarmLocationPanel({ options }: Props) {
             ) : null}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 max-md:w-full">
           <PageActionButton type="button" variant="outline" onClick={handleExportTemplate}>
             CSV 템플릿
           </PageActionButton>
@@ -231,7 +231,7 @@ export function AdminFarmLocationPanel({ options }: Props) {
         <div className="mb-4 space-y-3">
           <Input
             uiSize="dashboard"
-            className="max-w-xl"
+            className="w-full max-w-xl"
             placeholder="농장 검색"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

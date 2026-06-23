@@ -21,7 +21,7 @@ export function AppHeaderNav({ role }: Props) {
 
   return (
     <nav
-      className="flex shrink-0 flex-wrap items-center gap-1"
+      className="hidden shrink-0 flex-wrap items-center gap-1 md:flex"
       aria-label="앱 메뉴"
     >
       {navItems

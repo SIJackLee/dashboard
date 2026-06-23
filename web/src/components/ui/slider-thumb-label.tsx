@@ -14,10 +14,20 @@ type SliderThumbLabelProps = {
   variant?: "edge" | "center";
   placement?: "above" | "below";
   compact?: boolean;
+  dense?: boolean;
   className?: string;
 };
 
-function labelTypography(variant: "edge" | "center", compact?: boolean) {
+function labelTypography(
+  variant: "edge" | "center",
+  compact?: boolean,
+  dense?: boolean
+) {
+  if (dense) {
+    return variant === "center"
+      ? "text-base font-semibold text-foreground leading-snug"
+      : "text-[10px] font-medium text-muted-foreground leading-snug";
+  }
   const size = compact
     ? "text-2xl leading-snug"
     : cn(dashboardTypography.meta, "leading-snug");
@@ -48,6 +58,7 @@ export function SliderThumbLabel({
   variant = "edge",
   placement = "above",
   compact = false,
+  dense = false,
   className,
 }: SliderThumbLabelProps) {
   return (
@@ -56,7 +67,7 @@ export function SliderThumbLabel({
         "pointer-events-none absolute tabular-nums whitespace-nowrap",
         thumbLabelAlignClass(leftPct),
         placement === "above" ? "top-0" : "bottom-0",
-        labelTypography(variant, compact),
+        labelTypography(variant, compact, dense),
         className
       )}
       style={thumbLabelPositionStyle(leftPct)}
@@ -69,10 +80,12 @@ export function SliderThumbLabel({
 /** triple: 위 설정온도 · 아래 ±편차 · dual: 라벨 위 트랙 아래 */
 export function sliderTrackShellClass(
   compact?: boolean,
-  layout: SliderTrackLayout = "dual"
+  layout: SliderTrackLayout = "dual",
+  dense?: boolean
 ) {
   const pad = "px-3 sm:px-4";
   if (layout === "triple") {
+    if (dense) return cn("relative", pad, "h-[4.75rem]");
     return cn("relative", pad, compact ? "h-[5.75rem]" : "h-24");
   }
   return cn("relative", pad, compact ? "h-[5.25rem]" : "h-[5.75rem]");

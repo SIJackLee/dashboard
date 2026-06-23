@@ -99,7 +99,7 @@ function FarmSearchControls({
     <div className="space-y-3">
       <ComboSearchBar
         label="농장"
-        className="max-w-xl"
+        className="w-full max-w-xl"
         options={farmSelectOptions}
         value={farmPickId}
         onValueChange={(v) => {
@@ -115,31 +115,32 @@ function FarmSearchControls({
         searchPlaceholder="농장 검색…"
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        {(
-          [
-            ["all", "전체"],
-            ["selected", "선택됨"],
-            ["unselected", "미선택"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onFilterChange(id)}
-            className={cn(
-              "rounded-lg border px-3 py-1.5",
-              dashboardUi.body,
-              filter === id
-                ? "border-emerald-500 bg-emerald-50 text-emerald-900"
-                : "text-muted-foreground hover:bg-muted"
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center">
+        <div className="flex gap-2 overflow-x-auto overscroll-x-contain [scrollbar-width:none] lg:flex-wrap lg:overflow-visible">
+          {(
+            [
+              ["all", "전체"],
+              ["selected", "선택됨"],
+              ["unselected", "미선택"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onFilterChange(id)}
+              className={cn(
+                "shrink-0 rounded-full border px-3 py-1.5 text-sm",
+                filter === id
+                  ? "border-emerald-500 bg-emerald-50 text-emerald-900"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {showBulkActions ? (
-          <>
+          <div className="flex shrink-0 flex-wrap gap-2">
             <PageActionButton
               type="button"
               variant="outline"
@@ -158,10 +159,13 @@ function FarmSearchControls({
                 ? "표시 항목 해제"
                 : "전체 해제"}
             </PageActionButton>
-          </>
+          </div>
         ) : null}
         <span
-          className={cn("ml-auto text-muted-foreground", dashboardTypography.meta)}
+          className={cn(
+            "text-muted-foreground lg:ml-auto",
+            dashboardTypography.meta
+          )}
         >
           표시 {filteredCount}/{totalCount}곳
         </span>
@@ -277,11 +281,12 @@ export function GrantAccessForm({
   const totalCount = farmOptions.length;
 
   const modeToggle = (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex w-full flex-wrap items-center gap-2 max-lg:justify-stretch lg:w-auto">
       <PageActionButton
         type="button"
         variant={mode === "single" ? "primary" : "outline"}
         onClick={() => setMode("single")}
+        className="max-lg:flex-1"
       >
         행별 부여
       </PageActionButton>
@@ -289,6 +294,7 @@ export function GrantAccessForm({
         type="button"
         variant={mode === "bulk" ? "primary" : "outline"}
         onClick={() => setMode("bulk")}
+        className="max-lg:flex-1"
       >
         <Users className={dashboardUi.iconSm} />
         일괄 부여
@@ -316,7 +322,7 @@ export function GrantAccessForm({
           <div className="space-y-3">
             <ComboSearchBar
               label="사용자"
-              className="max-w-xl"
+              className="w-full max-w-xl"
               options={emailOptions}
               value={email || undefined}
               onValueChange={(v) => v && onEmailChange(v)}
@@ -386,7 +392,7 @@ export function GrantAccessForm({
           <div className="space-y-3">
             <ComboSearchBar
               label="사용자"
-              className="max-w-xl"
+              className="w-full max-w-xl"
               options={emailOptions}
               value={email || undefined}
               onValueChange={(v) => v && onEmailChange(v)}

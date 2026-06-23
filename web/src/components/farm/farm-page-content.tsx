@@ -89,11 +89,13 @@ export function FarmPageContent({
       </div>
 
       {view === "map" && showMap ? (
-        <FarmMapView
-          barns={barnSnapshots}
-          gridCols={gridCols}
-          gridRows={gridRows}
-        />
+        <div className="max-h-[40dvh] min-h-0 overflow-hidden lg:max-h-none lg:min-h-[16rem]">
+          <FarmMapView
+            barns={barnSnapshots}
+            gridCols={gridCols}
+            gridRows={gridRows}
+          />
+        </div>
       ) : null}
 
       {view === "map" && !showMap ? (

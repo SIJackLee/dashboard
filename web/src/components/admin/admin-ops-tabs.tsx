@@ -8,6 +8,7 @@ import {
   type AdminOpsTabId,
   setAdminOpsTabParam,
 } from "@/lib/admin/ops-tabs";
+import { useScrollActiveTab } from "@/lib/ui/use-scroll-active-tab";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ export function AdminOpsTabs({ active }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const navRef = useScrollActiveTab(active);
 
   const selectTab = (tab: AdminOpsTabId) => {
     if (tab === active || isPending) return;
@@ -37,8 +39,9 @@ export function AdminOpsTabs({ active }: Props) {
 
   return (
     <nav
+      ref={navRef}
       className={cn(
-        "flex shrink-0 flex-wrap gap-2 border-b pb-1",
+        "flex shrink-0 gap-1 overflow-x-auto overscroll-x-contain border-b pb-1 [scrollbar-width:none] max-lg:flex-nowrap lg:flex-wrap lg:gap-2",
         isPending && "opacity-80"
       )}
       aria-label="운영 탭"
@@ -54,7 +57,7 @@ export function AdminOpsTabs({ active }: Props) {
             onClick={() => selectTab(tab.id)}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "border-b-2 transition-colors disabled:pointer-events-none",
+              "shrink-0 border-b-2 whitespace-nowrap transition-colors disabled:pointer-events-none",
               dashboardUi.tabNav,
               isActive
                 ? "border-emerald-600 text-emerald-700"

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ModuleHealthRow } from "@/lib/admin/health/types";
+import { HealthFarmModuleMobileList } from "@/components/admin/health/health-farm-module-mobile-list";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import { HEALTH_UI } from "@/lib/admin/health/health-ui-labels";
 import { farmKeyUrlSlug } from "@/lib/data/farm-key";
@@ -48,13 +49,15 @@ export function HealthFarmModuleTable({
     : cn("px-4 py-3", dashboardTypography.tableCell);
 
   return (
-    <div
-      className={cn(
-        "overflow-x-auto rounded-xl border",
-        compact ? "h-full min-h-0 overflow-y-auto" : maxHeight,
-        !compact && stickyHeader && maxHeight ? "overflow-y-auto" : ""
-      )}
-    >
+    <>
+      <HealthFarmModuleMobileList modules={modules} />
+      <div
+        className={cn(
+          "hidden overflow-x-auto rounded-xl border lg:block",
+          compact ? "h-full min-h-0 overflow-y-auto" : maxHeight,
+          !compact && stickyHeader && maxHeight ? "overflow-y-auto" : ""
+        )}
+      >
       <table
         className={cn("w-full border-collapse", compact ? "min-w-0" : "min-w-[640px]")}
       >
@@ -108,6 +111,7 @@ export function HealthFarmModuleTable({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

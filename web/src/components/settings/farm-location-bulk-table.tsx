@@ -60,7 +60,94 @@ export function FarmLocationBulkTable({
     );
   }
 
+  const mobileCards = (
+    <ul className="space-y-3 md:hidden">
+      {options.map((o) => {
+        const id = farmOptionId(o.farmKey);
+        const row = rows[id] ?? {
+          ...draftFromOption(o),
+          dirty: false,
+        };
+        const isApplying = pending && applyingId === id;
+
+        return (
+          <li key={id} className="rounded-xl border bg-card p-3">
+            <p className={cn(dashboardUi.body, "text-sm font-semibold")}>{o.label}</p>
+            <div className="mt-3 space-y-2">
+              <label className="block text-xs text-muted-foreground">
+                시·도
+                <select
+                  className="mt-1 w-full rounded-lg border bg-background px-2 py-2 text-sm"
+                  value={row.sido}
+                  disabled={pending}
+                  onChange={(e) => {
+                    const sido = e.target.value;
+                    const sigungu = bySido.get(sido)?.[0]?.sigungu ?? "";
+                    updateRow(id, { sido, sigungu });
+                  }}
+                >
+                  {SIDO_LIST.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                시·군·구
+                <select
+                  className="mt-1 w-full rounded-lg border bg-background px-2 py-2 text-sm"
+                  value={row.sigungu}
+                  disabled={pending}
+                  onChange={(e) => updateRow(id, { sigungu: e.target.value })}
+                >
+                  {(bySido.get(row.sido) ?? []).map((r) => (
+                    <option key={r.sigungu} value={r.sigungu}>
+                      {r.sigungu}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-xs text-muted-foreground">
+                상세
+                <input
+                  className="mt-1 w-full rounded-lg border bg-background px-2 py-2 text-sm"
+                  placeholder="읍·면·리 (선택)"
+                  value={row.addressDetail}
+                  disabled={pending}
+                  onChange={(e) =>
+                    updateRow(id, { addressDetail: e.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+              {row.dirty ? (
+                <span className="text-xs text-amber-700">변경됨</span>
+              ) : o.location ? (
+                <span className="text-xs text-emerald-700">설정됨</span>
+              ) : (
+                <span className="text-xs text-muted-foreground">미설정</span>
+              )}
+              <PageActionButton
+                type="button"
+                variant="primary"
+                disabled={pending || !row.sido || !row.sigungu}
+                onClick={() => onApplyRow(id)}
+              >
+                {isApplying ? "적용 중…" : "적용"}
+              </PageActionButton>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   return (
+    <>
+      {mobileCards}
+      <div className="hidden md:block">
     <Table>
       <TableHeader>
         <TableRow>
@@ -150,6 +237,8 @@ export function FarmLocationBulkTable({
         })}
       </TableBody>
     </Table>
+      </div>
+    </>
   );
 }
 

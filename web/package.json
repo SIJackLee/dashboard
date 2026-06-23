@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "measure:live": "tsx scripts/measure-live-read.ts"
+    "measure:live": "tsx scripts/measure-live-read.ts",
+    "audit:mobile": "node scripts/mobile-ui-audit.mjs",
+    "verify:routes": "node scripts/ui-route-verify.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

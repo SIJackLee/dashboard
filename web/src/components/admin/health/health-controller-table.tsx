@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ControllerHealthRow } from "@/lib/admin/health/types";
+import { HealthControllerMobileList } from "@/components/admin/health/health-controller-mobile-list";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import { farmKeyUrlSlug } from "@/lib/data/farm-key";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
@@ -31,7 +32,9 @@ export function HealthControllerTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border">
+    <>
+      <HealthControllerMobileList controllers={controllers} limit={limit} />
+      <div className="hidden overflow-x-auto rounded-xl border lg:block">
       <table className="w-full min-w-[720px] border-collapse">
         <thead>
           <tr className="border-b bg-muted/40 text-left">
@@ -74,5 +77,6 @@ export function HealthControllerTable({
         </tbody>
       </table>
     </div>
+    </>
   );
 }

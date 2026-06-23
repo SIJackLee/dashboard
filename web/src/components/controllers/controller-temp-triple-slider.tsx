@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useId } from "react";
+import { Thermometer } from "lucide-react";
 import { clampMenuValue } from "@/lib/controllers/controller-panel-map";
 import {
   fmtTempLabel,
@@ -8,6 +9,7 @@ import {
   sliderTrackRailClass,
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
+import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 const TRACK_MIN = 15;
@@ -19,6 +21,10 @@ type ControllerTempTripleSliderProps = {
   deviation: number;
   disabled?: boolean;
   compact?: boolean;
+  dense?: boolean;
+  /** ThresholdRangeSlider와 동일 카드 헤더 */
+  framed?: boolean;
+  title?: string;
   onChange: (setpoint: number, deviation: number) => void;
 };
 
@@ -46,6 +52,9 @@ export function ControllerTempTripleSlider({
   deviation,
   disabled = false,
   compact = false,
+  dense = false,
+  framed = false,
+  title = "온도 설정",
   onChange,
 }: ControllerTempTripleSliderProps) {
   const id = useId();
@@ -93,81 +102,109 @@ export function ControllerTempTripleSlider({
     disabled && "pointer-events-none opacity-40"
   );
 
-  return (
-    <div className={cn(disabled && "pointer-events-none opacity-50")}>
-      <div className={sliderTrackShellClass(compact, "triple")}>
-        <SliderThumbLabel
-          leftPct={lowPct}
-          placement="below"
-          compact={compact}
-        >
-          −{devLabel}℃
-        </SliderThumbLabel>
-        <SliderThumbLabel
-          leftPct={centerPct}
-          variant="center"
-          placement="above"
-          compact={compact}
-        >
-          {fmtTempLabel(setpoint)}℃
-        </SliderThumbLabel>
-        <SliderThumbLabel
-          leftPct={highPct}
-          placement="below"
-          compact={compact}
-        >
-          +{devLabel}℃
-        </SliderThumbLabel>
+  const track = (
+    <div className={sliderTrackShellClass(compact, "triple", dense)}>
+      <SliderThumbLabel
+        leftPct={lowPct}
+        placement="below"
+        compact={compact}
+        dense={dense}
+      >
+        −{devLabel}℃
+      </SliderThumbLabel>
+      <SliderThumbLabel
+        leftPct={centerPct}
+        variant="center"
+        placement="above"
+        compact={compact}
+        dense={dense}
+      >
+        {fmtTempLabel(setpoint)}℃
+      </SliderThumbLabel>
+      <SliderThumbLabel
+        leftPct={highPct}
+        placement="below"
+        compact={compact}
+        dense={dense}
+      >
+        +{devLabel}℃
+      </SliderThumbLabel>
 
-        <div className={sliderTrackRailClass(compact, "triple")} aria-hidden>
-          <div
-            className="absolute top-0 h-full rounded-full bg-orange-500/35"
-            style={{
-              left: `${lowPct}%`,
-              width: `${Math.max(0, highPct - lowPct)}%`,
-            }}
-          />
-        </div>
-        <input
-          id={`${id}-low`}
-          type="range"
-          min={TRACK_MIN}
-          max={TRACK_MAX}
-          step={STEP}
-          value={low}
-          disabled={disabled}
-          aria-label={`온도 편차 하한 −${devLabel}℃`}
-          aria-valuetext={`−${devLabel}℃`}
-          className={cn(edgeClass, "z-[3]")}
-          onChange={(e) => setLow(Number(e.target.value))}
-        />
-        <input
-          id={`${id}-center`}
-          type="range"
-          min={TRACK_MIN}
-          max={TRACK_MAX}
-          step={STEP}
-          value={setpoint}
-          disabled={disabled}
-          aria-label={`설정온도 ${fmtTempLabel(setpoint)}℃`}
-          aria-valuetext={`${fmtTempLabel(setpoint)}℃`}
-          className={cn(centerClass, "z-[5]")}
-          onChange={(e) => setCenter(Number(e.target.value))}
-        />
-        <input
-          id={`${id}-high`}
-          type="range"
-          min={TRACK_MIN}
-          max={TRACK_MAX}
-          step={STEP}
-          value={high}
-          disabled={disabled}
-          aria-label={`온도 편차 상한 +${devLabel}℃`}
-          aria-valuetext={`+${devLabel}℃`}
-          className={cn(edgeClass, "z-[4]")}
-          onChange={(e) => setHigh(Number(e.target.value))}
+      <div className={sliderTrackRailClass(compact, "triple")} aria-hidden>
+        <div
+          className="absolute top-0 h-full rounded-full bg-orange-500/35"
+          style={{
+            left: `${lowPct}%`,
+            width: `${Math.max(0, highPct - lowPct)}%`,
+          }}
         />
       </div>
+      <input
+        id={`${id}-low`}
+        type="range"
+        min={TRACK_MIN}
+        max={TRACK_MAX}
+        step={STEP}
+        value={low}
+        disabled={disabled}
+        aria-label={`온도 편차 하한 −${devLabel}℃`}
+        aria-valuetext={`−${devLabel}℃`}
+        className={cn(edgeClass, "z-[3]")}
+        onChange={(e) => setLow(Number(e.target.value))}
+      />
+      <input
+        id={`${id}-center`}
+        type="range"
+        min={TRACK_MIN}
+        max={TRACK_MAX}
+        step={STEP}
+        value={setpoint}
+        disabled={disabled}
+        aria-label={`설정온도 ${fmtTempLabel(setpoint)}℃`}
+        aria-valuetext={`${fmtTempLabel(setpoint)}℃`}
+        className={cn(centerClass, "z-[5]")}
+        onChange={(e) => setCenter(Number(e.target.value))}
+      />
+      <input
+        id={`${id}-high`}
+        type="range"
+        min={TRACK_MIN}
+        max={TRACK_MAX}
+        step={STEP}
+        value={high}
+        disabled={disabled}
+        aria-label={`온도 편차 상한 +${devLabel}℃`}
+        aria-valuetext={`+${devLabel}℃`}
+        className={cn(edgeClass, "z-[4]")}
+        onChange={(e) => setHigh(Number(e.target.value))}
+      />
+    </div>
+  );
+
+  return (
+    <div
+      className={cn(
+        framed ? dashboardUi.opsSideInnerCard : undefined,
+        disabled && "pointer-events-none opacity-50"
+      )}
+    >
+      {framed ? (
+        <div className={cn("flex items-center gap-2", compact ? "mb-2" : "mb-3")}>
+          <Thermometer
+            className={cn("size-4 text-orange-600")}
+            aria-hidden
+          />
+          <p
+            className={cn(
+              compact ? "text-sm font-medium" : dashboardTypography.sectionTitle,
+              "text-foreground"
+            )}
+          >
+            {title}
+          </p>
+        </div>
+      ) : null}
+      {track}
     </div>
   );
 }

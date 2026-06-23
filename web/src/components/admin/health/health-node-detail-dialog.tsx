@@ -26,7 +26,7 @@ export function HealthNodeDetailDialog({ nodeId, snapshot, onClose }: Props) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         className={cn(
-          "flex max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl",
+          "flex max-h-[min(92dvh,85vh)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl",
           "top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2"
         )}
       >

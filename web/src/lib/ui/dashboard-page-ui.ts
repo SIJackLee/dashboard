@@ -5,30 +5,34 @@
  * 역할 기반 타이포: canvases/dashboard-typography-guide.canvas.tsx 참고
  */
 export const dashboardTypography = {
-  pageTitle: "text-4xl font-bold",
-  cardTitle: "text-[2rem] font-semibold leading-tight",
-  sectionTitle: "text-2xl font-medium",
-  cardDesc: "text-[1.75rem] text-muted-foreground leading-snug",
-  formLabel: "text-2xl font-medium text-muted-foreground leading-snug",
-  body: "text-[1.75rem] leading-snug",
-  meta: "text-[1.75rem] text-muted-foreground leading-snug",
-  tableCell: "text-[1.75rem] leading-snug",
-  tableHead: "text-2xl font-medium",
-  control: "text-[1.75rem] leading-snug",
-  badge: "text-xl font-medium",
-  value: "text-[1.75rem] font-mono font-semibold tabular-nums leading-tight",
-  valueLg: "text-4xl font-mono font-bold tabular-nums leading-tight",
-  tabNav: "text-[1.75rem] font-medium",
+  pageTitle: "text-2xl font-bold md:text-4xl",
+  cardTitle: "text-lg font-semibold leading-tight md:text-[2rem]",
+  sectionTitle: "text-lg font-medium md:text-2xl",
+  cardDesc: "text-sm text-muted-foreground leading-snug md:text-[1.75rem]",
+  formLabel: "text-base font-medium text-muted-foreground leading-snug md:text-2xl",
+  body: "text-base leading-snug md:text-[1.75rem]",
+  meta: "text-sm text-muted-foreground leading-snug md:text-[1.75rem]",
+  tableCell: "text-sm leading-snug md:text-[1.75rem]",
+  tableHead: "text-base font-medium md:text-2xl",
+  control: "text-base leading-snug md:text-[1.75rem]",
+  badge: "text-sm font-medium md:text-xl",
+  value:
+    "text-base font-mono font-semibold tabular-nums leading-tight md:text-[1.75rem]",
+  valueLg: "text-2xl font-mono font-bold tabular-nums leading-tight md:text-4xl",
+  tabNav: "text-sm font-medium md:text-[1.75rem]",
 } as const;
 
 export const dashboardControl = {
   input:
-    "h-12 min-h-12 px-3 text-[1.75rem] leading-snug md:text-[1.75rem]",
+    "h-9 min-h-9 px-3 text-sm leading-snug md:h-12 md:min-h-12 md:text-[1.75rem]",
   selectTrigger:
-    "h-12 min-h-12 w-full px-3 text-[1.75rem] leading-snug md:text-[1.75rem] [&_svg]:size-5",
-  selectItem: "py-2.5 pl-2.5 text-[1.75rem] leading-snug",
-  button: "h-12 min-h-12 px-5 text-[1.75rem] font-medium leading-snug",
-  buttonOutline: "h-11 min-h-11 px-4 text-[1.75rem] font-medium leading-snug",
+    "h-9 min-h-9 w-full px-3 text-sm leading-snug md:h-12 md:min-h-12 md:text-[1.75rem] [&_svg]:size-4 md:[&_svg]:size-5",
+  selectItem:
+    "py-2 pl-2.5 text-sm leading-snug md:py-2.5 md:text-[1.75rem]",
+  button:
+    "h-9 min-h-9 px-4 text-sm font-medium leading-snug md:h-12 md:min-h-12 md:px-5 md:text-[1.75rem]",
+  buttonOutline:
+    "h-8 min-h-8 px-3 text-sm font-medium leading-snug md:h-11 md:min-h-11 md:px-4 md:text-[1.75rem]",
 } as const;
 
 export const dashboardUi = {
@@ -50,8 +54,8 @@ export const dashboardUi = {
     "flex w-full items-center gap-4 rounded-xl px-5 py-3.5 text-2xl font-medium leading-snug text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
 
   headerNavLink:
-    "inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg px-3 py-2 text-[1.75rem] font-medium leading-snug transition-colors md:px-4",
-  headerNavIcon: "size-7 shrink-0 [&_svg]:size-7",
+    "inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium leading-snug transition-colors md:px-4 md:text-[1.75rem]",
+  headerNavIcon: "size-5 shrink-0 md:size-7 [&_svg]:size-5 md:[&_svg]:size-7",
   headerBrand:
     "flex min-w-0 items-center gap-2.5 pr-1 md:gap-3 md:pr-2",
   headerBrandIcon: "size-10 rounded-lg md:size-11",
@@ -62,7 +66,8 @@ export const dashboardUi = {
   headerAccountName: "truncate text-xl font-medium leading-tight",
   headerAccountRole: "text-lg text-muted-foreground",
 
-  topBar: "flex min-h-[5.5rem] flex-wrap items-center justify-between gap-3 border-b bg-background px-4 py-3 md:gap-4 md:px-6",
+  topBar:
+    "flex min-h-14 flex-nowrap items-center justify-between gap-2 border-b bg-background px-3 py-2 max-md:pt-safe md:min-h-[5.5rem] md:flex-wrap md:gap-4 md:px-6 md:py-3",
   pageTitle: "text-4xl font-bold",
   topBadge:
     "!h-auto min-h-[2.25rem] gap-2 px-4 py-1.5 text-xl font-medium leading-none",
@@ -72,11 +77,11 @@ export const dashboardUi = {
   topBellIcon: "size-7",
   topAlarmDot: "absolute right-1.5 top-1.5 size-2.5 rounded-full bg-red-500",
   topLogoutBtn:
-    "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-2xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-  topLogoutIcon: "size-6",
+    "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:px-4 md:py-2.5 md:text-2xl",
+  topLogoutIcon: "size-5 md:size-6",
 
   alarmMenuContent:
-    "w-[min(100vw-2rem,38rem)] min-w-[28rem] p-2 text-[1.75rem] leading-snug",
+    "w-[min(100vw-1rem,calc(100vw-1rem))] max-md:min-w-0 p-2 text-base leading-snug md:w-[min(100vw-2rem,38rem)] md:min-w-[28rem] md:text-[1.75rem]",
   alarmMenuLabel:
     "px-4 py-3 text-2xl font-medium text-foreground data-inset:pl-4",
   alarmMenuItem:
@@ -88,9 +93,16 @@ export const dashboardUi = {
   alarmMenuFooter:
     "justify-center rounded-lg py-3.5 text-[1.75rem] font-medium text-emerald-700",
 
-  mainPad: "flex-1 overflow-y-auto p-6 md:p-8",
+  mainPad:
+    "flex-1 overflow-y-auto p-3 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:p-6 md:pb-8 lg:pb-8",
   /** 모니터링·운영 등 wide — 좌우 dead space 최소화 */
-  mainPadWide: "flex-1 overflow-y-auto p-4 md:p-5",
+  mainPadWide:
+    "flex-1 overflow-y-auto p-3 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:p-5 lg:pb-5",
+  /** 하단 모바일 네비 — fixed bar 높이 + safe-area */
+  mobileBottomNav:
+    "fixed bottom-0 left-0 right-0 z-40 flex border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90 md:hidden",
+  mobileBottomNavItem:
+    "flex min-h-[3.25rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium leading-tight transition-colors",
   pageStack: "mx-auto space-y-6 md:space-y-8",
   pageStackWide: "w-full max-w-none space-y-4 md:space-y-5",
 
@@ -110,7 +122,7 @@ export const dashboardUi = {
   chipCard: "rounded-xl border p-4",
   chipWidth: "w-[17rem]",
   chipMinH: "min-h-[8.5rem]",
-  metricTile: "rounded-xl border bg-background p-4",
+  metricTile: "rounded-xl border bg-background p-3 md:p-4",
   valueBox: "min-w-[7rem] rounded-lg border bg-muted/40 px-3 py-2.5 text-center",
   valueBoxPrimary:
     "min-w-[7rem] rounded-lg border border-primary/40 bg-primary/5 px-3 py-2.5 text-center",
@@ -125,7 +137,8 @@ export const dashboardUi = {
   banner: "rounded-xl border px-5 py-4",
   swipeZone:
     "rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-5 text-center touch-none",
-  swipePanel: "rounded-xl border bg-muted/20 p-5 text-center",
+  swipePanel:
+    "rounded-xl border bg-muted/20 p-3 text-center md:p-5",
 
   /* StatCard */
   statCard: "rounded-xl border bg-card",
@@ -137,29 +150,33 @@ export const dashboardUi = {
   statIconWrap: "rounded-lg bg-muted p-3",
   statIcon: "size-8",
   statCompact:
-    "flex items-center justify-between gap-3 rounded-xl border bg-muted/20 px-4 py-3",
-  statCompactLabel: "text-xl text-muted-foreground leading-tight",
-  statCompactValue: "text-3xl font-bold leading-tight",
-  statCompactUnit: "ml-1 text-xl font-medium",
-  statCompactSub: "truncate text-xl text-muted-foreground",
-  statCompactIcon: "size-7 shrink-0 opacity-70",
+    "flex items-center justify-between gap-2 rounded-xl border bg-muted/20 px-3 py-2 md:gap-3 md:px-4 md:py-3",
+  statCompactLabel:
+    "text-xs text-muted-foreground leading-tight md:text-xl",
+  statCompactValue: "text-xl font-bold leading-tight md:text-3xl",
+  statCompactUnit: "ml-1 text-sm font-medium md:text-xl",
+  statCompactSub:
+    "truncate text-xs text-muted-foreground md:text-xl",
+  statCompactIcon: "size-5 shrink-0 opacity-70 md:size-7",
 
   /* 타이포 */
-  sectionTitle: "text-2xl font-medium text-muted-foreground",
-  label: "text-2xl text-muted-foreground",
-  body: "text-[1.75rem] leading-snug",
-  value: "text-[1.75rem] font-mono font-semibold tabular-nums leading-tight",
-  valueMd: "text-[2rem] font-mono font-bold tabular-nums leading-tight",
-  valueLg: "text-4xl font-mono font-bold tabular-nums leading-tight",
-  footer: "text-2xl text-muted-foreground leading-snug",
-  bannerTitle: "text-2xl font-semibold",
-  cardTitle: "text-[2rem] font-semibold",
-  cardDesc: "text-[1.75rem] text-muted-foreground",
-  table: "text-[1.75rem]",
-  tableHead: "text-2xl font-medium",
-  tableMeta: "text-[1.75rem] text-muted-foreground leading-snug",
-  filterLabel: "text-2xl font-medium text-muted-foreground leading-snug",
-  tabNav: "rounded-lg px-5 py-3 text-[1.75rem] font-medium",
+  sectionTitle: "text-lg font-medium text-muted-foreground md:text-2xl",
+  label: "text-base text-muted-foreground md:text-2xl",
+  body: "text-base leading-snug md:text-[1.75rem]",
+  value:
+    "text-base font-mono font-semibold tabular-nums leading-tight md:text-[1.75rem]",
+  valueMd: "text-lg font-mono font-bold tabular-nums leading-tight md:text-[2rem]",
+  valueLg: "text-2xl font-mono font-bold tabular-nums leading-tight md:text-4xl",
+  footer: "text-base text-muted-foreground leading-snug md:text-2xl",
+  bannerTitle: "text-lg font-semibold md:text-2xl",
+  cardTitle: "text-lg font-semibold md:text-[2rem]",
+  cardDesc: "text-sm text-muted-foreground md:text-[1.75rem]",
+  table: "text-sm md:text-[1.75rem]",
+  tableHead: "text-base font-medium md:text-2xl",
+  tableMeta: "text-sm text-muted-foreground leading-snug md:text-[1.75rem]",
+  filterLabel:
+    "text-base font-medium text-muted-foreground leading-snug md:text-2xl",
+  tabNav: "rounded-lg px-3 py-2 text-sm font-medium md:px-5 md:py-3 md:text-[1.75rem]",
 
   /* 간격 */
   stack: "space-y-5",
@@ -168,16 +185,19 @@ export const dashboardUi = {
   valueSlotMinH: "min-h-[11rem]",
 
   /* 아이콘 */
-  iconSm: "size-7 shrink-0",
-  iconMd: "size-8 shrink-0",
+  iconSm: "size-4 shrink-0 md:size-7",
+  iconMd: "size-5 shrink-0 md:size-8",
 
   /* 컨트롤 */
   slider: "ctrl-range min-w-0 flex-1",
-  btnSave: "h-12 min-w-[9rem] gap-2 px-6 text-[1.75rem] font-medium",
-  btnMicro: "h-11 min-w-[5.5rem] gap-2 px-4 text-[1.75rem]",
-  btnMenuTab: "h-11 px-5 text-[1.75rem]",
-  btnDefault: "h-11 px-5 text-[1.75rem] font-medium",
-  btnSmAction: "h-11 min-h-[2.75rem] px-4 text-[1.75rem] font-medium leading-snug",
+  btnSave:
+    "h-9 min-w-0 gap-2 px-4 text-sm font-medium md:h-12 md:min-w-[9rem] md:px-6 md:text-[1.75rem]",
+  btnMicro:
+    "h-8 min-w-0 gap-1.5 px-3 text-sm md:h-11 md:min-w-[5.5rem] md:gap-2 md:px-4 md:text-[1.75rem]",
+  btnMenuTab: "h-8 px-3 text-sm md:h-11 md:px-5 md:text-[1.75rem]",
+  btnDefault: "h-8 px-3 text-sm font-medium md:h-11 md:px-5 md:text-[1.75rem]",
+  btnSmAction:
+    "h-8 min-h-8 px-3 text-sm font-medium leading-snug md:h-11 md:min-h-[2.75rem] md:px-4 md:text-[1.75rem]",
   spChip: "rounded-full border px-4 py-2.5 text-2xl font-medium",
   refreshBtn: "rounded-lg border px-4 py-2.5 text-xl font-medium",
 
@@ -193,7 +213,7 @@ export const dashboardUi = {
   opsScopeBar: "py-3 md:py-4",
   scopePill:
     "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-left font-medium transition-colors",
-  scopePillText: "text-[1.75rem] leading-snug",
+  scopePillText: "text-sm leading-snug md:text-[1.75rem]",
   scopePillActive:
     "border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
   scopePillIdle:
@@ -205,8 +225,8 @@ export const dashboardUi = {
   scopePillSeparator: "size-5 shrink-0 text-muted-foreground/70",
 
   /* SectionCard lg */
-  cardHeaderLg: "px-6 pt-6 pb-4",
-  cardContentLg: "px-6 pb-6",
+  cardHeaderLg: "px-4 pt-4 pb-3 md:px-6 md:pt-6 md:pb-4",
+  cardContentLg: "px-4 pb-4 md:px-6 md:pb-6",
 
   /** 운영 3열 좌·우 사이드 패널 — compact typography */
   opsSideBody: "text-sm leading-snug",

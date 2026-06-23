@@ -16,9 +16,12 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   options: EditableFarmOption[];
+  variant?: "page" | "panel";
 };
 
-export function FarmLocationForm({ options }: Props) {
+const FORM_ID = "farm-location-form";
+
+export function FarmLocationForm({ options, variant = "page" }: Props) {
   const [selectedId, setSelectedId] = useState(
     () => (options[0] ? farmOptionId(options[0].farmKey) : "")
   );
@@ -53,30 +56,51 @@ export function FarmLocationForm({ options }: Props) {
     );
   }
 
-  return (
-    <form onSubmit={handleSubmit}>
-      <input type="hidden" name="lsind" value={selected?.farmKey.lsindRegistNo ?? ""} />
-      <input type="hidden" name="item" value={selected?.farmKey.itemCode ?? ""} />
-      <input type="hidden" name="sido" value={draft.sido} />
-      <input type="hidden" name="sigungu" value={draft.sigungu} />
-      <input type="hidden" name="address_detail" value={draft.addressDetail} />
+  const isPanel = variant === "panel";
 
-      <SectionCard
-        title="농장 위치"
-        description="시·도와 시·군·구를 선택하면 전체 농장 지도에 마커가 표시됩니다. 상세 주소는 선택 사항입니다."
-        action={
-          <PageActionButton type="submit" variant="primary" disabled={pending}>
-            {pending ? "저장 중…" : "저장"}
-          </PageActionButton>
-        }
+  return (
+    <>
+      <form
+        id={FORM_ID}
+        onSubmit={handleSubmit}
+        className={cn(
+          isPanel && "pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
+        )}
       >
-        <div className="mb-4 space-y-2">
-          <span className={cn("font-medium", dashboardUi.body)}>농장</span>
-          <select
-            className="w-full rounded-lg border bg-background px-3 py-2"
-            value={selectedId}
-            onChange={(e) => handleFarmChange(e.target.value)}
-          >
+        <input type="hidden" name="lsind" value={selected?.farmKey.lsindRegistNo ?? ""} />
+        <input type="hidden" name="item" value={selected?.farmKey.itemCode ?? ""} />
+        <input type="hidden" name="sido" value={draft.sido} />
+        <input type="hidden" name="sigungu" value={draft.sigungu} />
+        <input type="hidden" name="address_detail" value={draft.addressDetail} />
+
+        <SectionCard
+          title="농장 위치"
+          description={
+            isPanel
+              ? undefined
+              : "시·도와 시·군·구를 선택하면 전체 농장 지도에 마커가 표시됩니다. 상세 주소는 선택 사항입니다."
+          }
+          action={
+            <PageActionButton
+              type="submit"
+              variant="primary"
+              disabled={pending}
+              className={cn(isPanel && "hidden lg:inline-flex")}
+            >
+              {pending ? "저장 중…" : "저장"}
+            </PageActionButton>
+          }
+          size={isPanel ? "default" : "lg"}
+        >
+          <div className="mb-4 space-y-2">
+            <span className={cn("font-medium", dashboardUi.body, isPanel && "text-sm")}>
+              농장
+            </span>
+            <select
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+              value={selectedId}
+              onChange={(e) => handleFarmChange(e.target.value)}
+            >
             {options.map((o) => {
               const id = farmOptionId(o.farmKey);
               return (
@@ -102,6 +126,23 @@ export function FarmLocationForm({ options }: Props) {
           </p>
         ) : null}
       </SectionCard>
+      {isPanel ? (
+        <div className="mt-4 border-t pt-3 lg:hidden">
+          <PageActionButton
+            type="button"
+            variant="primary"
+            disabled={pending}
+            className="w-full"
+            onClick={() => {
+              const el = document.getElementById(FORM_ID);
+              if (el instanceof HTMLFormElement) el.requestSubmit();
+            }}
+          >
+            {pending ? "저장 중…" : "저장"}
+          </PageActionButton>
+        </div>
+      ) : null}
     </form>
+    </>
   );
 }

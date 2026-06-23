@@ -66,7 +66,7 @@ type Props = {
   /** SectionCard 없이 필드만 (부모가 제목·카드 제공) */
   embedded?: boolean;
   /** embedded 시 compact(우측 사이드) | default(중앙 패널) */
-  density?: "compact" | "default";
+  density?: "compact" | "default" | "mobileSplit";
   /** embedded + SectionCard 헤더에 저장·scope 상태 위임 */
   onHeaderState?: (state: AlarmThresholdHeaderState | null) => void;
 };
@@ -167,7 +167,8 @@ export function AlarmThresholdForm({
   density = "compact",
   onHeaderState,
 }: Props) {
-  const compact = embedded && density !== "default";
+  const compact = embedded && density === "compact";
+  const mobileSplit = embedded && density === "mobileSplit";
   const hideScopeSelectors = embedded && Boolean(fixedScope);
   const externalHeader = embedded && Boolean(onHeaderState);
   const [settings, setSettings] = useState<AlarmSettings>(initialSettings);
@@ -524,11 +525,56 @@ export function AlarmThresholdForm({
 
       <div
         className={cn(
-          "grid gap-4",
-          compact ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"
+          mobileSplit ? "space-y-3" : "grid gap-4",
+          !mobileSplit && "grid-cols-1 lg:grid-cols-2"
         )}
       >
-        {compact ? (
+        {mobileSplit ? (
+          <>
+            <ThresholdRangeSlider
+              title="온도 알림"
+              icon={
+                <Thermometer
+                  className={cn("size-4", "text-orange-600")}
+                  aria-hidden
+                />
+              }
+              min={-40}
+              max={60}
+              step={0.5}
+              low={draft.tempLow}
+              high={draft.tempHigh}
+              unit="℃"
+              accentClass="bg-orange-500/35"
+              disabled={!scopeReady || pending}
+              compact
+              onChange={(low, high) =>
+                updateDraft({ ...draft, tempLow: low, tempHigh: high })
+              }
+            />
+            <ThresholdRangeSlider
+              title="습도 알림"
+              icon={
+                <Droplets
+                  className={cn("size-4", "text-sky-600")}
+                  aria-hidden
+                />
+              }
+              min={0}
+              max={100}
+              step={1}
+              low={draft.humidityLow}
+              high={draft.humidityHigh}
+              unit="%"
+              accentClass="bg-sky-500/35"
+              disabled={!scopeReady || pending}
+              compact
+              onChange={(low, high) =>
+                updateDraft({ ...draft, humidityLow: low, humidityHigh: high })
+              }
+            />
+          </>
+        ) : compact ? (
           <>
             <ThresholdFieldGroup
               title="온도"

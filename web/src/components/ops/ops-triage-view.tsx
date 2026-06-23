@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ControllerPanelFace } from "@/components/controllers/controller-panel-face";
 import { DevicesPanelNav } from "@/components/controllers/devices-panel-nav";
@@ -11,7 +11,7 @@ import {
 } from "@/components/ops/hierarchy-alarm-tree";
 import { SectionCard } from "@/components/common/section-card";
 import type { AlarmThresholdHeaderState } from "@/components/settings/alarm-threshold-form";
-import type { ControllerReading } from "@/lib/data/iot";
+import type { ControllerReading, BarnMapSnapshot } from "@/lib/data/iot";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { buildControllerHref } from "@/lib/auth/farm-access";
@@ -44,11 +44,30 @@ import { useControllerDetail } from "@/components/controllers/use-controller-det
 import { useDisplayEnabled } from "@/components/display/display-settings-provider";
 import { setMonitoringTabParam } from "@/lib/monitoring/monitoring-tabs";
 import {
+  buildHubTriageFarms,
+  pickWorstControllerPayload,
+} from "@/lib/monitoring/hub-triage-queue";
+import {
+  buildBarnNavQueue,
+  buildBarnTriageQueue,
+} from "@/lib/monitoring/barn-triage-queue";
+import { pickControllerForBarn } from "@/lib/monitoring/barn-grid-select";
+import {
   parseDevicesPanel,
   type DevicesPanelId,
 } from "@/lib/monitoring/devices-panel";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { formatControllerPillLabel } from "@/lib/ui/controller-labels";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
+import { OpsMobileAlarmStrip } from "@/components/ops/ops-mobile-alarm-strip";
+import { OpsMobileSplitHub } from "@/components/ops/ops-mobile-split-hub";
+import { OpsMobileSplitShell } from "@/components/ops/ops-mobile-split-shell";
+import { OpsMobileBarnGrid } from "@/components/ops/ops-mobile-barn-grid";
+import {
+  OpsMobileSpOverview,
+  pickReadingForSp,
+} from "@/components/ops/ops-mobile-sp-overview";
 
 const AdminFarmOverview = dynamic(
   () =>
@@ -149,6 +168,12 @@ export type OpsTriageViewProps = {
   geoHub?: {
     farmSummaries: FarmSummaryRow[];
     locations: FarmLocationRow[];
+  };
+  /** Farmer ops — 축사 미니 그리드 */
+  barnGrid?: {
+    snapshots: BarnMapSnapshot[];
+    gridCols: number;
+    gridRows: number;
   };
 };
 
@@ -303,9 +328,11 @@ function OpsTriageViewBody({
   settingsNotice = null,
   initialDevicesPanel = "control",
   geoHub,
+  barnGrid,
 }: OpsTriageViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isMobile = useMobileLayout();
   const geoHubMode = Boolean(geoHub);
   const [activeSido, setActiveSido] = useState<string | null>(null);
   const devicesPanel = parseDevicesPanel(
@@ -439,6 +466,53 @@ function OpsTriageViewBody({
     return filterBySido(globalAlarms, geoHub.locations, activeSido);
   }, [geoHub, globalAlarms, activeSido]);
 
+  const triageFarms = useMemo(
+    () => buildHubTriageFarms(hubAlarms, hubReadings, hubFarmSummaries),
+    [hubAlarms, hubReadings, hubFarmSummaries]
+  );
+
+  const triageIndex = useMemo(() => {
+    if (!farmId) return -1;
+    return triageFarms.findIndex((f) => f.farmId === farmId);
+  }, [triageFarms, farmId]);
+
+  const activeTriageFarm = useMemo(
+    () => triageFarms.find((f) => f.farmId === farmId),
+    [triageFarms, farmId]
+  );
+
+  const barnTriageQueue = useMemo(
+    () =>
+      barnGrid
+        ? buildBarnTriageQueue(
+            barnGrid.snapshots,
+            hubAlarms,
+            readings
+          )
+        : [],
+    [barnGrid, hubAlarms, readings]
+  );
+
+  const barnNavQueue = useMemo(
+    () =>
+      barnGrid
+        ? buildBarnNavQueue(barnGrid.snapshots, hubAlarms, readings)
+        : [],
+    [barnGrid, hubAlarms, readings]
+  );
+
+  const barnNavIndex = useMemo(() => {
+    if (!spCode || barnNavQueue.length === 0) return -1;
+    return barnNavQueue.findIndex(
+      (item) =>
+        normalizeStallTyCode(item.snapshot.meta.stallNo ?? "") ===
+        normalizeStallTyCode(spCode)
+    );
+  }, [barnNavQueue, spCode]);
+
+  const autoTriageBooted = useRef(false);
+  const autoFarmerBarnBooted = useRef(false);
+
   const farmScopeCount = useMemo(() => {
     const ids = new Set<string>();
     const scopeReadings = geoHub ? hubReadings : readings;
@@ -479,8 +553,10 @@ function OpsTriageViewBody({
     else params.delete("ctrl");
     if (alarmId) params.set("alarm", alarmId);
     else params.delete("alarm");
-    if (geoHubMode) params.set("tab", "ops");
-    else setMonitoringTabParam(params, "ops");
+    if (geoHubMode) {
+      params.set("tab", "ops");
+      params.delete("hub");
+    } else setMonitoringTabParam(params, "ops");
     router.replace(`/farm?${params.toString()}`, { scroll: false });
   };
 
@@ -546,6 +622,149 @@ function OpsTriageViewBody({
     );
   };
 
+  const goTriageFarmAt = (index: number) => {
+    const farm = triageFarms[index];
+    if (!farm) return;
+    const payload = pickWorstControllerPayload(
+      hubAlarms,
+      hubReadings,
+      farm.farmKey
+    );
+    if (payload) navigateToController(payload);
+  };
+
+  const goPrevTriageFarm = () => {
+    if (triageFarms.length === 0) return;
+    const idx =
+      triageIndex <= 0 ? triageFarms.length - 1 : triageIndex - 1;
+    goTriageFarmAt(idx);
+  };
+
+  const goNextTriageFarm = () => {
+    if (triageFarms.length === 0) return;
+    const idx =
+      triageIndex < 0 ? 0 : (triageIndex + 1) % triageFarms.length;
+    goTriageFarmAt(idx);
+  };
+
+  const splitHubFarmLabel =
+    activeTriageFarm?.label ??
+    (selectedFarmKey ? farmShortLabel(selectedFarmKey) : "이상 농장 없음");
+
+  const splitHubPositionLabel =
+    triageFarms.length > 0
+      ? `${Math.max(triageIndex, 0) + 1} / ${triageFarms.length}`
+      : "—";
+
+  const goBarnAt = (index: number) => {
+    const item = barnNavQueue[index];
+    if (!item) return;
+    const payload = pickControllerForBarn(
+      item.snapshot,
+      readings,
+      hubAlarms
+    );
+    if (payload) navigateToController(payload);
+  };
+
+  const goPrevBarn = () => {
+    if (barnNavQueue.length === 0) return;
+    const idx =
+      barnNavIndex <= 0 ? barnNavQueue.length - 1 : barnNavIndex - 1;
+    goBarnAt(idx);
+  };
+
+  const goNextBarn = () => {
+    if (barnNavQueue.length === 0) return;
+    const idx =
+      barnNavIndex < 0 ? 0 : (barnNavIndex + 1) % barnNavQueue.length;
+    goBarnAt(idx);
+  };
+
+  const farmerSplitTitle =
+    selectedFarmKey != null
+      ? farmShortLabel(selectedFarmKey)
+      : farmOptions[0]?.label ?? "내 농장";
+
+  const farmerSplitSubtitle =
+    barnNavQueue.length > 0
+      ? [
+          `${Math.max(barnNavIndex, 0) + 1} / ${barnNavQueue.length}`,
+          barnNavQueue[Math.max(barnNavIndex, 0)]?.label,
+          barnNavQueue[Math.max(barnNavIndex, 0)]?.alarmCount
+            ? `${barnNavQueue[Math.max(barnNavIndex, 0)]!.alarmCount}건`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : barnGrid?.snapshots.length
+        ? `${barnGrid.snapshots.length}개 축사`
+        : undefined;
+
+  const mobileAlarmStrip = (
+    <OpsMobileAlarmStrip
+      alarms={hubAlarms}
+      activeAlarmId={urlAlarm}
+      onSelect={navigateToAlarm}
+      density="compact"
+      limitVisible={false}
+      embedded
+    />
+  );
+
+  const mobileSplitHeader = mobileAlarmStrip;
+
+  const handleControllerSelect = (key: string) => {
+    const ctrl = controllerList.find((r) => r.key === key);
+    if (!ctrl || !selectedFarmKey) return;
+    navigateToController({
+      farmKey: selectedFarmKey,
+      spCode,
+      stallKey,
+      readingKey: key,
+    });
+  };
+
+  const renderAlarmSettingsPanel = (mobileSplit: boolean) =>
+    alarmSettingsAvailable && thresholdScope && alarmSettings ? (
+      <AlarmThresholdForm
+        key={`${thresholdScope.readingKey}-${mobileSplit ? "m" : "d"}`}
+        initialSettings={alarmSettings}
+        readings={readings}
+        fixedScope={thresholdScope}
+        embedded
+        density={mobileSplit ? "mobileSplit" : "default"}
+        onHeaderState={setThresholdHeader}
+      />
+    ) : null;
+
+  const renderControllerPanel = (mobileSplit: boolean) => (
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <ControllerPanelFace
+        key={`${selectedDetail?.key ?? "none"}-${activeChannel}-${mobileSplit ? "m" : "d"}`}
+        reading={selectedDetail}
+        detailLoading={detailLoading}
+        knownSettings={selectedSettings}
+        latestCommand={latestCommand}
+        canCommand={canCommand}
+        controllerList={controllerList}
+        selectedControllerKey={selected?.key}
+        onControllerSelect={handleControllerSelect}
+        hideControllerList
+        activeChannel={activeChannel}
+        onChannelChange={setActiveChannel}
+        spLabel={
+          stallKey
+            ? `${formatStallTypeLabel(spCode)} · ${stallLabelFromKey(stallKey)}`
+            : formatStallTypeLabel(spCode)
+        }
+        alarmThresholdHeader={thresholdHeader}
+        alarmSettingsPanel={renderAlarmSettingsPanel(mobileSplit)}
+        mobileSplit={mobileSplit}
+      />
+    </div>
+  );
+
   useEffect(() => {
     if (!urlAlarm) return;
     const alarm = alarms.find((a) => a.id === urlAlarm);
@@ -578,9 +797,97 @@ function OpsTriageViewBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount URL bootstrap only
   }, []);
 
+  useEffect(() => {
+    if (!geoHubMode || !isMobile || autoTriageBooted.current) return;
+    if (triageFarms.length === 0) return;
+    autoTriageBooted.current = true;
+    if (urlFarmId && controllerKey) return;
+    if (urlFarmId && !controllerKey) {
+      const farmKey = hubReadings.find(
+        (r) => farmKeyId(r.farmKey) === urlFarmId
+      )?.farmKey;
+      if (farmKey) {
+        const payload = pickWorstControllerPayload(
+          hubAlarms,
+          hubReadings,
+          farmKey
+        );
+        if (payload) navigateToController(payload);
+      }
+      return;
+    }
+    goTriageFarmAt(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mobile hub triage bootstrap once
+  }, [geoHubMode, isMobile, triageFarms.length, urlFarmId, controllerKey]);
+
+  useEffect(() => {
+    if (geoHubMode || !barnGrid || autoFarmerBarnBooted.current) return;
+    autoFarmerBarnBooted.current = true;
+    if (controllerKey) return;
+    if (barnTriageQueue.length > 0) {
+      const item = barnTriageQueue[0]!;
+      const payload = pickControllerForBarn(
+        item.snapshot,
+        readings,
+        hubAlarms
+      );
+      if (payload) navigateToController(payload);
+      return;
+    }
+    if (barnGrid.snapshots.length > 0) {
+      const payload = pickControllerForBarn(
+        barnGrid.snapshots[0],
+        readings,
+        hubAlarms
+      );
+      if (payload) navigateToController(payload);
+      return;
+    }
+    const firstReading = readings.find(
+      (r) => normalizeStallTyCode(r.stallTyCode) !== "UNK"
+    );
+    if (firstReading) {
+      navigateToController({
+        farmKey: firstReading.farmKey,
+        spCode: normalizeStallTyCode(firstReading.stallTyCode),
+        stallKey: stallKeyFromReading(firstReading),
+        readingKey: firstReading.key,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- farmer barn bootstrap once
+  }, [geoHubMode, barnGrid, barnTriageQueue.length, controllerKey, readings.length]);
+
   const showAdminPlaceholder = geoHubMode
     ? !controllerKey
     : adminAllNoFarm && !farmId;
+
+  const adminMobileFarmReadings = useMemo(() => {
+    if (!geoHubMode || !farmId) return [];
+    return readings.filter((r) => farmKeyId(r.farmKey) === farmId);
+  }, [geoHubMode, farmId, readings]);
+
+  const adminMobileSpPicker =
+    geoHubMode && farmId && !showAdminPlaceholder ? (
+      <div className="space-y-1.5">
+        <p className="px-0.5 text-xs font-semibold text-muted-foreground">
+          축사유형
+        </p>
+        <OpsMobileSpOverview
+          readings={adminMobileFarmReadings}
+          selectedSpCode={spCode}
+          onSelectSp={(sp) => {
+            const reading = pickReadingForSp(readings, sp, farmId);
+            if (!reading) return;
+            navigateToController({
+              farmKey: reading.farmKey,
+              spCode: normalizeStallTyCode(reading.stallTyCode),
+              stallKey: stallKeyFromReading(reading),
+              readingKey: reading.key,
+            });
+          }}
+        />
+      </div>
+    ) : null;
 
   const alarmSettingsAvailable =
     showThresholdPanel && Boolean(thresholdScope && alarmSettings);
@@ -630,22 +937,9 @@ function OpsTriageViewBody({
   ) : null;
 
 
-  const alarmSettingsPanel =
-    alarmSettingsAvailable && thresholdScope && alarmSettings ? (
-      <AlarmThresholdForm
-        key={thresholdScope.readingKey}
-        initialSettings={alarmSettings}
-        readings={readings}
-        fixedScope={thresholdScope}
-        embedded
-        density="default"
-        onHeaderState={setThresholdHeader}
-      />
-    ) : null;
-
   const opsTriageGridClass = geoHubMode
-    ? "hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:min-h-[360px] lg:grid-cols-[minmax(300px,24%)_minmax(260px,18%)_minmax(560px,1fr)] lg:items-stretch lg:overflow-hidden"
-    : "hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:grid-cols-[minmax(400px,28%)_minmax(0,1fr)] lg:items-stretch lg:overflow-hidden";
+    ? "max-lg:hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:min-h-[360px] lg:grid-cols-[minmax(300px,24%)_minmax(260px,18%)_minmax(560px,1fr)] lg:items-stretch lg:overflow-hidden"
+    : "max-lg:hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:grid-cols-[minmax(400px,28%)_minmax(0,1fr)] lg:items-stretch lg:overflow-hidden";
 
   const columnShellClass =
     "max-h-[calc(100vh-9rem)] min-h-[360px] min-w-0 overflow-hidden";
@@ -664,38 +958,13 @@ function OpsTriageViewBody({
   const controllerColumn = showAdminPlaceholder ? (
     <AdminControllerPlaceholderClient />
   ) : (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-      <ControllerPanelFace
-        key={`${selectedDetail?.key ?? "none"}-${activeChannel}`}
-        reading={selectedDetail}
-        detailLoading={detailLoading}
-        knownSettings={selectedSettings}
-        latestCommand={latestCommand}
-        canCommand={canCommand}
-        controllerList={controllerList}
-        selectedControllerKey={selected?.key}
-        onControllerSelect={(key) => {
-          const ctrl = controllerList.find((r) => r.key === key);
-          if (!ctrl || !selectedFarmKey) return;
-          navigateToController({
-            farmKey: selectedFarmKey,
-            spCode,
-            stallKey,
-            readingKey: key,
-          });
-        }}
-        hideControllerList
-        activeChannel={activeChannel}
-        onChannelChange={setActiveChannel}
-        spLabel={
-          stallKey
-            ? `${formatStallTypeLabel(spCode)} · ${stallLabelFromKey(stallKey)}`
-            : formatStallTypeLabel(spCode)
-        }
-        alarmThresholdHeader={thresholdHeader}
-        alarmSettingsPanel={alarmSettingsPanel}
-      />
-    </div>
+    renderControllerPanel(false)
+  );
+
+  const mobileSplitControl = showAdminPlaceholder ? (
+    <AdminControllerPlaceholderClient />
+  ) : (
+    renderControllerPanel(true)
   );
 
   return (
@@ -718,11 +987,11 @@ function OpsTriageViewBody({
 
 
       {devicesPanel === "display" && displaySettings ? (
-        <DisplaySettingsForm initialSettings={displaySettings} />
+        <DisplaySettingsForm initialSettings={displaySettings} variant="panel" />
       ) : null}
 
       {devicesPanel === "farm" ? (
-        <FarmLocationForm options={farmLocationOptions} />
+        <FarmLocationForm options={farmLocationOptions} variant="panel" />
       ) : null}
 
       {showTriage ? (
@@ -742,18 +1011,88 @@ function OpsTriageViewBody({
             </div>
           </div>
 
-          <div className="space-y-4 lg:hidden">
-            {geoHubMode ? mapColumn : null}
-            <div className="flex h-[min(70vh,720px)] min-h-[360px] flex-col overflow-hidden">
-              {farmListColumn}
-            </div>
-            <div
-              className={cn(
-                showAdminPlaceholder && "pointer-events-none opacity-50"
-              )}
-            >
-              {controllerColumn}
-            </div>
+          <div className="lg:hidden">
+            {geoHubMode ? (
+              <OpsMobileSplitHub
+                farmLabel={splitHubFarmLabel}
+                positionLabel={splitHubPositionLabel}
+                alarmHint={
+                  activeTriageFarm && activeTriageFarm.alarmCount > 0
+                    ? `${activeTriageFarm.alarmCount}건 알람`
+                    : undefined
+                }
+                hasPrev={triageFarms.length > 1}
+                hasNext={triageFarms.length > 1}
+                onPrev={goPrevTriageFarm}
+                onNext={goNextTriageFarm}
+                map={mapColumn}
+                control={mobileSplitControl}
+                headerSlot={mobileSplitHeader}
+                midPanel={adminMobileSpPicker}
+                controllerList={controllerList}
+                selectedControllerKey={selected?.key}
+                onControllerSelect={handleControllerSelect}
+                placeholder={showAdminPlaceholder}
+              />
+            ) : (
+              <OpsMobileSplitShell
+                title={farmerSplitTitle}
+                subtitle={farmerSplitSubtitle}
+                nav={
+                  barnNavQueue.length > 1
+                    ? {
+                        hasPrev: true,
+                        hasNext: true,
+                        onPrev: goPrevBarn,
+                        onNext: goNextBarn,
+                        prevLabel: "이전 축사",
+                        nextLabel: "다음 축사",
+                      }
+                    : undefined
+                }
+                topPanel={
+                  barnGrid && barnGrid.snapshots.length > 0 ? (
+                    <OpsMobileBarnGrid
+                      barns={barnGrid.snapshots}
+                      gridCols={barnGrid.gridCols}
+                      gridRows={barnGrid.gridRows}
+                      selectedFarmId={farmId}
+                      selectedSpCode={spCode}
+                      onSelectBarn={(snapshot) => {
+                        const payload = pickControllerForBarn(
+                          snapshot,
+                          readings,
+                          hubAlarms
+                        );
+                        if (payload) navigateToController(payload);
+                      }}
+                    />
+                  ) : (
+                    <OpsMobileSpOverview
+                      readings={readings}
+                      selectedSpCode={spCode}
+                      onSelectSp={(sp) => {
+                        const reading = pickReadingForSp(readings, sp, farmId);
+                        if (!reading) return;
+                        navigateToController({
+                          farmKey: reading.farmKey,
+                          spCode: normalizeStallTyCode(reading.stallTyCode),
+                          stallKey: stallKeyFromReading(reading),
+                          readingKey: reading.key,
+                        });
+                      }}
+                    />
+                  )
+                }
+                topVariant="grid"
+                control={mobileSplitControl}
+                headerSlot={mobileSplitHeader}
+                controllerList={controllerList}
+                selectedControllerKey={selected?.key}
+                onControllerSelect={handleControllerSelect}
+                placeholder={showAdminPlaceholder}
+              />
+            )}
           </div>
         </>
       ) : null}

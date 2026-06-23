@@ -134,6 +134,66 @@ export function FarmAccessGrantTable({
   }
 
   return (
+    <>
+      <ul className="space-y-2 md:hidden">
+        {options.map((o) => {
+          const id = farmValue(o.farmKey);
+          const checked = selectedIds.has(id);
+          const access = accessByFarmId.get(id) ?? {
+            can_read: false,
+            can_command: false,
+          };
+
+          return (
+            <li key={id} className="rounded-xl border bg-card px-3 py-3">
+              <div className="flex items-start gap-3">
+                {mode === "bulk" ? (
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => onToggle(id, v === true)}
+                    aria-label={`${o.label} 선택`}
+                    className="mt-1"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1">
+                  <p className={cn(dashboardTypography.body, "text-sm font-semibold")}>
+                    {o.label}
+                  </p>
+                  <p className={cn(dashboardTypography.meta, "text-xs")}>{id}</p>
+                  {mode === "bulk" ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {checked ? "선택됨" : "미선택"}
+                    </p>
+                  ) : (
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <PermissionToggleButton
+                        email={email}
+                        farmKey={o.farmKey}
+                        farmId={id}
+                        kind="read"
+                        enabled={access.can_read}
+                        currentAccess={access}
+                        onAccessChange={onAccessChange}
+                      />
+                      <PermissionToggleButton
+                        email={email}
+                        farmKey={o.farmKey}
+                        farmId={id}
+                        kind="command"
+                        enabled={access.can_command}
+                        currentAccess={access}
+                        onAccessChange={onAccessChange}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="hidden overflow-x-auto md:block">
     <Table>
       <TableHeader>
         <TableRow>
@@ -204,5 +264,7 @@ export function FarmAccessGrantTable({
         })}
       </TableBody>
     </Table>
+      </div>
+    </>
   );
 }

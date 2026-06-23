@@ -48,11 +48,11 @@ export function ScopePillSelect({
 
   const body = (
     <>
-      <span className={cn("max-w-[18rem] truncate", labelClassName)}>
+      <span className={cn("max-w-[8rem] truncate md:max-w-[18rem]", labelClassName)}>
         {displayLabel}
       </span>
       {canOpen ? (
-        <ChevronDown className="size-6 shrink-0 opacity-70" aria-hidden />
+        <ChevronDown className="size-4 shrink-0 opacity-70 md:size-6" aria-hidden />
       ) : null}
     </>
   );

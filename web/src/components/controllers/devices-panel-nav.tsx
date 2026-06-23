@@ -10,6 +10,7 @@ import {
   setDevicesPanelParam,
 } from "@/lib/monitoring/devices-panel";
 import { setMonitoringTabParam } from "@/lib/monitoring/monitoring-tabs";
+import { useScrollActiveTab } from "@/lib/ui/use-scroll-active-tab";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ export function DevicesPanelNav({ active, isAdmin = false }: Props) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const panels = getVisibleDevicesPanels(isAdmin);
+  const navRef = useScrollActiveTab(active);
 
   if (panels.length === 0) return null;
 
@@ -50,8 +52,9 @@ export function DevicesPanelNav({ active, isAdmin = false }: Props) {
 
   return (
     <nav
+      ref={navRef}
       className={cn(
-        "flex flex-wrap gap-2 border-b pb-1",
+        "-mx-1 hidden gap-2 overflow-x-auto overscroll-x-contain border-b pb-1 [scrollbar-width:none] lg:flex lg:flex-wrap",
         isPending && "opacity-80"
       )}
       aria-label="컨트롤러 설정 서브 탭"
@@ -68,15 +71,15 @@ export function DevicesPanelNav({ active, isAdmin = false }: Props) {
             onClick={() => selectPanel(panel)}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex items-center gap-2 border-b-2 transition-colors disabled:pointer-events-none",
+              "flex shrink-0 items-center gap-1.5 border-b-2 transition-colors disabled:pointer-events-none max-lg:gap-1 lg:gap-2",
               dashboardUi.tabNav,
               isActive
                 ? "border-emerald-600 text-emerald-700"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            <Icon className={dashboardUi.iconSm} aria-hidden />
-            {getDevicesPanelLabel(panel)}
+            <Icon className="size-4 shrink-0 lg:size-7" aria-hidden />
+            <span className="text-xs lg:text-base">{getDevicesPanelLabel(panel)}</span>
           </button>
         );
       })}

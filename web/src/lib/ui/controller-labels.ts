@@ -139,6 +139,24 @@ export function formatControllerPillLabel(opts: {
   return `${prefixParts.join(" · ")} · ${base}`;
 }
 
+/** 모바일 분할 셸 컨트롤러 pill — 짧은 라벨 */
+export function formatControllerPillLabelShort(opts: {
+  label?: string;
+  stallNo?: string | null;
+  eqpmnNo?: string;
+}): string {
+  const eq = opts.eqpmnNo?.trim();
+  if (eq) return `${eq}번`;
+  const stall = opts.stallNo?.trim();
+  if (stall) return `${stall}번`;
+  const label = opts.label?.trim();
+  if (label) {
+    const tail = label.split("·").pop()?.trim() ?? label;
+    return tail.length > 12 ? `${tail.slice(0, 11)}…` : tail;
+  }
+  return "—";
+}
+
 export function formatControllerRef(opts: {
   farmKey: FarmKey;
   eqpmnNo?: string;

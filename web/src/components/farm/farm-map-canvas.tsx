@@ -204,7 +204,8 @@ export function FarmMapCanvas({
 
   return (
     <div
-      className="relative hidden rounded-md border md:block"
+      className="relative hidden rounded-md border lg:block"
+      data-audit-desktop-only
       style={{ minHeight }}
     >
       <DisplayGate setting="farm.legend">

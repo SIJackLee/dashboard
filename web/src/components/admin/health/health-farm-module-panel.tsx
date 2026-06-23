@@ -55,7 +55,7 @@ export function HealthFarmModulePanel({
   }, [modules, statusFilter, search]);
 
   return (
-    <div className={cn("flex min-h-0 flex-col", embedded ? "h-full gap-2" : "space-y-4")}>
+    <div className={cn("flex min-h-0 flex-col", embedded ? "h-full gap-2" : "space-y-3 md:space-y-4")}>
       <div className={cn("flex flex-col gap-3", embedded ? "shrink-0 sm:flex-row sm:flex-wrap sm:items-center" : "sm:flex-row sm:flex-wrap sm:items-center")}>
         <div className="flex flex-wrap gap-2">
           {FILTER_OPTIONS.map((opt) => (
@@ -81,7 +81,7 @@ export function HealthFarmModulePanel({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="농장·모듈 검색"
           className={cn(
-            "min-w-[12rem] flex-1 rounded-lg border bg-background px-3 py-2",
+            "min-w-0 w-full flex-1 rounded-lg border bg-background px-3 py-2 sm:min-w-[12rem]",
             dashboardTypography.meta
           )}
           aria-label="농장·모듈 검색"

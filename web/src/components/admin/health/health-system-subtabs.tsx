@@ -8,6 +8,7 @@ import {
   type HealthSystemViewId,
   setHealthSystemViewParam,
 } from "@/lib/admin/health/system-views";
+import { useScrollActiveTab } from "@/lib/ui/use-scroll-active-tab";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,7 @@ export function HealthSystemSubTabs({ active }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const navRef = useScrollActiveTab(active);
 
   const selectView = (view: HealthSystemViewId) => {
     if (view === active || isPending) return;
@@ -34,8 +36,9 @@ export function HealthSystemSubTabs({ active }: Props) {
 
   return (
     <nav
+      ref={navRef}
       className={cn(
-        "flex flex-wrap gap-2 border-b border-border/60 pb-2",
+        "flex gap-2 overflow-x-auto overscroll-x-contain border-b border-border/60 pb-2 [scrollbar-width:none] max-lg:flex-nowrap lg:flex-wrap",
         isPending && "opacity-80"
       )}
       aria-label="시스템 하위 뷰"
@@ -51,7 +54,7 @@ export function HealthSystemSubTabs({ active }: Props) {
             onClick={() => selectView(view.id)}
             aria-current={isActive ? "true" : undefined}
             className={cn(
-              "rounded-lg px-3 py-1.5 transition-colors disabled:pointer-events-none",
+              "shrink-0 rounded-lg px-3 py-1.5 whitespace-nowrap transition-colors disabled:pointer-events-none",
               dashboardUi.tabNav,
               isActive
                 ? "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"

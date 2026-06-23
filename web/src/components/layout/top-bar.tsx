@@ -6,6 +6,7 @@ import { GlobalContextStrip } from "@/components/layout/global-context-strip";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmOverview } from "@/lib/data/iot";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
 
 type Role = "admin" | "operator" | "viewer";
 
@@ -13,7 +14,7 @@ type TopBarProps = {
   overview?: FarmOverview;
   alarms?: AlarmRow[];
   isAdmin?: boolean;
-  /** Admin 전국 뷰 — GlobalContextStrip 숨김 */
+  /** Admin 전국 뷰 — 데스크톱 GlobalContextStrip 숨김 */
   hideScopeKpi?: boolean;
   user: {
     displayName: string | null;
@@ -34,23 +35,36 @@ export function TopBar({
   hideScopeKpi = false,
   user,
 }: TopBarProps) {
+  const showMobileKpi = overview != null;
+
   return (
     <header className={dashboardUi.topBar}>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 md:gap-3">
-        <AppHeaderBrand />
-        <TopBarDivider />
-        <AppHeaderNav role={user.role} />
-      </div>
+      <div className="flex w-full min-w-0 items-center gap-1.5 md:gap-2">
+        <div className="flex min-w-0 shrink-0 items-center gap-2 md:min-w-0 md:flex-1 md:flex-wrap md:gap-3">
+          <AppHeaderBrand />
+          <TopBarDivider />
+          <AppHeaderNav role={user.role} />
+        </div>
 
-      <GlobalContextStrip
-        overview={overview}
-        alarmCount={alarms.length}
-        hidden={hideScopeKpi}
-      />
+        {showMobileKpi ? (
+          <div className="min-w-0 flex-1 max-lg:block lg:hidden">
+            <GlobalContextStrip overview={overview} headerInline />
+          </div>
+        ) : null}
 
-      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:gap-3">
-        <TopBarAlarmSlot alarms={alarms} />
-        <AppHeaderAccount user={user} />
+        <div className="hidden min-w-0 flex-1 lg:flex">
+          <GlobalContextStrip
+            overview={overview}
+            alarmCount={alarms.length}
+            hidden={hideScopeKpi}
+            compact={hideScopeKpi}
+          />
+        </div>
+
+        <div className="flex shrink-0 items-center justify-end gap-1.5 md:gap-3">
+          <TopBarAlarmSlot alarms={alarms} />
+          <AppHeaderAccount user={user} />
+        </div>
       </div>
     </header>
   );

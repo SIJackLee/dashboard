@@ -1,4 +1,6 @@
 export const NAV_MIN_DISPLAY_MS = 200;
+/** router.push 미완료 시 pending 고정 방지 */
+export const NAV_MAX_WAIT_MS = 8_000;
 
 type HrefLike =
   | string

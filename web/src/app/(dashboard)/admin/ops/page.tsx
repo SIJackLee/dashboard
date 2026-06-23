@@ -66,7 +66,7 @@ export default async function AdminOpsPage({
   }
 
   const pageBody = (content: ReactNode) => (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 md:gap-3">
       <Suspense fallback={null}>
         <AdminOpsTabs active={tab} />
       </Suspense>

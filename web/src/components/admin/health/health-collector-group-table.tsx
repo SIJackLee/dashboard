@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { CollectorGroupHealthRow } from "@/lib/admin/health/types";
+import { HealthCollectorGroupMobileList } from "@/components/admin/health/health-collector-group-mobile-list";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -37,7 +38,9 @@ export function HealthCollectorGroupTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border">
+    <>
+      <HealthCollectorGroupMobileList groups={groups} limit={limit} compact={compact} />
+      <div className="hidden overflow-x-auto rounded-xl border lg:block">
       <table
         className={cn(
           "w-full border-collapse",
@@ -109,5 +112,6 @@ export function HealthCollectorGroupTable({
         </tbody>
       </table>
     </div>
+    </>
   );
 }

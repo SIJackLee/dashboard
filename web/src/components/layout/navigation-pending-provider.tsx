@@ -13,6 +13,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { NavigationLoadingOverlay } from "@/components/common/navigation-loading-overlay";
 import {
+  NAV_MAX_WAIT_MS,
   NAV_MIN_DISPLAY_MS,
   shouldUseGlobalNav,
 } from "@/lib/navigation/nav-utils";
@@ -50,7 +51,7 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!pendingRef.current) return;
+    if (!pending) return;
 
     const target = targetPathRef.current;
     if (target && !shouldUseGlobalNav(target, pathname)) {
@@ -59,23 +60,32 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
     }
 
     const elapsed = Date.now() - startedAtRef.current;
-    const remaining = Math.max(0, NAV_MIN_DISPLAY_MS - elapsed);
-    const timer = window.setTimeout(clearPending, remaining);
-    return () => window.clearTimeout(timer);
-  }, [pathname, searchParams, clearPending]);
+    const minRemaining = Math.max(0, NAV_MIN_DISPLAY_MS - elapsed);
+    const minTimer = window.setTimeout(clearPending, minRemaining);
+    const safetyTimer = window.setTimeout(clearPending, NAV_MAX_WAIT_MS);
+
+    return () => {
+      window.clearTimeout(minTimer);
+      window.clearTimeout(safetyTimer);
+    };
+  }, [pending, pathname, searchParams, clearPending]);
 
   const navigate = useCallback(
     (href: string, options?: NavMessageOptions) => {
-      if (pendingRef.current) return;
       if (!shouldUseGlobalNav(href, pathname)) {
         router.push(href);
         return;
       }
 
-      pendingRef.current = true;
-      startedAtRef.current = Date.now();
-      targetPathRef.current = href;
-      setPending(resolveNavMessage(href, options));
+      if (!pendingRef.current) {
+        pendingRef.current = true;
+        startedAtRef.current = Date.now();
+        targetPathRef.current = href;
+        setPending(resolveNavMessage(href, options));
+      } else {
+        targetPathRef.current = href;
+      }
+
       router.push(href);
     },
     [pathname, router]

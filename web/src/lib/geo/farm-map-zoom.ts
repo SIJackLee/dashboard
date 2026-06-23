@@ -22,9 +22,9 @@ export const KOREA_SOUTH_BOUNDS = {
   northEast: [38.8, 131.2] as [number, number],
 };
 
-/** Z1/4 전국 — 본토+제주 타이트 (동해·서해·북쪽 여백 최소화) */
+/** Z1/4 전국 — 본토+제주 (제주 남서단 포함) */
 export const NATIONAL_VIEW_BOUNDS = {
-  southWest: [33.0, 126.5] as [number, number],
+  southWest: [32.7, 125.5] as [number, number],
   northEast: [38.05, 129.0] as [number, number],
 };
 
@@ -100,6 +100,7 @@ export function nationalMaxZoomForViewport(sizePx: number): number {
 
 /** 허브 정사각형 등 컨테이너별 전국 단계 목표 줌 */
 export function nationalTargetZoomForViewport(sizePx: number): number {
+  if (sizePx < 360) return 5;
   if (sizePx < 420) return 6;
   if (sizePx < 640) return 7;
   if (sizePx < 900) return 8;

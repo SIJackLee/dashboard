@@ -22,20 +22,32 @@ const dotClass: Record<HealthStatus, string> = {
 type HealthStatusBadgeProps = {
   status: HealthStatus;
   className?: string;
+  /** 모바일 DAG·리스트 — PC badgeMd(text-xl) 미사용 */
+  compact?: boolean;
 };
 
-export function HealthStatusBadge({ status, className }: HealthStatusBadgeProps) {
+export function HealthStatusBadge({
+  status,
+  className,
+  compact = false,
+}: HealthStatusBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-lg border px-2.5 py-1",
-        dashboardUi.badgeMd,
+        "inline-flex items-center rounded-lg border",
+        compact
+          ? "gap-1 px-1.5 py-0 text-[10px] font-medium leading-tight"
+          : cn("gap-2 px-2.5 py-1", dashboardUi.badgeMd),
         toneClass[status],
         className
       )}
     >
       <span
-        className={cn("size-2 shrink-0 rounded-full", dotClass[status])}
+        className={cn(
+          "shrink-0 rounded-full",
+          compact ? "size-1.5" : "size-2",
+          dotClass[status]
+        )}
         aria-hidden
       />
       {HEALTH_STATUS_LABEL[status]}

@@ -430,11 +430,11 @@ function ControllersViewBody({
       ) : null}
 
       {devicesPanel === "display" && displaySettings ? (
-        <DisplaySettingsForm initialSettings={displaySettings} />
+        <DisplaySettingsForm initialSettings={displaySettings} variant="panel" />
       ) : null}
 
       {devicesPanel === "farm" ? (
-        <FarmLocationForm options={farmLocationOptions} />
+        <FarmLocationForm options={farmLocationOptions} variant="panel" />
       ) : null}
 
       {showControlPanel && showFarmHints ? (

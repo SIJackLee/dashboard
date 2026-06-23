@@ -16,8 +16,8 @@ import { HealthOverallStatus } from "@/components/admin/health/health-overall-st
 import { HealthRefreshBar } from "@/components/admin/health/health-refresh-bar";
 import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import { dashboardControl } from "@/lib/ui/dashboard-page-ui";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
-
 type Props = {
   snapshot: HealthSnapshot;
 };
@@ -28,6 +28,7 @@ type PeekState = {
 };
 
 export function HealthSystemShell({ snapshot }: Props) {
+  const isMobileLayout = useMobileLayout();
   const [peek, setPeek] = useState<PeekState | null>(null);
   const [dialogNodeId, setDialogNodeId] = useState<HealthNodeId | null>(null);
   const [farmPanelOpen, setFarmPanelOpen] = useState(false);
@@ -38,10 +39,18 @@ export function HealthSystemShell({ snapshot }: Props) {
   );
   const overallStatus = worstHealthStatus(moduleCounts);
 
-  const handleNodeSelect = useCallback((payload: HealthDagNodeSelectPayload) => {
-    setPeek({ nodeId: payload.drillId, anchor: payload.anchor });
-    setDialogNodeId(null);
-  }, []);
+  const handleNodeSelect = useCallback(
+    (payload: HealthDagNodeSelectPayload) => {
+      if (isMobileLayout) {
+        setDialogNodeId(payload.drillId);
+        setPeek(null);
+        return;
+      }
+      setPeek({ nodeId: payload.drillId, anchor: payload.anchor });
+      setDialogNodeId(null);
+    },
+    [isMobileLayout]
+  );
 
   const closePeek = useCallback(() => {
     setPeek(null);
@@ -63,12 +72,12 @@ export function HealthSystemShell({ snapshot }: Props) {
       className={cn(
         "flex flex-col",
         farmPanelOpen
-          ? "gap-3"
-          : "flex min-h-0 min-h-[calc(100vh-9rem)] flex-1 flex-col overflow-hidden"
+          ? "gap-2 md:gap-3"
+          : "flex min-h-0 flex-1 flex-col overflow-hidden max-md:min-h-0 md:min-h-[calc(100vh-9rem)]"
       )}
     >
-      <header className="mb-2 shrink-0 border-b pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <header className="mb-1 shrink-0 border-b pb-2 md:mb-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <HealthOverallStatus
             overallStatus={overallStatus}
             compact
@@ -79,7 +88,7 @@ export function HealthSystemShell({ snapshot }: Props) {
           <HealthRefreshBar
             key={snapshot.fetchedAt}
             fetchedAt={snapshot.fetchedAt}
-            className="shrink-0"
+            className="w-full shrink-0 sm:w-auto"
           />
         </div>
         {!snapshot.dbOk ? (
@@ -91,7 +100,7 @@ export function HealthSystemShell({ snapshot }: Props) {
 
       <div
         className={cn(
-          "flex flex-col gap-3",
+          "flex flex-col gap-2 md:gap-3",
           farmPanelOpen ? undefined : "min-h-0 flex-1 overflow-y-auto overscroll-contain"
         )}
       >
@@ -117,7 +126,7 @@ export function HealthSystemShell({ snapshot }: Props) {
               onClick={() => setFarmPanelOpen((v) => !v)}
               className={cn(
                 dashboardControl.buttonOutline,
-                "rounded-lg px-2.5 py-1 text-sm"
+                "h-8 min-h-8 rounded-lg px-2.5 text-xs max-lg:text-xs lg:text-sm"
               )}
             >
               {farmPanelOpen ? "접기" : "펼치기"}
@@ -132,7 +141,7 @@ export function HealthSystemShell({ snapshot }: Props) {
         </HealthSectionCard>
       </div>
 
-      {peek && !dialogNodeId ? (
+      {peek && !dialogNodeId && !isMobileLayout ? (
         <HealthNodePeekPopover
           nodeId={peek.nodeId}
           anchor={peek.anchor}

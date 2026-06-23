@@ -40,18 +40,36 @@ export function RecentActivityList({
           최근 수신 데이터가 없습니다.
         </p>
       ) : (
-        <ul className="flex flex-1 flex-col justify-center space-y-4">
+        <ul className="flex flex-1 flex-col justify-center space-y-2 lg:space-y-4">
           {items.map((r) => (
             <li
               key={`${farmKeyId(r.farmKey)}-${r.moduleUid}`}
-              className="flex items-center gap-3"
+              className={cn(
+                "flex gap-2",
+                variant === "compact"
+                  ? "flex-col rounded-lg border bg-muted/10 p-2.5 lg:flex-row lg:items-center lg:gap-3 lg:border-0 lg:bg-transparent lg:p-0"
+                  : "flex-col rounded-lg border bg-muted/10 p-3 lg:flex-row lg:items-center lg:gap-3 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0"
+              )}
             >
-              <StatusBadge tone={r.status} large />
-              <span className={cn("min-w-0 flex-1", dashboardUi.body)}>
-                {farmShortLabel(r.farmKey)} · 통신박스{" "}
-                {r.moduleUid} 센서 수신
-              </span>
-              <span className={cn("shrink-0", dashboardUi.tableMeta)}>
+              <div className="flex min-w-0 flex-1 items-start gap-2 lg:items-center">
+                <span className="lg:hidden">
+                  <StatusBadge tone={r.status} compact />
+                </span>
+                <span className="hidden shrink-0 lg:inline-flex">
+                  <StatusBadge tone={r.status} large />
+                </span>
+                <span
+                  className={cn(
+                    "min-w-0 flex-1",
+                    variant === "compact"
+                      ? "text-sm leading-snug lg:text-base"
+                      : dashboardUi.body
+                  )}
+                >
+                  {farmShortLabel(r.farmKey)} · 통신박스 {r.moduleUid} 센서 수신
+                </span>
+              </div>
+              <span className="shrink-0 pl-7 text-xs text-muted-foreground lg:pl-0">
                 {fmtTime(r.receivedAt)}
               </span>
             </li>

@@ -27,11 +27,11 @@ export function AppNavLink({
     (e: MouseEvent<HTMLAnchorElement>) => {
       onClick?.(e);
       if (e.defaultPrevented) return;
-      if (!useGlobal) return;
       if (isPending) {
         e.preventDefault();
         return;
       }
+      if (!useGlobal) return;
       e.preventDefault();
       navigate(hrefStr, { message, sublabel });
     },

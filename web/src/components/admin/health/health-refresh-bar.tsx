@@ -41,14 +41,17 @@ export function HealthRefreshBar({ fetchedAt, className }: HealthRefreshBarProps
   const secs = secondsLeft % 60;
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-3", className)}>
-      <p className={dashboardTypography.meta}>
+    <div className={cn("flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3", className)}>
+      <p className={cn(dashboardTypography.meta, "min-w-0")}>
         갱신 {fetchedLabel} · {mins}:{secs.toString().padStart(2, "0")} 후
       </p>
       <Button
         type="button"
         variant="outline"
-        className={dashboardControl.buttonOutline}
+        className={cn(
+          "h-9 min-h-9 w-full text-sm sm:h-auto sm:min-h-0 sm:w-auto",
+          dashboardControl.buttonOutline
+        )}
         onClick={refresh}
       >
         지금 갱신

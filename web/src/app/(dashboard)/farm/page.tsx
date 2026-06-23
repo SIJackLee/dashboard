@@ -16,6 +16,7 @@ import {
   buildAutoBarnMap,
   gridDimensionsForBarnMap,
 } from "@/lib/data/barn-map";
+import { resolveFarmerOpsBarnGrid } from "@/lib/monitoring/farmer-ops-barn-grid";
 import { getFarmLocations } from "@/lib/data/farm-location";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
 import { getLiveReadings } from "@/lib/data/iot";
@@ -87,10 +88,29 @@ export default async function FarmPage({
     redirect(`/farm?${legacy.toString()}`);
   }
 
-  const tab = parseMonitoringTab(params.tab);
   const user = await getCurrentUser();
   const isAdmin = Boolean(user?.isAdmin);
   const activeFarmKey = user ? resolveActiveFarmKey(user, params) : null;
+
+  if (isAdmin && params.panel === "display") {
+    redirect("/admin/ops?tab=display");
+  }
+
+  if (isAdmin && params.panel === "farm") {
+    redirect("/admin/ops?tab=farms");
+  }
+
+  const tab = parseMonitoringTab(params.tab);
+
+  /** Admin 농장 스코프 — 모바일·데스크톱 공통 ops 허브로 */
+  if (isAdmin && activeFarmKey && tab === "map") {
+    const scoped = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value && key !== "tab") scoped.set(key, value);
+    }
+    scoped.set("tab", "ops");
+    redirect(`/farm?${scoped.toString()}`);
+  }
   /** Admin 전국 허브 — 컨트롤러 선택(tab=ops) 후에도 3열 유지 */
   const isAdminMonitoringHub =
     isAdmin && (!activeFarmKey || tab === "ops");
@@ -108,7 +128,7 @@ export default async function FarmPage({
     <div className="space-y-4 md:space-y-5">
       {!options?.hideTabs ? (
         <Suspense fallback={null}>
-          <MonitoringTabs active={tab} />
+          <MonitoringTabs active={tab} isAdmin={isAdmin} />
         </Suspense>
       ) : null}
       <Suspense fallback={null}>
@@ -201,7 +221,7 @@ export default async function FarmPage({
     const needsReadings =
       devicesPanel === "display" || devicesPanel === "control";
 
-    const [readings, alarmSettings, displaySettings, farmLocationOptions] =
+    const [readings, alarmSettings, displaySettings, farmLocationOptions, layoutPrefs] =
       await Promise.all([
         needsReadings
           ? getLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {})
@@ -209,9 +229,14 @@ export default async function FarmPage({
         getAlarmSettings(),
         !isAdmin ? getDisplaySettings() : Promise.resolve(undefined),
         !isAdmin ? getEditableFarmLocationOptions() : Promise.resolve([]),
+        needsReadings ? getBarnLayoutPrefs() : Promise.resolve({ layouts: {}, aliases: {}, legacyBarns: [] }),
       ]);
 
     const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
+    const barnGridData = resolveFarmerOpsBarnGrid(scopedReadings, layoutPrefs);
+    if (Object.keys(barnGridData.layoutsToPersist).length > 0) {
+      await mergeBarnLayouts(barnGridData.layoutsToPersist);
+    }
     const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
     const alarmSummary = summarizeAlarms(alarms);
 
@@ -257,6 +282,11 @@ export default async function FarmPage({
               farmLocationOptions={farmLocationOptions}
               settingsNotice={settingsNotice}
               initialDevicesPanel={devicesPanel}
+              barnGrid={{
+                snapshots: barnGridData.snapshots,
+                gridCols: barnGridData.gridCols,
+                gridRows: barnGridData.gridRows,
+              }}
             />
           </Suspense>
         )}
