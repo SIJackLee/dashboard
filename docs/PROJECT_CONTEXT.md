@@ -93,7 +93,7 @@ flowchart TB
 
 ### 파싱 가정 (`web/src/lib/data/iot.ts`)
 - **LIVE UI** = `getLiveReadings()` — 모듈별 최신 `mode=live` 패킷만
-- **REPLAY UI** = `lib/data/iot-replay.ts` — burst·ctrl별 타임라인 (`/replay?idx=`)
+- **REPLAY UI** = **미구현** — DB view(`v_iot_replay_*`)는 존재하나 대시보드 라우트·fetch 모듈 없음
 - **축사 식별** = `stallNo` (통신모듈 전송, `stallTyCode` 는 Registry/LUT 보조)
 - **현재값** = 각 ES/EC 배열의 **마지막 원소** (`READING_AT` 상수로 변경 가능)
 - **통신상태** = `received_at` 신선도: 15분 이내 `normal` / 60분 이내 `caution` / 그 외 `offline`
@@ -102,8 +102,8 @@ flowchart TB
 | 파일 | 용도 |
 | --- | --- |
 | `lib/data/iot.ts` | LIVE readings (`getLiveReadings`) |
-| `lib/data/iot-replay.ts` | REPLAY burst·컨트롤러·로그 이벤트 |
-| `lib/data/iot-live.ts` | 모듈별 LIVE 스냅샷 요약 |
+| `lib/data/iot-live-fetch.ts` | list/detail/overview fetch + cache |
+| `lib/data/iot-live-merge.ts` | LIVE 패킷 병합 |
 | `lib/data/iot-chart.ts` | 차트 (`LIVE_SLOT_COUNT=48`, 레거시 50 fallback) |
 | `lib/data/iot-firmware.ts` | 48 ctrl / SW 12×4 상수·헬퍼 |
 | `lib/data/barn-meta.ts` | `profiles.ui_config` 축사 메타 CRUD |
@@ -145,12 +145,10 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 | 농장 페이지 실데이터 (요약/환경평균/최근수신/연결상태) | 완료 |
 | 농장 지도 (2D 그리드 카드 맵 + 축사 메타데이터) | 완료 |
 | 축사 메타데이터 설정 (`/settings?tab=barn`) | 완료 |
-| v0x06 LIVE/REPLAY 분리 (`/replay`, `/logs`) | 완료 |
-| 컨트롤러 REPLAY 이력 패널 (ctrl/SW 그룹) | 완료 |
-| 알람 페이지 (LIVE 파생) | 완료 |
-| 통합 대시보드 (`/dashboard`) | 완료 (요약 위젯) |
+| v0x06 LIVE/REPLAY 분리 (`/replay`, `/logs`) | **미구현** (DB view만 존재) |
+| 컨트롤러 REPLAY 이력 패널 (ctrl/SW 그룹) | **미구현** |
+| 알람·컨트롤러 허브 (`/farm?tab=ops`) | 완료 (`OpsTriageView`) |
 | 컨트롤러 이름 메타데이터 | 완료 (`profiles.ui_config.controllers`) |
-| 컨트롤러 EC 스파크라인 | 완료 (EC 시계열 데이터 있을 때) |
 | 명령 downlink Agent (`pending` → MQTT → `sent`) | 미구현 (대시보드는 insert만) |
 
 ## 9. 주요 의사결정
@@ -191,7 +189,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - 설정: `/settings?tab=barn` → 전송 데이터에 나타난 stallNo 중 **지도 위치·이름만** 지정 (`saveBarnMetasAction`)
 - 집계: `aggregateByBarn(readings, barnMetas)` — `(farmUid, moduleUid, stallNo)` 매칭, 평균값·최악 상태
 - 지도: `FarmMapView` — 4×4 CSS Grid, 게이트웨이 placeholder(중앙 상단), 축사 카드, 범례
-- 클릭: `/controllers?farm=&module=` 딥링크
+- 클릭: `/farm?tab=ops&…` 딥링크 (레거시 `/controllers`는 redirect)
 - 빈 상태: 축사 미설정 시 설정 탭 CTA
 - 모바일: `FarmMapList` 세로 카드 폴백
 
@@ -254,24 +252,17 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 ```
 web/src/
   app/
-    (dashboard)/{farm,barns,controllers,alarms,logs,settings}/page.tsx
-    (dashboard)/controllers/actions.ts   # 명령 발행 server action
-    (dashboard)/admin/users/{page.tsx,actions.ts}
+    (dashboard)/farm/page.tsx          # map | ops 허브
+    (dashboard)/{controllers,alarms,settings}/page.tsx  # redirect only
+    (dashboard)/admin/ops/page.tsx     # system | users | farms | display | commands
+    (dashboard)/admin/health/**        # drill-down
     login/page.tsx  pending/page.tsx  auth/{actions.ts,callback/route.ts}
   components/
-    layout/{app-sidebar,top-bar,page-shell,nav-items}
-    common/{stat-card,section-card,compact-column-chart,status-badge,...}
-    farm/  barns/  controllers/  admin/
-    barns/
-      barn-status-donut.tsx
-      temp-humidity-compare-chart.tsx
-      fan-compare-chart.tsx
-      barn-metric-chart-stack.tsx
-      barn-table.tsx  barn-summary-grid.tsx
-    controllers/
-      command-panel.tsx  command-history-table.tsx  controllers-view.tsx
+    layout/{top-bar,scope-bar,mobile-bottom-nav,...}
+    common/{stat-card,section-card,status-badge,...}
+    farm/  controllers/  ops/  admin/
   lib/
-    data/{iot.ts,iot-chart.ts,barn-meta.ts,commands.ts}
+    data/{iot.ts,iot-live-fetch.ts,barn-meta.ts,commands.ts}
     farm/{farm-map-view,farm-map-canvas,...}
     auth/{get-current-user,require-admin}.ts
     supabase/{client,server,admin,middleware}.ts

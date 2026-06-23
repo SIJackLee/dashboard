@@ -37,6 +37,10 @@ type HubProps = {
   activeSido: string | null;
   onSelectSido: (sido: string | null) => void;
   className?: string;
+  /** 모바일 허브 — 선택 농장 마커 강조 (지도 pan/fly 없음) */
+  focusFarmId?: string | null;
+  /** Z4/4 농장 카드 클릭 → 바텀 nav */
+  onSelectFarm?: (farmId: string) => void;
 };
 
 type StandaloneProps = {
@@ -72,6 +76,8 @@ export function AdminFarmOverview(props: Props) {
           points={mapPoints}
           activeSido={activeSido}
           onSelectSido={onSelectSido}
+          focusFarmId={props.focusFarmId ?? null}
+          onSelectFarm={props.onSelectFarm}
           showLegend={false}
           shellClassName="absolute inset-0 h-full w-full overflow-hidden rounded-xl border-0 bg-transparent"
           className="h-full w-full"

@@ -13,6 +13,7 @@
 # testing
 /coverage
 scripts/mobile-audit-output/
+scripts/ui-route-verify-results.json
 
 # next.js
 /.next/

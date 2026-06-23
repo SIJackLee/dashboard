@@ -6,6 +6,7 @@ import { clampMenuValue } from "@/lib/controllers/controller-panel-map";
 import {
   fmtTempLabel,
   SliderThumbLabel,
+  sliderTrackRailBgClass,
   sliderTrackRailClass,
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
@@ -104,80 +105,81 @@ export function ControllerTempTripleSlider({
 
   const track = (
     <div className={sliderTrackShellClass(compact, "triple", dense)}>
-      <SliderThumbLabel
-        leftPct={lowPct}
-        placement="below"
-        compact={compact}
-        dense={dense}
-      >
-        −{devLabel}℃
-      </SliderThumbLabel>
-      <SliderThumbLabel
-        leftPct={centerPct}
-        variant="center"
-        placement="above"
-        compact={compact}
-        dense={dense}
-      >
-        {fmtTempLabel(setpoint)}℃
-      </SliderThumbLabel>
-      <SliderThumbLabel
-        leftPct={highPct}
-        placement="below"
-        compact={compact}
-        dense={dense}
-      >
-        +{devLabel}℃
-      </SliderThumbLabel>
-
-      <div className={sliderTrackRailClass(compact, "triple")} aria-hidden>
+      <div className={sliderTrackRailClass()}>
+        <SliderThumbLabel
+          leftPct={lowPct}
+          placement="below"
+          compact={compact}
+          dense={dense}
+        >
+          −{devLabel}℃
+        </SliderThumbLabel>
+        <SliderThumbLabel
+          leftPct={centerPct}
+          variant="center"
+          placement="above"
+          compact={compact}
+          dense={dense}
+        >
+          {fmtTempLabel(setpoint)}℃
+        </SliderThumbLabel>
+        <SliderThumbLabel
+          leftPct={highPct}
+          placement="below"
+          compact={compact}
+          dense={dense}
+        >
+          +{devLabel}℃
+        </SliderThumbLabel>
+        <div className={sliderTrackRailBgClass()} aria-hidden />
         <div
-          className="absolute top-0 h-full rounded-full bg-orange-500/35"
+          className="pointer-events-none absolute top-0 h-full rounded-full bg-orange-500/35"
+          aria-hidden
           style={{
             left: `${lowPct}%`,
             width: `${Math.max(0, highPct - lowPct)}%`,
           }}
         />
+        <input
+          id={`${id}-low`}
+          type="range"
+          min={TRACK_MIN}
+          max={TRACK_MAX}
+          step={STEP}
+          value={low}
+          disabled={disabled}
+          aria-label={`온도 편차 하한 −${devLabel}℃`}
+          aria-valuetext={`−${devLabel}℃`}
+          className={cn(edgeClass, "z-[3]")}
+          onChange={(e) => setLow(Number(e.target.value))}
+        />
+        <input
+          id={`${id}-center`}
+          type="range"
+          min={TRACK_MIN}
+          max={TRACK_MAX}
+          step={STEP}
+          value={setpoint}
+          disabled={disabled}
+          aria-label={`설정온도 ${fmtTempLabel(setpoint)}℃`}
+          aria-valuetext={`${fmtTempLabel(setpoint)}℃`}
+          className={cn(centerClass, "z-[5]")}
+          onChange={(e) => setCenter(Number(e.target.value))}
+        />
+        <input
+          id={`${id}-high`}
+          type="range"
+          min={TRACK_MIN}
+          max={TRACK_MAX}
+          step={STEP}
+          value={high}
+          disabled={disabled}
+          aria-label={`온도 편차 상한 +${devLabel}℃`}
+          aria-valuetext={`+${devLabel}℃`}
+          className={cn(edgeClass, "z-[4]")}
+          onChange={(e) => setHigh(Number(e.target.value))}
+        />
       </div>
-      <input
-        id={`${id}-low`}
-        type="range"
-        min={TRACK_MIN}
-        max={TRACK_MAX}
-        step={STEP}
-        value={low}
-        disabled={disabled}
-        aria-label={`온도 편차 하한 −${devLabel}℃`}
-        aria-valuetext={`−${devLabel}℃`}
-        className={cn(edgeClass, "z-[3]")}
-        onChange={(e) => setLow(Number(e.target.value))}
-      />
-      <input
-        id={`${id}-center`}
-        type="range"
-        min={TRACK_MIN}
-        max={TRACK_MAX}
-        step={STEP}
-        value={setpoint}
-        disabled={disabled}
-        aria-label={`설정온도 ${fmtTempLabel(setpoint)}℃`}
-        aria-valuetext={`${fmtTempLabel(setpoint)}℃`}
-        className={cn(centerClass, "z-[5]")}
-        onChange={(e) => setCenter(Number(e.target.value))}
-      />
-      <input
-        id={`${id}-high`}
-        type="range"
-        min={TRACK_MIN}
-        max={TRACK_MAX}
-        step={STEP}
-        value={high}
-        disabled={disabled}
-        aria-label={`온도 편차 상한 +${devLabel}℃`}
-        aria-valuetext={`+${devLabel}℃`}
-        className={cn(edgeClass, "z-[4]")}
-        onChange={(e) => setHigh(Number(e.target.value))}
-      />
     </div>
   );
 

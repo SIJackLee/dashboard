@@ -24,6 +24,8 @@ npm run dev      # http://localhost:3000
 ```bash
 npm run build    # 타입체크 + 프로덕션 빌드
 npm run lint
+npm run verify:mobile-interaction
+npm run verify:routes
 ```
 
 ## 환경변수 (`.env.local`)
@@ -96,7 +98,7 @@ npm run lint
 
 - **ScopeBar:** `components/layout/scope-bar.tsx` — farm · SP · stall · Refresh 통합. TopBar `FarmSwitcher` 제거 → `/controllers`·`/alarms` ScopeBar.
 - **Sticky:** `/controllers`·Admin `/alarms` ScopeBar 상단 고정.
-- **MasterDetailLayout:** `components/common/master-detail-layout.tsx` — alarms 2열 공통화.
+- **MasterDetailLayout:** alarms 2열 공통화 (Phase 4에서 `OpsTriageView`로 흡수, 컴포넌트 제거됨).
 - **O2 triage:** `AlarmTriagePanel` — 상세 + embedded `ControllerPanelFace` (1-screen Act).
 - **O2bell:** TopBar bell 항목 → `alarmControlHref()` → `/controllers?ctrl=…` deep link.
 - **알람 행 선택:** `router.replace` 클라이언트 선택 (페이지 전환 없음).
@@ -110,13 +112,14 @@ npm run lint
 
 다음 단계: Phase 4 — Monitoring 3탭 IA (선택).
 
-## UI 개선 Phase 4 (적용됨)
+## UI 개선 Phase 4 (적용됨, 이후 2탭으로 축소)
 
-- **Monitoring 3탭:** `/farm` + `?tab=map|devices|alarms` — 현황 · 장비 · 이상 단일 허브.
+- **Monitoring 허브:** `/farm` + `?tab=map|ops` — 현황(map) · 컨트롤러·알람·설정(ops) 단일 허브.
+- **`OpsTriageView`:** `tab=ops`에서 3열 트리아지(농장·축사·컨트롤러·알람·설정 패널).
 - **`MonitoringTabs`:** 탭 전환 시 `lsind`·`ctrl`·`alarm` 등 scope query 유지.
 - **사이드바:** 농장·컨트롤러·알람 3항목 → **모니터링** 1항목 (+ 설정 · Admin 운영).
-- **레거시 URL:** `/controllers`·`/alarms` → `/farm?tab=…` redirect (deep link 호환).
-- **href helpers:** `buildControllerHref`·`buildFarmAlarmsHref`·`alarmTargetHref` → `/farm?tab=…`.
+- **레거시 URL:** `/controllers`·`/alarms` → `/farm?tab=ops` redirect; `tab=devices|alarms` query도 `ops`로 정리.
+- **href helpers:** `buildControllerHref`·`buildFarmAlarmsHref`·`alarmTargetHref` → `/farm?tab=ops…`.
 
 ## UI 개선 Phase 5 (적용됨)
 

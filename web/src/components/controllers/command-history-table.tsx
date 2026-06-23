@@ -16,7 +16,7 @@ import {
   formatCommandDetail,
   formatCommandTarget,
 } from "@/lib/ui/controller-labels";
-import { ctrlUi } from "@/lib/ui/controller-page-ui";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 const statusLabel: Record<string, string> = {
@@ -57,7 +57,7 @@ export function CommandHistoryTable({ commands = [] }: Props) {
       className="w-full shrink-0"
     >
       {commands.length === 0 ? (
-        <p className={cn("py-6 text-center", ctrlUi.body, "text-muted-foreground")}>
+        <p className={cn("py-6 text-center", dashboardUi.body, "text-muted-foreground")}>
           등록된 명령이 없습니다.
         </p>
       ) : (
@@ -65,7 +65,7 @@ export function CommandHistoryTable({ commands = [] }: Props) {
           <CommandHistoryMobileList commands={commands} />
           <div className="hidden md:block">
             <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1">
-              <Table className={cn(ctrlUi.body, "min-w-[36rem]")}>
+              <Table className={cn(dashboardUi.body, "min-w-[36rem]")}>
           <TableHeader>
             <TableRow>
               <TableHead>시간</TableHead>
@@ -86,7 +86,7 @@ export function CommandHistoryTable({ commands = [] }: Props) {
                 <TableCell>
                   <Badge
                     variant={statusVariant(c.status)}
-                    className={ctrlUi.badgeLg}
+                    className={dashboardUi.badgeLg}
                   >
                     {statusLabel[c.status] ?? c.status}
                   </Badge>

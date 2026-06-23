@@ -44,8 +44,8 @@ export function buildFarmMapPoints(
     points.push({
       farmKey: farm.farmKey,
       label: labelFn(farm),
-      lat: loc.lat,
-      lng: loc.lng,
+      lat: Number(loc.lat),
+      lng: Number(loc.lng),
       sido: loc.sido,
       sigungu: loc.sigungu,
       lsindRegistNo: farm.farmKey.lsindRegistNo,
@@ -58,7 +58,7 @@ export function buildFarmMapPoints(
     });
   }
 
-  return points;
+  return points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 }
 
 export function clusterBySido(points: FarmMapPoint[]): SidoClusterSummary[] {

@@ -30,9 +30,9 @@ export function FanIndicator({
 }: FanIndicatorProps) {
   const conf = fanMap[kind];
   const Icon = conf.icon;
-  const pct = value ?? 0;
-  const display =
-    value === null || value === undefined ? "--" : `${value.toFixed(1)}%`;
+  const hasValue = value !== null && value !== undefined;
+  const pct = hasValue ? value : 0;
+  const display = hasValue ? `${value.toFixed(1)}%` : null;
 
   if (compact) {
     return (
@@ -43,7 +43,9 @@ export function FanIndicator({
         )}
       >
         <Icon className={cn(large ? "size-6" : "size-3.5", conf.className)} />
-        <span className="font-medium">{display}</span>
+        {display != null ? (
+          <span className="font-medium">{display}</span>
+        ) : null}
       </span>
     );
   }
@@ -55,14 +57,18 @@ export function FanIndicator({
           <Icon className={cn("size-6", conf.className)} />
           {conf.label}
         </span>
-        <span className="text-2xl font-semibold tabular-nums">{display}</span>
+        {display != null ? (
+          <span className="text-2xl font-semibold tabular-nums">{display}</span>
+        ) : null}
       </div>
-      <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className={cn("h-full rounded-full bg-current", conf.className)}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      {hasValue ? (
+        <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={cn("h-full rounded-full bg-current", conf.className)}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

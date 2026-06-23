@@ -8,10 +8,8 @@ import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { EnvChip } from "@/components/common/env-chip";
 import { StatusBadge } from "@/components/common/status-badge";
 import { getStallTypeName, normalizeStallTyCode } from "@/lib/data/stall-type";
+import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { cn } from "@/lib/utils";
-
-const fmt = (v: number | null, digits = 1) =>
-  v === null ? "--" : v.toFixed(digits);
 
 function displayCardTitle(snapshot: BarnMapSnapshot): string {
   const ty = snapshot.meta.stallNo
@@ -139,8 +137,17 @@ export function FarmMapCard({
         )}
       >
         <div className="grid grid-cols-2 gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3">
-          <EnvChip kind="temp" value={fmt(snapshot.tempC)} />
-          <EnvChip kind="humidity" value={fmt(snapshot.humidityPct)} />
+          <EnvChip
+            kind="temp"
+            value={formatSensorNumberForDisplay(snapshot.status, snapshot.tempC)}
+          />
+          <EnvChip
+            kind="humidity"
+            value={formatSensorNumberForDisplay(
+              snapshot.status,
+              snapshot.humidityPct
+            )}
+          />
         </div>
       </button>
     </div>

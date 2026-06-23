@@ -33,10 +33,12 @@ import {
   spreadFarmPointsForDisplay,
   spreadRadiusForViewport,
   sumControllerCount,
+  isValidMapCoord,
   zoomForStage,
   type MapZoomStage,
 } from "@/lib/geo/farm-map-zoom";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 import "./farm-geo-map.css";
 
@@ -49,6 +51,10 @@ type Props = {
   shellClassName?: string;
   /** 좌하단 위험도·줌 범례 카드 */
   showLegend?: boolean;
+  /** 모바일 허브 — 현재 선택 농장 마커 강조 (지도 이동 없음) */
+  focusFarmId?: string | null;
+  /** Z4/4 — 농장 카드 클릭 시 바텀 nav 연동 (모바일) */
+  onSelectFarm?: (farmId: string) => void;
 };
 
 type LeafletModule = typeof import("leaflet");
@@ -99,7 +105,10 @@ export function FarmGeoMap({
   className,
   shellClassName,
   showLegend = true,
+  focusFarmId = null,
+  onSelectFarm,
 }: Props) {
+  const isMobileLayout = useMobileLayout();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const sidoLayerRef = useRef<import("leaflet").LayerGroup | null>(null);
@@ -120,7 +129,11 @@ export function FarmGeoMap({
   const lastZoomRef = useRef(zoomForStage(0));
   const renderMarkersRef = useRef<() => void>(() => {});
   const pointsRef = useRef(points);
+  const focusFarmIdRef = useRef<string | null>(null);
+  const isMobileLayoutRef = useRef(isMobileLayout);
   const { navigate, isPending } = useAppNavigate();
+
+  isMobileLayoutRef.current = isMobileLayout;
 
   const getViewportCtx = useCallback(() => {
     const el = containerRef.current;
@@ -138,6 +151,8 @@ export function FarmGeoMap({
   const navigateToFarmControllersRef = useRef<(point: FarmMapPoint) => void>(
     () => {}
   );
+  const onSelectFarmRef = useRef(onSelectFarm);
+  onSelectFarmRef.current = onSelectFarm;
 
   pointsRef.current = points;
 
@@ -372,6 +387,8 @@ export function FarmGeoMap({
     const showSido = currentStage <= 1;
     const showSigungu = currentStage === 2 && !!sido;
     const showFarm = currentStage === 3 && !!sido && !!sigungu;
+    const bindHoverTooltip = !isMobileLayoutRef.current;
+    const focusedFarmId = focusFarmIdRef.current;
     const regionStage =
       currentStage <= 1 ? (currentStage as MapZoomStage) : (2 as MapZoomStage);
 
@@ -400,6 +417,7 @@ export function FarmGeoMap({
     const maxSidoControllers = maxInCohort(sidoRows.map((r) => r.controllerSum));
     for (const row of sidoRows) {
       sidoKeys.add(row.sido);
+      if (!isValidMapCoord(row.lat, row.lng)) continue;
       const risk = regionRiskLevel({
         alarmSum: row.alarmSum,
         criticalSum: row.criticalSum,
@@ -462,7 +480,7 @@ export function FarmGeoMap({
         marker.setLatLng([row.lat, row.lng]);
         marker.setIcon(icon);
       }
-      syncMarkerForStage(marker, sidoLayer, showSido, showSido ? sidoTooltip : undefined);
+      syncMarkerForStage(marker, sidoLayer, showSido, showSido && bindHoverTooltip ? sidoTooltip : undefined);
     }
     purgeMarkers(sidoMarkersRef.current, sidoLayer, sidoKeys);
 
@@ -484,6 +502,7 @@ export function FarmGeoMap({
       for (const row of sigunguRows) {
         const key = `${row.sido}:${row.sigungu}`;
         sigunguKeys.add(key);
+        if (!isValidMapCoord(row.lat, row.lng)) continue;
         const risk = regionRiskLevel({
           alarmSum: row.alarmSum,
           criticalSum: row.criticalSum,
@@ -542,7 +561,7 @@ export function FarmGeoMap({
           marker,
           sigunguLayer,
           showSigungu,
-          showSigungu ? sigunguTooltip : undefined
+          showSigungu && bindHoverTooltip ? sigunguTooltip : undefined
         );
       }
     }
@@ -581,7 +600,9 @@ export function FarmGeoMap({
       for (const p of farmList) {
         const key = farmKeyId(p.farmKey);
         farmKeys.add(key);
+        if (!isValidMapCoord(p.lat, p.lng)) continue;
         const pos = displayCoords.get(key) ?? { lat: p.lat, lng: p.lng };
+        if (!isValidMapCoord(pos.lat, pos.lng)) continue;
         const pinMode = false;
         const spec = buildFarmMarkerIconSpec({
           point: p,
@@ -590,6 +611,7 @@ export function FarmGeoMap({
           pinMode,
           splitNav: showFarm,
           visible: showFarm,
+          focused: focusedFarmId === key,
         });
         let marker = farmMarkersRef.current.get(key);
         const icon = L.divIcon({
@@ -627,7 +649,7 @@ export function FarmGeoMap({
           marker,
           farmLayer,
           showFarm,
-          showFarm ? farmTooltip : undefined
+          showFarm && bindHoverTooltip ? farmTooltip : undefined
         );
       }
     }
@@ -635,6 +657,15 @@ export function FarmGeoMap({
   }, [goToStage, onSelectSido, points, purgeMarkers, syncSigunguControllerAudit]);
 
   renderMarkersRef.current = renderMarkers;
+
+  useEffect(() => {
+    focusFarmIdRef.current = focusFarmId;
+    renderMarkersRef.current();
+  }, [focusFarmId]);
+
+  useEffect(() => {
+    renderMarkersRef.current();
+  }, [isMobileLayout]);
 
   useEffect(() => {
     let cancelled = false;
@@ -687,8 +718,9 @@ export function FarmGeoMap({
         const target = e.target as HTMLElement | null;
         if (!target) return;
         const zone = target.closest("[data-farm-nav]") as HTMLElement | null;
-        if (!zone) return;
-        const card = zone.closest("[data-farm-key]") as HTMLElement | null;
+        const card = (zone ?? target.closest("[data-farm-key]")) as
+          | HTMLElement
+          | null;
         const keyId = card?.getAttribute("data-farm-key");
         if (!keyId) return;
         const point = pointsRef.current.find(
@@ -699,11 +731,18 @@ export function FarmGeoMap({
         e.preventDefault();
         e.stopPropagation();
 
-        const nav = zone.getAttribute("data-farm-nav");
-        if (nav === "controllers") {
-          navigateToFarmControllersRef.current(point);
-        } else if (nav === "alarms") {
-          navigateToFarmAlarmsRef.current(point);
+        if (zone) {
+          const nav = zone.getAttribute("data-farm-nav");
+          if (nav === "controllers") {
+            navigateToFarmControllersRef.current(point);
+          } else if (nav === "alarms") {
+            navigateToFarmAlarmsRef.current(point);
+          }
+          return;
+        }
+
+        if (isMobileLayoutRef.current && onSelectFarmRef.current) {
+          onSelectFarmRef.current(keyId);
         }
       };
       mapContainer.addEventListener("click", farmNavClickHandler);

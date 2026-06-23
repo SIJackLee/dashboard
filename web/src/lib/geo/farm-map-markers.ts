@@ -133,6 +133,8 @@ export function buildFarmMarkerIconSpec(opts: {
   /** Z4/4 — 카드 좌·우 클릭으로 컨트롤러/알람 라우팅 (툴팁은 hover 미지원) */
   splitNav?: boolean;
   visible?: boolean;
+  /** 모바일 허브 — 현재 대표 농장 강조 */
+  focused?: boolean;
 }): { html: string; w: number; h: number; anchorX: number; anchorY: number } {
   const {
     point,
@@ -141,6 +143,7 @@ export function buildFarmMarkerIconSpec(opts: {
     pinMode,
     splitNav = false,
     visible = true,
+    focused = false,
   } = opts;
   const risk = farmRiskLevel(point);
   const style = RISK_STYLE[risk];
@@ -178,8 +181,11 @@ export function buildFarmMarkerIconSpec(opts: {
   if (splitNav) {
     const cardW = 96;
     const splitH = Math.max(36, core);
+    const focusRing = focused
+      ? "outline:2px solid #059669;outline-offset:2px;border-radius:10px;"
+      : "";
     const html = `
-    <div class="farm-map-farm-marker farm-map-farm-marker--split farm-map-risk--${risk}${pulse}" data-farm-key="${keyAttr}" style="display:flex;flex-direction:column;align-items:stretch;gap:3px;width:${cardW}px;${vis}">
+    <div class="farm-map-farm-marker farm-map-farm-marker--split farm-map-risk--${risk}${pulse}${focused ? " farm-map-farm-marker--focused" : ""}" data-farm-key="${keyAttr}" style="display:flex;flex-direction:column;align-items:stretch;gap:3px;width:${cardW}px;${focusRing}${vis}">
       <div class="farm-map-farm-marker__split-row" role="group" aria-label="${escapeHtml(point.lsindRegistNo)} ${itemLabel}">
         <button type="button" class="farm-map-farm-marker__zone farm-map-farm-marker__zone--ctrl" data-farm-nav="controllers" aria-label="컨트롤러 ${point.controllerCount}대 페이지로 이동" style="background:${style.fill};border-color:${style.border};color:${style.text};font-size:${fontSize}px">
           <span class="farm-map-farm-marker__zone-count">${point.controllerCount}</span>

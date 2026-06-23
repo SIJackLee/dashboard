@@ -12,11 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ControllerReading } from "@/lib/data/iot";
-import { ctrlUi } from "@/lib/ui/controller-page-ui";
-import { sensorValueForDisplay } from "@/lib/data/reading-display";
-
-const fmtNum = (v: number | null | undefined) =>
-  v === null || v === undefined ? "--" : v.toFixed(1);
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { formatSensorNumberForDisplay, sensorValueForDisplay } from "@/lib/data/reading-display";
 
 type ListProps = {
   items?: ControllerReading[];
@@ -116,7 +113,7 @@ function ControllerListStrip({ items = [], selectedKey, onSelect }: ListProps) {
   }
 
   return (
-    <div className={cn("flex overflow-x-auto pb-1", ctrlUi.chipStripGap)}>
+    <div className={cn("flex overflow-x-auto pb-1", dashboardUi.chipStripGap)}>
       {items.map((c) => {
         const isSelected = c.key === selectedKey;
         const isEditing = editingKey === c.key;
@@ -136,15 +133,15 @@ function ControllerListStrip({ items = [], selectedKey, onSelect }: ListProps) {
               }}
               className={cn(
                 "flex shrink-0 flex-col gap-2 text-left transition-colors hover:bg-muted/50",
-                ctrlUi.chipWidth,
-                ctrlUi.chipMinH,
-                ctrlUi.chipCard,
+                dashboardUi.chipWidth,
+                dashboardUi.chipMinH,
+                dashboardUi.chipCard,
                 isSelected && "border-emerald-500 bg-emerald-50/50"
               )}
             >
               <div className="flex items-center justify-between gap-1 pr-8">
                 <ControllerNameLabel
-                  className={cn(ctrlUi.body, "font-medium leading-tight truncate")}
+                  className={cn(dashboardUi.body, "font-medium leading-tight truncate")}
                   name={resolveName(c.controllerKey, c.eqpmnNo)}
                   label={c.label}
                   stallNo={c.stallNo}
@@ -153,7 +150,7 @@ function ControllerListStrip({ items = [], selectedKey, onSelect }: ListProps) {
                 />
                 <StatusBadge tone={c.status} compact large />
               </div>
-              <div className={cn("grid grid-cols-3", ctrlUi.gridGap)}>
+              <div className={cn("grid grid-cols-3", dashboardUi.gridGap)}>
                 <FanIndicator
                   kind="supply"
                   value={sensorValueForDisplay(c.status, c.fanSupply)}
@@ -224,7 +221,7 @@ export function ControllerListPanel({
   if (embedded) {
     return (
       <div className="space-y-2">
-        <p className={ctrlUi.sectionTitle}>{desc}</p>
+        <p className={dashboardUi.sectionTitle}>{desc}</p>
         <ControllerListStrip
           items={items}
           selectedKey={selectedKey}
@@ -265,11 +262,11 @@ export function ControllerListPanel({
               <div className="grid grid-cols-2 gap-2">
                 <EnvChip
                   kind="temp"
-                  value={fmtNum(sensorValueForDisplay(c.status, c.tempC))}
+                  value={formatSensorNumberForDisplay(c.status, c.tempC)}
                 />
                 <EnvChip
                   kind="humidity"
-                  value={fmtNum(sensorValueForDisplay(c.status, c.humidityPct))}
+                  value={formatSensorNumberForDisplay(c.status, c.humidityPct)}
                 />
               </div>
               <div className="flex gap-4">

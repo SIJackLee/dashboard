@@ -230,7 +230,16 @@ function auditPage() {
 }
 
 async function auditRoute(page, role, route, shotDir) {
-  await page.goto(`${BASE}${route.path}`, { waitUntil: "load", timeout: 45000 });
+  const target = `${BASE}${route.path}`;
+  try {
+    await page.goto(target, { waitUntil: "domcontentloaded", timeout: 45000 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("ERR_ABORTED") && !msg.includes("NS_BINDING_ABORTED")) {
+      throw err;
+    }
+    await page.waitForLoadState("domcontentloaded", { timeout: 15000 }).catch(() => {});
+  }
   try {
     await page.waitForLoadState("networkidle", { timeout: 8000 });
   } catch {

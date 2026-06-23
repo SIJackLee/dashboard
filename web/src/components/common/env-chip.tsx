@@ -24,22 +24,25 @@ const kindMap: Record<
 
 type EnvChipProps = {
   kind: EnvKind;
-  value?: string;
+  value?: string | null;
   tone?: string;
 };
 
-export function EnvChip({ kind, value = "--", tone }: EnvChipProps) {
+export function EnvChip({ kind, value, tone }: EnvChipProps) {
   const conf = kindMap[kind];
   const Icon = conf.icon;
+  const hasValue = value != null && value !== "" && value !== "--";
   return (
     <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-3">
       <Icon className={cn(dashboardUi.iconSm, conf.className)} />
       <div className="min-w-0 leading-tight">
         <p className={dashboardUi.tableMeta}>{conf.label}</p>
-        <p className={cn(dashboardUi.value, "text-foreground")}>
-          {value}
-          <span className={cn("ml-1", dashboardUi.tableMeta)}>{conf.unit}</span>
-        </p>
+        {hasValue ? (
+          <p className={cn(dashboardUi.value, "text-foreground")}>
+            {value}
+            <span className={cn("ml-1", dashboardUi.tableMeta)}>{conf.unit}</span>
+          </p>
+        ) : null}
       </div>
       {tone && (
         <span className={cn("ml-auto shrink-0", dashboardUi.tableMeta)}>{tone}</span>

@@ -3,6 +3,7 @@
 import { useCallback, useId } from "react";
 import {
   SliderThumbLabel,
+  sliderTrackRailBgClass,
   sliderTrackRailClass,
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
@@ -116,48 +117,52 @@ export function ThresholdRangeSlider({
       </div>
 
       <div className={sliderTrackShellClass(compact)}>
-        <SliderThumbLabel leftPct={lowPct} compact={compact}>
-          {lowText}
-        </SliderThumbLabel>
-        <SliderThumbLabel leftPct={highPct} compact={compact}>
-          {highText}
-        </SliderThumbLabel>
-
-        <div className={sliderTrackRailClass(compact)} aria-hidden>
+        <div className={sliderTrackRailClass()}>
+          <SliderThumbLabel leftPct={lowPct} compact={compact}>
+            {lowText}
+          </SliderThumbLabel>
+          <SliderThumbLabel leftPct={highPct} compact={compact}>
+            {highText}
+          </SliderThumbLabel>
+          <div className={sliderTrackRailBgClass()} aria-hidden />
           <div
-            className={cn("absolute top-0 h-full rounded-full", accentClass)}
+            className={cn(
+              "pointer-events-none absolute top-0 h-full rounded-full",
+              accentClass
+            )}
+            aria-hidden
             style={{
               left: `${lowPct}%`,
               width: `${Math.max(0, highPct - lowPct)}%`,
             }}
           />
+          <input
+            id={`${id}-low`}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={low}
+            disabled={disabled}
+            aria-label={`${title} ${lowLabel}`}
+            aria-valuetext={lowText}
+            className={cn(rangeClass, "z-[3]")}
+            onChange={(e) => setLow(Number(e.target.value))}
+          />
+          <input
+            id={`${id}-high`}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={high}
+            disabled={disabled}
+            aria-label={`${title} ${highLabel}`}
+            aria-valuetext={highText}
+            className={cn(rangeClass, "z-[4]")}
+            onChange={(e) => setHigh(Number(e.target.value))}
+          />
         </div>
-        <input
-          id={`${id}-low`}
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={low}
-          disabled={disabled}
-          aria-label={`${title} ${lowLabel}`}
-          aria-valuetext={lowText}
-          className={cn(rangeClass, "z-[3]")}
-          onChange={(e) => setLow(Number(e.target.value))}
-        />
-        <input
-          id={`${id}-high`}
-          type="range"
-          min={min}
-          max={max}
-          step={step}
-          value={high}
-          disabled={disabled}
-          aria-label={`${title} ${highLabel}`}
-          aria-valuetext={highText}
-          className={cn(rangeClass, "z-[4]")}
-          onChange={(e) => setHigh(Number(e.target.value))}
-        />
       </div>
 
       {showAxis ? (
@@ -165,7 +170,7 @@ export function ThresholdRangeSlider({
           className={cn(
             "relative mt-1 flex justify-between px-3 tabular-nums",
             compact
-              ? "text-2xl leading-snug text-muted-foreground"
+              ? "text-xs leading-snug text-muted-foreground"
               : dashboardTypography.meta
           )}
           aria-hidden

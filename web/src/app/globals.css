@@ -311,7 +311,6 @@
   .threshold-dual-range {
     -webkit-appearance: none;
     appearance: none;
-    top: 0;
     margin: 0;
     pointer-events: none;
   }
@@ -358,7 +357,6 @@
   .threshold-triple-range {
     -webkit-appearance: none;
     appearance: none;
-    top: 0;
     margin: 0;
     pointer-events: none;
   }

@@ -77,6 +77,16 @@ export function formatStallTypeLabel(code: string | null | undefined): string {
   return getStallTypeName(key);
 }
 
+/** 모바일 등 좁은 타일 — 괄호 부설명 생략 (예: 퇴비장(분뇨처리장) → 퇴비장) */
+export function formatStallTypeLabelCompact(
+  code: string | null | undefined
+): string {
+  const full = formatStallTypeLabel(code);
+  const paren = full.indexOf("(");
+  if (paren > 0) return full.slice(0, paren).trim();
+  return full;
+}
+
 /** itemCode 첫 글자 → stallTyCode 접두 (P→SP, W→SW …) */
 export function stallTyPrefixFromItemCode(
   itemCode: string | null | undefined

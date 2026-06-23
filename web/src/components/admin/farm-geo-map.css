@@ -245,3 +245,24 @@
   background: #d97706;
   margin-top: 2px;
 }
+
+.farm-map-farm-marker--focused .farm-map-farm-marker__split-row {
+  outline: 2px solid #059669;
+  outline-offset: 2px;
+}
+
+/* 모바일 — Z4 농장 카드(라벨 영역) 탭 → 바텀 nav 선택 */
+@media (max-width: 1023px) {
+  .farm-map-farm-marker--split .farm-map-farm-marker__id,
+  .farm-map-farm-marker--split .farm-map-item-chip {
+    cursor: pointer;
+  }
+}
+
+/* 모바일 — 클러스터·농장 hover 카드 비표시 (Z4 split 버튼만) */
+@media (max-width: 1023px) {
+  .leaflet-tooltip.farm-map-leaflet-tooltip {
+    display: none !important;
+    pointer-events: none !important;
+  }
+}

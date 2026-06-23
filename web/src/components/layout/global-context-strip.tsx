@@ -12,6 +12,7 @@ function Kpi({
   unit,
   alert,
   mobileLayout = false,
+  iconBadge = false,
 }: {
   icon: ReactNode;
   label: string;
@@ -19,43 +20,42 @@ function Kpi({
   unit?: string;
   alert?: boolean;
   mobileLayout?: boolean;
+  /** 아이콘 카드 + 우상단 숫자 배지 */
+  iconBadge?: boolean;
 }) {
-  if (mobileLayout) {
+  if (iconBadge || mobileLayout) {
     return (
       <div
-        className={cn(
-          "flex shrink-0 items-center gap-1.5 rounded-lg border bg-background/90 px-2 py-1",
-          alert &&
-            "border-red-300/60 bg-red-50/50 dark:border-red-900/40 dark:bg-red-950/20"
-        )}
+        className="flex shrink-0 flex-col items-center gap-0.5 px-0.5 pt-1"
         title={`${label} ${value}${unit ?? ""}`}
+        aria-label={`${label} ${value}${unit ?? ""}`}
       >
-        <span
-          className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground [&_svg]:size-3.5",
-            alert &&
-              "bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400"
-          )}
-        >
-          {icon}
-        </span>
-        <div className="min-w-0 leading-none">
-          <p className="truncate text-[10px] text-muted-foreground">{label}</p>
-          <p
+        <div className="relative size-9 shrink-0">
+          <span
             className={cn(
-              "truncate text-sm font-semibold tabular-nums",
-              alert && "text-red-600 dark:text-red-400"
+              "flex size-9 items-center justify-center rounded-xl border bg-background/95 [&_svg]:size-4",
+              alert
+                ? "border-red-300/60 bg-red-50/80 text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400"
+                : "border-border/80 text-muted-foreground"
+            )}
+          >
+            {icon}
+          </span>
+          <span
+            className={cn(
+              "absolute right-0 top-0 z-[1] flex min-h-[1rem] min-w-[1rem] -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full border-2 border-background px-0.5 text-[9px] font-bold leading-none tabular-nums",
+              alert
+                ? "bg-red-500 text-white"
+                : "bg-emerald-600 text-white"
             )}
             suppressHydrationWarning
           >
             {value}
-            {unit ? (
-              <span className="ml-0.5 text-[10px] font-medium text-muted-foreground">
-                {unit}
-              </span>
-            ) : null}
-          </p>
+          </span>
         </div>
+        <p className="max-w-[3.25rem] truncate text-center text-[9px] leading-none text-muted-foreground">
+          {label}
+        </p>
       </div>
     );
   }
@@ -154,21 +154,21 @@ export function GlobalContextStrip({
 
   if (headerInline) {
     return (
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none]">
+      <div className="flex shrink-0 items-end justify-end gap-1 overflow-x-auto overscroll-x-contain px-0.5 pb-0.5 pt-1.5 [scrollbar-width:none] max-lg:[overflow-y:visible]">
         <Kpi
-          mobileLayout
+          iconBadge
           icon={<Tractor aria-hidden />}
           label="농장"
           value={fmt(overview?.farmCount)}
         />
         <Kpi
-          mobileLayout
+          iconBadge
           icon={<Cpu aria-hidden />}
           label="컨트롤러"
           value={fmt(overview?.controllerCount)}
         />
         <Kpi
-          mobileLayout
+          iconBadge
           icon={<WifiOff aria-hidden />}
           label="오프라인"
           value={fmt(overview?.offlineCount)}
@@ -180,28 +180,26 @@ export function GlobalContextStrip({
 
   if (mobileLayout) {
     return (
-      <div className="grid w-full grid-cols-2 gap-1.5">
+      <div className="flex w-full items-center justify-center gap-3">
         <Kpi
-          mobileLayout
+          iconBadge
           icon={<Tractor aria-hidden />}
           label="농장"
           value={fmt(overview?.farmCount)}
         />
         <Kpi
-          mobileLayout
+          iconBadge
           icon={<Cpu aria-hidden />}
           label="컨트롤러"
           value={fmt(overview?.controllerCount)}
         />
-        <div className="col-span-2">
-          <Kpi
-            mobileLayout
-            icon={<WifiOff aria-hidden />}
-            label="오프라인"
-            value={fmt(overview?.offlineCount)}
-            alert={offline > 0}
-          />
-        </div>
+        <Kpi
+          iconBadge
+          icon={<WifiOff aria-hidden />}
+          label="오프라인"
+          value={fmt(overview?.offlineCount)}
+          alert={offline > 0}
+        />
       </div>
     );
   }

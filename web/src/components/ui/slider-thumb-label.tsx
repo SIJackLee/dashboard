@@ -29,7 +29,7 @@ function labelTypography(
       : "text-[10px] font-medium text-muted-foreground leading-snug";
   }
   const size = compact
-    ? "text-2xl leading-snug"
+    ? "text-sm leading-snug"
     : cn(dashboardTypography.meta, "leading-snug");
   if (variant === "center") {
     return cn(size, "font-semibold text-foreground");
@@ -37,12 +37,14 @@ function labelTypography(
   return cn(size, "font-medium text-muted-foreground");
 }
 
-/** thumb 위치(0–100) → rail inset 기준 left + 끝단 정렬 */
+function thumbLabelPlacementClass(placement: "above" | "below") {
+  return placement === "above" ? "bottom-full mb-1.5" : "top-full mt-1.5";
+}
+
+/** thumb 위치(0–100) → rail 너비 기준 left */
 export function thumbLabelPositionStyle(leftPct: number): React.CSSProperties {
   const clamped = Math.min(100, Math.max(0, leftPct));
-  return {
-    left: `calc(${SLIDER_TRACK_INSET} + (100% - 2 * ${SLIDER_TRACK_INSET}) * ${clamped / 100})`,
-  };
+  return { left: `${clamped}%` };
 }
 
 export function thumbLabelAlignClass(leftPct: number) {
@@ -66,7 +68,7 @@ export function SliderThumbLabel({
       className={cn(
         "pointer-events-none absolute tabular-nums whitespace-nowrap",
         thumbLabelAlignClass(leftPct),
-        placement === "above" ? "top-0" : "bottom-0",
+        thumbLabelPlacementClass(placement),
         labelTypography(variant, compact, dense),
         className
       )}
@@ -85,25 +87,19 @@ export function sliderTrackShellClass(
 ) {
   const pad = "px-3 sm:px-4";
   if (layout === "triple") {
-    if (dense) return cn("relative", pad, "h-[4.75rem]");
-    return cn("relative", pad, compact ? "h-[5.75rem]" : "h-24");
+    if (dense) return cn("relative", pad, "py-7");
+    return cn("relative", pad, compact ? "py-8" : "py-9");
   }
-  return cn("relative", pad, compact ? "h-[5.25rem]" : "h-[5.75rem]");
+  return cn("relative", pad, compact ? "pt-7 pb-2" : "pt-8 pb-3");
 }
 
-export function sliderTrackRailClass(
-  _compact?: boolean,
-  layout: SliderTrackLayout = "dual"
-) {
-  if (layout === "triple") {
-    return cn(
-      "absolute top-1/2 right-3 left-3 h-3 -translate-y-1/2 rounded-full bg-muted"
-    );
-  }
-  return cn(
-    "absolute right-3 left-3 h-3 rounded-full bg-muted",
-    _compact ? "bottom-3" : "bottom-3.5"
-  );
+export function sliderTrackRailClass() {
+  return "relative mx-0 h-3 w-full";
+}
+
+/** rail 배경 — input 레이어 아래 */
+export function sliderTrackRailBgClass() {
+  return "pointer-events-none absolute inset-0 rounded-full bg-muted";
 }
 
 export function fmtTempLabel(value: number) {

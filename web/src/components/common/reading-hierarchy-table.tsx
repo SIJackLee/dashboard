@@ -9,7 +9,7 @@ import { EnvChip } from "@/components/common/env-chip";
 import { FanIndicator } from "@/components/common/fan-indicator";
 import { ControllerNameLabel } from "@/components/common/controller-name-label";
 import type { BarnReading } from "@/lib/data/iot";
-import { sensorValueForDisplay } from "@/lib/data/reading-display";
+import { formatSensorNumberForDisplay, sensorValueForDisplay } from "@/lib/data/reading-display";
 import { summarizeReadings } from "@/lib/data/hierarchy-summary";
 import { groupReadingsByHierarchy } from "@/lib/data/reading-hierarchy";
 import { formatKst } from "@/lib/datetime/kst";
@@ -28,7 +28,7 @@ function fmtTime(iso: string): string {
 }
 
 const fmtNum = (v: number | null, digits = 1) =>
-  v === null ? "--" : v.toFixed(digits);
+  v === null ? null : v.toFixed(digits);
 
 type Props = {
   readings: BarnReading[];
@@ -165,16 +165,36 @@ function SpGroupRows({
               <StatusBadge tone={summary.status} large />
             </TableCell>
             <TableCell>
-              <EnvChip kind="temp" value={fmtNum(summary.tempC)} />
+              <EnvChip
+                kind="temp"
+                value={fmtNum(sensorValueForDisplay(summary.status, summary.tempC))}
+              />
             </TableCell>
             <TableCell>
-              <EnvChip kind="humidity" value={fmtNum(summary.humidityPct)} />
+              <EnvChip
+                kind="humidity"
+                value={fmtNum(
+                  sensorValueForDisplay(summary.status, summary.humidityPct)
+                )}
+              />
             </TableCell>
             <TableCell>
               <div className="flex gap-3">
-                <FanIndicator kind="supply" value={summary.fanSupply} compact />
-                <FanIndicator kind="exhaust" value={summary.fanExhaust} compact />
-                <FanIndicator kind="intake" value={summary.fanIntake} compact />
+                <FanIndicator
+                  kind="supply"
+                  value={sensorValueForDisplay(summary.status, summary.fanSupply)}
+                  compact
+                />
+                <FanIndicator
+                  kind="exhaust"
+                  value={sensorValueForDisplay(summary.status, summary.fanExhaust)}
+                  compact
+                />
+                <FanIndicator
+                  kind="intake"
+                  value={sensorValueForDisplay(summary.status, summary.fanIntake)}
+                  compact
+                />
               </div>
             </TableCell>
             {showModule ? (
@@ -280,13 +300,13 @@ function StallGroupRows({
           <TableCell>
             <EnvChip
               kind="temp"
-              value={fmtNum(sensorValueForDisplay(r.status, r.tempC))}
+              value={formatSensorNumberForDisplay(r.status, r.tempC)}
             />
           </TableCell>
           <TableCell>
             <EnvChip
               kind="humidity"
-              value={fmtNum(sensorValueForDisplay(r.status, r.humidityPct))}
+              value={formatSensorNumberForDisplay(r.status, r.humidityPct)}
             />
           </TableCell>
           <TableCell>

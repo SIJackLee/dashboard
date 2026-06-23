@@ -11,7 +11,7 @@ import {
 } from "@/components/ops/hierarchy-alarm-tree";
 import { SectionCard } from "@/components/common/section-card";
 import type { AlarmThresholdHeaderState } from "@/components/settings/alarm-threshold-form";
-import type { ControllerReading, BarnMapSnapshot } from "@/lib/data/iot";
+import type { ControllerReading } from "@/lib/data/iot";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { buildControllerHref } from "@/lib/auth/farm-access";
@@ -48,10 +48,11 @@ import {
   pickWorstControllerPayload,
 } from "@/lib/monitoring/hub-triage-queue";
 import {
-  buildBarnNavQueue,
-  buildBarnTriageQueue,
-} from "@/lib/monitoring/barn-triage-queue";
-import { pickControllerForBarn } from "@/lib/monitoring/barn-grid-select";
+  buildSpNavQueue,
+  buildSpTriageQueue,
+  OpsMobileSpOverview,
+  pickReadingForSp,
+} from "@/components/ops/ops-mobile-sp-overview";
 import {
   parseDevicesPanel,
   type DevicesPanelId,
@@ -63,11 +64,6 @@ import { cn } from "@/lib/utils";
 import { OpsMobileAlarmStrip } from "@/components/ops/ops-mobile-alarm-strip";
 import { OpsMobileSplitHub } from "@/components/ops/ops-mobile-split-hub";
 import { OpsMobileSplitShell } from "@/components/ops/ops-mobile-split-shell";
-import { OpsMobileBarnGrid } from "@/components/ops/ops-mobile-barn-grid";
-import {
-  OpsMobileSpOverview,
-  pickReadingForSp,
-} from "@/components/ops/ops-mobile-sp-overview";
 
 const AdminFarmOverview = dynamic(
   () =>
@@ -169,9 +165,9 @@ export type OpsTriageViewProps = {
     farmSummaries: FarmSummaryRow[];
     locations: FarmLocationRow[];
   };
-  /** Farmer ops — 축사 미니 그리드 */
+  /** Farmer ops — 축사 레이아웃(서버 persist용, 모바일 UI는 SpOverview) */
   barnGrid?: {
-    snapshots: BarnMapSnapshot[];
+    snapshots: import("@/lib/data/iot").BarnMapSnapshot[];
     gridCols: number;
     gridRows: number;
   };
@@ -328,11 +324,14 @@ function OpsTriageViewBody({
   settingsNotice = null,
   initialDevicesPanel = "control",
   geoHub,
-  barnGrid,
+  barnGrid: _barnGrid,
 }: OpsTriageViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useMobileLayout();
+  const [navSweepDirection, setNavSweepDirection] = useState<
+    "left" | "right" | null
+  >(null);
   const geoHubMode = Boolean(geoHub);
   const [activeSido, setActiveSido] = useState<string | null>(null);
   const devicesPanel = parseDevicesPanel(
@@ -481,34 +480,28 @@ function OpsTriageViewBody({
     [triageFarms, farmId]
   );
 
-  const barnTriageQueue = useMemo(
+  const spTriageQueue = useMemo(
     () =>
-      barnGrid
-        ? buildBarnTriageQueue(
-            barnGrid.snapshots,
-            hubAlarms,
-            readings
-          )
-        : [],
-    [barnGrid, hubAlarms, readings]
+      geoHubMode
+        ? []
+        : buildSpTriageQueue(readings, hubAlarms, farmId || undefined),
+    [geoHubMode, hubAlarms, readings, farmId]
   );
 
-  const barnNavQueue = useMemo(
+  const spNavQueue = useMemo(
     () =>
-      barnGrid
-        ? buildBarnNavQueue(barnGrid.snapshots, hubAlarms, readings)
-        : [],
-    [barnGrid, hubAlarms, readings]
+      geoHubMode
+        ? []
+        : buildSpNavQueue(readings, hubAlarms, farmId || undefined),
+    [geoHubMode, hubAlarms, readings, farmId]
   );
 
-  const barnNavIndex = useMemo(() => {
-    if (!spCode || barnNavQueue.length === 0) return -1;
-    return barnNavQueue.findIndex(
-      (item) =>
-        normalizeStallTyCode(item.snapshot.meta.stallNo ?? "") ===
-        normalizeStallTyCode(spCode)
+  const spNavIndex = useMemo(() => {
+    if (!spCode || spNavQueue.length === 0) return -1;
+    return spNavQueue.findIndex(
+      (item) => normalizeStallTyCode(item.spCode) === normalizeStallTyCode(spCode)
     );
-  }, [barnNavQueue, spCode]);
+  }, [spNavQueue, spCode]);
 
   const autoTriageBooted = useRef(false);
   const autoFarmerBarnBooted = useRef(false);
@@ -647,6 +640,38 @@ function OpsTriageViewBody({
     goTriageFarmAt(idx);
   };
 
+  const handleMapFarmSelect = (targetFarmId: string) => {
+    if (!geoHubMode || !isMobile || targetFarmId === farmId) return;
+
+    const newIdx = triageFarms.findIndex((f) => f.farmId === targetFarmId);
+    const oldIdx = triageIndex;
+    if (newIdx >= 0 && oldIdx >= 0 && newIdx !== oldIdx) {
+      setNavSweepDirection(newIdx > oldIdx ? "left" : "right");
+    } else if (newIdx >= 0) {
+      setNavSweepDirection(newIdx > Math.max(oldIdx, 0) ? "left" : "right");
+    } else {
+      setNavSweepDirection("left");
+    }
+
+    const summary = hubFarmSummaries.find(
+      (s) => farmKeyId(s.farmKey) === targetFarmId
+    );
+    const reading = hubReadings.find(
+      (r) => farmKeyId(r.farmKey) === targetFarmId
+    );
+    const farmKey = summary?.farmKey ?? reading?.farmKey;
+    if (!farmKey) return;
+
+    const payload = pickWorstControllerPayload(
+      hubAlarms,
+      hubReadings,
+      farmKey
+    );
+    if (payload) navigateToController(payload);
+
+    window.setTimeout(() => setNavSweepDirection(null), 280);
+  };
+
   const splitHubFarmLabel =
     activeTriageFarm?.label ??
     (selectedFarmKey ? farmShortLabel(selectedFarmKey) : "이상 농장 없음");
@@ -656,29 +681,31 @@ function OpsTriageViewBody({
       ? `${Math.max(triageIndex, 0) + 1} / ${triageFarms.length}`
       : "—";
 
-  const goBarnAt = (index: number) => {
-    const item = barnNavQueue[index];
+  const goSpAt = (index: number) => {
+    const item = spNavQueue[index];
     if (!item) return;
-    const payload = pickControllerForBarn(
-      item.snapshot,
-      readings,
-      hubAlarms
-    );
-    if (payload) navigateToController(payload);
+    const reading = pickReadingForSp(readings, item.spCode, farmId || undefined);
+    if (!reading) return;
+    navigateToController({
+      farmKey: reading.farmKey,
+      spCode: normalizeStallTyCode(reading.stallTyCode),
+      stallKey: stallKeyFromReading(reading),
+      readingKey: reading.key,
+    });
   };
 
   const goPrevBarn = () => {
-    if (barnNavQueue.length === 0) return;
+    if (spNavQueue.length === 0) return;
     const idx =
-      barnNavIndex <= 0 ? barnNavQueue.length - 1 : barnNavIndex - 1;
-    goBarnAt(idx);
+      spNavIndex <= 0 ? spNavQueue.length - 1 : spNavIndex - 1;
+    goSpAt(idx);
   };
 
   const goNextBarn = () => {
-    if (barnNavQueue.length === 0) return;
+    if (spNavQueue.length === 0) return;
     const idx =
-      barnNavIndex < 0 ? 0 : (barnNavIndex + 1) % barnNavQueue.length;
-    goBarnAt(idx);
+      spNavIndex < 0 ? 0 : (spNavIndex + 1) % spNavQueue.length;
+    goSpAt(idx);
   };
 
   const farmerSplitTitle =
@@ -687,19 +714,17 @@ function OpsTriageViewBody({
       : farmOptions[0]?.label ?? "내 농장";
 
   const farmerSplitSubtitle =
-    barnNavQueue.length > 0
+    spNavQueue.length > 0
       ? [
-          `${Math.max(barnNavIndex, 0) + 1} / ${barnNavQueue.length}`,
-          barnNavQueue[Math.max(barnNavIndex, 0)]?.label,
-          barnNavQueue[Math.max(barnNavIndex, 0)]?.alarmCount
-            ? `${barnNavQueue[Math.max(barnNavIndex, 0)]!.alarmCount}건`
+          `${Math.max(spNavIndex, 0) + 1} / ${spNavQueue.length}`,
+          spNavQueue[Math.max(spNavIndex, 0)]?.label,
+          spNavQueue[Math.max(spNavIndex, 0)]?.alarmCount
+            ? `${spNavQueue[Math.max(spNavIndex, 0)]!.alarmCount}건`
             : null,
         ]
           .filter(Boolean)
           .join(" · ")
-      : barnGrid?.snapshots.length
-        ? `${barnGrid.snapshots.length}개 축사`
-        : undefined;
+      : undefined;
 
   const mobileAlarmStrip = (
     <OpsMobileAlarmStrip
@@ -719,8 +744,8 @@ function OpsTriageViewBody({
     if (!ctrl || !selectedFarmKey) return;
     navigateToController({
       farmKey: selectedFarmKey,
-      spCode,
-      stallKey,
+      spCode: normalizeStallTyCode(ctrl.stallTyCode),
+      stallKey: stallKeyFromReading(ctrl),
       readingKey: key,
     });
   };
@@ -754,9 +779,11 @@ function OpsTriageViewBody({
         activeChannel={activeChannel}
         onChannelChange={setActiveChannel}
         spLabel={
-          stallKey
-            ? `${formatStallTypeLabel(spCode)} · ${stallLabelFromKey(stallKey)}`
-            : formatStallTypeLabel(spCode)
+          selectedDetail
+            ? `${formatStallTypeLabel(normalizeStallTyCode(selectedDetail.stallTyCode))} · ${stallLabelFromKey(stallKeyFromReading(selectedDetail))}`
+            : stallKey
+              ? `${formatStallTypeLabel(spCode)} · ${stallLabelFromKey(stallKey)}`
+              : formatStallTypeLabel(spCode)
         }
         alarmThresholdHeader={thresholdHeader}
         alarmSettingsPanel={renderAlarmSettingsPanel(mobileSplit)}
@@ -821,26 +848,24 @@ function OpsTriageViewBody({
   }, [geoHubMode, isMobile, triageFarms.length, urlFarmId, controllerKey]);
 
   useEffect(() => {
-    if (geoHubMode || !barnGrid || autoFarmerBarnBooted.current) return;
+    if (geoHubMode || autoFarmerBarnBooted.current) return;
     autoFarmerBarnBooted.current = true;
     if (controllerKey) return;
-    if (barnTriageQueue.length > 0) {
-      const item = barnTriageQueue[0]!;
-      const payload = pickControllerForBarn(
-        item.snapshot,
+    if (spTriageQueue.length > 0) {
+      const item = spTriageQueue[0]!;
+      const reading = pickReadingForSp(
         readings,
-        hubAlarms
+        item.spCode,
+        farmId || undefined
       );
-      if (payload) navigateToController(payload);
-      return;
-    }
-    if (barnGrid.snapshots.length > 0) {
-      const payload = pickControllerForBarn(
-        barnGrid.snapshots[0],
-        readings,
-        hubAlarms
-      );
-      if (payload) navigateToController(payload);
+      if (reading) {
+        navigateToController({
+          farmKey: reading.farmKey,
+          spCode: normalizeStallTyCode(reading.stallTyCode),
+          stallKey: stallKeyFromReading(reading),
+          readingKey: reading.key,
+        });
+      }
       return;
     }
     const firstReading = readings.find(
@@ -854,40 +879,70 @@ function OpsTriageViewBody({
         readingKey: firstReading.key,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- farmer barn bootstrap once
-  }, [geoHubMode, barnGrid, barnTriageQueue.length, controllerKey, readings.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- farmer sp bootstrap once
+  }, [geoHubMode, spTriageQueue.length, controllerKey, readings.length]);
 
   const showAdminPlaceholder = geoHubMode
     ? !controllerKey
     : adminAllNoFarm && !farmId;
 
-  const adminMobileFarmReadings = useMemo(() => {
-    if (!geoHubMode || !farmId) return [];
+  const scopedMobileFarmReadings = useMemo(() => {
+    if (!farmId) return readings;
     return readings.filter((r) => farmKeyId(r.farmKey) === farmId);
-  }, [geoHubMode, farmId, readings]);
+  }, [farmId, readings]);
 
-  const adminMobileSpPicker =
-    geoHubMode && farmId && !showAdminPlaceholder ? (
+  const handleMobileSpSelect = (sp: string) => {
+    const reading = pickReadingForSp(readings, sp, farmId || undefined);
+    if (!reading) return;
+    navigateToController({
+      farmKey: reading.farmKey,
+      spCode: normalizeStallTyCode(reading.stallTyCode),
+      stallKey: stallKeyFromReading(reading),
+      readingKey: reading.key,
+    });
+  };
+
+  const mobileStallOptions = useMemo(() => {
+    if (!farmId || !spCode) return [];
+    return uniqueStallKeys(readings, farmId, spCode).map((key) => ({
+      value: key,
+      label: key.startsWith("__") ? key.replace(/^__idx_/, "#") : key,
+    }));
+  }, [readings, farmId, spCode]);
+
+  const handleMobileStallSelect = (key: string) => {
+    const ctrls = filterControllersForScope(readings, farmId, spCode, key);
+    const ctrl = ctrls[0];
+    if (!ctrl) return;
+    navigateToController({
+      farmKey: ctrl.farmKey,
+      spCode: normalizeStallTyCode(ctrl.stallTyCode),
+      stallKey: key,
+      readingKey: ctrl.key,
+    });
+  };
+
+  const mobileScopePills = {
+    stallOptions: mobileStallOptions,
+    selectedStallKey: stallKey,
+    onStallSelect: handleMobileStallSelect,
+  };
+
+  const mobileSpPicker =
+    geoHubMode && (!farmId || showAdminPlaceholder) ? null : (
       <div className="space-y-1.5">
         <p className="px-0.5 text-xs font-semibold text-muted-foreground">
           축사유형
         </p>
         <OpsMobileSpOverview
-          readings={adminMobileFarmReadings}
+          readings={scopedMobileFarmReadings}
           selectedSpCode={spCode}
-          onSelectSp={(sp) => {
-            const reading = pickReadingForSp(readings, sp, farmId);
-            if (!reading) return;
-            navigateToController({
-              farmKey: reading.farmKey,
-              spCode: normalizeStallTyCode(reading.stallTyCode),
-              stallKey: stallKeyFromReading(reading),
-              readingKey: reading.key,
-            });
-          }}
+          onSelectSp={handleMobileSpSelect}
         />
       </div>
-    ) : null;
+    );
+
+  const adminMobileSpPicker = geoHubMode ? mobileSpPicker : null;
 
   const alarmSettingsAvailable =
     showThresholdPanel && Boolean(thresholdScope && alarmSettings);
@@ -933,6 +988,8 @@ function OpsTriageViewBody({
       locations={geoHub.locations}
       activeSido={activeSido}
       onSelectSido={setActiveSido}
+      focusFarmId={geoHubMode && isMobile ? farmId || null : null}
+      onSelectFarm={geoHubMode && isMobile ? handleMapFarmSelect : undefined}
     />
   ) : null;
 
@@ -1029,17 +1086,19 @@ function OpsTriageViewBody({
                 control={mobileSplitControl}
                 headerSlot={mobileSplitHeader}
                 midPanel={adminMobileSpPicker}
+                {...mobileScopePills}
                 controllerList={controllerList}
                 selectedControllerKey={selected?.key}
                 onControllerSelect={handleControllerSelect}
                 placeholder={showAdminPlaceholder}
+                navSweepDirection={navSweepDirection}
               />
             ) : (
               <OpsMobileSplitShell
                 title={farmerSplitTitle}
                 subtitle={farmerSplitSubtitle}
                 nav={
-                  barnNavQueue.length > 1
+                  spNavQueue.length > 1
                     ? {
                         hasPrev: true,
                         hasNext: true,
@@ -1050,43 +1109,11 @@ function OpsTriageViewBody({
                       }
                     : undefined
                 }
-                topPanel={
-                  barnGrid && barnGrid.snapshots.length > 0 ? (
-                    <OpsMobileBarnGrid
-                      barns={barnGrid.snapshots}
-                      gridCols={barnGrid.gridCols}
-                      gridRows={barnGrid.gridRows}
-                      selectedFarmId={farmId}
-                      selectedSpCode={spCode}
-                      onSelectBarn={(snapshot) => {
-                        const payload = pickControllerForBarn(
-                          snapshot,
-                          readings,
-                          hubAlarms
-                        );
-                        if (payload) navigateToController(payload);
-                      }}
-                    />
-                  ) : (
-                    <OpsMobileSpOverview
-                      readings={readings}
-                      selectedSpCode={spCode}
-                      onSelectSp={(sp) => {
-                        const reading = pickReadingForSp(readings, sp, farmId);
-                        if (!reading) return;
-                        navigateToController({
-                          farmKey: reading.farmKey,
-                          spCode: normalizeStallTyCode(reading.stallTyCode),
-                          stallKey: stallKeyFromReading(reading),
-                          readingKey: reading.key,
-                        });
-                      }}
-                    />
-                  )
-                }
+                topPanel={mobileSpPicker}
                 topVariant="grid"
                 control={mobileSplitControl}
                 headerSlot={mobileSplitHeader}
+                {...mobileScopePills}
                 controllerList={controllerList}
                 selectedControllerKey={selected?.key}
                 onControllerSelect={handleControllerSelect}

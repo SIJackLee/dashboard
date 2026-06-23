@@ -49,7 +49,7 @@ export function pipelineDetailMessage(
 }
 
 export const UNKNOWN_SETTINGS_HINT =
-  "컨트롤러 설정값을 아직 받지 못했습니다. 조정 후 저장하면 명령으로 등록됩니다.";
+  "컨트롤러 설정값을 아직 받지 못했습니다. 조정 후 적용하면 명령으로 등록됩니다.";
 
 export const COMMAND_REGISTER_SUCCESS =
   "명령을 등록했습니다. 장치 전송을 기다리는 중입니다.";
@@ -139,7 +139,15 @@ export function formatControllerPillLabel(opts: {
   return `${prefixParts.join(" · ")} · ${base}`;
 }
 
-/** 모바일 분할 셸 컨트롤러 pill — 짧은 라벨 */
+/** 모바일 분할 셸 — 컨트롤러 가로 스크롤 칩 (S2) */
+export function formatControllerScrollChipLabel(opts: {
+  eqpmnNo?: string;
+}): string {
+  const eq = opts.eqpmnNo?.trim();
+  return eq ? `C·${eq}` : "C·—";
+}
+
+/** 모바일 레거시 pill — 짧은 라벨 */
 export function formatControllerPillLabelShort(opts: {
   label?: string;
   stallNo?: string | null;

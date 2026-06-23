@@ -40,31 +40,14 @@ import {
   formatChannelEquipmentLabel,
   type ChannelSlot,
 } from "@/lib/data/iot-channel";
-import { ctrlUi } from "@/lib/ui/controller-page-ui";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
+  formatOperationPctForDisplay,
+  formatPctForDisplay,
+  formatTempForDisplay,
   isReadingOnline,
-  sensorValueForDisplay,
 } from "@/lib/data/reading-display";
 import { cn } from "@/lib/utils";
-
-function operationPct(reading?: ControllerReading): number {
-  if (!reading) return 0;
-  const vals = [reading.fanSupply, reading.fanExhaust, reading.fanIntake].filter(
-    (v): v is number => v != null
-  );
-  if (vals.length === 0) return 0;
-  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-  return Math.max(0, Math.min(100, Math.round(avg)));
-}
-
-function fmtPct(value: number | null | undefined): string {
-  return value != null ? `${Math.round(value)}%` : "--";
-}
-
-function fmtTemp(value: number | null | undefined): string {
-  return value != null ? `${value.toFixed(1)}℃` : "--";
-}
 
 type PanelControlProps = {
   reading?: ControllerReading;
@@ -123,8 +106,8 @@ function ChannelSettingsBar({
   if (compact) {
     return (
       <div className="space-y-1">
-        <p className="text-[10px] font-medium text-muted-foreground">채널 설정</p>
-        <div className="grid grid-cols-3 gap-1">
+        <p className="text-[10px] font-medium text-muted-foreground">채널</p>
+        <div className="grid grid-cols-3 gap-1.5">
           {slots.map((slot) => {
             const ch = channelBySlot(channels, slot);
             const equipmentLabel = formatChannelEquipmentLabel(
@@ -141,23 +124,20 @@ function ChannelSettingsBar({
                 aria-pressed={active}
                 aria-label={`${CHANNEL_SLOT_LABELS[slot]} · ${equipmentLabel}`}
                 className={cn(
-                  "flex min-h-9 max-h-10 min-w-0 flex-col items-center justify-center rounded-md border px-1 py-0.5 text-center transition-colors",
+                  "flex aspect-[4/3] min-h-0 w-full min-w-0 items-center justify-center rounded-lg border transition-colors",
                   active
-                    ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
-                    : "border-border bg-muted/15 hover:bg-muted/30",
+                    ? "border-primary/50 bg-primary/10 ring-1 ring-primary/30"
+                    : "border-border/70 bg-muted/15 hover:bg-muted/30",
                   !onChannelChange && "cursor-default opacity-70"
                 )}
               >
                 <span
                   className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded bg-primary/10 text-primary",
+                    "flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary",
                     active && "bg-primary/20"
                   )}
                 >
                   <ChannelSlotIcon slot={slot} compact />
-                </span>
-                <span className="mt-0.5 w-full truncate text-[9px] font-semibold leading-none">
-                  {CHANNEL_SLOT_LABELS[slot]}
                 </span>
               </button>
             );
@@ -168,19 +148,19 @@ function ChannelSettingsBar({
   }
 
   return (
-    <div className={cn(ctrlUi.sectionMuted, "mb-3")}>
+    <div className={cn(dashboardUi.sectionMuted, "mb-3")}>
       <div className="flex items-center justify-between gap-2">
         <span
           className={cn(
             "inline-flex items-center gap-2",
-            ctrlUi.sectionTitle
+            dashboardUi.sectionTitle
           )}
         >
-          <Layers className={cn(ctrlUi.iconMd, "text-primary")} aria-hidden />
+          <Layers className={cn(dashboardUi.iconMd, "text-primary")} aria-hidden />
           채널 설정
         </span>
       </div>
-      <div className={cn("mt-3 grid grid-cols-3", ctrlUi.gridGap)}>
+      <div className={cn("mt-3 grid grid-cols-3", dashboardUi.gridGap)}>
         {slots.map((slot) => {
           const ch = channelBySlot(channels, slot);
           const equipmentLabel = formatChannelEquipmentLabel(
@@ -197,7 +177,7 @@ function ChannelSettingsBar({
               aria-pressed={active}
               aria-label={`${CHANNEL_SLOT_LABELS[slot]} · ${equipmentLabel}`}
               className={cn(
-                ctrlUi.metricTile,
+                dashboardUi.metricTile,
                 "flex items-center gap-3 p-4 md:p-5 text-left transition-colors",
                 active
                   ? "border-primary/50 bg-primary/5 ring-1 ring-primary/30"
@@ -214,8 +194,8 @@ function ChannelSettingsBar({
                 <ChannelSlotIcon slot={slot} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className={ctrlUi.label}>{CHANNEL_SLOT_LABELS[slot]}</p>
-                <p className={cn("mt-1", ctrlUi.valueLg)}>{equipmentLabel}</p>
+                <p className={dashboardUi.label}>{CHANNEL_SLOT_LABELS[slot]}</p>
+                <p className={cn("mt-1", dashboardUi.valueLg)}>{equipmentLabel}</p>
               </div>
             </button>
           );
@@ -248,10 +228,10 @@ function CommandPipelineStatus({
   const detail = pipelineDetailMessage(command.status, command.errorMsg);
 
   return (
-    <div className={cn(ctrlUi.banner, "text-left", toneClass)}>
-      <p className={ctrlUi.bannerTitle}>{commandStatusLabel(command.status)}</p>
+    <div className={cn(dashboardUi.banner, "text-left", toneClass)}>
+      <p className={dashboardUi.bannerTitle}>{commandStatusLabel(command.status)}</p>
       {detail ? (
-        <p className={cn("mt-0.5", ctrlUi.label)}>{detail}</p>
+        <p className={cn("mt-0.5", dashboardUi.label)}>{detail}</p>
       ) : null}
     </div>
   );
@@ -264,14 +244,16 @@ function LiveMetricTile({
   large = false,
 }: {
   label: string;
-  value: string;
+  value: string | null;
   icon: ReactNode;
   large?: boolean;
 }) {
+  if (!value) return null;
+
   return (
     <div
       className={cn(
-        ctrlUi.metricTile,
+        dashboardUi.metricTile,
         "flex min-w-0 items-center gap-2 p-2 md:gap-3 md:p-4 lg:p-5"
       )}
     >
@@ -302,27 +284,39 @@ function LiveMetricTile({
   );
 }
 
+function MobileMetricCell({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null;
+}) {
+  if (!value) return null;
+  return (
+    <div>
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="text-sm font-semibold tabular-nums">{value}</p>
+    </div>
+  );
+}
+
 function LiveMonitor({
   reading,
-  opPct,
   powerOn,
 }: {
   reading?: ControllerReading;
-  opPct: number;
   powerOn: boolean;
 }) {
-  const online = isReadingOnline(reading?.status);
-
   return (
-    <div className={ctrlUi.sectionMuted}>
+    <div className={dashboardUi.sectionMuted}>
       <div className="flex items-center justify-between gap-2">
         <span
           className={cn(
             "inline-flex items-center gap-2",
-            ctrlUi.sectionTitle
+            dashboardUi.sectionTitle
           )}
         >
-          <Activity className={cn(ctrlUi.iconMd, "text-primary")} aria-hidden />
+          <Activity className={cn(dashboardUi.iconMd, "text-primary")} aria-hidden />
           LIVE 모니터
         </span>
         <span
@@ -331,48 +325,46 @@ function LiveMonitor({
             reading && powerOn ? "text-emerald-600" : "text-muted-foreground"
           )}
         >
-          <Power className={ctrlUi.iconMd} aria-hidden />
+          <Power className={dashboardUi.iconMd} aria-hidden />
           POWER {reading ? (powerOn ? "ON" : "OFF") : "--"}
         </span>
       </div>
 
-      <div className={cn("mt-3 grid grid-cols-3", ctrlUi.gridGap)}>
+      <div className={cn("mt-3 grid grid-cols-3", dashboardUi.gridGap)}>
         <LiveMetricTile
           label="현재 온도"
-          value={fmtTemp(sensorValueForDisplay(reading?.status, reading?.tempC))}
+          value={formatTempForDisplay(reading?.status, reading?.tempC)}
           icon={<Thermometer className="size-full" aria-hidden />}
           large
         />
         <LiveMetricTile
           label="습도"
-          value={fmtPct(
-            sensorValueForDisplay(reading?.status, reading?.humidityPct)
-          )}
+          value={formatPctForDisplay(reading?.status, reading?.humidityPct)}
           icon={<Droplets className="size-full" aria-hidden />}
           large
         />
         <LiveMetricTile
           label="원동작"
-          value={reading && online ? `${opPct}%` : "--"}
+          value={formatOperationPctForDisplay(reading)}
           icon={<Activity className="size-full" aria-hidden />}
           large
         />
       </div>
 
-      <div className={cn("mt-3 grid grid-cols-3", ctrlUi.gridGap)}>
+      <div className={cn("mt-3 grid grid-cols-3", dashboardUi.gridGap)}>
         <LiveMetricTile
           label="송풍"
-          value={fmtPct(sensorValueForDisplay(reading?.status, reading?.fanSupply))}
+          value={formatPctForDisplay(reading?.status, reading?.fanSupply)}
           icon={<Wind className="size-full" aria-hidden />}
         />
         <LiveMetricTile
           label="배기"
-          value={fmtPct(sensorValueForDisplay(reading?.status, reading?.fanExhaust))}
+          value={formatPctForDisplay(reading?.status, reading?.fanExhaust)}
           icon={<Fan className="size-full" aria-hidden />}
         />
         <LiveMetricTile
           label="입기"
-          value={fmtPct(sensorValueForDisplay(reading?.status, reading?.fanIntake))}
+          value={formatPctForDisplay(reading?.status, reading?.fanIntake)}
           icon={<Wind className="size-full" aria-hidden />}
         />
       </div>
@@ -405,7 +397,7 @@ function DesktopGroupedSliders({
     isFieldChanged("minVent") || isFieldChanged("maxVent");
 
   const grid = (
-    <div className={ctrlUi.sliderGrid}>
+    <div className={dashboardUi.sliderGrid}>
         <div
           className={cn(
             dashboardUi.innerCard,
@@ -461,7 +453,7 @@ function DesktopGroupedSliders({
   }
 
   return (
-    <div className={cn("hidden md:block", ctrlUi.section)}>
+    <div className={cn("hidden md:block", dashboardUi.section)}>
       <p className={dashboardTypography.sectionTitle}>알림값</p>
       {grid}
     </div>
@@ -493,11 +485,11 @@ function MobileGroupedSliders({
 
   const tabBtnClass = mobileSplit
     ? "h-8 min-h-8 px-3 text-sm"
-    : ctrlUi.btnMenuTab;
+    : dashboardUi.btnMenuTab;
 
   const tabs = (
     <>
-      <div className={cn("flex flex-wrap", mobileSplit ? "gap-1.5" : ctrlUi.chipStripGap)}>
+      <div className={cn("flex flex-wrap", mobileSplit ? "gap-1.5" : dashboardUi.chipStripGap)}>
         <Button
           type="button"
           variant={group === "temp" ? "default" : "outline"}
@@ -530,7 +522,7 @@ function MobileGroupedSliders({
         </Button>
       </div>
 
-      <div className={cn(mobileSplit ? "mt-2" : "mt-3", ctrlUi.swipePanel)}>
+      <div className={cn(mobileSplit ? "mt-2" : "mt-3", dashboardUi.swipePanel)}>
         {group === "temp" ? (
           <ControllerTempTripleSlider
             setpoint={sliderValues.setpoint}
@@ -579,7 +571,7 @@ function MobileGroupedSliders({
           onChange={onTempChange}
         />
         <ThresholdRangeSlider
-          title="환기"
+          title="환기량"
           icon={<Fan className="size-4 text-sky-600" aria-hidden />}
           min={0}
           max={100}
@@ -587,8 +579,8 @@ function MobileGroupedSliders({
           low={sliderValues.minVent}
           high={sliderValues.maxVent}
           unit="%"
-          lowLabel="최저환기"
-          highLabel="최고환기"
+          lowLabel="최저"
+          highLabel="최고"
           accentClass="bg-sky-500/35"
           showAxis
           disabled={disabled}
@@ -604,7 +596,7 @@ function MobileGroupedSliders({
   }
 
   return (
-    <div className={cn("md:hidden", ctrlUi.section)}>
+    <div className={cn("md:hidden", dashboardUi.section)}>
       <p className={dashboardTypography.sectionTitle}>알림값</p>
       <div className="mt-3">{tabs}</div>
     </div>
@@ -642,11 +634,27 @@ export function ControllerPanelFace({
   const showControllerList = useDisplayEnabled("controller.controllerList");
   const showLiveMonitor = useDisplayEnabled("controller.liveMonitor");
   const showSliders = useDisplayEnabled("controller.sliders");
-  const opPct = operationPct(reading);
+  const mobileTemp = reading
+    ? formatTempForDisplay(
+        reading.status,
+        channelReading?.tempC ?? reading.tempC
+      )
+    : null;
+  const mobileHumidity = reading
+    ? formatPctForDisplay(
+        reading.status,
+        channelReading?.humidityPct ?? reading.humidityPct
+      )
+    : null;
+  const mobileOpPct = formatOperationPctForDisplay(reading);
   const powerOn = reading?.status === "normal" || reading?.status === "caution";
+  const controllerOnline = isReadingOnline(reading?.status);
   const controlsDisabled = !reading || !canCommand || panel.pending;
   const showAlarmSettings = Boolean(alarmSettingsPanel);
   const showSettingsValues = showAlarmSettings || showSliders;
+  const [mobileSettingsTab, setMobileSettingsTab] = useState<"alarm" | "control">(
+    "control"
+  );
 
   const isSaving =
     panel.pending || Boolean(alarmThresholdHeader?.pending);
@@ -654,6 +662,7 @@ export function ControllerPanelFace({
   const canSaveAlarm =
     showAlarmSettings &&
     Boolean(alarmThresholdHeader) &&
+    controllerOnline &&
     !alarmThresholdHeader!.pending &&
     !alarmThresholdHeader!.validationError &&
     alarmThresholdHeader!.scopeReady &&
@@ -661,6 +670,7 @@ export function ControllerPanelFace({
 
   const canSaveControl =
     showSliders &&
+    controllerOnline &&
     !controlsDisabled &&
     (!panel.settingsKnown || panel.hasChanges);
 
@@ -725,7 +735,7 @@ export function ControllerPanelFace({
         onClick={handleSaveAll}
         className={actionBtnClass}
       >
-        {isSaving ? "저장 중…" : "저장"}
+        {isSaving ? "적용 중…" : "적용"}
       </PageActionButton>
     </div>
   ) : null;
@@ -766,22 +776,21 @@ export function ControllerPanelFace({
       {mobileSplit && reading ? (
         <div className="mb-2 flex flex-wrap items-center gap-2 border-b pb-2">
           <StatusBadge tone={reading.status} />
-          {spLabel ? (
-            <span className="min-w-0 truncate text-xs text-muted-foreground">{spLabel}</span>
-          ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {showSettingsValues ? settingsHeaderActions : null}
           </div>
         </div>
       ) : null}
 
-      <div className={cn(ctrlUi.stack, mobileSplit && "gap-3")}>
-        {reading && !mobileSplit ? (
+      <div className={cn(dashboardUi.stack, mobileSplit && "gap-3")}>
+        {reading && !mobileSplit && (mobileTemp || mobileOpPct) ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/15 px-3 py-2 lg:hidden">
-            <span className="text-sm font-semibold tabular-nums">
-              {channelReading?.tempC != null ? `${channelReading.tempC}℃` : "—"}
-            </span>
-            <span className="text-xs text-muted-foreground">운전 {opPct}%</span>
+            {mobileTemp ? (
+              <span className="text-sm font-semibold tabular-nums">{mobileTemp}</span>
+            ) : null}
+            {mobileOpPct ? (
+              <span className="text-xs text-muted-foreground">운전 {mobileOpPct}</span>
+            ) : null}
             {latestCommand ? (
               <span className="text-xs text-muted-foreground">
                 {commandStatusLabel(latestCommand.status)}
@@ -789,34 +798,16 @@ export function ControllerPanelFace({
             ) : null}
           </div>
         ) : null}
-        {reading && mobileSplit ? (
+        {reading && mobileSplit && (mobileTemp || mobileHumidity || mobileOpPct) ? (
           <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/15 px-2 py-2 text-center">
-            <div>
-              <p className="text-[10px] text-muted-foreground">온도</p>
-              <p className="text-sm font-semibold tabular-nums">
-                {fmtTemp(channelReading?.tempC ?? reading.tempC)}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground">습도</p>
-              <p className="text-sm font-semibold tabular-nums">
-                {fmtPct(
-                  sensorValueForDisplay(
-                    reading.status,
-                    channelReading?.humidityPct ?? reading.humidityPct
-                  )
-                )}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground">팬출력</p>
-              <p className="text-sm font-semibold tabular-nums">{opPct}%</p>
-            </div>
+            <MobileMetricCell label="온도" value={mobileTemp} />
+            <MobileMetricCell label="습도" value={mobileHumidity} />
+            <MobileMetricCell label="팬출력" value={mobileOpPct} />
           </div>
         ) : null}
         {detailLoading ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className={cn(ctrlUi.iconSm, "animate-spin")} />
+            <Loader2 className={cn(dashboardUi.iconSm, "animate-spin")} />
             상세 데이터 불러오는 중…
           </p>
         ) : null}
@@ -830,63 +821,124 @@ export function ControllerPanelFace({
         ) : null}
 
         {showLiveMonitor && !mobileSplit ? (
-          <LiveMonitor
-            reading={reading}
-            opPct={opPct}
-            powerOn={powerOn}
-          />
+          <LiveMonitor reading={reading} powerOn={powerOn} />
         ) : null}
 
         {showSettingsValues ? (
-          <div className={cn(mobileSplit ? "space-y-3" : "mb-5", !mobileSplit && dashboardUi.sectionMuted)}>
-            {!mobileSplit ? (
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className={dashboardTypography.sectionTitle}>알림값</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  {settingsHeaderActions}
-                </div>
-              </div>
-            ) : null}
-            {showAlarmSettings ? alarmSettingsPanel : null}
-            {showSliders ? (
-              <>
-                {showAlarmSettings && !mobileSplit ? (
-                  <p
+          mobileSplit ? (
+            <div className="space-y-3">
+              {showAlarmSettings && showSliders ? (
+                <div
+                  className="flex gap-1 rounded-lg bg-muted/30 p-1"
+                  role="tablist"
+                  aria-label="알림 및 제어 설정"
+                >
+                  <Button
+                    type="button"
+                    role="tab"
+                    aria-selected={mobileSettingsTab === "alarm"}
+                    variant={mobileSettingsTab === "alarm" ? "default" : "ghost"}
                     className={cn(
-                      "mt-5 mb-3",
-                      dashboardTypography.formLabel
+                      "h-8 min-h-8 flex-1 px-3 text-sm",
+                      mobileSettingsTab !== "alarm" &&
+                        alarmThresholdHeader?.hasChanges &&
+                        "border-amber-400/70 text-amber-900 dark:text-amber-100"
                     )}
+                    onClick={() => setMobileSettingsTab("alarm")}
                   >
-                    컨트롤러 제어값
-                  </p>
-                ) : null}
-                {!mobileSplit ? (
-                  <DesktopGroupedSliders
+                    알림
+                    {alarmThresholdHeader?.hasChanges ? " · Δ" : null}
+                  </Button>
+                  <Button
+                    type="button"
+                    role="tab"
+                    aria-selected={mobileSettingsTab === "control"}
+                    variant={mobileSettingsTab === "control" ? "default" : "ghost"}
+                    className={cn(
+                      "h-8 min-h-8 flex-1 px-3 text-sm",
+                      mobileSettingsTab !== "control" &&
+                        panel.hasChanges &&
+                        "border-amber-400/70 text-amber-900 dark:text-amber-100"
+                    )}
+                    onClick={() => setMobileSettingsTab("control")}
+                  >
+                    제어
+                    {panel.hasChanges ? " · Δ" : null}
+                  </Button>
+                </div>
+              ) : null}
+              {showAlarmSettings &&
+              (!showSliders || mobileSettingsTab === "alarm") ? (
+                <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
+                  {alarmSettingsPanel}
+                </div>
+              ) : null}
+              {showSliders &&
+              (!showAlarmSettings || mobileSettingsTab === "control") ? (
+                <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
+                  <MobileGroupedSliders
                     embedded
+                    mobileSplit={mobileSplit}
                     sliderValues={panel.sliderValues}
-                    currentValues={panel.currentValues}
                     isFieldChanged={panel.isFieldChanged}
                     disabled={controlsDisabled}
                     onTempChange={panel.setTempControl}
                     onVentChange={panel.setVentRange}
                   />
-                ) : null}
-                <MobileGroupedSliders
-                  embedded
-                  mobileSplit={mobileSplit}
-                  sliderValues={panel.sliderValues}
-                  isFieldChanged={panel.isFieldChanged}
-                  disabled={controlsDisabled}
-                  onTempChange={panel.setTempControl}
-                  onVentChange={panel.setVentRange}
-                />
-              </>
-            ) : null}
-          </div>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className={cn("mb-5", dashboardUi.sectionMuted)}>
+              {!mobileSplit ? (
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className={dashboardTypography.sectionTitle}>알림값</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {settingsHeaderActions}
+                  </div>
+                </div>
+              ) : null}
+              {showAlarmSettings ? alarmSettingsPanel : null}
+              {showSliders ? (
+                <>
+                  {showAlarmSettings && !mobileSplit ? (
+                    <p
+                      className={cn(
+                        "mt-5 mb-3",
+                        dashboardTypography.formLabel
+                      )}
+                    >
+                      컨트롤러 제어값
+                    </p>
+                  ) : null}
+                  {!mobileSplit ? (
+                    <DesktopGroupedSliders
+                      embedded
+                      sliderValues={panel.sliderValues}
+                      currentValues={panel.currentValues}
+                      isFieldChanged={panel.isFieldChanged}
+                      disabled={controlsDisabled}
+                      onTempChange={panel.setTempControl}
+                      onVentChange={panel.setVentRange}
+                    />
+                  ) : null}
+                  <MobileGroupedSliders
+                    embedded
+                    mobileSplit={mobileSplit}
+                    sliderValues={panel.sliderValues}
+                    isFieldChanged={panel.isFieldChanged}
+                    disabled={controlsDisabled}
+                    onTempChange={panel.setTempControl}
+                    onVentChange={panel.setVentRange}
+                  />
+                </>
+              ) : null}
+            </div>
+          )
         ) : null}
       </div>
 
-      <div className={cn(mobileSplit ? "mt-2 space-y-1 text-center" : "mt-3 space-y-2 text-center", ctrlUi.footer)}>
+      <div className={cn(mobileSplit ? "mt-2 space-y-1 text-center" : "mt-3 space-y-2 text-center", dashboardUi.footer)}>
         <CommandPipelineStatus command={latestCommand} />
         {!panel.settingsKnown && (
           <p className="text-xs text-amber-700 md:text-sm">

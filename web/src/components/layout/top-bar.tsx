@@ -47,7 +47,7 @@ export function TopBar({
         </div>
 
         {showMobileKpi ? (
-          <div className="min-w-0 flex-1 max-lg:block lg:hidden">
+          <div className="ml-auto shrink-0 overflow-visible max-lg:block lg:hidden">
             <GlobalContextStrip overview={overview} headerInline />
           </div>
         ) : null}

@@ -49,6 +49,18 @@ export function mapViewportSize(container: {
   return Math.min(w, h);
 }
 
+export function isValidMapCoord(lat: number, lng: number): boolean {
+  const la = Number(lat);
+  const ln = Number(lng);
+  return Number.isFinite(la) && Number.isFinite(ln);
+}
+
+export function filterValidMapPoints<T extends { lat: number; lng: number }>(
+  points: T[]
+): T[] {
+  return points.filter((p) => isValidMapCoord(p.lat, p.lng));
+}
+
 /** 작은 정사각형 허브 지도일수록 줌 아웃(음수 오프셋) */
 export function viewportZoomOffset(sizePx: number): number {
   if (sizePx < 400) return -2;
@@ -231,8 +243,15 @@ export type SigunguMarkerData = {
 };
 
 function centroid(points: FarmMapPoint[]): { lat: number; lng: number } {
-  const lat = points.reduce((s, p) => s + p.lat, 0) / points.length;
-  const lng = points.reduce((s, p) => s + p.lng, 0) / points.length;
+  const valid = filterValidMapPoints(points);
+  if (valid.length === 0) {
+    return { lat: KOREA_SOUTH_CENTER[0], lng: KOREA_SOUTH_CENTER[1] };
+  }
+  const lat = valid.reduce((s, p) => s + p.lat, 0) / valid.length;
+  const lng = valid.reduce((s, p) => s + p.lng, 0) / valid.length;
+  if (!isValidMapCoord(lat, lng)) {
+    return { lat: KOREA_SOUTH_CENTER[0], lng: KOREA_SOUTH_CENTER[1] };
+  }
   return { lat, lng };
 }
 
@@ -308,12 +327,13 @@ export function farmsInSigungu(
 export function boundsForPoints(
   points: Pick<FarmMapPoint, "lat" | "lng">[]
 ): [[number, number], [number, number]] | null {
-  if (points.length === 0) return null;
-  let minLat = points[0]!.lat;
-  let maxLat = points[0]!.lat;
-  let minLng = points[0]!.lng;
-  let maxLng = points[0]!.lng;
-  for (const p of points) {
+  const valid = filterValidMapPoints(points);
+  if (valid.length === 0) return null;
+  let minLat = valid[0]!.lat;
+  let maxLat = valid[0]!.lat;
+  let minLng = valid[0]!.lng;
+  let maxLng = valid[0]!.lng;
+  for (const p of valid) {
     minLat = Math.min(minLat, p.lat);
     maxLat = Math.max(maxLat, p.lat);
     minLng = Math.min(minLng, p.lng);
@@ -352,19 +372,23 @@ export function spreadFarmPointsForDisplay(
   opts?: { radiusDeg?: number }
 ): Map<string, { lat: number; lng: number }> {
   const out = new Map<string, { lat: number; lng: number }>();
-  if (farms.length === 0) return out;
+  const validFarms = filterValidMapPoints(farms);
+  if (validFarms.length === 0) return out;
 
-  if (farms.length === 1) {
-    const p = farms[0]!;
+  if (validFarms.length === 1) {
+    const p = validFarms[0]!;
     out.set(farmKeyId(p.farmKey), { lat: p.lat, lng: p.lng });
     return out;
   }
 
-  const centerLat = farms.reduce((s, p) => s + p.lat, 0) / farms.length;
-  const centerLng = farms.reduce((s, p) => s + p.lng, 0) / farms.length;
+  const centerLat =
+    validFarms.reduce((s, p) => s + p.lat, 0) / validFarms.length;
+  const centerLng =
+    validFarms.reduce((s, p) => s + p.lng, 0) / validFarms.length;
+  if (!isValidMapCoord(centerLat, centerLng)) return out;
   const baseRadius = opts?.radiusDeg ?? 0.012;
-  const radius = Math.max(baseRadius, 0.008 + farms.length * 0.002);
-  const sorted = [...farms].sort((a, b) =>
+  const radius = Math.max(baseRadius, 0.008 + validFarms.length * 0.002);
+  const sorted = [...validFarms].sort((a, b) =>
     farmKeyId(a.farmKey).localeCompare(farmKeyId(b.farmKey))
   );
 
@@ -392,11 +416,15 @@ export function applyFarmView(
   if (farms.length === 0) return;
 
   const sizePx = opts?.viewport?.sizePx ?? MAP_VIEWPORT_REFERENCE_PX;
-  const coords = farms.map((p) => {
-    const d = displayCoords.get(farmKeyId(p.farmKey));
-    return d ?? { lat: p.lat, lng: p.lng };
-  });
+  const coords = filterValidMapPoints(
+    farms.map((p) => {
+      const d = displayCoords.get(farmKeyId(p.farmKey));
+      return d ?? { lat: p.lat, lng: p.lng };
+    })
+  );
+  if (coords.length === 0) return;
   const raw = boundsForPoints(coords);
+  if (!raw) return;
   if (!raw) return;
 
   map.fitBounds(expandBounds(raw, farms.length === 1 ? 0.06 : 0.04), {
@@ -477,6 +505,14 @@ export function applyViewForStage(
     opts?.center ??
     resolveStageAnchor(stage, map.getCenter(), points, selection);
 
+  if (!isValidMapCoord(center[0], center[1])) {
+    map.setView(KOREA_SOUTH_CENTER, zoomForStage(stage, viewport), {
+      animate,
+      duration: 0.25,
+    });
+    return;
+  }
+
   map.setView(center, zoomForStage(stage, viewport), {
     animate,
     duration: 0.25,
@@ -496,13 +532,19 @@ export function nearestClusterCenter(
   viewportCenter: LatLngLike,
   candidates: LatLngLike[]
 ): [number, number] {
-  if (candidates.length === 0) {
+  const validCandidates = candidates.filter((c) =>
+    isValidMapCoord(c.lat, c.lng)
+  );
+  if (validCandidates.length === 0) {
     return [KOREA_SOUTH_CENTER[0], KOREA_SOUTH_CENTER[1]];
   }
-  let best = candidates[0]!;
-  let bestD = distSq(viewportCenter, best);
-  for (const c of candidates.slice(1)) {
-    const d = distSq(viewportCenter, c);
+  const origin = isValidMapCoord(viewportCenter.lat, viewportCenter.lng)
+    ? viewportCenter
+    : { lat: KOREA_SOUTH_CENTER[0], lng: KOREA_SOUTH_CENTER[1] };
+  let best = validCandidates[0]!;
+  let bestD = distSq(origin, best);
+  for (const c of validCandidates.slice(1)) {
+    const d = distSq(origin, c);
     if (d < bestD) {
       bestD = d;
       best = c;

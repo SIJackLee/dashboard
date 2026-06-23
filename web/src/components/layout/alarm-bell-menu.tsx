@@ -70,10 +70,18 @@ export function AlarmBellMenu({ alarms }: Props) {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className={dashboardUi.alarmMenuContent}
+        className={cn(
+          dashboardUi.alarmMenuContent,
+          "max-md:rounded-2xl max-md:border max-md:border-border/60 max-md:bg-card max-md:p-3 max-md:shadow-none"
+        )}
       >
         <DropdownMenuGroup>
-          <DropdownMenuLabel className={dashboardUi.alarmMenuLabel}>
+          <DropdownMenuLabel
+            className={cn(
+              dashboardUi.alarmMenuLabel,
+              "max-md:rounded-xl max-md:bg-muted/25 max-md:px-3 max-md:py-2 max-md:text-sm"
+            )}
+          >
             <span className="flex w-full items-center justify-between gap-3">
               <span>활성 알림</span>
               {count > 0 ? (
@@ -86,12 +94,22 @@ export function AlarmBellMenu({ alarms }: Props) {
         </DropdownMenuGroup>
         <DropdownMenuSeparator className="my-2" />
         {preview.length === 0 ? (
-          <p className={dashboardUi.alarmMenuEmpty}>활성 알림 없음</p>
+          <p
+            className={cn(
+              dashboardUi.alarmMenuEmpty,
+              "max-md:rounded-xl max-md:bg-muted/20 max-md:py-4 max-md:text-sm"
+            )}
+          >
+            활성 알림 없음
+          </p>
         ) : (
           preview.map((a) => (
             <DropdownMenuItem
               key={a.id}
-              className={dashboardUi.alarmMenuItem}
+              className={cn(
+                dashboardUi.alarmMenuItem,
+                "max-md:mb-1.5 max-md:rounded-xl max-md:border max-md:border-border/50 max-md:bg-muted/20 max-md:px-3 max-md:py-2.5 max-md:text-sm last:max-md:mb-0"
+              )}
               disabled={isPending}
               onClick={() =>
                 navigate(alarmControlHref(a), {
@@ -129,7 +147,10 @@ export function AlarmBellMenu({ alarms }: Props) {
           <>
             <DropdownMenuSeparator className="my-2" />
             <DropdownMenuItem
-              className={dashboardUi.alarmMenuFooter}
+              className={cn(
+                dashboardUi.alarmMenuFooter,
+                "max-md:rounded-xl max-md:bg-emerald-50/80 max-md:py-2.5 max-md:text-sm"
+              )}
               disabled={isPending}
               onClick={() =>
                 navigate(monitoringHref("ops"), {

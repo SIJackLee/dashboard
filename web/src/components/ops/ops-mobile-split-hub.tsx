@@ -1,7 +1,10 @@
 "use client";
 
 import type { ControllerReading } from "@/lib/data/iot";
-import { OpsMobileSplitShell } from "@/components/ops/ops-mobile-split-shell";
+import {
+  OpsMobileSplitShell,
+  type MobileStallOption,
+} from "@/components/ops/ops-mobile-split-shell";
 
 type Props = {
   farmLabel: string;
@@ -15,10 +18,14 @@ type Props = {
   control: React.ReactNode;
   headerSlot?: React.ReactNode;
   midPanel?: React.ReactNode;
+  stallOptions?: MobileStallOption[];
+  selectedStallKey?: string;
+  onStallSelect?: (stallKey: string) => void;
   controllerList?: ControllerReading[];
   selectedControllerKey?: string;
   onControllerSelect?: (key: string) => void;
   placeholder?: boolean;
+  navSweepDirection?: "left" | "right" | null;
 };
 
 /** Admin 전국 허브 — 지도 + 제어 분할 */
@@ -34,10 +41,14 @@ export function OpsMobileSplitHub({
   control,
   headerSlot,
   midPanel,
+  stallOptions,
+  selectedStallKey,
+  onStallSelect,
   controllerList,
   selectedControllerKey,
   onControllerSelect,
   placeholder,
+  navSweepDirection,
 }: Props) {
   return (
     <OpsMobileSplitShell
@@ -56,10 +67,14 @@ export function OpsMobileSplitHub({
       control={control}
       headerSlot={headerSlot}
       midPanel={midPanel}
+      stallOptions={stallOptions}
+      selectedStallKey={selectedStallKey}
+      onStallSelect={onStallSelect}
       controllerList={controllerList}
       selectedControllerKey={selectedControllerKey}
       onControllerSelect={onControllerSelect}
       placeholder={placeholder}
+      navSweepDirection={navSweepDirection}
     />
   );
 }
