@@ -17,6 +17,7 @@ import type { EditableFarmOption } from "@/lib/data/farm-location";
 import type { ModuleReceipt } from "@/lib/data/iot";
 import { farmOptionId } from "@/lib/settings/farm-location-client";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "operator" | "viewer";
@@ -45,6 +46,8 @@ export function AccountMenu({
   canEditLocation = false,
 }: Props) {
   const router = useRouter();
+  const mobile = useMobileLayout();
+  const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const name = user.displayName?.trim() || user.email || "사용자";
   const initial = name.charAt(0).toUpperCase();
@@ -71,7 +74,7 @@ export function AccountMenu({
   }
 
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger className={triggerClassName} aria-label="계정 메뉴">
         <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
         <div className="hidden min-w-0 leading-tight sm:block">
@@ -84,9 +87,12 @@ export function AccountMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        sideOffset={mobile ? 8 : 4}
         className={cn(
           "w-[min(100vw-1.5rem,22rem)] rounded-xl p-0",
-          dashboardUi.alarmMenuContent
+          dashboardUi.alarmMenuContent,
+          mobile &&
+            "origin-top data-open:zoom-in-100 data-closed:zoom-out-100 data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-2 data-open:duration-200 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1 data-closed:duration-150 max-md:rounded-2xl max-md:border max-md:border-border/60 max-md:bg-card max-md:shadow-lg"
         )}
       >
         <DropdownMenuGroup>
@@ -122,6 +128,7 @@ export function AccountMenu({
                 location={primaryFarm.location}
                 disabled={!canEditLocation}
                 compact
+                deferFocusUntilTap={mobile && open}
                 onSaved={() => router.refresh()}
               />
             </div>

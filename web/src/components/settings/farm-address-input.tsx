@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   geocodeFarmAddressAction,
   saveFarmAddressAction,
@@ -61,6 +61,8 @@ type Props = {
   location: FarmLocationRow | null | undefined;
   disabled?: boolean;
   compact?: boolean;
+  /** 모바일 계정 메뉴 등 — 열릴 때 키보드·포커스 없이, 입력칸 터치 시에만 편집 */
+  deferFocusUntilTap?: boolean;
   onSaved?: () => void;
 };
 
@@ -69,12 +71,27 @@ export function FarmAddressInput({
   location,
   disabled = false,
   compact = false,
+  deferFocusUntilTap = false,
   onSaved,
 }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [inputActive, setInputActive] = useState(false);
   const [draft, setDraft] = useState(() => addressDraftFromLocation(location));
   const [error, setError] = useState<string | null>(null);
   const [verified, setVerified] = useState(() => Boolean(location?.addressText));
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!deferFocusUntilTap) setInputActive(false);
+  }, [deferFocusUntilTap]);
+
+  const inputLocked = deferFocusUntilTap && !inputActive;
+
+  const activateInput = useCallback(() => {
+    if (disabled || pending || !deferFocusUntilTap || inputActive) return;
+    setInputActive(true);
+    requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+  }, [deferFocusUntilTap, disabled, inputActive, pending]);
 
   const runGeocode = useCallback(() => {
     const query = draft.addressText.trim();
@@ -134,21 +151,39 @@ export function FarmAddressInput({
           농장 주소
         </span>
         <input
+          ref={inputRef}
           type="text"
-          className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+          className={cn(
+            "w-full rounded-lg border bg-background px-3 py-2 text-sm",
+            inputLocked && "cursor-text"
+          )}
           placeholder="예: 경기도 수원시 영통구 월드컵로 206"
           value={draft.addressText}
           disabled={disabled || pending}
-          onPointerDown={(e) => e.stopPropagation()}
+          readOnly={inputLocked}
+          tabIndex={inputLocked ? -1 : undefined}
+          aria-readonly={inputLocked || undefined}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            if (inputLocked) {
+              e.preventDefault();
+              activateInput();
+            }
+          }}
           onClick={(e) => e.stopPropagation()}
+          onFocus={(e) => {
+            if (inputLocked) e.target.blur();
+          }}
           onKeyDown={(e) => {
             e.stopPropagation();
+            if (inputLocked) return;
             if (e.key === "Enter") {
               e.preventDefault();
               runGeocode();
             }
           }}
           onChange={(e) => {
+            if (inputLocked) return;
             setVerified(false);
             setDraft((prev) => ({
               ...prev,
