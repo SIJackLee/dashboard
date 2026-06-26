@@ -21,7 +21,6 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { ControllerListPanel } from "@/components/controllers/controller-list-panel";
 import { ControllerNameLabel } from "@/components/common/controller-name-label";
 import { useControllerMeta } from "@/components/controllers/controller-meta-provider";
-import { useDisplayEnabled } from "@/components/display/display-settings-provider";
 import { Button } from "@/components/ui/button";
 import type { ControllerReading } from "@/lib/data/iot";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
@@ -631,9 +630,6 @@ export function ControllerPanelFace({
     reading?.channels?.length ? channelEqpmnCode : undefined
   );
   const { resolveName } = useControllerMeta();
-  const showControllerList = useDisplayEnabled("controller.controllerList");
-  const showLiveMonitor = useDisplayEnabled("controller.liveMonitor");
-  const showSliders = useDisplayEnabled("controller.sliders");
   const mobileTemp = reading
     ? formatTempForDisplay(
         reading.status,
@@ -651,7 +647,7 @@ export function ControllerPanelFace({
   const controllerOnline = isReadingOnline(reading?.status);
   const controlsDisabled = !reading || !canCommand || panel.pending;
   const showAlarmSettings = Boolean(alarmSettingsPanel);
-  const showSettingsValues = showAlarmSettings || showSliders;
+  const showSettingsValues = showAlarmSettings || true;
   const [mobileSettingsTab, setMobileSettingsTab] = useState<"alarm" | "control">(
     "control"
   );
@@ -669,14 +665,13 @@ export function ControllerPanelFace({
     alarmThresholdHeader!.hasChanges;
 
   const canSaveControl =
-    showSliders &&
     controllerOnline &&
     !controlsDisabled &&
     (!panel.settingsKnown || panel.hasChanges);
 
   const unifiedSaveDisabled =
     isSaving ||
-    (showAlarmSettings && showSliders
+    (showAlarmSettings
       ? !canSaveAlarm && !canSaveControl
       : showAlarmSettings
         ? !canSaveAlarm
@@ -691,7 +686,7 @@ export function ControllerPanelFace({
     );
 
   const handleApplyDefaults = () => {
-    if (showSliders) panel.applyDefaults();
+    panel.applyDefaults();
     alarmThresholdHeader?.onApplyDefaults();
   };
 
@@ -742,8 +737,7 @@ export function ControllerPanelFace({
 
   const panelBody = (
     <>
-      {showControllerList &&
-      !hideControllerList &&
+      {!hideControllerList &&
       !mobileSplit &&
       controllerList.length > 0 &&
       onControllerSelect ? (
@@ -756,7 +750,7 @@ export function ControllerPanelFace({
             spLabel={spLabel}
           />
         </div>
-      ) : !showControllerList || hideControllerList || mobileSplit ? null : (
+      ) : hideControllerList || mobileSplit ? null : (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <ControllerNameLabel
             className="text-base"
@@ -820,14 +814,14 @@ export function ControllerPanelFace({
           />
         ) : null}
 
-        {showLiveMonitor && !mobileSplit ? (
+        {!mobileSplit ? (
           <LiveMonitor reading={reading} powerOn={powerOn} />
         ) : null}
 
         {showSettingsValues ? (
           mobileSplit ? (
             <div className="space-y-3">
-              {showAlarmSettings && showSliders ? (
+              {showAlarmSettings ? (
                 <div
                   className="flex gap-1 rounded-lg bg-muted/30 p-1"
                   role="tablist"
@@ -868,13 +862,12 @@ export function ControllerPanelFace({
                 </div>
               ) : null}
               {showAlarmSettings &&
-              (!showSliders || mobileSettingsTab === "alarm") ? (
+              (mobileSettingsTab === "alarm") ? (
                 <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
                   {alarmSettingsPanel}
                 </div>
               ) : null}
-              {showSliders &&
-              (!showAlarmSettings || mobileSettingsTab === "control") ? (
+              {(!showAlarmSettings || mobileSettingsTab === "control") ? (
                 <div className="rounded-xl border border-border/60 bg-muted/15 p-3">
                   <MobileGroupedSliders
                     embedded
@@ -899,40 +892,38 @@ export function ControllerPanelFace({
                 </div>
               ) : null}
               {showAlarmSettings ? alarmSettingsPanel : null}
-              {showSliders ? (
-                <>
-                  {showAlarmSettings && !mobileSplit ? (
-                    <p
-                      className={cn(
-                        "mt-5 mb-3",
-                        dashboardTypography.formLabel
-                      )}
-                    >
-                      컨트롤러 제어값
-                    </p>
-                  ) : null}
-                  {!mobileSplit ? (
-                    <DesktopGroupedSliders
-                      embedded
-                      sliderValues={panel.sliderValues}
-                      currentValues={panel.currentValues}
-                      isFieldChanged={panel.isFieldChanged}
-                      disabled={controlsDisabled}
-                      onTempChange={panel.setTempControl}
-                      onVentChange={panel.setVentRange}
-                    />
-                  ) : null}
-                  <MobileGroupedSliders
+              <>
+                {showAlarmSettings && !mobileSplit ? (
+                  <p
+                    className={cn(
+                      "mt-5 mb-3",
+                      dashboardTypography.formLabel
+                    )}
+                  >
+                    컨트롤러 제어값
+                  </p>
+                ) : null}
+                {!mobileSplit ? (
+                  <DesktopGroupedSliders
                     embedded
-                    mobileSplit={mobileSplit}
                     sliderValues={panel.sliderValues}
+                    currentValues={panel.currentValues}
                     isFieldChanged={panel.isFieldChanged}
                     disabled={controlsDisabled}
                     onTempChange={panel.setTempControl}
                     onVentChange={panel.setVentRange}
                   />
-                </>
-              ) : null}
+                ) : null}
+                <MobileGroupedSliders
+                  embedded
+                  mobileSplit={mobileSplit}
+                  sliderValues={panel.sliderValues}
+                  isFieldChanged={panel.isFieldChanged}
+                  disabled={controlsDisabled}
+                  onTempChange={panel.setTempControl}
+                  onVentChange={panel.setVentRange}
+                />
+              </>
             </div>
           )
         ) : null}

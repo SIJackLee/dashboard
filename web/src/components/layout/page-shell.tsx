@@ -28,6 +28,8 @@ export async function PageShell({
         overview={ctx.overview}
         alarms={ctx.alarms}
         hideScopeKpi={ctx.isAdmin && !ctx.activeFarmKey}
+        farmLocationOptions={ctx.farmLocationOptions}
+        canEditLocation={ctx.canEditLocation}
         user={{
           displayName: user?.displayName ?? null,
           email: user?.email ?? null,

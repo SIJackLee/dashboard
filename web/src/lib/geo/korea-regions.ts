@@ -24,11 +24,45 @@ export const SIDO_LIST = [...new Set(KOREA_REGIONS.map((r) => r.sido))].sort(
   (a, b) => a.localeCompare(b, "ko")
 );
 
+/** 구 명칭 → 공식 시·도 (catalog·geocode 입력 정규화) */
+export const SIDO_ALIASES: Record<string, string> = {
+  강원도: "강원특별자치도",
+  전라북도: "전북특별자치도",
+};
+
+export function canonicalSido(sido: string): string {
+  return SIDO_ALIASES[sido.trim()] ?? sido.trim();
+}
+
+/** 주소 문자열 앞부분에서 시·도 접두사 매칭 (긴 이름 우선) */
+export function matchSidoPrefix(address: string): {
+  sido: string;
+  rest: string;
+} | null {
+  const trimmed = address.trim();
+  const candidates = [
+    ...SIDO_LIST,
+    ...Object.keys(SIDO_ALIASES),
+  ].sort((a, b) => b.length - a.length);
+
+  for (const raw of candidates) {
+    if (!trimmed.startsWith(raw)) continue;
+    return {
+      sido: canonicalSido(raw),
+      rest: trimmed.slice(raw.length).trim(),
+    };
+  }
+  return null;
+}
+
 export function findRegion(
   sido: string,
   sigungu: string
 ): KoreaRegion | undefined {
-  return KOREA_REGIONS.find((r) => r.sido === sido && r.sigungu === sigungu);
+  const canon = canonicalSido(sido);
+  return KOREA_REGIONS.find(
+    (r) => r.sido === canon && r.sigungu === sigungu.trim()
+  );
 }
 
 /** farm 번호 기준 결정적 랜덤 (시드·목업용) */

@@ -2,26 +2,84 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { adminOpsHref } from "@/lib/admin/ops-tabs";
-import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { saveAlarmSettings } from "@/lib/data/alarm-settings";
-import { saveDisplaySettings } from "@/lib/data/display-settings";
 import { savePiggyPlayerId } from "@/lib/data/piggy-settings";
-import { parseDisplaySettings } from "@/lib/data/display-settings-shared";
 import { validateAlarmThresholds, type AlarmSettings } from "@/lib/data/alarms";
 import {
   saveFarmLocation,
   saveFarmLocationsBatch,
   type SaveFarmLocationInput,
 } from "@/lib/data/farm-location";
+import { geocodeFarmAddress } from "@/lib/geo/geocode-farm-address";
 import {
   devicesAlarmSettingsHref,
-  devicesDisplayPanelHref,
   devicesFarmPanelHref,
 } from "@/lib/monitoring/devices-panel";
 
 function revalidateFarmPaths() {
   revalidatePath("/farm");
+}
+
+export async function geocodeFarmAddressAction(
+  address: string
+): Promise<
+  | {
+      ok: true;
+      lat: number;
+      lng: number;
+      addressText: string;
+      sido: string;
+      sigungu: string;
+      addressDetail: string | null;
+      geocodeSource: string;
+    }
+  | { ok: false; error: string }
+> {
+  const result = await geocodeFarmAddress(address);
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    lat: result.lat,
+    lng: result.lng,
+    addressText: result.addressText,
+    sido: result.sido,
+    sigungu: result.sigungu,
+    addressDetail: result.addressDetail,
+    geocodeSource: result.geocodeSource,
+  };
+}
+
+export async function saveFarmAddressAction(input: {
+  lsindRegistNo: string;
+  itemCode: string;
+  address: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const farmKey = {
+    lsindRegistNo: input.lsindRegistNo.trim(),
+    itemCode: input.itemCode.trim(),
+  };
+  if (!farmKey.lsindRegistNo || !farmKey.itemCode) {
+    return { ok: false, error: "invalid" };
+  }
+
+  const geocoded = await geocodeFarmAddress(input.address);
+  if (!geocoded.ok) {
+    return { ok: false, error: geocoded.error };
+  }
+
+  const result = await saveFarmLocation({
+    farmKey,
+    lat: geocoded.lat,
+    lng: geocoded.lng,
+    sido: geocoded.sido,
+    sigungu: geocoded.sigungu,
+    addressDetail: geocoded.addressDetail ?? undefined,
+    addressText: geocoded.addressText,
+    geocodeSource: geocoded.geocodeSource,
+  });
+
+  if (result.ok) revalidateFarmPaths();
+  return result.ok ? { ok: true } : { ok: false, error: result.error };
 }
 
 export async function saveFarmLocationInlineAction(
@@ -58,18 +116,43 @@ export async function saveFarmLocationAction(formData: FormData) {
   const sido = String(formData.get("sido") ?? "").trim();
   const sigungu = String(formData.get("sigungu") ?? "").trim();
   const addressDetail = String(formData.get("address_detail") ?? "").trim();
+  const addressText = String(formData.get("address_text") ?? "").trim();
+  const latRaw = String(formData.get("lat") ?? "").trim();
+  const lngRaw = String(formData.get("lng") ?? "").trim();
+  const geocodeSource = String(formData.get("geocode_source") ?? "").trim();
   const farmKey = lsind && item ? { lsindRegistNo: lsind, itemCode: item } : undefined;
 
-  if (!lsind || !item || !sido || !sigungu) {
+  if (!lsind || !item) {
     redirect(`${devicesFarmPanelHref(farmKey)}&error=invalid`);
   }
 
-  const result = await saveFarmLocation({
-    farmKey: { lsindRegistNo: lsind, itemCode: item },
-    sido,
-    sigungu,
-    addressDetail: addressDetail || undefined,
-  });
+  const lat = latRaw ? Number(latRaw) : undefined;
+  const lng = lngRaw ? Number(lngRaw) : undefined;
+  const hasCoords = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng);
+
+  if (!hasCoords && (!sido || !sigungu)) {
+    redirect(`${devicesFarmPanelHref(farmKey)}&error=invalid`);
+  }
+
+  const result = await saveFarmLocation(
+    hasCoords
+      ? {
+          farmKey: { lsindRegistNo: lsind, itemCode: item },
+          lat,
+          lng,
+          sido: sido || undefined,
+          sigungu: sigungu || undefined,
+          addressDetail: addressDetail || undefined,
+          addressText: addressText || undefined,
+          geocodeSource: geocodeSource || undefined,
+        }
+      : {
+          farmKey: { lsindRegistNo: lsind, itemCode: item },
+          sido,
+          sigungu,
+          addressDetail: addressDetail || undefined,
+        }
+  );
 
   if (!result.ok) {
     if (result.error === "invalid_region") {
@@ -147,41 +230,6 @@ export async function saveAlarmSettingsAction(formData: FormData) {
   revalidatePath("/alarms");
   revalidatePath("/farm");
   redirect(`${devicesAlarmSettingsHref()}&ok=saved`);
-}
-
-export async function saveDisplaySettingsAction(formData: FormData) {
-  const user = await getCurrentUser();
-  const isAdmin = Boolean(user?.isAdmin);
-  const successRedirect = isAdmin
-    ? `${adminOpsHref("display")}&ok=saved`
-    : `${devicesDisplayPanelHref()}&ok=saved`;
-  const invalidRedirect = isAdmin
-    ? `${adminOpsHref("display")}&error=invalid`
-    : `${devicesDisplayPanelHref()}&error=invalid`;
-  const saveErrorRedirect = isAdmin
-    ? `${adminOpsHref("display")}&error=save`
-    : `${devicesDisplayPanelHref()}&error=save`;
-
-  const raw = String(formData.get("settings_json") ?? "{}");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    redirect(invalidRedirect);
-  }
-
-  const settings = parseDisplaySettings(parsed);
-  const result = await saveDisplaySettings(settings);
-  if (!result.ok) {
-    redirect(saveErrorRedirect);
-  }
-
-  revalidatePath("/", "layout");
-  revalidatePath("/farm");
-  revalidatePath("/controllers");
-  revalidatePath("/alarms");
-  revalidatePath("/admin/ops");
-  redirect(successRedirect);
 }
 
 export async function savePiggyPlayerIdAction(formData: FormData) {

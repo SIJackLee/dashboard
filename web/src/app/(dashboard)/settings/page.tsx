@@ -4,8 +4,6 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { parseFarmKeyFromQuery } from "@/lib/data/farm-key";
 import {
   devicesAlarmSettingsHref,
-  devicesDisplayPanelHref,
-  devicesFarmPanelHref,
 } from "@/lib/monitoring/devices-panel";
 
 /** 레거시 /settings — 신규 위치로 redirect */
@@ -37,18 +35,10 @@ export default async function SettingsLegacyRedirectPage({
     case "alarm":
       redirect(devicesAlarmSettingsHref(passthrough));
     case "farm":
-      redirect(
-        isAdmin
-          ? adminOpsHref("farms")
-          : devicesFarmPanelHref(farmKey, passthrough)
-      );
+      redirect(isAdmin ? adminOpsHref("farms") : "/farm?tab=ops");
     case "dashboard":
-      redirect(
-        isAdmin
-          ? adminOpsHref("display")
-          : devicesDisplayPanelHref(passthrough)
-      );
+      redirect("/farm");
     default:
-      redirect(isAdmin ? adminOpsHref("display") : "/farm");
+      redirect("/farm");
   }
 }

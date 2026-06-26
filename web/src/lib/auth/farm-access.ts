@@ -12,7 +12,6 @@ import {
   setMonitoringTabParam,
 } from "@/lib/monitoring/monitoring-tabs";
 import { adminOpsHref } from "@/lib/admin/ops-tabs";
-import { devicesFarmPanelHref } from "@/lib/monitoring/devices-panel";
 
 export type FarmQueryParams = {
   lsind?: string | null;
@@ -97,7 +96,7 @@ export function buildSettingsFarmLocationHref(
   options: { isAdmin?: boolean } = {}
 ): string {
   if (options.isAdmin) return adminOpsHref("farms");
-  return devicesFarmPanelHref(farmKey);
+  return "/farm?tab=ops";
 }
 
 export function buildControllerHref(opts: {

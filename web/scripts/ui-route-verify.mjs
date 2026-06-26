@@ -153,7 +153,7 @@ const CASES = {
     { path: "/settings?tab=farm", rules: { urlIncludes: ["tab=farm"], settingsTabs: ["표시", "알람"] } },
     { path: "/admin/ops", rules: { urlIncludes: ["/admin/ops"], opsActive: true, opsTab: ["시스템"] } },
     { path: "/admin/ops?tab=users", rules: { urlIncludes: ["tab=users"], opsActive: true, opsTab: ["사용자"] } },
-    { path: "/admin/ops?tab=farms", rules: { urlIncludes: ["tab=farms"], opsActive: true, opsTab: ["농장 메타"] } },
+    { path: "/admin/ops?tab=farms", rules: { urlIncludes: ["tab=farms"], opsActive: true, opsTab: ["농장 위치"] } },
     { path: "/admin/ops?tab=bad", rules: { urlIncludes: ["tab=bad"], opsActive: true, opsTab: ["시스템"] } },
     { path: "/admin/health", rules: { urlIncludes: ["/admin/ops"], opsActive: true } },
     { path: "/admin/users", rules: { urlIncludes: ["tab=users"], opsActive: true } },

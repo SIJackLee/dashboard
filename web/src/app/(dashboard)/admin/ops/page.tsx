@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 import { AdminOpsTabPanel } from "@/components/admin/admin-ops-tab-panel";
 import { AdminOpsTabShell } from "@/components/admin/admin-ops-tab-shell";
@@ -7,14 +8,12 @@ import { AdminOpsTabs } from "@/components/admin/admin-ops-tabs";
 import { AdminUsersView } from "@/components/admin/admin-users-view";
 import { HealthSystemShell } from "@/components/admin/health/health-system-shell";
 import { AdminFarmLocationPanel } from "@/components/settings/admin-farm-location-panel";
-import { DisplaySettingsForm } from "@/components/settings/display-settings-form";
 import { CommandHistoryTable } from "@/components/controllers/command-history-table";
 import { listManagedUsers, type ManagedUser } from "@/lib/admin/list-users";
 import { getThermoCommandHistory } from "@/lib/data/commands";
 import { parseAdminOpsTab } from "@/lib/admin/ops-tabs";
 import { fetchHealthSnapshot } from "@/lib/admin/health/fetch-snapshot";
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { getDisplaySettings } from "@/lib/data/display-settings";
 import { getEditableFarmLocationOptions } from "@/lib/data/farm-location";
 import { getLiveReadings } from "@/lib/data/iot";
 import {
@@ -54,6 +53,9 @@ export default async function AdminOpsPage({
   await requireAdmin();
 
   const params = await searchParams;
+  if (params.tab === "display") {
+    redirect("/admin/ops");
+  }
   const tab = parseAdminOpsTab(params.tab);
   const { ok, error, count } = params;
 
@@ -130,20 +132,6 @@ export default async function AdminOpsPage({
             <Suspense fallback={null}>
               <AdminFarmLocationPanel options={farmLocationOptions} />
             </Suspense>
-          </AdminOpsTabShell>
-        )}
-      </PageShell>
-    );
-  }
-
-  if (tab === "display") {
-    const displaySettings = await getDisplaySettings();
-
-    return (
-      <PageShell wide>
-        {pageBody(
-          <AdminOpsTabShell>
-            <DisplaySettingsForm initialSettings={displaySettings} />
           </AdminOpsTabShell>
         )}
       </PageShell>

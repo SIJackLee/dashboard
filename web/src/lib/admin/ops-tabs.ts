@@ -1,4 +1,4 @@
-export type AdminOpsTabId = "system" | "users" | "farms" | "display" | "commands";
+export type AdminOpsTabId = "system" | "users" | "farms" | "commands";
 
 export const ADMIN_OPS_TABS: ReadonlyArray<{
   id: AdminOpsTabId;
@@ -6,8 +6,7 @@ export const ADMIN_OPS_TABS: ReadonlyArray<{
 }> = [
   { id: "system", label: "시스템" },
   { id: "users", label: "사용자" },
-  { id: "farms", label: "농장 메타" },
-  { id: "display", label: "표시" },
+  { id: "farms", label: "농장 위치" },
   { id: "commands", label: "명령 이력" },
 ];
 
@@ -16,8 +15,7 @@ export const ADMIN_OPS_BASE_PATH = "/admin/ops";
 export function parseAdminOpsTab(
   tab: string | null | undefined
 ): AdminOpsTabId {
-  if (tab === "users" || tab === "farms" || tab === "display" || tab === "commands")
-    return tab;
+  if (tab === "users" || tab === "farms" || tab === "commands") return tab;
   return "system";
 }
 

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import { resetBarnLayoutsAction } from "@/app/(dashboard)/farm/actions";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { DisplayGate } from "@/components/display/display-settings-provider";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -35,8 +34,7 @@ export function FarmMapResetButton() {
   };
 
   return (
-    <DisplayGate setting="farm.resetButton">
-      <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2">
       {message && (
         <span className={cn("text-red-600", dashboardUi.tableMeta)}>{message}</span>
       )}
@@ -52,7 +50,6 @@ export function FarmMapResetButton() {
       >
         위치 초기화
       </PageActionButton>
-      </div>
-    </DisplayGate>
+    </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   type FarmKey,
 } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { isValidMapCoord } from "@/lib/geo/farm-map-zoom";
 import {
   findRegion,
   formatAddressText,
@@ -126,9 +127,15 @@ export function farmLocationMap(
 
 export type SaveFarmLocationInput = {
   farmKey: FarmKey;
-  sido: string;
-  sigungu: string;
+  /** region_lookup path */
+  sido?: string;
+  sigungu?: string;
   addressDetail?: string;
+  /** geocode path */
+  addressText?: string;
+  lat?: number;
+  lng?: number;
+  geocodeSource?: string;
 };
 
 export function buildLocationFromRegion(
@@ -153,14 +160,40 @@ export function buildLocationFromRegion(
   };
 }
 
+function buildLocationFromCoords(
+  input: SaveFarmLocationInput
+): Omit<DbRow, "updated_at" | "updated_by"> | null {
+  const lat = input.lat;
+  const lng = input.lng;
+  if (lat == null || lng == null || !isValidMapCoord(lat, lng)) {
+    return null;
+  }
+
+  const sido = input.sido?.trim();
+  const sigungu = input.sigungu?.trim();
+  if (!sido || !sigungu) return null;
+
+  const detail = input.addressDetail?.trim() || null;
+  const addressText =
+    input.addressText?.trim() ||
+    formatAddressText(sido, sigungu, detail);
+
+  return {
+    lsind_regist_no: input.farmKey.lsindRegistNo,
+    item_code: input.farmKey.itemCode,
+    sido,
+    sigungu,
+    address_detail: detail,
+    address_text: addressText,
+    lat,
+    lng,
+    geocode_source: input.geocodeSource?.trim() || "geocode_api",
+  };
+}
+
 export async function saveFarmLocation(
   input: SaveFarmLocationInput
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const region = findRegion(input.sido.trim(), input.sigungu.trim());
-  if (!region) {
-    return { ok: false, error: "invalid_region" };
-  }
-
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "unauthorized" };
 
@@ -168,9 +201,30 @@ export async function saveFarmLocation(
     return { ok: false, error: "forbidden" };
   }
 
+  let row: Omit<DbRow, "updated_at" | "updated_by"> | null = null;
+
+  if (input.lat != null && input.lng != null) {
+    row = buildLocationFromCoords(input);
+    if (!row) return { ok: false, error: "invalid_coords" };
+  } else {
+    const sido = input.sido?.trim() ?? "";
+    const sigungu = input.sigungu?.trim() ?? "";
+    if (!sido || !sigungu) {
+      return { ok: false, error: "invalid_region" };
+    }
+    const region = findRegion(sido, sigungu);
+    if (!region) {
+      return { ok: false, error: "invalid_region" };
+    }
+    row = buildLocationFromRegion(
+      { ...input, sido, sigungu },
+      region
+    );
+  }
+
   const supabase = await createClient();
   const payload = {
-    ...buildLocationFromRegion(input, region),
+    ...row,
     updated_by: user.id,
     updated_at: new Date().toISOString(),
   };

@@ -5,6 +5,7 @@ import { TopBarAlarmSlot } from "@/components/layout/top-bar-alarm-slot";
 import { GlobalContextStrip } from "@/components/layout/global-context-strip";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmOverview } from "@/lib/data/iot";
+import type { EditableFarmOption } from "@/lib/data/farm-location";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,8 @@ type TopBarProps = {
   isAdmin?: boolean;
   /** Admin 전국 뷰 — 데스크톱 GlobalContextStrip 숨김 */
   hideScopeKpi?: boolean;
+  farmLocationOptions?: EditableFarmOption[];
+  canEditLocation?: boolean;
   user: {
     displayName: string | null;
     email: string | null;
@@ -33,6 +36,8 @@ export function TopBar({
   overview,
   alarms = [],
   hideScopeKpi = false,
+  farmLocationOptions = [],
+  canEditLocation = false,
   user,
 }: TopBarProps) {
   const showMobileKpi = overview != null;
@@ -63,7 +68,12 @@ export function TopBar({
 
         <div className="flex shrink-0 items-center justify-end gap-1.5 md:gap-3">
           <TopBarAlarmSlot alarms={alarms} />
-          <AppHeaderAccount user={user} />
+          <AppHeaderAccount
+            user={user}
+            receipts={overview?.receipts}
+            farmLocationOptions={farmLocationOptions}
+            canEditLocation={canEditLocation}
+          />
         </div>
       </div>
     </header>

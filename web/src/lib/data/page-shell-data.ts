@@ -6,7 +6,7 @@ import {
   resolveActiveFarmKey,
   type FarmQueryParams,
 } from "@/lib/auth/farm-access";
-import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { deriveAlarmsFromReadings } from "@/lib/data/alarms";
 import { getAlarmSettings } from "@/lib/data/alarm-settings";
 import {
@@ -23,6 +23,10 @@ import {
   fetchFarmOverviewRows,
   fetchLiveReadings,
 } from "@/lib/data/iot-live-fetch";
+import {
+  getEditableFarmLocationOptions,
+  type EditableFarmOption,
+} from "@/lib/data/farm-location";
 
 export type PageShellContext = {
   readings: BarnReading[];
@@ -33,6 +37,8 @@ export type PageShellContext = {
   farmOptions: FarmKey[];
   farmSummaries: FarmSummaryRow[];
   isAdmin: boolean;
+  farmLocationOptions: EditableFarmOption[];
+  canEditLocation: boolean;
 };
 
 export const getPageShellContext = cache(
@@ -99,6 +105,8 @@ export const getPageShellContext = cache(
         farmOptions,
         farmSummaries,
         isAdmin: true,
+        farmLocationOptions: [],
+        canEditLocation: false,
       };
     }
 
@@ -113,6 +121,9 @@ export const getPageShellContext = cache(
 
     let farmOptions: FarmKey[] = [];
     let farmSummaries: FarmSummaryRow[] = [];
+    let farmLocationOptions: EditableFarmOption[] = [];
+    const canEditLocation = user ? canCommand(user) : false;
+
     if (isAdmin) {
       const [overviewRows, overviewSummaries] = await Promise.all([
         fetchFarmOverviewRows(),
@@ -123,6 +134,8 @@ export const getPageShellContext = cache(
         itemCode: r.item_code,
       }));
       farmSummaries = overviewSummaries;
+    } else {
+      farmLocationOptions = await getEditableFarmLocationOptions();
     }
 
     return {
@@ -134,6 +147,8 @@ export const getPageShellContext = cache(
       farmOptions,
       farmSummaries,
       isAdmin,
+      farmLocationOptions,
+      canEditLocation,
     };
   },
 );

@@ -61,6 +61,40 @@ export function buildFarmMapPoints(
   return points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 }
 
+/** Farmer scoped map — location만 있어도 pin 생성 */
+export function farmMapPointFromLocation(
+  location: FarmLocationRow,
+  label: string,
+  summary?: Pick<
+    FarmSummaryRow,
+    "controllerCount" | "alarmCount" | "criticalCount" | "offlineCount"
+  >
+): FarmMapPoint {
+  const controllerCount = summary?.controllerCount ?? 0;
+  const alarmCount = summary?.alarmCount ?? 0;
+  const criticalCount = summary?.criticalCount ?? 0;
+  const offlineCount = summary?.offlineCount ?? 0;
+  const healthy =
+    controllerCount === 0 ||
+    (offlineCount === 0 && alarmCount === 0 && criticalCount === 0);
+
+  return {
+    farmKey: location.farmKey,
+    label,
+    lat: Number(location.lat),
+    lng: Number(location.lng),
+    sido: location.sido,
+    sigungu: location.sigungu,
+    lsindRegistNo: location.farmKey.lsindRegistNo,
+    itemCode: location.farmKey.itemCode,
+    controllerCount,
+    alarmCount,
+    criticalCount,
+    offlineCount,
+    healthy,
+  };
+}
+
 export function clusterBySido(points: FarmMapPoint[]): SidoClusterSummary[] {
   const map = new Map<string, SidoClusterSummary>();
 

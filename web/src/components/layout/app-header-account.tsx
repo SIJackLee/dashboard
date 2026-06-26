@@ -2,16 +2,13 @@
 
 import { LogOut } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
+import { AccountMenu } from "@/components/account/account-menu";
+import type { EditableFarmOption } from "@/lib/data/farm-location";
+import type { ModuleReceipt } from "@/lib/data/iot";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "operator" | "viewer";
-
-const roleLabel: Record<Role, string> = {
-  admin: "관리자",
-  operator: "운영자",
-  viewer: "뷰어",
-};
 
 type Props = {
   user: {
@@ -19,23 +16,25 @@ type Props = {
     email: string | null;
     role: Role | null;
   };
+  receipts?: ModuleReceipt[];
+  farmLocationOptions?: EditableFarmOption[];
+  canEditLocation?: boolean;
 };
 
-export function AppHeaderAccount({ user }: Props) {
-  const name = user.displayName?.trim() || user.email || "사용자";
-  const initial = name.charAt(0).toUpperCase();
-
+export function AppHeaderAccount({
+  user,
+  receipts = [],
+  farmLocationOptions = [],
+  canEditLocation = false,
+}: Props) {
   return (
     <div className="flex shrink-0 items-center gap-2 md:gap-3">
-      <div className="flex min-w-0 items-center gap-2 px-1">
-        <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
-        <div className="hidden min-w-0 leading-tight sm:block">
-          <p className={dashboardUi.headerAccountName}>{name}</p>
-          <p className={dashboardUi.headerAccountRole}>
-            {user.role ? roleLabel[user.role] : "권한 없음"}
-          </p>
-        </div>
-      </div>
+      <AccountMenu
+        user={user}
+        receipts={receipts}
+        farmLocationOptions={farmLocationOptions}
+        canEditLocation={canEditLocation}
+      />
       <form action={signOut}>
         <button
           type="submit"

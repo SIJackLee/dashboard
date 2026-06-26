@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
-import { DisplayGate } from "@/components/display/display-settings-provider";
 import { FarmMapLegend } from "./farm-map-legend";
 import { FarmMapCard } from "./farm-map-card";
 import { cn } from "@/lib/utils";
@@ -208,9 +207,7 @@ export function FarmMapCanvas({
       data-audit-desktop-only
       style={{ minHeight }}
     >
-      <DisplayGate setting="farm.legend">
-        <FarmMapLegend />
-      </DisplayGate>
+      <FarmMapLegend />
       {pendingSaves > 0 && (
         <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
           <Loader2 className="size-3 animate-spin" />

@@ -1,16 +1,11 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { saveFarmLocationAction } from "@/lib/actions/app-settings-actions";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { SectionCard } from "@/components/common/section-card";
-import { PageActionButton } from "@/components/common/page-action-button";
-import { FarmLocationEditFields } from "@/components/settings/farm-location-edit-fields";
+import { FarmAddressInput } from "@/components/settings/farm-address-input";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
-import {
-  draftFromOption,
-  farmOptionId,
-  findOptionById,
-} from "@/lib/settings/farm-location-client";
+import { farmOptionId, findOptionById } from "@/lib/settings/farm-location-client";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -19,33 +14,16 @@ type Props = {
   variant?: "page" | "panel";
 };
 
-const FORM_ID = "farm-location-form";
-
 export function FarmLocationForm({ options, variant = "page" }: Props) {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState(
     () => (options[0] ? farmOptionId(options[0].farmKey) : "")
   );
-  const [draft, setDraft] = useState(() => draftFromOption(options[0]));
-  const [pending, startTransition] = useTransition();
 
   const selected = useMemo(
     () => findOptionById(options, selectedId),
     [options, selectedId]
   );
-
-  const handleFarmChange = (id: string) => {
-    setSelectedId(id);
-    setDraft(draftFromOption(findOptionById(options, id)));
-  };
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selected) return;
-    const formData = new FormData(e.currentTarget);
-    startTransition(() => {
-      void saveFarmLocationAction(formData);
-    });
-  };
 
   if (options.length === 0) {
     return (
@@ -59,90 +37,42 @@ export function FarmLocationForm({ options, variant = "page" }: Props) {
   const isPanel = variant === "panel";
 
   return (
-    <>
-      <form
-        id={FORM_ID}
-        onSubmit={handleSubmit}
-        className={cn(
-          isPanel && "pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
-        )}
-      >
-        <input type="hidden" name="lsind" value={selected?.farmKey.lsindRegistNo ?? ""} />
-        <input type="hidden" name="item" value={selected?.farmKey.itemCode ?? ""} />
-        <input type="hidden" name="sido" value={draft.sido} />
-        <input type="hidden" name="sigungu" value={draft.sigungu} />
-        <input type="hidden" name="address_detail" value={draft.addressDetail} />
-
-        <SectionCard
-          title="농장 위치"
-          description={
-            isPanel
-              ? undefined
-              : "시·도와 시·군·구를 선택하면 전체 농장 지도에 마커가 표시됩니다. 상세 주소는 선택 사항입니다."
-          }
-          action={
-            <PageActionButton
-              type="submit"
-              variant="primary"
-              disabled={pending}
-              className={cn(isPanel && "hidden lg:inline-flex")}
-            >
-              {pending ? "저장 중…" : "저장"}
-            </PageActionButton>
-          }
-          size={isPanel ? "default" : "lg"}
+    <SectionCard
+      title="농장 위치"
+      description={
+        isPanel ? undefined : "농장 주소를 검색하면 지도에 마커가 표시됩니다."
+      }
+      size={isPanel ? "default" : "lg"}
+    >
+      <div className="mb-4 space-y-2">
+        <span className={cn("font-medium", dashboardUi.body, isPanel && "text-sm")}>
+          농장
+        </span>
+        <select
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
         >
-          <div className="mb-4 space-y-2">
-            <span className={cn("font-medium", dashboardUi.body, isPanel && "text-sm")}>
-              농장
-            </span>
-            <select
-              className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
-              value={selectedId}
-              onChange={(e) => handleFarmChange(e.target.value)}
-            >
-            {options.map((o) => {
-              const id = farmOptionId(o.farmKey);
-              return (
-                <option key={id} value={id}>
-                  {o.label}
-                  {o.location ? ` · ${o.location.sido}` : " · 위치 없음"}
-                </option>
-              );
-            })}
-          </select>
-        </div>
+          {options.map((o) => {
+            const id = farmOptionId(o.farmKey);
+            return (
+              <option key={id} value={id}>
+                {o.label}
+                {o.location ? ` · ${o.location.addressText}` : " · 위치 없음"}
+              </option>
+            );
+          })}
+        </select>
+      </div>
 
-        <FarmLocationEditFields
-          draft={draft}
-          onChange={setDraft}
-          disabled={pending}
+      {selected ? (
+        <FarmAddressInput
+          key={farmOptionId(selected.farmKey)}
+          farmKey={selected.farmKey}
+          location={selected.location}
+          onSaved={() => router.refresh()}
         />
-
-        {selected?.location ? (
-          <p className={cn("mt-4 text-muted-foreground", dashboardUi.tableMeta)}>
-            현재: {selected.location.addressText} ·{" "}
-            {selected.location.lat.toFixed(4)}, {selected.location.lng.toFixed(4)}
-          </p>
-        ) : null}
-      </SectionCard>
-      {isPanel ? (
-        <div className="mt-4 border-t pt-3 lg:hidden">
-          <PageActionButton
-            type="button"
-            variant="primary"
-            disabled={pending}
-            className="w-full"
-            onClick={() => {
-              const el = document.getElementById(FORM_ID);
-              if (el instanceof HTMLFormElement) el.requestSubmit();
-            }}
-          >
-            {pending ? "저장 중…" : "저장"}
-          </PageActionButton>
-        </div>
       ) : null}
-    </form>
-    </>
+    </SectionCard>
   );
 }

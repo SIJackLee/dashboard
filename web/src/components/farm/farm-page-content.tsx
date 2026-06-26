@@ -6,7 +6,6 @@ import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { BarnTable } from "@/components/farm/barn-table";
-import { useDisplayEnabled } from "@/components/display/display-settings-provider";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -27,8 +26,6 @@ export function FarmPageContent({
   const searchParams = useSearchParams();
   const view = searchParams.get("view") === "list" ? "list" : "map";
   const sp = searchParams.get("sp") ?? undefined;
-  const showMap = useDisplayEnabled("farm.map");
-  const showBarnTable = useDisplayEnabled("farm.barnTable");
 
   const setView = (next: "map" | "list", spCode?: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -54,16 +51,14 @@ export function FarmPageContent({
           type="button"
           role="tab"
           aria-selected={view === "map"}
-          disabled={!showMap}
           className={cn(
             "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
             dashboardUi.tabNav,
             view === "map"
               ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-            !showMap && "cursor-not-allowed opacity-40"
+              : "text-muted-foreground hover:text-foreground"
           )}
-          onClick={() => showMap && setView("map", sp)}
+          onClick={() => setView("map", sp)}
         >
           <Map className={dashboardUi.iconSm} aria-hidden />
           지도
@@ -72,23 +67,21 @@ export function FarmPageContent({
           type="button"
           role="tab"
           aria-selected={view === "list"}
-          disabled={!showBarnTable}
           className={cn(
             "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
             dashboardUi.tabNav,
             view === "list"
               ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-            !showBarnTable && "cursor-not-allowed opacity-40"
+              : "text-muted-foreground hover:text-foreground"
           )}
-          onClick={() => showBarnTable && setView("list", sp)}
+          onClick={() => setView("list", sp)}
         >
           <List className={dashboardUi.iconSm} aria-hidden />
           목록
         </button>
       </div>
 
-      {view === "map" && showMap ? (
+      {view === "map" ? (
         <div className="max-h-[40dvh] min-h-0 overflow-hidden lg:max-h-none lg:min-h-[16rem]">
           <FarmMapView
             barns={barnSnapshots}
@@ -96,25 +89,9 @@ export function FarmPageContent({
             gridRows={gridRows}
           />
         </div>
-      ) : null}
-
-      {view === "map" && !showMap ? (
-        <p className={cn("rounded-xl border bg-muted/30 px-5 py-8", dashboardUi.body)}>
-          농장 지도가 표시 설정에서 숨김 처리되어 있습니다. 설정 → 표시에서 변경할 수
-          있습니다.
-        </p>
-      ) : null}
-
-      {view === "list" && showBarnTable ? (
+      ) : (
         <BarnTable rows={readings} initialSp={sp} />
-      ) : null}
-
-      {view === "list" && !showBarnTable ? (
-        <p className={cn("rounded-xl border bg-muted/30 px-5 py-8", dashboardUi.body)}>
-          축사 목록이 표시 설정에서 숨김 처리되어 있습니다. 설정 → 표시에서 변경할 수
-          있습니다.
-        </p>
-      ) : null}
+      )}
     </div>
   );
 }

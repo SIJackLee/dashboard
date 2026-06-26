@@ -3,14 +3,13 @@
 import { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { AdminFarmOverview } from "@/components/admin/admin-farm-overview";
-import { FarmOverviewStrip } from "@/components/farm/farm-overview-strip";
 import { FarmPageContent } from "@/components/farm/farm-page-content";
 import { FarmDrillStrip } from "@/components/farm/farm-drill-strip";
 import { ScopeBar } from "@/components/layout/scope-bar";
 import type { FarmLocationRow } from "@/lib/data/farm-location";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
-import type { BarnMapSnapshot, BarnReading, FarmOverview } from "@/lib/data/iot";
+import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +23,6 @@ type FarmDashboardShellProps =
     }
   | {
       mapMode: "grid";
-      overview: FarmOverview;
       readings: BarnReading[];
       barnSnapshots: BarnMapSnapshot[];
       gridCols: number;
@@ -47,7 +45,6 @@ export function FarmDashboardShell(props: FarmDashboardShellProps) {
   }
 
   const {
-    overview,
     readings,
     barnSnapshots,
     gridCols,
@@ -83,8 +80,6 @@ export function FarmDashboardShell(props: FarmDashboardShellProps) {
           view={view}
         />
       ) : null}
-
-      <FarmOverviewStrip overview={overview} />
 
       <Suspense
         fallback={

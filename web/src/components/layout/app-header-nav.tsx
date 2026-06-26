@@ -2,9 +2,8 @@
 
 import { usePathname } from "next/navigation";
 import { AppNavLink } from "@/components/layout/app-nav-link";
-import { useDisplayEnabled } from "@/components/display/display-settings-provider";
 import { isAdminOpsNavPath, isMonitoringNavPath } from "@/lib/dashboard-sections";
-import { isPiggyPlayEnabled } from "@/lib/feature-flags";
+import { PIGGY_PLAY_ENABLED } from "@/lib/feature-flags";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { adminNavItems, navItems } from "./nav-items";
@@ -17,7 +16,6 @@ type Props = {
 
 export function AppHeaderNav({ role }: Props) {
   const pathname = usePathname();
-  const showPiggyMenu = isPiggyPlayEnabled(useDisplayEnabled("global.piggyMenu"));
 
   return (
     <nav
@@ -25,7 +23,7 @@ export function AppHeaderNav({ role }: Props) {
       aria-label="앱 메뉴"
     >
       {navItems
-        .filter((item) => item.href !== "/play" || showPiggyMenu)
+        .filter((item) => item.href !== "/play" || PIGGY_PLAY_ENABLED)
         .map((item) => {
           const active =
             item.href === "/farm"
