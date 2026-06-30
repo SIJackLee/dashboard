@@ -1,5 +1,7 @@
 import { SectionCard } from "@/components/common/section-card";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
+import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapCanvas } from "./farm-map-canvas";
 import { FarmMapList } from "./farm-map-list";
 import { FarmMapResetButton } from "./farm-map-reset-button";
@@ -8,12 +10,16 @@ type Props = {
   barns: BarnMapSnapshot[];
   gridCols?: number;
   gridRows?: number;
+  trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
+  controller?: ControllerGridData | null;
 };
 
 export function FarmMapView({
   barns,
   gridCols = 4,
   gridRows = 4,
+  trendByPeriod,
+  controller,
 }: Props) {
   return (
     <SectionCard
@@ -37,6 +43,8 @@ export function FarmMapView({
             initialBarns={barns}
             gridCols={gridCols}
             gridRows={gridRows}
+            trendByPeriod={trendByPeriod}
+            controller={controller}
           />
           <FarmMapList barns={barns} />
         </>

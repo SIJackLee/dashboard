@@ -10,6 +10,8 @@ import type { FarmLocationRow } from "@/lib/data/farm-location";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
+import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +35,8 @@ type FarmDashboardShellProps =
       farmSummaries?: FarmSummaryRow[];
       sp?: string | null;
       view?: string | null;
+      trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
+      controller?: ControllerGridData | null;
     };
 
 export function FarmDashboardShell(props: FarmDashboardShellProps) {
@@ -55,6 +59,8 @@ export function FarmDashboardShell(props: FarmDashboardShellProps) {
     farmSummaries = [],
     sp,
     view,
+    trendByPeriod,
+    controller,
   } = props;
 
   const showAdminScope = isAdmin && farmOptions.length > 0;
@@ -91,6 +97,8 @@ export function FarmDashboardShell(props: FarmDashboardShellProps) {
           barnSnapshots={barnSnapshots}
           gridCols={gridCols}
           gridRows={gridRows}
+          trendByPeriod={trendByPeriod}
+          controller={controller}
         />
       </Suspense>
     </div>

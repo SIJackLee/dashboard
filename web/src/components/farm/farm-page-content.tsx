@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
+import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -14,6 +16,8 @@ type Props = {
   barnSnapshots: BarnMapSnapshot[];
   gridCols: number;
   gridRows: number;
+  trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
+  controller?: ControllerGridData | null;
 };
 
 export function FarmPageContent({
@@ -21,6 +25,8 @@ export function FarmPageContent({
   barnSnapshots,
   gridCols,
   gridRows,
+  trendByPeriod,
+  controller,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,6 +93,8 @@ export function FarmPageContent({
             barns={barnSnapshots}
             gridCols={gridCols}
             gridRows={gridRows}
+            trendByPeriod={trendByPeriod}
+            controller={controller}
           />
         </div>
       ) : (

@@ -4,15 +4,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
+import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
+import { buildControllerHref } from "@/lib/auth/farm-access";
+import { getStallTypeName } from "@/lib/data/stall-type";
+import type {
+  TrendPeriodData,
+  TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
+import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapLegend } from "./farm-map-legend";
 import { FarmMapCard } from "./farm-map-card";
+import { FarmMapGraphStage } from "./farm-map-graph-stage";
 import { cn } from "@/lib/utils";
 
 type Props = {
   initialBarns: BarnMapSnapshot[];
   gridCols: number;
   gridRows: number;
+  /** 전체 3기간(24h/7d/30d) 추이 시계열 — 그래프 모핑용. */
+  trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
+  /** in-grid 컨트롤러 카드플립 구동용 데이터. */
+  controller?: ControllerGridData | null;
 };
+
+/** Grid → graph morph phases. */
+type MorphPhase = "grid" | "leaving" | "graph";
+
+const LEAVE_MS = 280;
 
 function moveBarn(
   barns: BarnMapSnapshot[],
@@ -83,15 +101,83 @@ export function FarmMapCanvas({
   initialBarns,
   gridCols,
   gridRows,
+  trendByPeriod,
+  controller,
 }: Props) {
   const [barns, setBarns] = useState(initialBarns);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingSaves, setPendingSaves] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [selectedSp, setSelectedSp] = useState<string | null>(null);
+  const [phase, setPhase] = useState<MorphPhase>("grid");
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** True for the single grid render right after returning from a graph. */
+  const gridEnterRef = useRef(false);
   const draggedIdRef = useRef<string | null>(null);
   const barnsRef = useRef(barns);
   barnsRef.current = barns;
+
+  const trendEnabled = Boolean(trendByPeriod);
+
+  const prefersReducedMotion = useCallback(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }, []);
+
+  /** Stagger fade+scale-in for grid cards (only when returning from a graph). */
+  const animateCardEnter = useCallback(
+    (node: HTMLDivElement | null, index: number) => {
+      if (!node || !gridEnterRef.current) return;
+      if (prefersReducedMotion() || typeof node.animate !== "function") return;
+      node.animate(
+        [
+          { opacity: 0, transform: "scale(0.96) translateY(10px)" },
+          { opacity: 1, transform: "none" },
+        ],
+        {
+          duration: 300,
+          delay: (index % 6) * 45,
+          easing: "ease-out",
+          fill: "backwards",
+        }
+      );
+    },
+    [prefersReducedMotion]
+  );
+
+  const openGraph = useCallback(
+    (stallTyCode: string) => {
+      if (!trendEnabled || !stallTyCode) return;
+      setSelectedSp(stallTyCode);
+      if (prefersReducedMotion()) {
+        setPhase("graph");
+        return;
+      }
+      setPhase("leaving");
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
+      leaveTimer.current = setTimeout(() => setPhase("graph"), LEAVE_MS);
+    },
+    [trendEnabled, prefersReducedMotion]
+  );
+
+  const closeGraph = useCallback(() => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    gridEnterRef.current = true;
+    setSelectedSp(null);
+    setPhase("grid");
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    };
+  }, []);
+
+  /** Disable the one-shot enter flag after the grid commit consumes it. */
+  useEffect(() => {
+    if (phase === "grid") gridEnterRef.current = false;
+  }, [phase]);
 
   const minHeight = useMemo(() => {
     if (gridRows <= 4) return "22rem";
@@ -101,6 +187,8 @@ export function FarmMapCanvas({
 
   useEffect(() => {
     setBarns(initialBarns);
+    setSelectedSp(null);
+    setPhase("grid");
   }, [initialBarns]);
 
   const persistPatch = useCallback(
@@ -201,6 +289,32 @@ export function FarmMapCanvas({
 
   const isDragging = draggedId !== null;
 
+  if (phase === "graph" && selectedSp) {
+    const farmKey =
+      barns
+        .map((b) => parseBarnCatalogKey(b.meta.id))
+        .find((c) => c?.stallTyCode === selectedSp)?.farmKey ?? null;
+    const controllerHref = farmKey
+      ? buildControllerHref({ farmKey, sp: selectedSp })
+      : null;
+    return (
+      <div
+        className="relative hidden rounded-md border lg:block"
+        data-audit-desktop-only
+        style={{ minHeight }}
+      >
+        <FarmMapGraphStage
+          stallTyCode={selectedSp}
+          label={getStallTypeName(selectedSp)}
+          dataByPeriod={trendByPeriod ?? null}
+          controllerHref={controllerHref}
+          controller={controller ?? null}
+          onClose={closeGraph}
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className="relative hidden rounded-md border lg:block"
@@ -250,24 +364,32 @@ export function FarmMapCanvas({
           );
         })}
 
-        {barns.map((b) => {
+        {barns.map((b, i) => {
           const { col, row } = b.meta.grid;
           const key = `${col}-${row}`;
           const isTarget = dropTarget === key;
           const isThisDragging = draggedId === b.meta.id;
+          const spCode = parseBarnCatalogKey(b.meta.id)?.stallTyCode ?? "";
+          const isLeaving = phase === "leaving" && spCode !== selectedSp;
           return (
             <div
               key={b.meta.id}
+              ref={(node) => animateCardEnter(node, i)}
               data-grid-cell
               data-col={col}
               data-row={row}
               className={cn(
-                "relative z-20 flex min-h-0 min-w-0 flex-col self-start",
+                "relative z-20 flex min-h-0 min-w-0 flex-col self-start transition-all duration-300 ease-out",
                 isTarget && "rounded-lg ring-2 ring-emerald-400 ring-offset-1",
                 isDragging && "pointer-events-none",
-                isThisDragging && "z-30 opacity-60"
+                isThisDragging && "z-30 opacity-60",
+                isLeaving && "pointer-events-none scale-95 opacity-0"
               )}
-              style={{ gridColumn: col, gridRow: row }}
+              style={{
+                gridColumn: col,
+                gridRow: row,
+                transitionDelay: isLeaving ? `${(i % 6) * 40}ms` : undefined,
+              }}
             >
               <FarmMapCard
                 snapshot={b}
@@ -276,6 +398,9 @@ export function FarmMapCanvas({
                 draggable
                 isDragging={isThisDragging}
                 onGripPointerDown={startDrag}
+                onSelect={
+                  trendEnabled && spCode ? () => openGraph(spCode) : undefined
+                }
               />
             </div>
           );

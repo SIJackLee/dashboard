@@ -6,6 +6,7 @@ import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
 import { MonitoringTabs } from "@/components/monitoring/monitoring-tabs";
 import { MonitoringTabPanel } from "@/components/monitoring/monitoring-tab-panel";
 import { OpsTriageView } from "@/components/ops/ops-triage-view";
+import { getFarmTrendAllPeriods } from "@/lib/data/farm-trend-history";
 import {
   filterReadingsByFarmKey,
   resolveActiveFarmKey,
@@ -115,6 +116,10 @@ export default async function FarmPage({
     item: params.item,
     view: params.view,
   };
+
+  const trendData = activeFarmKey
+    ? await getFarmTrendAllPeriods({ farmKey: activeFarmKey })
+    : null;
 
   const pageBody = (
     content: ReactNode,
@@ -275,9 +280,10 @@ export default async function FarmPage({
   }
 
   /** 현황 탭 · scoped grid */
-  const [readings, layoutPrefs] = await Promise.all([
+  const [readings, layoutPrefs, alarmSettings] = await Promise.all([
     getLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {}),
     getBarnLayoutPrefs(),
+    getAlarmSettings(),
   ]);
 
   const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
@@ -308,6 +314,14 @@ export default async function FarmPage({
           farmSummaries={shellCtx.farmSummaries}
           sp={params.sp}
           view={params.view}
+          trendByPeriod={trendData}
+          controller={{
+            readings: scopedReadings,
+            thermoSettings,
+            commands: history,
+            canCommand: canCommand(user),
+            alarmSettings,
+          }}
         />
       )}
     </PageShell>
