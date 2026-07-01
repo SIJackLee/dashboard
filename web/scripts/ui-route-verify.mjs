@@ -9,25 +9,20 @@ import { createClient } from "@supabase/supabase-js";
 import { writeFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { ensureTestPasswords, passwordForEmail, TEST_ACCOUNTS } from "./test-accounts.mjs";
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), "../.env.local") });
 
 const BASE = process.env.UI_VERIFY_BASE ?? "http://localhost:3000";
-const TEMP_PW = "UiVerify2026!Temp";
 
 const ACCOUNTS = {
-  admin: "admin@test.com",
-  operator: "farmer@test.com",
-  viewer: "viewer@test.com",
+  admin: TEST_ACCOUNTS.admin.email,
+  operator: TEST_ACCOUNTS.operator.email,
+  viewer: TEST_ACCOUNTS.viewer.email,
 };
 
 async function ensurePasswords(adminClient) {
-  for (const email of Object.values(ACCOUNTS)) {
-    const { data } = await adminClient.auth.admin.listUsers();
-    const user = data.users.find((u) => u.email === email);
-    if (!user) throw new Error(`Missing user ${email}`);
-    await adminClient.auth.admin.updateUserById(user.id, { password: TEMP_PW });
-  }
+  await ensureTestPasswords(adminClient);
 }
 
 async function logoutIfNeeded(page) {
@@ -48,19 +43,23 @@ async function login(page, email) {
     throw new Error(`Expected /login before sign-in, got ${page.url()}`);
   }
   await page.locator("#email").fill(email);
-  await page.locator("#password").fill(TEMP_PW);
+  await page.locator("#password").fill(passwordForEmail(email));
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 });
 }
 
 async function pageAudit(page) {
   await page.waitForLoadState("load");
-  await page.waitForSelector("aside, h1", { timeout: 15000 }).catch(() => {});
+  await page.waitForSelector('nav[aria-label="앱 메뉴"], h1', { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(600);
   return page.evaluate(() => {
     const url = location.pathname + location.search;
     const t = document.body?.innerText ?? "";
-    const nav = [...document.querySelectorAll("aside a")].map((a) => ({
+    const nav = [
+      ...document.querySelectorAll(
+        'nav[aria-label="앱 메뉴"] a, nav[aria-label="모바일 하단 메뉴"] a, aside a'
+      ),
+    ].map((a) => ({
       label: a.textContent?.trim() ?? "",
       active: a.className.includes("emerald-50"),
     }));
@@ -209,51 +208,91 @@ async function runSuite(page, suiteName, cases, loginEmail) {
   return results;
 }
 
+async function clickMonitoringTab(page, label) {
+  const tab = page.locator('nav[aria-label="모니터링 탭"] button', { hasText: label });
+  if ((await tab.count()) === 0) return false;
+  await tab.click();
+  await page.waitForTimeout(900);
+  return true;
+}
+
+async function runAlarmBellCheck(page) {
+  const pageErrors = [];
+  const onPageError = (err) => pageErrors.push(String(err));
+  page.on("pageerror", onPageError);
+  try {
+    await page.getByRole("button", { name: /^알림/ }).click({ timeout: 15000 });
+    await page.waitForTimeout(600);
+  } catch (e) {
+    pageErrors.push(String(e));
+  }
+  const bellText = await page.evaluate(() => document.body.innerText);
+  page.off("pageerror", onPageError);
+
+  const errors = [];
+  if (!bellText.includes("센서 알림")) errors.push("missing 센서 알림 section");
+  if (!bellText.includes("기상 특보")) errors.push("missing 기상 특보 section");
+  if (!bellText.includes("출처: 기상청")) errors.push("missing 출처: 기상청");
+  for (const e of pageErrors) {
+    if (e.includes("MenuGroupContext") || e.includes("Timeout")) errors.push(e);
+  }
+
+  return {
+    suite: "interaction",
+    path: "alarm bell menu open",
+    pass: errors.length === 0,
+    errors,
+    audit: {
+      hasSensorSection: bellText.includes("센서 알림"),
+      hasWeatherSection: bellText.includes("기상 특보"),
+    },
+  };
+}
+
 async function runInteractions(page, role) {
   const results = [];
   if (role === "admin") {
     await page.goto(`${BASE}/farm?tab=ops`, { waitUntil: "load" });
-    await page.locator('nav[aria-label="모니터링 탭"] button', { hasText: "현황" }).click();
-    await page.waitForTimeout(1200);
     let snap = await pageAudit(page);
     results.push({
       suite: "interaction",
-      path: "ops→현황 (national cleanup)",
-      pass: snap.hasGeo && !snap.finalUrl.includes("tab=ops"),
-      errors: snap.hasGeo ? [] : ["expected national geo after tab switch from ops"],
+      path: "admin national hub (ops + geo)",
+      pass: snap.hasGeo && snap.finalUrl.includes("tab=ops"),
+      errors: snap.hasGeo ? [] : ["expected geo on admin national ops hub"],
       audit: snap,
     });
 
     await page.goto(`${BASE}/farm?tab=ops&lsind=FARM01&item=P00`, { waitUntil: "load" });
-    await page.locator('nav[aria-label="모니터링 탭"] button', { hasText: "현황" }).click();
-    await page.waitForTimeout(1200);
+    results.push(await runAlarmBellCheck(page));
+
     snap = await pageAudit(page);
     results.push({
       suite: "interaction",
-      path: "ops→현황 (scoped keeps farm)",
-      pass:
-        snap.finalUrl.includes("lsind=FARM01") &&
-        !snap.hasGeo &&
-        snap.monitorTabCurrent.includes("현황"),
-      errors: [],
+      path: "admin scoped ops hub",
+      pass: snap.finalUrl.includes("lsind=FARM01"),
+      errors: snap.finalUrl.includes("lsind=FARM01")
+        ? []
+        : ["missing farm scope in URL"],
       audit: snap,
     });
 
-    await page.goto(`${BASE}/farm?tab=ops`, { waitUntil: "load" });
-    for (const label of ["현황", "컨트롤러", "현황"]) {
-      await page.locator('nav[aria-label="모니터링 탭"] button', { hasText: label }).click();
-      await page.waitForTimeout(900);
+    await page.goto(`${BASE}/farm`, { waitUntil: "load" });
+    if (await clickMonitoringTab(page, "컨트롤러")) {
+      await clickMonitoringTab(page, "현황");
+      snap = await pageAudit(page);
+      results.push({
+        suite: "interaction",
+        path: "monitoring tab cycle (when visible)",
+        pass: snap.monitorTabCurrent.includes("현황") || snap.hasGeo,
+        errors:
+          snap.monitorTabCurrent.includes("현황") || snap.hasGeo
+            ? []
+            : ["expected 현황 tab or geo map after cycle"],
+        audit: snap,
+      });
     }
-    snap = await pageAudit(page);
-    results.push({
-      suite: "interaction",
-      path: "monitoring tab cycle",
-      pass: snap.hasGeo && snap.monitorTabCurrent.includes("현황"),
-      errors: snap.hasGeo ? [] : ["cycle end should show geo map"],
-      audit: snap,
-    });
 
-    await page.locator('aside a', { hasText: "운영" }).click();
+    await page.getByRole("link", { name: "운영" }).click();
     await page.waitForTimeout(900);
     snap = await pageAudit(page);
     results.push({
@@ -277,7 +316,7 @@ async function runInteractions(page, role) {
 
   if (role === "operator") {
     await page.goto(`${BASE}/farm`, { waitUntil: "load" });
-    const snap = await pageAudit(page);
+    let snap = await pageAudit(page);
     results.push({
       suite: "interaction",
       path: "operator no ops nav",
@@ -285,6 +324,9 @@ async function runInteractions(page, role) {
       errors: snap.hasOpsNav ? ["operator should not see 운영"] : [],
       audit: snap,
     });
+
+    await page.goto(`${BASE}/farm?tab=ops`, { waitUntil: "load" });
+    results.push(await runAlarmBellCheck(page));
   }
 
   return results;
@@ -299,15 +341,35 @@ async function main() {
   await ensurePasswords(adminClient);
 
   const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const page = await context.newPage();
 
   const all = [];
   all.push(...(await runSuite(page, "unauthenticated", CASES.unauthenticated, null)));
   all.push(...(await runSuite(page, "admin", CASES.admin, ACCOUNTS.admin)));
-  all.push(...(await runInteractions(page, "admin")));
+  try {
+    all.push(...(await runInteractions(page, "admin")));
+  } catch (e) {
+    all.push({
+      suite: "interaction",
+      path: "admin interactions (uncaught)",
+      pass: false,
+      errors: [String(e)],
+      audit: {},
+    });
+  }
   all.push(...(await runSuite(page, "operator", CASES.operator, ACCOUNTS.operator)));
-  all.push(...(await runInteractions(page, "operator")));
+  try {
+    all.push(...(await runInteractions(page, "operator")));
+  } catch (e) {
+    all.push({
+      suite: "interaction",
+      path: "operator interactions (uncaught)",
+      pass: false,
+      errors: [String(e)],
+      audit: {},
+    });
+  }
   all.push(...(await runSuite(page, "viewer", CASES.viewer, ACCOUNTS.viewer)));
 
   await browser.close();

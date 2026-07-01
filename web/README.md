@@ -88,7 +88,7 @@ npm run verify:routes
 
 - **TopBar KPI:** `GlobalContextStrip` — 농장·컨트롤러·오프라인·알람 4칸만 (온습 제거). Admin 전국 `/farm` 지도는 KPI 숨김.
 - **로그아웃:** 사이드바 account block만 (TopBar 중복 제거).
-- **`/farm` 본문:** `FarmOverviewStrip` — 최근 활동(drill-down)만, KPI·환경 평균 strip 제거.
+- **`/farm` 본문:** 지도·목록 탭(`FarmPageContent` → `FarmMapView`). 최근 활동은 계정 메뉴 `RecentActivityMenuSection`.
 - **알람 필터 칩:** 라벨만 표시 (건수는 `aria-label`).
 - **컨트롤러 목록:** `EnvChip` 온·습 추가 (패널과 동일 컴포넌트).
 - **Admin 배지:** `FarmStatusBadge` → 공통 `StatusBadge` + `lib/ui/status-tone.ts`.

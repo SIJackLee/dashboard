@@ -1,0 +1,91 @@
+{
+  "ranAt": "2026-06-26T05:45:29.167Z",
+  "mode": "live",
+  "apiKeyPresent": true,
+  "probes": {
+    "pwnStatus": {
+      "httpStatus": 401,
+      "reachable": true,
+      "unauthorized": true,
+      "snippet": "Unauthorized\n"
+    },
+    "pwnCd": {
+      "httpStatus": 401,
+      "reachable": true,
+      "unauthorized": true,
+      "snippet": "Unauthorized\n"
+    }
+  },
+  "pwnStatus": {
+    "ok": true,
+    "resultCode": "00",
+    "resultMsg": "NORMAL_SERVICE",
+    "httpStatus": 200,
+    "itemCount": 1,
+    "sample": [
+      {
+        "other": "o 없음\r\n\r\n",
+        "t6": "o 풍랑주의보 : 남해동부바깥먼바다, 제주도남쪽바깥먼바다, 제주도남동쪽안쪽먼바다",
+        "t7": "o 없음",
+        "tmEf": "202606261400",
+        "tmFc": 202606261200,
+        "tmSeq": 128
+      }
+    ]
+  },
+  "pwnCd": {
+    "ok": true,
+    "resultCode": "00",
+    "itemCount": 3
+  },
+  "farms": [
+    {
+      "farmId": "FARM01/P00",
+      "sido": "인천광역시",
+      "sigungu": "남동구",
+      "warningCount": 1,
+      "warnings": [
+        {
+          "regId": null,
+          "typeCode": "",
+          "typeLabel": "",
+          "level": "",
+          "levelLabel": "",
+          "tmFc": 202606261200,
+          "stnId": null,
+          "raw": {
+            "other": "o 없음\r\n\r\n",
+            "t6": "o 풍랑주의보 : 남해동부바깥먼바다, 제주도남쪽바깥먼바다, 제주도남동쪽안쪽먼바다",
+            "t7": "o 없음",
+            "tmEf": "202606261400",
+            "tmFc": 202606261200,
+            "tmSeq": 128
+          },
+          "matchReason": "name"
+        }
+      ]
+    },
+    {
+      "farmId": "FARM33/P00",
+      "sido": "경기도",
+      "sigungu": "수원시",
+      "warningCount": 0,
+      "warnings": []
+    },
+    {
+      "farmId": "FARM37/P00",
+      "sido": "서울특별시",
+      "sigungu": "강남구",
+      "warningCount": 0,
+      "warnings": []
+    }
+  ],
+  "goNoGo": "GO",
+  "blockers": [],
+  "notes": [],
+  "regIdMap": {
+    "total": 228,
+    "withRegId": 194,
+    "ratio": 85.1
+  }
+}

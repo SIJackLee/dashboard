@@ -25,8 +25,16 @@ import {
 } from "@/lib/data/iot-live-fetch";
 import {
   getEditableFarmLocationOptions,
+  getFarmLocations,
   type EditableFarmOption,
 } from "@/lib/data/farm-location";
+import {
+  buildWeatherWarningsForLocations,
+  fetchWeatherWarnCache,
+  type WeatherWarningRow,
+} from "@/lib/data/weather-warnings";
+import { farmKeysFromAccess } from "@/lib/auth/farm-access";
+import { farmKeyId } from "@/lib/data/farm-key";
 
 export type PageShellContext = {
   readings: BarnReading[];
@@ -34,6 +42,7 @@ export type PageShellContext = {
   scopedReadings: BarnReading[];
   overview: FarmOverview;
   alarms: AlarmRow[];
+  weatherWarnings: WeatherWarningRow[];
   farmOptions: FarmKey[];
   farmSummaries: FarmSummaryRow[];
   isAdmin: boolean;
@@ -102,6 +111,7 @@ export const getPageShellContext = cache(
         scopedReadings: [],
         overview,
         alarms: [],
+        weatherWarnings: [],
         farmOptions,
         farmSummaries,
         isAdmin: true,
@@ -118,6 +128,33 @@ export const getPageShellContext = cache(
       summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
     );
     const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
+
+    const [weatherCache, farmLocations] = await Promise.all([
+      fetchWeatherWarnCache(),
+      getFarmLocations(),
+    ]);
+
+    let scopedLocations = farmLocations;
+    if (activeFarmKey) {
+      const id = farmKeyId(activeFarmKey);
+      scopedLocations = farmLocations.filter(
+        (loc) => farmKeyId(loc.farmKey) === id
+      );
+    } else if (user && !isAdmin) {
+      const allowed = new Set(
+        farmKeysFromAccess(user).map((fk) => farmKeyId(fk))
+      );
+      scopedLocations = farmLocations.filter((loc) =>
+        allowed.has(farmKeyId(loc.farmKey))
+      );
+    } else if (isAdmin && !activeFarmKey) {
+      scopedLocations = [];
+    }
+
+    const weatherWarnings = buildWeatherWarningsForLocations(
+      scopedLocations,
+      weatherCache
+    );
 
     let farmOptions: FarmKey[] = [];
     let farmSummaries: FarmSummaryRow[] = [];
@@ -144,6 +181,7 @@ export const getPageShellContext = cache(
       scopedReadings,
       overview,
       alarms,
+      weatherWarnings,
       farmOptions,
       farmSummaries,
       isAdmin,

@@ -12,9 +12,9 @@ import type {
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import type { ControllerGridData } from "./farm-map-controller-panel";
-import { FarmMapLegend } from "./farm-map-legend";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapGraphStage } from "./farm-map-graph-stage";
+import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -111,6 +111,8 @@ export function FarmMapCanvas({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [selectedSp, setSelectedSp] = useState<string | null>(null);
   const [phase, setPhase] = useState<MorphPhase>("grid");
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** True for the single grid render right after returning from a graph. */
   const gridEnterRef = useRef(false);
@@ -118,7 +120,21 @@ export function FarmMapCanvas({
   const barnsRef = useRef(barns);
   barnsRef.current = barns;
 
-  const trendEnabled = Boolean(trendByPeriod);
+  const bulkEnabled = Boolean(controller?.canCommand);
+
+  const toggleSp = useCallback((sp: string) => {
+    setSelectedSps((prev) => {
+      const next = new Set(prev);
+      if (next.has(sp)) next.delete(sp);
+      else next.add(sp);
+      return next;
+    });
+  }, []);
+
+  const exitBulk = useCallback(() => {
+    setBulkMode(false);
+    setSelectedSps(new Set());
+  }, []);
 
   const prefersReducedMotion = useCallback(() => {
     if (typeof window === "undefined" || !window.matchMedia) return false;
@@ -148,7 +164,7 @@ export function FarmMapCanvas({
 
   const openGraph = useCallback(
     (stallTyCode: string) => {
-      if (!trendEnabled || !stallTyCode) return;
+      if (!stallTyCode) return;
       setSelectedSp(stallTyCode);
       if (prefersReducedMotion()) {
         setPhase("graph");
@@ -158,7 +174,7 @@ export function FarmMapCanvas({
       if (leaveTimer.current) clearTimeout(leaveTimer.current);
       leaveTimer.current = setTimeout(() => setPhase("graph"), LEAVE_MS);
     },
-    [trendEnabled, prefersReducedMotion]
+    [prefersReducedMotion]
   );
 
   const closeGraph = useCallback(() => {
@@ -185,11 +201,22 @@ export function FarmMapCanvas({
     return "34rem";
   }, [gridRows]);
 
+  const barnIdsKey = useMemo(
+    () => initialBarns.map((b) => b.meta.id).sort().join("|"),
+    [initialBarns]
+  );
+  const prevBarnIdsKeyRef = useRef(barnIdsKey);
+
   useEffect(() => {
     setBarns(initialBarns);
-    setSelectedSp(null);
-    setPhase("grid");
-  }, [initialBarns]);
+    // 축사 구성(농장/스코프)이 바뀐 경우에만 그리드로 리셋.
+    // 값만 갱신되는 폴링·명령 후 refresh 시에는 열린 그래프/컨트롤러 뷰 유지.
+    if (prevBarnIdsKeyRef.current !== barnIdsKey) {
+      prevBarnIdsKeyRef.current = barnIdsKey;
+      setSelectedSp(null);
+      setPhase("grid");
+    }
+  }, [initialBarns, barnIdsKey]);
 
   const persistPatch = useCallback(
     (prev: BarnMapSnapshot[], next: BarnMapSnapshot[]) => {
@@ -299,7 +326,7 @@ export function FarmMapCanvas({
       : null;
     return (
       <div
-        className="relative hidden rounded-md border lg:block"
+        className="relative rounded-md border"
         data-audit-desktop-only
         style={{ minHeight }}
       >
@@ -317,25 +344,34 @@ export function FarmMapCanvas({
 
   return (
     <div
-      className="relative hidden rounded-md border lg:block"
+      className="relative flex min-h-0 flex-col rounded-md border"
       data-audit-desktop-only
       style={{ minHeight }}
     >
-      <FarmMapLegend />
+      {bulkEnabled && controller ? (
+        <FarmMapBulkApply
+          controller={controller}
+          bulkMode={bulkMode}
+          selectedSps={Array.from(selectedSps)}
+          onEnter={() => setBulkMode(true)}
+          onClearSelection={() => setSelectedSps(new Set())}
+          onExit={exitBulk}
+        />
+      ) : null}
       {pendingSaves > 0 && (
-        <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
-          <Loader2 className="size-3 animate-spin" />
+        <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow md:text-[1.75rem]">
+          <Loader2 className="size-3 animate-spin md:size-5" />
           위치 저장 중…
         </div>
       )}
       {saveError ? (
-        <div className="absolute bottom-3 right-3 z-30 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive shadow">
+        <div className="absolute bottom-3 right-3 z-30 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive shadow md:text-[1.75rem]">
           {saveError}
         </div>
       ) : null}
       <div
         className={cn(
-          "grid h-full gap-1.5 overflow-auto p-3",
+          "grid min-h-0 flex-1 gap-1.5 overflow-auto p-3",
           "bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)]",
           "bg-[size:20px_20px] bg-muted/15",
           isDragging && "select-none"
@@ -395,11 +431,19 @@ export function FarmMapCanvas({
                 snapshot={b}
                 layout="stack"
                 compact
-                draggable
+                draggable={!bulkMode}
                 isDragging={isThisDragging}
                 onGripPointerDown={startDrag}
+                selectable={bulkMode && Boolean(spCode)}
+                selected={bulkMode && selectedSps.has(spCode)}
                 onSelect={
-                  trendEnabled && spCode ? () => openGraph(spCode) : undefined
+                  bulkMode
+                    ? spCode
+                      ? () => toggleSp(spCode)
+                      : undefined
+                    : spCode
+                      ? () => openGraph(spCode)
+                      : undefined
                 }
               />
             </div>

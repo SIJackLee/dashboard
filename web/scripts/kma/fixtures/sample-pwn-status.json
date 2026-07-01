@@ -1,0 +1,43 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "dataType": "JSON",
+      "totalCount": 3,
+      "items": {
+        "item": [
+          {
+            "stnId": "108",
+            "regId": "L1100400",
+            "regName": "남동구",
+            "wrn": "H",
+            "lvl": "1",
+            "tmFc": "202606081200",
+            "tmSeq": "1"
+          },
+          {
+            "stnId": "159",
+            "regId": "L1071100",
+            "regName": "수원시",
+            "wrn": "R",
+            "lvl": "1",
+            "tmFc": "202606081100",
+            "tmSeq": "2"
+          },
+          {
+            "stnId": "131",
+            "regId": "L1025020",
+            "regName": "강남구",
+            "wrn": "W",
+            "lvl": "2",
+            "tmFc": "202606081000",
+            "tmSeq": "1"
+          }
+        ]
+      }
+    }
+  }
+}

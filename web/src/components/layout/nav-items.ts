@@ -1,4 +1,4 @@
-import { ShieldCheck, Settings, Gamepad2, LayoutDashboard, type LucideIcon } from "lucide-react";
+import { ShieldCheck, Settings, LayoutDashboard, type LucideIcon } from "lucide-react";
 import { APP_NAV_SECTIONS } from "@/lib/dashboard-sections";
 
 export type NavItem = {
@@ -9,7 +9,6 @@ export type NavItem = {
 
 const NAV_ICONS: Record<string, LucideIcon> = {
   "/farm": LayoutDashboard,
-  "/play": Gamepad2,
 };
 
 /** 사이드바 메뉴 — APP_NAV_SECTIONS */

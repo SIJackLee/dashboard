@@ -16,7 +16,15 @@ node scripts/mobile-ui-audit.mjs
 |------|--------|------|
 | `UI_VERIFY_BASE` | `http://localhost:3000` | 대시보드 베이스 URL |
 
-테스트 계정은 `.env.local`의 Supabase service role로 비밀번호 `UiVerify2026!Temp`를 보장합니다.
+테스트 계정 비밀번호 (`scripts/test-accounts.mjs`):
+
+| 역할 | 이메일 | 비밀번호 |
+|------|--------|----------|
+| admin | `admin@test.com` | `admin1` |
+| operator | `farmer@test.com` | `farmer` |
+| viewer | `viewer@test.com` | `viewer` |
+
+audit 실행 전 `npm run set:test-passwords`로 Supabase에 반영할 수 있습니다 (service role 필요).
 
 ## 산출물
 

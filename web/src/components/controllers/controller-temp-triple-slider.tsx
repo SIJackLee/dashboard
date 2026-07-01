@@ -26,6 +26,10 @@ type ControllerTempTripleSliderProps = {
   /** ThresholdRangeSlider와 동일 카드 헤더 */
   framed?: boolean;
   title?: string;
+  /** thumb 라벨 typography 오버라이드 */
+  thumbLabelClassName?: string;
+  /** 트랙 shell padding 오버라이드 */
+  trackShellClassName?: string;
   onChange: (setpoint: number, deviation: number) => void;
 };
 
@@ -56,6 +60,8 @@ export function ControllerTempTripleSlider({
   dense = false,
   framed = false,
   title = "온도 설정",
+  thumbLabelClassName,
+  trackShellClassName,
   onChange,
 }: ControllerTempTripleSliderProps) {
   const id = useId();
@@ -104,13 +110,19 @@ export function ControllerTempTripleSlider({
   );
 
   const track = (
-    <div className={sliderTrackShellClass(compact, "triple", dense)}>
+    <div
+      className={cn(
+        sliderTrackShellClass(compact, "triple", dense),
+        trackShellClassName
+      )}
+    >
       <div className={sliderTrackRailClass()}>
         <SliderThumbLabel
           leftPct={lowPct}
           placement="below"
           compact={compact}
           dense={dense}
+          className={thumbLabelClassName}
         >
           −{devLabel}℃
         </SliderThumbLabel>
@@ -120,6 +132,7 @@ export function ControllerTempTripleSlider({
           placement="above"
           compact={compact}
           dense={dense}
+          className={thumbLabelClassName}
         >
           {fmtTempLabel(setpoint)}℃
         </SliderThumbLabel>
@@ -128,6 +141,7 @@ export function ControllerTempTripleSlider({
           placement="below"
           compact={compact}
           dense={dense}
+          className={thumbLabelClassName}
         >
           +{devLabel}℃
         </SliderThumbLabel>

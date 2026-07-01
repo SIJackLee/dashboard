@@ -4,6 +4,7 @@ import { AppHeaderNav } from "@/components/layout/app-header-nav";
 import { TopBarAlarmSlot } from "@/components/layout/top-bar-alarm-slot";
 import { GlobalContextStrip } from "@/components/layout/global-context-strip";
 import type { AlarmRow } from "@/lib/data/alarms";
+import type { WeatherWarningRow } from "@/lib/data/weather-warnings";
 import type { FarmOverview } from "@/lib/data/iot";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -14,6 +15,7 @@ type Role = "admin" | "operator" | "viewer";
 type TopBarProps = {
   overview?: FarmOverview;
   alarms?: AlarmRow[];
+  weatherWarnings?: WeatherWarningRow[];
   isAdmin?: boolean;
   /** Admin 전국 뷰 — 데스크톱 GlobalContextStrip 숨김 */
   hideScopeKpi?: boolean;
@@ -35,6 +37,7 @@ function TopBarDivider() {
 export function TopBar({
   overview,
   alarms = [],
+  weatherWarnings = [],
   hideScopeKpi = false,
   farmLocationOptions = [],
   canEditLocation = false,
@@ -60,14 +63,17 @@ export function TopBar({
         <div className="hidden min-w-0 flex-1 lg:flex">
           <GlobalContextStrip
             overview={overview}
-            alarmCount={alarms.length}
+            alarmCount={alarms.length + weatherWarnings.length}
             hidden={hideScopeKpi}
             compact={hideScopeKpi}
           />
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1.5 md:gap-3">
-          <TopBarAlarmSlot alarms={alarms} />
+          <TopBarAlarmSlot
+            alarms={alarms}
+            weatherWarnings={weatherWarnings}
+          />
           <AppHeaderAccount
             user={user}
             receipts={overview?.receipts}

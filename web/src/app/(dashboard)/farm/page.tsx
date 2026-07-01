@@ -17,14 +17,8 @@ import {
   buildAutoBarnMap,
   gridDimensionsForBarnMap,
 } from "@/lib/data/barn-map";
-import { resolveFarmerOpsBarnGrid } from "@/lib/monitoring/farmer-ops-barn-grid";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
 import { getLiveReadings } from "@/lib/data/iot";
-import {
-  summarizeControllers,
-  toFarmOverview,
-} from "@/lib/data/dashboard-summary";
-import { FIRMWARE_CTRL_COUNT } from "@/lib/data/iot-firmware";
 import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
 import { mergeThermoSettingsMaps } from "@/lib/controllers/controller-settings";
 import { deriveAlarmsFromReadings, summarizeAlarms } from "@/lib/data/alarms";
@@ -98,6 +92,11 @@ export default async function FarmPage({
 
   const tab = parseMonitoringTab(params.tab);
 
+  /** farmer(non-admin)는 컨트롤러(ops) 탭 진입 불가 → 현황으로 */
+  if (!isAdmin && tab === "ops") {
+    redirect("/farm");
+  }
+
   /** Admin 농장 스코프 — 모바일·데스크톱 공통 ops 허브로 */
   if (isAdmin && activeFarmKey && tab === "map") {
     const scoped = new URLSearchParams();
@@ -126,9 +125,9 @@ export default async function FarmPage({
     options?: { hideTabs?: boolean }
   ) => (
     <div className="space-y-4 md:space-y-5">
-      {!options?.hideTabs ? (
+      {!options?.hideTabs && isAdmin ? (
         <Suspense fallback={null}>
-          <MonitoringTabs active={tab} isAdmin={isAdmin} />
+          <MonitoringTabs active={tab} />
         </Suspense>
       ) : null}
       <Suspense fallback={null}>
@@ -214,17 +213,12 @@ export default async function FarmPage({
 
   /** 운영 탭 — 3열 트리아지 (장비+이상 통합) */
   if (tab === "ops") {
-    const [readings, alarmSettings, layoutPrefs] = await Promise.all([
+    const [readings, alarmSettings] = await Promise.all([
       getLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {}),
       getAlarmSettings(),
-      getBarnLayoutPrefs(),
     ]);
 
     const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
-    const barnGridData = resolveFarmerOpsBarnGrid(scopedReadings, layoutPrefs);
-    if (Object.keys(barnGridData.layoutsToPersist).length > 0) {
-      await mergeBarnLayouts(barnGridData.layoutsToPersist);
-    }
     const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
     const alarmSummary = summarizeAlarms(alarms);
 
@@ -267,11 +261,6 @@ export default async function FarmPage({
               adminActiveFarmKey={shellCtx.activeFarmKey}
               alarmSettings={alarmSettings}
               settingsNotice={settingsNotice}
-              barnGrid={{
-                snapshots: barnGridData.snapshots,
-                gridCols: barnGridData.gridCols,
-                gridRows: barnGridData.gridRows,
-              }}
             />
           </Suspense>
         )}

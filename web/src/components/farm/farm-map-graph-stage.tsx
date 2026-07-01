@@ -224,44 +224,48 @@ export function FarmMapGraphStage({
   }
 
   const toolbar = (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-3 py-2">
-      <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-col gap-2 border-b bg-muted/20 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         {level === "stalls" ? (
           <button
             type="button"
             onClick={() => setLevel("sp")}
-            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1.5 text-sm hover:bg-muted sm:px-3"
           >
-            <ArrowLeft className="size-4" />
+            <ArrowLeft className="size-4 shrink-0" />
             요약
           </button>
         ) : (
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1.5 text-sm hover:bg-muted sm:px-3"
           >
-            <ArrowLeft className="size-4" />
+            <ArrowLeft className="size-4 shrink-0" />
             지도
           </button>
         )}
-        <span className="rounded bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-700">
+        <span className="shrink-0 rounded bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-700">
           {stallTyCode}
         </span>
-        <span className="text-base font-semibold">{label}</span>
-        <span className="text-xs text-muted-foreground">
+        <span className="min-w-0 truncate text-sm font-semibold sm:text-base">{label}</span>
+        <span className="w-full text-xs text-muted-foreground sm:w-auto">
           {level === "sp" ? "SP 평균" : `축사 ${stalls.length}개`}
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex overflow-hidden rounded-md border" role="group" aria-label="기간">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div
+          className="inline-flex max-w-full overflow-x-auto rounded-md border"
+          role="group"
+          aria-label="기간"
+        >
           {PERIOD_ORDER.map((p) => (
             <button
               key={p}
               type="button"
               onClick={() => setPeriod(p)}
               className={cn(
-                "px-3 py-1.5 text-sm transition-colors",
+                "shrink-0 px-2.5 py-1.5 text-sm transition-colors sm:px-3",
                 period === p ? "bg-emerald-50 text-emerald-700" : "text-muted-foreground hover:bg-muted"
               )}
             >
@@ -269,14 +273,14 @@ export function FarmMapGraphStage({
             </button>
           ))}
         </div>
-        <div className="inline-flex overflow-hidden rounded-md border" role="group" aria-label="그래프 형태">
+        <div className="inline-flex shrink-0 overflow-hidden rounded-md border" role="group" aria-label="그래프 형태">
           {(["line", "bar"] as ChartMode[]).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setMode(m)}
               className={cn(
-                "px-3 py-1.5 text-sm transition-colors",
+                "px-2.5 py-1.5 text-sm transition-colors sm:px-3",
                 mode === m ? "bg-emerald-50 text-emerald-700" : "text-muted-foreground hover:bg-muted"
               )}
             >
@@ -298,15 +302,6 @@ export function FarmMapGraphStage({
         {primaryLabel}
         <ChevronRight className="size-4" />
       </button>
-      <button
-        type="button"
-        onClick={goController}
-        disabled={!controllerHref}
-        className="inline-flex items-center gap-1 rounded-md border px-3.5 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
-      >
-        컨트롤러
-        <ExternalLink className="size-4" />
-      </button>
     </div>
   );
 
@@ -321,7 +316,7 @@ export function FarmMapGraphStage({
     body = (
       <div
         key={`sp-${period}-${mode}`}
-        className="grid grid-cols-1 gap-3 p-3 lg:grid-cols-2"
+        className="grid grid-cols-1 gap-3 p-3 max-lg:pb-6 lg:grid-cols-2"
       >
         <Enter animKey={`env-${period}-${mode}`} delay={0}>
           <div className="rounded-lg border bg-background p-3">
@@ -358,7 +353,7 @@ export function FarmMapGraphStage({
     body = (
       <div
         key={`stalls-${period}-${mode}`}
-        className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-1 gap-3 p-3 pb-6 sm:grid-cols-2 lg:grid-cols-3 lg:pb-3"
       >
         {stalls.map((stall, i) => (
           <Enter key={stall.stallNo} animKey={`${stall.stallNo}-${period}-${mode}`} delay={i * 0.06}>
@@ -417,9 +412,6 @@ export function FarmMapGraphStage({
       <div className="overflow-hidden rounded-md border bg-card">
         {toolbar}
         {body}
-        <div className="border-t px-3 py-2 text-xs text-muted-foreground">
-          출처: iot_room_state_decoded · LIVE · {level === "sp" ? "SP 평균" : "축사번호별"} · 환기=max(입기,배기) 미적용(개별 표시)
-        </div>
       </div>
     </Enter>
   );

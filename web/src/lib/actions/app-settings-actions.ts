@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { saveAlarmSettings } from "@/lib/data/alarm-settings";
-import { savePiggyPlayerId } from "@/lib/data/piggy-settings";
 import { validateAlarmThresholds, type AlarmSettings } from "@/lib/data/alarms";
 import {
   saveFarmLocation,
@@ -13,7 +12,7 @@ import {
 import { geocodeFarmAddress } from "@/lib/geo/geocode-farm-address";
 import {
   devicesAlarmSettingsHref,
-  devicesFarmPanelHref,
+  devicesPanelHref,
 } from "@/lib/monitoring/devices-panel";
 
 function revalidateFarmPaths() {
@@ -123,7 +122,7 @@ export async function saveFarmLocationAction(formData: FormData) {
   const farmKey = lsind && item ? { lsindRegistNo: lsind, itemCode: item } : undefined;
 
   if (!lsind || !item) {
-    redirect(`${devicesFarmPanelHref(farmKey)}&error=invalid`);
+    redirect(`${devicesPanelHref(undefined, farmKey)}&error=invalid`);
   }
 
   const lat = latRaw ? Number(latRaw) : undefined;
@@ -131,7 +130,7 @@ export async function saveFarmLocationAction(formData: FormData) {
   const hasCoords = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng);
 
   if (!hasCoords && (!sido || !sigungu)) {
-    redirect(`${devicesFarmPanelHref(farmKey)}&error=invalid`);
+    redirect(`${devicesPanelHref(undefined, farmKey)}&error=invalid`);
   }
 
   const result = await saveFarmLocation(
@@ -156,16 +155,16 @@ export async function saveFarmLocationAction(formData: FormData) {
 
   if (!result.ok) {
     if (result.error === "invalid_region") {
-      redirect(`${devicesFarmPanelHref(farmKey)}&error=invalid`);
+      redirect(`${devicesPanelHref(undefined, farmKey)}&error=invalid`);
     }
     if (result.error === "forbidden") {
-      redirect(`${devicesFarmPanelHref(farmKey)}&error=forbidden`);
+      redirect(`${devicesPanelHref(undefined, farmKey)}&error=forbidden`);
     }
-    redirect(`${devicesFarmPanelHref(farmKey)}&error=save`);
+    redirect(`${devicesPanelHref(undefined, farmKey)}&error=save`);
   }
 
   revalidateFarmPaths();
-  redirect(`${devicesFarmPanelHref(farmKey)}&ok=saved`);
+  redirect(`${devicesPanelHref(undefined, farmKey)}&ok=saved`);
 }
 
 function parseAlarmSettingsFormData(formData: FormData):
@@ -230,19 +229,4 @@ export async function saveAlarmSettingsAction(formData: FormData) {
   revalidatePath("/alarms");
   revalidatePath("/farm");
   redirect(`${devicesAlarmSettingsHref()}&ok=saved`);
-}
-
-export async function savePiggyPlayerIdAction(formData: FormData) {
-  const raw = String(formData.get("player_id") ?? "").trim();
-
-  const result = await savePiggyPlayerId(raw);
-  if (!result.ok) {
-    if (result.error === "invalid") {
-      redirect("/play?error=invalid");
-    }
-    redirect("/play?error=save");
-  }
-
-  revalidatePath("/play");
-  redirect("/play?ok=saved");
 }

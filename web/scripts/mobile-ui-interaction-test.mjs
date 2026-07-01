@@ -7,11 +7,11 @@ import { chromium } from "playwright";
 import { createClient } from "@supabase/supabase-js";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { ensureTestPasswords, passwordForEmail } from "./test-accounts.mjs";
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), "../.env.local") });
 
 const BASE = process.env.UI_VERIFY_BASE ?? "http://localhost:3000";
-const TEMP_PW = "UiVerify2026!Temp";
 const VIEWPORT = { width: 375, height: 812 };
 
 const failures = [];
@@ -26,19 +26,14 @@ function pass(name) {
 }
 
 async function ensurePasswords(adminClient) {
-  for (const email of ["admin@test.com", "farmer@test.com", "viewer@test.com"]) {
-    const { data } = await adminClient.auth.admin.listUsers();
-    const user = data.users.find((u) => u.email === email);
-    if (!user) throw new Error(`Missing user ${email}`);
-    await adminClient.auth.admin.updateUserById(user.id, { password: TEMP_PW });
-  }
+  await ensureTestPasswords(adminClient);
 }
 
 async function login(page, email) {
   await page.context().clearCookies();
   await page.goto(`${BASE}/login`, { waitUntil: "domcontentloaded" });
   await page.locator("#email").fill(email);
-  await page.locator("#password").fill(TEMP_PW);
+  await page.locator("#password").fill(passwordForEmail(email));
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 });
 }

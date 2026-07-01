@@ -9,6 +9,11 @@
     "lint": "eslint",
     "measure:live": "tsx scripts/measure-live-read.ts",
     "audit:mobile": "node scripts/mobile-ui-audit.mjs",
+    "set:test-passwords": "node scripts/set-test-passwords.mjs",
+    "build:kma-wrn-map": "node scripts/kma/build-wrn-reg-id-map.mjs",
+    "poc:kma-weather": "node scripts/kma/poc-kma-warn-status.mjs",
+    "poc:kma-weather:offline": "node scripts/kma/poc-kma-warn-status.mjs --offline",
+    "refresh:weather-warn": "node scripts/refresh-weather-warn.mjs",
     "verify:mobile-interaction": "node scripts/mobile-ui-interaction-test.mjs",
     "verify:routes": "node scripts/ui-route-verify.mjs"
   },

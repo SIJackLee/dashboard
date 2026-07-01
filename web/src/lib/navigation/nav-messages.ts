@@ -43,7 +43,7 @@ export function resolveNavMessage(
   else if (path.startsWith("/admin/health")) message = "시스템 상태로 이동 중…";
   else if (path.startsWith("/admin/users")) message = "사용자 관리로 이동 중…";
   else if (path.startsWith("/admin")) message = "관리 페이지로 이동 중…";
-  else if (path === "/play") message = "게임 페이지로 이동 중…";
+  else if (path === "/play") message = "모니터링으로 이동 중…";
 
   return { message, sublabel };
 }

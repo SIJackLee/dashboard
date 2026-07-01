@@ -548,6 +548,7 @@ export function AlarmThresholdForm({
               accentClass="bg-orange-500/35"
               disabled={!scopeReady || pending}
               compact
+              thumbLabelClassName="md:text-[1.75rem]"
               onChange={(low, high) =>
                 updateDraft({ ...draft, tempLow: low, tempHigh: high })
               }
@@ -569,6 +570,7 @@ export function AlarmThresholdForm({
               accentClass="bg-sky-500/35"
               disabled={!scopeReady || pending}
               compact
+              thumbLabelClassName="md:text-[1.75rem]"
               onChange={(low, high) =>
                 updateDraft({ ...draft, humidityLow: low, humidityHigh: high })
               }

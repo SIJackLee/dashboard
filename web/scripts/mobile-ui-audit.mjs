@@ -9,17 +9,17 @@ import { createClient } from "@supabase/supabase-js";
 import { writeFileSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { ensureTestPasswords, passwordForEmail, TEST_ACCOUNTS } from "./test-accounts.mjs";
 
 dotenv.config({ path: join(dirname(fileURLToPath(import.meta.url)), "../.env.local") });
 
 const BASE = process.env.UI_VERIFY_BASE ?? "http://localhost:3000";
-const TEMP_PW = "UiVerify2026!Temp";
 const VIEWPORT = { width: 375, height: 812 };
 
 const ACCOUNTS = {
-  admin: "admin@test.com",
-  operator: "farmer@test.com",
-  viewer: "viewer@test.com",
+  admin: TEST_ACCOUNTS.admin.email,
+  operator: TEST_ACCOUNTS.operator.email,
+  viewer: TEST_ACCOUNTS.viewer.email,
 };
 
 const ROUTES = {
@@ -52,12 +52,7 @@ const ROUTES = {
 };
 
 async function ensurePasswords(adminClient) {
-  for (const email of Object.values(ACCOUNTS)) {
-    const { data } = await adminClient.auth.admin.listUsers();
-    const user = data.users.find((u) => u.email === email);
-    if (!user) throw new Error(`Missing user ${email}`);
-    await adminClient.auth.admin.updateUserById(user.id, { password: TEMP_PW });
-  }
+  await ensureTestPasswords(adminClient);
 }
 
 async function logout(page) {
@@ -75,7 +70,7 @@ async function login(page, email) {
   await logout(page);
   await page.goto(`${BASE}/login`, { waitUntil: "load" });
   await page.locator("#email").fill(email);
-  await page.locator("#password").fill(TEMP_PW);
+  await page.locator("#password").fill(passwordForEmail(email));
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30000 });
 }

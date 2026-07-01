@@ -1,50 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   MONITORING_TABS,
   MONITORING_BASE_PATH,
   type MonitoringTabId,
   sanitizeMonitoringSearchParams,
-  setMonitoringTabParam,
 } from "@/lib/monitoring/monitoring-tabs";
 import { setDevicesPanelParam } from "@/lib/monitoring/devices-panel";
 import { useScrollActiveTab } from "@/lib/ui/use-scroll-active-tab";
-import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Props = {
   active: MonitoringTabId;
-  /** Farmer — 모바일에서 현황 탭 숨김·ops 기본 */
-  isAdmin?: boolean;
 };
 
-export function MonitoringTabs({ active, isAdmin = false }: Props) {
+export function MonitoringTabs({ active }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const navRef = useScrollActiveTab(active);
-  const isMobile = useMobileLayout();
 
-  const visibleTabs = useMemo(() => {
-    if (isAdmin || !isMobile) return MONITORING_TABS;
-    return MONITORING_TABS.filter((tab) => tab.id === "ops");
-  }, [isAdmin, isMobile]);
-
-  useEffect(() => {
-    if (isAdmin || !isMobile || active !== "map") return;
-
-    const params = new URLSearchParams(searchParams.toString());
-    setMonitoringTabParam(params, "ops");
-    const q = params.toString();
-    const href = q ? `${MONITORING_BASE_PATH}?${q}` : `${MONITORING_BASE_PATH}?tab=ops`;
-
-    startTransition(() => {
-      router.replace(href, { scroll: false });
-    });
-  }, [isAdmin, isMobile, active, searchParams, router]);
+  const visibleTabs = MONITORING_TABS;
 
   const selectTab = (tab: MonitoringTabId) => {
     if (isPending) return;
@@ -59,7 +38,7 @@ export function MonitoringTabs({ active, isAdmin = false }: Props) {
     const params = new URLSearchParams(searchParams.toString());
 
     if (tab === active && tab === "ops" && params.has("panel")) {
-      setDevicesPanelParam(params, "control");
+      setDevicesPanelParam(params);
       params.delete("ok");
       params.delete("error");
       const q = params.toString();

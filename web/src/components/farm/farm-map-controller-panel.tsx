@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, Fan, Loader2, Power, Thermometer } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Fan,
+  Loader2,
+  Power,
+  Thermometer,
+} from "lucide-react";
 import {
   AlarmThresholdForm,
   type AlarmThresholdHeaderState,
@@ -118,8 +125,33 @@ export function FarmMapControllerPanel({
   const [activeChannel, setActiveChannel] = useState<ChannelSlot>("A");
   const [thresholdHeader, setThresholdHeader] =
     useState<AlarmThresholdHeaderState | null>(null);
+  const [activeKey, setActiveKey] = useState<string>(reading.key);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
-  const { reading: detail, loading } = useControllerDetail(reading);
+  // 같은 축사(stall)에 속한 컨트롤러 목록 (eqpmn 01·02…) — eqpmn 스위처용
+  const stallControllers = useMemo(() => {
+    const targetFarm = farmKeyId(reading.farmKey);
+    const targetSp = normalizeStallTyCode(reading.stallTyCode);
+    const targetStall = reading.stallNo ?? "";
+    return readings
+      .filter(
+        (r) =>
+          farmKeyId(r.farmKey) === targetFarm &&
+          normalizeStallTyCode(r.stallTyCode) === targetSp &&
+          (r.stallNo ?? "") === targetStall
+      )
+      .sort((a, b) =>
+        (a.eqpmnNo ?? "").localeCompare(b.eqpmnNo ?? "", "ko", {
+          numeric: true,
+        })
+      );
+  }, [readings, reading.farmKey, reading.stallTyCode, reading.stallNo]);
+
+  const activeReading =
+    stallControllers.find((r) => r.key === activeKey) ?? reading;
+  const hasSwitcher = stallControllers.length > 1;
+
+  const { reading: detail, loading } = useControllerDetail(activeReading);
   const channels = detail?.channels ?? [];
   const hasChannels = channels.length > 0;
   const channelReading = channelBySlot(channels, activeChannel);
@@ -170,11 +202,11 @@ export function FarmMapControllerPanel({
   const powerOn = detail?.status === "normal" || detail?.status === "caution";
   const controlsDisabled = !detail || !canCommand || panel.pending;
 
-  const farmId = farmKeyId(reading.farmKey);
-  const spCode = normalizeStallTyCode(reading.stallTyCode);
-  const stallKey = stallKeyFromReading(reading);
+  const farmId = farmKeyId(activeReading.farmKey);
+  const spCode = normalizeStallTyCode(activeReading.stallTyCode);
+  const stallKey = stallKeyFromReading(activeReading);
   const thresholdScope = alarmSettings
-    ? { farmId, spCode, stallKey, readingKey: reading.key }
+    ? { farmId, spCode, stallKey, readingKey: activeReading.key }
     : null;
 
   const tempC = formatTempForDisplay(
@@ -213,29 +245,78 @@ export function FarmMapControllerPanel({
   const slots: ChannelSlot[] = ["A", "B", "C"];
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-card">
+    <div
+      className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border bg-card"
+      data-audit-region="farm-map-controller"
+    >
       {/* 헤더 */}
-      <div className="flex items-center gap-2 border-b bg-muted/20 px-3 py-2.5">
-        <button
-          type="button"
-          onClick={onBack}
-          className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
-        >
-          <ArrowLeft className="size-4" />
-          그래프
-        </button>
-        <span className="rounded bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-700">
-          {label}
-        </span>
-        <span
-          className={cn(
-            "ml-auto inline-flex items-center gap-1 text-sm font-medium",
-            online && powerOn ? "text-emerald-600" : "text-muted-foreground"
+      <div className="border-b bg-muted/20 px-3 py-2.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1.5 text-sm hover:bg-muted sm:px-3"
+          >
+            <ArrowLeft className="size-4 shrink-0" />
+            그래프
+          </button>
+          {hasSwitcher ? (
+            <button
+              type="button"
+              onClick={() => setSwitcherOpen((v) => !v)}
+              aria-expanded={switcherOpen}
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+            >
+              <span className="truncate">{label} · 컨트롤러 {activeReading.eqpmnNo}</span>
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 transition-transform",
+                  switcherOpen && "rotate-180"
+                )}
+              />
+            </button>
+          ) : (
+            <span className="min-w-0 truncate rounded bg-emerald-50 px-2 py-0.5 text-sm font-semibold text-emerald-700">
+              {label}
+            </span>
           )}
-        >
-          <Power className="size-4" />
-          {detail ? (powerOn ? "ON" : "OFF") : "--"}
-        </span>
+          <span
+            className={cn(
+              "ml-auto inline-flex shrink-0 items-center gap-1 text-sm font-medium",
+              online && powerOn ? "text-emerald-600" : "text-muted-foreground"
+            )}
+          >
+            <Power className="size-4" />
+            {detail ? (powerOn ? "ON" : "OFF") : "--"}
+          </span>
+        </div>
+
+        {hasSwitcher && switcherOpen ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {stallControllers.map((r, i) => {
+              const active = r.key === activeReading.key;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  onClick={() => {
+                    setActiveKey(r.key);
+                    setSwitcherOpen(false);
+                  }}
+                  aria-pressed={active}
+                  className={cn(
+                    "rounded-md border px-3 py-1 text-sm transition-colors",
+                    active
+                      ? "border-primary/50 bg-primary/10 font-medium text-primary"
+                      : "border-border/70 hover:bg-muted"
+                  )}
+                >
+                  컨트롤러 {r.eqpmnNo ?? i + 1}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       {/* 상단 고정 — 온/습 + 채널 (단일 출처) */}
@@ -356,7 +437,7 @@ export function FarmMapControllerPanel({
             </p>
             {thresholdScope && alarmSettings ? (
               <AlarmThresholdForm
-                key={`${reading.key}-${activeChannel}`}
+                key={`${activeReading.key}-${activeChannel}`}
                 initialSettings={alarmSettings}
                 readings={readings}
                 fixedScope={thresholdScope}

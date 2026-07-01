@@ -3,6 +3,16 @@
 import { AlarmBellMenu } from "@/components/layout/alarm-bell-menu";
 import type { AlarmRow } from "@/lib/data/alarms";
 
-export function TopBarAlarmSlot({ alarms }: { alarms: AlarmRow[] }) {
-  return <AlarmBellMenu alarms={alarms} />;
+import type { WeatherWarningRow } from "@/lib/data/weather-warnings";
+
+export function TopBarAlarmSlot({
+  alarms,
+  weatherWarnings = [],
+}: {
+  alarms: AlarmRow[];
+  weatherWarnings?: WeatherWarningRow[];
+}) {
+  return (
+    <AlarmBellMenu alarms={alarms} weatherWarnings={weatherWarnings} />
+  );
 }

@@ -27,6 +27,7 @@ export async function PageShell({
       <TopBar
         overview={ctx.overview}
         alarms={ctx.alarms}
+        weatherWarnings={ctx.weatherWarnings}
         hideScopeKpi={ctx.isAdmin && !ctx.activeFarmKey}
         farmLocationOptions={ctx.farmLocationOptions}
         canEditLocation={ctx.canEditLocation}
@@ -39,14 +40,15 @@ export async function PageShell({
       <main
         className={cn(
           wide ? dashboardUi.mainPadWide : dashboardUi.mainPad,
-          wide && "flex min-h-0 flex-col"
+          wide && "flex min-h-0 min-w-0 flex-col",
+          !wide && "min-w-0 max-w-screen-2xl"
         )}
       >
         <div
           className={cn(
             wide ? dashboardUi.pageStackWide : dashboardUi.pageStack,
-            wide && "flex min-h-0 flex-1 flex-col",
-            !wide && "max-w-screen-2xl"
+            wide && "flex min-h-0 min-w-0 flex-1 flex-col",
+            !wide && "min-w-0"
           )}
         >
           {children}

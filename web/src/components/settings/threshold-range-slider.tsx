@@ -26,6 +26,16 @@ type ThresholdRangeSliderProps = {
   accentClass?: string;
   /** 트랙 양끝 축 라벨 (환기 0–100% 등) */
   showAxis?: boolean;
+  /** thumb 라벨 typography 오버라이드 (예: 다른 slider와 크기 동기화) */
+  thumbLabelClassName?: string;
+  /** 헤더 제목 typography 오버라이드 */
+  titleClassName?: string;
+  /** showAxis 축 라벨 typography 오버라이드 */
+  axisClassName?: string;
+  /** 카드/보더 래퍼 없이 트랙만 (섹션 내부 embed) */
+  bare?: boolean;
+  /** 트랙 shell padding 오버라이드 */
+  trackShellClassName?: string;
   onChange: (low: number, high: number) => void;
 };
 
@@ -64,6 +74,11 @@ export function ThresholdRangeSlider({
   compact = false,
   accentClass = "bg-emerald-500/35",
   showAxis = false,
+  thumbLabelClassName,
+  titleClassName,
+  axisClassName,
+  bare = false,
+  trackShellClassName,
   onChange,
 }: ThresholdRangeSliderProps) {
   const id = useId();
@@ -98,9 +113,11 @@ export function ThresholdRangeSlider({
   return (
     <div
       className={cn(
-        compact
-          ? dashboardUi.opsSideInnerCard
-          : cn(dashboardUi.innerCard, "bg-background"),
+        bare
+          ? undefined
+          : compact
+            ? dashboardUi.opsSideInnerCard
+            : cn(dashboardUi.innerCard, "bg-background"),
         disabled && "pointer-events-none opacity-50"
       )}
     >
@@ -108,7 +125,8 @@ export function ThresholdRangeSlider({
         {icon}
         <p
           className={cn(
-            compact ? "text-sm font-medium" : dashboardTypography.sectionTitle,
+            titleClassName ??
+              (compact ? "text-sm font-medium" : dashboardTypography.sectionTitle),
             "text-foreground"
           )}
         >
@@ -116,12 +134,20 @@ export function ThresholdRangeSlider({
         </p>
       </div>
 
-      <div className={sliderTrackShellClass(compact)}>
+      <div className={cn(sliderTrackShellClass(compact), trackShellClassName)}>
         <div className={sliderTrackRailClass()}>
-          <SliderThumbLabel leftPct={lowPct} compact={compact}>
+          <SliderThumbLabel
+            leftPct={lowPct}
+            compact={compact}
+            className={thumbLabelClassName}
+          >
             {lowText}
           </SliderThumbLabel>
-          <SliderThumbLabel leftPct={highPct} compact={compact}>
+          <SliderThumbLabel
+            leftPct={highPct}
+            compact={compact}
+            className={thumbLabelClassName}
+          >
             {highText}
           </SliderThumbLabel>
           <div className={sliderTrackRailBgClass()} aria-hidden />
@@ -169,9 +195,10 @@ export function ThresholdRangeSlider({
         <div
           className={cn(
             "relative mt-1 flex justify-between px-3 tabular-nums",
-            compact
-              ? "text-xs leading-snug text-muted-foreground"
-              : dashboardTypography.meta
+            axisClassName ??
+              (compact
+                ? "text-xs leading-snug text-muted-foreground"
+                : dashboardTypography.meta)
           )}
           aria-hidden
         >

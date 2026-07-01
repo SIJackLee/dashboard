@@ -126,12 +126,6 @@ export type OpsTriageViewProps = {
     farmSummaries: FarmSummaryRow[];
     locations: FarmLocationRow[];
   };
-  /** Farmer ops — 축사 레이아웃(서버 persist용, 모바일 UI는 SpOverview) */
-  barnGrid?: {
-    snapshots: import("@/lib/data/iot").BarnMapSnapshot[];
-    gridCols: number;
-    gridRows: number;
-  };
 };
 
 function filterBySido<T extends { farmKey: FarmKey }>(
@@ -282,7 +276,6 @@ function OpsTriageViewBody({
   alarmSettings,
   settingsNotice = null,
   geoHub,
-  barnGrid: _barnGrid,
 }: OpsTriageViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -716,7 +709,10 @@ function OpsTriageViewBody({
     ) : null;
 
   const renderControllerPanel = (mobileSplit: boolean) => (
-    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      data-audit-region="ops-controller-panel"
+    >
       <ControllerPanelFace
         key={`${selectedDetail?.key ?? "none"}-${activeChannel}-${mobileSplit ? "m" : "d"}`}
         reading={selectedDetail}
@@ -777,7 +773,7 @@ function OpsTriageViewBody({
   }, []);
 
   useEffect(() => {
-    if (!geoHubMode || !isMobile || autoTriageBooted.current) return;
+    if (!geoHubMode || autoTriageBooted.current) return;
     if (triageFarms.length === 0) return;
     autoTriageBooted.current = true;
     if (urlFarmId && controllerKey) return;
@@ -796,8 +792,8 @@ function OpsTriageViewBody({
       return;
     }
     goTriageFarmAt(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mobile hub triage bootstrap once
-  }, [geoHubMode, isMobile, triageFarms.length, urlFarmId, controllerKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- geo hub triage bootstrap once
+  }, [geoHubMode, triageFarms.length, urlFarmId, controllerKey]);
 
   useEffect(() => {
     if (geoHubMode || autoFarmerBarnBooted.current) return;

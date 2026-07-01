@@ -94,13 +94,13 @@ export const dashboardUi = {
     "justify-center rounded-lg py-3.5 text-[1.75rem] font-medium text-emerald-700",
 
   mainPad:
-    "flex-1 overflow-y-auto p-3 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:p-6 md:pb-8 lg:pb-8",
+    "flex-1 overflow-y-auto p-3 md:p-6 md:pb-8",
   /** 모니터링·운영 등 wide — 좌우 dead space 최소화 */
   mainPadWide:
-    "flex-1 overflow-y-auto p-3 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:p-5 lg:pb-5",
+    "flex-1 overflow-y-auto p-3 md:p-5 md:pb-5",
   /** 하단 모바일 네비 — fixed bar 높이 + safe-area */
   mobileBottomNav:
-    "fixed bottom-0 left-0 right-0 z-40 flex border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90 md:hidden",
+    "fixed bottom-0 left-0 right-0 z-40 flex border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90",
   mobileBottomNavItem:
     "flex min-h-[3.25rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium leading-tight transition-colors",
   pageStack: "mx-auto space-y-6 md:space-y-8",

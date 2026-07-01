@@ -88,7 +88,7 @@ export function FarmPageContent({
       </div>
 
       {view === "map" ? (
-        <div className="max-h-[40dvh] min-h-0 overflow-hidden lg:max-h-none lg:min-h-[16rem]">
+        <div className="min-h-0 lg:min-h-[16rem]">
           <FarmMapView
             barns={barnSnapshots}
             gridCols={gridCols}
