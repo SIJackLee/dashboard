@@ -24,6 +24,8 @@ type Props = {
   controllerList?: ControllerReading[];
   selectedControllerKey?: string;
   onControllerSelect?: (key: string) => void;
+  /** Admin 전국 허브 — placeholder 시 농장·축사 트리 */
+  pickerPanel?: React.ReactNode;
   placeholder?: boolean;
   navSweepDirection?: "left" | "right" | null;
 };
@@ -47,6 +49,7 @@ export function OpsMobileSplitHub({
   controllerList,
   selectedControllerKey,
   onControllerSelect,
+  pickerPanel,
   placeholder,
   navSweepDirection,
 }: Props) {
@@ -59,14 +62,15 @@ export function OpsMobileSplitHub({
         hasNext,
         onPrev,
         onNext,
-        prevLabel: "이전 이상 농장",
-        nextLabel: "다음 이상 농장",
+        prevLabel: "이전 농장",
+        nextLabel: "다음 농장",
       }}
       topPanel={map}
       topVariant="map"
       control={control}
       headerSlot={headerSlot}
       midPanel={midPanel}
+      pickerPanel={pickerPanel}
       stallOptions={stallOptions}
       selectedStallKey={selectedStallKey}
       onStallSelect={onStallSelect}

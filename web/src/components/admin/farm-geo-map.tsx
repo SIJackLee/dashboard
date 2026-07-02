@@ -663,6 +663,31 @@ export function FarmGeoMap({
     renderMarkersRef.current();
   }, [focusFarmId]);
 
+  /** 모바일 허브 — 선택 농장이 지도 Z4(농장) 레벨에 보이도록 sido/시군구 자동 진입 */
+  useEffect(() => {
+    if (!isMobileLayout || !focusFarmId || points.length === 0) return;
+    const map = mapRef.current;
+    const L = leafletRef.current;
+    if (!map || !L) return;
+
+    const point = points.find((p) => farmKeyId(p.farmKey) === focusFarmId);
+    if (!point) return;
+
+    const alreadyAtFarm =
+      stageRef.current === 3 &&
+      selectedSidoRef.current === point.sido &&
+      selectedSigunguRef.current === point.sigungu;
+    if (alreadyAtFarm) {
+      renderMarkersRef.current();
+      return;
+    }
+
+    selectedSidoRef.current = point.sido;
+    selectedSigunguRef.current = point.sigungu;
+    onSelectSido?.(point.sido);
+    goToStage(L, map, 3, { center: [point.lat, point.lng] });
+  }, [isMobileLayout, focusFarmId, points, goToStage, onSelectSido]);
+
   useEffect(() => {
     renderMarkersRef.current();
   }, [isMobileLayout]);

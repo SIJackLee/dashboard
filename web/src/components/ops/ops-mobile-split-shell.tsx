@@ -37,6 +37,8 @@ type Props = {
   controllerList?: ControllerReading[];
   selectedControllerKey?: string;
   onControllerSelect?: (key: string) => void;
+  /** 농장 선택 전 — 농장목록 트리 등 */
+  pickerPanel?: React.ReactNode;
   placeholder?: boolean;
   /** map | grid — 상단 패널 높이 비율 */
   topVariant?: "map" | "grid";
@@ -261,6 +263,7 @@ export function OpsMobileSplitShell({
   controllerList = [],
   selectedControllerKey,
   onControllerSelect,
+  pickerPanel,
   placeholder,
   topVariant = "map",
   navSweepDirection = null,
@@ -268,7 +271,9 @@ export function OpsMobileSplitShell({
   const topPanelClass =
     topVariant === "grid"
       ? "shrink-0 overflow-visible"
-      : "h-[min(32dvh,240px)] shrink-0 overflow-hidden";
+      : pickerPanel
+        ? "h-[min(28dvh,200px)] shrink-0 overflow-hidden"
+        : "h-[min(32dvh,240px)] shrink-0 overflow-hidden";
 
   const showStallSegment =
     stallOptions.length > 0 && Boolean(onStallSelect) && !placeholder;
@@ -284,7 +289,7 @@ export function OpsMobileSplitShell({
       <div
         className={cn(
           "mt-1 flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-2xl border border-b-0 bg-card shadow-[0_-6px_28px_rgba(15,23,42,0.08)] dark:shadow-[0_-6px_28px_rgba(0,0,0,0.35)]",
-          placeholder && "pointer-events-none opacity-50"
+          placeholder && !pickerPanel && "pointer-events-none opacity-50"
         )}
       >
         <div
@@ -308,6 +313,12 @@ export function OpsMobileSplitShell({
           {midPanel ? (
             <section className="shrink-0 overflow-visible border-b border-border/60 px-2 py-2">
               {midPanel}
+            </section>
+          ) : null}
+
+          {pickerPanel ? (
+            <section className="min-h-0 flex-1 overflow-y-auto border-b border-border/60 px-1 py-2">
+              {pickerPanel}
             </section>
           ) : null}
 

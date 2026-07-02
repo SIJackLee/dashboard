@@ -619,12 +619,18 @@ function OpsTriageViewBody({
 
   const splitHubFarmLabel =
     activeTriageFarm?.label ??
-    (selectedFarmKey ? farmShortLabel(selectedFarmKey) : "이상 농장 없음");
+    (selectedFarmKey
+      ? farmShortLabel(selectedFarmKey)
+      : hubFarmSummaries[0]
+        ? farmShortLabel(hubFarmSummaries[0].farmKey)
+        : "농장 없음");
 
   const splitHubPositionLabel =
     triageFarms.length > 0
       ? `${Math.max(triageIndex, 0) + 1} / ${triageFarms.length}`
-      : "—";
+      : hubFarmSummaries.length > 0
+        ? `${hubFarmSummaries.length}개 농장`
+        : "—";
 
   const goSpAt = (index: number) => {
     const item = spNavQueue[index];
@@ -774,7 +780,6 @@ function OpsTriageViewBody({
 
   useEffect(() => {
     if (!geoHubMode || autoTriageBooted.current) return;
-    if (triageFarms.length === 0) return;
     autoTriageBooted.current = true;
     if (urlFarmId && controllerKey) return;
     if (urlFarmId && !controllerKey) {
@@ -791,9 +796,21 @@ function OpsTriageViewBody({
       }
       return;
     }
-    goTriageFarmAt(0);
+    if (triageFarms.length > 0) {
+      goTriageFarmAt(0);
+      return;
+    }
+    const firstSummary = hubFarmSummaries[0];
+    if (firstSummary) {
+      const payload = pickWorstControllerPayload(
+        hubAlarms,
+        hubReadings,
+        firstSummary.farmKey
+      );
+      if (payload) navigateToController(payload);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- geo hub triage bootstrap once
-  }, [geoHubMode, triageFarms.length, urlFarmId, controllerKey]);
+  }, [geoHubMode, triageFarms.length, hubFarmSummaries.length, urlFarmId, controllerKey]);
 
   useEffect(() => {
     if (geoHubMode || autoFarmerBarnBooted.current) return;
@@ -889,6 +906,24 @@ function OpsTriageViewBody({
         />
       </div>
     );
+
+  const mobileFarmPicker =
+    geoHubMode && isMobile && (hubPickerMode || showAdminPlaceholder) ? (
+      <div className="flex min-h-0 flex-col gap-2">
+        <p className="px-2 text-xs font-semibold text-muted-foreground">
+          농장목록 · 축사 · 컨트롤러
+        </p>
+        <div className="min-h-0 flex-1 overflow-y-auto px-1">
+          <HierarchyAlarmTree
+            alarms={hubAlarms}
+            readings={hubReadings}
+            farmSummaries={hubFarmSummaries}
+            selectedControllerKey={selected?.key}
+            onControllerSelect={(payload) => navigateToController(payload)}
+          />
+        </div>
+      </div>
+    ) : null;
 
   const adminMobileSpPicker = geoHubMode ? mobileSpPicker : null;
 
@@ -1025,6 +1060,7 @@ function OpsTriageViewBody({
             selectedControllerKey={selected?.key}
             onControllerSelect={handleControllerSelect}
             placeholder={showAdminPlaceholder}
+            pickerPanel={mobileFarmPicker}
             navSweepDirection={navSweepDirection}
           />
         ) : (

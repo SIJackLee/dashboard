@@ -79,13 +79,17 @@ export function buildHubTriageFarms(
   }
 
   return [...map.values()]
-    .filter((row) => row.alarmCount > 0 || row.bestReadingRank < 2)
     .map((row) => ({
       farmKey: row.farmKey,
       farmId: farmKeyId(row.farmKey),
       label: farmShortLabel(row.farmKey),
       alarmCount: row.alarmCount,
-      rank: row.alarmCount > 0 ? row.bestAlarmRank : row.bestReadingRank + 10,
+      rank:
+        row.alarmCount > 0
+          ? row.bestAlarmRank
+          : row.bestReadingRank < 2
+            ? row.bestReadingRank + 10
+            : 99,
     }))
     .sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank;
