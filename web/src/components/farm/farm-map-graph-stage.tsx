@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, ExternalLink, ChevronRight, SlidersHorizontal } from "lucide-react";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { TrendChart, type TrendSeries } from "@/components/trends/trend-chart";
@@ -155,6 +155,8 @@ type Props = {
   dataByPeriod: Record<TrendPeriodId, TrendPeriodData> | null;
   controllerHref: string | null;
   controller?: ControllerGridData | null;
+  /** tree/alarm deep-link — in-grid controller card-flip 진입 */
+  initialControllerStallNo?: string | null;
   onClose: () => void;
 };
 
@@ -164,12 +166,19 @@ export function FarmMapGraphStage({
   dataByPeriod,
   controllerHref,
   controller,
+  initialControllerStallNo,
   onClose,
 }: Props) {
   const [level, setLevel] = useState<Level>("sp");
   const [period, setPeriod] = useState<TrendPeriodId>("24h");
   const [mode, setMode] = useState<ChartMode>("bar");
-  const [controllerStallNo, setControllerStallNo] = useState<string | null>(null);
+  const [controllerStallNo, setControllerStallNo] = useState<string | null>(
+    initialControllerStallNo ?? null
+  );
+
+  useEffect(() => {
+    setControllerStallNo(initialControllerStallNo ?? null);
+  }, [initialControllerStallNo, stallTyCode]);
   const { navigate } = useAppNavigate();
 
   const findReading = useCallback(

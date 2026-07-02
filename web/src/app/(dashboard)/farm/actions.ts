@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { FarmKey } from "@/lib/data/farm-key";
+import { getFarmTrendAllPeriods } from "@/lib/data/farm-trend-history";
+import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
   clearBarnLayouts,
   getBarnLayoutPrefs,
@@ -8,6 +11,13 @@ import {
   patchBarnLayouts,
   saveBarnLayouts,
 } from "@/lib/data/barn-meta";
+
+/** Admin hub — 선택 농장 추이 그래프 (클라이언트 fetch용). */
+export async function fetchFarmTrendAllPeriodsAction(
+  farmKey: FarmKey
+): Promise<Record<TrendPeriodId, TrendPeriodData>> {
+  return getFarmTrendAllPeriods({ farmKey });
+}
 
 export async function saveBarnGridsAction(
   grids: { catalogKey: string; col: number; row: number }[]

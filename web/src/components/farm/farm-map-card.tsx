@@ -7,7 +7,7 @@ import { buildControllerHref } from "@/lib/auth/farm-access";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { EnvChip } from "@/components/common/env-chip";
 import type { StatusTone } from "@/components/common/status-badge";
-import { getStallTypeName, normalizeStallTyCode } from "@/lib/data/stall-type";
+import { getStallTypeName, normalizeStallTyCode, formatStallTypeLabelCompact } from "@/lib/data/stall-type";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { cn } from "@/lib/utils";
 
@@ -28,12 +28,14 @@ const STATUS_LABEL: Record<StatusTone, string> = {
   offline: "오프라인",
 };
 
-function displayCardTitle(snapshot: BarnMapSnapshot): string {
+function displayCardTitle(snapshot: BarnMapSnapshot, compact = false): string {
   const ty = snapshot.meta.stallNo
     ? normalizeStallTyCode(snapshot.meta.stallNo)
     : null;
   if (ty && ty !== "UNK") {
-    const fromCode = getStallTypeName(ty);
+    const fromCode = compact
+      ? formatStallTypeLabelCompact(ty)
+      : getStallTypeName(ty);
     if (fromCode !== ty) return fromCode;
   }
   const legacy = snapshot.meta.name.trim();
@@ -78,7 +80,7 @@ export function FarmMapCard({
         sp: catalogEntry.stallTyCode,
       })
     : null;
-  const title = displayCardTitle(snapshot);
+  const title = displayCardTitle(snapshot, compact);
 
   const handleNavigate = () => {
     if (isDragging) return;
@@ -151,9 +153,13 @@ export function FarmMapCard({
           <Icon className="size-4 shrink-0 text-emerald-600 lg:size-5" />
           <span
             className={cn(
-              "truncate font-semibold text-sm lg:text-lg",
+              "min-w-0 flex-1 font-semibold leading-tight",
+              compact
+                ? "line-clamp-2 text-[10px] sm:text-xs"
+                : "truncate text-sm lg:text-lg lg:truncate lg:whitespace-nowrap",
               !compact && "lg:text-xl"
             )}
+            title={title}
           >
             {title}
           </span>

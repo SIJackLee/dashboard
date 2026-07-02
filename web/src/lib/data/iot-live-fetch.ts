@@ -40,7 +40,7 @@ const LEGACY_COLS =
   "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, mesure_dt, decoded_json, received_at";
 
 const LIST_COLS =
-  "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, fan_supply_pct, fan_exhaust_pct, fan_intake_pct, mesure_dt, received_at";
+  "raw_id, lsind_regist_no, item_code, module_uid, controller_key, eqpmn_no, stall_ty_code, stall_no, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, fan_supply_pct, fan_exhaust_pct, fan_intake_pct, mesure_dt, received_at";
 
 const DETAIL_COLS =
   "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, mesure_dt, decoded_json, received_at";
@@ -91,6 +91,9 @@ type ListDbRow = {
   item_code: string;
   module_uid: number;
   controller_key: string;
+  eqpmn_no: string | null;
+  stall_ty_code: string | null;
+  stall_no: string | null;
   wire_ver: number;
   packet_mode: string;
   run_mode: number | null;
@@ -116,9 +119,13 @@ function listRowToReading(row: ListDbRow): BarnReading | null {
     stallNo: parts[1] ?? null,
     stallTyCode: parts[0] ?? null,
   });
-  const eqpmnNo = normalizeEqpmnNo(parts[2] ?? "01");
-  const stallNo = pickStallField(parts[1]);
-  const stallTyCode = pickStallField(parts[0]);
+  const eqpmnNo = normalizeEqpmnNo(
+    pickStallField(row.eqpmn_no) ?? parts[2] ?? "01"
+  );
+  const stallNo =
+    pickStallField(row.stall_no) ?? pickStallField(parts[1]);
+  const stallTyCode =
+    pickStallField(row.stall_ty_code) ?? pickStallField(parts[0]);
   const tempC = row.temp_c != null ? Number(row.temp_c) : null;
   const humidityPct =
     row.humidity_pct != null ? Number(row.humidity_pct) : null;

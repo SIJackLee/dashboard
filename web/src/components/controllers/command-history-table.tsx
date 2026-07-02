@@ -42,7 +42,7 @@ function fmtTime(iso: string) {
 }
 
 function fmtCommand(c: ThermoCommand) {
-  return `환기 ${c.minVentPct}~${c.maxVentPct}% · ${c.setpointTemp}℃ ±${c.tempDeviation}`;
+  return `환기 ${c.minVentPct}~${c.maxVentPct}% · ${c.setpointTemp}℃ +${c.tempDeviation}`;
 }
 
 type Props = {

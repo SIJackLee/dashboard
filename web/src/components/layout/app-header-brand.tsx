@@ -21,7 +21,9 @@ export function AppHeaderBrand() {
           priority
         />
       </div>
-      <p className={dashboardUi.headerBrandTitle}>IoT Board</p>
+      <p className={dashboardUi.headerBrandTitle} suppressHydrationWarning>
+        IoT Board
+      </p>
     </div>
   );
 }

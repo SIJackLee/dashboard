@@ -6,7 +6,7 @@ import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { buildControllerHref } from "@/lib/auth/farm-access";
-import { getStallTypeName } from "@/lib/data/stall-type";
+import { getStallTypeName, normalizeStallTyCode } from "@/lib/data/stall-type";
 import type {
   TrendPeriodData,
   TrendPeriodId,
@@ -25,6 +25,9 @@ type Props = {
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
   /** in-grid 컨트롤러 카드플립 구동용 데이터. */
   controller?: ControllerGridData | null;
+  /** tree/alarm deep-link — 그래프·컨트롤러 in-grid 진입 */
+  deepLinkSp?: string | null;
+  deepLinkStallNo?: string | null;
 };
 
 /** Grid → graph morph phases. */
@@ -103,6 +106,8 @@ export function FarmMapCanvas({
   gridRows,
   trendByPeriod,
   controller,
+  deepLinkSp,
+  deepLinkStallNo,
 }: Props) {
   const [barns, setBarns] = useState(initialBarns);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -183,6 +188,11 @@ export function FarmMapCanvas({
     setSelectedSp(null);
     setPhase("grid");
   }, []);
+
+  useEffect(() => {
+    if (!deepLinkSp) return;
+    openGraph(deepLinkSp);
+  }, [deepLinkSp, openGraph]);
 
   useEffect(() => {
     return () => {
@@ -336,6 +346,11 @@ export function FarmMapCanvas({
           dataByPeriod={trendByPeriod ?? null}
           controllerHref={controllerHref}
           controller={controller ?? null}
+          initialControllerStallNo={
+            deepLinkSp && normalizeStallTyCode(deepLinkSp) === normalizeStallTyCode(selectedSp)
+              ? deepLinkStallNo ?? null
+              : null
+          }
           onClose={closeGraph}
         />
       </div>
@@ -378,8 +393,8 @@ export function FarmMapCanvas({
         )}
         style={{
           minHeight,
-          gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${gridRows}, minmax(3.25rem, auto))`,
+          gridTemplateColumns: `repeat(${gridCols}, minmax(4.75rem, 1fr))`,
+          gridTemplateRows: `repeat(${gridRows}, minmax(3.5rem, auto))`,
         }}
       >
         {cells.map(({ col, row }) => {

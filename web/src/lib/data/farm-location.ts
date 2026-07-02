@@ -100,15 +100,9 @@ export async function getFarmLocations(): Promise<FarmLocationRow[]> {
   }
 
   if (process.env.NODE_ENV === "development") {
-    const { fetchFarmOverviewRows } = await import("@/lib/data/iot-live-fetch");
-    const rows = await fetchFarmOverviewRows();
-    return rows
-      .map((r) =>
-        synthesizeDevLocation({
-          lsindRegistNo: r.lsind_regist_no,
-          itemCode: r.item_code,
-        }),
-      )
+    const { devSimFarmKeys } = await import("@/lib/data/admin-hub-live");
+    return devSimFarmKeys()
+      .map((farmKey) => synthesizeDevLocation(farmKey))
       .sort((a, b) => compareFarmKey(a.farmKey, b.farmKey));
   }
 

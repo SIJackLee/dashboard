@@ -79,7 +79,7 @@ export function SliderThumbLabel({
   );
 }
 
-/** triple: 위 설정온도 · 아래 ±편차 · dual: 라벨 위 트랙 아래 */
+/** dual: 라벨 위 트랙 아래 (온도·환기·알람 공통) */
 export function sliderTrackShellClass(
   compact?: boolean,
   layout: SliderTrackLayout = "dual",

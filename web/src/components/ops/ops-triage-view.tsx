@@ -1,24 +1,21 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ControllerPanelFace } from "@/components/controllers/controller-panel-face";
 import {
   HierarchyAlarmTree,
   type ControllerSelectPayload,
 } from "@/components/ops/hierarchy-alarm-tree";
 import { SectionCard } from "@/components/common/section-card";
-import type { AlarmThresholdHeaderState } from "@/components/settings/alarm-threshold-form";
 import type { ControllerReading } from "@/lib/data/iot";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { buildControllerHref } from "@/lib/auth/farm-access";
+import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
 import type { FarmLocationRow } from "@/lib/data/farm-location";
 import type { ThermoCommand } from "@/lib/data/commands";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
-import { resolveThermoSettings } from "@/lib/controllers/controller-settings";
-import type { ChannelSlot } from "@/lib/data/iot-channel";
 import {
   appendFarmKeyParams,
   farmKeyId,
@@ -37,12 +34,20 @@ import {
 } from "@/lib/data/reading-hierarchy";
 import { formatStallTypeLabel, normalizeStallTyCode } from "@/lib/data/stall-type";
 import { farmShortLabel, type FarmSummaryRow } from "@/lib/data/farm-summaries";
-import { useControllerDetail } from "@/components/controllers/use-controller-detail";
 import { setMonitoringTabParam } from "@/lib/monitoring/monitoring-tabs";
 import {
   buildHubTriageFarms,
   pickWorstControllerPayload,
 } from "@/lib/monitoring/hub-triage-queue";
+import {
+  filterLayoutPrefsForFarm,
+  hubPhaseFromSido,
+  isGeoHubFarmGridUrl,
+  shouldHubMapMini,
+  shouldHubStackListUnderMap,
+  type HubBarnLayoutPrefs,
+  type HubViewPhase,
+} from "@/lib/monitoring/hub-view-state";
 import {
   buildSpNavQueue,
   buildSpTriageQueue,
@@ -50,12 +55,14 @@ import {
   pickReadingForSp,
 } from "@/components/ops/ops-mobile-sp-overview";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
-import { formatControllerPillLabel } from "@/lib/ui/controller-labels";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 import { OpsMobileAlarmStrip } from "@/components/ops/ops-mobile-alarm-strip";
 import { OpsMobileSplitHub } from "@/components/ops/ops-mobile-split-hub";
-import { OpsMobileSplitShell } from "@/components/ops/ops-mobile-split-shell";
+import {
+  OpsMobileFarmGridOnly,
+  OpsMobileSplitShell,
+} from "@/components/ops/ops-mobile-split-shell";
 
 const AdminFarmOverview = dynamic(
   () =>
@@ -80,16 +87,15 @@ const AdminControllerPlaceholderClient = dynamic(
   { ssr: false }
 );
 
-const AlarmThresholdForm = dynamic(
+const AdminHubFarmMapPanel = dynamic(
   () =>
-    import("@/components/settings/alarm-threshold-form").then(
-      (m) => m.AlarmThresholdForm
+    import("@/components/admin/admin-hub-farm-map-panel").then(
+      (m) => m.AdminHubFarmMapPanel
     ),
   {
+    ssr: false,
     loading: () => (
-      <div className={cn("text-muted-foreground", dashboardUi.body)}>
-        알람 설정 불러오는 중…
-      </div>
+      <div className="min-h-[8rem] animate-pulse rounded-xl border bg-muted/15" />
     ),
   }
 );
@@ -126,12 +132,15 @@ export type OpsTriageViewProps = {
     farmSummaries: FarmSummaryRow[];
     locations: FarmLocationRow[];
   };
+  /** farmer형 4×4 — profiles.ui_config barnLayouts */
+  barnLayoutPrefs?: HubBarnLayoutPrefs;
 };
 
 function filterBySido<T extends { farmKey: FarmKey }>(
   rows: T[],
   locations: FarmLocationRow[],
-  activeSido: string | null
+  activeSido: string | null,
+  preserveFarmId?: string | null
 ): T[] {
   if (!activeSido) return rows;
   const allowed = new Set(
@@ -139,7 +148,13 @@ function filterBySido<T extends { farmKey: FarmKey }>(
       .filter((l) => l.sido === activeSido)
       .map((l) => farmKeyId(l.farmKey))
   );
-  return rows.filter((r) => allowed.has(farmKeyId(r.farmKey)));
+  const filtered = rows.filter((r) => allowed.has(farmKeyId(r.farmKey)));
+  if (filtered.length > 0) return filtered;
+  if (preserveFarmId) {
+    const kept = rows.filter((r) => farmKeyId(r.farmKey) === preserveFarmId);
+    if (kept.length > 0) return kept;
+  }
+  return rows;
 }
 
 function uniqueFarmOptions(readings: ControllerReading[]): Option[] {
@@ -276,6 +291,7 @@ function OpsTriageViewBody({
   alarmSettings,
   settingsNotice = null,
   geoHub,
+  barnLayoutPrefs,
 }: OpsTriageViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -284,7 +300,55 @@ function OpsTriageViewBody({
     "left" | "right" | null
   >(null);
   const geoHubMode = Boolean(geoHub);
+  const initialUrlFarmKey = parseFarmKeyFromQuery(initialLsind, initialItem);
+  const initialUrlFarmId = initialUrlFarmKey
+    ? farmKeyId(initialUrlFarmKey)
+    : undefined;
+  const initialGeoHubFarmGridUrl = isGeoHubFarmGridUrl(
+    geoHubMode,
+    initialUrlFarmId,
+    initialCtrl,
+    initialSp,
+    initialStall
+  );
   const [activeSido, setActiveSido] = useState<string | null>(null);
+  const [hubPhase, setHubPhase] = useState<HubViewPhase>(() =>
+    initialGeoHubFarmGridUrl ? "farm" : "overview"
+  );
+  const [hubFarmId, setHubFarmId] = useState<string | null>(() =>
+    initialGeoHubFarmGridUrl ? (initialUrlFarmId ?? null) : null
+  );
+  const mapMini = shouldHubMapMini(hubPhase, !isMobile);
+  const stackListUnderMap = shouldHubStackListUnderMap(mapMini, !isMobile);
+  const hubLayoutPrefs = barnLayoutPrefs ?? { layouts: {}, aliases: {} };
+
+  const handleSelectSido = useCallback((sido: string | null) => {
+    setActiveSido(sido);
+    setHubPhase(hubPhaseFromSido(sido));
+    if (sido) {
+      setHubFarmId(null);
+    }
+  }, []);
+
+  const handleMapExpand = useCallback(() => {
+    setActiveSido(null);
+    setHubPhase("overview");
+    setHubFarmId(null);
+    setFarmId("");
+    setSpCode("");
+    setStallKey("");
+    setControllerKey("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("lsind");
+    params.delete("item");
+    params.delete("sp");
+    params.delete("stall");
+    params.delete("ctrl");
+    params.delete("alarm");
+    params.set("tab", "ops");
+    params.delete("hub");
+    router.replace(`/farm?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
 
   const urlFarmKey = parseFarmKeyFromQuery(
     searchParams.get("lsind") ?? initialLsind,
@@ -297,6 +361,13 @@ function OpsTriageViewBody({
   const urlAlarm = searchParams.get("alarm") ?? initialAlarm;
   const hubPickerMode = geoHubMode && !urlFarmId;
   const adminAllNoFarm = isAdmin && !urlFarmId && !geoHubMode;
+  const geoHubFarmGridUrl = isGeoHubFarmGridUrl(
+    geoHubMode,
+    urlFarmId,
+    urlCtrl,
+    urlSp,
+    urlStall
+  );
 
   const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
 
@@ -306,12 +377,14 @@ function OpsTriageViewBody({
 
   const [spCode, setSpCode] = useState(() => {
     if (hubPickerMode || adminAllNoFarm) return "";
+    if (geoHubFarmGridUrl) return "";
     const f = pickInitial(farmOptions, urlFarmId);
     return pickInitialSp(spOptionsForFarm(readings, f), urlSp ?? undefined);
   });
 
   const [stallKey, setStallKey] = useState(() => {
     if (hubPickerMode || adminAllNoFarm) return "";
+    if (geoHubFarmGridUrl) return "";
     const f = pickInitial(farmOptions, urlFarmId);
     const sp = pickInitial(spOptionsForFarm(readings, f), urlSp);
     return pickInitialStall(readings, f, sp, urlStall ?? undefined, urlCtrl);
@@ -324,6 +397,7 @@ function OpsTriageViewBody({
 
   const [controllerKey, setControllerKey] = useState(() => {
     if (hubPickerMode || adminAllNoFarm) return "";
+    if (geoHubFarmGridUrl) return "";
     const f = pickInitial(farmOptions, urlFarmId);
     const sp = pickInitial(spOptionsForFarm(readings, f), urlSp);
     const stall = pickInitialStall(readings, f, sp, urlStall ?? undefined, urlCtrl);
@@ -333,54 +407,16 @@ function OpsTriageViewBody({
     );
   });
 
-  const [activeChannel, setActiveChannel] = useState<ChannelSlot>("A");
-  const [thresholdHeader, setThresholdHeader] =
-    useState<AlarmThresholdHeaderState | null>(null);
-
   const selectedFarmKey = useMemo((): FarmKey | undefined => {
     const hit = readings.find((r) => farmKeyId(r.farmKey) === farmId);
     return hit?.farmKey;
   }, [readings, farmId]);
 
-  const selected =
-    controllerList.find((r) => r.key === controllerKey) ?? controllerList[0];
-
-  const { reading: selectedDetail, loading: detailLoading } =
-    useControllerDetail(selected);
-
-  const selectedSettings = useMemo(
-    () =>
-      resolveThermoSettings(
-        thermoSettings,
-        selectedFarmKey,
-        selectedDetail?.moduleUid,
-        selectedDetail?.controllerKey,
-        selectedDetail?.channels?.length ? activeChannel : undefined
-      ),
-    [
-      thermoSettings,
-      selectedFarmKey,
-      selectedDetail?.moduleUid,
-      selectedDetail?.controllerKey,
-      selectedDetail?.channels?.length,
-      activeChannel,
-    ]
-  );
-
-  const latestCommand = useMemo(() => {
-    if (!selectedDetail || !selectedFarmKey) return null;
-    return (
-      commands.find(
-        (c) =>
-          farmKeyId(c.farmKey) === farmKeyId(selectedFarmKey) &&
-          c.moduleUid === selectedDetail.moduleUid &&
-          c.controllerKey === selectedDetail.controllerKey &&
-          (selectedDetail.channels?.length
-            ? c.channel === activeChannel
-            : !c.channel)
-      ) ?? null
-    );
-  }, [commands, selectedDetail, selectedFarmKey, activeChannel]);
+  const selected = controllerKey
+    ? controllerList.find((r) => r.key === controllerKey)
+    : geoHubMode && hubFarmId
+      ? undefined
+      : controllerList[0];
 
   const globalAlarms = useMemo(() => {
     const severityRank = (a: AlarmRow) => {
@@ -397,18 +433,33 @@ function OpsTriageViewBody({
 
   const hubFarmSummaries = useMemo(() => {
     if (!geoHub) return farmSummaries;
-    return filterBySido(geoHub.farmSummaries, geoHub.locations, activeSido);
-  }, [geoHub, farmSummaries, activeSido]);
+    return filterBySido(
+      geoHub.farmSummaries,
+      geoHub.locations,
+      activeSido,
+      hubFarmId ?? urlFarmId ?? null
+    );
+  }, [geoHub, farmSummaries, activeSido, hubFarmId, urlFarmId]);
 
   const hubReadings = useMemo(() => {
     if (!geoHub) return readings;
-    return filterBySido(readings, geoHub.locations, activeSido);
-  }, [geoHub, readings, activeSido]);
+    return filterBySido(
+      readings,
+      geoHub.locations,
+      activeSido,
+      hubFarmId ?? urlFarmId ?? null
+    );
+  }, [geoHub, readings, activeSido, hubFarmId, urlFarmId]);
 
   const hubAlarms = useMemo(() => {
     if (!geoHub) return globalAlarms;
-    return filterBySido(globalAlarms, geoHub.locations, activeSido);
-  }, [geoHub, globalAlarms, activeSido]);
+    return filterBySido(
+      globalAlarms,
+      geoHub.locations,
+      activeSido,
+      hubFarmId ?? urlFarmId ?? null
+    );
+  }, [geoHub, globalAlarms, activeSido, hubFarmId, urlFarmId]);
 
   const triageFarms = useMemo(
     () => buildHubTriageFarms(hubAlarms, hubReadings, hubFarmSummaries),
@@ -460,16 +511,6 @@ function OpsTriageViewBody({
     return ids.size;
   }, [readings, farmSummaries, geoHub, hubReadings, hubFarmSummaries]);
 
-  const thresholdScope = useMemo(() => {
-    if (!selected || !farmId || !spCode || !stallKey) return null;
-    return {
-      farmId,
-      spCode,
-      stallKey,
-      readingKey: selected.key,
-    };
-  }, [selected, farmId, spCode, stallKey]);
-
   const syncUrl = (
     fk: FarmKey | undefined,
     sp: string,
@@ -509,7 +550,10 @@ function OpsTriageViewBody({
     setSpCode(payload.spCode);
     setStallKey(payload.stallKey);
     setControllerKey(payload.readingKey);
-    setActiveChannel("A");
+    if (geoHubMode) {
+      setHubFarmId(farmKeyId(payload.farmKey));
+      setHubPhase("drill");
+    }
     syncUrl(
       payload.farmKey,
       payload.spCode,
@@ -518,6 +562,33 @@ function OpsTriageViewBody({
       alarmId ?? null
     );
   };
+
+  const navigateToHubFarm = useCallback(
+    (targetFarmId: string) => {
+      const farmKey =
+        hubReadings.find((r) => farmKeyId(r.farmKey) === targetFarmId)?.farmKey ??
+        hubFarmSummaries.find((s) => farmKeyId(s.farmKey) === targetFarmId)
+          ?.farmKey;
+      if (!farmKey) return;
+
+      setHubFarmId(targetFarmId);
+      setHubPhase("farm");
+      setFarmId(targetFarmId);
+      setSpCode("");
+      setStallKey("");
+      setControllerKey("");
+      syncUrl(farmKey, "", "", undefined, null);
+    },
+    [hubReadings, hubFarmSummaries, searchParams, router, geoHubMode]
+  );
+
+  const handleHubFarmSelect = useCallback(
+    (targetFarmId: string) => {
+      if (!geoHubMode) return;
+      navigateToHubFarm(targetFarmId);
+    },
+    [geoHubMode, navigateToHubFarm]
+  );
 
   const navigateToAlarm = (alarm: AlarmRow) => {
     const targetFarmId = farmKeyId(alarm.farmKey);
@@ -545,7 +616,6 @@ function OpsTriageViewBody({
     setFarmId(targetFarmId);
     setSpCode(sp);
     setStallKey(stall);
-    setActiveChannel("A");
 
     router.replace(
       buildControllerHref({
@@ -563,6 +633,10 @@ function OpsTriageViewBody({
   const goTriageFarmAt = (index: number) => {
     const farm = triageFarms[index];
     if (!farm) return;
+    if (geoHubMode && isMobile && !controllerKey) {
+      navigateToHubFarm(farm.farmId);
+      return;
+    }
     const payload = pickWorstControllerPayload(
       hubAlarms,
       hubReadings,
@@ -586,10 +660,14 @@ function OpsTriageViewBody({
   };
 
   const handleMapFarmSelect = (targetFarmId: string) => {
-    if (!geoHubMode || !isMobile || targetFarmId === farmId) return;
+    if (!geoHubMode || !isMobile) return;
+    if (targetFarmId === hubFarmId) return;
 
     const newIdx = triageFarms.findIndex((f) => f.farmId === targetFarmId);
-    const oldIdx = triageIndex;
+    const prevFarmId = hubFarmId || farmId;
+    const oldIdx = prevFarmId
+      ? triageFarms.findIndex((f) => f.farmId === prevFarmId)
+      : triageIndex;
     if (newIdx >= 0 && oldIdx >= 0 && newIdx !== oldIdx) {
       setNavSweepDirection(newIdx > oldIdx ? "left" : "right");
     } else if (newIdx >= 0) {
@@ -598,32 +676,31 @@ function OpsTriageViewBody({
       setNavSweepDirection("left");
     }
 
-    const summary = hubFarmSummaries.find(
-      (s) => farmKeyId(s.farmKey) === targetFarmId
-    );
-    const reading = hubReadings.find(
-      (r) => farmKeyId(r.farmKey) === targetFarmId
-    );
-    const farmKey = summary?.farmKey ?? reading?.farmKey;
-    if (!farmKey) return;
-
-    const payload = pickWorstControllerPayload(
-      hubAlarms,
-      hubReadings,
-      farmKey
-    );
-    if (payload) navigateToController(payload);
-
+    navigateToHubFarm(targetFarmId);
     window.setTimeout(() => setNavSweepDirection(null), 280);
   };
 
-  const splitHubFarmLabel =
-    activeTriageFarm?.label ??
-    (selectedFarmKey
-      ? farmShortLabel(selectedFarmKey)
-      : hubFarmSummaries[0]
-        ? farmShortLabel(hubFarmSummaries[0].farmKey)
-        : "농장 없음");
+  const splitHubFarmLabel = (() => {
+    if (hubFarmId) {
+      const fromReading = hubReadings.find(
+        (r) => farmKeyId(r.farmKey) === hubFarmId
+      )?.farmKey;
+      const fromSummary = hubFarmSummaries.find(
+        (s) => farmKeyId(s.farmKey) === hubFarmId
+      )?.farmKey;
+      const fk = fromReading ?? fromSummary;
+      if (fk) return farmShortLabel(fk);
+    }
+    if (urlFarmKey) return farmShortLabel(urlFarmKey);
+    return (
+      activeTriageFarm?.label ??
+      (selectedFarmKey
+        ? farmShortLabel(selectedFarmKey)
+        : hubFarmSummaries[0]
+          ? farmShortLabel(hubFarmSummaries[0].farmKey)
+          : "농장 없음")
+    );
+  })();
 
   const splitHubPositionLabel =
     triageFarms.length > 0
@@ -701,51 +778,6 @@ function OpsTriageViewBody({
     });
   };
 
-  const renderAlarmSettingsPanel = (mobileSplit: boolean) =>
-    alarmSettingsAvailable && thresholdScope && alarmSettings ? (
-      <AlarmThresholdForm
-        key={`${thresholdScope.readingKey}-${mobileSplit ? "m" : "d"}`}
-        initialSettings={alarmSettings}
-        readings={readings}
-        fixedScope={thresholdScope}
-        embedded
-        density={mobileSplit ? "mobileSplit" : "default"}
-        onHeaderState={setThresholdHeader}
-      />
-    ) : null;
-
-  const renderControllerPanel = (mobileSplit: boolean) => (
-    <div
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-      data-audit-region="ops-controller-panel"
-    >
-      <ControllerPanelFace
-        key={`${selectedDetail?.key ?? "none"}-${activeChannel}-${mobileSplit ? "m" : "d"}`}
-        reading={selectedDetail}
-        detailLoading={detailLoading}
-        knownSettings={selectedSettings}
-        latestCommand={latestCommand}
-        canCommand={canCommand}
-        controllerList={controllerList}
-        selectedControllerKey={selected?.key}
-        onControllerSelect={handleControllerSelect}
-        hideControllerList
-        activeChannel={activeChannel}
-        onChannelChange={setActiveChannel}
-        spLabel={
-          selectedDetail
-            ? `${formatStallTypeLabel(normalizeStallTyCode(selectedDetail.stallTyCode))} · ${stallLabelFromKey(stallKeyFromReading(selectedDetail))}`
-            : stallKey
-              ? `${formatStallTypeLabel(spCode)} · ${stallLabelFromKey(stallKey)}`
-              : formatStallTypeLabel(spCode)
-        }
-        alarmThresholdHeader={thresholdHeader}
-        alarmSettingsPanel={renderAlarmSettingsPanel(mobileSplit)}
-        mobileSplit={mobileSplit}
-      />
-    </div>
-  );
-
   useEffect(() => {
     if (!urlAlarm) return;
     const alarm = alarms.find((a) => a.id === urlAlarm);
@@ -782,33 +814,15 @@ function OpsTriageViewBody({
     if (!geoHubMode || autoTriageBooted.current) return;
     autoTriageBooted.current = true;
     if (urlFarmId && controllerKey) return;
-    if (urlFarmId && !controllerKey) {
-      const farmKey = hubReadings.find(
-        (r) => farmKeyId(r.farmKey) === urlFarmId
-      )?.farmKey;
-      if (farmKey) {
-        const payload = pickWorstControllerPayload(
-          hubAlarms,
-          hubReadings,
-          farmKey
-        );
-        if (payload) navigateToController(payload);
-      }
+    if (
+      isGeoHubFarmGridUrl(geoHubMode, urlFarmId, urlCtrl, urlSp, urlStall)
+    ) {
+      setHubFarmId(urlFarmId!);
+      setHubPhase("farm");
+      setFarmId(urlFarmId!);
       return;
     }
-    if (triageFarms.length > 0) {
-      goTriageFarmAt(0);
-      return;
-    }
-    const firstSummary = hubFarmSummaries[0];
-    if (firstSummary) {
-      const payload = pickWorstControllerPayload(
-        hubAlarms,
-        hubReadings,
-        firstSummary.farmKey
-      );
-      if (payload) navigateToController(payload);
-    }
+    // bare /farm?tab=ops — overview 유지 (자동 drill 금지)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- geo hub triage bootstrap once
   }, [geoHubMode, triageFarms.length, hubFarmSummaries.length, urlFarmId, controllerKey]);
 
@@ -847,9 +861,24 @@ function OpsTriageViewBody({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- farmer sp bootstrap once
   }, [geoHubMode, spTriageQueue.length, controllerKey, readings.length]);
 
+  const showHubFarmMap = geoHubMode && Boolean(hubFarmId);
+
   const showAdminPlaceholder = geoHubMode
-    ? !controllerKey
+    ? !hubFarmId
     : adminAllNoFarm && !farmId;
+
+  const activeMapFarmId = geoHubMode ? hubFarmId : farmId || null;
+
+  const hubControllerBundle = useMemo(
+    (): ControllerGridData => ({
+      readings,
+      thermoSettings,
+      commands: commands ?? [],
+      canCommand,
+      alarmSettings,
+    }),
+    [readings, thermoSettings, commands, canCommand, alarmSettings]
+  );
 
   const scopedMobileFarmReadings = useMemo(() => {
     if (!farmId) return readings;
@@ -907,8 +936,10 @@ function OpsTriageViewBody({
       </div>
     );
 
-  const mobileFarmPicker =
-    geoHubMode && isMobile && (hubPickerMode || showAdminPlaceholder) ? (
+  const showMobileHubPicker =
+    geoHubMode && isMobile && !hubFarmId;
+
+  const mobileFarmPicker = showMobileHubPicker ? (
       <div className="flex min-h-0 flex-col gap-2">
         <p className="px-2 text-xs font-semibold text-muted-foreground">
           농장목록 · 축사 · 컨트롤러
@@ -920,14 +951,12 @@ function OpsTriageViewBody({
             farmSummaries={hubFarmSummaries}
             selectedControllerKey={selected?.key}
             onControllerSelect={(payload) => navigateToController(payload)}
+            selectedFarmId={hubFarmId}
+            onFarmSelect={handleHubFarmSelect}
           />
         </div>
       </div>
     ) : null;
-
-  const adminMobileSpPicker = geoHubMode ? mobileSpPicker : null;
-
-  const alarmSettingsAvailable = Boolean(thresholdScope && alarmSettings);
 
   const farmListColumn = (
     <SectionCard
@@ -936,7 +965,9 @@ function OpsTriageViewBody({
       description={
         showAdminPlaceholder
           ? "농장·축사·컨트롤러를 펼친 뒤 선택하세요"
-          : farmScopeCount > 0 || hubAlarms.length > 0
+          : showHubFarmMap
+            ? "우측 · farmer형 농장 지도"
+            : farmScopeCount > 0 || hubAlarms.length > 0
             ? [
                 farmScopeCount > 0 ? `${farmScopeCount}개 농장` : null,
                 hubAlarms.length > 0 ? `${hubAlarms.length}건 알람` : null,
@@ -958,6 +989,8 @@ function OpsTriageViewBody({
           farmSummaries={hubFarmSummaries}
           selectedControllerKey={selected?.key}
           onControllerSelect={(payload) => navigateToController(payload)}
+          selectedFarmId={geoHubMode && !isMobile ? hubFarmId : null}
+          onFarmSelect={geoHubMode && !isMobile ? handleHubFarmSelect : undefined}
         />
       </div>
     </SectionCard>
@@ -969,7 +1002,9 @@ function OpsTriageViewBody({
       farms={geoHub.farmSummaries}
       locations={geoHub.locations}
       activeSido={activeSido}
-      onSelectSido={setActiveSido}
+      onSelectSido={handleSelectSido}
+      variant={mapMini ? "mini" : "full"}
+      onExpand={mapMini ? handleMapExpand : undefined}
       focusFarmId={geoHubMode && isMobile ? farmId || null : null}
       onSelectFarm={geoHubMode && isMobile ? handleMapFarmSelect : undefined}
     />
@@ -977,8 +1012,14 @@ function OpsTriageViewBody({
 
 
   const opsTriageGridClass = geoHubMode
-    ? "max-lg:hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:min-h-[360px] lg:grid-cols-[minmax(300px,24%)_minmax(260px,18%)_minmax(560px,1fr)] lg:items-stretch lg:overflow-hidden"
-    : "max-lg:hidden gap-4 lg:grid lg:h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-9rem)] lg:grid-cols-[minmax(400px,28%)_minmax(0,1fr)] lg:items-stretch lg:overflow-hidden";
+    ? cn(
+        "max-md:hidden gap-4 md:grid md:h-[calc(100vh-9rem)] md:max-h-[calc(100vh-9rem)] md:min-h-[360px] md:items-stretch md:overflow-hidden",
+        "transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+        stackListUnderMap
+          ? "md:grid-cols-[minmax(280px,28%)_minmax(0,1fr)] lg:grid-cols-[minmax(300px,26%)_minmax(560px,1fr)]"
+          : "md:grid-cols-[minmax(260px,26%)_minmax(220px,24%)_minmax(0,1fr)] lg:grid-cols-[minmax(280px,22%)_minmax(240px,20%)_minmax(480px,1fr)]"
+      )
+    : "max-md:hidden gap-4 md:grid md:h-[calc(100vh-9rem)] md:max-h-[calc(100vh-9rem)] md:grid-cols-[minmax(400px,28%)_minmax(0,1fr)] md:items-stretch md:overflow-hidden";
 
   const columnShellClass =
     "max-h-[calc(100vh-9rem)] min-h-[360px] min-w-0 overflow-hidden";
@@ -988,23 +1029,79 @@ function OpsTriageViewBody({
     "flex h-full min-h-0 flex-col overflow-hidden"
   );
 
+  const hubLeftRailClass = cn(
+    columnScrollShellClass,
+    stackListUnderMap && "flex flex-col gap-2"
+  );
+
   const mapColumnShellClass = geoHubMode
-    ? cn(columnScrollShellClass, "self-stretch")
+    ? stackListUnderMap
+      ? "shrink-0 self-start min-h-0 w-full overflow-hidden"
+      : cn(columnScrollShellClass, mapMini ? "self-start" : "self-stretch")
     : columnScrollShellClass;
 
+  const listStackShellClass = cn(
+    "min-h-0 flex-1 overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+    stackListUnderMap
+      ? "max-h-full translate-y-0 opacity-100"
+      : "pointer-events-none max-h-0 opacity-0"
+  );
+
   const controllerColumnShellClass = columnScrollShellClass;
+
+  const opsControllerBundle = hubControllerBundle;
+
+  const renderFarmMapPanel = (embedded = false) =>
+    activeMapFarmId ? (
+      <AdminHubFarmMapPanel
+        farmId={activeMapFarmId}
+        readings={readings}
+        layoutPrefs={hubLayoutPrefs}
+        controller={opsControllerBundle}
+        embedded={embedded}
+        deepLinkSp={controllerKey ? spCode : null}
+        deepLinkStallNo={controllerKey ? stallKey : null}
+      />
+    ) : null;
 
   const controllerColumn = showAdminPlaceholder ? (
     <AdminControllerPlaceholderClient />
   ) : (
-    renderControllerPanel(false)
+    renderFarmMapPanel(false) ?? <AdminControllerPlaceholderClient />
   );
 
   const mobileSplitControl = showAdminPlaceholder ? (
     <AdminControllerPlaceholderClient />
+  ) : geoHubMode && hubFarmId ? (
+    <p className={cn("py-8 text-center text-muted-foreground", dashboardUi.body)}>
+      상단 축사 카드를 선택하면 그래프·컨트롤러를 바로 열 수 있습니다.
+    </p>
   ) : (
-    renderControllerPanel(true)
+    renderFarmMapPanel(true) ?? (
+      <p className={cn("py-8 text-center text-muted-foreground", dashboardUi.body)}>
+        농장을 선택하면 in-grid 컨트롤러를 사용할 수 있습니다.
+      </p>
+    )
   );
+
+  const mobileHubTopPanel =
+    showHubFarmMap && hubFarmId ? (
+      <AdminHubFarmMapPanel
+        farmId={hubFarmId}
+        readings={readings}
+        layoutPrefs={hubLayoutPrefs}
+        controller={hubControllerBundle}
+        embedded
+        deepLinkSp={controllerKey ? spCode : null}
+        deepLinkStallNo={controllerKey ? stallKey : null}
+      />
+    ) : (
+      mapColumn
+    );
+
+  const mobileHubTopVariant = showHubFarmMap ? ("grid" as const) : ("map" as const);
+  const mobileHubTopMapCompact =
+    !showHubFarmMap && hubPhase === "region";
 
   return (
     <>
@@ -1022,11 +1119,22 @@ function OpsTriageViewBody({
         </p>
       ) : null}
 
-      <div className={opsTriageGridClass}>
+      <div
+        className={opsTriageGridClass}
+        data-audit-region="ops-hub-desktop-grid"
+        data-audit-stack={stackListUnderMap ? "1" : "0"}
+      >
         {geoHubMode ? (
-          <div className={mapColumnShellClass}>{mapColumn}</div>
+          <div className={hubLeftRailClass}>
+            <div className={mapColumnShellClass}>{mapColumn}</div>
+            {stackListUnderMap ? (
+              <div className={listStackShellClass}>{farmListColumn}</div>
+            ) : null}
+          </div>
         ) : null}
-        <div className={columnScrollShellClass}>{farmListColumn}</div>
+        {!stackListUnderMap ? (
+          <div className={columnScrollShellClass}>{farmListColumn}</div>
+        ) : null}
         <div
           className={cn(
             controllerColumnShellClass,
@@ -1037,32 +1145,55 @@ function OpsTriageViewBody({
         </div>
       </div>
 
-      <div className="lg:hidden">
+      <div className="md:hidden">
         {geoHubMode ? (
-          <OpsMobileSplitHub
-            farmLabel={splitHubFarmLabel}
-            positionLabel={splitHubPositionLabel}
-            alarmHint={
-              activeTriageFarm && activeTriageFarm.alarmCount > 0
-                ? `${activeTriageFarm.alarmCount}건 알람`
-                : undefined
-            }
-            hasPrev={triageFarms.length > 1}
-            hasNext={triageFarms.length > 1}
-            onPrev={goPrevTriageFarm}
-            onNext={goNextTriageFarm}
-            map={mapColumn}
-            control={mobileSplitControl}
-            headerSlot={mobileSplitHeader}
-            midPanel={adminMobileSpPicker}
-            {...mobileScopePills}
-            controllerList={controllerList}
-            selectedControllerKey={selected?.key}
-            onControllerSelect={handleControllerSelect}
-            placeholder={showAdminPlaceholder}
-            pickerPanel={mobileFarmPicker}
-            navSweepDirection={navSweepDirection}
-          />
+          showHubFarmMap && hubFarmId ? (
+            <OpsMobileFarmGridOnly
+              title={splitHubFarmLabel}
+              subtitle={[splitHubPositionLabel, activeTriageFarm && activeTriageFarm.alarmCount > 0 ? `${activeTriageFarm.alarmCount}건 알람` : null]
+                .filter(Boolean)
+                .join(" · ")}
+              nav={
+                triageFarms.length > 1
+                  ? {
+                      hasPrev: true,
+                      hasNext: true,
+                      onPrev: goPrevTriageFarm,
+                      onNext: goNextTriageFarm,
+                    }
+                  : undefined
+              }
+              headerSlot={mobileSplitHeader}
+              grid={mobileHubTopPanel}
+              navSweepDirection={navSweepDirection}
+            />
+          ) : (
+            <OpsMobileSplitHub
+              farmLabel={splitHubFarmLabel}
+              positionLabel={splitHubPositionLabel}
+              alarmHint={
+                activeTriageFarm && activeTriageFarm.alarmCount > 0
+                  ? `${activeTriageFarm.alarmCount}건 알람`
+                  : undefined
+              }
+              hasPrev={triageFarms.length > 1}
+              hasNext={triageFarms.length > 1}
+              onPrev={goPrevTriageFarm}
+              onNext={goNextTriageFarm}
+              map={mobileHubTopPanel}
+              topVariant={mobileHubTopVariant}
+              topMapCompact={mobileHubTopMapCompact}
+              control={
+                showAdminPlaceholder ? (
+                  <AdminControllerPlaceholderClient />
+                ) : null
+              }
+              headerSlot={mobileSplitHeader}
+              placeholder={showAdminPlaceholder}
+              pickerPanel={mobileFarmPicker}
+              navSweepDirection={navSweepDirection}
+            />
+          )
         ) : (
           <OpsMobileSplitShell
             title={farmerSplitTitle}

@@ -353,66 +353,7 @@
     cursor: grab;
   }
 
-  /* 컨트롤러 설정온도 — triple-thumb (중앙=설정, 좌·우=편차) */
-  .threshold-triple-range {
-    -webkit-appearance: none;
-    appearance: none;
-    margin: 0;
-    pointer-events: none;
-  }
-
-  .threshold-triple-range::-webkit-slider-runnable-track,
-  .threshold-triple-range::-moz-range-track {
-    height: 0.75rem;
-    background: transparent;
-  }
-
-  .threshold-triple-range-edge::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    pointer-events: auto;
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-top: -0.25rem;
-    border-radius: 9999px;
-    background: oklch(0.72 0.14 55);
-    border: 2px solid var(--background);
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
-    cursor: grab;
-  }
-
-  .threshold-triple-range-center::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    pointer-events: auto;
-    width: 1.625rem;
-    height: 1.625rem;
-    margin-top: -0.4375rem;
-    border-radius: 9999px;
-    background: var(--primary);
-    border: 3px solid var(--background);
-    box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
-    cursor: grab;
-  }
-
-  .threshold-triple-range-edge::-moz-range-thumb {
-    pointer-events: auto;
-    width: 1.25rem;
-    height: 1.25rem;
-    border: 2px solid var(--background);
-    border-radius: 9999px;
-    background: oklch(0.72 0.14 55);
-    cursor: grab;
-  }
-
-  .threshold-triple-range-center::-moz-range-thumb {
-    pointer-events: auto;
-    width: 1.625rem;
-    height: 1.625rem;
-    border: 3px solid var(--background);
-    border-radius: 9999px;
-    background: var(--primary);
-    box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
-    cursor: grab;
-  }
+  /* 컨트롤러 설정온도 — dual-thumb (좌=설정온도, 우=+편차) — threshold-dual-range 재사용 */
 }
 
 @keyframes health-dag-edge-flow {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useControllerMeta } from "@/components/controllers/controller-meta-provider";
 import type { AlarmRow } from "@/lib/data/alarms";
@@ -311,6 +312,9 @@ type Props = {
   farmSummaries?: FarmSummaryRow[];
   selectedControllerKey?: string;
   onControllerSelect: (payload: ControllerSelectPayload) => void;
+  /** 허브 — 농장 행 클릭 시 우측 farmer 지도 (chevron은 펼치기) */
+  selectedFarmId?: string | null;
+  onFarmSelect?: (farmId: string) => void;
 };
 
 /** 권한 내 농장목록 — L0 배경 채색, 축사 하위 컨트롤러 칩으로 제어 */
@@ -320,6 +324,8 @@ export function HierarchyAlarmTree({
   farmSummaries = [],
   selectedControllerKey,
   onControllerSelect,
+  selectedFarmId = null,
+  onFarmSelect,
 }: Props) {
   const { resolveName } = useControllerMeta();
   const tree = useMemo(
@@ -411,33 +417,76 @@ export function HierarchyAlarmTree({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" suppressHydrationWarning>
       {tree.map((farm) => {
         const farmId = farmKeyId(farm.farmKey);
         const farmOpen = expandedFarms.has(farmId);
-        const l0 = l0HealthChipClass(farmOpen, farm.healthTier);
+        const farmSelected = selectedFarmId === farmId;
+        const l0 = l0HealthChipClass(farmOpen || farmSelected, farm.healthTier);
 
         return (
           <section key={farmId} className="space-y-2">
-            <button
-              type="button"
-              onClick={() => toggleFarm(farmId)}
-              className={l0.chip}
-            >
-              <span className="min-w-0 flex-1 truncate whitespace-nowrap">
-                {farm.label}
-              </span>
-              <span
-                className={cn(
-                  "shrink-0 font-semibold",
-                  dashboardTypography.badge,
-                  l0.label
-                )}
+            {onFarmSelect ? (
+              <div className={cn(l0.chip, "flex items-stretch gap-0 p-0")}>
+                <button
+                  type="button"
+                  onClick={() => onFarmSelect(farmId)}
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-left",
+                    farmSelected && "bg-primary/10"
+                  )}
+                >
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap">
+                    {farm.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 font-semibold",
+                      dashboardTypography.badge,
+                      l0.label
+                    )}
+                  >
+                    {farmHealthTierLabel(farm.healthTier)}
+                  </span>
+                  <CountBadge count={farm.alarmCount} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleFarm(farmId)}
+                  aria-expanded={farmOpen}
+                  aria-label={`${farm.label} 축사 펼치기`}
+                  className="flex shrink-0 items-center border-l border-inherit px-2.5 py-2 text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "size-4 transition-transform",
+                      farmOpen && "rotate-90"
+                    )}
+                    aria-hidden
+                  />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggleFarm(farmId)}
+                className={l0.chip}
               >
-                {farmHealthTierLabel(farm.healthTier)}
-              </span>
-              <CountBadge count={farm.alarmCount} />
-            </button>
+                <span className="min-w-0 flex-1 truncate whitespace-nowrap">
+                  {farm.label}
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 font-semibold",
+                    dashboardTypography.badge,
+                    l0.label
+                  )}
+                >
+                  {farmHealthTierLabel(farm.healthTier)}
+                </span>
+                <CountBadge count={farm.alarmCount} />
+              </button>
+            )}
 
             {farmOpen ? (
               farm.sps.length === 0 ? (

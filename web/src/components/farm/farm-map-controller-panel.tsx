@@ -13,7 +13,7 @@ import {
   AlarmThresholdForm,
   type AlarmThresholdHeaderState,
 } from "@/components/settings/alarm-threshold-form";
-import { ControllerTempTripleSlider } from "@/components/controllers/controller-temp-triple-slider";
+import { ControllerTempDualSlider } from "@/components/controllers/controller-temp-dual-slider";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import { useControllerDetail } from "@/components/controllers/use-controller-detail";
 import { useControllerPanel } from "@/components/controllers/use-controller-panel";
@@ -399,12 +399,11 @@ export function FarmMapControllerPanel({
                   <p className="text-base font-medium">온도</p>
                   {panel.currentValues ? (
                     <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                      현재 {panel.currentValues.setpoint}℃ ±
-                      {panel.currentValues.deviation}℃
+                      현재 {panel.currentValues.setpoint}℃ +{panel.currentValues.deviation}℃
                     </span>
                   ) : null}
                 </div>
-                <ControllerTempTripleSlider
+                <ControllerTempDualSlider
                   setpoint={panel.sliderValues.setpoint}
                   deviation={panel.sliderValues.deviation}
                   disabled={controlsDisabled}

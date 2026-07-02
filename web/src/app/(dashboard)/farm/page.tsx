@@ -19,6 +19,13 @@ import {
 } from "@/lib/data/barn-map";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
 import { getLiveReadings } from "@/lib/data/iot";
+import {
+  discoverAdminHubFarmKeys,
+  fetchAdminHubLiveReadings,
+  loadAdminHubOverviewRows,
+  overviewRowsToFarmKeys,
+  resolveAdminHubFarmSummaries,
+} from "@/lib/data/admin-hub-live";
 import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
 import { mergeThermoSettingsMaps } from "@/lib/controllers/controller-settings";
 import { deriveAlarmsFromReadings, summarizeAlarms } from "@/lib/data/alarms";
@@ -138,19 +145,42 @@ export default async function FarmPage({
 
   /** Admin 전국 — 지도·농장목록·컨트롤러 가로 3열 허브 */
   if (isAdminMonitoringHub) {
-    const [shellCtx, history, commandThermoMap, readings, alarmSettings, farmLocations] =
-      await Promise.all([
-        getPageShellContext(shellParams),
-        getThermoCommandHistory(100),
-        getThermoSettingsMap(500),
-        getLiveReadings({}),
-        getAlarmSettings(),
-        getFarmLocations(),
-      ]);
+    const [
+      shellCtx,
+      history,
+      commandThermoMap,
+      alarmSettings,
+      farmLocations,
+      barnLayoutPrefs,
+      overviewRows,
+    ] = await Promise.all([
+      getPageShellContext(shellParams),
+      getThermoCommandHistory(100),
+      getThermoSettingsMap(500),
+      getAlarmSettings(),
+      getFarmLocations(),
+      getBarnLayoutPrefs(),
+      loadAdminHubOverviewRows(),
+    ]);
 
-    const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+    const hubFarmKeys = discoverAdminHubFarmKeys(
+      farmLocations,
+      shellCtx.farmOptions.length > 0
+        ? shellCtx.farmOptions
+        : overviewRowsToFarmKeys(overviewRows)
+    );
+    const readings = await fetchAdminHubLiveReadings(activeFarmKey, hubFarmKeys);
     const scopedReadings = filterReadingsByFarmKey(readings, null);
     const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
+    const hubFarmSummaries = resolveAdminHubFarmSummaries(
+      scopedReadings,
+      alarms,
+      overviewRows
+    );
+    const farmSummariesForHub =
+      hubFarmSummaries.length > 0 ? hubFarmSummaries : shellCtx.farmSummaries;
+
+    const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
     const alarmSummary = summarizeAlarms(alarms);
 
     const deviceNotices: Record<string, { tone: "ok" | "error"; text: string }> = {
@@ -187,14 +217,18 @@ export default async function FarmPage({
               thermoSettings={thermoSettings}
               isAdmin={isAdmin}
               adminAllFarms
-              farmSummaries={shellCtx.farmSummaries}
+              farmSummaries={farmSummariesForHub}
               adminFarmOptions={shellCtx.farmOptions}
               adminActiveFarmKey={shellCtx.activeFarmKey}
               alarmSettings={alarmSettings}
               settingsNotice={settingsNotice}
               geoHub={{
-                farmSummaries: shellCtx.farmSummaries,
+                farmSummaries: farmSummariesForHub,
                 locations: farmLocations,
+              }}
+              barnLayoutPrefs={{
+                layouts: barnLayoutPrefs.layouts,
+                aliases: barnLayoutPrefs.aliases,
               }}
             />
           </Suspense>,

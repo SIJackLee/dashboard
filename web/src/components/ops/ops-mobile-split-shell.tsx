@@ -42,6 +42,8 @@ type Props = {
   placeholder?: boolean;
   /** map | grid — 상단 패널 높이 비율 */
   topVariant?: "map" | "grid";
+  /** region 필터 등 — 지도 top 높이 축소 */
+  topMapCompact?: boolean;
   /** 외부(지도 등) 농장 선택 시 nav 스윕 방향 */
   navSweepDirection?: "left" | "right" | null;
 };
@@ -145,6 +147,44 @@ function OpsMobileSplitNav({
           <ChevronRight className="size-5" />
         </PageActionButton>
       ) : null}
+    </div>
+  );
+}
+
+/** Admin mobile — 농장 선택 후 in-grid 그리드만 (레거시 목록·컨트롤러 시트 없음) */
+export function OpsMobileFarmGridOnly({
+  title,
+  subtitle,
+  nav,
+  headerSlot,
+  grid,
+  navSweepDirection = null,
+}: {
+  title: string;
+  subtitle?: string;
+  nav?: NavProps;
+  headerSlot?: React.ReactNode;
+  grid: React.ReactNode;
+  navSweepDirection?: "left" | "right" | null;
+}) {
+  return (
+    <div
+      className="flex min-h-[calc(100dvh-10.5rem)] flex-col lg:hidden"
+      data-audit-region="ops-mobile-farm-grid-only"
+    >
+      {headerSlot ? <div className="shrink-0">{headerSlot}</div> : null}
+      <section className="shrink-0 rounded-xl border bg-muted/10 px-2 py-2">
+        <OpsMobileSplitNav
+          embedded
+          title={title}
+          subtitle={subtitle}
+          nav={nav}
+          sweepDirection={navSweepDirection}
+        />
+      </section>
+      <div className="mt-1 min-h-0 flex-1 overflow-hidden rounded-xl border bg-muted/10">
+        {grid}
+      </div>
     </div>
   );
 }
@@ -266,14 +306,17 @@ export function OpsMobileSplitShell({
   pickerPanel,
   placeholder,
   topVariant = "map",
+  topMapCompact = false,
   navSweepDirection = null,
 }: Props) {
   const topPanelClass =
     topVariant === "grid"
-      ? "shrink-0 overflow-visible"
-      : pickerPanel
-        ? "h-[min(28dvh,200px)] shrink-0 overflow-hidden"
-        : "h-[min(32dvh,240px)] shrink-0 overflow-hidden";
+      ? "max-h-[min(44dvh,360px)] min-h-[12rem] shrink-0 overflow-y-auto overflow-x-hidden"
+      : topMapCompact
+        ? "h-[min(24dvh,180px)] shrink-0 overflow-hidden"
+        : pickerPanel
+          ? "h-[min(28dvh,200px)] shrink-0 overflow-hidden"
+          : "h-[min(32dvh,240px)] shrink-0 overflow-hidden";
 
   const showStallSegment =
     stallOptions.length > 0 && Boolean(onStallSelect) && !placeholder;

@@ -24,6 +24,13 @@ import {
   fetchLiveReadings,
 } from "@/lib/data/iot-live-fetch";
 import {
+  discoverAdminHubFarmKeys,
+  fetchAdminHubLiveReadings,
+  loadAdminHubOverviewRows,
+  overviewRowsToFarmKeys,
+  resolveAdminHubFarmSummaries,
+} from "@/lib/data/admin-hub-live";
+import {
   getEditableFarmLocationOptions,
   getFarmLocations,
   type EditableFarmOption,
@@ -61,54 +68,68 @@ export const getPageShellContext = cache(
     const isAdmin = Boolean(user?.isAdmin);
 
     if (isAdmin && !activeFarmKey) {
-      const [overviewRows, farmSummaries] = await Promise.all([
-        fetchFarmOverviewRows(),
-        getFarmOverviewSummaries(),
-      ]);
-      const farmOptions = overviewRows.map((r) => ({
-        lsindRegistNo: r.lsind_regist_no,
-        itemCode: r.item_code,
-      }));
-
-      const totalControllers = overviewRows.reduce(
-        (s, r) => s + r.controller_count,
-        0,
+      const overviewRows = await loadAdminHubOverviewRows();
+      const hubFarmKeys = discoverAdminHubFarmKeys(
+        [],
+        overviewRowsToFarmKeys(overviewRows)
       );
-      const totalOffline = overviewRows.reduce(
-        (s, r) => s + r.offline_count,
-        0,
+      const readings = await fetchAdminHubLiveReadings(null, hubFarmKeys);
+      const farmSummaries = resolveAdminHubFarmSummaries(
+        readings,
+        [],
+        overviewRows
       );
-      const temps = overviewRows
-        .map((r) => (r.avg_temp_c != null ? Number(r.avg_temp_c) : null))
-        .filter((n): n is number => n != null);
-      const humidities = overviewRows
-        .map((r) =>
-          r.avg_humidity_pct != null ? Number(r.avg_humidity_pct) : null,
-        )
-        .filter((n): n is number => n != null);
+      const farmOptions =
+        overviewRows.length > 0
+          ? overviewRowsToFarmKeys(overviewRows)
+          : hubFarmKeys;
 
-      const avg = (nums: number[]) =>
-        nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+      let overview: FarmOverview;
+      if (overviewRows.length > 0) {
+        const totalControllers = overviewRows.reduce(
+          (s, r) => s + r.controller_count,
+          0
+        );
+        const totalOffline = overviewRows.reduce(
+          (s, r) => s + r.offline_count,
+          0
+        );
+        const temps = overviewRows
+          .map((r) => (r.avg_temp_c != null ? Number(r.avg_temp_c) : null))
+          .filter((n): n is number => n != null);
+        const humidities = overviewRows
+          .map((r) =>
+            r.avg_humidity_pct != null ? Number(r.avg_humidity_pct) : null
+          )
+          .filter((n): n is number => n != null);
 
-      const overview: FarmOverview = {
-        farmCount: overviewRows.length,
-        moduleCount: 0,
-        controllerCount: totalControllers,
-        connectedCount: totalControllers - totalOffline,
-        expectedControllerCount: totalControllers,
-        offlineCount: totalOffline,
-        avgTempC: avg(temps),
-        avgHumidityPct: avg(humidities),
-        avgFanSupply: null,
-        avgFanExhaust: null,
-        avgFanIntake: null,
-        receipts: [],
-      };
+        const avg = (nums: number[]) =>
+          nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+
+        overview = {
+          farmCount: overviewRows.length,
+          moduleCount: 0,
+          controllerCount: totalControllers,
+          connectedCount: totalControllers - totalOffline,
+          expectedControllerCount: totalControllers,
+          offlineCount: totalOffline,
+          avgTempC: avg(temps),
+          avgHumidityPct: avg(humidities),
+          avgFanSupply: null,
+          avgFanExhaust: null,
+          avgFanIntake: null,
+          receipts: [],
+        };
+      } else {
+        overview = toFarmOverview(
+          summarizeControllers(readings, FIRMWARE_CTRL_COUNT)
+        );
+      }
 
       return {
-        readings: [],
+        readings,
         activeFarmKey,
-        scopedReadings: [],
+        scopedReadings: readings,
         overview,
         alarms: [],
         weatherWarnings: [],

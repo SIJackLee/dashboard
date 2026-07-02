@@ -27,6 +27,8 @@ type Props = {
   /** Admin 전국 허브 — placeholder 시 농장·축사 트리 */
   pickerPanel?: React.ReactNode;
   placeholder?: boolean;
+  topVariant?: "map" | "grid";
+  topMapCompact?: boolean;
   navSweepDirection?: "left" | "right" | null;
 };
 
@@ -51,6 +53,8 @@ export function OpsMobileSplitHub({
   onControllerSelect,
   pickerPanel,
   placeholder,
+  topVariant = "map",
+  topMapCompact = false,
   navSweepDirection,
 }: Props) {
   return (
@@ -66,7 +70,8 @@ export function OpsMobileSplitHub({
         nextLabel: "다음 농장",
       }}
       topPanel={map}
-      topVariant="map"
+      topVariant={topVariant}
+      topMapCompact={topMapCompact}
       control={control}
       headerSlot={headerSlot}
       midPanel={midPanel}

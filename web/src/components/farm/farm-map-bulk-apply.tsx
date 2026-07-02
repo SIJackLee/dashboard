@@ -11,7 +11,7 @@ import {
   Thermometer,
   X,
 } from "lucide-react";
-import { ControllerTempTripleSlider } from "@/components/controllers/controller-temp-triple-slider";
+import { ControllerTempDualSlider } from "@/components/controllers/controller-temp-dual-slider";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import {
   sendBulkThermoCommandAction,
@@ -323,7 +323,7 @@ export function FarmMapBulkApply({
                     label="온도 (설정·편차)"
                   />
                   <div className="min-w-0 pt-3 md:pt-4">
-                    <ControllerTempTripleSlider
+                    <ControllerTempDualSlider
                       setpoint={setpoint}
                       deviation={deviation}
                       disabled={!applyTemp}
