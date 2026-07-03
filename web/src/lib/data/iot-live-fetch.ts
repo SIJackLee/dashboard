@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { farmKeysFromAccess } from "@/lib/auth/farm-access";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createClient } from "@/lib/supabase/server";
@@ -39,8 +40,17 @@ const LIST_SOURCE = "v_iot_dashboard_list" as const;
 const LEGACY_COLS =
   "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, mesure_dt, decoded_json, received_at";
 
-const LIST_COLS =
+const LIST_COLS_CORE =
   "raw_id, lsind_regist_no, item_code, module_uid, controller_key, eqpmn_no, stall_ty_code, stall_no, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, fan_supply_pct, fan_exhaust_pct, fan_intake_pct, mesure_dt, received_at";
+
+const LIST_COLS_THERMO =
+  "setpoint_temp, temp_deviation, min_vent_pct, max_vent_pct";
+
+const LIST_COLS = `${LIST_COLS_CORE}, ${LIST_COLS_THERMO}`;
+
+function isListThermoColumnError(message: string): boolean {
+  return /setpoint_temp|temp_deviation|min_vent_pct|max_vent_pct/.test(message);
+}
 
 const DETAIL_COLS =
   "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, mesure_dt, decoded_json, received_at";
@@ -102,9 +112,29 @@ type ListDbRow = {
   fan_supply_pct: number | null;
   fan_exhaust_pct: number | null;
   fan_intake_pct: number | null;
+  setpoint_temp: number | null;
+  temp_deviation: number | null;
+  min_vent_pct: number | null;
+  max_vent_pct: number | null;
   mesure_dt: string;
   received_at: string;
 };
+
+function thermoFromListRow(row: ListDbRow) {
+  const setpointTemp = toNum(row.setpoint_temp);
+  const tempDeviation = toNum(row.temp_deviation);
+  const minVentPct = toNum(row.min_vent_pct);
+  const maxVentPct = toNum(row.max_vent_pct);
+  if (
+    setpointTemp == null ||
+    tempDeviation == null ||
+    minVentPct == null ||
+    maxVentPct == null
+  ) {
+    return null;
+  }
+  return { setpointTemp, tempDeviation, minVentPct, maxVentPct };
+}
 
 function listRowToReading(row: ListDbRow): BarnReading | null {
   if (!isLivePacketMode(row.packet_mode)) return null;
@@ -154,6 +184,7 @@ function listRowToReading(row: ListDbRow): BarnReading | null {
     wireVer: row.wire_ver,
     decodedId: row.raw_id,
     runMode: row.run_mode,
+    thermo: thermoFromListRow(row),
   };
 }
 
@@ -298,29 +329,51 @@ async function fetchLiveRowsWithToken(
   const supabase = createRlsClient(accessToken);
   const tier = liveReadTier();
   const source = tier === "list" ? LIST_SOURCE : LEGACY_SOURCE;
-  const cols = tier === "list" ? LIST_COLS : LEGACY_COLS;
 
-  let query = supabase
-    .from(source as "v_iot_decoded_latest")
-    .select(cols as typeof LEGACY_COLS)
-    .order("received_at", { ascending: false });
+  const runQuery = async (cols: string) => {
+    let query = supabase
+      .from(source as "v_iot_decoded_latest")
+      .select(cols as typeof LEGACY_COLS)
+      .order("received_at", { ascending: false });
 
-  query = applyFarmFilter(query, scopedFarms, scope.farmKey);
+    query = applyFarmFilter(query, scopedFarms, scope.farmKey);
 
-  const isFarmScoped =
-    Boolean(scope.farmKey) ||
-    (scopedFarms != null && scopedFarms.length > 0);
+    const isFarmScoped =
+      Boolean(scope.farmKey) ||
+      (scopedFarms != null && scopedFarms.length > 0);
 
-  if (isFarmScoped) {
-    query = query.limit(LIVE_FARM_ROW_LIMIT);
-  } else if (tier === "list") {
-    query = query.limit(LIVE_FARM_ROW_LIMIT);
-  } else {
-    query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
+    if (isFarmScoped) {
+      query = query.limit(LIVE_FARM_ROW_LIMIT);
+    } else if (tier === "list") {
+      query = query.limit(LIVE_FARM_ROW_LIMIT);
+    } else {
+      query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
+    }
+
+    return query;
+  };
+
+  let cols = tier === "list" ? LIST_COLS : LEGACY_COLS;
+  let { data, error } = await runQuery(cols);
+
+  if (error && tier === "list" && isListThermoColumnError(error.message)) {
+    if (process.env.NODE_ENV === "development") {
+      console.warn(
+        "[live-readings] thermo columns missing on list view — retry without setpoint fields:",
+        error.message,
+      );
+    }
+    cols = LIST_COLS_CORE;
+    ({ data, error } = await runQuery(cols));
   }
 
-  const { data, error } = await query;
-  if (error || !data) return [];
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[live-readings] query failed:", error.message);
+    }
+    return [];
+  }
+  if (!data) return [];
 
   if (tier === "list") {
     return (data as unknown as ListDbRow[])
@@ -340,10 +393,17 @@ async function fetchLiveRowsWithToken(
 export async function fetchLiveReadings(
   scope: LiveReadingsScope = {},
 ): Promise<BarnReading[]> {
-  const accessToken = await getAccessTokenOrNull();
-  if (!accessToken) return [];
-
   const user = await getCurrentUser();
+  const accessToken = await getAccessTokenOrNull();
+  if (!accessToken) {
+    if (user && process.env.NODE_ENV === "development") {
+      console.error(
+        "[live] authenticated user but no access token — skipping LIVE fetch",
+      );
+    }
+    return [];
+  }
+
   const scopedFarms =
     user && !user.isAdmin ? farmKeysFromAccess(user) : null;
 
@@ -361,6 +421,9 @@ export async function fetchLiveReadings(
     ["live-readings", liveReadTier(), userId, scopeKey],
     [scopeKey === "global" ? "live" : `live:${scopeKey}`],
     () => fetchLiveRowsWithToken(accessToken, scopedFarms, scope),
+    {
+      shouldCache: (result) => result.length > 0,
+    },
   );
 
   return sortReadings(rows);
@@ -429,22 +492,72 @@ async function fetchFarmOverviewWithToken(
   }
 
   const { data, error } = await query;
-  if (error || !data) return [];
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[farm-overview] query failed:", error.message);
+    }
+    return [];
+  }
+  if (!data) return [];
   return data as unknown as FarmOverviewDbRow[];
 }
 
-export async function fetchFarmOverviewRows(): Promise<FarmOverviewDbRow[]> {
-  const accessToken = await getAccessTokenOrNull();
-  if (!accessToken) return [];
+/** Admin hub — per-farm scoped overview (global GROUP BY timeout 회피) */
+export async function fetchFarmOverviewForFarmKeys(
+  farmKeys: FarmKey[],
+): Promise<FarmOverviewDbRow[]> {
+  if (farmKeys.length === 0) return [];
 
   const user = await getCurrentUser();
-  const scopedFarms =
-    user && !user.isAdmin ? farmKeysFromAccess(user) : null;
-  const userId = user?.id ?? "anon";
+  const accessToken = await getAccessTokenOrNull();
+  if (!accessToken) {
+    if (user && process.env.NODE_ENV === "development") {
+      console.error(
+        "[farm-overview] authenticated user but no access token — skipping scoped overview",
+      );
+    }
+    return [];
+  }
 
-  return cachedLiveQuery(
-    ["farm-overview", userId],
-    ["live", "farm-overview"],
-    () => fetchFarmOverviewWithToken(accessToken, scopedFarms),
+  const userId = user?.id ?? "anon";
+  const batches = await Promise.all(
+    farmKeys.map((farmKey) => {
+      const scopeId = farmKeyId(farmKey);
+      return cachedLiveQuery(
+        ["farm-overview", userId, scopeId],
+        ["live", `farm-overview:${scopeId}`],
+        () => fetchFarmOverviewWithToken(accessToken, [farmKey]),
+        { shouldCache: (rows) => rows.length > 0 },
+      );
+    }),
   );
+  return batches.flat();
 }
+
+export const fetchFarmOverviewRows = cache(
+  async (): Promise<FarmOverviewDbRow[]> => {
+    const user = await getCurrentUser();
+    const accessToken = await getAccessTokenOrNull();
+    if (!accessToken) {
+      if (user && process.env.NODE_ENV === "development") {
+        console.error(
+          "[farm-overview] authenticated user but no access token — skipping overview fetch",
+        );
+      }
+      return [];
+    }
+
+    const scopedFarms =
+      user && !user.isAdmin ? farmKeysFromAccess(user) : null;
+    const userId = user?.id ?? "anon";
+
+    return cachedLiveQuery(
+      ["farm-overview", userId],
+      ["live", "farm-overview"],
+      () => fetchFarmOverviewWithToken(accessToken, scopedFarms),
+      {
+        shouldCache: (rows) => rows.length > 0,
+      },
+    );
+  },
+);

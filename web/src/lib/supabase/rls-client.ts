@@ -17,9 +17,26 @@ export function createRlsClient(accessToken: string) {
   );
 }
 
+/**
+ * RLS LIVE/overview fetch용 access token.
+ * middleware와 동일하게 getUser()로 검증 후 session token 사용 (getSession-only SSR desync 방지).
+ */
 export async function getAccessTokenOrNull(): Promise<string | null> {
   const { createClient } = await import("@/lib/supabase/server");
   const supabase = await createClient();
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) return null;
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData.session?.access_token ?? null;
+  if (!token && process.env.NODE_ENV === "development") {
+    console.error(
+      "[auth] getUser succeeded but access_token missing for user",
+      user.id,
+    );
+  }
+  return token;
 }

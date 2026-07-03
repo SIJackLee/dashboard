@@ -9,7 +9,7 @@ import {
 } from "@/components/admin/farm-geo-map-shell";
 import { shortSidoDisplay } from "@/lib/monitoring/hub-view-state";
 import type { FarmLocationRow } from "@/lib/data/farm-location";
-import { buildFarmMapPoints } from "@/lib/data/farm-geo-summary";
+import { buildFarmMapPoints, pointsWithoutLocation } from "@/lib/data/farm-geo-summary";
 import { farmShortLabel, type FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -75,6 +75,11 @@ export function AdminFarmOverview(props: Props) {
     [farms, locations]
   );
 
+  const unlocatedFarmCount = useMemo(
+    () => pointsWithoutLocation(farms, locations).length,
+    [farms, locations]
+  );
+
   if (hub) {
     const mini = props.variant === "mini";
     const hubShell = mini ? FARM_GEO_MAP_MINI_SHELL : FARM_GEO_MAP_HUB_SHELL;
@@ -112,6 +117,7 @@ export function AdminFarmOverview(props: Props) {
             showLegend={false}
             compactMode={mini}
             onCompactExpand={mini ? props.onExpand : undefined}
+            unlocatedFarmCount={unlocatedFarmCount}
             shellClassName="absolute inset-0 h-full w-full overflow-hidden rounded-xl border-0 bg-transparent"
             className="h-full w-full"
           />

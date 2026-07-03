@@ -69,6 +69,10 @@ type Props = {
   density?: "compact" | "default" | "mobileSplit";
   /** embedded + SectionCard 헤더에 저장·scope 상태 위임 */
   onHeaderState?: (state: AlarmThresholdHeaderState | null) => void;
+  /** mobileSplit ThresholdRangeSlider typography (목록 카드 등) */
+  sliderTitleClassName?: string;
+  sliderThumbLabelClassName?: string;
+  sliderAxisClassName?: string;
 };
 
 const SCOPE_ALL = "__all__";
@@ -166,6 +170,9 @@ export function AlarmThresholdForm({
   embedded = false,
   density = "compact",
   onHeaderState,
+  sliderTitleClassName,
+  sliderThumbLabelClassName,
+  sliderAxisClassName,
 }: Props) {
   const compact = embedded && density === "compact";
   const mobileSplit = embedded && density === "mobileSplit";
@@ -548,7 +555,11 @@ export function AlarmThresholdForm({
               accentClass="bg-orange-500/35"
               disabled={!scopeReady || pending}
               compact
-              thumbLabelClassName="md:text-[1.75rem]"
+              titleClassName={sliderTitleClassName}
+              thumbLabelClassName={
+                sliderThumbLabelClassName ?? "md:text-[1.75rem]"
+              }
+              axisClassName={sliderAxisClassName}
               onChange={(low, high) =>
                 updateDraft({ ...draft, tempLow: low, tempHigh: high })
               }
@@ -570,7 +581,11 @@ export function AlarmThresholdForm({
               accentClass="bg-sky-500/35"
               disabled={!scopeReady || pending}
               compact
-              thumbLabelClassName="md:text-[1.75rem]"
+              titleClassName={sliderTitleClassName}
+              thumbLabelClassName={
+                sliderThumbLabelClassName ?? "md:text-[1.75rem]"
+              }
+              axisClassName={sliderAxisClassName}
               onChange={(low, high) =>
                 updateDraft({ ...draft, humidityLow: low, humidityHigh: high })
               }

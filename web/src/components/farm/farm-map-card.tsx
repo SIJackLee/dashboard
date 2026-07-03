@@ -9,6 +9,7 @@ import { EnvChip } from "@/components/common/env-chip";
 import type { StatusTone } from "@/components/common/status-badge";
 import { getStallTypeName, normalizeStallTyCode, formatStallTypeLabelCompact } from "@/lib/data/stall-type";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 /** 상태별 링/글로우 — 뱃지 대신 카드 자체에 색상 임팩트. 경고는 글로우 강화, 오프라인은 디밍. */
@@ -96,7 +97,8 @@ export function FarmMapCard({
     <div
       aria-label={`${title} ${STATUS_LABEL[snapshot.status]}`}
       className={cn(
-        "flex h-auto min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background transition-shadow",
+        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background transition-shadow",
+        layout === "stack" || !compact ? "h-auto" : "h-full",
         STATUS_ACCENT[snapshot.status],
         isDragging && "!opacity-50 !ring-2 !ring-emerald-400",
         layout === "grid" && "hover:shadow-md",
@@ -110,7 +112,12 @@ export function FarmMapCard({
           : undefined
       }
     >
-      <div className="flex min-h-0 items-center gap-1.5 border-b bg-muted/30 px-2 py-1.5 lg:gap-2">
+      <div
+        className={cn(
+          "flex min-h-0 shrink-0 items-center gap-1 border-b bg-muted/30",
+          compact ? "gap-1 px-1.5 py-1" : "gap-1.5 px-2 py-1.5 lg:gap-2"
+        )}
+      >
         {selectable ? (
           <span
             className={cn(
@@ -135,10 +142,19 @@ export function FarmMapCard({
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") e.preventDefault();
             }}
-            className="pointer-events-auto hidden shrink-0 cursor-grab touch-none select-none rounded border border-muted-foreground/25 bg-muted/50 p-1.5 text-muted-foreground hover:border-emerald-500/50 hover:bg-emerald-50 hover:text-emerald-700 active:cursor-grabbing lg:block"
+            className={cn(
+              "pointer-events-auto hidden shrink-0 cursor-grab touch-none select-none rounded border border-muted-foreground/25 bg-muted/50 text-muted-foreground hover:border-emerald-500/50 hover:bg-emerald-50 hover:text-emerald-700 active:cursor-grabbing lg:block",
+              compact ? "p-1" : "p-1.5",
+            )}
             aria-label="축사 위치 이동"
           >
-            <GripVertical className="pointer-events-none size-5" />
+            <GripVertical
+              className={cn(
+                "pointer-events-none",
+                compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
+              )}
+              aria-hidden
+            />
           </div>
         ) : null}
         <button
@@ -150,14 +166,18 @@ export function FarmMapCard({
             (onSelect || controllerHref) && "cursor-pointer"
           )}
         >
-          <Icon className="size-4 shrink-0 text-emerald-600 lg:size-5" />
+          <Icon
+            className={cn(
+              "text-emerald-600",
+              compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
+            )}
+          />
           <span
             className={cn(
-              "min-w-0 flex-1 font-semibold leading-tight",
+              "min-w-0 flex-1",
               compact
-                ? "line-clamp-2 text-[10px] sm:text-xs"
-                : "truncate text-sm lg:text-lg lg:truncate lg:whitespace-nowrap",
-              !compact && "lg:text-xl"
+                ? cn("line-clamp-2", dashboardUi.gridCellValueCompact)
+                : cn("truncate whitespace-nowrap", dashboardUi.gridCellValueDefault),
             )}
             title={title}
           >
@@ -171,14 +191,22 @@ export function FarmMapCard({
         onClick={handleNavigate}
         disabled={!onSelect && !controllerHref}
         className={cn(
-          "flex min-h-0 flex-col gap-1 px-2 py-1.5 text-left",
+          "flex min-h-0 flex-1 flex-col text-left",
+          compact ? "px-1.5 py-1" : "gap-1 px-2 py-1.5",
           (onSelect || controllerHref) && "cursor-pointer hover:bg-muted/20"
         )}
       >
-        <div className="grid grid-cols-2 gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3">
+        <div
+          className={cn(
+            "grid min-h-0 flex-1 grid-cols-2",
+            compact ? "gap-1" : "gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3"
+          )}
+        >
           <EnvChip
             kind="temp"
             value={formatSensorNumberForDisplay(snapshot.status, snapshot.tempC)}
+            valueOnly={compact}
+            compact={compact}
           />
           <EnvChip
             kind="humidity"
@@ -186,6 +214,8 @@ export function FarmMapCard({
               snapshot.status,
               snapshot.humidityPct
             )}
+            valueOnly={compact}
+            compact={compact}
           />
         </div>
       </button>

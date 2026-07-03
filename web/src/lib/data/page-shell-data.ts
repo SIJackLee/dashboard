@@ -24,6 +24,8 @@ import {
   fetchLiveReadings,
 } from "@/lib/data/iot-live-fetch";
 import {
+  adminHubOverviewCacheKey,
+  devSimFarmKeys,
   discoverAdminHubFarmKeys,
   fetchAdminHubLiveReadings,
   loadAdminHubOverviewRows,
@@ -68,16 +70,26 @@ export const getPageShellContext = cache(
     const isAdmin = Boolean(user?.isAdmin);
 
     if (isAdmin && !activeFarmKey) {
-      const overviewRows = await loadAdminHubOverviewRows();
+      const seedKeys = discoverAdminHubFarmKeys(
+        [],
+        process.env.NODE_ENV === "development" ? devSimFarmKeys() : [],
+      );
+      const overviewRows = await loadAdminHubOverviewRows(
+        adminHubOverviewCacheKey(seedKeys),
+      );
       const hubFarmKeys = discoverAdminHubFarmKeys(
         [],
-        overviewRowsToFarmKeys(overviewRows)
+        overviewRows.length > 0
+          ? overviewRowsToFarmKeys(overviewRows)
+          : seedKeys,
       );
       const readings = await fetchAdminHubLiveReadings(null, hubFarmKeys);
       const farmSummaries = resolveAdminHubFarmSummaries(
         readings,
         [],
-        overviewRows
+        overviewRows,
+        [],
+        hubFarmKeys,
       );
       const farmOptions =
         overviewRows.length > 0

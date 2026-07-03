@@ -82,6 +82,8 @@ type Props = {
   /** 허브 미니맵 — 축소 shell, 클릭 시 전체 복원 */
   compactMode?: boolean;
   onCompactExpand?: () => void;
+  /** location 미등록 farm 수 — empty state 안내 */
+  unlocatedFarmCount?: number;
 };
 
 type LeafletModule = typeof import("leaflet");
@@ -136,6 +138,7 @@ export function FarmGeoMap({
   onSelectFarm,
   compactMode = false,
   onCompactExpand,
+  unlocatedFarmCount = 0,
 }: Props) {
   const isMobileLayout = useMobileLayout();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -981,25 +984,36 @@ export function FarmGeoMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !map.getContainer()?.isConnected) return;
+    const delayMs = compactMode ? 150 : 350;
     const timer = window.setTimeout(() => {
-      map.invalidateSize({ animate: false });
-      applyViewForStage(
-        map,
-        stageRef.current,
-        pointsRef.current,
-        {
-          sido: selectedSidoRef.current,
-          sigungu: selectedSigunguRef.current,
-        },
-        { animate: false, viewport: getViewportCtx() }
-      );
-      lastZoomRef.current = map.getZoom();
-      syncMapDebugAttrs(map);
+      const liveMap = mapRef.current;
+      const L = leafletRef.current;
+      if (!liveMap || !liveMap.getContainer()?.isConnected) return;
+      liveMap.invalidateSize({ animate: false });
+      if (!compactMode && L) {
+        internalNavRef.current = false;
+        selectedSidoRef.current = null;
+        selectedSigunguRef.current = null;
+        goToStage(L, liveMap, 0);
+      } else {
+        applyViewForStage(
+          liveMap,
+          stageRef.current,
+          pointsRef.current,
+          {
+            sido: selectedSidoRef.current,
+            sigungu: selectedSigunguRef.current,
+          },
+          { animate: false, viewport: getViewportCtx() }
+        );
+      }
+      lastZoomRef.current = liveMap.getZoom();
+      syncMapDebugAttrs(liveMap);
       renderMarkersRef.current();
-    }, 150);
+    }, delayMs);
     return () => window.clearTimeout(timer);
-  }, [compactMode, shellClassName, getViewportCtx, syncMapDebugAttrs]);
+  }, [compactMode, shellClassName, getViewportCtx, syncMapDebugAttrs, goToStage]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -1042,7 +1056,9 @@ export function FarmGeoMap({
           className
         )}
       >
-        지도에 표시할 농장 위치가 없습니다. 설정 → 농장에서 주소를 등록하세요.
+        {unlocatedFarmCount > 0
+          ? `위치 미등록 ${unlocatedFarmCount}개 농장 — 설정 → 농장에서 주소를 등록하세요.`
+          : "지도에 표시할 농장 위치가 없습니다. 설정 → 농장에서 주소를 등록하세요."}
       </p>
     );
   }

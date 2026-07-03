@@ -3,35 +3,13 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
-import { MonitoringTabs } from "@/components/monitoring/monitoring-tabs";
-import { MonitoringTabPanel } from "@/components/monitoring/monitoring-tab-panel";
-import { OpsTriageView } from "@/components/ops/ops-triage-view";
-import { getFarmTrendAllPeriods } from "@/lib/data/farm-trend-history";
-import {
-  filterReadingsByFarmKey,
-  resolveActiveFarmKey,
-} from "@/lib/auth/farm-access";
+import { resolveActiveFarmKey } from "@/lib/auth/farm-access";
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
-import { getBarnLayoutPrefs, mergeBarnLayouts } from "@/lib/data/barn-meta";
-import {
-  buildAutoBarnMap,
-  gridDimensionsForBarnMap,
-} from "@/lib/data/barn-map";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
-import { getLiveReadings } from "@/lib/data/iot";
-import {
-  discoverAdminHubFarmKeys,
-  fetchAdminHubLiveReadings,
-  loadAdminHubOverviewRows,
-  overviewRowsToFarmKeys,
-  resolveAdminHubFarmSummaries,
-} from "@/lib/data/admin-hub-live";
+import { loadFarmScopedPanelData } from "@/lib/farm/load-farm-scoped-panel-data";
+import { loadAdminAllFarmsGridPanels } from "@/lib/farm/load-admin-all-farms-grid";
 import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
 import { mergeThermoSettingsMaps } from "@/lib/controllers/controller-settings";
-import { deriveAlarmsFromReadings, summarizeAlarms } from "@/lib/data/alarms";
-import { getAlarmSettings } from "@/lib/data/alarm-settings";
-import { getFarmLocations } from "@/lib/data/farm-location";
-import { parseMonitoringTab } from "@/lib/monitoring/monitoring-tabs";
 
 function stripLegacyOverviewView(params: {
   view?: string;
@@ -44,6 +22,23 @@ function stripLegacyOverviewView(params: {
   if (params.lsind) clean.set("lsind", params.lsind);
   if (params.item) clean.set("item", params.item);
   if (params.sp) clean.set("sp", params.sp);
+  const q = clean.toString();
+  redirect(q ? `/farm?${q}` : "/farm");
+}
+
+/** 레거시 tab=ops|devices|alarms → 현황(/farm) */
+function redirectLegacyOpsTab(params: Record<string, string | undefined>) {
+  if (
+    params.tab !== "ops" &&
+    params.tab !== "devices" &&
+    params.tab !== "alarms"
+  ) {
+    return;
+  }
+  const clean = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value && key !== "tab") clean.set(key, value);
+  }
   const q = clean.toString();
   redirect(q ? `/farm?${q}` : "/farm");
 }
@@ -68,15 +63,7 @@ export default async function FarmPage({
 }) {
   const params = await searchParams;
   stripLegacyOverviewView(params);
-
-  if (params.tab === "devices" || params.tab === "alarms") {
-    const legacy = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) {
-      if (value && key !== "tab") legacy.set(key, value);
-    }
-    legacy.set("tab", "ops");
-    redirect(`/farm?${legacy.toString()}`);
-  }
+  redirectLegacyOpsTab(params);
 
   if (params.panel === "alarm" || params.panel === "display" || params.panel === "farm") {
     if (params.panel === "farm") {
@@ -89,154 +76,19 @@ export default async function FarmPage({
     for (const [key, value] of Object.entries(params)) {
       if (value && key !== "panel") legacy.set(key, value);
     }
-    if (!legacy.has("tab")) legacy.set("tab", "ops");
-    redirect(`/farm?${legacy.toString()}`);
+    const q = legacy.toString();
+    redirect(q ? `/farm?${q}` : "/farm");
   }
 
   const user = await getCurrentUser();
   const isAdmin = Boolean(user?.isAdmin);
   const activeFarmKey = user ? resolveActiveFarmKey(user, params) : null;
 
-  const tab = parseMonitoringTab(params.tab);
-
-  /** farmer(non-admin)는 컨트롤러(ops) 탭 진입 불가 → 현황으로 */
-  if (!isAdmin && tab === "ops") {
-    redirect("/farm");
-  }
-
-  /** Admin 농장 스코프 — 모바일·데스크톱 공통 ops 허브로 */
-  if (isAdmin && activeFarmKey && tab === "map") {
-    const scoped = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) {
-      if (value && key !== "tab") scoped.set(key, value);
-    }
-    scoped.set("tab", "ops");
-    redirect(`/farm?${scoped.toString()}`);
-  }
-  /** Admin 전국 허브 — 컨트롤러 선택(tab=ops) 후에도 3열 유지 */
-  const isAdminMonitoringHub =
-    isAdmin && (!activeFarmKey || tab === "ops");
-
   const shellParams = {
     lsind: params.lsind,
     item: params.item,
     view: params.view,
   };
-
-  const trendData = activeFarmKey
-    ? await getFarmTrendAllPeriods({ farmKey: activeFarmKey })
-    : null;
-
-  const pageBody = (
-    content: ReactNode,
-    options?: { hideTabs?: boolean }
-  ) => (
-    <div className="space-y-4 md:space-y-5">
-      {!options?.hideTabs && isAdmin ? (
-        <Suspense fallback={null}>
-          <MonitoringTabs active={tab} />
-        </Suspense>
-      ) : null}
-      <Suspense fallback={null}>
-        <MonitoringTabPanel serverTab={tab}>{content}</MonitoringTabPanel>
-      </Suspense>
-    </div>
-  );
-
-  /** Admin 전국 — 지도·농장목록·컨트롤러 가로 3열 허브 */
-  if (isAdminMonitoringHub) {
-    const [
-      shellCtx,
-      history,
-      commandThermoMap,
-      alarmSettings,
-      farmLocations,
-      barnLayoutPrefs,
-      overviewRows,
-    ] = await Promise.all([
-      getPageShellContext(shellParams),
-      getThermoCommandHistory(100),
-      getThermoSettingsMap(500),
-      getAlarmSettings(),
-      getFarmLocations(),
-      getBarnLayoutPrefs(),
-      loadAdminHubOverviewRows(),
-    ]);
-
-    const hubFarmKeys = discoverAdminHubFarmKeys(
-      farmLocations,
-      shellCtx.farmOptions.length > 0
-        ? shellCtx.farmOptions
-        : overviewRowsToFarmKeys(overviewRows)
-    );
-    const readings = await fetchAdminHubLiveReadings(activeFarmKey, hubFarmKeys);
-    const scopedReadings = filterReadingsByFarmKey(readings, null);
-    const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
-    const hubFarmSummaries = resolveAdminHubFarmSummaries(
-      scopedReadings,
-      alarms,
-      overviewRows
-    );
-    const farmSummariesForHub =
-      hubFarmSummaries.length > 0 ? hubFarmSummaries : shellCtx.farmSummaries;
-
-    const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
-    const alarmSummary = summarizeAlarms(alarms);
-
-    const deviceNotices: Record<string, { tone: "ok" | "error"; text: string }> = {
-      saved: { tone: "ok", text: "저장했습니다." },
-      invalid: { tone: "error", text: "입력값이 올바르지 않습니다." },
-      save: { tone: "error", text: "저장에 실패했습니다. 권한을 확인하세요." },
-      forbidden: {
-        tone: "error",
-        text: "이 항목을 수정할 권한이 없습니다. 명령 권한 또는 관리자 역할이 필요합니다.",
-      },
-    };
-    const settingsNotice = params.ok
-      ? deviceNotices[params.ok]
-      : params.error
-        ? deviceNotices[params.error]
-        : null;
-
-    return (
-      <PageShell wide searchParams={shellParams}>
-        {pageBody(
-          <Suspense fallback={null}>
-            <OpsTriageView
-              readings={scopedReadings}
-              alarms={alarms}
-              alarmSummary={alarmSummary}
-              initialLsind={params.lsind}
-              initialItem={params.item}
-              initialSp={params.sp}
-              initialStall={params.stall}
-              initialCtrl={params.ctrl}
-              initialAlarm={params.alarm}
-              canCommand={canCommand(user)}
-              commands={history}
-              thermoSettings={thermoSettings}
-              isAdmin={isAdmin}
-              adminAllFarms
-              farmSummaries={farmSummariesForHub}
-              adminFarmOptions={shellCtx.farmOptions}
-              adminActiveFarmKey={shellCtx.activeFarmKey}
-              alarmSettings={alarmSettings}
-              settingsNotice={settingsNotice}
-              geoHub={{
-                farmSummaries: farmSummariesForHub,
-                locations: farmLocations,
-              }}
-              barnLayoutPrefs={{
-                layouts: barnLayoutPrefs.layouts,
-                aliases: barnLayoutPrefs.aliases,
-              }}
-            />
-          </Suspense>,
-          { hideTabs: true }
-        )}
-      </PageShell>
-    );
-  }
 
   const [shellCtx, history, commandThermoMap] = await Promise.all([
     getPageShellContext(shellParams),
@@ -245,106 +97,54 @@ export default async function FarmPage({
   ]);
   const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
 
-  /** 운영 탭 — 3열 트리아지 (장비+이상 통합) */
-  if (tab === "ops") {
-    const [readings, alarmSettings] = await Promise.all([
-      getLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {}),
-      getAlarmSettings(),
-    ]);
+  const adminAllFarmsMode =
+    isAdmin && !activeFarmKey && shellCtx.farmOptions.length > 0;
 
-    const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
-    const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
-    const alarmSummary = summarizeAlarms(alarms);
-
-    const deviceNotices: Record<string, { tone: "ok" | "error"; text: string }> = {
-      saved: { tone: "ok", text: "저장했습니다." },
-      invalid: { tone: "error", text: "입력값이 올바르지 않습니다." },
-      save: { tone: "error", text: "저장에 실패했습니다. 권한을 확인하세요." },
-      forbidden: {
-        tone: "error",
-        text: "이 항목을 수정할 권한이 없습니다. 명령 권한 또는 관리자 역할이 필요합니다.",
-      },
-    };
-    const settingsNotice = params.ok
-      ? deviceNotices[params.ok]
-      : params.error
-        ? deviceNotices[params.error]
-        : null;
-
-    return (
-      <PageShell wide searchParams={shellParams}>
-        {pageBody(
-          <Suspense fallback={null}>
-            <OpsTriageView
-              readings={scopedReadings}
-              alarms={alarms}
-              alarmSummary={alarmSummary}
-              initialLsind={params.lsind}
-              initialItem={params.item}
-              initialSp={params.sp}
-              initialStall={params.stall}
-              initialCtrl={params.ctrl}
-              initialAlarm={params.alarm}
-              canCommand={canCommand(user)}
-              commands={history}
-              thermoSettings={thermoSettings}
-              isAdmin={isAdmin}
-              adminAllFarms={false}
-              farmSummaries={shellCtx.farmSummaries}
-              adminFarmOptions={shellCtx.farmOptions}
-              adminActiveFarmKey={shellCtx.activeFarmKey}
-              alarmSettings={alarmSettings}
-              settingsNotice={settingsNotice}
-            />
-          </Suspense>
-        )}
-      </PageShell>
-    );
-  }
-
-  /** 현황 탭 · scoped grid */
-  const [readings, layoutPrefs, alarmSettings] = await Promise.all([
-    getLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {}),
-    getBarnLayoutPrefs(),
-    getAlarmSettings(),
+  const [scopedPanelData, allFarmGrids] = await Promise.all([
+    activeFarmKey
+      ? loadFarmScopedPanelData({
+          farmKey: activeFarmKey,
+          commandThermoMap: thermoSettings,
+          history,
+          canCommand: canCommand(user),
+        })
+      : Promise.resolve(null),
+    adminAllFarmsMode
+      ? loadAdminAllFarmsGridPanels(shellCtx.farmOptions)
+      : Promise.resolve(null),
   ]);
 
-  const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
-  const { snapshots: barnSnapshots, layoutsToPersist } = buildAutoBarnMap(
-    scopedReadings,
-    layoutPrefs
+  const pageBody = (content: ReactNode) => (
+    <div className="space-y-4 md:space-y-5">
+      <Suspense fallback={null}>{content}</Suspense>
+    </div>
   );
-
-  if (Object.keys(layoutsToPersist).length > 0) {
-    await mergeBarnLayouts(layoutsToPersist);
-  }
-
-  const mergedLayouts = { ...layoutPrefs.layouts, ...layoutsToPersist };
-  const gridSize = gridDimensionsForBarnMap(barnSnapshots, mergedLayouts);
 
   return (
     <PageShell wide searchParams={shellParams}>
       {pageBody(
         <FarmDashboardShell
           mapMode="grid"
-          readings={scopedReadings}
-          barnSnapshots={barnSnapshots}
-          gridCols={gridSize.cols}
-          gridRows={gridSize.rows}
+          readings={scopedPanelData?.readings ?? []}
+          barnSnapshots={scopedPanelData?.barnSnapshots ?? []}
+          gridCols={scopedPanelData?.gridCols ?? 4}
+          gridRows={scopedPanelData?.gridRows ?? 4}
           isAdmin={isAdmin}
           farmOptions={shellCtx.farmOptions}
           activeFarmKey={shellCtx.activeFarmKey}
           farmSummaries={shellCtx.farmSummaries}
           sp={params.sp}
           view={params.view}
-          trendByPeriod={trendData}
-          controller={{
-            readings: scopedReadings,
-            thermoSettings,
-            commands: history,
-            canCommand: canCommand(user),
-            alarmSettings,
-          }}
+          trendByPeriod={scopedPanelData?.trendByPeriod ?? null}
+          controller={
+            scopedPanelData?.controller ?? {
+              readings: [],
+              thermoSettings,
+              commands: history,
+              canCommand: canCommand(user),
+            }
+          }
+          allFarmGrids={allFarmGrids}
         />
       )}
     </PageShell>

@@ -48,7 +48,7 @@ export function TopBar({
   return (
     <header className={dashboardUi.topBar}>
       <div className="flex w-full min-w-0 items-center gap-1.5 md:gap-2">
-        <div className="flex min-w-0 shrink-0 items-center gap-2 md:min-w-0 md:flex-1 md:flex-wrap md:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-wrap md:gap-3">
           <AppHeaderBrand />
           <TopBarDivider />
           <AppHeaderNav role={user.role} />

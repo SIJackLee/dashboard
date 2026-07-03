@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, ExternalLink, ChevronRight, SlidersHorizontal } from "lucide-react";
+import {
+  ArrowLeft,
+  ExternalLink,
+  ChevronRight,
+  Loader2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { TrendChart, type TrendSeries } from "@/components/trends/trend-chart";
 import {
@@ -14,6 +20,15 @@ import {
   FarmMapControllerPanel,
   type ControllerGridData,
 } from "@/components/farm/farm-map-controller-panel";
+import {
+  clearMapControllerStall,
+  currentFarmSearchParams,
+  replaceFarmUrlShallow,
+  setMapControllerStall,
+  setMapDrillLevel,
+  type FarmMapDrillLevel,
+} from "@/lib/farm/farm-view-url";
+import { prefetchControllerDetail } from "@/components/controllers/use-controller-detail";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { cn } from "@/lib/utils";
 
@@ -125,11 +140,19 @@ function Enter({
 }
 
 /** Card-flip entry (rotateY) for the in-grid controller — game-like reveal. */
-function FlipEnter({ children, animKey }: { children: React.ReactNode; animKey: string }) {
+function FlipEnter({
+  children,
+  animKey,
+  instant = false,
+}: {
+  children: React.ReactNode;
+  animKey: string;
+  instant?: boolean;
+}) {
   const reduced = usePrefersReducedMotion();
   const ref = useCallback(
     (node: HTMLDivElement | null) => {
-      if (!node || reduced || typeof node.animate !== "function") return;
+      if (!node || instant || reduced || typeof node.animate !== "function") return;
       node.animate(
         [
           { opacity: 0, transform: "perspective(1200px) rotateY(90deg)" },
@@ -138,7 +161,7 @@ function FlipEnter({ children, animKey }: { children: React.ReactNode; animKey: 
         { duration: 360, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)", fill: "backwards" }
       );
     },
-    [reduced]
+    [reduced, instant]
   );
   return (
     <div key={animKey} ref={ref} className="h-full" style={{ transformStyle: "preserve-3d" }}>
@@ -149,12 +172,20 @@ function FlipEnter({ children, animKey }: { children: React.ReactNode; animKey: 
 
 type Level = "sp" | "stalls";
 
+export type FarmMapTrendStatus = "ready" | "loading" | "error";
+
 type Props = {
   stallTyCode: string;
   label: string;
   dataByPeriod: Record<TrendPeriodId, TrendPeriodData> | null;
+  trendStatus?: FarmMapTrendStatus;
+  /** 해당 SP 그리드 카드에 LIVE readings 존재 여부 */
+  hasLiveSnapshot?: boolean;
+  onTrendRetry?: () => void;
   controllerHref: string | null;
   controller?: ControllerGridData | null;
+  /** URL mapLevel — SP 요약 vs 축사번호별 */
+  initialMapLevel?: FarmMapDrillLevel;
   /** tree/alarm deep-link — in-grid controller card-flip 진입 */
   initialControllerStallNo?: string | null;
   onClose: () => void;
@@ -164,21 +195,51 @@ export function FarmMapGraphStage({
   stallTyCode,
   label,
   dataByPeriod,
+  trendStatus = "ready",
+  hasLiveSnapshot = false,
+  onTrendRetry,
   controllerHref,
   controller,
+  initialMapLevel = "sp",
   initialControllerStallNo,
   onClose,
 }: Props) {
-  const [level, setLevel] = useState<Level>("sp");
+  const [level, setLevelState] = useState<Level>(
+    initialMapLevel === "stalls" ? "stalls" : "sp"
+  );
   const [period, setPeriod] = useState<TrendPeriodId>("24h");
   const [mode, setMode] = useState<ChartMode>("bar");
   const [controllerStallNo, setControllerStallNo] = useState<string | null>(
     initialControllerStallNo ?? null
   );
 
+  // SP 카드 전환 시에만 URL deep-link 로 drill 초기화 (shallow drill 은 로컬 state 유지)
   useEffect(() => {
+    setLevelState(initialMapLevel === "stalls" ? "stalls" : "sp");
     setControllerStallNo(initialControllerStallNo ?? null);
-  }, [initialControllerStallNo, stallTyCode]);
+  }, [stallTyCode]);
+
+  const setLevel = useCallback((next: Level) => {
+    setLevelState(next);
+    const params = currentFarmSearchParams();
+    setMapDrillLevel(params, next);
+    replaceFarmUrlShallow(params);
+  }, []);
+
+  const openControllerInGrid = useCallback((stallNo: string) => {
+    setControllerStallNo(stallNo);
+    const params = currentFarmSearchParams();
+    setMapControllerStall(params, stallNo);
+    replaceFarmUrlShallow(params);
+  }, []);
+
+  const closeControllerInGrid = useCallback(() => {
+    setControllerStallNo(null);
+    const params = currentFarmSearchParams();
+    clearMapControllerStall(params);
+    replaceFarmUrlShallow(params);
+  }, []);
+
   const { navigate } = useAppNavigate();
 
   const findReading = useCallback(
@@ -205,7 +266,7 @@ export function FarmMapGraphStage({
   /** in-grid 데이터가 있으면 카드플립, 없으면 페이지 이동(폴백). */
   const openController = (stallNo: string) => {
     if (controller && findReading(stallNo)) {
-      setControllerStallNo(stallNo);
+      openControllerInGrid(stallNo);
       return;
     }
     goController();
@@ -215,9 +276,16 @@ export function FarmMapGraphStage({
     ? findReading(controllerStallNo)
     : null;
 
+  useEffect(() => {
+    if (level !== "stalls" || !controller) return;
+    for (const stall of stalls) {
+      prefetchControllerDetail(findReading(stall.stallNo) ?? undefined);
+    }
+  }, [level, controller, stalls, findReading]);
+
   if (controller && controllerStallNo && controllerReading) {
     return (
-      <FlipEnter animKey={`ctrl-${stallTyCode}-${controllerStallNo}`}>
+      <FlipEnter animKey={`ctrl-${stallTyCode}-${controllerStallNo}`} instant>
         <FarmMapControllerPanel
           reading={controllerReading}
           readings={controller.readings}
@@ -226,7 +294,7 @@ export function FarmMapGraphStage({
           canCommand={controller.canCommand}
           alarmSettings={controller.alarmSettings}
           label={`${stallTyCode}-${controllerStallNo}`}
-          onBack={() => setControllerStallNo(null)}
+          onBack={closeControllerInGrid}
         />
       </FlipEnter>
     );
@@ -315,10 +383,43 @@ export function FarmMapGraphStage({
   );
 
   let body: React.ReactNode;
-  if (!sp || !spAvg || stalls.length === 0) {
+  if (trendStatus === "loading") {
     body = (
-      <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-        선택한 기간에 수신된 데이터가 없습니다.
+      <div
+        className="flex flex-col items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground"
+        data-audit-region="farm-map-graph-loading"
+      >
+        <Loader2 className="size-5 animate-spin text-emerald-600" aria-hidden />
+        <p>추이 데이터 불러오는 중…</p>
+      </div>
+    );
+  } else if (trendStatus === "error") {
+    body = (
+      <div
+        className="flex flex-col items-center justify-center gap-3 px-4 py-10 text-center text-sm text-muted-foreground"
+        data-audit-region="farm-map-graph-error"
+      >
+        <p>추이 데이터를 불러오지 못했습니다.</p>
+        {onTrendRetry ? (
+          <button
+            type="button"
+            onClick={onTrendRetry}
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            다시 시도
+          </button>
+        ) : null}
+      </div>
+    );
+  } else if (!sp || !spAvg || stalls.length === 0) {
+    body = (
+      <div
+        className="px-4 py-10 text-center text-sm text-muted-foreground"
+        data-audit-region="farm-map-graph-empty"
+      >
+        {hasLiveSnapshot
+          ? "LIVE는 수신 중입니다. 추이 집계 데이터가 아직 없습니다."
+          : "선택한 기간에 수신된 데이터가 없습니다."}
       </div>
     );
   } else if (level === "sp") {
@@ -364,9 +465,8 @@ export function FarmMapGraphStage({
         key={`stalls-${period}-${mode}`}
         className="grid grid-cols-1 gap-3 p-3 pb-6 sm:grid-cols-2 lg:grid-cols-3 lg:pb-3"
       >
-        {stalls.map((stall, i) => (
-          <Enter key={stall.stallNo} animKey={`${stall.stallNo}-${period}-${mode}`} delay={i * 0.06}>
-            <div className="rounded-lg border bg-background p-3">
+        {stalls.map((stall) => (
+          <div key={stall.stallNo} className="rounded-lg border bg-background p-3">
               <p className="pb-1.5 text-sm font-semibold">
                 {stallTyCode}-{stall.stallNo}
               </p>
@@ -396,6 +496,12 @@ export function FarmMapGraphStage({
                     <button
                       type="button"
                       onClick={() => openController(stall.stallNo)}
+                      onMouseEnter={() =>
+                        prefetchControllerDetail(findReading(stall.stallNo) ?? undefined)
+                      }
+                      onFocus={() =>
+                        prefetchControllerDetail(findReading(stall.stallNo) ?? undefined)
+                      }
                       disabled={!inGrid && !controllerHref}
                       className="inline-flex items-center gap-1 rounded-md border px-3.5 py-1.5 text-sm hover:bg-muted disabled:opacity-50"
                     >
@@ -409,19 +515,16 @@ export function FarmMapGraphStage({
                   );
                 })()}
               </div>
-            </div>
-          </Enter>
+          </div>
         ))}
       </div>
     );
   }
 
   return (
-    <Enter animKey={`stage-${stallTyCode}`}>
-      <div className="overflow-hidden rounded-md border bg-card">
-        {toolbar}
-        {body}
-      </div>
-    </Enter>
+    <div className="overflow-hidden rounded-md border bg-card">
+      {toolbar}
+      {body}
+    </div>
   );
 }

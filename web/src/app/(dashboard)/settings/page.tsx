@@ -35,7 +35,7 @@ export default async function SettingsLegacyRedirectPage({
     case "alarm":
       redirect(devicesAlarmSettingsHref(passthrough));
     case "farm":
-      redirect(isAdmin ? adminOpsHref("farms") : "/farm?tab=ops");
+      redirect(isAdmin ? adminOpsHref("farms") : "/farm");
     case "dashboard":
       redirect("/farm");
     default:

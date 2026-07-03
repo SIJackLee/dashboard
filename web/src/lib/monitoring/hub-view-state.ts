@@ -1,5 +1,6 @@
-import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
-import { farmKeyId } from "@/lib/data/farm-key";
+import { filterBarnLayoutPrefsForFarm } from "@/lib/data/barn-map";
+import type { BarnLayoutPrefs } from "@/lib/data/barn-meta";
+import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
 
 /** Admin 전국 허브 — 지도·목록·우측 패널 단계 */
 export type HubViewPhase = "overview" | "region" | "farm" | "drill";
@@ -38,6 +39,17 @@ export function shortSidoDisplay(sido: string): string {
   return sido.replace(/특별자치도|특별자치시|광역시|도$/g, "");
 }
 
+/** drill scope — overview 복원 시 stale URL farmId 무시 */
+export function effectiveHubFarmId(
+  hubFarmId: string | null,
+  hubPhase: HubViewPhase,
+  urlFarmId: string | undefined,
+): string | null {
+  if (hubFarmId) return hubFarmId;
+  if (hubPhase === "overview") return null;
+  return urlFarmId ?? null;
+}
+
 /** URL이 farm grid 전용( ctrl/sp/stall 없음)인지 */
 export function isGeoHubFarmGridUrl(
   geoHubMode: boolean,
@@ -66,19 +78,22 @@ export function filterLayoutPrefsForFarm(
   prefs: HubBarnLayoutPrefs,
   farmId: string
 ): HubBarnLayoutPrefs {
-  const layouts: HubBarnLayoutPrefs["layouts"] = {};
-  for (const [key, grid] of Object.entries(prefs.layouts)) {
-    const parsed = parseBarnCatalogKey(key);
-    if (parsed && farmKeyId(parsed.farmKey) === farmId) {
-      layouts[key] = grid;
-    }
+  const farmKey = parseFarmKeyFromFarmId(farmId);
+  if (!farmKey) return { layouts: {}, aliases: {} };
+  const scoped = filterBarnLayoutPrefsForFarm(
+    { ...prefs, legacyBarns: [] } satisfies BarnLayoutPrefs,
+    farmKey
+  );
+  return { layouts: scoped.layouts, aliases: scoped.aliases };
+}
+
+function parseFarmKeyFromFarmId(farmId: string): FarmKey | null {
+  const slash = farmId.indexOf("/");
+  if (slash > 0) {
+    return parseFarmKeyFromQuery(
+      farmId.slice(0, slash),
+      farmId.slice(slash + 1)
+    );
   }
-  const aliases: HubBarnLayoutPrefs["aliases"] = {};
-  for (const [key, alias] of Object.entries(prefs.aliases)) {
-    const parsed = parseBarnCatalogKey(key);
-    if (parsed && farmKeyId(parsed.farmKey) === farmId) {
-      aliases[key] = alias;
-    }
-  }
-  return { layouts, aliases };
+  return parseFarmKeyFromQuery(farmId, "P00");
 }

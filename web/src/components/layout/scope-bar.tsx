@@ -30,6 +30,7 @@ export type ScopeBarProps = {
     farmOptions: FarmKey[];
     activeFarmKey: FarmKey | null;
     farmSummaries?: FarmSummaryRow[];
+    compact?: boolean;
   };
 };
 
@@ -99,7 +100,7 @@ export function ScopeBar({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className={cn("min-w-0 flex-1 space-y-3", dashboardUi.body)}>
           {adminFarmSwitcher ? (
-            <FarmSwitcher {...adminFarmSwitcher} />
+            <FarmSwitcher {...adminFarmSwitcher} compact={adminFarmSwitcher.compact} />
           ) : null}
 
           {multiFarm && onFarmChange ? (

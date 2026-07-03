@@ -3,10 +3,7 @@ export type MonitoringTabId = "map" | "ops";
 export const MONITORING_TABS: ReadonlyArray<{
   id: MonitoringTabId;
   label: string;
-}> = [
-  { id: "map", label: "현황" },
-  { id: "ops", label: "컨트롤러" },
-];
+}> = [{ id: "map", label: "현황" }];
 
 export const MONITORING_BASE_PATH = "/farm";
 
@@ -29,7 +26,7 @@ export function setMonitoringTabParam(
 
 /**
  * 탭 전환 시 다른 탭 전용 query 제거.
- * Admin 전국 현황(map, lsind/item 없음)은 scope 파라미터까지 정리해 geo 지도로 고정.
+ * Admin map 탭에서 farm scope(lsind/item) 없으면 drill 파라미터 정리.
  */
 export function sanitizeMonitoringSearchParams(
   params: URLSearchParams,

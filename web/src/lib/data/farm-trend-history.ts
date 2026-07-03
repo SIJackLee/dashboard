@@ -11,17 +11,23 @@ import {
 } from "@/lib/data/stall-type";
 import {
   TREND_PERIODS,
+  type TrendControllerPeriodData,
+  type TrendControllerSeries,
+  type TrendControllerSpSeries,
   type TrendPeriodData,
   type TrendPeriodId,
   type TrendSpSeries,
   type TrendStallSeries,
 } from "@/lib/data/farm-trend-types";
+import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 
 export type {
   TrendPeriodId,
   TrendPeriodData,
   TrendSpSeries,
   TrendStallSeries,
+  TrendControllerPeriodData,
+  TrendControllerSeries,
 } from "@/lib/data/farm-trend-types";
 export { TREND_PERIODS, DEFAULT_TREND_PERIOD } from "@/lib/data/farm-trend-types";
 
@@ -38,6 +44,11 @@ type RpcRow = {
   avg_fan_exhaust: number | string | null;
   avg_fan_intake: number | string | null;
   sample_count: number | string | null;
+};
+
+type ControllerRpcRow = RpcRow & {
+  controller_key: string | null;
+  eqpmn_no: string | null;
 };
 
 function stallNoSortKey(stallNo: string): number {
@@ -77,11 +88,52 @@ async function fetchTrendRows(
   return data as unknown as RpcRow[];
 }
 
+async function fetchControllerTrendRows(
+  accessToken: string,
+  farmKey: FarmKey,
+  fromIso: string,
+  toIso: string,
+  bucket: string,
+): Promise<ControllerRpcRow[]> {
+  const supabase = createRlsClient(accessToken);
+  const { data, error } = await supabase.rpc(
+    "farm_trend_history_by_controller" as never,
+    {
+      p_lsind: farmKey.lsindRegistNo,
+      p_item: farmKey.itemCode,
+      p_from: fromIso,
+      p_to: toIso,
+      p_bucket: bucket,
+    } as never,
+  );
+  if (error || !data) return [];
+  return data as unknown as ControllerRpcRow[];
+}
+
+function eqpmnSortKey(eqpmnNo: string): number {
+  const n = Number(normalizeEqpmnNo(eqpmnNo));
+  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+}
+
+function newEmptyStallSeries(stallNo: string, bucketCount: number): TrendStallSeries {
+  const emptyCol = () => new Array<number | null>(bucketCount).fill(null);
+  return {
+    stallNo,
+    temp: emptyCol(),
+    humidity: emptyCol(),
+    fanSupply: emptyCol(),
+    fanExhaust: emptyCol(),
+    fanIntake: emptyCol(),
+    sampleCount: new Array<number>(bucketCount).fill(0),
+  };
+}
+
 function formatBucketLabel(date: Date, period: TrendPeriodId): string {
   const mm = date.getMonth() + 1;
   const dd = date.getDate();
   const hh = String(date.getHours()).padStart(2, "0");
-  if (period === "24h") return `${hh}시`;
+  const min = String(date.getMinutes()).padStart(2, "0");
+  if (period === "24h") return `${hh}:${min}`;
   if (period === "7d") return `${mm}/${dd} ${hh}시`;
   return `${mm}/${dd}`;
 }
@@ -159,6 +211,83 @@ function buildPeriodData(
   return { period, categories, bucketAts, sp, totalSamples };
 }
 
+/** Build controller-level series grouped by SP → stall → controller. */
+function buildControllerPeriodData(
+  rows: ControllerRpcRow[],
+  period: TrendPeriodId,
+  fromMs: number,
+): TrendControllerPeriodData {
+  const cfg = TREND_PERIODS[period];
+
+  const bucketAts: string[] = [];
+  const categories: string[] = [];
+  for (let i = 0; i < cfg.bucketCount; i++) {
+    const ms = fromMs + i * cfg.strideMs;
+    const d = new Date(ms);
+    bucketAts.push(d.toISOString());
+    categories.push(formatBucketLabel(d, period));
+  }
+
+  type StallBucket = { stallNo: string; controllers: Map<string, TrendControllerSeries> };
+  type SpBucket = { stallTyCode: string; label: string; stalls: Map<string, StallBucket> };
+  const spMap = new Map<string, SpBucket>();
+  let totalSamples = 0;
+
+  for (const row of rows) {
+    const code = normalizeStallTyCode(row.stall_ty_code);
+    let sp = spMap.get(code);
+    if (!sp) {
+      sp = { stallTyCode: code, label: getStallTypeName(code), stalls: new Map() };
+      spMap.set(code, sp);
+    }
+    const stallNo = (row.stall_no ?? "").trim() || "—";
+    let stall = sp.stalls.get(stallNo);
+    if (!stall) {
+      stall = { stallNo, controllers: new Map() };
+      sp.stalls.set(stallNo, stall);
+    }
+    const controllerKey = (row.controller_key ?? "").trim();
+    if (!controllerKey) continue;
+    let ctrl = stall.controllers.get(controllerKey);
+    if (!ctrl) {
+      ctrl = {
+        ...newEmptyStallSeries(stallNo, cfg.bucketCount),
+        controllerKey,
+        eqpmnNo: normalizeEqpmnNo(row.eqpmn_no ?? "01"),
+      };
+      stall.controllers.set(controllerKey, ctrl);
+    }
+    const bucketMs = Date.parse(row.bucket_at);
+    const slot = Math.round((bucketMs - fromMs) / cfg.strideMs);
+    if (slot < 0 || slot >= cfg.bucketCount) continue;
+    ctrl.temp[slot] = toNum(row.avg_temp_c);
+    ctrl.humidity[slot] = toNum(row.avg_humidity_pct);
+    ctrl.fanSupply[slot] = toNum(row.avg_fan_supply);
+    ctrl.fanExhaust[slot] = toNum(row.avg_fan_exhaust);
+    ctrl.fanIntake[slot] = toNum(row.avg_fan_intake);
+    const n = toNum(row.sample_count) ?? 0;
+    ctrl.sampleCount[slot] = n;
+    totalSamples += n;
+  }
+
+  const sp: TrendControllerSpSeries[] = [...spMap.values()]
+    .sort((a, b) => stallTyCodeSortKey(a.stallTyCode) - stallTyCodeSortKey(b.stallTyCode))
+    .map((s) => ({
+      stallTyCode: s.stallTyCode,
+      label: s.label,
+      stalls: [...s.stalls.values()]
+        .sort((a, b) => stallNoSortKey(a.stallNo) - stallNoSortKey(b.stallNo))
+        .map((st) => ({
+          stallNo: st.stallNo,
+          controllers: [...st.controllers.values()].sort(
+            (a, b) => eqpmnSortKey(a.eqpmnNo) - eqpmnSortKey(b.eqpmnNo),
+          ),
+        })),
+    }));
+
+  return { period, categories, bucketAts, sp, totalSamples };
+}
+
 export async function getFarmTrendHistory(params: {
   farmKey: FarmKey;
   period: TrendPeriodId;
@@ -208,6 +337,59 @@ export async function getFarmTrendAllPeriods(params: {
     getFarmTrendHistory({ farmKey: params.farmKey, period: "24h", now }),
     getFarmTrendHistory({ farmKey: params.farmKey, period: "7d", now }),
     getFarmTrendHistory({ farmKey: params.farmKey, period: "30d", now }),
+  ]);
+  return { "24h": h24, "7d": d7, "30d": d30 };
+}
+
+export async function getFarmControllerTrendHistory(params: {
+  farmKey: FarmKey;
+  period: TrendPeriodId;
+  now?: number;
+}): Promise<TrendControllerPeriodData> {
+  const cfg = TREND_PERIODS[params.period];
+  const toMs = alignedToMs(params.now ?? Date.now());
+  const fromMs = toMs - cfg.durationMs;
+  const emptyResult: TrendControllerPeriodData = {
+    period: params.period,
+    categories: [],
+    bucketAts: [],
+    sp: [],
+    totalSamples: 0,
+  };
+
+  const accessToken = await getAccessTokenOrNull();
+  if (!accessToken) return emptyResult;
+
+  const user = await getCurrentUser();
+  const userId = user?.id ?? "anon";
+  const scopeKey = farmKeyId(params.farmKey);
+
+  const rows = await cachedLiveQuery(
+    ["farm-controller-trend", userId, scopeKey, params.period, String(toMs)],
+    ["live", `controller-trend:${scopeKey}`],
+    () =>
+      fetchControllerTrendRows(
+        accessToken,
+        params.farmKey,
+        new Date(fromMs).toISOString(),
+        new Date(toMs).toISOString(),
+        cfg.bucket,
+      ),
+  );
+
+  return buildControllerPeriodData(rows, params.period, fromMs);
+}
+
+/** SSR all three periods for list graph mode (per-controller series). */
+export async function getFarmControllerTrendAllPeriods(params: {
+  farmKey: FarmKey;
+  now?: number;
+}): Promise<Record<TrendPeriodId, TrendControllerPeriodData>> {
+  const now = params.now ?? Date.now();
+  const [h24, d7, d30] = await Promise.all([
+    getFarmControllerTrendHistory({ farmKey: params.farmKey, period: "24h", now }),
+    getFarmControllerTrendHistory({ farmKey: params.farmKey, period: "7d", now }),
+    getFarmControllerTrendHistory({ farmKey: params.farmKey, period: "30d", now }),
   ]);
   return { "24h": h24, "7d": d7, "30d": d30 };
 }

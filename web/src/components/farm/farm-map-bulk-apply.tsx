@@ -45,6 +45,7 @@ type Props = {
   onEnter: () => void;
   onClearSelection: () => void;
   onExit: () => void;
+  hubMode?: boolean;
 };
 
 type ApplyResult = {
@@ -102,6 +103,7 @@ export function FarmMapBulkApply({
   onEnter,
   onClearSelection,
   onExit,
+  hubMode = false,
 }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -220,7 +222,7 @@ export function FarmMapBulkApply({
 
     setResult({ control, alarm: alarmResult });
     setRunning(false);
-    router.refresh();
+    if (!hubMode) router.refresh();
   };
 
   const closeAll = () => {

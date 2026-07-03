@@ -19,10 +19,18 @@ export type TrendPeriodConfig = {
 };
 
 const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
 const DAY = 24 * HOUR;
 
 export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
-  "24h": { id: "24h", label: "24시간", bucket: "1 hour", durationMs: DAY, bucketCount: 24, strideMs: HOUR },
+  "24h": {
+    id: "24h",
+    label: "24시간",
+    bucket: "15 minutes",
+    durationMs: DAY,
+    bucketCount: 96,
+    strideMs: 15 * MINUTE,
+  },
   "7d": { id: "7d", label: "7일", bucket: "6 hours", durationMs: 7 * DAY, bucketCount: 28, strideMs: 6 * HOUR },
   "30d": { id: "30d", label: "30일", bucket: "1 day", durationMs: 30 * DAY, bucketCount: 30, strideMs: DAY },
 };
@@ -55,5 +63,31 @@ export type TrendPeriodData = {
   bucketAts: string[];
   sp: TrendSpSeries[];
   /** Total samples across all SPs/buckets — 0 means empty window. */
+  totalSamples: number;
+};
+
+/** One controller (eqpmn) aligned series — list graph mode. */
+export type TrendControllerSeries = TrendStallSeries & {
+  controllerKey: string;
+  eqpmnNo: string;
+};
+
+export type TrendControllerStallGroup = {
+  stallNo: string;
+  controllers: TrendControllerSeries[];
+};
+
+/** One SP grouping controllers by barn. */
+export type TrendControllerSpSeries = {
+  stallTyCode: string;
+  label: string;
+  stalls: TrendControllerStallGroup[];
+};
+
+export type TrendControllerPeriodData = {
+  period: TrendPeriodId;
+  categories: string[];
+  bucketAts: string[];
+  sp: TrendControllerSpSeries[];
   totalSamples: number;
 };

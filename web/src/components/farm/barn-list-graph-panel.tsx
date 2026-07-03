@@ -1,0 +1,163 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { TrendChart } from "@/components/trends/trend-chart";
+import {
+  TREND_PERIODS,
+  type TrendControllerPeriodData,
+  type TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
+import type { BarnReading } from "@/lib/data/iot";
+import {
+  channelFanTrendSeries,
+  envTrendSeries,
+  stallTrendHasData,
+} from "@/lib/farm/trend-chart-series";
+import {
+  findControllerTrendSeries,
+  formatControllerNoLabel,
+} from "@/lib/farm/controller-summary-display";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
+
+const PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
+
+type Props = {
+  reading: BarnReading;
+  controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
+  defaultPeriod?: TrendPeriodId;
+  loading?: boolean;
+};
+
+function tickEveryForPeriod(period: TrendPeriodId, count: number): number {
+  if (count <= 12) return 1;
+  if (period === "24h") return 8;
+  if (period === "7d") return 7;
+  return 5;
+}
+
+export function BarnListGraphPanel({
+  reading,
+  controllerTrendByPeriod,
+  defaultPeriod = "24h",
+  loading = false,
+}: Props) {
+  const [period, setPeriod] = useState<TrendPeriodId>(defaultPeriod);
+
+  const periodData = controllerTrendByPeriod?.[period] ?? null;
+  const controllerSeries = useMemo(
+    () =>
+      findControllerTrendSeries(
+        controllerTrendByPeriod,
+        period,
+        reading.stallTyCode,
+        reading.stallNo,
+        reading.controllerKey
+      ),
+    [
+      controllerTrendByPeriod,
+      period,
+      reading.stallTyCode,
+      reading.stallNo,
+      reading.controllerKey,
+    ]
+  );
+
+  const categories = periodData?.categories ?? [];
+  const hasData = stallTrendHasData(controllerSeries) && categories.length > 0;
+  const tickEvery = tickEveryForPeriod(period, categories.length);
+
+  const sp = reading.stallTyCode
+    ? normalizeStallTyCode(reading.stallTyCode)
+    : "—";
+  const stall = reading.stallNo?.trim() || "—";
+
+  return (
+    <div
+      className="border-t bg-muted/20 px-3 py-3 sm:px-4"
+      data-audit-region="barn-list-graph-panel"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className={cn("font-semibold", dashboardTypography.sectionTitle)}>
+            {sp} · 축사 {stall} · {formatControllerNoLabel(reading.eqpmnNo)}
+          </p>
+        </div>
+        <div
+          className="inline-flex shrink-0 overflow-x-auto rounded-md border bg-background"
+          role="group"
+          aria-label="기간"
+        >
+          {PERIOD_ORDER.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPeriod(p)}
+              className={cn(
+                "shrink-0 px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
+                period === p
+                  ? "bg-sky-50 text-sky-700"
+                  : "text-muted-foreground hover:bg-muted"
+              )}
+            >
+              {TREND_PERIODS[p].label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!hasData ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {loading && !controllerTrendByPeriod
+            ? "추이 데이터를 불러오는 중…"
+            : "선택한 기간에 수신된 데이터가 없습니다."}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          <div className="rounded-lg border bg-background p-2.5 sm:p-3">
+            <p className="mb-1 text-xs font-semibold text-muted-foreground">
+              환경 · 온도 (℃)
+            </p>
+            <TrendChart
+              mode="line"
+              categories={categories}
+              series={[envTrendSeries(controllerSeries!)[0]!]}
+              height={88}
+              leftUnit="℃"
+              tickEvery={tickEvery}
+            />
+            <p className="mb-1 mt-2 text-xs font-semibold text-muted-foreground">
+              환경 · 습도 (%)
+            </p>
+            <TrendChart
+              mode="line"
+              categories={categories}
+              series={[envTrendSeries(controllerSeries!)[1]!]}
+              height={72}
+              leftUnit="%"
+              leftDomain={[0, 100]}
+              tickEvery={tickEvery}
+            />
+          </div>
+          <div className="rounded-lg border bg-background p-2.5 sm:p-3">
+            <p className="mb-1.5 text-xs font-semibold text-muted-foreground">
+              채널 A, B, C (%)
+            </p>
+            <TrendChart
+              mode="line"
+              categories={categories}
+              series={channelFanTrendSeries(controllerSeries!)}
+              height={80}
+              leftUnit="%"
+              leftDomain={[0, 100]}
+              tickEvery={tickEvery}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

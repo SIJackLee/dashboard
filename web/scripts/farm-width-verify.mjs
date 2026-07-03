@@ -77,6 +77,12 @@ async function testMobileGraphFlow(page) {
     await sleep(500);
     const graph = document.querySelector('[data-audit-region="farm-map-mobile-graph"]');
     if (!graph) return { graphOpen: false };
+    const loadingDuringFetch = !!graph.querySelector(
+      '[data-audit-region="farm-map-graph-loading"]'
+    );
+    const emptyEl = graph.querySelector('[data-audit-region="farm-map-graph-empty"]');
+    const hasChart = !!graph.querySelector('[aria-label="추이 차트"]');
+    const emptyText = emptyEl?.textContent?.trim() ?? null;
     clickBtn("축사번호별", graph);
     await sleep(400);
     const ctrl = [...graph.querySelectorAll("button")].find((b) =>
@@ -97,6 +103,11 @@ async function testMobileGraphFlow(page) {
       controllerOpen,
       backToList: !!document.querySelector('[data-audit-region="farm-map-mobile-list"]'),
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      hasChart,
+      emptyText,
+      misleadingEmpty:
+        loadingDuringFetch &&
+        (emptyText?.includes("선택한 기간에 수신된") ?? false),
     };
   });
 }
@@ -115,6 +126,12 @@ async function testDesktopGraphFlow(page) {
     const graphOpen = [...desktop.querySelectorAll("button")].some((b) =>
       b.textContent?.includes("지도")
     );
+    const loadingDuringFetch = !!desktop.querySelector(
+      '[data-audit-region="farm-map-graph-loading"]'
+    );
+    const emptyEl = desktop.querySelector('[data-audit-region="farm-map-graph-empty"]');
+    const hasChart = !!desktop.querySelector('[aria-label="추이 차트"]');
+    const emptyText = emptyEl?.textContent?.trim() ?? null;
     if (graphOpen) {
       const back = [...desktop.querySelectorAll("button")].find((b) =>
         b.textContent?.includes("지도")
@@ -128,6 +145,11 @@ async function testDesktopGraphFlow(page) {
         s.getAttribute("aria-label")?.includes("일괄적용")
       ),
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      hasChart,
+      emptyText,
+      misleadingEmpty:
+        loadingDuringFetch &&
+        (emptyText?.includes("선택한 기간에 수신된") ?? false),
     };
   });
 }
@@ -221,6 +243,7 @@ async function main() {
     if (!isMobile && layout.bottomNavDisplay !== "none" && layout.bottomNavDisplay != null)
       issues.push("bottom nav on desktop");
     if (flow.graphOpen === false && !flow.skipped) issues.push("graph flow failed");
+    if (flow.misleadingEmpty) issues.push("graph showed false empty during loading");
     if (isMobile && flow.graphOpen && flow.controllerOpen === false)
       issues.push("controller flow failed");
     if (bulk.modalOpen === false && !bulk.skipped && !bulk.reason)

@@ -57,8 +57,9 @@ export const dashboardUi = {
     "inline-flex min-h-[2.75rem] items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium leading-snug transition-colors md:px-4 md:text-[1.75rem]",
   headerNavIcon: "size-5 shrink-0 md:size-7 [&_svg]:size-5 md:[&_svg]:size-7",
   headerBrand:
-    "flex min-w-0 items-center gap-2.5 pr-1 md:gap-3 md:pr-2",
-  headerBrandIcon: "size-10 rounded-lg md:size-11",
+    "flex min-w-0 flex-1 items-center gap-2.5 pr-1 sm:flex-none sm:shrink-0 md:gap-3 md:pr-2",
+  headerBrandIcon:
+    "relative shrink-0 overflow-hidden rounded-lg bg-muted/40 max-sm:h-10 max-sm:max-h-11 max-sm:w-full sm:h-[1lh] sm:w-[1lh]",
   headerBrandTitle:
     "hidden truncate text-2xl font-semibold leading-tight sm:block",
   headerAccountAvatar:
@@ -244,4 +245,14 @@ export const dashboardUi = {
   chartValue: "text-4xl font-bold",
   mapCardTitle: "text-xl font-semibold leading-tight",
   mapCardMeta: "text-lg text-muted-foreground",
+
+  /** ChannelCell · FarmMapCard 그리드 셀 — 값/메타/아이콘 */
+  gridCellMetaCompact:
+    "font-medium text-muted-foreground leading-none text-[10px] sm:text-xs",
+  gridCellValueCompact:
+    "font-bold tabular-nums leading-none text-2xl sm:text-3xl",
+  gridCellValueDefault:
+    "font-bold tabular-nums leading-none text-3xl sm:text-4xl",
+  gridCellIconCompact: "size-5 shrink-0 sm:size-6",
+  gridCellIconDefault: "size-6 shrink-0 sm:size-7",
 } as const;

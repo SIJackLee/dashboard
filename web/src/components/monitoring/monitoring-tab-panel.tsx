@@ -45,6 +45,6 @@ export function MonitoringTabPanel({ serverTab, children }: Props) {
   }
 
   return (
-    <div key={`${serverTab}-${searchParams.toString()}`}>{children}</div>
+    <div key={serverTab}>{children}</div>
   );
 }

@@ -41,3 +41,14 @@ npx tsx scripts/measure-live-read.ts
 - `NEXT_PUBLIC_LIVE_READ_TIER=list` (rollback: `legacy`)
 - farm-scoped limit: `LIVE_FARM_ROW_LIMIT=500`
 - PostgREST `max_rows=1000` 유지 ([`supabase/config.toml`](../supabase/config.toml))
+
+## Trend RPC (farm `/farm`)
+
+| RPC | When loaded | Cache tag | Typical rows (24h) |
+| --- | --- | --- | --- |
+| `farm_trend_history` | SSR (grid + page + hub scoped Z3) | `live:trend:{scope}` | SP × stall × 96 buckets |
+| `farm_trend_history_by_controller` | Client lazy (list graph) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets |
+
+- Bucket policy: 24h = 15 min (96 pts), 7d = 6 h (28), 30d = 1 d (30) — see [`docs/changes/farm-trend-cache-policy.md`](../../docs/changes/farm-trend-cache-policy.md)
+- Map tab SSR skips controller-trend fetch (P4 lazy load)
+- Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch + SSR trend via server action when `tab=ops` and farm selected

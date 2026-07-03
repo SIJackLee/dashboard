@@ -22,13 +22,15 @@ function parseGridSize(text) {
 async function audit(page) {
   return page.evaluate(() => {
     const grid =
-      document.querySelector('[data-audit-region="admin-hub-farm-map"]') ??
-      document.querySelector('[data-audit-region="admin-hub-farm-map-mobile"]');
+      document.querySelector('[data-audit-region="admin-hub-farm-scoped"]') ??
+      document.querySelector('[data-audit-region="admin-hub-farm-scoped-mobile"]');
     const gridText = grid?.innerText ?? "";
     const url = new URL(location.href);
+    const viewTabs = [...document.querySelectorAll('[role="tablist"][aria-label="농장 보기"] button')];
     return {
       url: location.href,
       pathname: url.pathname,
+      view: url.searchParams.get("view"),
       lsind: url.searchParams.get("lsind"),
       item: url.searchParams.get("item"),
       ctrl: url.searchParams.get("ctrl"),
@@ -37,8 +39,10 @@ async function audit(page) {
       opsPanel: !!document.querySelector('[data-audit-region="ops-controller-panel"]'),
       hubMap: !!grid,
       hubMapMobile: !!document.querySelector(
-        '[data-audit-region="admin-hub-farm-map-mobile"]'
+        '[data-audit-region="admin-hub-farm-scoped-mobile"]'
       ),
+      hasGridTab: viewTabs.some((b) => b.textContent?.includes("그리드")),
+      hasListTab: viewTabs.some((b) => b.textContent?.includes("목록")),
       ctrlText: (document.body.textContent ?? "").includes("온도 설정"),
       envText: (document.body.textContent ?? "").includes("환기량"),
       gridSnippet: gridText.slice(0, 400),
@@ -55,7 +59,9 @@ async function audit(page) {
 
 function assertFarmGridMode(snapshot, label, expectedFarmId = "FARM02") {
   const errors = [];
-  if (!snapshot.hubMap) errors.push(`${label}: hub farm map missing`);
+  if (!snapshot.hubMap) errors.push(`${label}: hub farm scoped panel missing`);
+  if (!snapshot.hasGridTab) errors.push(`${label}: grid tab missing`);
+  if (!snapshot.hasListTab) errors.push(`${label}: list tab missing`);
   if (snapshot.opsPanel) errors.push(`${label}: ops controller panel should be hidden`);
   if (snapshot.ctrlText) errors.push(`${label}: legacy ops "온도 설정" visible`);
   if (snapshot.barnCount > 32) {
@@ -88,10 +94,70 @@ function assertNoHubFarmGrid(snapshot, label) {
 
 function assertDrillMode(snapshot, label) {
   const errors = [];
-  if (snapshot.hubMap) errors.push(`${label}: farm grid should be hidden in drill mode`);
-  if (!snapshot.opsPanel) errors.push(`${label}: ops controller panel missing in drill mode`);
+  if (snapshot.hubMap) errors.push(`${label}: farm scoped panel should be hidden in drill mode`);
   if (!snapshot.ctrl) errors.push(`${label}: ctrl param missing in drill URL`);
   return errors;
+}
+
+async function auditFarmList(page) {
+  return page.evaluate(() => {
+    const body = document.body.textContent ?? "";
+    return {
+      url: location.href,
+      hasEmptyFarmList: body.includes("표시할 농장이 없습니다"),
+      farmButtonCount: [...document.querySelectorAll("button")].filter((b) =>
+        /FARM\d+/i.test(b.textContent ?? "")
+      ).length,
+    };
+  });
+}
+
+function assertFarmListNonEmpty(snapshot, label) {
+  const errors = [];
+  if (snapshot.hasEmptyFarmList) {
+    errors.push(`${label}: empty farm list message shown`);
+  }
+  if (snapshot.farmButtonCount < 1) {
+    errors.push(`${label}: no FARM buttons in hierarchy tree (count=${snapshot.farmButtonCount})`);
+  }
+  return errors;
+}
+
+async function auditInGridGraph(page) {
+  return page.evaluate(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const grid =
+      document.querySelector('[data-audit-region="admin-hub-farm-scoped"]') ??
+      document.querySelector('[data-audit-region="admin-hub-farm-scoped-mobile"]');
+    if (!grid) return { skipped: true, reason: "no hub grid" };
+    const card = [...grid.querySelectorAll("button")].find((b) =>
+      /임신사|후보돈사|분만사/i.test(b.textContent ?? "")
+    );
+    if (!card) return { skipped: true, reason: "no barn card" };
+    card.click();
+    await sleep(100);
+    const sawLoading = !!document.querySelector(
+      '[data-audit-region="farm-map-graph-loading"]'
+    );
+    await sleep(3000);
+    const stuckLoading = !!document.querySelector(
+      '[data-audit-region="farm-map-graph-loading"]'
+    );
+    const emptyEl = document.querySelector('[data-audit-region="farm-map-graph-empty"]');
+    const emptyText = emptyEl?.textContent?.trim() ?? null;
+    const graphOpen = [...document.querySelectorAll("button")].some((b) =>
+      b.textContent?.includes("지도")
+    );
+    return {
+      graphOpen,
+      sawLoading,
+      stuckLoading,
+      hasChart: !!document.querySelector('[aria-label="추이 차트"]'),
+      emptyText,
+      misleadingEmpty:
+        sawLoading && (emptyText?.includes("선택한 기간에 수신된") ?? false),
+    };
+  });
 }
 
 async function loginAdmin(page) {
@@ -131,7 +197,7 @@ async function auditLayout(page) {
       document.querySelector('[data-audit-map-ready="true"]');
     const leaflet = document.querySelector(".leaflet-container");
     const mapEl = leaflet ?? mapHost;
-    const rightPanel = document.querySelector('[data-audit-region="admin-hub-farm-map"]');
+    const rightPanel = document.querySelector('[data-audit-region="admin-hub-farm-scoped"]');
     const gridStyle = grid ? getComputedStyle(grid) : null;
     return {
       width: window.innerWidth,
@@ -193,6 +259,19 @@ async function main() {
 
   await loginAdmin(page);
 
+  // Path 0 — bare /farm (admin default) + F5 refresh farm list
+  await page.goto(`${BASE}/farm`, { waitUntil: "domcontentloaded" });
+  await waitHubReady(page);
+  const bareFarmList = await auditFarmList(page);
+  results.push({ step: "bare-farm-url", farmList: bareFarmList });
+  failures.push(...assertFarmListNonEmpty(bareFarmList, "bare-farm-url"));
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await waitHubReady(page);
+  const bareFarmAfterReload = await auditFarmList(page);
+  results.push({ step: "bare-farm-after-reload", farmList: bareFarmAfterReload });
+  failures.push(...assertFarmListNonEmpty(bareFarmAfterReload, "bare-farm-after-reload"));
+
   // Path A — overview (no farm in URL)
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`${BASE}/farm?tab=ops`, { waitUntil: "domcontentloaded" });
@@ -223,8 +302,8 @@ async function main() {
 
     const catalogAudit = await page.evaluate(() => {
       const grid =
-        document.querySelector('[data-audit-region="admin-hub-farm-map"]') ??
-        document.querySelector('[data-audit-region="admin-hub-farm-map-mobile"]');
+        document.querySelector('[data-audit-region="admin-hub-farm-scoped"]') ??
+        document.querySelector('[data-audit-region="admin-hub-farm-scoped-mobile"]');
       if (!grid) return null;
       const names = [...grid.querySelectorAll("p,span,button")]
         .map((el) => el.textContent?.trim() ?? "")
@@ -242,6 +321,84 @@ async function main() {
       failures.push(
         `click-FARM02: duplicate barn labels ${JSON.stringify(catalogAudit.duplicateBarns)}`
       );
+    }
+
+    const graphDrill = await auditInGridGraph(page);
+    results.push({ step: "click-FARM02-graph-drill", graphDrill });
+    if (graphDrill.skipped) {
+      failures.push(`click-FARM02-graph: ${graphDrill.reason}`);
+    } else {
+      if (!graphDrill.graphOpen) failures.push("click-FARM02-graph: graph did not open");
+      if (graphDrill.misleadingEmpty) {
+        failures.push("click-FARM02-graph: false empty shown during loading");
+      }
+      if (graphDrill.stuckLoading) {
+        failures.push("click-FARM02-graph: loading stuck after 3s");
+      }
+    }
+
+    const listTabBtn = page.getByRole("tab", { name: "목록" });
+    if ((await listTabBtn.count()) === 0) {
+      failures.push("click-FARM02: list tab button missing");
+    } else {
+      await listTabBtn.click();
+      await page.waitForTimeout(800);
+      const listAudit = await page.evaluate(() => ({
+        view: new URL(location.href).searchParams.get("view"),
+        hasTable: !!document.querySelector("table"),
+        hasListTabs: (document.body.textContent ?? "").includes("컨트롤러"),
+      }));
+      results.push({ step: "click-FARM02-list-tab", listAudit });
+      if (listAudit.view !== "list") {
+        failures.push(`click-FARM02-list: view param expected list, got ${listAudit.view}`);
+      }
+      if (!listAudit.hasTable) {
+        failures.push("click-FARM02-list: BarnTable missing");
+      }
+
+      const graphPill = page.getByRole("button", { name: "그래프" }).first();
+      if ((await graphPill.count()) === 0) {
+        failures.push("click-FARM02-list: graph pill missing");
+      } else {
+        const requestsBefore = [];
+        const onRequest = (req) => {
+          if (req.url().includes("/farm") && req.resourceType() === "document") {
+            requestsBefore.push(req.url());
+          }
+        };
+        page.on("request", onRequest);
+        await graphPill.click();
+        await page.waitForTimeout(600);
+        page.off("request", onRequest);
+        const listPillAudit = await page.evaluate(() => ({
+          view: new URL(location.href).searchParams.get("view"),
+          listMode: new URL(location.href).searchParams.get("listMode"),
+          tab: new URL(location.href).searchParams.get("tab"),
+          lsind: new URL(location.href).searchParams.get("lsind"),
+          hasSkeleton: !!document.querySelector(
+            '[data-audit-region="admin-hub-farm-scoped"] .animate-pulse, [data-audit-region="admin-hub-farm-scoped-mobile"] .animate-pulse',
+          ),
+        }));
+        results.push({ step: "click-FARM02-list-graph-pill", listPillAudit, rscDocuments: requestsBefore.length });
+        if (listPillAudit.view !== "list") {
+          failures.push(`click-FARM02-list-graph-pill: view expected list, got ${listPillAudit.view}`);
+        }
+        if (listPillAudit.listMode !== "graph") {
+          failures.push(`click-FARM02-list-graph-pill: listMode expected graph, got ${listPillAudit.listMode}`);
+        }
+        if (listPillAudit.tab !== "ops") {
+          failures.push(`click-FARM02-list-graph-pill: tab=ops missing (${listPillAudit.tab})`);
+        }
+        if (listPillAudit.lsind !== "FARM02") {
+          failures.push(`click-FARM02-list-graph-pill: lsind expected FARM02, got ${listPillAudit.lsind}`);
+        }
+        if (listPillAudit.hasSkeleton) {
+          failures.push("click-FARM02-list-graph-pill: pulse skeleton appeared (RSC refetch)");
+        }
+        if (requestsBefore.length > 0) {
+          failures.push(`click-FARM02-list-graph-pill: unexpected RSC document requests (${requestsBefore.length})`);
+        }
+      }
     }
   }
 
@@ -285,7 +442,7 @@ async function main() {
   results.push({ step: "mobile-farm-grid-url", snapshot: mobileFarm });
   failures.push(...assertFarmGridMode(mobileFarm, "mobile-farm-grid-url"));
   if (!mobileFarm.hubMapMobile) {
-    failures.push("mobile-farm-grid-url: admin-hub-farm-map-mobile missing");
+    failures.push("mobile-farm-grid-url: admin-hub-farm-scoped-mobile missing");
   }
 
   // Path G — width sweep (1024 / 1440) stack + map

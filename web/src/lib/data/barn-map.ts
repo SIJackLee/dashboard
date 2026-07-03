@@ -17,7 +17,7 @@ import {
   resolveGridDimensionsWithLayouts,
   type GridPos,
 } from "@/lib/data/barn-grid";
-import { farmKeyEq } from "@/lib/data/farm-key";
+import { farmKeyEq, type FarmKey } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import type { BarnMapSnapshot, BarnReading, ControllerStatus } from "@/lib/data/iot";
 
@@ -111,6 +111,31 @@ export type BarnMapBuildResult = {
   /** 최초 자동 배치·신규 SP — DB에 저장할 좌표 */
   layoutsToPersist: Record<string, { col: number; row: number }>;
 };
+
+/** Admin multi-farm — 선택 farm catalog/layout만 buildAutoBarnMap에 전달 */
+export function filterBarnLayoutPrefsForFarm(
+  prefs: BarnLayoutPrefs,
+  farmKey: FarmKey
+): BarnLayoutPrefs {
+  const layouts: BarnLayoutPrefs["layouts"] = {};
+  for (const [key, grid] of Object.entries(prefs.layouts)) {
+    const parsed = parseBarnCatalogKey(key);
+    if (parsed && farmKeyEq(parsed.farmKey, farmKey)) {
+      layouts[key] = grid;
+    }
+  }
+  const aliases: BarnLayoutPrefs["aliases"] = {};
+  for (const [key, alias] of Object.entries(prefs.aliases)) {
+    const parsed = parseBarnCatalogKey(key);
+    if (parsed && farmKeyEq(parsed.farmKey, farmKey)) {
+      aliases[key] = alias;
+    }
+  }
+  const legacyBarns = prefs.legacyBarns.filter((b) =>
+    farmKeyEq(b.farmKey, farmKey)
+  );
+  return { layouts, aliases, legacyBarns };
+}
 
 /** LIVE readings + layout prefs — SP(축사유형) 단위 지도 스냅샷 */
 export function buildAutoBarnMap(
@@ -214,4 +239,19 @@ export function gridDimensionsForBarnMap(
     snapshots.length || 1,
     layouts
   );
+}
+
+/** 그리드 카드에 LIVE readings가 있는지 — trend empty 문구 구분용 */
+export function barnSnapshotHasLiveForSp(
+  snapshots: BarnMapSnapshot[],
+  stallTyCode: string
+): boolean {
+  const code = normalizeStallTyCode(stallTyCode);
+  return snapshots.some((b) => {
+    const entry = parseBarnCatalogKey(b.meta.id);
+    if (!entry || normalizeStallTyCode(entry.stallTyCode) !== code) return false;
+    return (
+      b.controllerCount > 0 || b.tempC != null || b.humidityPct != null
+    );
+  });
 }

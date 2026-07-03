@@ -1,19 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
+import { barnSnapshotHasLiveForSp } from "@/lib/data/barn-map";
 import { buildControllerHref } from "@/lib/auth/farm-access";
+import { appendFarmKeyParams, type FarmKey } from "@/lib/data/farm-key";
 import { getStallTypeName, normalizeStallTyCode } from "@/lib/data/stall-type";
 import type {
   TrendPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import type { FarmMapDrillLevel } from "@/lib/farm/farm-view-url";
+import {
+  clearMapControllerStall,
+  clearMapDrillParams,
+  currentFarmSearchParams,
+  replaceFarmUrlShallow,
+  setMapGraphSp,
+} from "@/lib/farm/farm-view-url";
 import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapCard } from "./farm-map-card";
-import { FarmMapGraphStage } from "./farm-map-graph-stage";
+import { FarmMapGraphStage, type FarmMapTrendStatus } from "./farm-map-graph-stage";
 import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { cn } from "@/lib/utils";
 
@@ -23,17 +34,29 @@ type Props = {
   gridRows: number;
   /** 전체 3기간(24h/7d/30d) 추이 시계열 — 그래프 모핑용. */
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
+  trendStatus?: FarmMapTrendStatus;
+  onTrendRetry?: () => void;
   /** in-grid 컨트롤러 카드플립 구동용 데이터. */
   controller?: ControllerGridData | null;
   /** tree/alarm deep-link — 그래프·컨트롤러 in-grid 진입 */
   deepLinkSp?: string | null;
+  deepLinkMapLevel?: FarmMapDrillLevel;
   deepLinkStallNo?: string | null;
+  hubMode?: boolean;
+  /** Admin 전체 보기 — 카드 클릭 시 해당 farm scoped URL로 이동 */
+  navigateFarmKey?: FarmKey | null;
+  /** Admin — farm 간 cols×rows 통일(데이터); 레이아웃은 Farmer와 동일 auto 행 */
+  uniformGridLayout?: boolean;
 };
 
-/** Grid → graph morph phases. */
-type MorphPhase = "grid" | "leaving" | "graph";
+const GRID_COL_MIN = "4.75rem";
+const GRID_ROW_TRACK = "minmax(3.5rem, auto)";
 
-const LEAVE_MS = 280;
+function gridMinHeight(rows: number): string {
+  if (rows <= 4) return "22rem";
+  if (rows <= 6) return "28rem";
+  return "34rem";
+}
 
 function moveBarn(
   barns: BarnMapSnapshot[],
@@ -105,22 +128,34 @@ export function FarmMapCanvas({
   gridCols,
   gridRows,
   trendByPeriod,
+  trendStatus = "ready",
+  onTrendRetry,
   controller,
   deepLinkSp,
+  deepLinkMapLevel = "sp",
   deepLinkStallNo,
+  hubMode = false,
+  navigateFarmKey = null,
+  uniformGridLayout: _uniformGridLayout = false,
 }: Props) {
+  const router = useRouter();
+  const isOverviewFarm = Boolean(navigateFarmKey);
+  const urlSp = deepLinkSp ? normalizeStallTyCode(deepLinkSp) : null;
+  const [activeSp, setActiveSp] = useState<string | null>(urlSp);
+
+  useEffect(() => {
+    setActiveSp(urlSp);
+  }, [urlSp]);
+
   const [barns, setBarns] = useState(initialBarns);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [pendingSaves, setPendingSaves] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [selectedSp, setSelectedSp] = useState<string | null>(null);
-  const [phase, setPhase] = useState<MorphPhase>("grid");
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** True for the single grid render right after returning from a graph. */
-  const gridEnterRef = useRef(false);
+  const morphFromGridRef = useRef(false);
   const draggedIdRef = useRef<string | null>(null);
   const barnsRef = useRef(barns);
   barnsRef.current = barns;
@@ -149,7 +184,7 @@ export function FarmMapCanvas({
   /** Stagger fade+scale-in for grid cards (only when returning from a graph). */
   const animateCardEnter = useCallback(
     (node: HTMLDivElement | null, index: number) => {
-      if (!node || !gridEnterRef.current) return;
+      if (!node || !morphFromGridRef.current) return;
       if (prefersReducedMotion() || typeof node.animate !== "function") return;
       node.animate(
         [
@@ -170,29 +205,32 @@ export function FarmMapCanvas({
   const openGraph = useCallback(
     (stallTyCode: string) => {
       if (!stallTyCode) return;
-      setSelectedSp(stallTyCode);
-      if (prefersReducedMotion()) {
-        setPhase("graph");
+      const sp = normalizeStallTyCode(stallTyCode);
+      if (navigateFarmKey) {
+        const params = new URLSearchParams();
+        appendFarmKeyParams(params, navigateFarmKey);
+        params.set("sp", sp);
+        router.push(`/farm?${params.toString()}`);
         return;
       }
-      setPhase("leaving");
-      if (leaveTimer.current) clearTimeout(leaveTimer.current);
-      leaveTimer.current = setTimeout(() => setPhase("graph"), LEAVE_MS);
+      setActiveSp(sp);
+      const params = currentFarmSearchParams();
+      setMapGraphSp(params, sp);
+      clearMapControllerStall(params);
+      params.delete("ctrl");
+      replaceFarmUrlShallow(params);
     },
-    [prefersReducedMotion]
+    [navigateFarmKey, router]
   );
 
   const closeGraph = useCallback(() => {
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
-    gridEnterRef.current = true;
-    setSelectedSp(null);
-    setPhase("grid");
+    morphFromGridRef.current = true;
+    setActiveSp(null);
+    const params = currentFarmSearchParams();
+    clearMapDrillParams(params);
+    replaceFarmUrlShallow(params);
   }, []);
-
-  useEffect(() => {
-    if (!deepLinkSp) return;
-    openGraph(deepLinkSp);
-  }, [deepLinkSp, openGraph]);
 
   useEffect(() => {
     return () => {
@@ -200,16 +238,11 @@ export function FarmMapCanvas({
     };
   }, []);
 
-  /** Disable the one-shot enter flag after the grid commit consumes it. */
   useEffect(() => {
-    if (phase === "grid") gridEnterRef.current = false;
-  }, [phase]);
+    if (activeSp) morphFromGridRef.current = false;
+  }, [activeSp]);
 
-  const minHeight = useMemo(() => {
-    if (gridRows <= 4) return "22rem";
-    if (gridRows <= 6) return "28rem";
-    return "34rem";
-  }, [gridRows]);
+  const minHeight = useMemo(() => gridMinHeight(gridRows), [gridRows]);
 
   const barnIdsKey = useMemo(
     () => initialBarns.map((b) => b.meta.id).sort().join("|"),
@@ -223,8 +256,12 @@ export function FarmMapCanvas({
     // 값만 갱신되는 폴링·명령 후 refresh 시에는 열린 그래프/컨트롤러 뷰 유지.
     if (prevBarnIdsKeyRef.current !== barnIdsKey) {
       prevBarnIdsKeyRef.current = barnIdsKey;
-      setSelectedSp(null);
-      setPhase("grid");
+      setActiveSp(null);
+      const params = currentFarmSearchParams();
+      if (params.get("sp") || params.get("stall") || params.get("mapLevel")) {
+        clearMapDrillParams(params);
+        replaceFarmUrlShallow(params);
+      }
     }
   }, [initialBarns, barnIdsKey]);
 
@@ -326,13 +363,13 @@ export function FarmMapCanvas({
 
   const isDragging = draggedId !== null;
 
-  if (phase === "graph" && selectedSp) {
+  if (activeSp) {
     const farmKey =
       barns
         .map((b) => parseBarnCatalogKey(b.meta.id))
-        .find((c) => c?.stallTyCode === selectedSp)?.farmKey ?? null;
+        .find((c) => c?.stallTyCode === activeSp)?.farmKey ?? null;
     const controllerHref = farmKey
-      ? buildControllerHref({ farmKey, sp: selectedSp })
+      ? buildControllerHref({ farmKey, sp: activeSp })
       : null;
     return (
       <div
@@ -341,16 +378,16 @@ export function FarmMapCanvas({
         style={{ minHeight }}
       >
         <FarmMapGraphStage
-          stallTyCode={selectedSp}
-          label={getStallTypeName(selectedSp)}
+          stallTyCode={activeSp}
+          label={getStallTypeName(activeSp)}
           dataByPeriod={trendByPeriod ?? null}
+          trendStatus={trendStatus}
+          hasLiveSnapshot={barnSnapshotHasLiveForSp(barns, activeSp)}
+          onTrendRetry={onTrendRetry}
           controllerHref={controllerHref}
           controller={controller ?? null}
-          initialControllerStallNo={
-            deepLinkSp && normalizeStallTyCode(deepLinkSp) === normalizeStallTyCode(selectedSp)
-              ? deepLinkStallNo ?? null
-              : null
-          }
+          initialMapLevel={deepLinkMapLevel}
+          initialControllerStallNo={deepLinkStallNo ?? null}
           onClose={closeGraph}
         />
       </div>
@@ -363,7 +400,7 @@ export function FarmMapCanvas({
       data-audit-desktop-only
       style={{ minHeight }}
     >
-      {bulkEnabled && controller ? (
+      {bulkEnabled && controller && !isOverviewFarm ? (
         <FarmMapBulkApply
           controller={controller}
           bulkMode={bulkMode}
@@ -371,16 +408,17 @@ export function FarmMapCanvas({
           onEnter={() => setBulkMode(true)}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
+          hubMode={hubMode}
         />
       ) : null}
       {pendingSaves > 0 && (
-        <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow md:text-[1.75rem]">
+        <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1.5 rounded-md bg-background/90 px-2 py-1 text-xs text-muted-foreground shadow">
           <Loader2 className="size-3 animate-spin md:size-5" />
           위치 저장 중…
         </div>
       )}
       {saveError ? (
-        <div className="absolute bottom-3 right-3 z-30 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive shadow md:text-[1.75rem]">
+        <div className="absolute bottom-3 right-3 z-30 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive shadow">
           {saveError}
         </div>
       ) : null}
@@ -393,8 +431,8 @@ export function FarmMapCanvas({
         )}
         style={{
           minHeight,
-          gridTemplateColumns: `repeat(${gridCols}, minmax(4.75rem, 1fr))`,
-          gridTemplateRows: `repeat(${gridRows}, minmax(3.5rem, auto))`,
+          gridTemplateColumns: `repeat(${gridCols}, minmax(${GRID_COL_MIN}, 1fr))`,
+          gridTemplateRows: `repeat(${gridRows}, ${GRID_ROW_TRACK})`,
         }}
       >
         {cells.map(({ col, row }) => {
@@ -421,7 +459,6 @@ export function FarmMapCanvas({
           const isTarget = dropTarget === key;
           const isThisDragging = draggedId === b.meta.id;
           const spCode = parseBarnCatalogKey(b.meta.id)?.stallTyCode ?? "";
-          const isLeaving = phase === "leaving" && spCode !== selectedSp;
           return (
             <div
               key={b.meta.id}
@@ -433,13 +470,11 @@ export function FarmMapCanvas({
                 "relative z-20 flex min-h-0 min-w-0 flex-col self-start transition-all duration-300 ease-out",
                 isTarget && "rounded-lg ring-2 ring-emerald-400 ring-offset-1",
                 isDragging && "pointer-events-none",
-                isThisDragging && "z-30 opacity-60",
-                isLeaving && "pointer-events-none scale-95 opacity-0"
+                isThisDragging && "z-30 opacity-60"
               )}
               style={{
                 gridColumn: col,
                 gridRow: row,
-                transitionDelay: isLeaving ? `${(i % 6) * 40}ms` : undefined,
               }}
             >
               <FarmMapCard

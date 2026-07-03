@@ -41,7 +41,7 @@ npm run verify:routes
 
 ## LIVE read path (perf)
 
-- **List:** `v_iot_dashboard_list` — flat env + fan, no `decoded_json`
+- **List:** `v_iot_dashboard_list` — flat env + fan + channel-A thermo (setpoint band), no `decoded_json` payload
 - **Overview:** `v_iot_farm_overview` — admin `/farm` aggregate
 - **Detail:** `GET /api/live/controller` — 1 ctrl + channels/thermo
 - **Cache:** 300s `unstable_cache` + `revalidateTag('live')` on thermo save

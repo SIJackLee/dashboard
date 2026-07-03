@@ -384,3 +384,95 @@
 .pr-safe {
   padding-right: env(safe-area-inset-right, 0px);
 }
+
+/* ── 축사 목록 — 그래프 / 설정 / 모터그래프 패널 드롭다운 (hybrid) ── */
+
+@keyframes barn-list-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes barn-list-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.barn-list-panel-shell {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.barn-list-panel-shell[data-open="true"] {
+  grid-template-rows: 1fr;
+  transition-duration: 280ms;
+}
+
+.barn-list-panel-shell--settings[data-open="true"] {
+  transition-duration: 320ms;
+}
+
+.barn-list-panel-shell--motor[data-open="true"] {
+  transition-duration: 280ms;
+}
+
+.barn-list-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.barn-list-panel-content[data-panel="graph"][data-state="open"] {
+  animation: barn-list-panel-in 240ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.barn-list-panel-stagger--settings > * {
+  animation: barn-list-stagger-in 240ms ease backwards;
+}
+
+.barn-list-panel-stagger--settings > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.barn-list-panel-stagger--settings > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.barn-list-panel-stagger--motor > * {
+  animation: barn-list-stagger-in 260ms ease backwards;
+}
+
+.barn-list-panel-stagger--motor > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.barn-list-panel-stagger--motor > *:nth-child(2) {
+  animation-delay: 50ms;
+}
+
+.barn-list-panel-stagger--motor > *:nth-child(3) {
+  animation-delay: 100ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barn-list-panel-shell {
+    transition: none;
+  }
+
+  .barn-list-panel-content[data-panel="graph"][data-state="open"],
+  .barn-list-panel-stagger--settings > *,
+  .barn-list-panel-stagger--motor > * {
+    animation: none;
+  }
+}
