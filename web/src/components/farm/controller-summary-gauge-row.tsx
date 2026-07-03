@@ -37,6 +37,7 @@ type Props = {
   onToggleMotor?: () => void;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
+  trendStale?: boolean;
   className?: string;
 };
 
@@ -56,6 +57,7 @@ export function ControllerSummaryGaugeRow({
   onToggleMotor,
   controllerTrendByPeriod = null,
   trendLoading = false,
+  trendStale = false,
   className,
 }: Props) {
   const [expandedChannel, setExpandedChannel] = useState<ChannelSlot | null>(null);
@@ -74,7 +76,7 @@ export function ControllerSummaryGaugeRow({
   const needsChannelDetail =
     (motorExpanded || expandedChannel != null) && !offline;
 
-  const { reading: channelDetail, loading: channelDetailLoading } =
+  const { reading: channelDetail, showLoading: channelDetailShowLoading } =
     useControllerDetail(needsChannelDetail ? reading : undefined);
 
   const toggleChannel = useCallback((slot: ChannelSlot) => {
@@ -138,7 +140,7 @@ export function ControllerSummaryGaugeRow({
           expandedChannel={isChannelBatchMode ? null : expandedChannel}
           onToggleChannel={isChannelBatchMode ? undefined : toggleChannel}
           channelDetail={channelDetail}
-          channelDetailLoading={channelDetailLoading}
+          channelDetailLoading={channelDetailShowLoading}
         />
       </div>
 
@@ -148,6 +150,7 @@ export function ControllerSummaryGaugeRow({
             reading={reading}
             controllerTrendByPeriod={controllerTrendByPeriod ?? null}
             loading={trendLoading}
+            stale={trendStale}
           />
         ) : null}
       </BarnListPanelShell>
@@ -173,7 +176,7 @@ export function ControllerSummaryGaugeRow({
                 slot={slot}
                 reading={reading}
                 detailReading={channelDetail}
-                loading={channelDetailLoading}
+                showLoading={channelDetailShowLoading}
               />
             ))}
           </div>

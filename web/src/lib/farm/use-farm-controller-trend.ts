@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchFarmControllerTrendAllPeriodsAction } from "@/app/(dashboard)/farm/actions";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import { useDeferredLoading } from "@/lib/ui/use-deferred-loading";
 
 export function useFarmControllerTrend(params: {
   farmKey: FarmKey | null;
@@ -50,11 +51,16 @@ export function useFarmControllerTrend(params: {
 
   const data =
     active && bundle?.scopeId === scopeId ? bundle.data : null;
-  const loading = active && (data === null || refreshing) && !error;
+  const initialPending = active && data === null && !error;
+  const showInitialLoading = useDeferredLoading(initialPending);
+  const showRefreshing = useDeferredLoading(refreshing);
+  const isStale = refreshing && data !== null;
 
   return {
     data,
-    loading,
+    loading: showInitialLoading,
+    refreshing: showRefreshing,
+    isStale,
     error: active && error,
     refresh,
   };

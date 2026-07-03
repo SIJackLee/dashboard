@@ -35,6 +35,7 @@ type Props = {
   listMode?: BarnListViewMode;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
+  trendStale?: boolean;
   panelSets: BarnListPanelSets;
   onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
@@ -60,6 +61,7 @@ function ControllerCardGrid({
   canCommand,
   controllerTrendByPeriod,
   trendLoading = false,
+  trendStale = false,
   panelSets,
   listMode,
   onToggleGraph,
@@ -76,6 +78,7 @@ function ControllerCardGrid({
   canCommand: boolean;
   controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
+  trendStale?: boolean;
   panelSets: BarnListPanelSets;
   listMode: BarnListViewMode;
   onToggleGraph: (key: string) => void;
@@ -109,6 +112,7 @@ function ControllerCardGrid({
           onToggleMotor={!bulkMode ? () => onToggleMotor(r.key) : undefined}
           controllerTrendByPeriod={controllerTrendByPeriod}
           trendLoading={trendLoading}
+          trendStale={trendStale}
         />
         );
       })}
@@ -170,6 +174,7 @@ export function BarnListSummary({
   listMode = "controller",
   controllerTrendByPeriod = null,
   trendLoading = false,
+  trendStale = false,
   panelSets,
   onToggleGraph,
   onToggleSettings,
@@ -187,6 +192,7 @@ export function BarnListSummary({
     canCommand,
     controllerTrendByPeriod,
     trendLoading,
+    trendStale,
     panelSets,
     listMode,
     onToggleGraph,

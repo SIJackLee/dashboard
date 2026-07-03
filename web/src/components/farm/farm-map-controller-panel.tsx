@@ -151,7 +151,7 @@ export function FarmMapControllerPanel({
     stallControllers.find((r) => r.key === activeKey) ?? reading;
   const hasSwitcher = stallControllers.length > 1;
 
-  const { reading: detail, loading } = useControllerDetail(activeReading);
+  const { reading: detail, showLoading } = useControllerDetail(activeReading);
   const channels = detail?.channels ?? [];
   const hasChannels = channels.length > 0;
   const channelReading = channelBySlot(channels, activeChannel);
@@ -354,7 +354,7 @@ export function FarmMapControllerPanel({
 
       {/* 본문 — 모니터·설정값·알람값 한 화면 3열 (탭 없음) */}
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {loading ? (
+        {showLoading ? (
           <p className="mb-2 flex items-center gap-1.5 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
             상세 데이터 불러오는 중…

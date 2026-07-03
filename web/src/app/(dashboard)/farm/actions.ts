@@ -71,6 +71,20 @@ export async function fetchFarmControllerTrendAllPeriodsAction(
   return getFarmControllerTrendAllPeriods({ farmKey });
 }
 
+/** LIVE tier 캐시 무효화 — router.refresh 대신 클라이언트 refetch와 조합 */
+export async function revalidateFarmLiveAction(
+  farmKey?: FarmKey,
+): Promise<{ ok: true }> {
+  if (farmKey) {
+    revalidateLiveCache(
+      farmScopeCacheKey(farmKey.lsindRegistNo, farmKey.itemCode),
+    );
+  } else {
+    revalidateLiveCache();
+  }
+  return { ok: true };
+}
+
 export async function saveBarnGridsAction(
   grids: { catalogKey: string; col: number; row: number }[]
 ): Promise<{ ok: boolean; error?: string }> {

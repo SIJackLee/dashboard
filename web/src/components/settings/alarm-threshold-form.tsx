@@ -38,6 +38,7 @@ import {
 } from "@/lib/data/reading-hierarchy";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -183,6 +184,7 @@ export function AlarmThresholdForm({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
+  const liveRefresh = useFarmLiveRefreshOptional();
 
   const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
 
@@ -328,7 +330,10 @@ export function AlarmThresholdForm({
     setDraft(next);
   };
 
-  const persistSettings = (nextSettings: AlarmSettings) => {
+  const persistSettings = (
+    nextSettings: AlarmSettings,
+    rollbackSettings?: AlarmSettings,
+  ) => {
     const formData = new FormData();
     formData.set("settings_json", JSON.stringify(nextSettings));
 
@@ -337,10 +342,16 @@ export function AlarmThresholdForm({
         const result = await saveAlarmSettingsInlineAction(formData);
         if (!result.ok) {
           setValidationError(result.error ?? "저장 실패");
+          if (rollbackSettings) setSettings(rollbackSettings);
           return;
         }
         setValidationError(null);
-        router.refresh();
+        liveRefresh?.patchAlarmSettings(nextSettings);
+        if (liveRefresh) {
+          void liveRefresh.revalidateFarmLive();
+        } else {
+          router.refresh();
+        }
       });
       return;
     }
@@ -357,17 +368,19 @@ export function AlarmThresholdForm({
       setValidationError(err);
       return;
     }
+    const previousSettings = settings;
     const nextSettings = mergeScopeThreshold(settings, activeScopeKey, draft);
     setSettings(nextSettings);
-    persistSettings(nextSettings);
+    persistSettings(nextSettings, previousSettings);
   };
 
   const handleClearScope = () => {
     if (!activeScopeKey) return;
+    const previousSettings = settings;
     const nextSettings = clearScopeThreshold(settings, activeScopeKey);
     setSettings(nextSettings);
     setDraft(resolveThresholdsForScope(nextSettings, activeScopeKey));
-    persistSettings(nextSettings);
+    persistSettings(nextSettings, previousSettings);
   };
 
   const handleApplyDefaults = () => {

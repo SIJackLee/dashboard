@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { barnSnapshotHasLiveForSp } from "@/lib/data/barn-map";
@@ -46,6 +47,7 @@ export function FarmMapMobileStage({
   deepLinkStallNo,
   hubMode = false,
 }: Props) {
+  const router = useRouter();
   const urlSp = deepLinkSp ? normalizeStallTyCode(deepLinkSp) : null;
   const [activeSp, setActiveSp] = useState<string | null>(urlSp);
 
@@ -152,7 +154,9 @@ export function FarmMapMobileStage({
           onEnter={() => setBulkMode(true)}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          hubMode={hubMode}
+          onAfterApply={() => {
+            if (!hubMode) router.refresh();
+          }}
         />
       ) : null}
       <FarmMapList

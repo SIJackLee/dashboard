@@ -75,7 +75,7 @@ export function BarnListAccordionPanel({
     useState<AlarmThresholdHeaderState | null>(null);
   const [activeChannel] = useState<ChannelSlot>("A");
 
-  const { reading: detail, loading } = useControllerDetail(reading);
+  const { reading: detail, showLoading } = useControllerDetail(reading);
   const channels = detail?.channels ?? [];
   const hasChannels = channels.length > 0;
   const channelEqpmnCode =
@@ -151,7 +151,7 @@ export function BarnListAccordionPanel({
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      {loading ? (
+      {showLoading ? (
         <p className={cn("mb-2 flex items-center gap-1.5", LIST_PANEL_META)}>
           <Loader2 className="size-3.5 animate-spin" />
           상세 데이터 불러오는 중…

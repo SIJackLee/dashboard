@@ -1,7 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
-import { PageActionButton } from "@/components/common/page-action-button";
+import { RefreshActionButton } from "@/components/common/refresh-action-button";
 import { FarmSwitcher } from "@/components/layout/farm-switcher";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
@@ -25,6 +24,8 @@ export type ScopeBarProps = {
   activeStall?: string;
   onStallChange?: (stallKey: string) => void;
   onRefresh?: () => void;
+  refreshBusy?: boolean;
+  refreshShowSpinner?: boolean;
   /** Admin — TopBar FarmSwitcher → ScopeBar 통합 (alarms 등 farm-only 페이지) */
   adminFarmSwitcher?: {
     farmOptions: FarmKey[];
@@ -75,6 +76,8 @@ export function ScopeBar({
   activeStall = "",
   onStallChange,
   onRefresh,
+  refreshBusy = false,
+  refreshShowSpinner = false,
   adminFarmSwitcher,
 }: ScopeBarProps) {
   const multiFarm = farmOptions.length > 1;
@@ -167,13 +170,12 @@ export function ScopeBar({
         </div>
 
         {onRefresh ? (
-          <PageActionButton
+          <RefreshActionButton
             onClick={onRefresh}
-            icon={<RefreshCw className={dashboardUi.iconSm} aria-hidden />}
+            loading={refreshBusy}
+            showSpinner={refreshShowSpinner}
             className="shrink-0"
-          >
-            새로고침
-          </PageActionButton>
+          />
         ) : null}
       </div>
     </div>

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   Fan,
@@ -24,6 +23,7 @@ import {
   DEFAULT_ALARM_SETTINGS,
   DEFAULT_ALARM_THRESHOLDS,
   validateAlarmThresholds,
+  type AlarmSettings,
   type AlarmThresholds,
 } from "@/lib/data/alarms";
 import { applyBulkSpAlarmThresholds } from "@/lib/data/alarm-scope";
@@ -44,16 +44,18 @@ type Props = {
   onEnter: () => void;
   onClearSelection: () => void;
   onExit: () => void;
-  hubMode?: boolean;
+  /** 적용 완료 후 — toast·soft refresh 등 부모 처리 */
+  onAfterApply?: (result: ApplyResult) => void;
 };
 
-type ApplyResult = {
+export type ApplyResult = {
   control: SendBulkThermoCommandResult | null;
   alarm: {
     ok: boolean;
     spCount: number;
     clearedOverrides?: number;
     error?: string;
+    settings?: AlarmSettings;
   } | null;
 };
 
@@ -107,9 +109,8 @@ export function FarmMapBulkApply({
   onEnter,
   onClearSelection,
   onExit,
-  hubMode = false,
+  onAfterApply,
 }: Props) {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
@@ -223,12 +224,14 @@ export function FarmMapBulkApply({
         spCount: spScopeKeys.length,
         clearedOverrides,
         error: res.error,
+        settings: res.ok ? settings : undefined,
       };
     }
 
     setResult({ control, alarm: alarmResult });
     setRunning(false);
-    if (!hubMode) router.refresh();
+    const applied = { control, alarm: alarmResult };
+    onAfterApply?.(applied);
   };
 
   const closeAll = () => {

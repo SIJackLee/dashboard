@@ -41,6 +41,7 @@ type Props = {
   reading: BarnReading;
   detailReading?: BarnReading;
   loading?: boolean;
+  showLoading?: boolean;
   className?: string;
 };
 
@@ -49,6 +50,7 @@ export function ChannelFanDropdown({
   reading,
   detailReading,
   loading = false,
+  showLoading,
   className,
 }: Props) {
   const merged = detailReading ?? reading;
@@ -57,8 +59,9 @@ export function ChannelFanDropdown({
   const percents = channelPercentsFromReading(merged);
   const fanPct = formatChannelPercent(percents[slot]);
   const categories = series.map((_, index) => String(index + 1));
+  const spinnerVisible = showLoading ?? loading;
 
-  if (loading && !listSeries.length) {
+  if (spinnerVisible && !listSeries.length) {
     return (
       <div
         className={cn(

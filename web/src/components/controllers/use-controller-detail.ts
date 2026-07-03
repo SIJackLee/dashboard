@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { appendFarmKeyParams } from "@/lib/data/farm-key";
 import type { ControllerReading } from "@/lib/data/iot";
+import { useDeferredLoading } from "@/lib/ui/use-deferred-loading";
 
 type DetailState = {
   reading: ControllerReading | undefined;
   loading: boolean;
+  showLoading: boolean;
   error: string | null;
 };
 
@@ -121,13 +123,16 @@ export function useControllerDetail(
     base?.controllerKey,
   ]);
 
+  const showLoading = useDeferredLoading(loading);
+
   if (!base) {
-    return { reading: undefined, loading: false, error: null };
+    return { reading: undefined, loading: false, showLoading: false, error: null };
   }
 
   return {
     reading: detail ? { ...base, ...detail } : base,
     loading,
+    showLoading,
     error,
   };
 }

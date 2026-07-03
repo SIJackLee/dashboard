@@ -2,10 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchFarmScopedPanelDataAction } from "@/app/(dashboard)/farm/actions";
+import { AdminHubFarmSkeleton } from "@/components/common/loading-skeletons";
+import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
 import { FarmPageContent } from "@/components/farm/farm-page-content";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { farmKeyId } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
+import {
+  getFarmPanelCache,
+  setFarmPanelCache,
+} from "@/lib/farm/farm-panel-cache";
 import type { FarmScopedPanelData } from "@/lib/farm/load-farm-scoped-panel-data";
 import type { HubBarnLayoutPrefs } from "@/lib/monitoring/hub-view-state";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -26,6 +32,21 @@ type Props = {
   onHubUrlChange?: () => void;
 };
 
+function resolveInitialPanel(
+  farmId: string,
+  farmKey: FarmKey | null,
+  initialData: FarmScopedPanelData | null,
+): FarmScopedPanelData | null {
+  if (
+    initialData &&
+    farmKey &&
+    farmKeyId(initialData.farmKey) === farmId
+  ) {
+    return initialData;
+  }
+  return getFarmPanelCache(farmId) ?? null;
+}
+
 export function FarmScopedPanel({
   farmId,
   farmKey,
@@ -40,39 +61,59 @@ export function FarmScopedPanel({
   hubUrlEpoch = 0,
   onHubUrlChange,
 }: Props) {
-  const [panelData, setPanelData] = useState<FarmScopedPanelData | null>(
-    initialData &&
-      farmKey &&
-      farmKeyId(initialData.farmKey) === farmId
-      ? initialData
-      : null
+  const [panelData, setPanelData] = useState<FarmScopedPanelData | null>(() =>
+    resolveInitialPanel(farmId, farmKey, initialData),
   );
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
-    () => (panelData ? "ready" : farmKey ? "loading" : "idle")
+    () => {
+      const seeded = resolveInitialPanel(farmId, farmKey, initialData);
+      return seeded ? "ready" : farmKey ? "loading" : "idle";
+    },
   );
+  const [revalidating, setRevalidating] = useState(false);
 
-  const loadedScopeRef = useRef<string | null>(null);
+  const loadedScopeRef = useRef<string | null>(panelData ? farmId : null);
   const loadSeqRef = useRef(0);
   const scopeId = farmKey ? farmKeyId(farmKey) : null;
 
-  const loadData = useCallback((key: FarmKey, targetFarmId: string) => {
-    const seq = ++loadSeqRef.current;
-    setStatus("loading");
-    setPanelData(null);
-    void fetchFarmScopedPanelDataAction(key)
-      .then((data) => {
-        if (seq !== loadSeqRef.current) return;
-        if (farmKeyId(data.farmKey) !== targetFarmId) return;
-        loadedScopeRef.current = targetFarmId;
-        setPanelData(data);
-        setStatus("ready");
-      })
-      .catch(() => {
-        if (seq !== loadSeqRef.current) return;
-        loadedScopeRef.current = null;
-        setStatus("error");
-      });
-  }, []);
+  const loadData = useCallback(
+    (key: FarmKey, targetFarmId: string, options?: { background?: boolean }) => {
+      const background = options?.background ?? false;
+      const cached = getFarmPanelCache(targetFarmId);
+      const seq = ++loadSeqRef.current;
+
+      if (!background && !cached) {
+        setStatus("loading");
+      } else {
+        setRevalidating(true);
+        if (cached) {
+          setPanelData(cached);
+          setStatus("ready");
+        }
+      }
+
+      void fetchFarmScopedPanelDataAction(key)
+        .then((data) => {
+          if (seq !== loadSeqRef.current) return;
+          if (farmKeyId(data.farmKey) !== targetFarmId) return;
+          loadedScopeRef.current = targetFarmId;
+          setFarmPanelCache(targetFarmId, data);
+          setPanelData(data);
+          setStatus("ready");
+        })
+        .catch(() => {
+          if (seq !== loadSeqRef.current) return;
+          if (!getFarmPanelCache(targetFarmId)) {
+            loadedScopeRef.current = null;
+            setStatus("error");
+          }
+        })
+        .finally(() => {
+          if (seq === loadSeqRef.current) setRevalidating(false);
+        });
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!farmKey || scopeId !== farmId) {
@@ -80,17 +121,31 @@ export function FarmScopedPanel({
       loadedScopeRef.current = null;
       setPanelData(null);
       setStatus("idle");
+      setRevalidating(false);
       return;
     }
-    if (loadedScopeRef.current === farmId) {
-      return;
-    }
+
     if (initialData && farmKeyId(initialData.farmKey) === farmId) {
       loadedScopeRef.current = farmId;
+      setFarmPanelCache(farmId, initialData);
       setPanelData(initialData);
       setStatus("ready");
       return;
     }
+
+    const cached = getFarmPanelCache(farmId);
+    if (cached && farmKeyId(cached.farmKey) === farmId) {
+      loadedScopeRef.current = farmId;
+      setPanelData(cached);
+      setStatus("ready");
+      loadData(farmKey, farmId, { background: true });
+      return;
+    }
+
+    if (loadedScopeRef.current === farmId) {
+      return;
+    }
+
     loadedScopeRef.current = farmId;
     loadData(farmKey, farmId);
   }, [farmId, scopeId, farmKey, initialData, loadData]);
@@ -109,21 +164,11 @@ export function FarmScopedPanel({
     );
   }
 
-  if (status === "loading" || status === "idle") {
-    return (
-      <div
-        className={cn(
-          "min-h-[8rem] animate-pulse rounded-xl border bg-muted/15",
-          embedded ? "h-full min-h-[12rem]" : "min-h-[16rem]"
-        )}
-        data-audit-region={
-          embedded ? "admin-hub-farm-scoped-mobile" : "admin-hub-farm-scoped"
-        }
-      />
-    );
+  if ((status === "loading" || status === "idle") && !panelData) {
+    return <AdminHubFarmSkeleton embedded={embedded} />;
   }
 
-  if (status === "error" || !panelData) {
+  if (status === "error" && !panelData) {
     return (
       <div
         className="flex min-h-[8rem] flex-col items-center justify-center gap-3 rounded-xl border bg-muted/10 p-6"
@@ -138,7 +183,7 @@ export function FarmScopedPanel({
           type="button"
           className={cn(
             "rounded-lg border bg-background px-4 py-2 font-medium hover:bg-muted/40",
-            dashboardUi.body
+            dashboardUi.body,
           )}
           onClick={() => {
             loadedScopeRef.current = null;
@@ -151,11 +196,17 @@ export function FarmScopedPanel({
     );
   }
 
+  if (!panelData) {
+    return <AdminHubFarmSkeleton embedded={embedded} />;
+  }
+
+  const isStale = revalidating && status === "ready";
+
   return (
     <div
       className={cn(
         "flex min-h-0 flex-col overflow-hidden",
-        embedded ? "h-full" : "min-h-0 flex-1"
+        embedded ? "h-full" : "min-h-0 flex-1",
       )}
       data-audit-region={
         embedded ? "admin-hub-farm-scoped-mobile" : "admin-hub-farm-scoped"
@@ -165,16 +216,17 @@ export function FarmScopedPanel({
         <p
           className={cn(
             "mb-2 shrink-0 truncate px-0.5 font-semibold text-foreground",
-            dashboardUi.tableMeta
+            dashboardUi.tableMeta,
           )}
         >
           {farmLabel} · 농장 현황
         </p>
       ) : null}
-      <div
+      <StaleWhileRevalidateShell
+        stale={isStale}
         className={cn(
           "min-h-0 overflow-y-auto overscroll-contain",
-          embedded ? "flex-1" : "flex-1"
+          embedded ? "flex-1" : "flex-1",
         )}
       >
         <FarmPageContent
@@ -193,7 +245,7 @@ export function FarmScopedPanel({
           hubUrlEpoch={hubUrlEpoch}
           onHubUrlChange={onHubUrlChange}
         />
-      </div>
+      </StaleWhileRevalidateShell>
     </div>
   );
 }

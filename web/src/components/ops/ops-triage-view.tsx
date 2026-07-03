@@ -45,6 +45,7 @@ import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 import { OpsMobileAlarmStrip } from "@/components/ops/ops-mobile-alarm-strip";
 import { OpsMobileSplitShell } from "@/components/ops/ops-mobile-split-shell";
+import { AdminHubFarmSkeleton } from "@/components/common/loading-skeletons";
 
 const AdminControllerPlaceholderClient = dynamic(
   () =>
@@ -61,9 +62,7 @@ const FarmScopedPanel = dynamic(
     ),
   {
     ssr: false,
-    loading: () => (
-      <div className="min-h-[8rem] animate-pulse rounded-xl border bg-muted/15" />
-    ),
+    loading: () => <AdminHubFarmSkeleton embedded />,
   }
 );
 

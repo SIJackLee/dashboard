@@ -408,7 +408,9 @@ export function FarmMapCanvas({
           onEnter={() => setBulkMode(true)}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          hubMode={hubMode}
+          onAfterApply={() => {
+            if (!hubMode) router.refresh();
+          }}
         />
       ) : null}
       {pendingSaves > 0 && (

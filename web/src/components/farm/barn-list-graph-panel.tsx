@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
+import { GraphPanelSkeleton } from "@/components/common/loading-skeletons";
+import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
 import {
   TREND_PERIODS,
   type TrendControllerPeriodData,
@@ -28,6 +30,7 @@ type Props = {
   controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   defaultPeriod?: TrendPeriodId;
   loading?: boolean;
+  stale?: boolean;
 };
 
 function tickEveryForPeriod(period: TrendPeriodId, count: number): number {
@@ -42,6 +45,7 @@ export function BarnListGraphPanel({
   controllerTrendByPeriod,
   defaultPeriod = "24h",
   loading = false,
+  stale = false,
 }: Props) {
   const [period, setPeriod] = useState<TrendPeriodId>(defaultPeriod);
 
@@ -110,13 +114,16 @@ export function BarnListGraphPanel({
       </div>
 
       {!hasData ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          {loading && !controllerTrendByPeriod
-            ? "추이 데이터를 불러오는 중…"
-            : "선택한 기간에 수신된 데이터가 없습니다."}
-        </p>
+        loading && !controllerTrendByPeriod ? (
+          <GraphPanelSkeleton />
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            선택한 기간에 수신된 데이터가 없습니다.
+          </p>
+        )
       ) : (
-        <div className="space-y-3">
+        <StaleWhileRevalidateShell stale={stale}>
+          <div className="space-y-3">
           <div className="rounded-lg border bg-background p-2.5 sm:p-3">
             <p className="mb-1 text-xs font-semibold text-muted-foreground">
               환경 · 온도 (℃)
@@ -157,6 +164,7 @@ export function BarnListGraphPanel({
             />
           </div>
         </div>
+        </StaleWhileRevalidateShell>
       )}
     </div>
   );

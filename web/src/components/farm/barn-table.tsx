@@ -3,13 +3,16 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, LayoutList } from "lucide-react";
+import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
+import { InlineStatusToast } from "@/components/common/inline-status-toast";
+import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
 import { SectionCard } from "@/components/common/section-card";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { SimpleSelect } from "@/components/common/filter-bar";
 import { BarnListSummary } from "@/components/farm/barn-list-summary";
 import { BarnListModeToolbar } from "@/components/farm/barn-list-mode-toolbar";
 import { BarnListTrendRefreshBar } from "@/components/farm/barn-list-trend-refresh-bar";
-import { FarmMapBulkApply } from "@/components/farm/farm-map-bulk-apply";
+import { FarmMapBulkApply, type ApplyResult } from "@/components/farm/farm-map-bulk-apply";
 import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
@@ -30,12 +33,35 @@ import {
   type BarnListPanelSets,
 } from "@/lib/farm/barn-list-panel-state";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
+import { useSoftRefresh } from "@/lib/ui/use-soft-refresh";
 import { formatStallTypeLabel, normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { FILTER_ALL, FILTER_ALL_LABEL, isFilterAll } from "@/lib/ui/filter-all";
 import { cn } from "@/lib/utils";
 
 type ListLayout = "group" | "flat";
+
+function formatBulkApplyToast(result: ApplyResult): string {
+  const parts: string[] = [];
+  if (result.control) {
+    parts.push(`제어 ${result.control.sent}대 전송`);
+    if (result.control.failed.length > 0) {
+      parts.push(`실패 ${result.control.failed.length}대`);
+    }
+  }
+  if (result.alarm) {
+    if (result.alarm.ok) {
+      parts.push(`알람 유형 ${result.alarm.spCount}개 갱신`);
+      if ((result.alarm.clearedOverrides ?? 0) > 0) {
+        parts.push(`개별 설정 ${result.alarm.clearedOverrides}건 제거`);
+      }
+    } else {
+      parts.push(`알람 저장 실패`);
+    }
+  }
+  return parts.join(" · ") || "일괄 적용 완료";
+}
 
 type Props = {
   rows?: BarnReading[];
@@ -49,6 +75,7 @@ type Props = {
   compactHeader?: boolean;
   hubMode?: boolean;
   onHubUrlChange?: () => void;
+  liveRefreshManaged?: boolean;
 };
 
 function stallTyCodesFromReadings(readings: BarnReading[]): string[] {
@@ -74,8 +101,10 @@ export function BarnTable({
   compactHeader = false,
   hubMode = false,
   onHubUrlChange,
+  liveRefreshManaged = false,
 }: Props) {
   const router = useRouter();
+  const liveRefresh = useFarmLiveRefreshOptional();
   const searchParams = useSearchParams();
   const liveParams = hubMode ? currentFarmSearchParams() : searchParams;
   const [bulkMode, setBulkMode] = useState(false);
@@ -83,6 +112,20 @@ export function BarnTable({
   const [panelSets, setPanelSets] = useState<BarnListPanelSets>(
     EMPTY_BARN_LIST_PANEL_SETS
   );
+  const [statusToast, setStatusToast] = useState<string | null>(null);
+
+  const onListRefresh = useCallback(() => {
+    if (liveRefreshManaged && liveRefresh) {
+      void liveRefresh.revalidateFarmLive();
+      return;
+    }
+    router.refresh();
+  }, [liveRefresh, liveRefreshManaged, router]);
+  const {
+    run: refreshList,
+    busy: listSoftRefreshBusy,
+    showProgress: listRefreshVisible,
+  } = useSoftRefresh(onListRefresh);
 
   const bulkEnabled = Boolean(controller?.canCommand);
 
@@ -120,7 +163,9 @@ export function BarnTable({
 
   const {
     data: lazyControllerTrend,
-    loading: trendLoading,
+    loading: trendInitialLoading,
+    refreshing: trendRefreshing,
+    isStale: trendIsStale,
     error: trendError,
     refresh: refreshTrend,
   } = useFarmControllerTrend({
@@ -128,7 +173,19 @@ export function BarnTable({
     enabled: trendEnabled,
   });
 
+  const onTrendRefresh = useCallback(() => {
+    refreshTrend();
+    if (!hubMode) refreshList();
+  }, [hubMode, refreshList, refreshTrend]);
+
+  const {
+    run: runTrendRefresh,
+    busy: trendRefreshBusy,
+    showProgress: trendRefreshVisible,
+  } = useSoftRefresh(onTrendRefresh);
+
   const controllerTrendByPeriod = trendEnabled ? lazyControllerTrend : null;
+  const trendRefreshSpinner = trendRefreshVisible || trendRefreshing;
 
   const toggleGraphPanel = useCallback((key: string) => {
     setPanelSets((prev) => toggleBarnListGraph(prev, key));
@@ -220,10 +277,40 @@ export function BarnTable({
     setSelectedSps(new Set());
   }, []);
 
+  const listRefreshRing =
+    listSoftRefreshBusy ||
+    listRefreshVisible ||
+    Boolean(liveRefresh?.revalidating) ||
+    Boolean(liveRefresh?.isStale);
+
+  const handleAfterBulkApply = useCallback(
+    (result: ApplyResult) => {
+      setStatusToast(formatBulkApplyToast(result));
+      if (result.alarm?.ok && result.alarm.settings && liveRefresh) {
+        liveRefresh.patchAlarmSettings(result.alarm.settings);
+      }
+      if (hubMode) return;
+      if (liveRefreshManaged && liveRefresh) {
+        void liveRefresh.revalidateFarmLive();
+        return;
+      }
+      refreshList();
+    },
+    [hubMode, liveRefresh, liveRefreshManaged, refreshList],
+  );
+
   return (
-    <SectionCard
-      title={compactHeader ? "축사 목록 (요약)" : "축사 목록"}
-      action={
+    <RefreshScopeShell
+      busy={listRefreshRing}
+      showProgress={listRefreshVisible}
+    >
+      <SectionCard
+        title={compactHeader ? "축사 목록 (요약)" : "축사 목록"}
+        className={cn(
+          listRefreshRing &&
+            "ring-2 ring-emerald-500/25 transition-shadow duration-300",
+        )}
+        action={
         <div className="flex flex-wrap items-center gap-2">
           <SimpleSelect
             placeholder={FILTER_ALL_LABEL}
@@ -250,9 +337,9 @@ export function BarnTable({
             disabled={bulkMode}
           />
         </div>
-      }
-      contentClassName={bulkEnabled ? "flex flex-col gap-0 p-0" : undefined}
-    >
+        }
+        contentClassName={bulkEnabled ? "flex flex-col gap-0 p-0" : undefined}
+      >
       {bulkEnabled && controller ? (
         <FarmMapBulkApply
           controller={controller}
@@ -261,7 +348,7 @@ export function BarnTable({
           onEnter={enterBulk}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          hubMode={hubMode}
+          onAfterApply={handleAfterBulkApply}
         />
       ) : null}
       {graphToolbarMode || graphPanelsOpen ? (
@@ -272,11 +359,10 @@ export function BarnTable({
           )}
         >
           <BarnListTrendRefreshBar
-            onRefresh={() => {
-              refreshTrend();
-              if (!hubMode) router.refresh();
-            }}
-            loading={trendLoading}
+            onRefresh={runTrendRefresh}
+            busy={trendRefreshBusy}
+            showSpinner={trendRefreshSpinner}
+            showProgress={trendRefreshVisible}
             error={trendError}
           />
         </div>
@@ -288,6 +374,7 @@ export function BarnTable({
         )}
         data-bulk={bulkMode ? "list" : undefined}
       >
+      <StaleWhileRevalidateShell stale={trendIsStale}>
         <BarnListSummary
           readings={filteredRows}
           thermoSettings={thermoSettings}
@@ -296,7 +383,8 @@ export function BarnTable({
           layout={listLayout}
           listMode={effectiveListMode}
           controllerTrendByPeriod={controllerTrendByPeriod}
-          trendLoading={trendLoading}
+          trendLoading={trendInitialLoading}
+          trendStale={trendIsStale}
           panelSets={panelSets}
           onToggleGraph={toggleGraphPanel}
           onToggleSettings={toggleSettingsPanel}
@@ -305,7 +393,13 @@ export function BarnTable({
           selectedSps={selectedSps}
           onToggleSp={toggleSp}
         />
+      </StaleWhileRevalidateShell>
       </div>
-    </SectionCard>
+      </SectionCard>
+      <InlineStatusToast
+        message={statusToast}
+        onDismiss={() => setStatusToast(null)}
+      />
+    </RefreshScopeShell>
   );
 }

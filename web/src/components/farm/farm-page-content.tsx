@@ -40,6 +40,8 @@ type Props = {
   onHubUrlChange?: () => void;
   /** Admin farm grid — SectionCard·탭을 카드 스케일에 맞춤 */
   gridCompactShell?: boolean;
+  /** FarmLiveRefreshProvider 내부 — barn-table이 context revalidate 사용 */
+  liveRefreshManaged?: boolean;
 };
 
 export function FarmPageContent({
@@ -57,6 +59,7 @@ export function FarmPageContent({
   hubUrlEpoch: _hubUrlEpoch = 0,
   onHubUrlChange,
   gridCompactShell = false,
+  liveRefreshManaged = false,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -199,6 +202,7 @@ export function FarmPageContent({
           initialListLayout={listLayout}
           hubMode={hubMode}
           onHubUrlChange={onHubUrlChange}
+          liveRefreshManaged={liveRefreshManaged}
         />
       )}
     </div>

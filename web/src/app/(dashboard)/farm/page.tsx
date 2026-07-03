@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
+import { FarmContentSkeleton } from "@/components/common/loading-skeletons";
 import { resolveActiveFarmKey } from "@/lib/auth/farm-access";
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
@@ -116,7 +117,9 @@ export default async function FarmPage({
 
   const pageBody = (content: ReactNode) => (
     <div className="space-y-4 md:space-y-5">
-      <Suspense fallback={null}>{content}</Suspense>
+      <Suspense fallback={<FarmContentSkeleton view={params.view} />}>
+        {content}
+      </Suspense>
     </div>
   );
 
