@@ -26,10 +26,9 @@ import {
   validateAlarmThresholds,
   type AlarmThresholds,
 } from "@/lib/data/alarms";
-import { buildAlarmScopeKey, mergeScopeThreshold } from "@/lib/data/alarm-scope";
+import { applyBulkSpAlarmThresholds } from "@/lib/data/alarm-scope";
 import { resolveThermoSettings } from "@/lib/controllers/controller-settings";
 import { EDIT_START_DRAFT } from "@/lib/controllers/controller-panel-map";
-import { farmKeyId } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -50,7 +49,12 @@ type Props = {
 
 type ApplyResult = {
   control: SendBulkThermoCommandResult | null;
-  alarm: { ok: boolean; spCount: number; error?: string } | null;
+  alarm: {
+    ok: boolean;
+    spCount: number;
+    clearedOverrides?: number;
+    error?: string;
+  } | null;
 };
 
 /** 일괄설정 모달 — Card 상속 타이포 차단 + 뷰포트별 스케일 */
@@ -202,22 +206,24 @@ export function FarmMapBulkApply({
       control = await sendBulkThermoCommandAction(commands);
     }
 
-    // 2) 알람 임계값 — 유형(farm:sp) 레벨 override, 1회 저장
+    // 2) 알람 임계값 — farm+sp override + 하위 stall·controller override cascade
     if (applyAlarm) {
-      let settings = controller.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
-      const seen = new Set<string>();
-      for (const r of targets) {
-        const sp = normalizeStallTyCode(r.stallTyCode);
-        if (!spSet.has(sp)) continue;
-        const scopeKey = buildAlarmScopeKey({ farmId: farmKeyId(r.farmKey), sp });
-        if (seen.has(scopeKey)) continue;
-        seen.add(scopeKey);
-        settings = mergeScopeThreshold(settings, scopeKey, alarm);
-      }
+      const base = controller.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
+      const { settings, spScopeKeys, clearedOverrides } = applyBulkSpAlarmThresholds(
+        base,
+        targets,
+        spSet,
+        alarm
+      );
       const fd = new FormData();
       fd.set("settings_json", JSON.stringify(settings));
       const res = await saveAlarmSettingsInlineAction(fd);
-      alarmResult = { ok: res.ok, spCount: seen.size, error: res.error };
+      alarmResult = {
+        ok: res.ok,
+        spCount: spScopeKeys.length,
+        clearedOverrides,
+        error: res.error,
+      };
     }
 
     setResult({ control, alarm: alarmResult });
@@ -285,7 +291,11 @@ export function FarmMapBulkApply({
                   <li>
                     알람 임계값:{" "}
                     {result.alarm.ok
-                      ? `유형 ${result.alarm.spCount}개 갱신`
+                      ? `유형 ${result.alarm.spCount}개 갱신${
+                          (result.alarm.clearedOverrides ?? 0) > 0
+                            ? ` · 개별 설정 ${result.alarm.clearedOverrides}건 제거`
+                            : ""
+                        }`
                       : `저장 실패 (${result.alarm.error ?? "오류"})`}
                   </li>
                 ) : null}

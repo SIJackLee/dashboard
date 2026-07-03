@@ -217,6 +217,82 @@ export function mergeScopeThreshold(
   };
 }
 
+/** ancestorKey 하위(stall·controller) scope override 여부 */
+export function isDescendantScopeKey(
+  scopeKey: string,
+  ancestorScopeKey: string
+): boolean {
+  if (scopeKey === ancestorScopeKey) return false;
+  return scopeKey.startsWith(`${ancestorScopeKey}|`);
+}
+
+/** SP scope 하위 stall·controller override 제거 */
+export function clearDescendantScopeOverrides(
+  settings: AlarmSettings,
+  ancestorScopeKey: string
+): { settings: AlarmSettings; cleared: number } {
+  const byScope = settings.byScope;
+  if (!byScope || Object.keys(byScope).length === 0) {
+    return { settings, cleared: 0 };
+  }
+  const next = { ...byScope };
+  let cleared = 0;
+  for (const key of Object.keys(next)) {
+    if (isDescendantScopeKey(key, ancestorScopeKey)) {
+      delete next[key];
+      cleared += 1;
+    }
+  }
+  if (cleared === 0) return { settings, cleared: 0 };
+  return { settings: { ...settings, byScope: next }, cleared };
+}
+
+export type BulkSpAlarmApplyResult = {
+  settings: AlarmSettings;
+  spScopeKeys: string[];
+  clearedOverrides: number;
+};
+
+/**
+ * 일괄적용 — farm+sp scope 임계값 저장 + 하위 override cascade 제거.
+ * 대상 컨트롤러가 SP 일괄값을 그대로 상속하도록 byScope descendant·byStallTyCode[sp] 정리.
+ */
+export function applyBulkSpAlarmThresholds(
+  settings: AlarmSettings,
+  targets: BarnReading[],
+  selectedSps: ReadonlySet<string>,
+  thresholds: AlarmThresholds
+): BulkSpAlarmApplyResult {
+  let next = settings;
+  const spScopeKeys: string[] = [];
+  const seen = new Set<string>();
+  let clearedOverrides = 0;
+
+  for (const r of targets) {
+    const sp = normalizeStallTyCode(r.stallTyCode);
+    if (!selectedSps.has(sp)) continue;
+    const scopeKey = buildAlarmScopeKey({ farmId: farmKeyId(r.farmKey), sp });
+    if (seen.has(scopeKey)) continue;
+    seen.add(scopeKey);
+    spScopeKeys.push(scopeKey);
+
+    const clearedDesc = clearDescendantScopeOverrides(next, scopeKey);
+    next = clearedDesc.settings;
+    clearedOverrides += clearedDesc.cleared;
+
+    if (next.byStallTyCode[sp]) {
+      const byStallTyCode = { ...next.byStallTyCode };
+      delete byStallTyCode[sp];
+      next = { ...next, byStallTyCode };
+      clearedOverrides += 1;
+    }
+
+    next = mergeScopeThreshold(next, scopeKey, thresholds);
+  }
+
+  return { settings: next, spScopeKeys, clearedOverrides };
+}
+
 export function clearScopeThreshold(
   settings: AlarmSettings,
   scopeKey: string
