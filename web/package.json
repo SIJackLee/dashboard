@@ -17,7 +17,8 @@
     "verify:mobile-interaction": "node scripts/mobile-ui-interaction-test.mjs",
     "verify:routes": "node scripts/ui-route-verify.mjs",
     "verify:admin-hub": "node scripts/admin-hub-phase-verify.mjs",
-    "verify:p0-ui": "node scripts/debug-p0-ui-state.mjs"
+    "verify:p0-ui": "node scripts/debug-p0-ui-state.mjs",
+    "verify:view-toggle": "node scripts/farm-view-toggle-verify.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

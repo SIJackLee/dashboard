@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
+import { useSearchParams } from "next/navigation";
 import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
@@ -11,14 +17,10 @@ import { FarmMapView } from "@/components/farm/farm-map-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import {
   applyHubScopedViewParams,
-  applyListViewParams,
-  applyMapGridParams,
-  buildFarmPath,
   currentFarmSearchParams,
   parseMapDrillLevel,
   replaceFarmUrlShallow,
   resolveListViewMode,
-  type BarnListViewMode,
 } from "@/lib/farm/farm-view-url";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -38,9 +40,7 @@ type Props = {
   deepLinkMapLevel?: "sp" | "stalls";
   hubUrlEpoch?: number;
   onHubUrlChange?: () => void;
-  /** Admin farm grid — SectionCard·탭을 카드 스케일에 맞춤 */
   gridCompactShell?: boolean;
-  /** FarmLiveRefreshProvider 내부 — barn-table이 context revalidate 사용 */
   liveRefreshManaged?: boolean;
 };
 
@@ -61,24 +61,32 @@ export function FarmPageContent({
   gridCompactShell = false,
   liveRefreshManaged = false,
 }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const liveParams = hubMode ? currentFarmSearchParams() : searchParams;
   const [hubView, setHubView] = useState<"map" | "list">(() =>
     hubMode && liveParams.get("view") === "list" ? "list" : "map"
   );
+  const [listEverOpened, setListEverOpened] = useState(
+    () => hubMode && liveParams.get("view") === "list"
+  );
 
   useEffect(() => {
     if (!hubMode) return;
-    setHubView(liveParams.get("view") === "list" ? "list" : "map");
-  }, [hubMode, liveParams.get("lsind"), liveParams.get("item"), liveParams.get("view")]);
+    const next = currentFarmSearchParams().get("view") === "list" ? "list" : "map";
+    setHubView(next);
+    if (next === "list") setListEverOpened(true);
+  }, [hubMode, hubUrlEpoch]);
 
   const view = hubMode
     ? hubView
     : searchParams.get("view") === "list"
       ? "list"
       : "map";
-  /** view=map 일 때만 — 축사유형 그래프 drill */
+
+  useEffect(() => {
+    if (view === "list") setListEverOpened(true);
+  }, [view]);
+
   const mapSpRaw =
     deepLinkSpProp !== undefined
       ? deepLinkSpProp
@@ -99,7 +107,6 @@ export function FarmPageContent({
         : view === "map"
           ? urlStall
           : undefined;
-  /** view=list 일 때 SP 필터 · listMode (hub shallow URL 동기화) */
   const listSp = view === "list" ? liveParams.get("sp") ?? undefined : undefined;
   const listMode = useMemo(() => {
     const params = hubMode ? currentFarmSearchParams() : searchParams;
@@ -110,24 +117,47 @@ export function FarmPageContent({
   const thermoSettings = controller?.thermoSettings ?? {};
   const alarmSettings = controller?.alarmSettings;
 
-  const setView = (next: "map" | "list") => {
-    if (hubMode) {
-      setHubView(next);
-      const params = new URLSearchParams(currentFarmSearchParams().toString());
-      applyHubScopedViewParams(params, next);
+  const applyViewChange = useCallback(
+    (next: "map" | "list") => {
+      if (next === "list") setListEverOpened(true);
+      if (hubMode) {
+        setHubView(next);
+        const params = new URLSearchParams(currentFarmSearchParams().toString());
+        applyHubScopedViewParams(params, next);
+        replaceFarmUrlShallow(params);
+        onHubUrlChange?.();
+        return;
+      }
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "list") {
+        params.set("view", "list");
+      } else {
+        params.delete("view");
+        params.delete("listMode");
+      }
       replaceFarmUrlShallow(params);
-      onHubUrlChange?.();
-      return;
-    }
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === "list") applyListViewParams(params);
-    else applyMapGridParams(params);
-    router.replace(buildFarmPath(params), { scroll: false });
-  };
+    },
+    [hubMode, onHubUrlChange, searchParams]
+  );
+
+  const setView = useCallback(
+    (next: "map" | "list") => {
+      flushSync(() => {
+        applyViewChange(next);
+      });
+    },
+    [applyViewChange]
+  );
 
   const tabNavClass = gridCompactShell
     ? "text-sm font-medium md:text-sm"
     : dashboardUi.tabNav;
+
+  const mapHidden = view !== "map";
+  const listHidden = view !== "list";
+  const panelInactive =
+    "pointer-events-none absolute inset-x-0 top-0 -z-10 overflow-hidden opacity-0";
+  const panelActive = "opacity-100 transition-opacity duration-150 ease-out";
 
   return (
     <div className="space-y-4">
@@ -175,8 +205,18 @@ export function FarmPageContent({
         </div>
       ) : null}
 
-      {view === "map" ? (
-        <div className="min-h-0 lg:min-h-[16rem]">
+      <div className="relative min-h-0" data-farm-view-slot>
+        <div
+          className={cn(
+            "min-h-0 lg:min-h-[16rem]",
+            panelActive,
+            mapHidden && panelInactive
+          )}
+          aria-hidden={mapHidden}
+          inert={mapHidden ? true : undefined}
+          data-farm-view-panel="map"
+          data-farm-view-active={!mapHidden}
+        >
           <FarmMapView
             barns={barnSnapshots}
             readings={readings}
@@ -193,21 +233,32 @@ export function FarmPageContent({
             deepLinkStallNo={mapStall ?? null}
           />
         </div>
-      ) : (
-        <BarnTable
-          rows={readings}
-          controller={controller ?? null}
-          thermoSettings={thermoSettings}
-          alarmSettings={alarmSettings}
-          canCommand={controller?.canCommand ?? false}
-          initialSp={listSp}
-          initialListMode={listMode}
-          initialListLayout={listLayout}
-          hubMode={hubMode}
-          onHubUrlChange={onHubUrlChange}
-          liveRefreshManaged={liveRefreshManaged}
-        />
-      )}
+
+        {listEverOpened ? (
+          <div
+            className={cn(panelActive, listHidden && panelInactive)}
+            aria-hidden={listHidden}
+            inert={listHidden ? true : undefined}
+            data-farm-view-panel="list"
+            data-farm-view-active={!listHidden}
+          >
+            <BarnTable
+              rows={readings}
+              controller={controller ?? null}
+              thermoSettings={thermoSettings}
+              alarmSettings={alarmSettings}
+              canCommand={controller?.canCommand ?? false}
+              initialSp={listSp}
+              initialListMode={listMode}
+              initialListLayout={listLayout}
+              hubMode={hubMode}
+              onHubUrlChange={onHubUrlChange}
+              liveRefreshManaged={liveRefreshManaged}
+              staggerMount
+            />
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

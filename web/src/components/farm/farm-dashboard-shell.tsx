@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { AdminAllFarmsGridPanels } from "@/components/farm/admin-all-farms-grid-panels";
 import { FarmPageContent } from "@/components/farm/farm-page-content";
 import { FarmDrillStrip } from "@/components/farm/farm-drill-strip";
@@ -78,8 +78,12 @@ function AdminScopeBarWithRefresh({
 
 function FarmLivePageContent({
   gridCompactShell,
+  hubUrlEpoch,
+  onHubUrlChange,
 }: {
   gridCompactShell: boolean;
+  hubUrlEpoch: number;
+  onHubUrlChange: () => void;
 }) {
   const { slice, isStale } = useFarmLiveRefresh();
 
@@ -94,6 +98,9 @@ function FarmLivePageContent({
         controller={slice.controller}
         gridCompactShell={gridCompactShell}
         liveRefreshManaged
+        hubMode
+        hubUrlEpoch={hubUrlEpoch}
+        onHubUrlChange={onHubUrlChange}
       />
     </StaleWhileRevalidateShell>
   );
@@ -135,6 +142,16 @@ export function FarmDashboardShell({
     [readings, barnSnapshots, gridCols, gridRows, trendByPeriod, controller],
   );
 
+  const [hubUrlEpoch, setHubUrlEpoch] = useState(0);
+  useEffect(() => {
+    const sync = () => setHubUrlEpoch((n) => n + 1);
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  const onHubUrlChange = useCallback(() => {
+    setHubUrlEpoch((n) => n + 1);
+  }, []);
+
   return (
     <FarmLiveRefreshProvider farmKey={farmKey} initial={initialSlice}>
       <div className="space-y-4 md:space-y-5">
@@ -158,7 +175,11 @@ export function FarmDashboardShell({
           {adminAllFarmsMode ? (
             <AdminAllFarmsGridPanels panels={allFarmGrids ?? []} />
           ) : (
-            <FarmLivePageContent gridCompactShell={isAdmin} />
+            <FarmLivePageContent
+              gridCompactShell={isAdmin}
+              hubUrlEpoch={hubUrlEpoch}
+              onHubUrlChange={onHubUrlChange}
+            />
           )}
         </Suspense>
       </div>

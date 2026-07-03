@@ -76,6 +76,7 @@ type Props = {
   hubMode?: boolean;
   onHubUrlChange?: () => void;
   liveRefreshManaged?: boolean;
+  staggerMount?: boolean;
 };
 
 function stallTyCodesFromReadings(readings: BarnReading[]): string[] {
@@ -102,6 +103,7 @@ export function BarnTable({
   hubMode = false,
   onHubUrlChange,
   liveRefreshManaged = false,
+  staggerMount = false,
 }: Props) {
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -436,6 +438,7 @@ export function BarnTable({
           bulkMode={bulkMode}
           selectedSps={selectedSps}
           onToggleSp={toggleSp}
+          staggerMount={staggerMount}
         />
       </StaleWhileRevalidateShell>
       </div>

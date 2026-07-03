@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 import {
   ControllerSummaryGaugeRow,
@@ -43,6 +43,8 @@ type Props = {
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
   onToggleSp?: (stallTyCode: string) => void;
+  /** 안 D — 첫 paint 후 idle 배치 마운트 */
+  staggerMount?: boolean;
 };
 
 /** flat(일반 보기) — 전체 너비 · 최대 5열 */
@@ -52,6 +54,33 @@ const CONTROLLER_GRID_FLAT =
 /** group(SP 구역) — xl+ 2열 SP 안에서는 컨트롤러 max 2열 */
 const CONTROLLER_GRID_IN_SP =
   "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2";
+
+const STAGGER_INITIAL = 8;
+const STAGGER_BATCH = 8;
+
+function useStaggeredVisibleCount(total: number, enabled: boolean): number {
+  const [visible, setVisible] = useState(() =>
+    enabled ? Math.min(STAGGER_INITIAL, total) : total
+  );
+
+  useEffect(() => {
+    if (!enabled) {
+      setVisible(total);
+      return;
+    }
+    setVisible(Math.min(STAGGER_INITIAL, total));
+  }, [enabled, total]);
+
+  useEffect(() => {
+    if (!enabled || visible >= total) return;
+    const id = window.setTimeout(() => {
+      setVisible((v) => Math.min(v + STAGGER_BATCH, total));
+    }, 16);
+    return () => window.clearTimeout(id);
+  }, [enabled, visible, total]);
+
+  return visible;
+}
 
 function ControllerCardGrid({
   readings,
@@ -70,6 +99,7 @@ function ControllerCardGrid({
   inSpSection = false,
   bulkMode = false,
   selectedSps,
+  staggerMount = false,
 }: {
   readings: BarnReading[];
   allReadings: BarnReading[];
@@ -87,10 +117,14 @@ function ControllerCardGrid({
   inSpSection?: boolean;
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
+  staggerMount?: boolean;
 }) {
+  const visibleCount = useStaggeredVisibleCount(readings.length, staggerMount);
+  const visibleReadings = staggerMount ? readings.slice(0, visibleCount) : readings;
+
   return (
     <div className={inSpSection ? CONTROLLER_GRID_IN_SP : CONTROLLER_GRID_FLAT}>
-      {readings.map((r) => {
+      {visibleReadings.map((r) => {
         const spCode = normalizeStallTyCode(r.stallTyCode ?? "");
         const spSelected =
           !bulkMode || (selectedSps?.has(spCode) ?? false);
@@ -182,6 +216,7 @@ export function BarnListSummary({
   bulkMode = false,
   selectedSps = new Set(),
   onToggleSp,
+  staggerMount = false,
 }: Props) {
   const groups = useMemo(() => groupReadingsByHierarchy(readings), [readings]);
 
@@ -200,6 +235,7 @@ export function BarnListSummary({
     onToggleMotor,
     bulkMode,
     selectedSps,
+    staggerMount,
   };
 
   if (readings.length === 0) {
