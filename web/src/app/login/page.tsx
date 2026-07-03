@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const errorMessages: Record<string, string> = {
   credentials: "이메일 또는 비밀번호가 올바르지 않습니다.",
@@ -25,7 +26,10 @@ export default async function LoginPage({
   const message = error ? (errorMessages[error] ?? errorMessages.auth) : null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-muted/40 p-4 dark:bg-background">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle className="bg-background/80 backdrop-blur" />
+      </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-emerald-600 text-white">

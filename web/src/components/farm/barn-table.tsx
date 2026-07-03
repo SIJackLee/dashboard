@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, LayoutList } from "lucide-react";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
@@ -21,8 +21,8 @@ import {
   applyHubScopedViewParams,
   buildFarmPath,
   currentFarmSearchParams,
-  parseListViewMode,
   replaceFarmUrlShallow,
+  resolveListViewMode,
   type BarnListViewMode,
 } from "@/lib/farm/farm-view-url";
 import {
@@ -106,13 +106,26 @@ export function BarnTable({
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
   const searchParams = useSearchParams();
-  const liveParams = hubMode ? currentFarmSearchParams() : searchParams;
+  const [hubParamsTick, setHubParamsTick] = useState(0);
+  const liveParams = useMemo(() => {
+    void hubParamsTick;
+    return hubMode ? currentFarmSearchParams() : searchParams;
+  }, [hubMode, hubParamsTick, searchParams]);
+
+  useEffect(() => {
+    if (!hubMode) return;
+    const sync = () => setHubParamsTick((n) => n + 1);
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, [hubMode]);
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
   const [panelSets, setPanelSets] = useState<BarnListPanelSets>(
     EMPTY_BARN_LIST_PANEL_SETS
   );
   const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [listModeSwitchBusy, setListModeSwitchBusy] = useState(false);
+  const listModeSwitchTimerRef = useRef(0);
 
   const onListRefresh = useCallback(() => {
     if (liveRefreshManaged && liveRefresh) {
@@ -151,10 +164,32 @@ export function BarnTable({
       ? "flat"
       : "group";
 
-  const listMode = hubMode
-    ? (initialListMode ?? parseListViewMode(liveParams.get("listMode")))
-    : parseListViewMode(liveParams.get("listMode"));
+  const listModeFromUrl = resolveListViewMode(
+    liveParams,
+    hubMode ? initialListMode : undefined,
+  );
+  const [pendingListMode, setPendingListMode] =
+    useState<BarnListViewMode | null>(null);
+  const listMode = pendingListMode ?? listModeFromUrl;
   const effectiveListMode: BarnListViewMode = bulkMode ? "controller" : listMode;
+
+  useEffect(() => {
+    if (pendingListMode === null) return;
+    if (listModeFromUrl === pendingListMode) {
+      setPendingListMode(null);
+    }
+  }, [listModeFromUrl, pendingListMode]);
+
+  const prevListModeRef = useRef(listMode);
+  useEffect(() => {
+    if (prevListModeRef.current === listMode) return;
+    prevListModeRef.current = listMode;
+    setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+  }, [listMode]);
+
+  useEffect(() => {
+    return () => window.clearTimeout(listModeSwitchTimerRef.current);
+  }, []);
   const graphToolbarMode = effectiveListMode === "graph";
   const graphPanelsOpen = panelSets.graphKeys.size > 0;
   const farmKey = rows[0]?.farmKey ?? null;
@@ -225,6 +260,7 @@ export function BarnTable({
       }
       if (hubMode) {
         replaceFarmUrlShallow(params);
+        setHubParamsTick((n) => n + 1);
         onHubUrlChange?.();
         return;
       }
@@ -251,7 +287,14 @@ export function BarnTable({
 
   const handleListModeChange = (mode: BarnListViewMode) => {
     if (bulkMode) return;
+    setPendingListMode(mode);
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+    setListModeSwitchBusy(true);
+    window.clearTimeout(listModeSwitchTimerRef.current);
+    listModeSwitchTimerRef.current = window.setTimeout(
+      () => setListModeSwitchBusy(false),
+      360,
+    );
     replaceListParams({
       listMode: mode === "controller" ? null : mode,
     });
@@ -280,6 +323,7 @@ export function BarnTable({
   const listRefreshRing =
     listSoftRefreshBusy ||
     listRefreshVisible ||
+    listModeSwitchBusy ||
     Boolean(liveRefresh?.revalidating) ||
     Boolean(liveRefresh?.isStale);
 
@@ -302,7 +346,7 @@ export function BarnTable({
   return (
     <RefreshScopeShell
       busy={listRefreshRing}
-      showProgress={listRefreshVisible}
+      showProgress={listRefreshVisible || listModeSwitchBusy}
     >
       <SectionCard
         title={compactHeader ? "축사 목록 (요약)" : "축사 목록"}

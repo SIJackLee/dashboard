@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
@@ -15,9 +15,9 @@ import {
   applyMapGridParams,
   buildFarmPath,
   currentFarmSearchParams,
-  parseListViewMode,
   parseMapDrillLevel,
   replaceFarmUrlShallow,
+  resolveListViewMode,
   type BarnListViewMode,
 } from "@/lib/farm/farm-view-url";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
@@ -56,7 +56,7 @@ export function FarmPageContent({
   deepLinkSp: deepLinkSpProp,
   deepLinkStallNo: deepLinkStallNoProp,
   deepLinkMapLevel: deepLinkMapLevelProp,
-  hubUrlEpoch: _hubUrlEpoch = 0,
+  hubUrlEpoch = 0,
   onHubUrlChange,
   gridCompactShell = false,
   liveRefreshManaged = false,
@@ -99,9 +99,12 @@ export function FarmPageContent({
         : view === "map"
           ? urlStall
           : undefined;
-  /** view=list 일 때 SP 필터 */
+  /** view=list 일 때 SP 필터 · listMode (hub shallow URL 동기화) */
   const listSp = view === "list" ? liveParams.get("sp") ?? undefined : undefined;
-  const listMode = parseListViewMode(liveParams.get("listMode"));
+  const listMode = useMemo(() => {
+    const params = hubMode ? currentFarmSearchParams() : searchParams;
+    return resolveListViewMode(params, "controller");
+  }, [hubMode, hubUrlEpoch, searchParams]);
   const listLayout =
     liveParams.get("listLayout") === "flat" ? ("flat" as const) : ("group" as const);
   const thermoSettings = controller?.thermoSettings ?? {};
@@ -145,7 +148,7 @@ export function FarmPageContent({
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,
               view === "map"
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setView("map")}
@@ -161,7 +164,7 @@ export function FarmPageContent({
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,
               view === "list"
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setView("list")}

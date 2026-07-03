@@ -2,14 +2,12 @@
 
 import { Suspense, useCallback, useMemo } from "react";
 import { AdminAllFarmsGridPanels } from "@/components/farm/admin-all-farms-grid-panels";
-import { AdminFarmOverview } from "@/components/admin/admin-farm-overview";
 import { FarmPageContent } from "@/components/farm/farm-page-content";
 import { FarmDrillStrip } from "@/components/farm/farm-drill-strip";
 import { FarmContentSkeleton } from "@/components/common/loading-skeletons";
 import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
 import { ScopeBar } from "@/components/layout/scope-bar";
-import type { FarmLocationRow } from "@/lib/data/farm-location";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
@@ -22,30 +20,21 @@ import {
 } from "@/lib/navigation/farm-live-refresh";
 import { useSoftRefresh } from "@/lib/ui/use-soft-refresh";
 
-export type FarmMapMode = "geo" | "grid";
-
-type FarmDashboardShellProps =
-  | {
-      mapMode: "geo";
-      farms: FarmSummaryRow[];
-      locations: FarmLocationRow[];
-    }
-  | {
-      mapMode: "grid";
-      readings: BarnReading[];
-      barnSnapshots: BarnMapSnapshot[];
-      gridCols: number;
-      gridRows: number;
-      isAdmin?: boolean;
-      farmOptions?: FarmKey[];
-      activeFarmKey?: FarmKey | null;
-      farmSummaries?: FarmSummaryRow[];
-      sp?: string | null;
-      view?: string | null;
-      trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
-      controller?: ControllerGridData | null;
-      allFarmGrids?: AdminFarmGridPanel[] | null;
-    };
+export type FarmDashboardShellProps = {
+  readings: BarnReading[];
+  barnSnapshots: BarnMapSnapshot[];
+  gridCols: number;
+  gridRows: number;
+  isAdmin?: boolean;
+  farmOptions?: FarmKey[];
+  activeFarmKey?: FarmKey | null;
+  farmSummaries?: FarmSummaryRow[];
+  sp?: string | null;
+  view?: string | null;
+  trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
+  controller?: ControllerGridData | null;
+  allFarmGrids?: AdminFarmGridPanel[] | null;
+};
 
 function AdminScopeBarWithRefresh({
   farmOptions,
@@ -87,25 +76,44 @@ function AdminScopeBarWithRefresh({
   );
 }
 
-function FarmDashboardGridBody(
-  props: Extract<FarmDashboardShellProps, { mapMode: "grid" }>,
-) {
-  const {
-    readings,
-    barnSnapshots,
-    gridCols,
-    gridRows,
-    isAdmin = false,
-    farmOptions = [],
-    activeFarmKey = null,
-    farmSummaries = [],
-    sp,
-    view,
-    trendByPeriod,
-    controller,
-    allFarmGrids = null,
-  } = props;
+function FarmLivePageContent({
+  gridCompactShell,
+}: {
+  gridCompactShell: boolean;
+}) {
+  const { slice, isStale } = useFarmLiveRefresh();
 
+  return (
+    <StaleWhileRevalidateShell stale={isStale}>
+      <FarmPageContent
+        readings={slice.readings}
+        barnSnapshots={slice.barnSnapshots}
+        gridCols={slice.gridCols}
+        gridRows={slice.gridRows}
+        trendByPeriod={slice.trendByPeriod}
+        controller={slice.controller}
+        gridCompactShell={gridCompactShell}
+        liveRefreshManaged
+      />
+    </StaleWhileRevalidateShell>
+  );
+}
+
+export function FarmDashboardShell({
+  readings,
+  barnSnapshots,
+  gridCols,
+  gridRows,
+  isAdmin = false,
+  farmOptions = [],
+  activeFarmKey = null,
+  farmSummaries = [],
+  sp,
+  view,
+  trendByPeriod,
+  controller,
+  allFarmGrids = null,
+}: FarmDashboardShellProps) {
   const showAdminScope = isAdmin && farmOptions.length > 0;
   const adminAllFarmsMode =
     isAdmin && !activeFarmKey && allFarmGrids !== null;
@@ -156,37 +164,4 @@ function FarmDashboardGridBody(
       </div>
     </FarmLiveRefreshProvider>
   );
-}
-
-function FarmLivePageContent({
-  gridCompactShell,
-}: {
-  gridCompactShell: boolean;
-}) {
-  const { slice, isStale } = useFarmLiveRefresh();
-
-  return (
-    <StaleWhileRevalidateShell stale={isStale}>
-      <FarmPageContent
-        readings={slice.readings}
-        barnSnapshots={slice.barnSnapshots}
-        gridCols={slice.gridCols}
-        gridRows={slice.gridRows}
-        trendByPeriod={slice.trendByPeriod}
-        controller={slice.controller}
-        gridCompactShell={gridCompactShell}
-        liveRefreshManaged
-      />
-    </StaleWhileRevalidateShell>
-  );
-}
-
-export function FarmDashboardShell(props: FarmDashboardShellProps) {
-  if (props.mapMode === "geo") {
-    return (
-      <AdminFarmOverview farms={props.farms} locations={props.locations} />
-    );
-  }
-
-  return <FarmDashboardGridBody {...props} />;
 }

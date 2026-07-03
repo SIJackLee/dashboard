@@ -144,7 +144,11 @@ export function ControllerSummaryGaugeRow({
         />
       </div>
 
-      <BarnListPanelShell open={graphExpanded} panelKind="graph">
+      <BarnListPanelShell
+        key={`${listMode}-graph`}
+        open={graphExpanded}
+        panelKind="graph"
+      >
         {graphExpanded ? (
           <BarnListGraphPanel
             reading={reading}
@@ -155,7 +159,11 @@ export function ControllerSummaryGaugeRow({
         ) : null}
       </BarnListPanelShell>
 
-      <BarnListPanelShell open={settingsExpanded} panelKind="settings">
+      <BarnListPanelShell
+        key={`${listMode}-settings`}
+        open={settingsExpanded}
+        panelKind="settings"
+      >
         {settingsExpanded ? (
           <BarnListAccordionPanel
             reading={reading}
@@ -167,8 +175,12 @@ export function ControllerSummaryGaugeRow({
         ) : null}
       </BarnListPanelShell>
 
-      {motorExpanded ? (
-        <BarnListPanelShell open panelKind="motor">
+      <BarnListPanelShell
+        key={`${listMode}-motor`}
+        open={motorExpanded}
+        panelKind="motor"
+      >
+        {motorExpanded ? (
           <div className="barn-list-panel-stagger--motor space-y-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
             {CHANNELS.map((slot) => (
               <ChannelFanDropdown
@@ -180,8 +192,8 @@ export function ControllerSummaryGaugeRow({
               />
             ))}
           </div>
-        </BarnListPanelShell>
-      ) : null}
+        ) : null}
+      </BarnListPanelShell>
     </div>
   );
 }

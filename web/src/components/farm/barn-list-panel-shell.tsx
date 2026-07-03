@@ -20,9 +20,11 @@ export function BarnListPanelShell({
   className,
 }: Props) {
   const [mounted, setMounted] = useState(open);
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState(open);
   const [latchedChildren, setLatchedChildren] = useState<ReactNode>(children);
   const shellRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef(open);
+  openRef.current = open;
 
   useEffect(() => {
     if (open) {
@@ -31,19 +33,31 @@ export function BarnListPanelShell({
   }, [open, children]);
 
   useEffect(() => {
-    if (open) {
-      setMounted(true);
-      let outer = 0;
-      let inner = 0;
-      outer = requestAnimationFrame(() => {
-        inner = requestAnimationFrame(() => setShow(true));
-      });
-      return () => {
-        cancelAnimationFrame(outer);
-        cancelAnimationFrame(inner);
-      };
+    if (!open) {
+      setShow(false);
+      return;
     }
-    setShow(false);
+
+    setMounted(true);
+    let outer = 0;
+    let inner = 0;
+    let cancelled = false;
+
+    const reveal = () => {
+      if (!cancelled && openRef.current) setShow(true);
+    };
+
+    outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(reveal);
+    });
+    const fallback = window.setTimeout(reveal, 320);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+      window.clearTimeout(fallback);
+    };
   }, [open]);
 
   useEffect(() => {

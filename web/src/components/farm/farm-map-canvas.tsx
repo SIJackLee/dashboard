@@ -427,8 +427,8 @@ export function FarmMapCanvas({
       <div
         className={cn(
           "grid min-h-0 flex-1 gap-1.5 overflow-auto p-3",
-          "bg-[linear-gradient(to_right,#e5e7eb_1px,transparent_1px),linear-gradient(to_bottom,#e5e7eb_1px,transparent_1px)]",
-          "bg-[size:20px_20px] bg-muted/15",
+          "bg-[linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)]",
+          "bg-[size:20px_20px] bg-muted/10 dark:bg-muted/6",
           isDragging && "select-none"
         )}
         style={{

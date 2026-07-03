@@ -3,12 +3,12 @@ import { AppHeaderBrand } from "@/components/layout/app-header-brand";
 import { AppHeaderNav } from "@/components/layout/app-header-nav";
 import { TopBarAlarmSlot } from "@/components/layout/top-bar-alarm-slot";
 import { GlobalContextStrip } from "@/components/layout/global-context-strip";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { WeatherWarningRow } from "@/lib/data/weather-warnings";
 import type { FarmOverview } from "@/lib/data/iot";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
-import { cn } from "@/lib/utils";
 
 type Role = "admin" | "operator" | "viewer";
 
@@ -70,6 +70,7 @@ export function TopBar({
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1.5 md:gap-3">
+          <ThemeToggle />
           <TopBarAlarmSlot
             alarms={alarms}
             weatherWarnings={weatherWarnings}

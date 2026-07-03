@@ -11,7 +11,6 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
   setMonitoringTabParam,
 } from "@/lib/monitoring/monitoring-tabs";
-import { adminOpsHref } from "@/lib/admin/ops-tabs";
 
 export type FarmQueryParams = {
   lsind?: string | null;
@@ -71,32 +70,6 @@ export function filterReadingsByFarmKey<T extends { farmKey: FarmKey }>(
 ): T[] {
   if (!farmKey) return readings;
   return readings.filter((r) => farmKeyEq(r.farmKey, farmKey));
-}
-
-export function buildFarmDetailHref(farmKey: FarmKey): string {
-  const params = new URLSearchParams();
-  appendFarmKeyParams(params, farmKey);
-  setMonitoringTabParam(params, "map");
-  return `/farm?${params.toString()}`;
-}
-
-export function buildFarmAlarmsHref(farmKey: FarmKey): string {
-  const params = new URLSearchParams();
-  appendFarmKeyParams(params, farmKey);
-  setMonitoringTabParam(params, "ops");
-  return `/farm?${params.toString()}`;
-}
-
-export function buildFarmOverviewHref(): string {
-  return "/farm";
-}
-
-export function buildSettingsFarmLocationHref(
-  farmKey?: FarmKey,
-  options: { isAdmin?: boolean } = {}
-): string {
-  if (options.isAdmin) return adminOpsHref("farms");
-  return "/farm?tab=ops";
 }
 
 export function buildControllerHref(opts: {

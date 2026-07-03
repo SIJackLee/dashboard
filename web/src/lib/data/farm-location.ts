@@ -12,7 +12,7 @@ import {
   type FarmKey,
 } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
-import { isValidMapCoord } from "@/lib/geo/farm-map-zoom";
+import { isValidMapCoord } from "@/lib/geo/map-coords";
 import {
   findRegion,
   formatAddressText,

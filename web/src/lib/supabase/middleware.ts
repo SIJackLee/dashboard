@@ -50,13 +50,8 @@ export async function updateSession(request: NextRequest) {
       .select("role")
       .eq("user_id", user.id)
       .maybeSingle();
-    url.pathname =
-      profile?.role === "admin" ? "/farm" : "/farm";
-    if (profile?.role === "admin") {
-      url.searchParams.set("view", "overview");
-    } else {
-      url.searchParams.delete("view");
-    }
+    url.pathname = "/farm";
+    url.searchParams.delete("view");
     return NextResponse.redirect(url);
   }
 

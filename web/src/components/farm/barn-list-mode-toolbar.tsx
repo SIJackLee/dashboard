@@ -49,7 +49,7 @@ export function BarnListModeToolbar({
               "inline-flex min-h-8 items-center justify-center border-border px-2.5 py-1.5 text-xs font-medium transition-colors sm:min-h-11 sm:px-3 sm:text-sm md:px-4 md:text-[1.75rem]",
               index > 0 && "border-l",
               selected
-                ? "bg-background text-foreground"
+                ? "bg-background text-foreground dark:border-primary/40 dark:bg-primary/10 dark:text-primary"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             )}
             onClick={() => onChange(mode.id)}

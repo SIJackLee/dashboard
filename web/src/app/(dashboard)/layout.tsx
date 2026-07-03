@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { FarmContentSkeleton } from "@/components/common/loading-skeletons";
 import { DashboardMetaShell } from "@/components/layout/dashboard-meta-shell";
 import { DashboardViewportShell } from "@/components/layout/dashboard-viewport-shell";
 import { NavigationPendingProvider } from "@/components/layout/navigation-pending-provider";
@@ -28,7 +29,9 @@ export default async function DashboardLayout({
       >
         <NavigationPendingProvider>
           <DashboardViewportShell role={user.role}>
-            <Suspense fallback={null}>{children}</Suspense>
+            <Suspense fallback={<FarmContentSkeleton />}>
+              {children}
+            </Suspense>
           </DashboardViewportShell>
         </NavigationPendingProvider>
       </FarmScopeProvider>

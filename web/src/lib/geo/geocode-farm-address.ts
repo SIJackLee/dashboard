@@ -4,7 +4,7 @@ import {
   KOREA_REGIONS,
   matchSidoPrefix,
 } from "@/lib/geo/korea-regions";
-import { isValidMapCoord } from "@/lib/geo/farm-map-zoom";
+import { isValidMapCoord } from "@/lib/geo/map-coords";
 
 export type GeocodeFarmAddressResult =
   | {

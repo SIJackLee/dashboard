@@ -21,6 +21,16 @@ export function parseListViewMode(
   return "controller";
 }
 
+/** hub shallow URL · searchParams 공통 — URL listMode 우선 */
+export function resolveListViewMode(
+  params: URLSearchParams,
+  fallback?: BarnListViewMode
+): BarnListViewMode {
+  const raw = params.get("listMode");
+  if (raw) return parseListViewMode(raw);
+  return fallback ?? "controller";
+}
+
 export function setListViewMode(
   params: URLSearchParams,
   mode: BarnListViewMode
@@ -90,12 +100,6 @@ export function applyHubScopedViewParams(
   params.set("tab", "ops");
   if (view === "list") applyListViewParams(params);
   else applyMapGridParams(params);
-}
-
-/** Admin hub scoped farm path — tab=ops 유지 */
-export function buildHubScopedFarmPath(params: URLSearchParams): string {
-  params.set("tab", "ops");
-  return buildFarmPath(params);
 }
 
 /** hub farm 선택 시 in-grid drill + view 탭 초기화 */

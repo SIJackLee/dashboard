@@ -96,7 +96,7 @@ function ControllerCardGrid({
           !bulkMode || (selectedSps?.has(spCode) ?? false);
         return (
         <ControllerSummaryGaugeRow
-          key={r.key}
+          key={`${r.key}-${listMode}`}
           reading={r}
           readings={allReadings}
           thermoSettings={thermoSettings}

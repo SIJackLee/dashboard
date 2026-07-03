@@ -127,7 +127,6 @@ export default async function FarmPage({
     <PageShell wide searchParams={shellParams}>
       {pageBody(
         <FarmDashboardShell
-          mapMode="grid"
           readings={scopedPanelData?.readings ?? []}
           barnSnapshots={scopedPanelData?.barnSnapshots ?? []}
           gridCols={scopedPanelData?.gridCols ?? 4}
