@@ -69,7 +69,7 @@ export async function sendThermoCommandAction(
     return { ok: false, error: "invalid_vent_range" };
   }
 
-  if (setpointTemp < -30 || setpointTemp > 50) {
+  if (setpointTemp < 10 || setpointTemp > 40) {
     return { ok: false, error: "invalid_setpoint" };
   }
 
@@ -192,8 +192,8 @@ export async function sendBulkThermoCommandAction(
       maxVentPct < 0 ||
       maxVentPct > 100 ||
       minVentPct > maxVentPct ||
-      setpointTemp < -30 ||
-      setpointTemp > 50 ||
+      setpointTemp < 10 ||
+      setpointTemp > 40 ||
       tempDeviation < 0 ||
       tempDeviation > 20
     ) {

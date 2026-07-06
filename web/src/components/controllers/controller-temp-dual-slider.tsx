@@ -2,7 +2,7 @@
 
 import { useCallback, useId } from "react";
 import { Thermometer } from "lucide-react";
-import { clampMenuValue } from "@/lib/controllers/controller-panel-map";
+import { clampMenuValue, MENU_STEPS } from "@/lib/controllers/controller-panel-map";
 import {
   fmtTempLabel,
   SliderThumbLabel,
@@ -15,9 +15,10 @@ import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { useSliderDragThumb } from "@/lib/ui/use-slider-drag-thumb";
 import { cn } from "@/lib/utils";
 
-const TRACK_MIN = 15;
-const TRACK_MAX = 35;
-const STEP = 0.5;
+/** 트랙 = 설정온도 도메인만 (편차 max 합산 안 함). 상한 thumb는 maxTemp > TRACK_MAX 시 끝에 고정 */
+const TRACK_MIN = MENU_STEPS.setpoint.min;
+const TRACK_MAX = MENU_STEPS.setpoint.max;
+const STEP = MENU_STEPS.setpoint.step;
 
 type ControllerTempDualSliderProps = {
   setpoint: number;
@@ -65,22 +66,30 @@ export function ControllerTempDualSlider({
   const { dragThumb, dragging, onLowPointerDown, onHighPointerDown } =
     useSliderDragThumb();
   const maxTemp = setpoint + deviation;
+  const displayMaxTemp = clamp(maxTemp, TRACK_MIN, TRACK_MAX);
   const mobileDrag = mobile && dragging;
   const lowPct = pct(setpoint, TRACK_MIN, TRACK_MAX);
-  const highPct = pct(maxTemp, TRACK_MIN, TRACK_MAX);
+  const highPct = pct(displayMaxTemp, TRACK_MIN, TRACK_MAX);
   const devLabel = fmtTempLabel(deviation);
 
   const setLow = useCallback(
     (raw: number) => {
-      const nextSp = snap(
-        clamp(raw, TRACK_MIN, maxTemp - STEP),
-        STEP
+      const anchoredDev = deviation;
+      const upper = Math.min(
+        TRACK_MAX - anchoredDev,
+        MENU_STEPS.setpoint.max
       );
-      const newSp = clampMenuValue("setpoint", nextSp);
-      const newDev = clampMenuValue("deviation", maxTemp - newSp);
+      let newSp = clampMenuValue(
+        "setpoint",
+        snap(clamp(raw, TRACK_MIN, upper), STEP)
+      );
+      let newDev = clampMenuValue("deviation", anchoredDev);
+      if (newSp + newDev > TRACK_MAX) {
+        newSp = clampMenuValue("setpoint", TRACK_MAX - newDev);
+      }
       onChange(newSp, newDev);
     },
-    [maxTemp, onChange]
+    [deviation, onChange]
   );
 
   const setHigh = useCallback(
@@ -161,7 +170,7 @@ export function ControllerTempDualSlider({
           min={TRACK_MIN}
           max={TRACK_MAX}
           step={STEP}
-          value={maxTemp}
+          value={displayMaxTemp}
           disabled={disabled}
           aria-label={`온도 편차 +${devLabel}℃`}
           aria-valuetext={`+${devLabel}℃`}

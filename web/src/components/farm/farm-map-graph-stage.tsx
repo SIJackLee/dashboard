@@ -11,6 +11,17 @@ import {
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { TrendChart, type TrendSeries } from "@/components/trends/trend-chart";
 import {
+  DEFAULT_ALARM_SETTINGS,
+  type AlarmSettings,
+  type AlarmThresholds,
+} from "@/lib/data/alarms";
+import type { BarnReading } from "@/lib/data/iot";
+import {
+  tempTrendLeftDomain,
+  envTrendReferenceLines,
+} from "@/lib/farm/trend-chart-series";
+import { resolveReadingAlarmThresholds } from "@/lib/farm/controller-summary-display";
+import {
   TREND_PERIODS,
   type TrendPeriodData,
   type TrendPeriodId,
@@ -31,6 +42,19 @@ import {
 import { prefetchControllerDetail } from "@/components/controllers/use-controller-detail";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { cn } from "@/lib/utils";
+
+function envChartScale(
+  alarmSettings: AlarmSettings | undefined,
+  reading: BarnReading | null
+): { leftDomain: [number, number]; referenceLines: ReturnType<typeof envTrendReferenceLines> } {
+  const thresholds: AlarmThresholds = reading
+    ? resolveReadingAlarmThresholds(reading, alarmSettings)
+    : (alarmSettings?.global ?? DEFAULT_ALARM_SETTINGS.global);
+  return {
+    leftDomain: tempTrendLeftDomain(thresholds),
+    referenceLines: envTrendReferenceLines(thresholds),
+  };
+}
 
 type ChartMode = "line" | "bar";
 
@@ -257,6 +281,7 @@ export function FarmMapGraphStage({
   const categories = periodData?.categories ?? [];
   const stalls = sp?.stalls ?? [];
   const spAvg = stalls.length > 0 ? averageStalls(stalls) : null;
+  const spEnvScale = envChartScale(controller?.alarmSettings, null);
 
   const goController = () => {
     if (!controllerHref) return;
@@ -437,6 +462,8 @@ export function FarmMapGraphStage({
               series={envSeriesOf(spAvg)}
               leftUnit="°C"
               rightUnit="%"
+              leftDomain={spEnvScale.leftDomain}
+              referenceLines={spEnvScale.referenceLines}
               rightDomain={[0, 100]}
               height={240}
             />
@@ -465,7 +492,13 @@ export function FarmMapGraphStage({
         key={`stalls-${period}-${mode}`}
         className="grid grid-cols-1 gap-3 p-3 pb-6 sm:grid-cols-2 lg:grid-cols-3 lg:pb-3"
       >
-        {stalls.map((stall) => (
+        {stalls.map((stall) => {
+          const stallReading = findReading(stall.stallNo);
+          const stallEnvScale = envChartScale(
+            controller?.alarmSettings,
+            stallReading
+          );
+          return (
           <div key={stall.stallNo} className="rounded-lg border bg-background p-3">
               <p className="pb-1.5 text-sm font-semibold">
                 {stallTyCode}-{stall.stallNo}
@@ -477,6 +510,8 @@ export function FarmMapGraphStage({
                 series={envSeriesOf(stall)}
                 leftUnit="°C"
                 rightUnit="%"
+                leftDomain={stallEnvScale.leftDomain}
+                referenceLines={stallEnvScale.referenceLines}
                 rightDomain={[0, 100]}
                 height={160}
               />
@@ -516,7 +551,8 @@ export function FarmMapGraphStage({
                 })()}
               </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   }

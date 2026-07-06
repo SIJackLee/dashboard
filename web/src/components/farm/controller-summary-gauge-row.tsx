@@ -165,6 +165,7 @@ export function ControllerSummaryGaugeRow({
             controllerTrendByPeriod={controllerTrendByPeriod ?? null}
             period={panelPeriodOverrides[reading.key] ?? bulkPeriod}
             onPeriodChange={(p) => onPanelPeriodChange?.(reading.key, p)}
+            alarmSettings={alarmSettings}
             loading={trendLoading}
             stale={trendStale}
           />

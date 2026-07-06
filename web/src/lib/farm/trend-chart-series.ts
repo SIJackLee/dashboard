@@ -1,5 +1,65 @@
-import type { TrendSeries } from "@/components/trends/trend-chart";
+import type { TrendReferenceLine, TrendSeries } from "@/components/trends/trend-chart";
+import {
+  DEFAULT_ALARM_THRESHOLDS,
+  type AlarmThresholds,
+} from "@/lib/data/alarms";
 import type { TrendStallSeries } from "@/lib/data/farm-trend-types";
+
+/** 온도 추이 Y축 — 알람 구간과 동일 (기간 전환 시 스케일 고정). */
+export function tempTrendLeftDomain(
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
+): [number, number] {
+  return [thresholds.tempLow, thresholds.tempHigh];
+}
+
+export function tempTrendReferenceLines(
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
+): TrendReferenceLine[] {
+  return [
+    {
+      value: thresholds.tempLow,
+      axis: "left",
+      color: "#d97706",
+      label: `${thresholds.tempLow}℃`,
+    },
+    {
+      value: thresholds.tempHigh,
+      axis: "left",
+      color: "#d97706",
+      label: `${thresholds.tempHigh}℃`,
+    },
+  ];
+}
+
+export function humidityTrendReferenceLines(
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS,
+  axis: "left" | "right" = "left"
+): TrendReferenceLine[] {
+  return [
+    {
+      value: thresholds.humidityLow,
+      axis,
+      color: "#d97706",
+      label: `${thresholds.humidityLow}%`,
+    },
+    {
+      value: thresholds.humidityHigh,
+      axis,
+      color: "#d97706",
+      label: `${thresholds.humidityHigh}%`,
+    },
+  ];
+}
+
+/** 복합 환경 차트(온도 left + 습도 right)용 알람 점선. */
+export function envTrendReferenceLines(
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
+): TrendReferenceLine[] {
+  return [
+    ...tempTrendReferenceLines(thresholds),
+    ...humidityTrendReferenceLines(thresholds, "right"),
+  ];
+}
 
 export const TREND_CHART_COLORS = {
   temp: "#ef4444",
@@ -13,6 +73,17 @@ type StallMetrics = Pick<
   TrendStallSeries,
   "temp" | "humidity" | "fanSupply" | "fanExhaust" | "fanIntake"
 >;
+
+export function humidityOnlyTrendSeries(
+  m: Pick<TrendStallSeries, "humidity">
+): TrendSeries {
+  return {
+    name: "습도",
+    data: m.humidity,
+    color: TREND_CHART_COLORS.humidity,
+    axis: "left",
+  };
+}
 
 export function envTrendSeries(m: StallMetrics): TrendSeries[] {
   return [

@@ -416,8 +416,8 @@ export function FarmMapBulkApply({
                           aria-hidden
                         />
                       }
-                      min={-40}
-                      max={60}
+                      min={10}
+                      max={35}
                       step={0.5}
                       low={alarm.tempLow}
                       high={alarm.tempHigh}

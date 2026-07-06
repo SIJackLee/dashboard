@@ -9,15 +9,21 @@ import {
   type TrendControllerPeriodData,
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import {
   channelFanTrendSeries,
   envTrendSeries,
+  humidityOnlyTrendSeries,
   stallTrendHasData,
+  tempTrendLeftDomain,
+  tempTrendReferenceLines,
+  humidityTrendReferenceLines,
 } from "@/lib/farm/trend-chart-series";
 import {
   findControllerTrendSeries,
   formatControllerNoLabel,
+  resolveReadingAlarmThresholds,
 } from "@/lib/farm/controller-summary-display";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
@@ -30,6 +36,7 @@ type Props = {
   controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   period: TrendPeriodId;
   onPeriodChange: (period: TrendPeriodId) => void;
+  alarmSettings?: AlarmSettings;
   loading?: boolean;
   stale?: boolean;
 };
@@ -46,9 +53,14 @@ export function BarnListGraphPanel({
   controllerTrendByPeriod,
   period,
   onPeriodChange,
+  alarmSettings,
   loading = false,
   stale = false,
 }: Props) {
+  const thresholds = resolveReadingAlarmThresholds(reading, alarmSettings);
+  const tempDomain = tempTrendLeftDomain(thresholds);
+  const tempRefs = tempTrendReferenceLines(thresholds);
+  const humidityRefs = humidityTrendReferenceLines(thresholds);
 
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
@@ -135,6 +147,8 @@ export function BarnListGraphPanel({
               series={[envTrendSeries(controllerSeries!)[0]!]}
               height={88}
               leftUnit="℃"
+              leftDomain={tempDomain}
+              referenceLines={tempRefs}
               tickEvery={tickEvery}
             />
             <p className="mb-1 mt-2 text-xs font-semibold text-muted-foreground">
@@ -143,10 +157,11 @@ export function BarnListGraphPanel({
             <TrendChart
               mode="line"
               categories={categories}
-              series={[envTrendSeries(controllerSeries!)[1]!]}
+              series={[humidityOnlyTrendSeries(controllerSeries!)]}
               height={72}
               leftUnit="%"
               leftDomain={[0, 100]}
+              referenceLines={humidityRefs}
               tickEvery={tickEvery}
             />
           </div>

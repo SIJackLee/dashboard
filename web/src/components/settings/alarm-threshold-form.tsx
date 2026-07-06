@@ -552,8 +552,8 @@ export function AlarmThresholdForm({
                   aria-hidden
                 />
               }
-              min={-40}
-              max={60}
+              min={10}
+              max={35}
               step={0.5}
               low={draft.tempLow}
               high={draft.tempHigh}
@@ -638,8 +638,8 @@ export function AlarmThresholdForm({
                   aria-hidden
                 />
               }
-              min={-40}
-              max={60}
+              min={10}
+              max={35}
               step={0.5}
               low={draft.tempLow}
               high={draft.tempHigh}

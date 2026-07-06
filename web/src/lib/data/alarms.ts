@@ -186,7 +186,7 @@ export function alarmControlHref(
 export function validateAlarmThresholds(t: AlarmThresholds): string | null {
   if (t.tempHigh <= t.tempLow) return "온도 상한은 하한보다 커야 합니다.";
   if (t.humidityHigh <= t.humidityLow) return "습도 상한은 하한보다 커야 합니다.";
-  if (t.tempLow < -40 || t.tempHigh > 60) return "온도 범위는 -40~60℃ 이내로 설정하세요.";
+  if (t.tempLow < 10 || t.tempHigh > 35) return "온도 범위는 10~35℃ 이내로 설정하세요.";
   if (t.humidityLow < 0 || t.humidityHigh > 100) return "습도 범위는 0~100% 이내로 설정하세요.";
   return null;
 }
