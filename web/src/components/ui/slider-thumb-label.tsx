@@ -15,6 +15,10 @@ type SliderThumbLabelProps = {
   placement?: "above" | "below";
   compact?: boolean;
   dense?: boolean;
+  /** 모바일 drag 중 비-active thumb 라벨 숨김 */
+  visible?: boolean;
+  /** 모바일 drag 중 active thumb — 20px bold + lift */
+  magnified?: boolean;
   className?: string;
 };
 
@@ -61,6 +65,8 @@ export function SliderThumbLabel({
   placement = "above",
   compact = false,
   dense = false,
+  visible = true,
+  magnified = false,
   className,
 }: SliderThumbLabelProps) {
   return (
@@ -70,9 +76,19 @@ export function SliderThumbLabel({
         thumbLabelAlignClass(leftPct),
         thumbLabelPlacementClass(placement),
         labelTypography(variant, compact, dense),
+        !visible && "max-md:invisible max-md:opacity-0",
+        magnified &&
+          "max-md:z-10 max-md:text-xl max-md:font-bold max-md:text-foreground",
+        magnified &&
+          placement === "above" &&
+          "max-md:!bottom-full max-md:!mb-9",
+        magnified &&
+          placement === "below" &&
+          "max-md:!top-full max-md:!mt-9",
         className
       )}
       style={thumbLabelPositionStyle(leftPct)}
+      aria-hidden={!visible ? true : undefined}
     >
       {children}
     </span>

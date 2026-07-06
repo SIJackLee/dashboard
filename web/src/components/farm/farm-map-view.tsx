@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { SectionCard } from "@/components/common/section-card";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import {
@@ -53,6 +54,12 @@ export function FarmMapView({
   uniformGridLayout = false,
 }: Props) {
   const viewportCompact = useDashboardCompact();
+  /** ResizeObserver 기반 compact — SSR/첫 hydration과 불일치 방지 */
+  const showMobileListDesc = useSyncExternalStore(
+    () => () => {},
+    () => viewportCompact && !sectionTitle,
+    () => false
+  );
   const emptyReason =
     barns.length === 0 ? resolveFarmGridEmptyReason(readings) : null;
   const emptyCopy = emptyReason ? farmGridEmptyCopy(emptyReason) : null;
@@ -62,9 +69,7 @@ export function FarmMapView({
       <SectionCard
         title={sectionTitle ?? "농장 지도"}
         description={
-          viewportCompact && !sectionTitle
-            ? "축사별 현황 · 세로 목록"
-            : undefined
+          showMobileListDesc ? "축사별 현황 · 세로 목록" : undefined
         }
         size={compactShell ? "default" : "lg"}
         className="overflow-hidden"

@@ -8,6 +8,8 @@ import {
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
+import { useSliderDragThumb } from "@/lib/ui/use-slider-drag-thumb";
 import { cn } from "@/lib/utils";
 
 type ThresholdRangeSliderProps = {
@@ -82,10 +84,14 @@ export function ThresholdRangeSlider({
   onChange,
 }: ThresholdRangeSliderProps) {
   const id = useId();
+  const mobile = useMobileLayout();
+  const { dragThumb, dragging, onLowPointerDown, onHighPointerDown } =
+    useSliderDragThumb();
   const lowPct = pct(low, min, max);
   const highPct = pct(high, min, max);
   const lowText = `${fmtValue(low, step)}${unit}`;
   const highText = `${fmtValue(high, step)}${unit}`;
+  const mobileDrag = mobile && dragging;
 
   const setLow = useCallback(
     (raw: number) => {
@@ -134,12 +140,20 @@ export function ThresholdRangeSlider({
         </p>
       </div>
 
-      <div className={cn(sliderTrackShellClass(compact), trackShellClassName)}>
+      <div
+        className={cn(
+          sliderTrackShellClass(compact),
+          mobileDrag && "max-md:pt-11",
+          trackShellClassName
+        )}
+      >
         <div className={sliderTrackRailClass()}>
           <SliderThumbLabel
             leftPct={lowPct}
             compact={compact}
             className={thumbLabelClassName}
+            visible={!mobileDrag || dragThumb !== "high"}
+            magnified={mobileDrag && dragThumb === "low"}
           >
             {lowText}
           </SliderThumbLabel>
@@ -147,6 +161,8 @@ export function ThresholdRangeSlider({
             leftPct={highPct}
             compact={compact}
             className={thumbLabelClassName}
+            visible={!mobileDrag || dragThumb !== "low"}
+            magnified={mobileDrag && dragThumb === "high"}
           >
             {highText}
           </SliderThumbLabel>
@@ -173,6 +189,7 @@ export function ThresholdRangeSlider({
             aria-label={`${title} ${lowLabel}`}
             aria-valuetext={lowText}
             className={cn(rangeClass, "z-[3]")}
+            onPointerDown={onLowPointerDown}
             onChange={(e) => setLow(Number(e.target.value))}
           />
           <input
@@ -186,6 +203,7 @@ export function ThresholdRangeSlider({
             aria-label={`${title} ${highLabel}`}
             aria-valuetext={highText}
             className={cn(rangeClass, "z-[4]")}
+            onPointerDown={onHighPointerDown}
             onChange={(e) => setHigh(Number(e.target.value))}
           />
         </div>

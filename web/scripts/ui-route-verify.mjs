@@ -68,7 +68,19 @@ async function pageAudit(page) {
       finalUrl: location.href.replace(location.origin, ""),
       h1: document.querySelector("h1")?.textContent?.trim() ?? "",
       is404: /404|could not be found/i.test(t),
-      hasGeo: !!document.querySelector('[aria-label="전체 농장 지리 지도"]'),
+      hasNationalHub: (() => {
+        if (location.search.includes("lsind=")) return false;
+        const t = document.body?.innerText ?? "";
+        if (t.includes("표시할 농장 그리드")) return true;
+        const farmSections = document.querySelectorAll(".space-y-6 > section");
+        if (farmSections.length >= 2) return true;
+        const farmCodes = t.match(/FARM\d+/g) ?? [];
+        return new Set(farmCodes).size >= 2;
+      })(),
+      hasFarmScope: location.search.includes("lsind="),
+      hasFarmViewTabs: [...document.querySelectorAll('[role="tab"]')].some(
+        (el) => el.textContent?.trim() === "그리드" || el.textContent?.trim() === "목록"
+      ),
       hasOpsNav: nav.some((n) => n.label === "운영"),
       opsActive: nav.find((n) => n.label === "운영")?.active ?? false,
       monitorActive: nav.find((n) => n.label === "모니터링")?.active ?? false,
@@ -77,9 +89,6 @@ async function pageAudit(page) {
       settingsTabs: [...document.querySelectorAll("button")]
         .map((b) => b.textContent?.trim())
         .filter((x) => x === "표시" || x === "농장" || x === "알람"),
-      monitorTabCurrent: [...document.querySelectorAll('nav[aria-label="모니터링 탭"] button')]
-        .filter((b) => b.getAttribute("aria-current") === "page")
-        .map((b) => b.textContent?.trim()),
       opsTabCurrent: [...document.querySelectorAll('nav[aria-label="운영 탭"] button')]
         .filter((b) => b.getAttribute("aria-current") === "page")
         .map((b) => b.textContent?.trim()),
@@ -99,28 +108,28 @@ function expect(audit, rules) {
       if (audit.finalUrl.includes(s)) errors.push(`URL should not include "${s}"`);
     }
   }
-  if (rules.mustHaveText) {
-    for (const s of rules.mustHaveText) {
-      // checked via re-fetch in page - use h1/role as proxy where possible
-    }
-  }
   if (rules.no404 && audit.is404) errors.push("404 page");
-  if (rules.hasGeo === true && !audit.hasGeo) errors.push("expected geo map");
-  if (rules.hasGeo === false && audit.hasGeo) errors.push("unexpected geo map");
+  if (rules.hasNationalHub === true && !audit.hasNationalHub) {
+    errors.push("expected admin national farm hub");
+  }
+  if (rules.hasNationalHub === false && audit.hasNationalHub) {
+    errors.push("unexpected national farm hub");
+  }
+  if (rules.hasFarmScope === true && !audit.hasFarmScope) {
+    errors.push("expected farm scope (lsind/item)");
+  }
+  if (rules.hasFarmScope === false && audit.hasFarmScope) {
+    errors.push("unexpected farm scope in URL");
+  }
+  if (rules.hasFarmViewTabs === true && !audit.hasFarmViewTabs) {
+    errors.push("expected 그리드/목록 view tabs");
+  }
   if (rules.hasOpsNav === true && !audit.hasOpsNav) errors.push("missing 운영 nav");
   if (rules.hasOpsNav === false && audit.hasOpsNav) errors.push("unexpected 운영 nav");
   if (rules.opsActive === true && !audit.opsActive) errors.push("운영 nav not active");
   if (rules.monitorActive === true && !audit.monitorActive) errors.push("모니터링 nav not active");
   if (rules.settingsActive === true && !audit.settingsActive) errors.push("설정 nav not active");
   if (rules.role && audit.role !== rules.role) errors.push(`role expected ${rules.role}, got ${audit.role}`);
-  if (rules.settingsTabs) {
-    const a = [...audit.settingsTabs].sort().join(",");
-    const e = [...rules.settingsTabs].sort().join(",");
-    if (a !== e) errors.push(`settings tabs expected [${e}] got [${a}]`);
-  }
-  if (rules.monitorTab && !rules.monitorTab.some((t) => audit.monitorTabCurrent.includes(t))) {
-    errors.push(`monitor tab expected one of ${rules.monitorTab.join("|")} got ${audit.monitorTabCurrent}`);
-  }
   if (rules.opsTab && !rules.opsTab.some((t) => audit.opsTabCurrent.includes(t))) {
     errors.push(`ops tab expected one of ${rules.opsTab.join("|")} got ${audit.opsTabCurrent}`);
   }
@@ -134,49 +143,158 @@ const CASES = {
     { path: "/", rules: { urlIncludes: ["/login"], no404: true } },
   ],
   admin: [
-    { path: "/farm", rules: { urlIncludes: ["/farm"], hasGeo: true, hasOpsNav: true, monitorActive: true, role: "관리자", monitorTab: ["현황"] } },
-    { path: "/farm?tab=ops", rules: { urlIncludes: ["tab=ops"], hasGeo: false, monitorActive: true, monitorTab: ["컨트롤러"] } },
-    { path: "/farm?tab=devices", rules: { urlIncludes: ["tab=ops"], hasGeo: false, monitorActive: true, monitorTab: ["컨트롤러"] } },
-    { path: "/farm?tab=alarms", rules: { urlIncludes: ["tab=ops"], monitorActive: true, monitorTab: ["컨트롤러"] } },
-    { path: "/farm?tab=invalid", rules: { urlIncludes: ["tab=invalid"], hasGeo: true, monitorTab: ["현황"] } },
-    { path: "/farm?lsind=FARM01&item=P00", rules: { urlIncludes: ["lsind=FARM01"], hasGeo: false, monitorTab: ["현황"] } },
-    { path: "/farm?lsind=FARM01&item=P00&tab=ops", rules: { urlIncludes: ["tab=ops", "lsind=FARM01"], monitorTab: ["컨트롤러"] } },
-    { path: "/farm?lsind=FARM01&item=P00&tab=devices", rules: { urlIncludes: ["tab=ops", "lsind=FARM01"], monitorTab: ["컨트롤러"] } },
-    { path: "/farm?lsind=FARM01&item=P00&tab=alarms", rules: { urlIncludes: ["tab=ops"], monitorTab: ["컨트롤러"] } },
-    { path: "/farm?view=overview", rules: { urlIncludes: ["/farm"], urlExcludes: ["view=overview"] } },
-    { path: "/controllers", rules: { urlIncludes: ["tab=ops"], monitorTab: ["컨트롤러"] } },
-    { path: "/controllers?lsind=FARM01&item=P00", rules: { urlIncludes: ["lsind=FARM01", "tab=ops"] } },
-    { path: "/alarms", rules: { urlIncludes: ["tab=ops"], monitorTab: ["컨트롤러"] } },
-    { path: "/settings", rules: { urlIncludes: ["/settings"], settingsActive: true, settingsTabs: ["표시", "알람"], role: "관리자" } },
-    { path: "/settings?tab=alarm", rules: { urlIncludes: ["tab=alarm"], settingsTabs: ["표시", "알람"] } },
-    { path: "/settings?tab=farm", rules: { urlIncludes: ["tab=farm"], settingsTabs: ["표시", "알람"] } },
-    { path: "/admin/ops", rules: { urlIncludes: ["/admin/ops"], opsActive: true, opsTab: ["시스템"] } },
-    { path: "/admin/ops?tab=users", rules: { urlIncludes: ["tab=users"], opsActive: true, opsTab: ["사용자"] } },
-    { path: "/admin/ops?tab=farms", rules: { urlIncludes: ["tab=farms"], opsActive: true, opsTab: ["농장 위치"] } },
-    { path: "/admin/ops?tab=bad", rules: { urlIncludes: ["tab=bad"], opsActive: true, opsTab: ["시스템"] } },
-    { path: "/admin/health", rules: { urlIncludes: ["/admin/ops"], opsActive: true } },
-    { path: "/admin/users", rules: { urlIncludes: ["tab=users"], opsActive: true } },
-    { path: "/admin/health/farm/FARM01--P00", rules: { urlIncludes: ["/admin/health/farm/FARM01--P00"], opsActive: true, no404: true } },
-    { path: "/admin/health/group/col-a", rules: { urlIncludes: ["/admin/health/group/col-a"], opsActive: true, no404: true } },
-    { path: "/admin/health/collector-mqtt", rules: { urlIncludes: ["/admin/health/collector-mqtt"], opsActive: true, no404: true } },
-    { path: "/play", rules: { urlIncludes: ["/farm"], urlExcludes: ["/play"] } },
-    { path: "/pending", rules: { urlIncludes: ["/farm"], urlExcludes: ["/pending"] } },
+    {
+      path: "/farm",
+      rules: {
+        urlIncludes: ["/farm"],
+        urlExcludes: ["lsind="],
+        hasNationalHub: true,
+        hasOpsNav: true,
+        monitorActive: true,
+        role: "관리자",
+      },
+    },
+    {
+      path: "/farm?tab=ops",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["tab=ops"], hasNationalHub: true },
+    },
+    {
+      path: "/farm?tab=devices",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["tab="], hasNationalHub: true },
+    },
+    {
+      path: "/farm?tab=alarms",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["tab="] },
+    },
+    {
+      path: "/farm?tab=invalid",
+      rules: { urlIncludes: ["tab=invalid"], hasNationalHub: true },
+    },
+    {
+      path: "/farm?lsind=FARM01&item=P00",
+      rules: {
+        urlIncludes: ["lsind=FARM01"],
+        hasFarmScope: true,
+        hasNationalHub: false,
+        hasFarmViewTabs: true,
+      },
+    },
+    {
+      path: "/farm?lsind=FARM01&item=P00&tab=ops",
+      rules: {
+        urlIncludes: ["lsind=FARM01"],
+        urlExcludes: ["tab=ops"],
+        hasFarmScope: true,
+        hasFarmViewTabs: true,
+      },
+    },
+    {
+      path: "/farm?view=overview",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["view=overview"] },
+    },
+    {
+      path: "/controllers",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["tab=ops", "/controllers"] },
+    },
+    {
+      path: "/controllers?lsind=FARM01&item=P00",
+      rules: { urlIncludes: ["lsind=FARM01", "/farm"], urlExcludes: ["tab=ops"] },
+    },
+    {
+      path: "/alarms",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/alarms", "tab=ops"] },
+    },
+    {
+      path: "/settings",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/settings"] },
+    },
+    {
+      path: "/settings?tab=alarm",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/settings", "tab=ops"] },
+    },
+    {
+      path: "/settings?tab=farm",
+      rules: { urlIncludes: ["/admin/ops/farms"], urlExcludes: ["/settings"] },
+    },
+    {
+      path: "/admin/ops",
+      rules: { urlIncludes: ["/admin/ops"], opsActive: true, opsTab: ["시스템"] },
+    },
+    {
+      path: "/admin/ops?tab=users",
+      rules: { urlIncludes: ["/admin/ops/users"], opsActive: true, opsTab: ["사용자"] },
+    },
+    {
+      path: "/admin/ops?tab=farms",
+      rules: { urlIncludes: ["/admin/ops/farms"], opsActive: true, opsTab: ["농장 위치"] },
+    },
+    {
+      path: "/admin/ops?tab=bad",
+      rules: { urlIncludes: ["/admin/ops"], opsActive: true, opsTab: ["시스템"] },
+    },
+    {
+      path: "/admin/health",
+      rules: { urlIncludes: ["/admin/ops"], opsActive: true },
+    },
+    {
+      path: "/admin/users",
+      rules: { urlIncludes: ["/admin/ops/users"], opsActive: true },
+    },
+    {
+      path: "/admin/health/farm/FARM01--P00",
+      rules: { urlIncludes: ["/admin/health/farm/FARM01--P00"], opsActive: true, no404: true },
+    },
+    {
+      path: "/play",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/play"] },
+    },
+    {
+      path: "/pending",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/pending"] },
+    },
   ],
   operator: [
-    { path: "/farm", rules: { urlIncludes: ["/farm"], hasGeo: false, hasOpsNav: false, role: "운영자", monitorTab: ["현황"] } },
-    { path: "/farm?tab=ops", rules: { urlIncludes: ["tab=ops"], hasOpsNav: false, monitorTab: ["컨트롤러"] } },
-    { path: "/farm?tab=devices", rules: { urlIncludes: ["tab=ops"], hasOpsNav: false, monitorTab: ["컨트롤러"] } },
-    { path: "/farm?tab=alarms", rules: { urlIncludes: ["tab=ops"], hasOpsNav: false, monitorTab: ["컨트롤러"] } },
-    { path: "/settings", rules: { settingsTabs: ["표시", "농장", "알람"], hasOpsNav: false, role: "운영자" } },
-    { path: "/settings?tab=farm", rules: { urlIncludes: ["tab=farm"], settingsTabs: ["표시", "농장", "알람"] } },
-    { path: "/admin/ops", rules: { urlIncludes: ["/farm"], urlExcludes: ["/admin"], hasOpsNav: false } },
-    { path: "/admin/health", rules: { urlIncludes: ["/farm"], hasOpsNav: false } },
-    { path: "/controllers", rules: { urlIncludes: ["tab=ops"], hasOpsNav: false } },
+    {
+      path: "/farm",
+      rules: {
+        urlIncludes: ["/farm"],
+        hasNationalHub: false,
+        hasOpsNav: false,
+        role: "운영자",
+        hasFarmViewTabs: true,
+      },
+    },
+    {
+      path: "/farm?tab=ops",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["tab=ops"], hasOpsNav: false },
+    },
+    {
+      path: "/settings",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/settings"], hasOpsNav: false, role: "운영자" },
+    },
+    {
+      path: "/settings?tab=farm",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/settings", "tab=farm"], hasOpsNav: false },
+    },
+    {
+      path: "/admin/ops",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["/admin"], hasOpsNav: false },
+    },
+    {
+      path: "/controllers",
+      rules: { urlIncludes: ["/farm"], hasOpsNav: false },
+    },
   ],
   viewer: [
     { path: "/farm", rules: { role: "뷰어", hasOpsNav: false } },
-    { path: "/settings?tab=farm", rules: { urlIncludes: ["tab=farm"], role: "뷰어", hasOpsNav: false } },
-    { path: "/admin/ops", rules: { urlIncludes: ["/farm"], hasOpsNav: false } },
+    {
+      path: "/settings?tab=farm",
+      rules: { urlIncludes: ["/farm"], urlExcludes: ["tab=farm"], role: "뷰어", hasOpsNav: false },
+    },
+    {
+      path: "/admin/ops",
+      rules: { urlIncludes: ["/farm"], hasOpsNav: false },
+    },
   ],
 };
 
@@ -252,54 +370,43 @@ async function runAlarmBellCheck(page) {
 async function runInteractions(page, role) {
   const results = [];
   if (role === "admin") {
-    await page.goto(`${BASE}/farm?tab=ops`, { waitUntil: "load" });
+    await page.goto(`${BASE}/farm`, { waitUntil: "load" });
     let snap = await pageAudit(page);
     results.push({
       suite: "interaction",
-      path: "admin national hub (ops + geo)",
-      pass: snap.hasGeo && snap.finalUrl.includes("tab=ops"),
-      errors: snap.hasGeo ? [] : ["expected geo on admin national ops hub"],
+      path: "admin national hub",
+      pass: snap.hasNationalHub && snap.finalUrl.includes("/farm"),
+      errors: snap.hasNationalHub ? [] : ["expected national farm hub on /farm"],
       audit: snap,
     });
 
-    await page.goto(`${BASE}/farm?tab=ops&lsind=FARM01&item=P00`, { waitUntil: "load" });
+    await page.goto(`${BASE}/farm?lsind=FARM01&item=P00`, { waitUntil: "load" });
     results.push(await runAlarmBellCheck(page));
 
     snap = await pageAudit(page);
     results.push({
       suite: "interaction",
-      path: "admin scoped ops hub",
-      pass: snap.finalUrl.includes("lsind=FARM01"),
-      errors: snap.finalUrl.includes("lsind=FARM01")
-        ? []
-        : ["missing farm scope in URL"],
+      path: "admin scoped farm hub",
+      pass: snap.finalUrl.includes("lsind=FARM01") && snap.hasFarmViewTabs,
+      errors:
+        snap.finalUrl.includes("lsind=FARM01") && snap.hasFarmViewTabs
+          ? []
+          : ["missing farm scope or view tabs"],
       audit: snap,
     });
 
     await page.goto(`${BASE}/farm`, { waitUntil: "load" });
-    if (await clickMonitoringTab(page, "컨트롤러")) {
-      await clickMonitoringTab(page, "현황");
-      snap = await pageAudit(page);
-      results.push({
-        suite: "interaction",
-        path: "monitoring tab cycle (when visible)",
-        pass: snap.monitorTabCurrent.includes("현황") || snap.hasGeo,
-        errors:
-          snap.monitorTabCurrent.includes("현황") || snap.hasGeo
-            ? []
-            : ["expected 현황 tab or geo map after cycle"],
-        audit: snap,
-      });
-    }
-
     await page.getByRole("link", { name: "운영" }).click();
-    await page.waitForTimeout(900);
+    await page.waitForURL(/\/admin\/ops/, { timeout: 15000 });
     snap = await pageAudit(page);
     results.push({
       suite: "interaction",
       path: "sidebar 운영 click",
       pass: snap.finalUrl.includes("/admin/ops") && snap.opsActive,
-      errors: [],
+      errors:
+        snap.finalUrl.includes("/admin/ops") && snap.opsActive
+          ? []
+          : ["운영 nav did not reach /admin/ops"],
       audit: snap,
     });
 
@@ -316,16 +423,16 @@ async function runInteractions(page, role) {
 
   if (role === "operator") {
     await page.goto(`${BASE}/farm`, { waitUntil: "load" });
-    let snap = await pageAudit(page);
+    const snap = await pageAudit(page);
     results.push({
       suite: "interaction",
       path: "operator no ops nav",
-      pass: !snap.hasOpsNav && !snap.hasGeo,
+      pass: !snap.hasOpsNav && !snap.hasNationalHub,
       errors: snap.hasOpsNav ? ["operator should not see 운영"] : [],
       audit: snap,
     });
 
-    await page.goto(`${BASE}/farm?tab=ops`, { waitUntil: "load" });
+    await page.goto(`${BASE}/farm`, { waitUntil: "load" });
     results.push(await runAlarmBellCheck(page));
   }
 

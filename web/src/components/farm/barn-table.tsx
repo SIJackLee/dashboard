@@ -195,9 +195,8 @@ export function BarnTable({
   const settingsPanelsOpen = panelSets.settingsKeys.size > 0;
   const farmKey = rows[0]?.farmKey ?? null;
   const trendEnabled =
-    effectiveListMode === "graph" &&
-    (graphToolbarMode || graphPanelsOpen) &&
-    Boolean(farmKey);
+    Boolean(farmKey) &&
+    (effectiveListMode === "graph" || graphPanelsOpen);
 
   const {
     data: lazyControllerTrend,

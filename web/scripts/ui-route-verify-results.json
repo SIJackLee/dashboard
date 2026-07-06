@@ -1,7 +1,7 @@
 {
-  "at": "2026-07-03T07:14:54.775Z",
-  "total": 49,
-  "failed": 25,
+  "at": "2026-07-06T01:40:18.970Z",
+  "total": 42,
+  "failed": 0,
   "results": [
     {
       "suite": "unauthenticated",
@@ -13,14 +13,15 @@
         "finalUrl": "/login",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -34,14 +35,15 @@
         "finalUrl": "/login",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -55,229 +57,169 @@
         "finalUrl": "/login",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/farm",
-      "pass": false,
-      "errors": [
-        "expected geo map",
-        "monitor tab expected one of 현황 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/farm?tab=ops",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/farm?tab=devices",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/farm?tab=alarms",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/farm?tab=invalid",
-      "pass": false,
-      "errors": [
-        "expected geo map",
-        "monitor tab expected one of 현황 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm?tab=invalid",
         "finalUrl": "/farm?tab=invalid",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/farm?lsind=FARM01&item=P00",
-      "pass": false,
-      "errors": [
-        "monitor tab expected one of 현황 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm?lsind=FARM01&item=P00",
         "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": true,
+        "hasFarmViewTabs": true,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/farm?lsind=FARM01&item=P00&tab=ops",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm?lsind=FARM01&item=P00",
         "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": true,
+        "hasFarmViewTabs": true,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
-      }
-    },
-    {
-      "suite": "admin",
-      "path": "/farm?lsind=FARM01&item=P00&tab=devices",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
-      "audit": {
-        "url": "/farm?lsind=FARM01&item=P00",
-        "finalUrl": "/farm?lsind=FARM01&item=P00",
-        "h1": "",
-        "is404": false,
-        "hasGeo": false,
-        "hasOpsNav": true,
-        "opsActive": false,
-        "monitorActive": true,
-        "settingsActive": false,
-        "role": "관리자",
-        "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
-      }
-    },
-    {
-      "suite": "admin",
-      "path": "/farm?lsind=FARM01&item=P00&tab=alarms",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
-      "audit": {
-        "url": "/farm?lsind=FARM01&item=P00",
-        "finalUrl": "/farm?lsind=FARM01&item=P00",
-        "h1": "",
-        "is404": false,
-        "hasGeo": false,
-        "hasOpsNav": true,
-        "opsActive": false,
-        "monitorActive": true,
-        "settingsActive": false,
-        "role": "관리자",
-        "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -291,157 +233,147 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/controllers",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/controllers?lsind=FARM01&item=P00",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)"
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm?lsind=FARM01&item=P00",
         "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": true,
+        "hasFarmViewTabs": true,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/alarms",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/settings",
-      "pass": false,
-      "errors": [
-        "URL missing \"/settings\" (got /farm)",
-        "설정 nav not active",
-        "settings tabs expected [알람,표시] got []"
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/settings?tab=alarm",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=alarm\" (got /farm)",
-        "settings tabs expected [알람,표시] got []"
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "admin",
       "path": "/settings?tab=farm",
-      "pass": false,
-      "errors": [
-        "settings tabs expected [알람,표시] got []"
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
-        "url": "/admin/ops?tab=farms",
-        "finalUrl": "/admin/ops?tab=farms",
+        "url": "/admin/ops/farms",
+        "finalUrl": "/admin/ops/farms",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": [
           "농장 위치"
         ]
@@ -457,14 +389,15 @@
         "finalUrl": "/admin/ops",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": [
           "시스템"
         ]
@@ -476,18 +409,19 @@
       "pass": true,
       "errors": [],
       "audit": {
-        "url": "/admin/ops?tab=users",
-        "finalUrl": "/admin/ops?tab=users",
+        "url": "/admin/ops/users",
+        "finalUrl": "/admin/ops/users",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": [
           "사용자"
         ]
@@ -499,18 +433,19 @@
       "pass": true,
       "errors": [],
       "audit": {
-        "url": "/admin/ops?tab=farms",
-        "finalUrl": "/admin/ops?tab=farms",
+        "url": "/admin/ops/farms",
+        "finalUrl": "/admin/ops/farms",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": [
           "농장 위치"
         ]
@@ -526,14 +461,15 @@
         "finalUrl": "/admin/ops?tab=bad",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": [
           "시스템"
         ]
@@ -549,14 +485,15 @@
         "finalUrl": "/admin/ops",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": [
           "시스템"
         ]
@@ -568,18 +505,19 @@
       "pass": true,
       "errors": [],
       "audit": {
-        "url": "/admin/ops?tab=users",
-        "finalUrl": "/admin/ops?tab=users",
+        "url": "/admin/ops/users",
+        "finalUrl": "/admin/ops/users",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": [
           "사용자"
         ]
@@ -595,56 +533,15 @@
         "finalUrl": "/admin/health/farm/FARM01--P00",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
-      }
-    },
-    {
-      "suite": "admin",
-      "path": "/admin/health/group/col-a",
-      "pass": true,
-      "errors": [],
-      "audit": {
-        "url": "/admin/health/group/col-a",
-        "finalUrl": "/admin/health/group/col-a",
-        "h1": "",
-        "is404": false,
-        "hasGeo": false,
-        "hasOpsNav": true,
-        "opsActive": true,
-        "monitorActive": false,
-        "settingsActive": false,
-        "role": "관리자",
-        "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
-      }
-    },
-    {
-      "suite": "admin",
-      "path": "/admin/health/collector-mqtt",
-      "pass": true,
-      "errors": [],
-      "audit": {
-        "url": "/admin/health/collector-mqtt",
-        "finalUrl": "/admin/health/collector-mqtt",
-        "h1": "",
-        "is404": false,
-        "hasGeo": false,
-        "hasOpsNav": true,
-        "opsActive": true,
-        "monitorActive": false,
-        "settingsActive": false,
-        "role": "관리자",
-        "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -658,14 +555,15 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -679,37 +577,37 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "interaction",
-      "path": "admin national hub (ops + geo)",
-      "pass": false,
-      "errors": [
-        "expected geo on admin national ops hub"
-      ],
+      "path": "admin national hub",
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": true,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -725,7 +623,7 @@
     },
     {
       "suite": "interaction",
-      "path": "admin scoped ops hub",
+      "path": "admin scoped farm hub",
       "pass": true,
       "errors": [],
       "audit": {
@@ -733,36 +631,40 @@
         "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": true,
+        "hasFarmViewTabs": true,
         "hasOpsNav": true,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "interaction",
       "path": "sidebar 운영 click",
-      "pass": false,
+      "pass": true,
       "errors": [],
       "audit": {
-        "url": "/farm",
-        "finalUrl": "/farm",
+        "url": "/admin/ops",
+        "finalUrl": "/admin/ops",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
-        "opsActive": false,
-        "monitorActive": true,
+        "opsActive": true,
+        "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
+        "opsTabCurrent": [
+          "시스템"
+        ]
       }
     },
     {
@@ -775,156 +677,103 @@
         "finalUrl": "/admin/health/farm/FARM01--P00",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": false,
         "hasOpsNav": true,
         "opsActive": true,
         "monitorActive": false,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "operator",
       "path": "/farm",
-      "pass": false,
-      "errors": [
-        "monitor tab expected one of 현황 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "운영자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "operator",
       "path": "/farm?tab=ops",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "운영자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
-      }
-    },
-    {
-      "suite": "operator",
-      "path": "/farm?tab=devices",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
-      "audit": {
-        "url": "/farm",
-        "finalUrl": "/farm",
-        "h1": "",
-        "is404": false,
-        "hasGeo": false,
-        "hasOpsNav": false,
-        "opsActive": false,
-        "monitorActive": true,
-        "settingsActive": false,
-        "role": "운영자",
-        "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
-      }
-    },
-    {
-      "suite": "operator",
-      "path": "/farm?tab=alarms",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)",
-        "monitor tab expected one of 컨트롤러 got "
-      ],
-      "audit": {
-        "url": "/farm",
-        "finalUrl": "/farm",
-        "h1": "",
-        "is404": false,
-        "hasGeo": false,
-        "hasOpsNav": false,
-        "opsActive": false,
-        "monitorActive": true,
-        "settingsActive": false,
-        "role": "운영자",
-        "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "operator",
       "path": "/settings",
-      "pass": false,
-      "errors": [
-        "settings tabs expected [농장,알람,표시] got []"
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "운영자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "operator",
       "path": "/settings?tab=farm",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=farm\" (got /farm)",
-        "settings tabs expected [농장,알람,표시] got []"
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "운영자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -938,20 +787,21 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "운영자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "operator",
-      "path": "/admin/health",
+      "path": "/controllers",
       "pass": true,
       "errors": [],
       "audit": {
@@ -959,37 +809,15 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "운영자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
-        "opsTabCurrent": []
-      }
-    },
-    {
-      "suite": "operator",
-      "path": "/controllers",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=ops\" (got /farm)"
-      ],
-      "audit": {
-        "url": "/farm",
-        "finalUrl": "/farm",
-        "h1": "",
-        "is404": false,
-        "hasGeo": false,
-        "hasOpsNav": false,
-        "opsActive": false,
-        "monitorActive": true,
-        "settingsActive": false,
-        "role": "운영자",
-        "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -1003,14 +831,15 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "운영자",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -1034,37 +863,37 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "뷰어",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
     {
       "suite": "viewer",
       "path": "/settings?tab=farm",
-      "pass": false,
-      "errors": [
-        "URL missing \"tab=farm\" (got /farm)"
-      ],
+      "pass": true,
+      "errors": [],
       "audit": {
         "url": "/farm",
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "뷰어",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     },
@@ -1078,14 +907,15 @@
         "finalUrl": "/farm",
         "h1": "",
         "is404": false,
-        "hasGeo": false,
+        "hasNationalHub": false,
+        "hasFarmScope": false,
+        "hasFarmViewTabs": true,
         "hasOpsNav": false,
         "opsActive": false,
         "monitorActive": true,
         "settingsActive": false,
         "role": "뷰어",
         "settingsTabs": [],
-        "monitorTabCurrent": [],
         "opsTabCurrent": []
       }
     }

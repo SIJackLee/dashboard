@@ -11,6 +11,8 @@ import {
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
+import { useSliderDragThumb } from "@/lib/ui/use-slider-drag-thumb";
 import { cn } from "@/lib/utils";
 
 const TRACK_MIN = 15;
@@ -45,7 +47,7 @@ function pct(value: number, min: number, max: number) {
   return ((value - min) / (max - min)) * 100;
 }
 
-/** 설정온도(좌) + 편차(우, +X℃) — dual-thumb */
+/** 설정온도(좌) + 편차(우, +X℃) — dual-thumb, 라벨 모두 트랙 위 */
 export function ControllerTempDualSlider({
   setpoint,
   deviation,
@@ -59,7 +61,11 @@ export function ControllerTempDualSlider({
   onChange,
 }: ControllerTempDualSliderProps) {
   const id = useId();
+  const mobile = useMobileLayout();
+  const { dragThumb, dragging, onLowPointerDown, onHighPointerDown } =
+    useSliderDragThumb();
   const maxTemp = setpoint + deviation;
+  const mobileDrag = mobile && dragging;
   const lowPct = pct(setpoint, TRACK_MIN, TRACK_MAX);
   const highPct = pct(maxTemp, TRACK_MIN, TRACK_MAX);
   const devLabel = fmtTempLabel(deviation);
@@ -98,7 +104,7 @@ export function ControllerTempDualSlider({
     <div
       className={cn(
         sliderTrackShellClass(compact, "dual", dense),
-        compact ? "pb-7" : "pb-8",
+        mobileDrag && "max-md:pt-11",
         trackShellClassName
       )}
     >
@@ -110,15 +116,19 @@ export function ControllerTempDualSlider({
           compact={compact}
           dense={dense}
           className={thumbLabelClassName}
+          visible={!mobileDrag || dragThumb !== "high"}
+          magnified={mobileDrag && dragThumb === "low"}
         >
           {fmtTempLabel(setpoint)}℃
         </SliderThumbLabel>
         <SliderThumbLabel
           leftPct={highPct}
-          placement="below"
+          placement="above"
           compact={compact}
           dense={dense}
           className={thumbLabelClassName}
+          visible={!mobileDrag || dragThumb !== "low"}
+          magnified={mobileDrag && dragThumb === "high"}
         >
           +{devLabel}℃
         </SliderThumbLabel>
@@ -142,6 +152,7 @@ export function ControllerTempDualSlider({
           aria-label={`설정온도 ${fmtTempLabel(setpoint)}℃`}
           aria-valuetext={`${fmtTempLabel(setpoint)}℃`}
           className={cn(rangeClass, "z-[3]")}
+          onPointerDown={onLowPointerDown}
           onChange={(e) => setLow(Number(e.target.value))}
         />
         <input
@@ -155,6 +166,7 @@ export function ControllerTempDualSlider({
           aria-label={`온도 편차 +${devLabel}℃`}
           aria-valuetext={`+${devLabel}℃`}
           className={cn(rangeClass, "z-[4]")}
+          onPointerDown={onHighPointerDown}
           onChange={(e) => setHigh(Number(e.target.value))}
         />
       </div>

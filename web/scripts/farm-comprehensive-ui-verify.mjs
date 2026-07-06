@@ -18,8 +18,8 @@ const BASE = process.env.UI_VERIFY_BASE ?? "http://localhost:3000";
 const LIST_MODES = ["controller", "graph", "settings", "channel"];
 const MODE_LABELS = { controller: "컨트롤러", graph: "그래프", settings: "설정", channel: "모터그래프" };
 const ACCOUNTS = [
-  { role: "admin", email: TEST_ACCOUNTS.admin.email, farmPath: "/farm?tab=ops&lsind=FARM01&item=P00" },
-  { role: "operator", email: TEST_ACCOUNTS.operator.email, farmPath: "/farm?tab=ops" },
+  { role: "admin", email: TEST_ACCOUNTS.admin.email, farmPath: "/farm?lsind=FARM01&item=P00" },
+  { role: "operator", email: TEST_ACCOUNTS.operator.email, farmPath: "/farm" },
   { role: "viewer", email: TEST_ACCOUNTS.viewer.email, farmPath: "/farm" },
 ];
 
@@ -219,7 +219,7 @@ async function runAccountSuite(page, account) {
       const urlMode = await page.evaluate(() => new URLSearchParams(location.search).get("listMode"));
       const isHub = await page.evaluate(() => {
         const p = new URLSearchParams(location.search);
-        return (p.has("lsind") && p.has("item")) || p.get("tab") === "ops";
+        return p.has("lsind") && p.has("item");
       });
 
       const listModeAttr = await page
@@ -315,17 +315,19 @@ async function runAccountSuite(page, account) {
     );
   }
 
-  // admin ops (sidebar — farm 페이지에서)
+  // admin ops (header nav — farm 페이지에서)
   if (account.role === "admin") {
-    await page.goto(`${BASE}/farm?tab=ops`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${BASE}/farm`, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1200);
-    const ops = page.locator('nav[aria-label="앱 메뉴"] a', { hasText: "운영" });
+    const ops = page.getByRole("link", { name: "운영" });
     if ((await ops.count()) > 0) {
       await ops.first().click();
-      await page.waitForTimeout(900);
-      record(suite, "admin ops nav", page.url().includes("/admin/ops"), [], { url: page.url() });
+      await page.waitForURL(/\/admin\/ops/, { timeout: 15000 });
+      record(suite, "admin ops nav", page.url().includes("/admin/ops"), [], {
+        url: page.url(),
+      });
     } else {
-      record(suite, "admin ops nav skip", true, [], { reason: "no sidebar" });
+      record(suite, "admin ops nav skip", true, [], { reason: "no header nav" });
     }
   }
 
