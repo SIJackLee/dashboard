@@ -26,7 +26,7 @@ export function HealthRefreshBar({ fetchedAt, className }: HealthRefreshBarProps
     const id = window.setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
-          router.refresh();
+          queueMicrotask(() => router.refresh());
           return HEALTH_REVALIDATE_SEC;
         }
         return s - 1;

@@ -1,11 +1,14 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
+import { adminOpsPath } from "@/lib/admin/ops-tabs";
+import { HEALTH_SNAPSHOT_CACHE_TAG } from "@/lib/admin/health/fetch-snapshot";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const HEALTH_PATH = "/admin/health";
+const ADMIN_OPS_SYSTEM_PATH = adminOpsPath("system");
 
 export async function acknowledgeCommandHealthCheckpoint(
   commandId: string,
@@ -36,6 +39,8 @@ export async function acknowledgeCommandHealthCheckpoint(
     return { ok: false, error: error.message };
   }
 
+  revalidateTag(HEALTH_SNAPSHOT_CACHE_TAG, "max");
+  revalidatePath(ADMIN_OPS_SYSTEM_PATH);
   revalidatePath(HEALTH_PATH);
   revalidatePath(`${HEALTH_PATH}/collector-c`);
   revalidatePath(`${HEALTH_PATH}/collector`);

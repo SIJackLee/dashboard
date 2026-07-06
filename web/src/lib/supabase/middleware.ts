@@ -29,11 +29,37 @@ export async function updateSession(request: NextRequest) {
   );
 
   // 쿠키 신뢰 금지 → 항상 getUser() 로 검증
-  const {
+  let {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
+  if (authError?.code === "refresh_token_not_found") {
+    await supabase.auth.signOut();
+    user = null;
+  }
+
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/admin/ops") {
+    const legacyTab = request.nextUrl.searchParams.get("tab");
+    if (legacyTab === "display") {
+      const url = request.nextUrl.clone();
+      url.searchParams.delete("tab");
+      return NextResponse.redirect(url);
+    }
+    if (
+      legacyTab === "users" ||
+      legacyTab === "farms" ||
+      legacyTab === "commands"
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/admin/ops/${legacyTab}`;
+      url.searchParams.delete("tab");
+      return NextResponse.redirect(url);
+    }
+  }
+
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublic) {

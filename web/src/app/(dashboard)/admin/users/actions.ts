@@ -1,16 +1,23 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { findAuthUserByEmail } from "@/lib/admin/auth-users";
+import { MANAGED_USERS_CACHE_TAG } from "@/lib/admin/list-users";
 import type { Role } from "@/lib/auth/get-current-user";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { DEFAULT_FARM } from "@/lib/data/farm-key";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { adminOpsPath } from "@/lib/admin/ops-tabs";
 
-const ADMIN_USERS_PATH = "/admin/users";
+const ADMIN_USERS_PATH = adminOpsPath("users");
 const ROLES: Role[] = ["admin", "operator", "viewer"];
+
+function revalidateAdminUsers() {
+  revalidateTag(MANAGED_USERS_CACHE_TAG, "max");
+  revalidatePath(ADMIN_USERS_PATH);
+}
 
 async function requireAdminAction() {
   const me = await getCurrentUser();
@@ -128,7 +135,7 @@ async function grantFarmAccessCore(
 
   await ensureProfile(target.id);
   await upsertFarmAccess(target.id, farmKey, canCommand);
-  revalidatePath(ADMIN_USERS_PATH);
+  revalidateAdminUsers();
   return { ok: true };
 }
 
@@ -202,7 +209,7 @@ export async function toggleFarmReadInline(input: {
     await deleteAllFarmAccess(resolved.userId, input.farmKey);
   }
 
-  revalidatePath(ADMIN_USERS_PATH);
+  revalidateAdminUsers();
   return { ok: true };
 }
 
@@ -234,7 +241,7 @@ export async function toggleFarmCommandInline(input: {
       .eq("id", existing.id);
   }
 
-  revalidatePath(ADMIN_USERS_PATH);
+  revalidateAdminUsers();
   return { ok: true };
 }
 
@@ -296,7 +303,7 @@ export async function grantBulkFarmAccess(formData: FormData) {
     await upsertFarmAccess(target.id, farmKey, canCommand);
   }
 
-  revalidatePath(ADMIN_USERS_PATH);
+  revalidateAdminUsers();
   redirect(
     `${ADMIN_USERS_PATH}?ok=bulk_granted&count=${encodeURIComponent(String(farms.length))}`
   );
@@ -328,7 +335,7 @@ export async function revokeAccess(formData: FormData) {
     .eq("lsind_regist_no", row.lsind_regist_no)
     .eq("item_code", row.item_code);
 
-  revalidatePath(ADMIN_USERS_PATH);
+  revalidateAdminUsers();
   redirect(`${ADMIN_USERS_PATH}?ok=revoked`);
 }
 
@@ -359,6 +366,6 @@ export async function updateUserRole(formData: FormData) {
     await admin.from("profiles").insert({ user_id: userId, role });
   }
 
-  revalidatePath(ADMIN_USERS_PATH);
+  revalidateAdminUsers();
   redirect(`${ADMIN_USERS_PATH}?ok=role_updated`);
 }

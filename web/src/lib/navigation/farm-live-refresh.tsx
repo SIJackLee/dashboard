@@ -42,6 +42,7 @@ type FarmLiveRefreshContextValue = {
   isStale: boolean;
   revalidateFarmLive: () => Promise<void>;
   patchAlarmSettings: (settings: AlarmSettings) => void;
+  hydrateScopedPanel: (data: FarmScopedPanelData) => void;
 };
 
 const FarmLiveRefreshContext =
@@ -86,20 +87,40 @@ export function FarmLiveRefreshProvider({
   const [revalidating, setRevalidating] = useState(false);
   const [alarmPatch, setAlarmPatch] = useState<AlarmSettings | null>(null);
   const revalidateSeq = useRef(0);
+  const sliceRef = useRef(slice);
+  sliceRef.current = slice;
 
   const serverFingerprint = useMemo(() => sliceFingerprint(initial), [initial]);
 
   useEffect(() => {
+    if (
+      farmKey &&
+      initial.readings.length === 0 &&
+      sliceRef.current.readings.length > 0
+    ) {
+      return;
+    }
+
+    if (farmKey && initial.readings.length === 0) {
+      const cached = getFarmPanelCache(farmKeyId(farmKey));
+      if (cached) {
+        setSlice(sliceFromPanel(cached));
+        return;
+      }
+    }
+
     setSlice(initial);
     setAlarmPatch(null);
-    if (farmKey) {
+    if (farmKey && initial.readings.length > 0) {
       setFarmPanelCache(farmKeyId(farmKey), {
         farmKey,
         readings: initial.readings,
         barnSnapshots: initial.barnSnapshots,
         gridCols: initial.gridCols,
         gridRows: initial.gridRows,
-        trendByPeriod: initial.trendByPeriod ?? ({} as Record<TrendPeriodId, TrendPeriodData>),
+        trendByPeriod:
+          initial.trendByPeriod ??
+          ({} as Record<TrendPeriodId, TrendPeriodData>),
         controller: initial.controller ?? {
           readings: initial.readings,
           thermoSettings: {},
@@ -109,6 +130,26 @@ export function FarmLiveRefreshProvider({
       });
     }
   }, [farmKey, serverFingerprint, initial]);
+
+  useEffect(() => {
+    if (!farmKey || initial.readings.length > 0) return;
+    if (sliceRef.current.readings.length > 0) return;
+
+    let cancelled = false;
+    void fetchFarmScopedPanelDataAction(farmKey)
+      .then((data) => {
+        if (cancelled) return;
+        setFarmPanelCache(farmKeyId(farmKey), data);
+        setSlice(sliceFromPanel(data));
+        setAlarmPatch(null);
+      })
+      .catch(() => {
+        /* cold bootstrap — 실패 시 빈 slice 유지 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [farmKey, initial.readings.length]);
 
   const patchAlarmSettings = useCallback((settings: AlarmSettings) => {
     setAlarmPatch(settings);
@@ -121,6 +162,46 @@ export function FarmLiveRefreshProvider({
         : prev,
     );
   }, []);
+
+  const hydrateScopedPanel = useCallback((data: FarmScopedPanelData) => {
+    setFarmPanelCache(farmKeyId(data.farmKey), data);
+    setSlice((prev) => {
+      const prevHasThermo =
+        Object.keys(prev.controller?.thermoSettings ?? {}).length > 0;
+      if (
+        prev.controller?.alarmSettings &&
+        data.controller.alarmSettings &&
+        prevHasThermo
+      ) {
+        return prev;
+      }
+      return sliceFromPanel(data);
+    });
+    setAlarmPatch(null);
+  }, []);
+
+  /** Admin hub — readings만 있는 slice에 thermo·alarm 패널 데이터 보강 */
+  useEffect(() => {
+    if (!farmKey || initial.readings.length === 0) return;
+    if (Object.keys(sliceRef.current.controller?.thermoSettings ?? {}).length > 0) {
+      return;
+    }
+
+    let cancelled = false;
+    void fetchFarmScopedPanelDataAction(farmKey)
+      .then((data) => {
+        if (cancelled) return;
+        setFarmPanelCache(farmKeyId(farmKey), data);
+        setSlice(sliceFromPanel(data));
+        setAlarmPatch(null);
+      })
+      .catch(() => {
+        /* hub warm — 실패 시 readings-only slice 유지 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [farmKey, initial.readings.length]);
 
   const revalidateFarmLive = useCallback(async () => {
     if (!farmKey) {
@@ -161,11 +242,13 @@ export function FarmLiveRefreshProvider({
       isStale: revalidating && slice.readings.length > 0,
       revalidateFarmLive,
       patchAlarmSettings,
+      hydrateScopedPanel,
     }),
     [
       farmKey,
       mergedSlice,
       patchAlarmSettings,
+      hydrateScopedPanel,
       revalidateFarmLive,
       revalidating,
       slice.readings.length,

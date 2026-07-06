@@ -18,6 +18,8 @@ import {
   farmShortLabel,
   type FarmSummaryRow,
 } from "@/lib/data/farm-summaries";
+import { replaceFarmUrlShallow } from "@/lib/farm/farm-view-url";
+import { useAdminHubPanelsOptional } from "@/lib/navigation/admin-hub-panels-context";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +61,7 @@ function FarmSwitcherBody({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const hubPanels = useAdminHubPanelsOptional();
 
   const alarmByFarmId = useMemo(() => {
     const map = new Map<string, number>();
@@ -84,6 +87,17 @@ function FarmSwitcherBody({
     }
 
     const query = params.toString();
+    const useShallow =
+      pathname === "/farm" &&
+      hubPanels?.ready === true &&
+      hubPanels.panels.length > 0;
+
+    if (useShallow) {
+      replaceFarmUrlShallow(params);
+      hubPanels.notifyHubUrlChange();
+      return;
+    }
+
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 

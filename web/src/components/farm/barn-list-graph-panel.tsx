@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
 import { GraphPanelSkeleton } from "@/components/common/loading-skeletons";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
@@ -28,7 +28,8 @@ const PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
 type Props = {
   reading: BarnReading;
   controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
-  defaultPeriod?: TrendPeriodId;
+  period: TrendPeriodId;
+  onPeriodChange: (period: TrendPeriodId) => void;
   loading?: boolean;
   stale?: boolean;
 };
@@ -43,11 +44,11 @@ function tickEveryForPeriod(period: TrendPeriodId, count: number): number {
 export function BarnListGraphPanel({
   reading,
   controllerTrendByPeriod,
-  defaultPeriod = "24h",
+  period,
+  onPeriodChange,
   loading = false,
   stale = false,
 }: Props) {
-  const [period, setPeriod] = useState<TrendPeriodId>(defaultPeriod);
 
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
@@ -99,7 +100,7 @@ export function BarnListGraphPanel({
             <button
               key={p}
               type="button"
-              onClick={() => setPeriod(p)}
+              onClick={() => onPeriodChange(p)}
               className={cn(
                 "shrink-0 px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
                 period === p

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import {
   ControllerSummaryGaugeRow,
@@ -36,6 +36,9 @@ type Props = {
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
   trendStale?: boolean;
+  bulkPeriod?: TrendPeriodId;
+  panelPeriodOverrides?: Record<string, TrendPeriodId>;
+  onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   panelSets: BarnListPanelSets;
   onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
@@ -59,12 +62,14 @@ const STAGGER_INITIAL = 8;
 const STAGGER_BATCH = 8;
 
 function useStaggeredVisibleCount(total: number, enabled: boolean): number {
-  const [visible, setVisible] = useState(() =>
-    enabled ? Math.min(STAGGER_INITIAL, total) : total
-  );
+  const completedRef = useRef(false);
+  const [visible, setVisible] = useState(() => {
+    if (!enabled || completedRef.current) return total;
+    return Math.min(STAGGER_INITIAL, total);
+  });
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || completedRef.current) {
       setVisible(total);
       return;
     }
@@ -72,9 +77,17 @@ function useStaggeredVisibleCount(total: number, enabled: boolean): number {
   }, [enabled, total]);
 
   useEffect(() => {
-    if (!enabled || visible >= total) return;
+    if (!enabled || completedRef.current) return;
+    if (visible >= total) {
+      completedRef.current = true;
+      return;
+    }
     const id = window.setTimeout(() => {
-      setVisible((v) => Math.min(v + STAGGER_BATCH, total));
+      setVisible((v) => {
+        const next = Math.min(v + STAGGER_BATCH, total);
+        if (next >= total) completedRef.current = true;
+        return next;
+      });
     }, 16);
     return () => window.clearTimeout(id);
   }, [enabled, visible, total]);
@@ -91,6 +104,9 @@ function ControllerCardGrid({
   controllerTrendByPeriod,
   trendLoading = false,
   trendStale = false,
+  bulkPeriod,
+  panelPeriodOverrides = {},
+  onPanelPeriodChange,
   panelSets,
   listMode,
   onToggleGraph,
@@ -109,6 +125,9 @@ function ControllerCardGrid({
   controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
   trendStale?: boolean;
+  bulkPeriod?: TrendPeriodId;
+  panelPeriodOverrides?: Record<string, TrendPeriodId>;
+  onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   panelSets: BarnListPanelSets;
   listMode: BarnListViewMode;
   onToggleGraph: (key: string) => void;
@@ -130,7 +149,7 @@ function ControllerCardGrid({
           !bulkMode || (selectedSps?.has(spCode) ?? false);
         return (
         <ControllerSummaryGaugeRow
-          key={`${r.key}-${listMode}`}
+          key={r.key}
           reading={r}
           readings={allReadings}
           thermoSettings={thermoSettings}
@@ -147,6 +166,9 @@ function ControllerCardGrid({
           controllerTrendByPeriod={controllerTrendByPeriod}
           trendLoading={trendLoading}
           trendStale={trendStale}
+          bulkPeriod={bulkPeriod}
+          panelPeriodOverrides={panelPeriodOverrides}
+          onPanelPeriodChange={onPanelPeriodChange}
         />
         );
       })}
@@ -209,6 +231,9 @@ export function BarnListSummary({
   controllerTrendByPeriod = null,
   trendLoading = false,
   trendStale = false,
+  bulkPeriod,
+  panelPeriodOverrides = {},
+  onPanelPeriodChange,
   panelSets,
   onToggleGraph,
   onToggleSettings,
@@ -228,6 +253,9 @@ export function BarnListSummary({
     controllerTrendByPeriod,
     trendLoading,
     trendStale,
+    bulkPeriod,
+    panelPeriodOverrides,
+    onPanelPeriodChange,
     panelSets,
     listMode,
     onToggleGraph,

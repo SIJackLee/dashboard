@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   DECODE_LAG_CRITICAL,
@@ -8,6 +9,7 @@ import {
   GLOBAL_LIVE_ROW_LIMIT,
   INSERT_BUCKET_COUNT,
   INSERT_BUCKET_MINUTES,
+  HEALTH_REVALIDATE_SEC,
 } from "@/lib/admin/health/constants";
 import {
   d11HintForInsertRate,
@@ -84,21 +86,27 @@ async function fetchInsertBuckets(
   admin: ReturnType<typeof createAdminClient>,
   nowMs: number
 ): Promise<InsertBucket[]> {
-  const buckets: InsertBucket[] = [];
-  for (let i = INSERT_BUCKET_COUNT - 1; i >= 0; i--) {
+  const bucketDefs = Array.from({ length: INSERT_BUCKET_COUNT }, (_, idx) => {
+    const i = INSERT_BUCKET_COUNT - 1 - idx;
     const endMs = nowMs - i * INSERT_BUCKET_MINUTES * 60 * 1000;
     const startMs = endMs - INSERT_BUCKET_MINUTES * 60 * 1000;
-    const count = await countRawBetween(
-      admin,
-      new Date(startMs).toISOString(),
-      new Date(endMs).toISOString()
-    );
-    buckets.push({
+    return {
+      startIso: new Date(startMs).toISOString(),
+      endIso: new Date(endMs).toISOString(),
       label: formatBucketLabel(new Date(startMs).toISOString()),
-      count,
-    });
-  }
-  return buckets;
+    };
+  });
+
+  const counts = await Promise.all(
+    bucketDefs.map((def) =>
+      countRawBetween(admin, def.startIso, def.endIso)
+    )
+  );
+
+  return bucketDefs.map((def, idx) => ({
+    label: def.label,
+    count: counts[idx] ?? 0,
+  }));
 }
 
 function fieldModulePoints(modules: ModuleHealthRow[]): HealthPoint[] {
@@ -338,7 +346,9 @@ function dedupeHints(hints: D11Hint[]): D11Hint[] {
   });
 }
 
-export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
+export const HEALTH_SNAPSHOT_CACHE_TAG = "health-snapshot";
+
+async function computeHealthSnapshot(): Promise<HealthSnapshot> {
   const nowMs = Date.now();
   const fetchedAt = new Date(nowMs).toISOString();
 
@@ -609,6 +619,17 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
       activeAlerts: [],
     }),
   };
+}
+
+export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
+  return unstable_cache(
+    computeHealthSnapshot,
+    ["health-snapshot-v1"],
+    {
+      revalidate: HEALTH_REVALIDATE_SEC,
+      tags: [HEALTH_SNAPSHOT_CACHE_TAG],
+    },
+  )();
 });
 
 export function modulesForFarm(

@@ -54,21 +54,33 @@ export async function fetchGroupInsertBuckets(
 
   await Promise.all(
     groups.map(async (group) => {
-      const buckets: InsertBucket[] = [];
-      for (let i = INSERT_BUCKET_COUNT - 1; i >= 0; i--) {
+      const bucketDefs = Array.from({ length: INSERT_BUCKET_COUNT }, (_, idx) => {
+        const i = INSERT_BUCKET_COUNT - 1 - idx;
         const endMs = nowMs - i * INSERT_BUCKET_MINUTES * 60 * 1000;
         const startMs = endMs - INSERT_BUCKET_MINUTES * 60 * 1000;
-        const count = await countRawForFarms(
-          admin,
-          new Date(startMs).toISOString(),
-          new Date(endMs).toISOString(),
-          group.farmIds
-        );
-        buckets.push({
+        return {
+          startIso: new Date(startMs).toISOString(),
+          endIso: new Date(endMs).toISOString(),
           label: formatBucketLabel(new Date(startMs).toISOString()),
-          count,
-        });
-      }
+        };
+      });
+
+      const counts = await Promise.all(
+        bucketDefs.map((def) =>
+          countRawForFarms(
+            admin,
+            def.startIso,
+            def.endIso,
+            group.farmIds
+          )
+        )
+      );
+
+      const buckets = bucketDefs.map((def, idx) => ({
+        label: def.label,
+        count: counts[idx] ?? 0,
+      }));
+
       result.set(group.id, buckets);
     })
   );

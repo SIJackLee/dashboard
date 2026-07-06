@@ -184,6 +184,21 @@ export function AdminHubFarmSkeleton({
   );
 }
 
+/** Admin 전국 허브 — farm별 그리드 지연 로드 skeleton */
+export function AdminHubGridSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn("space-y-6", className)}
+      aria-busy="true"
+      aria-label="농장 그리드 불러오는 중"
+    >
+      {Array.from({ length: 2 }, (_, i) => (
+        <AdminHubFarmSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
 /** farm Suspense — view=list 이면 목록, 아니면 hub 지도 */
 export function FarmContentSkeleton({
   view,

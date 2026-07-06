@@ -25,6 +25,7 @@ import {
   commandStatusLabel,
   resolveThermoSettings,
 } from "@/lib/controllers/controller-settings";
+import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import {
   channelBySlot,
@@ -158,24 +159,26 @@ export function FarmMapControllerPanel({
   const channelEqpmnCode =
     channelReading?.eqpmnCode ?? DEFAULT_CHANNEL_EQPMN[activeChannel];
 
-  const knownSettings = useMemo(
-    () =>
-      resolveThermoSettings(
-        thermoSettings,
-        detail?.farmKey,
-        detail?.moduleUid,
-        detail?.controllerKey,
-        hasChannels ? activeChannel : undefined
-      ),
-    [
+  const knownSettings = useMemo(() => {
+    const fromMap = resolveThermoSettings(
       thermoSettings,
       detail?.farmKey,
       detail?.moduleUid,
       detail?.controllerKey,
-      hasChannels,
-      activeChannel,
-    ]
-  );
+      hasChannels ? activeChannel : undefined
+    );
+    if (fromMap) return fromMap;
+    return resolveReadingThermo(detail ?? reading, thermoSettings);
+  }, [
+    thermoSettings,
+    detail,
+    reading,
+    detail?.farmKey,
+    detail?.moduleUid,
+    detail?.controllerKey,
+    hasChannels,
+    activeChannel,
+  ]);
 
   const panel = useControllerPanel(
     detail,

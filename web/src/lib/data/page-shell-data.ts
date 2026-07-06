@@ -13,25 +13,15 @@ import {
   summarizeControllers,
   toFarmOverview,
 } from "@/lib/data/dashboard-summary";
-import { getFarmOverviewSummaries } from "@/lib/data/farm-overview";
+import { getAdminHubOverviewContext } from "@/lib/data/admin-hub-shell-data";
 import { FIRMWARE_CTRL_COUNT } from "@/lib/data/iot-firmware";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnReading, FarmOverview } from "@/lib/data/iot";
 import {
-  fetchFarmOverviewRows,
   fetchLiveReadings,
 } from "@/lib/data/iot-live-fetch";
-import {
-  adminHubOverviewCacheKey,
-  devSimFarmKeys,
-  discoverAdminHubFarmKeys,
-  fetchAdminHubLiveReadings,
-  loadAdminHubOverviewRows,
-  overviewRowsToFarmKeys,
-  resolveAdminHubFarmSummaries,
-} from "@/lib/data/admin-hub-live";
 import {
   getEditableFarmLocationOptions,
   getFarmLocations,
@@ -70,83 +60,54 @@ export const getPageShellContext = cache(
     const isAdmin = Boolean(user?.isAdmin);
 
     if (isAdmin && !activeFarmKey) {
-      const seedKeys = discoverAdminHubFarmKeys(
-        [],
-        process.env.NODE_ENV === "development" ? devSimFarmKeys() : [],
-      );
-      const overviewRows = await loadAdminHubOverviewRows(
-        adminHubOverviewCacheKey(seedKeys),
-      );
-      const hubFarmKeys = discoverAdminHubFarmKeys(
-        [],
-        overviewRows.length > 0
-          ? overviewRowsToFarmKeys(overviewRows)
-          : seedKeys,
-      );
-      const readings = await fetchAdminHubLiveReadings(null, hubFarmKeys);
-      const farmSummaries = resolveAdminHubFarmSummaries(
-        readings,
-        [],
-        overviewRows,
-        [],
-        hubFarmKeys,
-      );
-      const farmOptions =
-        overviewRows.length > 0
-          ? overviewRowsToFarmKeys(overviewRows)
-          : hubFarmKeys;
+      const hub = await getAdminHubOverviewContext();
 
-      let overview: FarmOverview;
-      if (overviewRows.length > 0) {
-        const totalControllers = overviewRows.reduce(
-          (s, r) => s + r.controller_count,
-          0
-        );
-        const totalOffline = overviewRows.reduce(
-          (s, r) => s + r.offline_count,
-          0
-        );
-        const temps = overviewRows
-          .map((r) => (r.avg_temp_c != null ? Number(r.avg_temp_c) : null))
-          .filter((n): n is number => n != null);
-        const humidities = overviewRows
-          .map((r) =>
-            r.avg_humidity_pct != null ? Number(r.avg_humidity_pct) : null
-          )
-          .filter((n): n is number => n != null);
+      return {
+        readings: [],
+        activeFarmKey,
+        scopedReadings: [],
+        overview: hub.overview,
+        alarms: [],
+        weatherWarnings: [],
+        farmOptions: hub.farmOptions,
+        farmSummaries: hub.farmSummaries,
+        isAdmin: true,
+        farmLocationOptions: [],
+        canEditLocation: false,
+      };
+    }
 
-        const avg = (nums: number[]) =>
-          nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
-
-        overview = {
-          farmCount: overviewRows.length,
-          moduleCount: 0,
-          controllerCount: totalControllers,
-          connectedCount: totalControllers - totalOffline,
-          expectedControllerCount: totalControllers,
-          offlineCount: totalOffline,
-          avgTempC: avg(temps),
-          avgHumidityPct: avg(humidities),
-          avgFanSupply: null,
-          avgFanExhaust: null,
-          avgFanIntake: null,
-          receipts: [],
-        };
-      } else {
-        overview = toFarmOverview(
-          summarizeControllers(readings, FIRMWARE_CTRL_COUNT)
-        );
-      }
+    /** Admin 단일 농장 — global v_iot_farm_overview(타임아웃) 대신 hub 캐시 + scoped LIVE */
+    if (isAdmin && activeFarmKey) {
+      const [hub, readings, weatherCache, farmLocations] = await Promise.all([
+        getAdminHubOverviewContext(),
+        fetchLiveReadings({ farmKey: activeFarmKey }),
+        fetchWeatherWarnCache(),
+        getFarmLocations(),
+      ]);
+      const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
+      const overview = toFarmOverview(
+        summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
+      );
+      const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
+      const id = farmKeyId(activeFarmKey);
+      const scopedLocations = farmLocations.filter(
+        (loc) => farmKeyId(loc.farmKey) === id,
+      );
+      const weatherWarnings = buildWeatherWarningsForLocations(
+        scopedLocations,
+        weatherCache,
+      );
 
       return {
         readings,
         activeFarmKey,
-        scopedReadings: readings,
+        scopedReadings,
         overview,
-        alarms: [],
-        weatherWarnings: [],
-        farmOptions,
-        farmSummaries,
+        alarms,
+        weatherWarnings,
+        farmOptions: hub.farmOptions,
+        farmSummaries: hub.farmSummaries,
         isAdmin: true,
         farmLocationOptions: [],
         canEditLocation: false,
@@ -189,22 +150,10 @@ export const getPageShellContext = cache(
       weatherCache
     );
 
-    let farmOptions: FarmKey[] = [];
-    let farmSummaries: FarmSummaryRow[] = [];
     let farmLocationOptions: EditableFarmOption[] = [];
     const canEditLocation = user ? canCommand(user) : false;
 
-    if (isAdmin) {
-      const [overviewRows, overviewSummaries] = await Promise.all([
-        fetchFarmOverviewRows(),
-        getFarmOverviewSummaries(),
-      ]);
-      farmOptions = overviewRows.map((r) => ({
-        lsindRegistNo: r.lsind_regist_no,
-        itemCode: r.item_code,
-      }));
-      farmSummaries = overviewSummaries;
-    } else {
+    if (!isAdmin) {
       farmLocationOptions = await getEditableFarmLocationOptions();
     }
 
@@ -215,8 +164,8 @@ export const getPageShellContext = cache(
       overview,
       alarms,
       weatherWarnings,
-      farmOptions,
-      farmSummaries,
+      farmOptions: [] as FarmKey[],
+      farmSummaries: [] as FarmSummaryRow[],
       isAdmin,
       farmLocationOptions,
       canEditLocation,

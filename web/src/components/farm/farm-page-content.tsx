@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { flushSync } from "react-dom";
@@ -23,6 +24,13 @@ import {
   resolveListViewMode,
 } from "@/lib/farm/farm-view-url";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { fetchFarmScopedPanelDataAction } from "@/app/(dashboard)/farm/actions";
+import {
+  readFarmPanelCache,
+  useFarmLiveRefreshOptional,
+} from "@/lib/navigation/farm-live-refresh";
+import { FarmListSkeleton } from "@/components/common/loading-skeletons";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +50,11 @@ type Props = {
   onHubUrlChange?: () => void;
   gridCompactShell?: boolean;
   liveRefreshManaged?: boolean;
+  /** hub 캐시 단일 농장 — 목록 탭 첫 진입 시 scoped panel 보강 */
+  lazyListEnrichment?: boolean;
+  /** SSR과 일치하는 초기 그리드/목록 탭 (hubMode) */
+  initialHubView?: "map" | "list";
+  lazyListFarmKey?: FarmKey | null;
 };
 
 export function FarmPageContent({
@@ -60,14 +73,23 @@ export function FarmPageContent({
   onHubUrlChange,
   gridCompactShell = false,
   liveRefreshManaged = false,
+  lazyListEnrichment = false,
+  lazyListFarmKey = null,
+  initialHubView,
 }: Props) {
   const searchParams = useSearchParams();
+  const liveRefresh = useFarmLiveRefreshOptional();
+  const liveRefreshRef = useRef(liveRefresh);
+  liveRefreshRef.current = liveRefresh;
+  const enrichFarmRef = useRef<string | null>(null);
+  const [listEnriching, setListEnriching] = useState(false);
   const liveParams = hubMode ? currentFarmSearchParams() : searchParams;
-  const [hubView, setHubView] = useState<"map" | "list">(() =>
-    hubMode && liveParams.get("view") === "list" ? "list" : "map"
-  );
+  const bootstrapHubView: "map" | "list" =
+    initialHubView ??
+    (hubMode && liveParams.get("view") === "list" ? "list" : "map");
+  const [hubView, setHubView] = useState<"map" | "list">(bootstrapHubView);
   const [listEverOpened, setListEverOpened] = useState(
-    () => hubMode && liveParams.get("view") === "list"
+    bootstrapHubView === "list",
   );
 
   useEffect(() => {
@@ -117,9 +139,69 @@ export function FarmPageContent({
   const thermoSettings = controller?.thermoSettings ?? {};
   const alarmSettings = controller?.alarmSettings;
 
+  const enrichListIfNeeded = useCallback(async () => {
+    if (!lazyListEnrichment || !lazyListFarmKey) return;
+
+    const lr = liveRefreshRef.current;
+    if (!lr) return;
+
+    const sliceController = lr.slice.controller;
+    const hasThermo =
+      Object.keys(sliceController?.thermoSettings ?? {}).length > 0;
+    if (sliceController?.alarmSettings && hasThermo) return;
+
+    const farmId = farmKeyId(lazyListFarmKey);
+    const cached = readFarmPanelCache(farmId);
+    const cachedHasThermo =
+      Object.keys(cached?.controller?.thermoSettings ?? {}).length > 0;
+    if (cached?.controller?.alarmSettings && cachedHasThermo) {
+      lr.hydrateScopedPanel(cached);
+      return;
+    }
+
+    setListEnriching(true);
+    try {
+      const data = await fetchFarmScopedPanelDataAction(lazyListFarmKey);
+      liveRefreshRef.current?.hydrateScopedPanel(data);
+    } catch {
+      // 목록은 grid readings로 제한 표시
+    } finally {
+      setListEnriching(false);
+    }
+  }, [lazyListEnrichment, lazyListFarmKey]);
+
+  useEffect(() => {
+    enrichFarmRef.current = null;
+  }, [lazyListFarmKey]);
+
+  useEffect(() => {
+    if (!lazyListEnrichment || !lazyListFarmKey) return;
+
+    const farmId = farmKeyId(lazyListFarmKey);
+    if (enrichFarmRef.current === farmId) return;
+    const hasThermo =
+      Object.keys(liveRefresh?.slice.controller?.thermoSettings ?? {}).length > 0;
+    if (liveRefresh?.slice.controller?.alarmSettings && hasThermo) {
+      enrichFarmRef.current = farmId;
+      return;
+    }
+
+    enrichFarmRef.current = farmId;
+    void enrichListIfNeeded();
+  }, [
+    lazyListEnrichment,
+    lazyListFarmKey,
+    liveRefresh?.slice.controller?.alarmSettings,
+    liveRefresh?.slice.controller?.thermoSettings,
+    enrichListIfNeeded,
+  ]);
+
   const applyViewChange = useCallback(
     (next: "map" | "list") => {
-      if (next === "list") setListEverOpened(true);
+      if (next === "list") {
+        setListEverOpened(true);
+        void enrichListIfNeeded();
+      }
       if (hubMode) {
         setHubView(next);
         const params = new URLSearchParams(currentFarmSearchParams().toString());
@@ -137,7 +219,7 @@ export function FarmPageContent({
       }
       replaceFarmUrlShallow(params);
     },
-    [hubMode, onHubUrlChange, searchParams]
+    [hubMode, onHubUrlChange, searchParams, enrichListIfNeeded]
   );
 
   const setView = useCallback(
@@ -242,20 +324,25 @@ export function FarmPageContent({
             data-farm-view-panel="list"
             data-farm-view-active={!listHidden}
           >
-            <BarnTable
-              rows={readings}
-              controller={controller ?? null}
-              thermoSettings={thermoSettings}
-              alarmSettings={alarmSettings}
-              canCommand={controller?.canCommand ?? false}
-              initialSp={listSp}
-              initialListMode={listMode}
-              initialListLayout={listLayout}
-              hubMode={hubMode}
-              onHubUrlChange={onHubUrlChange}
-              liveRefreshManaged={liveRefreshManaged}
-              staggerMount
-            />
+            {listEnriching ? (
+              <FarmListSkeleton />
+            ) : (
+              <BarnTable
+                rows={readings}
+                controller={controller ?? null}
+                thermoSettings={thermoSettings}
+                alarmSettings={alarmSettings}
+                canCommand={controller?.canCommand ?? false}
+                initialSp={listSp}
+                initialListMode={listMode}
+                initialListLayout={listLayout}
+                hubMode={hubMode}
+                onHubUrlChange={onHubUrlChange}
+                liveRefreshManaged={liveRefreshManaged}
+                staggerMount
+                onRequestPanelEnrichment={enrichListIfNeeded}
+              />
+            )}
           </div>
         ) : null}
       </div>

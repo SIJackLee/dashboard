@@ -3,14 +3,17 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
+import { AdminAllFarmsGridLoader } from "@/components/farm/admin-all-farms-grid-loader";
 import { FarmContentSkeleton } from "@/components/common/loading-skeletons";
+import { AdminHubPanelsProvider } from "@/lib/navigation/admin-hub-panels-context";
 import { resolveActiveFarmKey } from "@/lib/auth/farm-access";
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
 import { loadFarmScopedPanelData } from "@/lib/farm/load-farm-scoped-panel-data";
-import { loadAdminAllFarmsGridPanels } from "@/lib/farm/load-admin-all-farms-grid";
 import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
 import { mergeThermoSettingsMaps } from "@/lib/controllers/controller-settings";
+import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
+import type { ThermoCommand } from "@/lib/data/commands";
 
 function stripLegacyOverviewView(params: {
   view?: string;
@@ -70,7 +73,7 @@ export default async function FarmPage({
     if (params.panel === "farm") {
       const user = await getCurrentUser();
       if (user?.isAdmin) {
-        redirect("/admin/ops?tab=farms");
+        redirect("/admin/ops/farms");
       }
     }
     const legacy = new URLSearchParams();
@@ -91,29 +94,41 @@ export default async function FarmPage({
     view: params.view,
   };
 
-  const [shellCtx, history, commandThermoMap] = await Promise.all([
-    getPageShellContext(shellParams),
-    getThermoCommandHistory(100),
-    getThermoSettingsMap(500),
-  ]);
-  const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+  const shellCtx = await getPageShellContext(shellParams);
 
   const adminAllFarmsMode =
     isAdmin && !activeFarmKey && shellCtx.farmOptions.length > 0;
 
-  const [scopedPanelData, allFarmGrids] = await Promise.all([
-    activeFarmKey
-      ? loadFarmScopedPanelData({
-          farmKey: activeFarmKey,
-          commandThermoMap: thermoSettings,
-          history,
-          canCommand: canCommand(user),
-        })
-      : Promise.resolve(null),
-    adminAllFarmsMode
-      ? loadAdminAllFarmsGridPanels(shellCtx.farmOptions)
-      : Promise.resolve(null),
-  ]);
+  /** Admin hub 단일 농장 — server action POST 시 무거운 SSR 생략, 클라이언트 캐시·lazy fetch */
+  const adminScopedFarmDefer =
+    isAdmin && activeFarmKey != null && !adminAllFarmsMode;
+
+  let scopedPanelData: Awaited<ReturnType<typeof loadFarmScopedPanelData>> | null =
+    null;
+  let thermoSettings: Record<string, ControllerThermoSettings> = {};
+  let history: ThermoCommand[] = [];
+
+  if (activeFarmKey && !adminScopedFarmDefer) {
+    const [historyRes, commandThermoMap] = await Promise.all([
+      getThermoCommandHistory(100),
+      getThermoSettingsMap(500),
+    ]);
+    history = historyRes;
+    thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+    scopedPanelData = await loadFarmScopedPanelData({
+      farmKey: activeFarmKey,
+      commandThermoMap: thermoSettings,
+      history,
+      canCommand: canCommand(user),
+    });
+  } else if (!adminAllFarmsMode) {
+    const [historyRes, commandThermoMap] = await Promise.all([
+      getThermoCommandHistory(100),
+      getThermoSettingsMap(500),
+    ]);
+    history = historyRes;
+    thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+  }
 
   const pageBody = (content: ReactNode) => (
     <div className="space-y-4 md:space-y-5">
@@ -123,31 +138,40 @@ export default async function FarmPage({
     </div>
   );
 
+  const deferredAdminGrid = adminAllFarmsMode ? (
+    <AdminAllFarmsGridLoader farmOptions={shellCtx.farmOptions} />
+  ) : null;
+
   return (
     <PageShell wide searchParams={shellParams}>
       {pageBody(
-        <FarmDashboardShell
-          readings={scopedPanelData?.readings ?? []}
-          barnSnapshots={scopedPanelData?.barnSnapshots ?? []}
-          gridCols={scopedPanelData?.gridCols ?? 4}
-          gridRows={scopedPanelData?.gridRows ?? 4}
-          isAdmin={isAdmin}
-          farmOptions={shellCtx.farmOptions}
-          activeFarmKey={shellCtx.activeFarmKey}
-          farmSummaries={shellCtx.farmSummaries}
-          sp={params.sp}
-          view={params.view}
-          trendByPeriod={scopedPanelData?.trendByPeriod ?? null}
-          controller={
-            scopedPanelData?.controller ?? {
-              readings: [],
-              thermoSettings,
-              commands: history,
-              canCommand: canCommand(user),
+        <AdminHubPanelsProvider>
+          <FarmDashboardShell
+            readings={scopedPanelData?.readings ?? []}
+            barnSnapshots={scopedPanelData?.barnSnapshots ?? []}
+            gridCols={scopedPanelData?.gridCols ?? 4}
+            gridRows={scopedPanelData?.gridRows ?? 4}
+            isAdmin={isAdmin}
+            farmOptions={shellCtx.farmOptions}
+            activeFarmKey={shellCtx.activeFarmKey}
+            farmSummaries={shellCtx.farmSummaries}
+            sp={params.sp}
+            view={params.view}
+            trendByPeriod={scopedPanelData?.trendByPeriod ?? null}
+            controller={
+              scopedPanelData?.controller ?? {
+                readings: [],
+                thermoSettings,
+                commands: history,
+                canCommand: canCommand(user),
+              }
             }
-          }
-          allFarmGrids={allFarmGrids}
-        />
+            allFarmGrids={adminAllFarmsMode ? null : undefined}
+            deferAdminGridLoad={adminAllFarmsMode}
+          >
+            {deferredAdminGrid}
+          </FarmDashboardShell>
+        </AdminHubPanelsProvider>
       )}
     </PageShell>
   );

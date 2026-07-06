@@ -230,8 +230,6 @@ export async function sendBulkThermoCommandAction(
   }
 
   for (const scope of farmScopes) revalidateLiveCache(scope);
-  revalidatePath("/farm");
-  revalidatePath("/controllers");
 
   return { ok: failed.length === 0, sent, failed };
 }

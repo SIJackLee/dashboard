@@ -106,8 +106,7 @@ npm run verify:routes
 ## UI 개선 Phase 3 (적용됨)
 
 - **`FarmDashboardShell`:** `mapMode=geo|grid` — Admin 전국 지도 vs Operator/Admin scoped 그리드 단일 shell.
-- **Admin scoped `/farm`:** `stripAdminFarmDrillDown` 리다이렉트 제거 → ScopeBar + `FarmDrillStrip` + Operator와 동일 그리드.
-- **`FarmDrillStrip`:** lsind · item · sp query 시각화 + «전국 지도로» CTA.
+- **Admin scoped `/farm`:** `stripAdminFarmDrillDown` 리다이렉트 제거 → ScopeBar(농장 선택) + Operator와 동일 그리드.
 - **A1 합류:** Admin scoped 이후 `/controllers`·`/alarms`와 동일 ScopeBar·URL 규칙.
 
 다음 단계: Phase 4 — Monitoring 3탭 IA (선택).

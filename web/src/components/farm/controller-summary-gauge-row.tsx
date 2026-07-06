@@ -5,7 +5,11 @@ import type { ControllerThermoSettings } from "@/lib/controllers/controller-sett
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
-import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import {
+  DEFAULT_TREND_PERIOD,
+  type TrendControllerPeriodData,
+  type TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { CHANNELS } from "@/lib/farm/controller-summary-display";
 import { useControllerDetail } from "@/components/controllers/use-controller-detail";
@@ -38,6 +42,9 @@ type Props = {
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
   trendStale?: boolean;
+  bulkPeriod?: TrendPeriodId;
+  panelPeriodOverrides?: Record<string, TrendPeriodId>;
+  onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   className?: string;
 };
 
@@ -58,6 +65,9 @@ export function ControllerSummaryGaugeRow({
   controllerTrendByPeriod = null,
   trendLoading = false,
   trendStale = false,
+  bulkPeriod = DEFAULT_TREND_PERIOD,
+  panelPeriodOverrides = {},
+  onPanelPeriodChange,
   className,
 }: Props) {
   const [expandedChannel, setExpandedChannel] = useState<ChannelSlot | null>(null);
@@ -96,6 +106,7 @@ export function ControllerSummaryGaugeRow({
         motorExpanded && "ring-2 ring-sky-500/25",
         className
       )}
+      data-controller-card-key={reading.key}
       data-list-mode={listMode}
     >
       <div className="px-2.5 pt-2.5 sm:px-3 sm:pt-3">
@@ -145,7 +156,6 @@ export function ControllerSummaryGaugeRow({
       </div>
 
       <BarnListPanelShell
-        key={`${listMode}-graph`}
         open={graphExpanded}
         panelKind="graph"
       >
@@ -153,6 +163,8 @@ export function ControllerSummaryGaugeRow({
           <BarnListGraphPanel
             reading={reading}
             controllerTrendByPeriod={controllerTrendByPeriod ?? null}
+            period={panelPeriodOverrides[reading.key] ?? bulkPeriod}
+            onPeriodChange={(p) => onPanelPeriodChange?.(reading.key, p)}
             loading={trendLoading}
             stale={trendStale}
           />
@@ -160,7 +172,6 @@ export function ControllerSummaryGaugeRow({
       </BarnListPanelShell>
 
       <BarnListPanelShell
-        key={`${listMode}-settings`}
         open={settingsExpanded}
         panelKind="settings"
       >
@@ -176,7 +187,6 @@ export function ControllerSummaryGaugeRow({
       </BarnListPanelShell>
 
       <BarnListPanelShell
-        key={`${listMode}-motor`}
         open={motorExpanded}
         panelKind="motor"
       >

@@ -210,8 +210,8 @@ export async function saveAlarmSettingsInlineAction(
     return { ok: false, error: "저장 실패" };
   }
 
-  revalidatePath("/alarms");
-  revalidatePath("/farm");
+  // embedded 농장 UI — patchAlarmSettings로 클라이언트 반영. revalidate는
+  // server action POST 후 /farm SSR(farm-overview timeout)을 유발함.
   return { ok: true };
 }
 

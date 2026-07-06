@@ -35,9 +35,10 @@ export function resolveNavMessage(
   } else if (path === "/controllers" || tab === "devices") {
     message = "컨트롤러 탭으로 이동 중…";
   } else if (path === "/farm") message = "모니터링으로 이동 중…";
-  else if (path === "/admin/ops" || path.startsWith("/admin/health") || path.startsWith("/admin/users")) {
-    if (opsTab === "users") message = "운영 · 사용자 탭으로 이동 중…";
-    else if (opsTab === "farms") message = "운영 · 농장 위치 탭으로 이동 중…";
+  else if (path === "/admin/ops" || path.startsWith("/admin/ops/") || path.startsWith("/admin/health") || path.startsWith("/admin/users")) {
+    if (path.endsWith("/users") || opsTab === "users") message = "운영 · 사용자 탭으로 이동 중…";
+    else if (path.endsWith("/farms") || opsTab === "farms") message = "운영 · 농장 위치 탭으로 이동 중…";
+    else if (path.endsWith("/commands") || opsTab === "commands") message = "운영 · 명령 이력 탭으로 이동 중…";
     else message = "운영 · 시스템 탭으로 이동 중…";
   } else if (path === "/settings") message = "페이지 이동 중…";
   else if (path.startsWith("/admin/health")) message = "시스템 상태로 이동 중…";

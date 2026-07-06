@@ -1,7 +1,7 @@
 {
-  "at": "2026-07-01T06:08:24.019Z",
+  "at": "2026-07-03T07:14:54.775Z",
   "total": 49,
-  "failed": 23,
+  "failed": 25,
   "results": [
     {
       "suite": "unauthenticated",
@@ -95,11 +95,12 @@
       "path": "/farm?tab=ops",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?tab=ops",
-        "finalUrl": "/farm?tab=ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -118,11 +119,12 @@
       "path": "/farm?tab=devices",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?tab=ops",
-        "finalUrl": "/farm?tab=ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -141,11 +143,12 @@
       "path": "/farm?tab=alarms",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?tab=ops",
-        "finalUrl": "/farm?tab=ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -191,8 +194,8 @@
         "monitor tab expected one of 현황 got "
       ],
       "audit": {
-        "url": "/farm?lsind=FARM01&item=P00&tab=ops",
-        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=ops",
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -211,11 +214,12 @@
       "path": "/farm?lsind=FARM01&item=P00&tab=ops",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?lsind=FARM01&item=P00&tab=ops",
-        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=ops",
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -234,11 +238,12 @@
       "path": "/farm?lsind=FARM01&item=P00&tab=devices",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?lsind=FARM01&item=P00&tab=ops",
-        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=ops",
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -257,11 +262,12 @@
       "path": "/farm?lsind=FARM01&item=P00&tab=alarms",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?lsind=FARM01&item=P00&tab=ops",
-        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=ops",
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -301,11 +307,12 @@
       "path": "/controllers",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?tab=ops",
-        "finalUrl": "/farm?tab=ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -322,11 +329,13 @@
     {
       "suite": "admin",
       "path": "/controllers?lsind=FARM01&item=P00",
-      "pass": true,
-      "errors": [],
+      "pass": false,
+      "errors": [
+        "URL missing \"tab=ops\" (got /farm?lsind=FARM01&item=P00)"
+      ],
       "audit": {
-        "url": "/farm?lsind=FARM01&item=P00&tab=ops",
-        "finalUrl": "/farm?lsind=FARM01&item=P00&tab=ops",
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -345,11 +354,12 @@
       "path": "/alarms",
       "pass": false,
       "errors": [
+        "URL missing \"tab=ops\" (got /farm)",
         "monitor tab expected one of 컨트롤러 got "
       ],
       "audit": {
-        "url": "/farm?tab=ops",
-        "finalUrl": "/farm?tab=ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -393,12 +403,12 @@
       "path": "/settings?tab=alarm",
       "pass": false,
       "errors": [
-        "URL missing \"tab=alarm\" (got /farm?tab=ops)",
+        "URL missing \"tab=alarm\" (got /farm)",
         "settings tabs expected [알람,표시] got []"
       ],
       "audit": {
-        "url": "/farm?tab=ops",
-        "finalUrl": "/farm?tab=ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -688,8 +698,8 @@
         "expected geo on admin national ops hub"
       ],
       "audit": {
-        "url": "/farm?tab=ops",
-        "finalUrl": "/farm?tab=ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -719,8 +729,8 @@
       "pass": true,
       "errors": [],
       "audit": {
-        "url": "/farm?tab=ops&lsind=FARM01&item=P00",
-        "finalUrl": "/farm?tab=ops&lsind=FARM01&item=P00",
+        "url": "/farm?lsind=FARM01&item=P00",
+        "finalUrl": "/farm?lsind=FARM01&item=P00",
         "h1": "",
         "is404": false,
         "hasGeo": false,
@@ -737,24 +747,22 @@
     {
       "suite": "interaction",
       "path": "sidebar 운영 click",
-      "pass": true,
+      "pass": false,
       "errors": [],
       "audit": {
-        "url": "/admin/ops",
-        "finalUrl": "/admin/ops",
+        "url": "/farm",
+        "finalUrl": "/farm",
         "h1": "",
         "is404": false,
         "hasGeo": false,
         "hasOpsNav": true,
-        "opsActive": true,
-        "monitorActive": false,
+        "opsActive": false,
+        "monitorActive": true,
         "settingsActive": false,
         "role": "관리자",
         "settingsTabs": [],
         "monitorTabCurrent": [],
-        "opsTabCurrent": [
-          "시스템"
-        ]
+        "opsTabCurrent": []
       }
     },
     {

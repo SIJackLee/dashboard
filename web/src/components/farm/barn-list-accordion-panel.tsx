@@ -15,7 +15,8 @@ import {
   type ControllerThermoSettings,
   resolveThermoSettings,
 } from "@/lib/controllers/controller-settings";
-import type { AlarmSettings } from "@/lib/data/alarms";
+import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
+import { DEFAULT_ALARM_SETTINGS, type AlarmSettings } from "@/lib/data/alarms";
 import {
   channelBySlot,
   DEFAULT_CHANNEL_EQPMN,
@@ -82,24 +83,26 @@ export function BarnListAccordionPanel({
     channelBySlot(channels, activeChannel)?.eqpmnCode ??
     DEFAULT_CHANNEL_EQPMN[activeChannel];
 
-  const knownSettings = useMemo(
-    () =>
-      resolveThermoSettings(
-        thermoSettings,
-        detail?.farmKey,
-        detail?.moduleUid,
-        detail?.controllerKey,
-        hasChannels ? activeChannel : undefined
-      ),
-    [
+  const knownSettings = useMemo(() => {
+    const fromMap = resolveThermoSettings(
       thermoSettings,
       detail?.farmKey,
       detail?.moduleUid,
       detail?.controllerKey,
-      hasChannels,
-      activeChannel,
-    ]
-  );
+      hasChannels ? activeChannel : undefined
+    );
+    if (fromMap) return fromMap;
+    return resolveReadingThermo(detail ?? reading, thermoSettings);
+  }, [
+    thermoSettings,
+    detail,
+    reading,
+    detail?.farmKey,
+    detail?.moduleUid,
+    detail?.controllerKey,
+    hasChannels,
+    activeChannel,
+  ]);
 
   const panel = useControllerPanel(
     detail,
@@ -115,9 +118,13 @@ export function BarnListAccordionPanel({
   const farmId = farmKeyId(reading.farmKey);
   const spCode = normalizeStallTyCode(reading.stallTyCode);
   const stallKey = stallKeyFromReading(reading);
-  const thresholdScope = alarmSettings
-    ? { farmId, spCode, stallKey, readingKey: reading.key }
-    : null;
+  const effectiveAlarmSettings = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
+  const thresholdScope = {
+    farmId,
+    spCode,
+    stallKey,
+    readingKey: reading.key,
+  };
 
   const isSaving = panel.pending || Boolean(thresholdHeader?.pending);
   const canSaveControl =
@@ -160,24 +167,18 @@ export function BarnListAccordionPanel({
 
       <div className="barn-list-panel-stagger--settings flex flex-col gap-3">
         <SectionShell title="① 알람 허용 · 온도·습도">
-          {thresholdScope && alarmSettings ? (
-            <AlarmThresholdForm
-              key={reading.key}
-              initialSettings={alarmSettings}
-              readings={readings}
-              fixedScope={thresholdScope}
-              embedded
-              density="mobileSplit"
-              sliderTitleClassName={LIST_SLIDER_TITLE}
-              sliderThumbLabelClassName={LIST_SLIDER_THUMB}
-              sliderAxisClassName={LIST_SLIDER_AXIS}
-              onHeaderState={setThresholdHeader}
-            />
-          ) : (
-            <p className={cn("py-4 text-center", LIST_PANEL_META)}>
-              알람 설정을 불러올 수 없습니다.
-            </p>
-          )}
+          <AlarmThresholdForm
+            key={reading.key}
+            initialSettings={effectiveAlarmSettings}
+            readings={readings}
+            fixedScope={thresholdScope}
+            embedded
+            density="mobileSplit"
+            sliderTitleClassName={LIST_SLIDER_TITLE}
+            sliderThumbLabelClassName={LIST_SLIDER_THUMB}
+            sliderAxisClassName={LIST_SLIDER_AXIS}
+            onHeaderState={setThresholdHeader}
+          />
         </SectionShell>
 
         <SectionShell title="② 설정온도 · ③ 편차 · 환기">

@@ -212,7 +212,7 @@ export function mergeThermoSettingsMaps(
     const live = liveMap[key];
 
     if (live && cmd) {
-      if (cmd.source === "applied" || thermoValuesMatch(live, cmd)) {
+      if (thermoValuesMatch(live, cmd)) {
         out[key] = { ...live, source: "live" };
       } else {
         out[key] = cmd;

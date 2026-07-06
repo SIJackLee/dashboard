@@ -19,7 +19,6 @@ import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import {
   applyHubScopedViewParams,
-  buildFarmPath,
   currentFarmSearchParams,
   replaceFarmUrlShallow,
   resolveListViewMode,
@@ -33,6 +32,10 @@ import {
   type BarnListPanelSets,
 } from "@/lib/farm/barn-list-panel-state";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
+import {
+  DEFAULT_TREND_PERIOD,
+  type TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { useSoftRefresh } from "@/lib/ui/use-soft-refresh";
 import { formatStallTypeLabel, normalizeStallTyCode } from "@/lib/data/stall-type";
@@ -77,6 +80,8 @@ type Props = {
   onHubUrlChange?: () => void;
   liveRefreshManaged?: boolean;
   staggerMount?: boolean;
+  /** admin 캐시 패널 — alarmSettings 등 scoped 데이터 보강 */
+  onRequestPanelEnrichment?: () => void | Promise<void>;
 };
 
 function stallTyCodesFromReadings(readings: BarnReading[]): string[] {
@@ -104,19 +109,24 @@ export function BarnTable({
   onHubUrlChange,
   liveRefreshManaged = false,
   staggerMount = false,
+  onRequestPanelEnrichment,
 }: Props) {
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
   const searchParams = useSearchParams();
   const [hubParamsTick, setHubParamsTick] = useState(0);
+  const [urlTick, setUrlTick] = useState(0);
   const liveParams = useMemo(() => {
     void hubParamsTick;
-    return hubMode ? currentFarmSearchParams() : searchParams;
-  }, [hubMode, hubParamsTick, searchParams]);
+    void urlTick;
+    return currentFarmSearchParams();
+  }, [hubParamsTick, urlTick, searchParams]);
 
   useEffect(() => {
-    if (!hubMode) return;
-    const sync = () => setHubParamsTick((n) => n + 1);
+    const sync = () => {
+      setUrlTick((n) => n + 1);
+      if (hubMode) setHubParamsTick((n) => n + 1);
+    };
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
   }, [hubMode]);
@@ -126,8 +136,6 @@ export function BarnTable({
     EMPTY_BARN_LIST_PANEL_SETS
   );
   const [statusToast, setStatusToast] = useState<string | null>(null);
-  const [listModeSwitchBusy, setListModeSwitchBusy] = useState(false);
-  const listModeSwitchTimerRef = useRef(0);
 
   const onListRefresh = useCallback(() => {
     if (liveRefreshManaged && liveRefresh) {
@@ -166,37 +174,30 @@ export function BarnTable({
       ? "flat"
       : "group";
 
-  const listModeFromUrl = resolveListViewMode(
-    liveParams,
-    hubMode ? initialListMode : undefined,
+  const [listMode, setListMode] = useState<BarnListViewMode>(() =>
+    resolveListViewMode(
+      typeof window !== "undefined"
+        ? currentFarmSearchParams()
+        : new URLSearchParams(),
+      hubMode ? initialListMode : undefined,
+    ),
   );
-  const [pendingListMode, setPendingListMode] =
-    useState<BarnListViewMode | null>(null);
-  const listMode = pendingListMode ?? listModeFromUrl;
+
+  useEffect(() => {
+    const fromUrl = resolveListViewMode(liveParams);
+    setListMode((prev) => (prev === fromUrl ? prev : fromUrl));
+  }, [urlTick, hubParamsTick]);
+
   const effectiveListMode: BarnListViewMode = bulkMode ? "controller" : listMode;
 
-  useEffect(() => {
-    if (pendingListMode === null) return;
-    if (listModeFromUrl === pendingListMode) {
-      setPendingListMode(null);
-    }
-  }, [listModeFromUrl, pendingListMode]);
-
-  const prevListModeRef = useRef(listMode);
-  useEffect(() => {
-    if (prevListModeRef.current === listMode) return;
-    prevListModeRef.current = listMode;
-    setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
-  }, [listMode]);
-
-  useEffect(() => {
-    return () => window.clearTimeout(listModeSwitchTimerRef.current);
-  }, []);
   const graphToolbarMode = effectiveListMode === "graph";
   const graphPanelsOpen = panelSets.graphKeys.size > 0;
+  const settingsPanelsOpen = panelSets.settingsKeys.size > 0;
   const farmKey = rows[0]?.farmKey ?? null;
   const trendEnabled =
-    (graphToolbarMode || graphPanelsOpen) && Boolean(farmKey);
+    effectiveListMode === "graph" &&
+    (graphToolbarMode || graphPanelsOpen) &&
+    Boolean(farmKey);
 
   const {
     data: lazyControllerTrend,
@@ -224,6 +225,32 @@ export function BarnTable({
   const controllerTrendByPeriod = trendEnabled ? lazyControllerTrend : null;
   const trendRefreshSpinner = trendRefreshVisible || trendRefreshing;
 
+  const [bulkPeriod, setBulkPeriod] = useState<TrendPeriodId>(DEFAULT_TREND_PERIOD);
+  const [panelPeriodOverrides, setPanelPeriodOverrides] = useState<
+    Record<string, TrendPeriodId>
+  >({});
+
+  const onBulkPeriodChange = useCallback((period: TrendPeriodId) => {
+    setBulkPeriod(period);
+    setPanelPeriodOverrides({});
+  }, []);
+
+  const onPanelPeriodChange = useCallback((key: string, period: TrendPeriodId) => {
+    setPanelPeriodOverrides((prev) => ({ ...prev, [key]: period }));
+  }, []);
+
+  const panelEnrichRequestedRef = useRef(false);
+  useEffect(() => {
+    if (!settingsPanelsOpen) {
+      panelEnrichRequestedRef.current = false;
+      return;
+    }
+    if (alarmSettings || !onRequestPanelEnrichment) return;
+    if (panelEnrichRequestedRef.current) return;
+    panelEnrichRequestedRef.current = true;
+    void onRequestPanelEnrichment();
+  }, [settingsPanelsOpen, alarmSettings, onRequestPanelEnrichment]);
+
   const toggleGraphPanel = useCallback((key: string) => {
     setPanelSets((prev) => toggleBarnListGraph(prev, key));
   }, []);
@@ -248,9 +275,7 @@ export function BarnTable({
 
   const replaceListParams = useCallback(
     (patch: Record<string, string | null>) => {
-      const params = new URLSearchParams(
-        (hubMode ? currentFarmSearchParams() : searchParams).toString(),
-      );
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
       if (hubMode) {
         applyHubScopedViewParams(params, "list");
       } else {
@@ -260,15 +285,10 @@ export function BarnTable({
         if (value == null || value === "") params.delete(key);
         else params.set(key, value);
       }
-      if (hubMode) {
-        replaceFarmUrlShallow(params);
-        setHubParamsTick((n) => n + 1);
-        onHubUrlChange?.();
-        return;
-      }
-      router.replace(buildFarmPath(params), { scroll: false });
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
     },
-    [hubMode, onHubUrlChange, router, searchParams],
+    [hubMode],
   );
 
   const handleSpChange = (value: string | null) => {
@@ -289,14 +309,8 @@ export function BarnTable({
 
   const handleListModeChange = (mode: BarnListViewMode) => {
     if (bulkMode) return;
-    setPendingListMode(mode);
+    setListMode(mode);
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
-    setListModeSwitchBusy(true);
-    window.clearTimeout(listModeSwitchTimerRef.current);
-    listModeSwitchTimerRef.current = window.setTimeout(
-      () => setListModeSwitchBusy(false),
-      360,
-    );
     replaceListParams({
       listMode: mode === "controller" ? null : mode,
     });
@@ -325,7 +339,6 @@ export function BarnTable({
   const listRefreshRing =
     listSoftRefreshBusy ||
     listRefreshVisible ||
-    listModeSwitchBusy ||
     Boolean(liveRefresh?.revalidating) ||
     Boolean(liveRefresh?.isStale);
 
@@ -335,12 +348,11 @@ export function BarnTable({
       if (result.alarm?.ok && result.alarm.settings && liveRefresh) {
         liveRefresh.patchAlarmSettings(result.alarm.settings);
       }
-      if (hubMode) return;
       if (liveRefreshManaged && liveRefresh) {
         void liveRefresh.revalidateFarmLive();
         return;
       }
-      refreshList();
+      if (!hubMode) refreshList();
     },
     [hubMode, liveRefresh, liveRefreshManaged, refreshList],
   );
@@ -348,7 +360,7 @@ export function BarnTable({
   return (
     <RefreshScopeShell
       busy={listRefreshRing}
-      showProgress={listRefreshVisible || listModeSwitchBusy}
+      showProgress={listRefreshVisible}
     >
       <SectionCard
         title={compactHeader ? "축사 목록 (요약)" : "축사 목록"}
@@ -406,6 +418,8 @@ export function BarnTable({
         >
           <BarnListTrendRefreshBar
             onRefresh={runTrendRefresh}
+            bulkPeriod={bulkPeriod}
+            onBulkPeriodChange={onBulkPeriodChange}
             busy={trendRefreshBusy}
             showSpinner={trendRefreshSpinner}
             showProgress={trendRefreshVisible}
@@ -431,6 +445,9 @@ export function BarnTable({
           controllerTrendByPeriod={controllerTrendByPeriod}
           trendLoading={trendInitialLoading}
           trendStale={trendIsStale}
+          bulkPeriod={bulkPeriod}
+          panelPeriodOverrides={panelPeriodOverrides}
+          onPanelPeriodChange={onPanelPeriodChange}
           panelSets={panelSets}
           onToggleGraph={toggleGraphPanel}
           onToggleSettings={toggleSettingsPanel}

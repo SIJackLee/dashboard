@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Droplets, Thermometer } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { SimpleSelect } from "@/components/common/filter-bar";
@@ -183,7 +182,6 @@ export function AlarmThresholdForm({
   const [draft, setDraft] = useState<AlarmThresholds>(initialSettings.global);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
 
   const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
@@ -347,11 +345,6 @@ export function AlarmThresholdForm({
         }
         setValidationError(null);
         liveRefresh?.patchAlarmSettings(nextSettings);
-        if (liveRefresh) {
-          void liveRefresh.revalidateFarmLive();
-        } else {
-          router.refresh();
-        }
       });
       return;
     }

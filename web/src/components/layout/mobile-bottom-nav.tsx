@@ -124,9 +124,7 @@ export function MobileBottomNav({ role }: Props) {
 
           onClick={(e) => {
 
-            const onOpsHome =
-
-              pathname === "/admin/ops" && !searchParams.get("tab");
+            const onOpsHome = pathname === "/admin/ops";
 
             if (onOpsHome) return;
 

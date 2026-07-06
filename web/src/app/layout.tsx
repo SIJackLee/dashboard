@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -36,11 +37,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full bg-muted/30 dark:bg-background">
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var t=localStorage.getItem("dashboard-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`,
-          }}
-        />
+        <Script id="dashboard-theme-init" strategy="beforeInteractive">
+          {`try{var t=localStorage.getItem("dashboard-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`}
+        </Script>
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>
