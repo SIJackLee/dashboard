@@ -10,6 +10,10 @@ import {
   sliderTrackRailClass,
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
+import {
+  SliderValueInput,
+  type SliderValueInputSize,
+} from "@/components/ui/slider-value-input";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { useSliderDragThumb } from "@/lib/ui/use-slider-drag-thumb";
@@ -31,6 +35,10 @@ type ControllerTempDualSliderProps = {
   title?: string;
   thumbLabelClassName?: string;
   trackShellClassName?: string;
+  /** 트랙 아래 설정·편차 숫자 입력 */
+  axisMode?: "hidden" | "editable";
+  axisInputSize?: SliderValueInputSize;
+  axisClassName?: string;
   onChange: (setpoint: number, deviation: number) => void;
 };
 
@@ -59,6 +67,9 @@ export function ControllerTempDualSlider({
   title = "온도 설정",
   thumbLabelClassName,
   trackShellClassName,
+  axisMode = "hidden",
+  axisInputSize,
+  axisClassName,
   onChange,
 }: ControllerTempDualSliderProps) {
   const id = useId();
@@ -71,6 +82,20 @@ export function ControllerTempDualSlider({
   const lowPct = pct(setpoint, TRACK_MIN, TRACK_MAX);
   const highPct = pct(displayMaxTemp, TRACK_MIN, TRACK_MAX);
   const devLabel = fmtTempLabel(deviation);
+  const inputSize = axisInputSize ?? (compact ? "compact" : "dashboard");
+  const devMin = MENU_STEPS.deviation.min;
+  const devMax = Math.max(devMin, TRACK_MAX - setpoint);
+
+  const setDeviationFromInput = useCallback(
+    (raw: number) => {
+      const newDev = clampMenuValue(
+        "deviation",
+        snap(clamp(raw, devMin, devMax), MENU_STEPS.deviation.step)
+      );
+      onChange(setpoint, newDev);
+    },
+    [devMax, devMin, onChange, setpoint]
+  );
 
   const setLow = useCallback(
     (raw: number) => {
@@ -179,6 +204,47 @@ export function ControllerTempDualSlider({
           onChange={(e) => setHigh(Number(e.target.value))}
         />
       </div>
+      {axisMode === "editable" ? (
+        <div
+          className={cn(
+            "relative mt-1 flex items-end justify-between gap-2 tabular-nums",
+            axisClassName ??
+              (compact
+                ? "text-xs leading-snug text-muted-foreground"
+                : dashboardTypography.meta)
+          )}
+        >
+          <SliderValueInput
+            value={setpoint}
+            min={TRACK_MIN}
+            max={Math.min(TRACK_MAX - deviation, MENU_STEPS.setpoint.max)}
+            step={STEP}
+            unit="℃"
+            aria-label="설정온도"
+            disabled={disabled}
+            size={inputSize}
+            onCommit={setLow}
+          />
+          <span
+            className="mb-1 shrink-0 text-center text-muted-foreground"
+            aria-hidden
+          >
+            {TRACK_MIN}–{TRACK_MAX}℃
+          </span>
+          <SliderValueInput
+            value={deviation}
+            min={devMin}
+            max={devMax}
+            step={STEP}
+            unit="℃"
+            prefix="+"
+            aria-label="온도 편차"
+            disabled={disabled}
+            size={inputSize}
+            onCommit={setDeviationFromInput}
+          />
+        </div>
+      ) : null}
     </div>
   );
 

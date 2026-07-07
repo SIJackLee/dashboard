@@ -195,6 +195,9 @@ export function BarnListAccordionPanel({
                 disabled={controlsDisabled}
                 compact
                 dense
+                axisMode="editable"
+                axisInputSize="compact"
+                axisClassName={LIST_SLIDER_AXIS}
                 thumbLabelClassName={LIST_SLIDER_THUMB}
                 onChange={panel.setTempControl}
               />
@@ -211,7 +214,8 @@ export function BarnListAccordionPanel({
               lowLabel="최저환기"
               highLabel="최고환기"
               accentClass="bg-sky-500/35"
-              showAxis
+              axisMode="editable"
+              axisInputSize="compact"
               compact
               bare
               titleClassName={LIST_SLIDER_TITLE}

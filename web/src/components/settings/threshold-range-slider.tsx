@@ -7,6 +7,10 @@ import {
   sliderTrackRailClass,
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
+import {
+  SliderValueInput,
+  type SliderValueInputSize,
+} from "@/components/ui/slider-value-input";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { useSliderDragThumb } from "@/lib/ui/use-slider-drag-thumb";
@@ -26,8 +30,12 @@ type ThresholdRangeSliderProps = {
   disabled?: boolean;
   compact?: boolean;
   accentClass?: string;
-  /** 트랙 양끝 축 라벨 (환기 0–100% 등) */
+  /** 트랙 양끝 축 — domain=정적 min/max, editable=하한·상한 입력 */
+  axisMode?: "hidden" | "domain" | "editable";
+  /** @deprecated axisMode="domain" 사용 */
   showAxis?: boolean;
+  /** axisMode editable 시 Input 크기 */
+  axisInputSize?: SliderValueInputSize;
   /** thumb 라벨 typography 오버라이드 (예: 다른 slider와 크기 동기화) */
   thumbLabelClassName?: string;
   /** 헤더 제목 typography 오버라이드 */
@@ -75,7 +83,9 @@ export function ThresholdRangeSlider({
   disabled = false,
   compact = false,
   accentClass = "bg-emerald-500/35",
+  axisMode,
   showAxis = false,
+  axisInputSize,
   thumbLabelClassName,
   titleClassName,
   axisClassName,
@@ -92,6 +102,8 @@ export function ThresholdRangeSlider({
   const lowText = `${fmtValue(low, step)}${unit}`;
   const highText = `${fmtValue(high, step)}${unit}`;
   const mobileDrag = mobile && dragging;
+  const resolvedAxisMode = axisMode ?? (showAxis ? "domain" : "hidden");
+  const inputSize = axisInputSize ?? (compact ? "compact" : "dashboard");
 
   const setLow = useCallback(
     (raw: number) => {
@@ -209,25 +221,61 @@ export function ThresholdRangeSlider({
         </div>
       </div>
 
-      {showAxis ? (
+      {resolvedAxisMode !== "hidden" ? (
         <div
           className={cn(
-            "relative mt-1 flex justify-between px-3 tabular-nums",
+            "relative mt-1 flex items-end justify-between gap-2 px-3 sm:px-4 tabular-nums",
             axisClassName ??
               (compact
                 ? "text-xs leading-snug text-muted-foreground"
                 : dashboardTypography.meta)
           )}
-          aria-hidden
         >
-          <span>
-            {min}
-            {unit}
-          </span>
-          <span>
-            {max}
-            {unit}
-          </span>
+          {resolvedAxisMode === "editable" ? (
+            <SliderValueInput
+              value={low}
+              min={min}
+              max={high}
+              step={step}
+              unit={unit}
+              aria-label={`${title} ${lowLabel}`}
+              disabled={disabled}
+              size={inputSize}
+              onCommit={setLow}
+            />
+          ) : (
+            <span aria-hidden>
+              {min}
+              {unit}
+            </span>
+          )}
+          {resolvedAxisMode === "editable" ? (
+            <span
+              className="mb-1 shrink-0 text-center text-muted-foreground"
+              aria-hidden
+            >
+              {min}–{max}
+              {unit}
+            </span>
+          ) : null}
+          {resolvedAxisMode === "editable" ? (
+            <SliderValueInput
+              value={high}
+              min={low}
+              max={max}
+              step={step}
+              unit={unit}
+              aria-label={`${title} ${highLabel}`}
+              disabled={disabled}
+              size={inputSize}
+              onCommit={setHigh}
+            />
+          ) : (
+            <span aria-hidden>
+              {max}
+              {unit}
+            </span>
+          )}
         </div>
       ) : null}
     </div>

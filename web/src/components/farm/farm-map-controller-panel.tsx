@@ -410,6 +410,8 @@ export function FarmMapControllerPanel({
                   setpoint={panel.sliderValues.setpoint}
                   deviation={panel.sliderValues.deviation}
                   disabled={controlsDisabled}
+                  axisMode="editable"
+                  axisInputSize="dashboard"
                   onChange={panel.setTempControl}
                 />
               </div>
@@ -425,7 +427,8 @@ export function FarmMapControllerPanel({
                 lowLabel="최저환기"
                 highLabel="최고환기"
                 accentClass="bg-sky-500/35"
-                showAxis
+                axisMode="editable"
+                axisInputSize="dashboard"
                 disabled={controlsDisabled}
                 onChange={panel.setVentRange}
               />

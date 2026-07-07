@@ -59,7 +59,7 @@ export const dashboardUi = {
   headerBrand:
     "flex min-w-0 flex-1 items-center gap-2.5 pr-1 sm:flex-none sm:shrink-0 md:gap-3 md:pr-2",
   headerBrandIcon:
-    "relative shrink-0 overflow-hidden rounded-lg bg-muted/40 max-sm:h-10 max-sm:max-h-11 max-sm:w-full sm:h-[1lh] sm:w-[1lh]",
+    "relative shrink-0 overflow-hidden rounded-lg bg-muted/40 max-sm:h-[3.25rem] max-sm:max-h-[3.575rem] max-sm:w-full sm:h-[1.3lh] sm:w-[1.3lh]",
   headerBrandTitle:
     "hidden truncate text-2xl font-semibold leading-tight sm:block",
   headerAccountAvatar:

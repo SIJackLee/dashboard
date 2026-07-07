@@ -343,6 +343,8 @@ export function FarmMapBulkApply({
                       deviation={deviation}
                       disabled={!applyTemp}
                       compact={false}
+                      axisMode="editable"
+                      axisInputSize="dashboard"
                       thumbLabelClassName={bulkModalThumbLabel}
                       trackShellClassName={bulkModalTrackShell}
                       onChange={(sp, dev) => {
@@ -378,7 +380,8 @@ export function FarmMapBulkApply({
                       lowLabel="최저환기"
                       highLabel="최고환기"
                       accentClass="bg-sky-500/35"
-                      showAxis
+                      axisMode="editable"
+                      axisInputSize="dashboard"
                       bare
                       compact={false}
                       titleClassName={bulkModalSectionTitle}
@@ -423,6 +426,8 @@ export function FarmMapBulkApply({
                       high={alarm.tempHigh}
                       unit="℃"
                       accentClass="bg-orange-500/35"
+                      axisMode="editable"
+                      axisInputSize="dashboard"
                       bare
                       compact={false}
                       titleClassName={bulkModalSectionTitle}
@@ -445,6 +450,8 @@ export function FarmMapBulkApply({
                       high={alarm.humidityHigh}
                       unit="%"
                       accentClass="bg-sky-500/35"
+                      axisMode="editable"
+                      axisInputSize="dashboard"
                       bare
                       compact={false}
                       titleClassName={bulkModalSectionTitle}

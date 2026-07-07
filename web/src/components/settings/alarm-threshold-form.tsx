@@ -566,6 +566,8 @@ export function AlarmThresholdForm({
                 sliderThumbLabelClassName ?? "md:text-[1.75rem]"
               }
               axisClassName={sliderAxisClassName}
+              axisInputSize={mobileSplit ? "compact" : "dashboard"}
+              axisMode={mobileSplit ? "editable" : "hidden"}
               onChange={(low, high) =>
                 updateDraft({ ...draft, tempLow: low, tempHigh: high })
               }
@@ -592,6 +594,8 @@ export function AlarmThresholdForm({
                 sliderThumbLabelClassName ?? "md:text-[1.75rem]"
               }
               axisClassName={sliderAxisClassName}
+              axisInputSize={mobileSplit ? "compact" : "dashboard"}
+              axisMode={mobileSplit ? "editable" : "hidden"}
               onChange={(low, high) =>
                 updateDraft({ ...draft, humidityLow: low, humidityHigh: high })
               }
