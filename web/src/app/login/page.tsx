@@ -1,5 +1,6 @@
 import { Leaf } from "lucide-react";
 import { signInWithEmail } from "@/app/auth/actions";
+import { LoginSubmitButton } from "@/components/login/login-submit-button";
 import {
   Card,
   CardContent,
@@ -67,12 +68,7 @@ export default async function LoginPage({
                 required
               />
             </div>
-            <button
-              type="submit"
-              className="w-full rounded-md bg-emerald-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
-            >
-              로그인
-            </button>
+            <LoginSubmitButton />
           </form>
           <p className="text-center text-xs text-muted-foreground">
             계정이 없거나 접근 권한이 필요하면 관리자에게 문의하세요.
