@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Clock, LogOut } from "lucide-react";
+import { NavContentReadyMarker } from "@/components/layout/nav-content-ready-marker";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { signOut } from "@/app/auth/actions";
 import {
@@ -18,6 +19,7 @@ export default async function PendingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+      <NavContentReadyMarker />
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600">

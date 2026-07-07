@@ -1,6 +1,5 @@
 import { Leaf } from "lucide-react";
-import { signInWithEmail } from "@/app/auth/actions";
-import { LoginSubmitButton } from "@/components/login/login-submit-button";
+import { LoginFormWithNav } from "@/components/login/login-form-with-nav";
 import {
   Card,
   CardContent,
@@ -8,8 +7,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const errorMessages: Record<string, string> = {
@@ -40,36 +37,7 @@ export default async function LoginPage({
           <CardDescription>모니터링 · 제어 대시보드 로그인</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {message && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-center text-sm text-red-700">
-              {message}
-            </p>
-          )}
-          <form action={signInWithEmail} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">이메일</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="name@example.com"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">비밀번호</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-            <LoginSubmitButton />
-          </form>
+          <LoginFormWithNav initialError={message} />
           <p className="text-center text-xs text-muted-foreground">
             계정이 없거나 접근 권한이 필요하면 관리자에게 문의하세요.
           </p>

@@ -3,6 +3,7 @@ import { sublabelFromHref } from "@/lib/navigation/nav-utils";
 export type NavMessageOptions = {
   message?: string;
   sublabel?: string;
+  waitForContentReady?: boolean;
 };
 
 export function resolveNavMessage(
@@ -35,6 +36,7 @@ export function resolveNavMessage(
   } else if (path === "/controllers" || tab === "devices") {
     message = "컨트롤러 탭으로 이동 중…";
   } else if (path === "/farm") message = "모니터링으로 이동 중…";
+  else if (path === "/pending") message = "접근 권한 확인 중…";
   else if (path === "/admin/ops" || path.startsWith("/admin/ops/") || path.startsWith("/admin/health") || path.startsWith("/admin/users")) {
     if (path.endsWith("/users") || opsTab === "users") message = "운영 · 사용자 탭으로 이동 중…";
     else if (path.endsWith("/farms") || opsTab === "farms") message = "운영 · 농장 위치 탭으로 이동 중…";

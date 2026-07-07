@@ -12,6 +12,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { NavigationLoadingOverlay } from "@/components/common/navigation-loading-overlay";
+import { NAV_CONTENT_READY_EVENT, getLastNavContentReadyAt } from "@/lib/navigation/nav-content-ready";
 import {
   NAV_MAX_WAIT_MS,
   NAV_MIN_DISPLAY_MS,
@@ -43,32 +44,81 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
   const pendingRef = useRef(false);
   const startedAtRef = useRef(0);
   const targetPathRef = useRef<string | null>(null);
+  const waitForReadyRef = useRef(false);
+  const navigateStartedAtRef = useRef(0);
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  const isTargetPathReachedFor = useCallback((target: string | null, atPathname: string) => {
+    if (!target) return false;
+    return !shouldUseGlobalNav(target, atPathname);
+  }, []);
+
+  const isTargetPathReached = useCallback(
+    (target: string | null) => isTargetPathReachedFor(target, pathnameRef.current),
+    [isTargetPathReachedFor]
+  );
 
   const clearPending = useCallback(() => {
     pendingRef.current = false;
     targetPathRef.current = null;
+    waitForReadyRef.current = false;
     setPending(null);
   }, []);
+
+  const scheduleClearAfterMinDisplay = useCallback(() => {
+    const elapsed = Date.now() - startedAtRef.current;
+    const minRemaining = Math.max(0, NAV_MIN_DISPLAY_MS - elapsed);
+    window.setTimeout(clearPending, minRemaining);
+  }, [clearPending]);
+
+  useEffect(() => {
+    if (!pending) return;
+
+    const safetyTimer = window.setTimeout(clearPending, NAV_MAX_WAIT_MS);
+    return () => window.clearTimeout(safetyTimer);
+  }, [pending, clearPending]);
 
   useEffect(() => {
     if (!pending) return;
 
     const target = targetPathRef.current;
-    if (target && !shouldUseGlobalNav(target, pathname)) {
-      clearPending();
+    if (!isTargetPathReached(target)) return;
+
+    if (!waitForReadyRef.current) {
+      scheduleClearAfterMinDisplay();
       return;
     }
 
-    const elapsed = Date.now() - startedAtRef.current;
-    const minRemaining = Math.max(0, NAV_MIN_DISPLAY_MS - elapsed);
-    const minTimer = window.setTimeout(clearPending, minRemaining);
-    const safetyTimer = window.setTimeout(clearPending, NAV_MAX_WAIT_MS);
+    if (getLastNavContentReadyAt() >= navigateStartedAtRef.current) {
+      scheduleClearAfterMinDisplay();
+    }
+  }, [
+    pending,
+    pathname,
+    searchParams,
+    isTargetPathReached,
+    scheduleClearAfterMinDisplay,
+  ]);
 
-    return () => {
-      window.clearTimeout(minTimer);
-      window.clearTimeout(safetyTimer);
+  useEffect(() => {
+    if (!pending || !waitForReadyRef.current) return;
+
+    const onContentReady = () => {
+      const target = targetPathRef.current;
+      const atPathname =
+        typeof window !== "undefined" ? window.location.pathname : pathnameRef.current;
+      if (!isTargetPathReachedFor(target, atPathname)) return;
+      if (getLastNavContentReadyAt() < navigateStartedAtRef.current) return;
+      scheduleClearAfterMinDisplay();
     };
-  }, [pending, pathname, searchParams, clearPending]);
+
+    window.addEventListener(NAV_CONTENT_READY_EVENT, onContentReady);
+    return () => window.removeEventListener(NAV_CONTENT_READY_EVENT, onContentReady);
+  }, [pending, isTargetPathReachedFor, scheduleClearAfterMinDisplay]);
 
   const navigate = useCallback(
     (href: string, options?: NavMessageOptions) => {
@@ -77,13 +127,18 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
         return;
       }
 
+      waitForReadyRef.current = options?.waitForContentReady ?? false;
+
       if (!pendingRef.current) {
         pendingRef.current = true;
         startedAtRef.current = Date.now();
+        navigateStartedAtRef.current = startedAtRef.current;
         targetPathRef.current = href;
         setPending(resolveNavMessage(href, options));
       } else {
         targetPathRef.current = href;
+        waitForReadyRef.current = options?.waitForContentReady ?? false;
+        navigateStartedAtRef.current = Date.now();
       }
 
       router.push(href);

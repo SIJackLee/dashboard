@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { NavigationPendingProvider } from "@/components/layout/navigation-pending-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,7 +41,9 @@ export default function RootLayout({
         <Script id="dashboard-theme-init" strategy="beforeInteractive">
           {`try{var t=localStorage.getItem("dashboard-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`}
         </Script>
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          <NavigationPendingProvider>{children}</NavigationPendingProvider>
+        </TooltipProvider>
       </body>
     </html>
   );

@@ -10,6 +10,7 @@ import {
 import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
 import { ScopeBar } from "@/components/layout/scope-bar";
+import { NavContentReadyMarker } from "@/components/layout/nav-content-ready-marker";
 import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
@@ -335,6 +336,7 @@ export function FarmDashboardShell({
 
   return (
     <FarmLiveRefreshProvider farmKey={farmKey} initial={initialSlice}>
+      <NavContentReadyMarker />
       <div className="space-y-4 md:space-y-5">
         {showAdminScope ? (
           <AdminScopeBarWithRefresh
