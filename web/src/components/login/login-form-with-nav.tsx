@@ -16,6 +16,7 @@ export function LoginFormWithNav({ initialError }: LoginFormWithNavProps) {
       onSuccessNavigate={async (nextPath) => {
         navigate(nextPath, {
           waitForContentReady: true,
+          variant: "brand",
         });
       }}
     />

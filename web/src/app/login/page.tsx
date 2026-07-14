@@ -1,9 +1,8 @@
-import { Leaf } from "lucide-react";
+import Image from "next/image";
 import { LoginFormWithNav } from "@/components/login/login-form-with-nav";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -30,11 +29,15 @@ export default async function LoginPage({
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <div className="mb-2 flex size-12 items-center justify-center rounded-xl bg-emerald-600 text-white">
-            <Leaf className="size-6" />
-          </div>
-          <CardTitle className="text-xl">스마트 축사 IoT</CardTitle>
-          <CardDescription>모니터링 · 제어 대시보드 로그인</CardDescription>
+          <Image
+            src="/logo.png"
+            alt=""
+            width={240}
+            height={96}
+            priority
+            className="mb-2 h-12 w-auto"
+          />
+          <CardTitle className="text-2xl">IoT Board</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <LoginFormWithNav initialError={message} />

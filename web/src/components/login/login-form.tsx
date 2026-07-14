@@ -53,7 +53,7 @@ export function LoginForm({
       ) : null}
       <form action={submitAction} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="email">이메일</Label>
+          <Label htmlFor="email">아이디</Label>
           <Input
             id="email"
             name="email"

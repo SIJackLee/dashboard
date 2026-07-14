@@ -11,9 +11,14 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { NavigationLoadingOverlay } from "@/components/common/navigation-loading-overlay";
+import {
+  NavigationLoadingOverlay,
+  type NavOverlayVariant,
+} from "@/components/common/navigation-loading-overlay";
 import { NAV_CONTENT_READY_EVENT, getLastNavContentReadyAt } from "@/lib/navigation/nav-content-ready";
 import {
+  NAV_BRAND_FADE_OUT_MS,
+  NAV_BRAND_MIN_DISPLAY_MS,
   NAV_MAX_WAIT_MS,
   NAV_MIN_DISPLAY_MS,
   shouldUseGlobalNav,
@@ -26,6 +31,7 @@ import {
 type PendingState = {
   message: string;
   sublabel?: string;
+  variant: NavOverlayVariant;
 };
 
 type NavigationPendingContextValue = {
@@ -41,7 +47,10 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [pending, setPending] = useState<PendingState | null>(null);
+  const [exiting, setExiting] = useState(false);
   const pendingRef = useRef(false);
+  const exitingRef = useRef(false);
+  const variantRef = useRef<NavOverlayVariant>("spinner");
   const startedAtRef = useRef(0);
   const targetPathRef = useRef<string | null>(null);
   const waitForReadyRef = useRef(false);
@@ -62,16 +71,34 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
     [isTargetPathReachedFor]
   );
 
-  const clearPending = useCallback(() => {
+  const finishPending = useCallback(() => {
     pendingRef.current = false;
+    exitingRef.current = false;
     targetPathRef.current = null;
     waitForReadyRef.current = false;
+    setExiting(false);
     setPending(null);
   }, []);
 
+  const clearPending = useCallback(() => {
+    if (variantRef.current === "brand" && pendingRef.current) {
+      // brand — 페이드아웃 후 언마운트
+      if (exitingRef.current) return;
+      exitingRef.current = true;
+      setExiting(true);
+      window.setTimeout(finishPending, NAV_BRAND_FADE_OUT_MS);
+      return;
+    }
+    finishPending();
+  }, [finishPending]);
+
   const scheduleClearAfterMinDisplay = useCallback(() => {
+    const minDisplay =
+      variantRef.current === "brand"
+        ? NAV_BRAND_MIN_DISPLAY_MS
+        : NAV_MIN_DISPLAY_MS;
     const elapsed = Date.now() - startedAtRef.current;
-    const minRemaining = Math.max(0, NAV_MIN_DISPLAY_MS - elapsed);
+    const minRemaining = Math.max(0, minDisplay - elapsed);
     window.setTimeout(clearPending, minRemaining);
   }, [clearPending]);
 
@@ -131,10 +158,14 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
 
       if (!pendingRef.current) {
         pendingRef.current = true;
+        variantRef.current = options?.variant ?? "spinner";
         startedAtRef.current = Date.now();
         navigateStartedAtRef.current = startedAtRef.current;
         targetPathRef.current = href;
-        setPending(resolveNavMessage(href, options));
+        setPending({
+          ...resolveNavMessage(href, options),
+          variant: variantRef.current,
+        });
       } else {
         targetPathRef.current = href;
         waitForReadyRef.current = options?.waitForContentReady ?? false;
@@ -155,6 +186,8 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
         <NavigationLoadingOverlay
           message={pending.message}
           sublabel={pending.sublabel}
+          variant={pending.variant}
+          exiting={exiting}
         />
       ) : null}
     </NavigationPendingContext.Provider>

@@ -4,6 +4,8 @@ export type NavMessageOptions = {
   message?: string;
   sublabel?: string;
   waitForContentReady?: boolean;
+  /** "brand" — 로그인 직후 로고 스플래시(F4). 기본은 스피너. */
+  variant?: "spinner" | "brand";
 };
 
 export function resolveNavMessage(
