@@ -120,6 +120,8 @@ export function ChannelFanDropdown({
         leftUnit="%"
         leftDomain={[0, 100]}
         tickEvery={series.length > 8 ? 2 : 1}
+        // 팬 수가 적어도(1~2개) 통짜 바가 되지 않게 상한 캡 — 채널 간 바 너비 통일.
+        barWidthCapPct={6}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
+import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
 import type { StackMetric } from "./deviation-stack-chart";
 import {
   type Band,
@@ -207,10 +208,13 @@ export function MetricLineChart({
   values,
   band,
   height = 112,
+  color = "#0ea5e9",
 }: {
   values: (number | null)[];
   band: Band | null;
   height?: number;
+  /** 선 색 — 목록 그래프(TREND_CHART_COLORS)와 동일 팔레트 사용. */
+  color?: string;
 }) {
   const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
   if (nums.length === 0) {
@@ -254,7 +258,7 @@ export function MetricLineChart({
         </>
       ) : null}
       {segments.map((pts, i) => (
-        <polyline key={i} points={pts} fill="none" stroke="#0ea5e9" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        <polyline key={i} points={pts} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       ))}
       {values.map((v, i) => {
         if (v == null || !Number.isFinite(v)) return null;
@@ -380,7 +384,13 @@ export function SeverityHeatmap({
                     </button>
                   </div>
                 </div>
-                {selMetric ? <MetricLineChart values={selMetric.values} band={selMetric.band} /> : null}
+                {selMetric ? (
+                  <MetricLineChart
+                    values={selMetric.values}
+                    band={selMetric.band}
+                    color={METRIC_ID_COLORS[selMetric.id] ?? "#0ea5e9"}
+                  />
+                ) : null}
               </div>
             )}
           </div>

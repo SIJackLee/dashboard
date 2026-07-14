@@ -10,6 +10,7 @@ import type {
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import { severityScore, sevOfScore, type Sev } from "@/lib/farm/severity-score";
+import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
 import { ControllerSummaryGaugeRow } from "./controller-summary-gauge-row";
 import { MetricLineChart } from "./severity-heatmap";
 import type { StackMetric } from "./deviation-stack-chart";
@@ -272,6 +273,7 @@ export function FarmMapControllerDetail({
                       values={metric.values}
                       band={metric.band}
                       height={chartHeight}
+                      color={METRIC_ID_COLORS[effectiveMetricId] ?? "#0ea5e9"}
                     />
                   ) : (
                     <div

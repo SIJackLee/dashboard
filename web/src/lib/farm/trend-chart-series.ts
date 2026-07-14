@@ -69,6 +69,15 @@ export const TREND_CHART_COLORS = {
   fanIntake: "#f59e0b",
 } as const;
 
+/** 히트맵/스몰멀티플 지표 id(T/H/A/B/C) → 목록 그래프와 동일한 선 색. */
+export const METRIC_ID_COLORS: Record<string, string> = {
+  T: TREND_CHART_COLORS.temp,
+  H: TREND_CHART_COLORS.humidity,
+  A: TREND_CHART_COLORS.fanIntake,
+  B: TREND_CHART_COLORS.fanExhaust,
+  C: TREND_CHART_COLORS.fanSupply,
+};
+
 type StallMetrics = Pick<
   TrendStallSeries,
   "temp" | "humidity" | "fanSupply" | "fanExhaust" | "fanIntake"

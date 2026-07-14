@@ -34,6 +34,12 @@ type TrendChartProps = {
   emptyLabel?: string;
   /** Show every Nth category tick (auto if omitted). */
   tickEvery?: number;
+  /**
+   * bar 모드 — 바 1개의 최대 너비(차트 폭 % 단위, 0~100).
+   * 카테고리 수가 적을 때 통짜 바가 되지 않게 상한을 두고 슬롯 중앙에 정렬한다.
+   * (viewBox가 non-uniform 스케일이라 px 대신 % 단위를 사용)
+   */
+  barWidthCapPct?: number;
 };
 
 const PAD_X = 6;
@@ -79,6 +85,7 @@ export function TrendChart({
   referenceLines = [],
   emptyLabel = "데이터 없음",
   tickEvery,
+  barWidthCapPct,
 }: TrendChartProps) {
   const [hover, setHover] = useState<{ idx: number; xPx: number; w: number } | null>(null);
   const hasAny = series.some((s) => s.data?.some((v) => v != null));
@@ -145,8 +152,13 @@ export function TrendChart({
   };
 
   const barGroupW = n > 0 ? innerW / n : innerW;
-  const barSlotW = barGroupW * 0.7;
-  const barW = series.length > 0 ? barSlotW / series.length : barSlotW;
+  const rawBarW =
+    series.length > 0 ? (barGroupW * 0.7) / series.length : barGroupW * 0.7;
+  // 상한 캡 — 카테고리가 적어도 바가 통짜로 커지지 않게 제한.
+  const barW =
+    barWidthCapPct != null ? Math.min(rawBarW, barWidthCapPct) : rawBarW;
+  // 캡 적용 후 실제 그룹 폭 기준으로 슬롯 중앙 정렬.
+  const barSlotW = barW * Math.max(1, series.length);
 
   return (
     <div className="space-y-1.5">
