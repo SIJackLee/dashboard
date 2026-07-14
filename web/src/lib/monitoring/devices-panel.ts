@@ -21,11 +21,11 @@ function buildDevicesPanelSearch(
   }
 
   if (farmKey) appendFarmKeyParams(search, farmKey);
-  search.set("tab", "ops");
+  search.delete("tab");
   return search;
 }
 
-/** 레거시 `panel` query 제거 — 컨트롤러 ops(`/farm?tab=ops`)로 통합 */
+/** 레거시 `panel` query 제거 — `/farm` 목록/지도로 통합 */
 export function setDevicesPanelParam(params: URLSearchParams): void {
   params.delete("panel");
 }
@@ -36,7 +36,7 @@ export function devicesPanelHref(
 ): string {
   const search = buildDevicesPanelSearch(params, farmKey);
   const q = search.toString();
-  return q ? `/farm?${q}` : "/farm?tab=ops";
+  return q ? `/farm?${q}` : "/farm";
 }
 
 export function devicesAlarmSettingsHref(

@@ -56,7 +56,7 @@ export function AdminFarmLocationPanel({ options }: Props) {
 
   const summary = useMemo(() => summarizeFarmLocations(options), [options]);
 
-  const [filter, setFilter] = useState<FarmLocationFilter>("all");
+  const [filter, setFilter] = useState<FarmLocationFilter>("live");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(
     null
@@ -163,10 +163,11 @@ export function AdminFarmLocationPanel({ options }: Props) {
       >
         <div className="min-w-0">
           <p className="font-medium">
-            농장 {summary.total}곳 · 위치 설정 {summary.configured}/{summary.total}
+            농장 {summary.total}곳 · LIVE {summary.live} · 위치 설정{" "}
+            {summary.configured}/{summary.total}
           </p>
           <p className="mt-1 text-muted-foreground">
-            미설정 {summary.unconfigured}곳
+            위치만 {summary.locationOnly}곳 · 미설정 {summary.unconfigured}곳
             {summary.unconfigured > 0 ? (
               <>
                 {" "}
@@ -240,6 +241,7 @@ export function AdminFarmLocationPanel({ options }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             {(
               [
+                ["live", "LIVE"],
                 ["all", "전체"],
                 ["unconfigured", "미설정"],
                 ["configured", "설정됨"],

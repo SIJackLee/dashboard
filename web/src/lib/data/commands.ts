@@ -62,7 +62,13 @@ type Row = {
   action: string | null;
 };
 
-function mapRow(row: Row): ThermoCommand {
+/** insert/select 행 → ThermoCommand (서버 액션 공용) */
+export type ThermoCommandRow = Row;
+
+const THERMO_COMMAND_SELECT =
+  "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg";
+
+export function mapThermoCommandRow(row: Row): ThermoCommand {
   const stallTyCode = row.stall_ty_code?.trim() ?? "";
   const stallNo = row.stall_no?.trim() ?? "";
   const eqpmnNo = row.eqpmn_no
@@ -116,14 +122,30 @@ export async function getThermoCommandHistory(
 
   const { data, error } = await supabase
     .from("ctrl_thermo_command")
-    .select(
-      "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg"
-    )
+    .select(THERMO_COMMAND_SELECT)
     .order("created_at", { ascending: false })
     .limit(limit);
 
   if (error || !data) return [];
-  return (data as Row[]).map(mapRow);
+  return (data as Row[]).map(mapThermoCommandRow);
+}
+
+/** 단건 조회 — 적용 배너 폴링용 */
+export async function getThermoCommandById(
+  id: string
+): Promise<ThermoCommand | null> {
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("ctrl_thermo_command")
+    .select(THERMO_COMMAND_SELECT)
+    .eq("id", trimmed)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapThermoCommandRow(data as Row);
 }
 
 /** ctrl별 최신 설정 (v0x08 LIVE thermo fallback; DB pending/sent 명령 우선) */

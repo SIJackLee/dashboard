@@ -168,11 +168,19 @@ export function BarnTable({
       ? initialSp
       : FILTER_ALL;
 
-  const listLayout: ListLayout = hubMode
-    ? (initialListLayout ?? "group")
-    : liveParams.get("listLayout") === "flat"
-      ? "flat"
-      : "group";
+  const resolveListLayout = useCallback(
+    (params: URLSearchParams): ListLayout =>
+      params.get("listLayout") === "flat" ? "flat" : "group",
+    [],
+  );
+
+  const [listLayout, setListLayout] = useState<ListLayout>(() => {
+    if (hubMode && initialListLayout) return initialListLayout;
+    if (typeof window !== "undefined") {
+      return resolveListLayout(currentFarmSearchParams());
+    }
+    return initialListLayout ?? "group";
+  });
 
   const [listMode, setListMode] = useState<BarnListViewMode>(() =>
     resolveListViewMode(
@@ -184,9 +192,12 @@ export function BarnTable({
   );
 
   useEffect(() => {
-    const fromUrl = resolveListViewMode(liveParams);
+    const params = currentFarmSearchParams();
+    const nextLayout = resolveListLayout(params);
+    setListLayout((prev) => (prev === nextLayout ? prev : nextLayout));
+    const fromUrl = resolveListViewMode(params);
     setListMode((prev) => (prev === fromUrl ? prev : fromUrl));
-  }, [urlTick, hubParamsTick]);
+  }, [urlTick, hubParamsTick, resolveListLayout]);
 
   const effectiveListMode: BarnListViewMode = bulkMode ? "controller" : listMode;
 
@@ -301,8 +312,10 @@ export function BarnTable({
 
   const toggleListLayout = () => {
     if (bulkMode) return;
+    const next: ListLayout = listLayout === "group" ? "flat" : "group";
+    setListLayout(next);
     replaceListParams({
-      listLayout: listLayout === "group" ? "flat" : null,
+      listLayout: next === "flat" ? "flat" : null,
     });
   };
 
@@ -437,6 +450,7 @@ export function BarnTable({
         <BarnListSummary
           readings={filteredRows}
           thermoSettings={thermoSettings}
+          commands={controller?.commands}
           alarmSettings={alarmSettings}
           canCommand={canCommand}
           layout={listLayout}

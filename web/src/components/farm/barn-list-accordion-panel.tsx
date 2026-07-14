@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Fan, Loader2 } from "lucide-react";
 import {
   AlarmThresholdForm,
@@ -10,10 +10,14 @@ import { ControllerTempDualSlider } from "@/components/controllers/controller-te
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import { useControllerDetail } from "@/components/controllers/use-controller-detail";
 import { useControllerPanel } from "@/components/controllers/use-controller-panel";
+import { useCommandPipelineTracker } from "@/components/controllers/use-command-pipeline-tracker";
 import type { BarnReading } from "@/lib/data/iot";
+import type { ThermoCommand } from "@/lib/data/commands";
 import {
   type ControllerThermoSettings,
+  commandStatusLabel,
   resolveThermoSettings,
+  thermoFromDecoded,
 } from "@/lib/controllers/controller-settings";
 import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
 import { DEFAULT_ALARM_SETTINGS, type AlarmSettings } from "@/lib/data/alarms";
@@ -26,6 +30,7 @@ import { farmKeyId } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { isReadingOnline } from "@/lib/data/reading-display";
+import { pipelineDetailMessage } from "@/lib/ui/controller-labels";
 import { cn } from "@/lib/utils";
 
 /** 목록 카드 설정 패널 — 그래프 패널 차트 라벨과 동일 스케일 */
@@ -39,6 +44,7 @@ type Props = {
   reading: BarnReading;
   readings: BarnReading[];
   thermoSettings: Record<string, ControllerThermoSettings>;
+  commands?: ThermoCommand[];
   alarmSettings?: AlarmSettings;
   canCommand: boolean;
 };
@@ -65,10 +71,60 @@ function SectionShell({
   );
 }
 
+function ListStatusBanner({
+  command,
+  liveConfirmed,
+  flash,
+}: {
+  command: ThermoCommand | null;
+  liveConfirmed: boolean;
+  flash: { tone: "ok" | "info" | "error"; text: string } | null;
+}) {
+  if (!command && !flash) return null;
+  const detail = command
+    ? pipelineDetailMessage(command.status, command.errorMsg)
+    : null;
+  return (
+    <div
+      className={cn(
+        "rounded-md border px-2.5 py-1.5 text-left",
+        liveConfirmed || command?.status === "applied"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : command?.status === "sent"
+            ? "border-sky-200 bg-sky-50 text-sky-800"
+            : command?.status === "pending"
+              ? "border-amber-200 bg-amber-50 text-amber-800"
+              : command?.status === "failed" || flash?.tone === "error"
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-border bg-muted/40 text-muted-foreground"
+      )}
+    >
+      {command ? (
+        <p className="text-xs font-medium">
+          {liveConfirmed ? "현장 반영 확인" : commandStatusLabel(command.status)}
+          <span className="ml-1 font-normal tabular-nums opacity-80">
+            {command.setpointTemp}℃
+          </span>
+        </p>
+      ) : null}
+      {liveConfirmed ? (
+        <p className="text-[11px] leading-snug">
+          LIVE 설정값이 명령과 일치합니다.
+        </p>
+      ) : detail ? (
+        <p className="text-[11px] leading-snug">{detail}</p>
+      ) : flash ? (
+        <p className="text-[11px] leading-snug">{flash.text}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function BarnListAccordionPanel({
   reading,
   readings,
   thermoSettings,
+  commands = [],
   alarmSettings,
   canCommand,
 }: Props) {
@@ -76,7 +132,8 @@ export function BarnListAccordionPanel({
     useState<AlarmThresholdHeaderState | null>(null);
   const [activeChannel] = useState<ChannelSlot>("A");
 
-  const { reading: detail, showLoading } = useControllerDetail(reading);
+  const { reading: detail, showLoading, refresh: refreshDetail } =
+    useControllerDetail(reading);
   const channels = detail?.channels ?? [];
   const hasChannels = channels.length > 0;
   const channelEqpmnCode =
@@ -104,12 +161,36 @@ export function BarnListAccordionPanel({
     activeChannel,
   ]);
 
+  const liveThermo = useMemo(() => {
+    const raw = hasChannels
+      ? channelBySlot(channels, activeChannel)?.thermo
+      : (detail?.thermo ?? reading.thermo);
+    return thermoFromDecoded(raw);
+  }, [hasChannels, channels, activeChannel, detail?.thermo, reading.thermo]);
+
+  const onRefreshLive = useCallback(() => {
+    refreshDetail();
+  }, [refreshDetail]);
+
+  const pipeline = useCommandPipelineTracker({
+    commands,
+    farmKey: detail?.farmKey ?? reading.farmKey,
+    moduleUid: detail?.moduleUid ?? reading.moduleUid,
+    controllerKey: detail?.controllerKey ?? reading.controllerKey,
+    hasChannels,
+    activeChannel: hasChannels ? activeChannel : undefined,
+    knownSettings,
+    liveThermo,
+    onRefreshLive,
+  });
+
   const panel = useControllerPanel(
     detail,
     knownSettings,
     canCommand,
     hasChannels ? activeChannel : undefined,
-    hasChannels ? channelEqpmnCode : undefined
+    hasChannels ? channelEqpmnCode : undefined,
+    pipeline.registerCommand
   );
 
   const online = isReadingOnline(detail?.status);
@@ -247,6 +328,11 @@ export function BarnListAccordionPanel({
             {isSaving ? "적용 중…" : "적용"}
           </button>
         </div>
+        <ListStatusBanner
+          command={pipeline.command}
+          liveConfirmed={pipeline.liveConfirmed}
+          flash={pipeline.flash}
+        />
         {!canCommand ? (
           <p className="text-xs text-amber-700">명령 권한이 없어 조작이 제한됩니다.</p>
         ) : null}

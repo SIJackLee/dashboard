@@ -6,7 +6,6 @@ import {
   defaultBarnLabel,
   entryFromParts,
   isValidFarmKey,
-  mergeCatalogEntries,
   parseBarnCatalogKey,
   type BarnCatalogEntry,
 } from "@/lib/data/barn-catalog";
@@ -49,19 +48,6 @@ function catalogFromReadings(readings: BarnReading[]): BarnCatalogEntry[] {
     }
   }
   return [...map.values()];
-}
-
-function catalogFromLayoutPrefs(prefs: BarnLayoutPrefs): BarnCatalogEntry[] {
-  const entries: BarnCatalogEntry[] = [];
-  for (const key of Object.keys(prefs.layouts)) {
-    const parsed = parseBarnCatalogKey(key);
-    if (parsed) entries.push(parsed);
-  }
-  for (const barn of prefs.legacyBarns) {
-    if (!isValidFarmKey(barn.farmKey)) continue;
-    entries.push(entryFromParts(barn.farmKey, barn.moduleUid, null));
-  }
-  return entries;
 }
 
 function metaForEntry(
@@ -143,10 +129,8 @@ export function buildAutoBarnMap(
   layoutPrefs: BarnLayoutPrefs
 ): BarnMapBuildResult {
   const validReadings = readings.filter((r) => isValidFarmKey(r.farmKey));
-  const catalog = mergeCatalogEntries(
-    catalogFromReadings(validReadings),
-    catalogFromLayoutPrefs(layoutPrefs)
-  );
+  // 기본: LIVE 데이터가 있는 SP만 표시. layout prefs는 좌표/별칭만 사용.
+  const catalog = catalogFromReadings(validReadings);
 
   if (catalog.length === 0) {
     return { snapshots: [], layoutsToPersist: {} };

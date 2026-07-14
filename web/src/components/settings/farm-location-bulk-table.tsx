@@ -72,7 +72,18 @@ export function FarmLocationBulkTable({
 
         return (
           <li key={id} className="rounded-xl border bg-card p-3">
-            <p className={cn(dashboardUi.body, "text-sm font-semibold")}>{o.label}</p>
+            <p className={cn(dashboardUi.body, "flex flex-wrap items-center gap-2 text-sm font-semibold")}>
+              <span>{o.label}</span>
+              {o.hasLiveData ? (
+                <span className="rounded-full border border-emerald-500/40 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
+                  LIVE
+                </span>
+              ) : (
+                <span className="rounded-full border border-amber-500/40 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900">
+                  위치만
+                </span>
+              )}
+            </p>
             <div className="mt-3 space-y-2">
               <label className="block text-xs text-muted-foreground">
                 시·도
@@ -169,7 +180,20 @@ export function FarmLocationBulkTable({
 
           return (
             <TableRow key={id}>
-              <TableCell className="font-medium">{o.label}</TableCell>
+              <TableCell className="font-medium">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>{o.label}</span>
+                  {o.hasLiveData ? (
+                    <span className="rounded-full border border-emerald-500/40 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
+                      LIVE
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-amber-500/40 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900">
+                      위치만
+                    </span>
+                  )}
+                </div>
+              </TableCell>
               <TableCell>
                 <select
                   className="w-full min-w-[8rem] rounded-lg border bg-background px-2 py-2"

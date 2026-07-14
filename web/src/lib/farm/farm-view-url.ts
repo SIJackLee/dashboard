@@ -92,12 +92,12 @@ export function buildFarmPath(params: URLSearchParams): string {
   return q ? `/farm?${q}` : "/farm";
 }
 
-/** tab=ops 유지하며 view=list|map 전환 */
+/** view=list|map 전환 (레거시 tab=ops 쿼리 제거) */
 export function applyHubScopedViewParams(
   params: URLSearchParams,
   view: "map" | "list"
 ): void {
-  params.set("tab", "ops");
+  params.delete("tab");
   if (view === "list") applyListViewParams(params);
   else applyMapGridParams(params);
 }

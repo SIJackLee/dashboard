@@ -24,7 +24,7 @@ export function nextUnconfiguredOption(
   return unconfigured[idx + 1] ?? unconfigured[0];
 }
 
-export type FarmLocationFilter = "all" | "unconfigured" | "configured";
+export type FarmLocationFilter = "all" | "unconfigured" | "configured" | "live";
 
 export function filterFarmOptions(
   options: EditableFarmOption[],
@@ -36,6 +36,7 @@ export function filterFarmOptions(
   return options.filter((o) => {
     if (filter === "unconfigured" && o.location) return false;
     if (filter === "configured" && !o.location) return false;
+    if (filter === "live" && !o.hasLiveData) return false;
     if (sidoFilter && o.location?.sido !== sidoFilter) return false;
     if (!q) return true;
     const hay = [
@@ -54,10 +55,13 @@ export function filterFarmOptions(
 
 export function summarizeFarmLocations(options: EditableFarmOption[]) {
   const configured = options.filter((o) => o.location).length;
+  const live = options.filter((o) => o.hasLiveData).length;
   return {
     total: options.length,
     configured,
     unconfigured: options.length - configured,
+    live,
+    locationOnly: options.length - live,
   };
 }
 

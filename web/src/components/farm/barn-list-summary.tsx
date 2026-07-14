@@ -29,6 +29,7 @@ type ListLayout = "group" | "flat";
 type Props = {
   readings: BarnReading[];
   thermoSettings: Record<string, ControllerThermoSettings>;
+  commands?: import("@/lib/data/commands").ThermoCommand[];
   alarmSettings?: AlarmSettings;
   canCommand?: boolean;
   layout?: ListLayout;
@@ -99,6 +100,7 @@ function ControllerCardGrid({
   readings,
   allReadings,
   thermoSettings,
+  commands,
   alarmSettings,
   canCommand,
   controllerTrendByPeriod,
@@ -120,6 +122,7 @@ function ControllerCardGrid({
   readings: BarnReading[];
   allReadings: BarnReading[];
   thermoSettings: Record<string, ControllerThermoSettings>;
+  commands?: import("@/lib/data/commands").ThermoCommand[];
   alarmSettings?: AlarmSettings;
   canCommand: boolean;
   controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
@@ -153,6 +156,7 @@ function ControllerCardGrid({
           reading={r}
           readings={allReadings}
           thermoSettings={thermoSettings}
+          commands={commands}
           alarmSettings={alarmSettings}
           canCommand={canCommand}
           listMode={listMode}
@@ -224,6 +228,7 @@ function SpBulkChipRow({
 export function BarnListSummary({
   readings,
   thermoSettings,
+  commands,
   alarmSettings,
   canCommand = false,
   layout = "group",
@@ -248,6 +253,7 @@ export function BarnListSummary({
   const gridProps = {
     allReadings: readings,
     thermoSettings,
+    commands,
     alarmSettings,
     canCommand,
     controllerTrendByPeriod,

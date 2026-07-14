@@ -108,26 +108,24 @@ export default async function FarmPage({
   let thermoSettings: Record<string, ControllerThermoSettings> = {};
   let history: ThermoCommand[] = [];
 
-  if (activeFarmKey && !adminScopedFarmDefer) {
+  const needsPanelData = Boolean(activeFarmKey) && !adminScopedFarmDefer;
+  const needsHistory = needsPanelData || !adminAllFarmsMode;
+
+  if (needsHistory) {
     const [historyRes, commandThermoMap] = await Promise.all([
       getThermoCommandHistory(100),
       getThermoSettingsMap(500),
     ]);
     history = historyRes;
     thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
-    scopedPanelData = await loadFarmScopedPanelData({
-      farmKey: activeFarmKey,
-      commandThermoMap: thermoSettings,
-      history,
-      canCommand: canCommand(user),
-    });
-  } else if (!adminAllFarmsMode) {
-    const [historyRes, commandThermoMap] = await Promise.all([
-      getThermoCommandHistory(100),
-      getThermoSettingsMap(500),
-    ]);
-    history = historyRes;
-    thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+    if (needsPanelData && activeFarmKey) {
+      scopedPanelData = await loadFarmScopedPanelData({
+        farmKey: activeFarmKey,
+        commandThermoMap: thermoSettings,
+        history,
+        canCommand: canCommand(user),
+      });
+    }
   }
 
   const pageBody = (content: ReactNode) => (

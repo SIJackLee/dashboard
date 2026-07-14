@@ -84,43 +84,44 @@ export function FarmPageContent({
   const enrichFarmRef = useRef<string | null>(null);
   const [listEnriching, setListEnriching] = useState(false);
   const liveParams = hubMode ? currentFarmSearchParams() : searchParams;
-  const bootstrapHubView: "map" | "list" =
+  const bootstrapView: "map" | "list" =
     initialHubView ??
-    (hubMode && liveParams.get("view") === "list" ? "list" : "map");
-  const [hubView, setHubView] = useState<"map" | "list">(bootstrapHubView);
-  const [listEverOpened, setListEverOpened] = useState(
-    bootstrapHubView === "list",
-  );
+    (liveParams.get("view") === "list" ? "list" : "map");
+  const [view, setViewState] = useState<"map" | "list">(bootstrapView);
+  const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
+  const [urlTick, setUrlTick] = useState(0);
 
   useEffect(() => {
     if (!hubMode) return;
     const next = currentFarmSearchParams().get("view") === "list" ? "list" : "map";
-    setHubView(next);
+    setViewState(next);
     if (next === "list") setListEverOpened(true);
   }, [hubMode, hubUrlEpoch]);
-
-  const view = hubMode
-    ? hubView
-    : searchParams.get("view") === "list"
-      ? "list"
-      : "map";
 
   useEffect(() => {
     if (view === "list") setListEverOpened(true);
   }, [view]);
 
+  const shallowParams = useMemo(() => {
+    void urlTick;
+    void hubUrlEpoch;
+    void searchParams;
+    // 항상 window.location 기준 — hub/일반 모드 동일. deps 변화 시 재계산만 트리거.
+    return currentFarmSearchParams();
+  }, [hubMode, hubUrlEpoch, urlTick, searchParams]);
+
   const mapSpRaw =
     deepLinkSpProp !== undefined
       ? deepLinkSpProp
       : view === "map"
-        ? liveParams.get("sp")
+        ? shallowParams.get("sp")
         : null;
   const mapSp = mapSpRaw ? normalizeStallTyCode(mapSpRaw) : undefined;
   const mapLevel =
     deepLinkMapLevelProp ??
-    (view === "map" ? parseMapDrillLevel(liveParams.get("mapLevel")) : "sp");
-  const urlStall = liveParams.get("stall") ?? undefined;
-  const urlCtrl = liveParams.get("ctrl");
+    (view === "map" ? parseMapDrillLevel(shallowParams.get("mapLevel")) : "sp");
+  const urlStall = shallowParams.get("stall") ?? undefined;
+  const urlCtrl = shallowParams.get("ctrl");
   const mapStall =
     deepLinkStallNoProp !== undefined
       ? deepLinkStallNoProp ?? undefined
@@ -129,13 +130,12 @@ export function FarmPageContent({
         : view === "map"
           ? urlStall
           : undefined;
-  const listSp = view === "list" ? liveParams.get("sp") ?? undefined : undefined;
+  const listSp = view === "list" ? shallowParams.get("sp") ?? undefined : undefined;
   const listMode = useMemo(() => {
-    const params = hubMode ? currentFarmSearchParams() : searchParams;
-    return resolveListViewMode(params, "controller");
-  }, [hubMode, hubUrlEpoch, searchParams]);
+    return resolveListViewMode(shallowParams, "controller");
+  }, [shallowParams]);
   const listLayout =
-    liveParams.get("listLayout") === "flat" ? ("flat" as const) : ("group" as const);
+    shallowParams.get("listLayout") === "flat" ? ("flat" as const) : ("group" as const);
   const thermoSettings = controller?.thermoSettings ?? {};
   const alarmSettings = controller?.alarmSettings;
 
@@ -202,15 +202,17 @@ export function FarmPageContent({
         setListEverOpened(true);
         void enrichListIfNeeded();
       }
+      setViewState(next);
       if (hubMode) {
-        setHubView(next);
         const params = new URLSearchParams(currentFarmSearchParams().toString());
         applyHubScopedViewParams(params, next);
         replaceFarmUrlShallow(params);
         onHubUrlChange?.();
+        setUrlTick((n) => n + 1);
         return;
       }
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      params.delete("tab");
       if (next === "list") {
         params.set("view", "list");
       } else {
@@ -218,8 +220,9 @@ export function FarmPageContent({
         params.delete("listMode");
       }
       replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
     },
-    [hubMode, onHubUrlChange, searchParams, enrichListIfNeeded]
+    [hubMode, onHubUrlChange, enrichListIfNeeded]
   );
 
   const setView = useCallback(

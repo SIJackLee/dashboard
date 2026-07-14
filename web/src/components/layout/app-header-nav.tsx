@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AppNavLink } from "@/components/layout/app-nav-link";
 import { isAdminOpsNavPath, isMonitoringNavPath } from "@/lib/dashboard-sections";
@@ -15,37 +16,43 @@ type Props = {
 
 export function AppHeaderNav({ role }: Props) {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <nav
       className="hidden shrink-0 flex-wrap items-center gap-1 md:flex"
       aria-label="앱 메뉴"
+      suppressHydrationWarning
     >
       {navItems.map((item) => {
-          const active =
-            item.href === "/farm"
-              ? isMonitoringNavPath(pathname)
-              : pathname.startsWith(item.href);
-          return (
-            <AppNavLink
-              key={item.href}
-              href={item.href}
-              className={cn(
-                dashboardUi.headerNavLink,
-                active
-                  ? "bg-emerald-50 text-emerald-700"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <item.icon className={dashboardUi.headerNavIcon} />
-              {item.label}
-            </AppNavLink>
-          );
-        })}
+        const active =
+          mounted &&
+          (item.href === "/farm"
+            ? isMonitoringNavPath(pathname)
+            : pathname.startsWith(item.href));
+        return (
+          <AppNavLink
+            key={item.href}
+            href={item.href}
+            className={cn(
+              dashboardUi.headerNavLink,
+              active
+                ? "bg-emerald-50 text-emerald-700"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <item.icon className={dashboardUi.headerNavIcon} />
+            {item.label}
+          </AppNavLink>
+        );
+      })}
 
       {role === "admin" &&
         adminNavItems.map((item) => {
-          const active = isAdminOpsNavPath(pathname);
+          const active = mounted && isAdminOpsNavPath(pathname);
           return (
             <AppNavLink
               key={item.href}

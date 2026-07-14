@@ -20,6 +20,8 @@ import {
   clearMapDrillParams,
   currentFarmSearchParams,
   replaceFarmUrlShallow,
+  setMapControllerStall,
+  setMapDrillLevel,
   setMapGraphSp,
 } from "@/lib/farm/farm-view-url";
 import type { ControllerGridData } from "./farm-map-controller-panel";
@@ -142,6 +144,10 @@ export function FarmMapCanvas({
   const isOverviewFarm = Boolean(navigateFarmKey);
   const urlSp = deepLinkSp ? normalizeStallTyCode(deepLinkSp) : null;
   const [activeSp, setActiveSp] = useState<string | null>(urlSp);
+  /** 그리드→단일 stall 컨트롤러 직행 시 shallow URL보다 먼저 쓰는 로컬 드릴 */
+  const [quickControllerStall, setQuickControllerStall] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     setActiveSp(urlSp);
@@ -216,17 +222,30 @@ export function FarmMapCanvas({
       setActiveSp(sp);
       const params = currentFarmSearchParams();
       setMapGraphSp(params, sp);
-      clearMapControllerStall(params);
-      params.delete("ctrl");
+
+      // LIVE 컨트롤러가 1대뿐이면 바로 제어 패널
+      const spReadings = (controller?.readings ?? []).filter(
+        (r) => normalizeStallTyCode(r.stallTyCode) === sp,
+      );
+      if (spReadings.length === 1 && spReadings[0].stallNo) {
+        setMapDrillLevel(params, "stalls");
+        setMapControllerStall(params, spReadings[0].stallNo);
+        setQuickControllerStall(spReadings[0].stallNo);
+      } else {
+        clearMapControllerStall(params);
+        params.delete("ctrl");
+        setQuickControllerStall(null);
+      }
       replaceFarmUrlShallow(params);
     },
-    [navigateFarmKey, router]
+    [navigateFarmKey, router, controller?.readings],
   );
 
   const closeGraph = useCallback(() => {
     if (leaveTimer.current) clearTimeout(leaveTimer.current);
     morphFromGridRef.current = true;
     setActiveSp(null);
+    setQuickControllerStall(null);
     const params = currentFarmSearchParams();
     clearMapDrillParams(params);
     replaceFarmUrlShallow(params);
@@ -386,8 +405,12 @@ export function FarmMapCanvas({
           onTrendRetry={onTrendRetry}
           controllerHref={controllerHref}
           controller={controller ?? null}
-          initialMapLevel={deepLinkMapLevel}
-          initialControllerStallNo={deepLinkStallNo ?? null}
+          initialMapLevel={
+            quickControllerStall ? "stalls" : deepLinkMapLevel
+          }
+          initialControllerStallNo={
+            quickControllerStall ?? deepLinkStallNo ?? null
+          }
           onClose={closeGraph}
         />
       </div>

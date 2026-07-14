@@ -4,6 +4,7 @@ import type { ControllerThermoSettings } from "@/lib/controllers/controller-sett
 import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
+import { channelBySlot } from "@/lib/data/iot-channel";
 import {
   CHANNELS,
   channelPercentsFromReading,
@@ -287,17 +288,22 @@ export function ChannelStrip({
   return (
     <div className="min-w-0">
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {CHANNELS.map((slot) => (
+        {CHANNELS.map((slot) => {
+          const fanCount =
+            channelBySlot(reading.channels ?? [], slot)?.fanSeries?.length ?? 0;
+          return (
           <ChannelCell
             key={slot}
             slot={slot}
             value={formatChannelPercent(channels[slot])}
+            fanCount={fanCount}
             compact={compact}
             expanded={expandedChannel === slot}
             interactive={interactive}
             onToggle={onToggleChannel}
           />
-        ))}
+          );
+        })}
       </div>
       <BarnListPanelShell
         open={Boolean(expandedChannel && interactive)}
@@ -328,6 +334,7 @@ export function ChannelStrip({
 function ChannelCell({
   slot,
   value,
+  fanCount = 0,
   compact,
   expanded,
   interactive,
@@ -335,12 +342,14 @@ function ChannelCell({
 }: {
   slot: ChannelSlot;
   value: string;
+  fanCount?: number;
   compact?: boolean;
   expanded?: boolean;
   interactive?: boolean;
   onToggle?: (slot: ChannelSlot) => void;
 }) {
-  const label = `채널 ${slot} ${value}${value !== "—" ? "%" : ""}`;
+  const fanBadge = fanCount > 0 ? ` · 팬 ${fanCount}` : "";
+  const label = `채널 ${slot}${fanBadge} ${value}${value !== "—" ? "%" : ""}`;
   const cellClass = cn(
     "relative min-h-[3rem] rounded-md border bg-background/80 sm:min-h-[3.25rem]",
     compact ? "p-1.5 sm:p-2" : "p-2 sm:p-2.5",
@@ -359,6 +368,9 @@ function ChannelCell({
         )}
       >
         {slot}
+        {fanCount > 0 ? (
+          <span className="text-muted-foreground"> ·{fanCount}</span>
+        ) : null}
       </span>
       <div className="flex h-full min-h-[2.25rem] items-center justify-center pt-2 sm:min-h-[2.5rem]">
         <span

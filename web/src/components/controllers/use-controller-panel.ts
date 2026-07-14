@@ -133,7 +133,9 @@ export function useControllerPanel(
 
   activeChannel?: ChannelSlot,
 
-  channelEqpmnCode?: string
+  channelEqpmnCode?: string,
+
+  onCommandRegistered?: (command: import("@/lib/data/commands").ThermoCommand) => void
 
 ) {
 
@@ -446,6 +448,8 @@ export function useControllerPanel(
 
       if (result.ok) {
 
+        onCommandRegistered?.(result.command);
+
         setMessage({
 
           tone: "ok",
@@ -466,7 +470,7 @@ export function useControllerPanel(
 
     });
 
-  }, [activeChannel, canCommand, channelEqpmnCode, draft, knownSettings, router, target]);
+  }, [activeChannel, canCommand, channelEqpmnCode, draft, knownSettings, onCommandRegistered, router, target]);
 
 
 

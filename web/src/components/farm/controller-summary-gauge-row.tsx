@@ -30,6 +30,7 @@ type Props = {
   reading: BarnReading;
   readings: BarnReading[];
   thermoSettings: Record<string, ControllerThermoSettings>;
+  commands?: import("@/lib/data/commands").ThermoCommand[];
   alarmSettings?: AlarmSettings;
   canCommand?: boolean;
   listMode?: BarnListViewMode;
@@ -53,6 +54,7 @@ export function ControllerSummaryGaugeRow({
   reading,
   readings,
   thermoSettings,
+  commands,
   alarmSettings,
   canCommand = false,
   listMode = "controller",
@@ -181,6 +183,7 @@ export function ControllerSummaryGaugeRow({
             reading={reading}
             readings={readings}
             thermoSettings={thermoSettings}
+            commands={commands}
             alarmSettings={alarmSettings}
             canCommand={canCommand}
           />

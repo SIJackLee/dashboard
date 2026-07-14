@@ -100,7 +100,7 @@ export function ChannelFanDropdown({
       )}
     >
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className={COMPACT_LABEL}>채널 {slot}</p>
+        <p className={COMPACT_LABEL}>채널 {slot} · 팬 {series.length}</p>
         <span className="shrink-0 rounded-full border border-sky-500/30 bg-background px-2 py-0.5 text-xs font-semibold tabular-nums">
           {fanPct}
           {fanPct !== "—" ? "%" : ""}

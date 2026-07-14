@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { Droplets, Thermometer } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { SimpleSelect } from "@/components/common/filter-bar";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageActionButton } from "@/components/common/page-action-button";
 import {
@@ -37,6 +36,11 @@ import {
 } from "@/lib/data/reading-hierarchy";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
+import {
+  ThresholdFieldGroup,
+  tempFields,
+  humidityFields,
+} from "@/components/settings/alarm-threshold-fields";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -77,16 +81,6 @@ type Props = {
 
 const SCOPE_ALL = "__all__";
 
-const tempFields: { key: keyof AlarmThresholds; label: string; unit: string }[] = [
-  { key: "tempHigh", label: "상한", unit: "℃" },
-  { key: "tempLow", label: "하한", unit: "℃" },
-];
-
-const humidityFields: { key: keyof AlarmThresholds; label: string; unit: string }[] = [
-  { key: "humidityHigh", label: "상한", unit: "%" },
-  { key: "humidityLow", label: "하한", unit: "%" },
-];
-
 function uniqueFarmOptions(readings: BarnReading[]) {
   const seen = new Map<string, string>();
   for (const r of readings) {
@@ -96,71 +90,6 @@ function uniqueFarmOptions(readings: BarnReading[]) {
   return [...seen.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([value, label]) => ({ value, label }));
-}
-
-function ThresholdFieldGroup({
-  title,
-  icon,
-  fields,
-  values,
-  onChange,
-  disabled,
-  compact,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  fields: { key: keyof AlarmThresholds; label: string; unit: string }[];
-  values: AlarmThresholds;
-  onChange: (next: AlarmThresholds) => void;
-  disabled?: boolean;
-  compact?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        compact
-          ? dashboardUi.opsSideInnerCard
-          : cn(dashboardUi.innerCard, "bg-background"),
-        disabled && "pointer-events-none opacity-50"
-      )}
-    >
-      <div className={cn("mb-3 flex items-center gap-2", compact && "mb-2")}>
-        {icon}
-        <p
-          className={cn(
-            compact ? "text-sm font-medium" : dashboardTypography.sectionTitle,
-            "text-foreground"
-          )}
-        >
-          {title}
-        </p>
-      </div>
-      <div className={cn("grid grid-cols-2", compact ? "gap-2" : "gap-3 md:gap-4")}>
-        {fields.map((f) => (
-          <div key={f.key} className={compact ? "space-y-1" : "space-y-2"}>
-            <Label size={compact ? "default" : "dashboard"} className={compact ? dashboardUi.opsSideFieldLabel : undefined}>
-              {f.label} ({f.unit})
-            </Label>
-            <Input
-              type="number"
-              uiSize={compact ? "default" : "dashboard"}
-              className={compact ? "h-9 text-sm" : undefined}
-              step={f.unit === "℃" ? 0.5 : 1}
-              value={values[f.key]}
-              disabled={disabled}
-              onChange={(e) => {
-                const next = Number(e.target.value);
-                onChange({
-                  ...values,
-                  [f.key]: Number.isFinite(next) ? next : values[f.key],
-                });
-              }}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function AlarmThresholdForm({
