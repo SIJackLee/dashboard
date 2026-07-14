@@ -82,6 +82,8 @@ type Props = {
   staggerMount?: boolean;
   /** admin 캐시 패널 — alarmSettings 등 scoped 데이터 보강 */
   onRequestPanelEnrichment?: () => void | Promise<void>;
+  /** 그리드 히트맵 '컨트롤러 이동' 도착 — 해당 controllerKey 카드로 스크롤/하이라이트 */
+  focusControllerKey?: string | null;
 };
 
 function stallTyCodesFromReadings(readings: BarnReading[]): string[] {
@@ -110,6 +112,7 @@ export function BarnTable({
   liveRefreshManaged = false,
   staggerMount = false,
   onRequestPanelEnrichment,
+  focusControllerKey = null,
 }: Props) {
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -234,6 +237,36 @@ export function BarnTable({
 
   const controllerTrendByPeriod = trendEnabled ? lazyControllerTrend : null;
   const trendRefreshSpinner = trendRefreshVisible || trendRefreshing;
+
+  // 그리드 히트맵 '컨트롤러 이동' 도착 — controllerKey 카드로 스크롤 + 하이라이트.
+  useEffect(() => {
+    if (!focusControllerKey) return;
+    const target = decodeURIComponent(focusControllerKey);
+    let cancelled = false;
+    let clearTimer: number | undefined;
+    const scrollTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      const escaped =
+        typeof CSS !== "undefined" && CSS.escape
+          ? CSS.escape(target)
+          : target.replace(/["\\]/g, "\\$&");
+      const el = document.querySelector<HTMLElement>(
+        `[data-controller-key="${escaped}"]`,
+      );
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("farm-ctrl-focus");
+      clearTimer = window.setTimeout(
+        () => el.classList.remove("farm-ctrl-focus"),
+        4200,
+      );
+    }, 350);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(scrollTimer);
+      if (clearTimer) window.clearTimeout(clearTimer);
+    };
+  }, [focusControllerKey]);
 
   const [bulkPeriod, setBulkPeriod] = useState<TrendPeriodId>(DEFAULT_TREND_PERIOD);
   const [panelPeriodOverrides, setPanelPeriodOverrides] = useState<

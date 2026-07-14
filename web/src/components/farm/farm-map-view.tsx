@@ -8,13 +8,16 @@ import {
   resolveFarmGridEmptyReason,
 } from "@/lib/data/farm-grid-empty";
 import type { FarmKey } from "@/lib/data/farm-key";
-import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import type {
+  FarmMapTrendStatus,
+  TrendControllerPeriodData,
+  TrendPeriodData,
+  TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
 import type { ControllerGridData } from "./farm-map-controller-panel";
-import type { FarmMapTrendStatus } from "./farm-map-graph-stage";
 import { FarmMapCanvas } from "./farm-map-canvas";
 import { FarmMapMobileStage } from "./farm-map-mobile-stage";
 import { useDashboardCompact } from "@/components/layout/dashboard-viewport-context";
-import type { FarmMapDrillLevel } from "@/lib/farm/farm-view-url";
 
 type Props = {
   barns: BarnMapSnapshot[];
@@ -22,14 +25,17 @@ type Props = {
   gridCols?: number;
   gridRows?: number;
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
+  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
+  onOpenListController?: (opts: {
+    sp: string | null;
+    stallNo: string | null;
+    controllerKey: string;
+  }) => void;
   trendStatus?: FarmMapTrendStatus;
   hubMode?: boolean;
   compactShell?: boolean;
   onTrendRetry?: () => void;
   controller?: ControllerGridData | null;
-  deepLinkSp?: string | null;
-  deepLinkMapLevel?: FarmMapDrillLevel;
-  deepLinkStallNo?: string | null;
   sectionTitle?: string;
   navigateFarmKey?: FarmKey | null;
   uniformGridLayout?: boolean;
@@ -41,14 +47,13 @@ export function FarmMapView({
   gridCols = 4,
   gridRows = 4,
   trendByPeriod,
+  controllerTrendByPeriod,
+  onOpenListController,
   trendStatus = "ready",
   onTrendRetry,
   controller,
   hubMode = false,
   compactShell = false,
-  deepLinkSp,
-  deepLinkMapLevel = "sp",
-  deepLinkStallNo,
   sectionTitle,
   navigateFarmKey = null,
   uniformGridLayout = false,
@@ -91,13 +96,9 @@ export function FarmMapView({
           <FarmMapMobileStage
             barns={barns}
             trendByPeriod={trendByPeriod}
-            trendStatus={trendStatus}
-            onTrendRetry={onTrendRetry}
+            controllerTrendByPeriod={controllerTrendByPeriod}
             controller={controller}
             hubMode={hubMode}
-            deepLinkSp={deepLinkSp}
-            deepLinkMapLevel={deepLinkMapLevel}
-            deepLinkStallNo={deepLinkStallNo}
           />
         ) : (
           <FarmMapCanvas
@@ -105,15 +106,14 @@ export function FarmMapView({
             gridCols={gridCols}
             gridRows={gridRows}
             trendByPeriod={trendByPeriod}
+            controllerTrendByPeriod={controllerTrendByPeriod}
+            onOpenListController={onOpenListController}
             trendStatus={trendStatus}
             onTrendRetry={onTrendRetry}
             controller={controller}
             hubMode={hubMode}
             navigateFarmKey={navigateFarmKey}
             uniformGridLayout={uniformGridLayout}
-            deepLinkSp={deepLinkSp}
-            deepLinkMapLevel={deepLinkMapLevel}
-            deepLinkStallNo={deepLinkStallNo}
           />
         )}
       </SectionCard>

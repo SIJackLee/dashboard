@@ -19,12 +19,12 @@ import { BarnTable } from "@/components/farm/barn-table";
 import {
   applyHubScopedViewParams,
   currentFarmSearchParams,
-  parseMapDrillLevel,
   replaceFarmUrlShallow,
   resolveListViewMode,
 } from "@/lib/farm/farm-view-url";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
 import { fetchFarmScopedPanelDataAction } from "@/app/(dashboard)/farm/actions";
 import {
   readFarmPanelCache,
@@ -43,9 +43,6 @@ type Props = {
   controller?: ControllerGridData | null;
   hubMode?: boolean;
   hideViewTabs?: boolean;
-  deepLinkSp?: string | null;
-  deepLinkStallNo?: string | null;
-  deepLinkMapLevel?: "sp" | "stalls";
   hubUrlEpoch?: number;
   onHubUrlChange?: () => void;
   gridCompactShell?: boolean;
@@ -66,9 +63,6 @@ export function FarmPageContent({
   controller,
   hubMode = false,
   hideViewTabs = false,
-  deepLinkSp: deepLinkSpProp,
-  deepLinkStallNo: deepLinkStallNoProp,
-  deepLinkMapLevel: deepLinkMapLevelProp,
   hubUrlEpoch = 0,
   onHubUrlChange,
   gridCompactShell = false,
@@ -98,9 +92,76 @@ export function FarmPageContent({
     if (next === "list") setListEverOpened(true);
   }, [hubMode, hubUrlEpoch]);
 
+  // 비허브 — 라우터 네비게이션(view=list, 예: 히트맵 '컨트롤러 이동')에 뷰 상태 동기화.
+  // 탭 토글은 shallow replaceState라 useSearchParams가 갱신되지 않아 여기서 재정의되지 않음.
+  const lastViewParamRef = useRef<string | null>(searchParams.get("view"));
+  useEffect(() => {
+    if (hubMode) return;
+    const v = searchParams.get("view");
+    if (v === lastViewParamRef.current) return;
+    lastViewParamRef.current = v;
+    const next = v === "list" ? "list" : "map";
+    setViewState(next);
+    if (next === "list") setListEverOpened(true);
+  }, [hubMode, searchParams]);
+
   useEffect(() => {
     if (view === "list") setListEverOpened(true);
   }, [view]);
+
+  // 그리드 진입 시 컨트롤러 단위 추이 프리페치 — 히트맵 확대 시 컨트롤러별 미니 히트맵에 사용.
+  // FarmKey는 객체이므로 참조가 아닌 farmKeyId로 단일 농장 여부 판정.
+  const gridFarmKey = useMemo<FarmKey | null>(() => {
+    const first = readings[0]?.farmKey ?? null;
+    if (!first) return null;
+    const firstId = farmKeyId(first);
+    const allSame = readings.every(
+      (r) => r.farmKey && farmKeyId(r.farmKey) === firstId,
+    );
+    return allSame ? first : null;
+  }, [readings]);
+  const { data: gridControllerTrend } = useFarmControllerTrend({
+    farmKey: gridFarmKey,
+    enabled: Boolean(gridFarmKey) && view === "map",
+  });
+
+  // 히트맵 컨트롤러 '이동' — router.push 대신 클라이언트 뷰 전환.
+  // (map 모드로 마운트된 그리드의 sp/ctrl 딥링크가 파라미터를 스트립하는 충돌 회피)
+  const openListController = useCallback(
+    (opts: { sp: string | null; stallNo: string | null; controllerKey: string }) => {
+      if (hubMode) {
+        const params = new URLSearchParams(currentFarmSearchParams().toString());
+        applyHubScopedViewParams(params, "list");
+        if (opts.sp) params.set("sp", normalizeStallTyCode(opts.sp));
+        if (opts.stallNo) params.set("stall", opts.stallNo);
+        params.set("ctrl", encodeURIComponent(opts.controllerKey));
+        replaceFarmUrlShallow(params);
+        flushSync(() => {
+          setViewState("list");
+          setListEverOpened(true);
+        });
+        onHubUrlChange?.();
+        setUrlTick((n) => n + 1);
+        return;
+      }
+      const params = currentFarmSearchParams();
+      params.delete("tab");
+      params.delete("mapLevel");
+      params.set("view", "list");
+      if (opts.sp) params.set("sp", normalizeStallTyCode(opts.sp));
+      else params.delete("sp");
+      if (opts.stallNo) params.set("stall", opts.stallNo);
+      else params.delete("stall");
+      params.set("ctrl", encodeURIComponent(opts.controllerKey));
+      replaceFarmUrlShallow(params);
+      flushSync(() => {
+        setViewState("list");
+        setListEverOpened(true);
+      });
+      setUrlTick((n) => n + 1);
+    },
+    [hubMode, onHubUrlChange],
+  );
 
   const shallowParams = useMemo(() => {
     void urlTick;
@@ -110,26 +171,7 @@ export function FarmPageContent({
     return currentFarmSearchParams();
   }, [hubMode, hubUrlEpoch, urlTick, searchParams]);
 
-  const mapSpRaw =
-    deepLinkSpProp !== undefined
-      ? deepLinkSpProp
-      : view === "map"
-        ? shallowParams.get("sp")
-        : null;
-  const mapSp = mapSpRaw ? normalizeStallTyCode(mapSpRaw) : undefined;
-  const mapLevel =
-    deepLinkMapLevelProp ??
-    (view === "map" ? parseMapDrillLevel(shallowParams.get("mapLevel")) : "sp");
-  const urlStall = shallowParams.get("stall") ?? undefined;
   const urlCtrl = shallowParams.get("ctrl");
-  const mapStall =
-    deepLinkStallNoProp !== undefined
-      ? deepLinkStallNoProp ?? undefined
-      : view === "map" && hubMode && urlCtrl
-        ? urlStall
-        : view === "map"
-          ? urlStall
-          : undefined;
   const listSp = view === "list" ? shallowParams.get("sp") ?? undefined : undefined;
   const listMode = useMemo(() => {
     return resolveListViewMode(shallowParams, "controller");
@@ -308,14 +350,13 @@ export function FarmPageContent({
             gridCols={gridCols}
             gridRows={gridRows}
             trendByPeriod={trendByPeriod}
+            controllerTrendByPeriod={gridControllerTrend}
+            onOpenListController={openListController}
             trendStatus="ready"
             controller={controller}
             hubMode={hubMode}
             compactShell={gridCompactShell}
             uniformGridLayout={gridCompactShell}
-            deepLinkSp={mapSp ?? null}
-            deepLinkMapLevel={mapLevel}
-            deepLinkStallNo={mapStall ?? null}
           />
         </div>
 
@@ -339,6 +380,7 @@ export function FarmPageContent({
                 initialSp={listSp}
                 initialListMode={listMode}
                 initialListLayout={listLayout}
+                focusControllerKey={view === "list" ? urlCtrl : null}
                 hubMode={hubMode}
                 onHubUrlChange={onHubUrlChange}
                 liveRefreshManaged={liveRefreshManaged}

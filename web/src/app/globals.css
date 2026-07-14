@@ -482,3 +482,53 @@
     transition: none !important;
   }
 }
+
+/* ── 그리드 히트맵 — 이상 셀 클릭 시 인라인 확대(모프) ── */
+
+@keyframes farm-heat-morph-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.farm-heat-morph {
+  transform-origin: top left;
+  animation: farm-heat-morph-in 460ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farm-heat-morph {
+    animation: none;
+  }
+}
+
+/* ── 목록 컨트롤러 이동 도착 하이라이트 ── */
+
+@keyframes farm-ctrl-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  25% {
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.farm-ctrl-focus {
+  animation: farm-ctrl-focus-pulse 2s ease-out 2;
+  border-radius: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farm-ctrl-focus {
+    animation: none;
+    outline: 2px solid rgba(16, 185, 129, 0.6);
+  }
+}

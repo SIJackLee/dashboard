@@ -40,6 +40,12 @@ type Props = {
   onToggleGraph?: () => void;
   onToggleSettings?: () => void;
   onToggleMotor?: () => void;
+  /** 그리드 전용 — 그래프 Pill/패널 숨김(상단 오버레이 그래프가 대체). */
+  hideGraphToggle?: boolean;
+  /** 설정/모터 패널 위치 — "right"면 카드 우측(그리드 전용), 기본은 카드 하단. */
+  panelPlacement?: "bottom" | "right";
+  /** 그리드 보드 컬럼 수 — right 배치에서 카드/패널 폭을 축사유형 카드(1 컬럼) 단위로 정렬. */
+  gridCols?: number;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
   trendStale?: boolean;
@@ -64,6 +70,9 @@ export function ControllerSummaryGaugeRow({
   onToggleGraph,
   onToggleSettings,
   onToggleMotor,
+  hideGraphToggle = false,
+  panelPlacement = "bottom",
+  gridCols,
   controllerTrendByPeriod = null,
   trendLoading = false,
   trendStale = false,
@@ -98,25 +107,24 @@ export function ControllerSummaryGaugeRow({
   const setpoint = thermo?.setpointTemp;
   const setDev = thermo?.tempDeviation;
 
-  return (
-    <div
-      className={cn(
-        "flex h-full min-w-0 flex-col overflow-hidden rounded-xl border bg-card",
-        statusRingClass(reading.status),
-        graphExpanded && "ring-2 ring-sky-500/40",
-        settingsExpanded && "ring-2 ring-violet-500/40",
-        motorExpanded && "ring-2 ring-sky-500/25",
-        className
-      )}
-      data-controller-card-key={reading.key}
-      data-list-mode={listMode}
-    >
+  const cardClass = cn(
+    "flex h-full min-w-0 flex-col overflow-hidden rounded-xl border bg-card",
+    statusRingClass(reading.status),
+    graphExpanded && "ring-2 ring-sky-500/40",
+    settingsExpanded && "ring-2 ring-violet-500/40",
+    motorExpanded && "ring-2 ring-sky-500/25",
+    className,
+  );
+
+  const cardBody = (
+    <>
       <div className="px-2.5 pt-2.5 sm:px-3 sm:pt-3">
         <ControllerSummaryHeader
           reading={reading}
           graphActive={graphExpanded}
           settingsActive={settingsExpanded}
           motorActive={motorExpanded}
+          showGraphPill={!hideGraphToggle}
           onToggleGraph={onToggleGraph}
           onToggleSettings={onToggleSettings}
           onToggleMotor={onToggleMotor}
@@ -156,58 +164,128 @@ export function ControllerSummaryGaugeRow({
           channelDetailLoading={channelDetailShowLoading}
         />
       </div>
+    </>
+  );
 
-      <BarnListPanelShell
-        open={graphExpanded}
-        panelKind="graph"
-      >
-        {graphExpanded ? (
-          <BarnListGraphPanel
-            reading={reading}
-            controllerTrendByPeriod={controllerTrendByPeriod ?? null}
-            period={panelPeriodOverrides[reading.key] ?? bulkPeriod}
-            onPeriodChange={(p) => onPanelPeriodChange?.(reading.key, p)}
-            alarmSettings={alarmSettings}
-            loading={trendLoading}
-            stale={trendStale}
-          />
-        ) : null}
-      </BarnListPanelShell>
+  const graphPanel = hideGraphToggle ? null : (
+    <BarnListPanelShell open={graphExpanded} panelKind="graph">
+      {graphExpanded ? (
+        <BarnListGraphPanel
+          reading={reading}
+          controllerTrendByPeriod={controllerTrendByPeriod ?? null}
+          period={panelPeriodOverrides[reading.key] ?? bulkPeriod}
+          onPeriodChange={(p) => onPanelPeriodChange?.(reading.key, p)}
+          alarmSettings={alarmSettings}
+          loading={trendLoading}
+          stale={trendStale}
+        />
+      ) : null}
+    </BarnListPanelShell>
+  );
 
-      <BarnListPanelShell
-        open={settingsExpanded}
-        panelKind="settings"
-      >
-        {settingsExpanded ? (
-          <BarnListAccordionPanel
-            reading={reading}
-            readings={readings}
-            thermoSettings={thermoSettings}
-            commands={commands}
-            alarmSettings={alarmSettings}
-            canCommand={canCommand}
-          />
-        ) : null}
-      </BarnListPanelShell>
+  const settingsPanel = (
+    <BarnListPanelShell open={settingsExpanded} panelKind="settings">
+      {settingsExpanded ? (
+        <BarnListAccordionPanel
+          reading={reading}
+          readings={readings}
+          thermoSettings={thermoSettings}
+          commands={commands}
+          alarmSettings={alarmSettings}
+          canCommand={canCommand}
+        />
+      ) : null}
+    </BarnListPanelShell>
+  );
 
-      <BarnListPanelShell
-        open={motorExpanded}
-        panelKind="motor"
-      >
-        {motorExpanded ? (
-          <div className="barn-list-panel-stagger--motor space-y-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
-            {CHANNELS.map((slot) => (
-              <ChannelFanDropdown
-                key={slot}
-                slot={slot}
-                reading={reading}
-                detailReading={channelDetail}
-                showLoading={channelDetailShowLoading}
-              />
-            ))}
+  const motorPanel = (
+    <BarnListPanelShell open={motorExpanded} panelKind="motor">
+      {motorExpanded ? (
+        <div className="barn-list-panel-stagger--motor space-y-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
+          {CHANNELS.map((slot) => (
+            <ChannelFanDropdown
+              key={slot}
+              slot={slot}
+              reading={reading}
+              detailReading={channelDetail}
+              showLoading={channelDetailShowLoading}
+            />
+          ))}
+        </div>
+      ) : null}
+    </BarnListPanelShell>
+  );
+
+  // 그리드 전용 — 설정/모터 패널을 카드 우측에 배치(열렸을 때만 우측 컬럼 표시).
+  if (panelPlacement === "right") {
+    const rightOpen = settingsExpanded || motorExpanded;
+
+    // 데스크톱 그리드: 축사유형 카드 폭(1 컬럼) 단위로 정렬 — 카드 2칸 + 패널 남은 칸.
+    if (typeof gridCols === "number" && gridCols >= 2) {
+      const cardSpan = Math.min(2, gridCols);
+      const panelSpan = Math.max(1, gridCols - cardSpan);
+      return (
+        <div
+          className="grid min-w-0 items-start"
+          style={{
+            gridTemplateColumns: `repeat(${gridCols}, minmax(4.75rem, 1fr))`,
+            gap: "0.375rem",
+          }}
+        >
+          <div
+            className={cardClass}
+            style={{ gridColumn: `span ${cardSpan}` }}
+            data-controller-card-key={reading.key}
+            data-controller-key={reading.controllerKey}
+            data-list-mode={listMode}
+          >
+            {cardBody}
+          </div>
+          {rightOpen ? (
+            <div
+              className="min-w-0 overflow-hidden rounded-xl border bg-card"
+              style={{ gridColumn: `span ${panelSpan}` }}
+            >
+              {settingsPanel}
+              {motorPanel}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    // 모바일/폴백 — 카드 하단 또는 우측 flex.
+    return (
+      <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-start">
+        <div
+          className={cn(cardClass, "lg:w-80 lg:flex-none")}
+          data-controller-card-key={reading.key}
+          data-controller-key={reading.controllerKey}
+          data-list-mode={listMode}
+        >
+          {cardBody}
+        </div>
+        {rightOpen ? (
+          <div className="min-w-0 flex-1 overflow-hidden rounded-xl border bg-card">
+            {settingsPanel}
+            {motorPanel}
           </div>
         ) : null}
-      </BarnListPanelShell>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cardClass}
+      data-controller-card-key={reading.key}
+      data-controller-key={reading.controllerKey}
+      data-list-mode={listMode}
+    >
+      {cardBody}
+      {graphPanel}
+      {settingsPanel}
+      {motorPanel}
     </div>
   );
 }

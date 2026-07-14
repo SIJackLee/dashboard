@@ -1,13 +1,11 @@
 "use client";
 
-import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { Warehouse, Building2, GripVertical, Check } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
-import { buildControllerHref } from "@/lib/auth/farm-access";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { EnvChip } from "@/components/common/env-chip";
 import type { StatusTone } from "@/components/common/status-badge";
-import { getStallTypeName, normalizeStallTyCode, formatStallTypeLabelCompact } from "@/lib/data/stall-type";
+import { getStallTypeName, formatStallTypeLabelCompact } from "@/lib/data/stall-type";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -30,18 +28,20 @@ const STATUS_LABEL: Record<StatusTone, string> = {
 };
 
 function displayCardTitle(snapshot: BarnMapSnapshot, compact = false): string {
-  const ty = snapshot.meta.stallNo
-    ? normalizeStallTyCode(snapshot.meta.stallNo)
-    : null;
-  if (ty && ty !== "UNK") {
-    const fromCode = compact
-      ? formatStallTypeLabelCompact(ty)
-      : getStallTypeName(ty);
-    if (fromCode !== ty) return fromCode;
+  const entry = parseBarnCatalogKey(snapshot.meta.id);
+  const stallNo = snapshot.meta.stallNo?.trim() ?? "";
+  if (entry && entry.stallTyCode !== "UNK") {
+    const tyName = compact
+      ? formatStallTypeLabelCompact(entry.stallTyCode)
+      : getStallTypeName(entry.stallTyCode);
+    if (tyName && tyName !== entry.stallTyCode) {
+      return stallNo ? `${tyName} ${stallNo}` : tyName;
+    }
   }
   const legacy = snapshot.meta.name.trim();
   const stripped = legacy.replace(/^SP\d+\s*/i, "").trim();
-  return stripped || legacy || "축사";
+  const base = stripped || legacy || "축사";
+  return stallNo ? `${base} ${stallNo}` : base;
 }
 
 type Props = {
@@ -57,6 +57,8 @@ type Props = {
   /** 일괄적용 모드 — 카드 선택 토글 UI */
   selectable?: boolean;
   selected?: boolean;
+  /** 병합 카드 — 온·습도 요약 아래에 함께 표시할 히트맵 슬롯 */
+  graphContent?: React.ReactNode;
 };
 
 export function FarmMapCard({
@@ -70,27 +72,16 @@ export function FarmMapCard({
   onSelect,
   selectable = false,
   selected = false,
+  graphContent,
 }: Props) {
-  const { navigate, isPending } = useAppNavigate();
   const { meta } = snapshot;
   const Icon = meta.type === "office" ? Building2 : Warehouse;
-  const catalogEntry = parseBarnCatalogKey(meta.id);
-  const controllerHref = catalogEntry
-    ? buildControllerHref({
-        farmKey: catalogEntry.farmKey,
-        sp: catalogEntry.stallTyCode,
-      })
-    : null;
   const title = displayCardTitle(snapshot, compact);
 
-  const handleNavigate = () => {
+  // 레거시 그래프 드릴(카드 클릭 → sp 라우팅) 제거 — 클릭은 일괄모드 선택에만 사용.
+  const handleSelect = () => {
     if (isDragging) return;
-    if (onSelect) {
-      onSelect();
-      return;
-    }
-    if (!controllerHref || isPending) return;
-    navigate(controllerHref, { message: "컨트롤러 페이지로 이동 중…" });
+    onSelect?.();
   };
 
   return (
@@ -159,11 +150,11 @@ export function FarmMapCard({
         ) : null}
         <button
           type="button"
-          onClick={handleNavigate}
-          disabled={!onSelect && !controllerHref}
+          onClick={handleSelect}
+          disabled={!onSelect}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-1.5 text-left",
-            (onSelect || controllerHref) && "cursor-pointer"
+            onSelect && "cursor-pointer"
           )}
         >
           <Icon
@@ -186,20 +177,20 @@ export function FarmMapCard({
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={handleNavigate}
-        disabled={!onSelect && !controllerHref}
+      <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col text-left",
-          compact ? "px-1.5 py-1" : "gap-1 px-2 py-1.5",
-          (onSelect || controllerHref) && "cursor-pointer hover:bg-muted/20"
+          "flex min-h-0 flex-1 flex-col",
+          compact ? "gap-1 px-1.5 py-1" : "gap-1 px-2 py-1.5"
         )}
       >
-        <div
+        <button
+          type="button"
+          onClick={handleSelect}
+          disabled={!onSelect}
           className={cn(
-            "grid min-h-0 flex-1 grid-cols-2",
-            compact ? "gap-1" : "gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3"
+            "grid min-h-0 grid-cols-2 rounded text-left",
+            compact ? "gap-1" : "gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3",
+            onSelect && "cursor-pointer hover:bg-muted/20"
           )}
         >
           <EnvChip
@@ -217,8 +208,9 @@ export function FarmMapCard({
             valueOnly={compact}
             compact={compact}
           />
-        </div>
-      </button>
+        </button>
+        {graphContent ? <div className="min-h-0">{graphContent}</div> : null}
+      </div>
     </div>
   );
 }

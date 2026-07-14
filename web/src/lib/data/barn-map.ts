@@ -1,7 +1,6 @@
 import type { BarnMeta } from "@/lib/data/barn-meta";
 import type { BarnLayoutPrefs } from "@/lib/data/barn-meta";
 import {
-  barnCatalogKey,
   compareCatalogEntries,
   defaultBarnLabel,
   entryFromParts,
@@ -38,44 +37,71 @@ function worstStatus(statuses: ControllerStatus[]): ControllerStatus {
   );
 }
 
-function catalogFromReadings(readings: BarnReading[]): BarnCatalogEntry[] {
-  const map = new Map<string, BarnCatalogEntry>();
-  for (const r of readings) {
-    if (!r.stallTyCode || !isValidFarmKey(r.farmKey)) continue;
-    const key = barnCatalogKey(r.farmKey, r.moduleUid, r.stallTyCode);
-    if (!map.has(key)) {
-      map.set(key, entryFromParts(r.farmKey, r.moduleUid, r.stallTyCode));
-    }
-  }
-  return [...map.values()];
+/** 개별 축사 단위 카드 (동일 축사유형의 여러 stallNo를 각각 표시) */
+type StallUnit = {
+  entry: BarnCatalogEntry;
+  /** 실제 축사번호. 데이터에 없으면 "" (유형 단위 단일 카드로 폴백) */
+  stallNo: string;
+  /** 카드/레이아웃 식별자 = `${catalogKey}#${stallNo}` (번호 없으면 catalogKey) */
+  cardId: string;
+};
+
+function cardIdForStall(entry: BarnCatalogEntry, stallNo: string): string {
+  return stallNo ? `${entry.catalogKey}#${stallNo}` : entry.catalogKey;
 }
 
-function metaForEntry(
-  entry: BarnCatalogEntry,
+function stallNoRank(no: string): number {
+  const n = Number(no);
+  return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+}
+
+function compareStallUnits(a: StallUnit, b: StallUnit): number {
+  const ec = compareCatalogEntries(a.entry, b.entry);
+  if (ec !== 0) return ec;
+  const rc = stallNoRank(a.stallNo) - stallNoRank(b.stallNo);
+  if (rc !== 0) return rc;
+  return a.stallNo.localeCompare(b.stallNo);
+}
+
+function stallUnitsFromReadings(readings: BarnReading[]): StallUnit[] {
+  const map = new Map<string, StallUnit>();
+  for (const r of readings) {
+    if (!r.stallTyCode || !isValidFarmKey(r.farmKey)) continue;
+    const entry = entryFromParts(r.farmKey, r.moduleUid, r.stallTyCode);
+    const stallNo = (r.stallNo ?? "").trim();
+    const cardId = cardIdForStall(entry, stallNo);
+    if (!map.has(cardId)) map.set(cardId, { entry, stallNo, cardId });
+  }
+  return [...map.values()].sort(compareStallUnits);
+}
+
+function metaForStall(
+  unit: StallUnit,
   grid: GridPos,
   alias: string | undefined
 ): BarnMeta {
   return {
-    id: entry.catalogKey,
-    farmKey: entry.farmKey,
-    moduleUid: entry.moduleUid,
-    stallNo: entry.stallTyCode,
-    name: alias?.trim() || defaultBarnLabel(entry),
+    id: unit.cardId,
+    farmKey: unit.entry.farmKey,
+    moduleUid: unit.entry.moduleUid,
+    stallNo: unit.stallNo,
+    name: alias?.trim() || defaultBarnLabel(unit.entry),
     grid,
     type: "barn",
   };
 }
 
-function readingsForSpGroup(
+function readingsForStallUnit(
   readings: BarnReading[],
-  entry: BarnCatalogEntry
+  unit: StallUnit
 ): BarnReading[] {
-  const ty = normalizeStallTyCode(entry.stallTyCode);
+  const ty = normalizeStallTyCode(unit.entry.stallTyCode);
   return readings.filter(
     (r) =>
-      farmKeyEq(r.farmKey, entry.farmKey) &&
-      r.moduleUid === entry.moduleUid &&
-      normalizeStallTyCode(r.stallTyCode) === ty
+      farmKeyEq(r.farmKey, unit.entry.farmKey) &&
+      r.moduleUid === unit.entry.moduleUid &&
+      normalizeStallTyCode(r.stallTyCode) === ty &&
+      (unit.stallNo ? (r.stallNo ?? "").trim() === unit.stallNo : true)
   );
 }
 
@@ -129,15 +155,15 @@ export function buildAutoBarnMap(
   layoutPrefs: BarnLayoutPrefs
 ): BarnMapBuildResult {
   const validReadings = readings.filter((r) => isValidFarmKey(r.farmKey));
-  // 기본: LIVE 데이터가 있는 SP만 표시. layout prefs는 좌표/별칭만 사용.
-  const catalog = catalogFromReadings(validReadings);
+  // 기본: LIVE 데이터가 있는 개별 축사(stallNo)만 표시. layout prefs는 좌표/별칭만 사용.
+  const units = stallUnitsFromReadings(validReadings);
 
-  if (catalog.length === 0) {
+  if (units.length === 0) {
     return { snapshots: [], layoutsToPersist: {} };
   }
 
   const { cols, rows } = resolveGridDimensionsWithLayouts(
-    catalog.length,
+    units.length,
     layoutPrefs.layouts
   );
   const orderedSlots = buildGridSlots(cols, rows);
@@ -146,8 +172,8 @@ export function buildAutoBarnMap(
   const placed: BarnMeta[] = [];
   let autoSlotIndex = 0;
 
-  const snapshots: BarnMapSnapshot[] = catalog.map((entry) => {
-    const saved = layoutPrefs.layouts[entry.catalogKey];
+  const snapshots: BarnMapSnapshot[] = units.map((unit) => {
+    const saved = layoutPrefs.layouts[unit.cardId];
     let grid: GridPos;
 
     if (saved && isValidSavedGrid(saved, cols, rows)) {
@@ -165,23 +191,16 @@ export function buildAutoBarnMap(
         orderedSlots[autoSlotIndex] ??
         pickNextGridSlot(placed, cols, rows);
       if (autoSlotIndex < orderedSlots.length) autoSlotIndex++;
-      layoutsToPersist[entry.catalogKey] = grid;
+      layoutsToPersist[unit.cardId] = grid;
     }
 
     usedSlots.add(gridKey(grid.col, grid.row));
 
-    const meta = metaForEntry(
-      entry,
-      grid,
-      layoutPrefs.aliases[entry.catalogKey]
-    );
+    const meta = metaForStall(unit, grid, layoutPrefs.aliases[unit.cardId]);
     placed.push(meta);
 
-    const matched = readingsForSpGroup(validReadings, entry);
+    const matched = readingsForStallUnit(validReadings, unit);
     const onlineMatched = matched.filter((r) => r.status !== "offline");
-    const stallNos = new Set(
-      matched.map((r) => r.stallNo).filter((s): s is string => !!s)
-    );
 
     const latestReceived = matched.reduce<string | null>((latest, r) => {
       if (!latest) return r.receivedAt;
@@ -191,7 +210,7 @@ export function buildAutoBarnMap(
     return {
       meta,
       controllerCount: matched.length,
-      stallCount: stallNos.size,
+      stallCount: 1,
       tempC: avg(onlineMatched.map((r) => r.tempC)),
       humidityPct: avg(onlineMatched.map((r) => r.humidityPct)),
       fanSupply: avg(onlineMatched.map((r) => r.fanSupply)),
@@ -205,14 +224,7 @@ export function buildAutoBarnMap(
     };
   });
 
-  const sorted = snapshots.sort((a, b) => {
-    const ae = parseBarnCatalogKey(a.meta.id);
-    const be = parseBarnCatalogKey(b.meta.id);
-    if (!ae || !be) return 0;
-    return compareCatalogEntries(ae, be);
-  });
-
-  return { snapshots: sorted, layoutsToPersist };
+  return { snapshots, layoutsToPersist };
 }
 
 export function gridDimensionsForBarnMap(

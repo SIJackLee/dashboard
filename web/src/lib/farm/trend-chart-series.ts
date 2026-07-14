@@ -107,9 +107,9 @@ export function channelFanTrendSeries(m: StallMetrics): TrendSeries[] {
 
 export function fanTrendSeries(m: StallMetrics): TrendSeries[] {
   return [
-    { name: "송풍", data: m.fanSupply, color: TREND_CHART_COLORS.fanSupply },
-    { name: "배기", data: m.fanExhaust, color: TREND_CHART_COLORS.fanExhaust },
-    { name: "입기", data: m.fanIntake, color: TREND_CHART_COLORS.fanIntake },
+    { name: "A", data: m.fanIntake, color: TREND_CHART_COLORS.fanIntake },
+    { name: "B", data: m.fanExhaust, color: TREND_CHART_COLORS.fanExhaust },
+    { name: "C", data: m.fanSupply, color: TREND_CHART_COLORS.fanSupply },
   ];
 }
 

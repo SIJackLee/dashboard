@@ -81,6 +81,8 @@ export function buildControllerHref(opts: {
   /** @deprecated legacy idx URL */
   ctrlIdx?: number | null;
   alarmId?: string | null;
+  /** 도착 뷰 — "list"면 목록 뷰(ControllerSummaryGaugeRow)로 진입(레거시 그래프 미사용). */
+  view?: "map" | "list";
 }): string {
   const params = new URLSearchParams();
   appendFarmKeyParams(params, opts.farmKey);
@@ -94,6 +96,11 @@ export function buildControllerHref(opts: {
     params.set("ctrl", String(opts.ctrlIdx));
   }
   if (opts.alarmId) params.set("alarm", opts.alarmId);
-  setMonitoringTabParam(params, "ops");
+  if (opts.view === "list") {
+    // 목록 뷰 진입 — deep-link sp가 map 드릴(레거시 그래프)로 해석되지 않도록 view=list 명시.
+    params.set("view", "list");
+  } else {
+    setMonitoringTabParam(params, "ops");
+  }
   return `/farm?${params.toString()}`;
 }

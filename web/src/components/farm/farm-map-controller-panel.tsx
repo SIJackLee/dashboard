@@ -429,31 +429,7 @@ export function FarmMapControllerPanel({
           </p>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <section className="rounded-lg border bg-background p-3">
-            <p className="mb-2.5 border-b pb-1.5 text-sm font-semibold text-muted-foreground">
-              모니터
-            </p>
-            <div className="grid grid-cols-3 gap-2.5">
-              <MetricCell
-                label="송풍"
-                value={formatPctForDisplay(detail?.status, detail?.fanSupply)}
-                accent
-              />
-              <MetricCell
-                label="배기"
-                value={formatPctForDisplay(detail?.status, detail?.fanExhaust)}
-              />
-              <MetricCell
-                label="입기"
-                value={formatPctForDisplay(detail?.status, detail?.fanIntake)}
-              />
-            </div>
-            <p className="mt-2.5 text-xs text-muted-foreground">
-              온·습도는 상단에 표시됩니다.
-            </p>
-          </section>
-
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <section className="rounded-lg border bg-background p-3">
             <p className="mb-2.5 border-b pb-1.5 text-sm font-semibold text-muted-foreground">
               설정값

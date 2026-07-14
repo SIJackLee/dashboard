@@ -36,8 +36,17 @@ export function barnCatalogKey(
   return `${farmKeyId(farmKey)}-${moduleUid}-${ty}`;
 }
 
+/** 개별 축사 카드 id는 `${catalogKey}#${stallNo}` — SP 파싱 시 접미사 무시 */
+export function stallNoFromCardId(cardId: string): string | null {
+  const idx = cardId.indexOf("#");
+  if (idx < 0) return null;
+  const no = cardId.slice(idx + 1).trim();
+  return no || null;
+}
+
 export function parseBarnCatalogKey(key: string): BarnCatalogEntry | null {
-  const legacy = key.match(LEGACY_CATALOG_KEY_RE);
+  const base = key.split("#")[0];
+  const legacy = base.match(LEGACY_CATALOG_KEY_RE);
   if (legacy) {
     const farmKey = parseFarmKeyFromQuery(legacy[1], legacy[2]);
     if (!farmKey) return null;
@@ -51,14 +60,14 @@ export function parseBarnCatalogKey(key: string): BarnCatalogEntry | null {
     };
   }
 
-  const m = key.match(SP_CATALOG_KEY_RE);
+  const m = base.match(SP_CATALOG_KEY_RE);
   if (!m) return null;
   const farmKey = parseFarmKeyFromQuery(m[1], m[2]);
   if (!farmKey) return null;
   const moduleUid = Number(m[3]);
   if (!Number.isInteger(moduleUid)) return null;
   return {
-    catalogKey: key,
+    catalogKey: base,
     farmKey,
     moduleUid,
     stallTyCode: normalizeStallTyCode(m[4]),

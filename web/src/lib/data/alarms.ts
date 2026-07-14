@@ -167,7 +167,11 @@ export function alarmTargetHref(alarm: Pick<AlarmRow, "id">): string {
   return monitoringHref("ops", { alarm: alarm.id });
 }
 
-/** O2bell — TopBar bell → 컨트롤러 제어 deep link */
+/**
+ * TopBar bell → 컨트롤러 deep link.
+ * 레거시 map 드릴(FarmMapGraphStage) 제거 — 목록 뷰(ControllerSummaryGaugeRow)로 진입해
+ * 해당 controllerKey 카드로 스크롤·하이라이트한다.
+ */
 export function alarmControlHref(
   alarm: Pick<
     AlarmRow,
@@ -180,6 +184,7 @@ export function alarmControlHref(
     stallNo: alarm.stallNo,
     controllerKey: alarm.controllerKey,
     ctrlIdx: alarm.idx,
+    view: "list",
   });
 }
 

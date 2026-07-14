@@ -1,84 +1,59 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
-import { barnSnapshotHasLiveForSp } from "@/lib/data/barn-map";
-import { buildControllerHref } from "@/lib/auth/farm-access";
-import { getStallTypeName, normalizeStallTyCode } from "@/lib/data/stall-type";
-import type {
-  TrendPeriodData,
-  TrendPeriodId,
-} from "@/lib/data/farm-trend-types";
-import type { FarmMapDrillLevel } from "@/lib/farm/farm-view-url";
 import {
-  clearMapDrillParams,
-  currentFarmSearchParams,
-  replaceFarmUrlShallow,
-  setMapGraphSp,
-} from "@/lib/farm/farm-view-url";
+  TREND_PERIODS,
+  type TrendControllerPeriodData,
+  type TrendPeriodData,
+  type TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
+import { GRAPH_BARS, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
+import { cn } from "@/lib/utils";
 import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapBulkApply } from "./farm-map-bulk-apply";
-import { FarmMapGraphStage, type FarmMapTrendStatus } from "./farm-map-graph-stage";
-import { FarmMapList } from "./farm-map-list";
+import { FarmMapCard } from "./farm-map-card";
+import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 
 type Props = {
   barns: BarnMapSnapshot[];
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
-  trendStatus?: FarmMapTrendStatus;
-  onTrendRetry?: () => void;
+  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   controller?: ControllerGridData | null;
-  deepLinkSp?: string | null;
-  deepLinkMapLevel?: FarmMapDrillLevel;
-  deepLinkStallNo?: string | null;
   hubMode?: boolean;
 };
 
-/** lg 미만 — 세로 목록 · 그래프 · in-grid 컨트롤러 (데스크톱 그리드와 동일 흐름) */
+const GRAPH_PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
+
+/**
+ * lg 미만 — 데스크톱 그리드와 동일 정책(요약+히트맵 병합 카드, 이상 행 클릭 시 인라인 상세)을
+ * 모바일 세로 단일 컬럼으로 적용. 레거시 드릴 그래프(FarmMapGraphStage) 미사용.
+ */
 export function FarmMapMobileStage({
   barns,
   trendByPeriod,
-  trendStatus = "ready",
-  onTrendRetry,
+  controllerTrendByPeriod,
   controller,
-  deepLinkSp,
-  deepLinkMapLevel = "sp",
-  deepLinkStallNo,
   hubMode = false,
 }: Props) {
   const router = useRouter();
-  const urlSp = deepLinkSp ? normalizeStallTyCode(deepLinkSp) : null;
-  const [activeSp, setActiveSp] = useState<string | null>(urlSp);
-
-  useEffect(() => {
-    setActiveSp(urlSp);
-  }, [urlSp]);
-
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
+  const [graphPeriod, setGraphPeriod] = useState<TrendPeriodId>("24h");
 
   const bulkEnabled = Boolean(controller?.canCommand);
+  const graphMode = Boolean(trendByPeriod) && !bulkMode;
 
-  const barnIdsKey = useMemo(
-    () => barns.map((b) => b.meta.id).sort().join("|"),
-    [barns]
-  );
-  const prevBarnIdsKeyRef = useRef(barnIdsKey);
-
-  useEffect(() => {
-    if (prevBarnIdsKeyRef.current !== barnIdsKey) {
-      prevBarnIdsKeyRef.current = barnIdsKey;
-      setBulkMode(false);
-      setSelectedSps(new Set());
-      setActiveSp(null);
-      const params = currentFarmSearchParams();
-      if (params.get("sp") || params.get("stall") || params.get("mapLevel")) {
-        clearMapDrillParams(params);
-        replaceFarmUrlShallow(params);
-      }
-    }
-  }, [barnIdsKey]);
+  const { expanded, setExpanded, graphByBarnId, detail } = useBarnGraphs({
+    barns,
+    trendByPeriod,
+    controllerTrendByPeriod,
+    controller,
+    graphPeriod,
+    enabled: graphMode,
+  });
 
   const toggleSp = useCallback((sp: string) => {
     setSelectedSps((prev) => {
@@ -93,53 +68,6 @@ export function FarmMapMobileStage({
     setBulkMode(false);
     setSelectedSps(new Set());
   }, []);
-
-  const openGraph = useCallback((stallTyCode: string) => {
-    if (!stallTyCode) return;
-    const sp = normalizeStallTyCode(stallTyCode);
-    setActiveSp(sp);
-    const params = currentFarmSearchParams();
-    setMapGraphSp(params, sp);
-    replaceFarmUrlShallow(params);
-  }, []);
-
-  const closeGraph = useCallback(() => {
-    setActiveSp(null);
-    const params = currentFarmSearchParams();
-    clearMapDrillParams(params);
-    replaceFarmUrlShallow(params);
-  }, []);
-
-  if (activeSp) {
-    const farmKey =
-      barns
-        .map((b) => parseBarnCatalogKey(b.meta.id))
-        .find((c) => c?.stallTyCode === activeSp)?.farmKey ?? null;
-    const controllerHref = farmKey
-      ? buildControllerHref({ farmKey, sp: activeSp })
-      : null;
-
-    return (
-      <div
-        className="pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]"
-        data-audit-region="farm-map-mobile-graph"
-      >
-        <FarmMapGraphStage
-          stallTyCode={activeSp}
-          label={getStallTypeName(activeSp)}
-          dataByPeriod={trendByPeriod ?? null}
-          trendStatus={trendStatus}
-          hasLiveSnapshot={barnSnapshotHasLiveForSp(barns, activeSp)}
-          onTrendRetry={onTrendRetry}
-          controllerHref={controllerHref}
-          controller={controller ?? null}
-          initialMapLevel={deepLinkMapLevel}
-          initialControllerStallNo={deepLinkStallNo ?? null}
-          onClose={closeGraph}
-        />
-      </div>
-    );
-  }
 
   return (
     <div
@@ -159,13 +87,85 @@ export function FarmMapMobileStage({
           }}
         />
       ) : null}
-      <FarmMapList
-        barns={barns}
-        bulkMode={bulkMode}
-        selectedSps={selectedSps}
-        onToggleSp={toggleSp}
-        onOpenGraph={openGraph}
-      />
+
+      {graphMode && barns.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+          <div
+            className="inline-flex overflow-hidden rounded-md border bg-background text-xs"
+            role="group"
+            aria-label="기간"
+          >
+            {GRAPH_PERIOD_ORDER.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setGraphPeriod(p)}
+                className={cn(
+                  "px-2.5 py-1 font-medium transition-colors",
+                  graphPeriod === p
+                    ? "bg-sky-50 text-sky-700"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {TREND_PERIODS[p].label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex flex-col gap-2 p-2">
+        {barns.map((b) => {
+          const spCode = parseBarnCatalogKey(b.meta.id)?.stallTyCode ?? "";
+          const isExpanded = expanded?.barnId === b.meta.id;
+          return (
+            <div
+              key={b.meta.id}
+              className={cn(
+                "flex min-w-0 flex-col transition-all duration-200",
+                isExpanded && "rounded-lg ring-2 ring-sky-500/50 ring-offset-1",
+              )}
+            >
+              <FarmMapCard
+                snapshot={b}
+                layout="stack"
+                graphContent={
+                  graphMode ? graphByBarnId.get(b.meta.id) : undefined
+                }
+                selectable={bulkMode && Boolean(spCode)}
+                selected={bulkMode && selectedSps.has(spCode)}
+                onSelect={
+                  bulkMode
+                    ? spCode
+                      ? () => toggleSp(spCode)
+                      : undefined
+                    : undefined
+                }
+              />
+              {graphMode && detail && isExpanded ? (
+                <FarmMapControllerDetail
+                  key={detail.barnId}
+                  label={detail.label}
+                  metricId={expanded.metricId}
+                  controllers={detail.controllers}
+                  period={graphPeriod}
+                  bars={GRAPH_BARS[graphPeriod]}
+                  readings={controller?.readings ?? []}
+                  thermoSettings={controller?.thermoSettings ?? {}}
+                  commands={controller?.commands ?? []}
+                  canCommand={Boolean(controller?.canCommand)}
+                  alarmSettings={controller?.alarmSettings}
+                  controllerTrendByPeriod={controllerTrendByPeriod}
+                  onChangeMetric={(metricId) =>
+                    setExpanded((e) => (e ? { ...e, metricId } : e))
+                  }
+                  onClose={() => setExpanded(null)}
+                />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
