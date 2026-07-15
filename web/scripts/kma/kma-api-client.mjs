@@ -1,4 +1,4 @@
-import { WTHR_WRN_OPS, FCST_ZONE_OPS } from "./kma-api-config.mjs";
+import { FCST_ZONE_OPS, WTHR_WRN_OPS } from "../../src/lib/kma/kma-api-config.ts";
 
 function unwrapItems(body) {
   const raw = body?.items?.item;

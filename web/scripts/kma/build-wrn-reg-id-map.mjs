@@ -8,7 +8,7 @@ import { writeFileSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { fetchFcstZoneCodes, fetchFcstZoneProbe } from "./kma-api-client.mjs";
-import { canonicalSido, normalizeSigungu } from "./kma-wrn-match.mjs";
+import { canonicalSido, normalizeSigungu } from "../../src/lib/kma/kma-wrn-match.ts";
 
 dotenv.config({
   path: join(dirname(fileURLToPath(import.meta.url)), "../../.env.local"),

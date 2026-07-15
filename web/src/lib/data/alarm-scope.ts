@@ -199,10 +199,6 @@ export function filterReadingsForAlarmScope(
   });
 }
 
-export function countAlarmScopeOverrides(settings: AlarmSettings): number {
-  return Object.keys(settings.byScope ?? {}).length + Object.keys(settings.byStallTyCode).length;
-}
-
 export function mergeScopeThreshold(
   settings: AlarmSettings,
   scopeKey: string,

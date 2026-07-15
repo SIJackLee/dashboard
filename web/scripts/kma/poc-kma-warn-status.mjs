@@ -13,12 +13,12 @@ import {
   probeEndpoint,
   parseKmaResponse,
 } from "./kma-api-client.mjs";
-import { WTHR_WRN_OPS } from "./kma-api-config.mjs";
+import { WTHR_WRN_OPS } from "../../src/lib/kma/kma-api-config.ts";
 import {
-  loadRegIdMap,
-  matchFarmsToWarnings,
   formatWarning,
-} from "./kma-wrn-match.mjs";
+  matchFarmsToWarnings,
+} from "../../src/lib/kma/kma-wrn-match.ts";
+import { loadRegIdMapFromFile } from "../../src/lib/kma/kma-wrn-match-node.ts";
 
 dotenv.config({
   path: join(dirname(fileURLToPath(import.meta.url)), "../../.env.local"),
@@ -124,7 +124,7 @@ async function main() {
     report.notes.push("probe-only: endpoint reachable + Unauthorized 확인");
   }
 
-  const map = loadRegIdMap();
+  const map = loadRegIdMapFromFile(join(__dir, "wrn-reg-id-map.json"));
   const mappedCount = map.filter((e) => e.regId).length;
   const mapTotal = map.length;
   const mapRatio = mapTotal > 0 ? mappedCount / mapTotal : 0;

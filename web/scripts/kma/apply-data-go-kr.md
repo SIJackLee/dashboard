@@ -33,8 +33,8 @@ Query 파라미터는 **`serviceKey`** (소문자) — `ServiceKey`는 HTTP 401.
 
 ```bash
 cd dashboard/web
-node scripts/kma/build-wrn-reg-id-map.mjs
-node scripts/kma/poc-kma-warn-status.mjs
+npm run build:kma-wrn-map
+npm run poc:kma-weather
 ```
 
 ## 5. 출처 표기 (공공누리 1유형)

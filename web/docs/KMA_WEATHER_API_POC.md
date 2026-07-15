@@ -52,9 +52,10 @@ data.go.kr getPwnStatus (10~30분 Cron)
 
 | 파일 | 설명 |
 |------|------|
-| [scripts/kma/kma-api-config.mjs](../scripts/kma/kma-api-config.mjs) | 엔드포인트·상수 |
+| [src/lib/kma/kma-api-config.ts](../src/lib/kma/kma-api-config.ts) | 엔드포인트·상수 (단일 소스) |
 | [scripts/kma/kma-api-client.mjs](../scripts/kma/kma-api-client.mjs) | fetch·parse |
-| [scripts/kma/kma-wrn-match.mjs](../scripts/kma/kma-wrn-match.mjs) | 농장↔특보 매칭 |
+| [src/lib/kma/kma-wrn-match.ts](../src/lib/kma/kma-wrn-match.ts) | 농장↔특보 매칭 (단일 소스) |
+| [src/lib/kma/kma-wrn-match-node.ts](../src/lib/kma/kma-wrn-match-node.ts) | Node 스크립트용 map 파일 로드 |
 | [scripts/kma/build-wrn-reg-id-map.mjs](../scripts/kma/build-wrn-reg-id-map.mjs) | REG_ID map 빌드 |
 | [scripts/kma/wrn-reg-id-map.json](../scripts/kma/wrn-reg-id-map.json) | 생성된 매핑 |
 | [scripts/kma/poc-results.json](../scripts/kma/poc-results.json) | 최근 PoC JSON |

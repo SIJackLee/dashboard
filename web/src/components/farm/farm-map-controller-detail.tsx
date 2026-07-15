@@ -9,18 +9,17 @@ import type {
   TrendControllerPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
-import { severityScore, sevOfScore, type Sev } from "@/lib/farm/severity-score";
+import { SEV_COLOR } from "@/lib/farm/severity-score";
 import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
+import {
+  currentStackMetricValue,
+  formatStackMetricValue,
+  worstSingleStackMetric,
+  type StackMetric,
+} from "@/lib/farm/stack-metric";
 import { ControllerSummaryGaugeRow } from "./controller-summary-gauge-row";
 import { MetricLineChart } from "./severity-heatmap";
-import type { StackMetric } from "./deviation-stack-chart";
 import { cn } from "@/lib/utils";
-
-const SEV_COLOR: Record<Sev, string> = {
-  normal: "#10b981",
-  caution: "#f59e0b",
-  warning: "#ef4444",
-};
 
 /** 지표(행) 탭 — 히트맵 행과 동일한 순서/라벨. */
 const METRIC_TABS: { id: string; label: string }[] = [
@@ -66,30 +65,6 @@ type Props = {
   onChangeMetric: (metricId: string) => void;
   onClose: () => void;
 };
-
-function currentValue(values: (number | null)[]): number | null {
-  for (let i = values.length - 1; i >= 0; i--) {
-    const v = values[i];
-    if (v != null && Number.isFinite(v)) return v;
-  }
-  return null;
-}
-
-function formatMetricValue(v: number | null, unit?: string): string {
-  if (v == null) return "—";
-  const rounded = unit === "℃" ? Math.round(v * 10) / 10 : Math.round(v);
-  return `${rounded}${unit ?? ""}`;
-}
-
-function worstOf(metric: StackMetric): Sev {
-  let worst: Sev = "normal";
-  for (const v of metric.values) {
-    const sev = sevOfScore(severityScore(v, metric.band));
-    if (sev === "warning") return "warning";
-    if (sev === "caution") worst = "caution";
-  }
-  return worst;
-}
 
 /**
  * 그리드 하단 전체폭(①B) 상세 패널.
@@ -242,8 +217,8 @@ export function FarmMapControllerDetail({
           >
             {controllers.map((c, chartIndex) => {
               const metric = c.metricsById[effectiveMetricId];
-              const cur = metric ? currentValue(metric.values) : null;
-              const worst = metric ? worstOf(metric) : "normal";
+              const cur = metric ? currentStackMetricValue(metric.values) : null;
+              const worst = metric ? worstSingleStackMetric(metric) : "normal";
               const isSel = c.key === selectedKey;
               return (
                 <button
@@ -279,7 +254,7 @@ export function FarmMapControllerDetail({
                       className="ml-auto shrink-0 text-[0.7rem] font-semibold"
                       style={{ color: SEV_COLOR[worst] }}
                     >
-                      {formatMetricValue(cur, metric?.unit)}
+                      {formatStackMetricValue(cur, metric?.unit)}
                     </span>
                   </div>
                   {metric ? (

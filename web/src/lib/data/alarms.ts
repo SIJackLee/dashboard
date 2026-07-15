@@ -1,7 +1,6 @@
 import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { buildControllerHref } from "@/lib/auth/farm-access";
-import { monitoringHref } from "@/lib/monitoring/monitoring-tabs";
 import { compareReadings } from "@/lib/data/reading-hierarchy";
 import { resolveThresholdsForReading } from "@/lib/data/alarm-scope";
 
@@ -161,10 +160,6 @@ export function summarizeAlarms(alarms: AlarmRow[]) {
     warning: alarms.filter((a) => a.severity === "warning").length,
     offline: alarms.filter((a) => a.alarmType === "통신 두절").length,
   };
-}
-
-export function alarmTargetHref(alarm: Pick<AlarmRow, "id">): string {
-  return monitoringHref("ops", { alarm: alarm.id });
 }
 
 /**

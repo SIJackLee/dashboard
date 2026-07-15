@@ -118,7 +118,7 @@ npm run verify:routes
 - **`MonitoringTabs`:** 탭 전환 시 `lsind`·`ctrl`·`alarm` 등 scope query 유지.
 - **사이드바:** 농장·컨트롤러·알람 3항목 → **모니터링** 1항목 (+ 설정 · Admin 운영).
 - **레거시 URL:** `/controllers`·`/alarms` → `/farm?tab=ops` redirect; `tab=devices|alarms` query도 `ops`로 정리.
-- **href helpers:** `buildControllerHref`·`buildFarmAlarmsHref`·`alarmTargetHref` → `/farm?tab=ops…`.
+- **href helpers:** `buildControllerHref`·`buildFarmAlarmsHref` → `/farm?tab=ops…`.
 
 ## UI 개선 Phase 5 (적용됨)
 

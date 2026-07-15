@@ -58,9 +58,9 @@
 
 ## 수정 — F03 지도 하단 SP 목록
 
-**초기 FAIL:** `FarmMapList`가 설정 키만 있고 `FarmMapView`에 미연결.
+**초기 FAIL:** 모바일 SP 카드 목록이 표시 설정과 미연결.
 
-**수정:** `farm-map-view.tsx`에 `<FarmMapList barns={barns} />` 추가.
+**수정:** `farm-map-view.tsx` — compact 뷰에서 `FarmMapMobileStage`로 모바일 세로 카드 목록 렌더.
 
 **재검증 (390px):** SP01~SP10 모바일 카드 스택 표시 확인 → **PASS**
 
@@ -81,5 +81,5 @@
 |------|------|
 | `src/lib/data/display-settings-shared.ts` | 설정 키·기본값 |
 | `src/components/settings/display-settings-form.tsx` | 표시 설정 폼 |
-| `src/components/farm/farm-map-list.tsx` | F03 대상 (미연결) |
+| `src/components/farm/farm-map-mobile-stage.tsx` | F03 모바일 SP 카드 목록 |
 | `src/components/layout/alarm-bell-menu.tsx` | G01 알림 벨 |

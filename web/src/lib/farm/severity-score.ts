@@ -1,5 +1,5 @@
 /**
- * 정규화 심각도 점수 유틸 — 그리드 그래프 모드(편차 스택 바)용.
+ * 정규화 심각도 점수 유틸 — 그리드 그래프 모드(히트맵·상세 라인)용.
  *
  * 단위가 다른 지표(온도 ℃ / 습도 % / 팬 %)를 하나의 축에서 비교하기 위해
  * 각 지표를 자기 밴드 [lo, hi] 기준의 정규화 편차 점수 s 로 환산한다.
@@ -21,7 +21,6 @@ import type { ControllerThermoSettings } from "@/lib/controllers/controller-sett
 
 export type Sev = "normal" | "caution" | "warning";
 
-export const S_CAP = 1.5;
 export const S_CAUTION = 0.85;
 export const S_WARNING = 1.0;
 
@@ -57,39 +56,10 @@ export function worstSev(sevs: Sev[]): Sev {
   return w;
 }
 
-const EXCESS_SPAN = S_CAP - S_CAUTION;
-
-/** 정상 초과분 비율 0~1 (스택 바 세그먼트 높이용). 정상=0, 밴드 경계 이상=커짐. */
-export function excessRatio(s: number | null): number {
-  if (s == null) return 0;
-  return Math.min(1, Math.max(0, (s - S_CAUTION) / EXCESS_SPAN));
-}
-
 /* ---------- 표시 해상도 집계(다운샘플) ----------
- * 원본 버킷(예: 24h=96)을 그래프 표시 막대 수(bars, 예: 24)로 묶는다.
- * 하이브리드 렌더: 막대 높이는 binMean(추세), 색은 binWorst(구간 내 최악=짧은 이상 보존).
- * 입력/출력은 심각도 점수(number|null). null(결측)은 제외, 전부 결측이면 null.
+ * 원본 버킷(예: 24h=96)을 히트맵 열 수(bars, 예: 24)로 묶는다.
+ * 색 = 구간 내 최악(binWorst) — 짧은 이상 구간 보존.
  */
-
-export function binMean(scores: (number | null)[], bars: number): (number | null)[] {
-  const n = scores.length;
-  if (!bars || bars >= n) return scores.slice();
-  const g = Math.ceil(n / bars);
-  const out: (number | null)[] = [];
-  for (let i = 0; i < n; i += g) {
-    let sum = 0;
-    let cnt = 0;
-    for (let j = i; j < Math.min(n, i + g); j++) {
-      const v = scores[j];
-      if (v != null && Number.isFinite(v)) {
-        sum += v;
-        cnt++;
-      }
-    }
-    out.push(cnt > 0 ? sum / cnt : null);
-  }
-  return out;
-}
 
 export function binWorst(scores: (number | null)[], bars: number): (number | null)[] {
   const n = scores.length;
@@ -150,3 +120,16 @@ export function statBand(values: (number | null | undefined)[]): Band | null {
   const halfWidth = Math.max(std * 2, Math.abs(median) * 0.15, 1);
   return { lo: median - halfWidth, hi: median + halfWidth };
 }
+
+/** 심각도 색 — STATUS_ACCENT(emerald/amber/red)와 동일 팔레트. */
+export const SEV_COLOR: Record<Sev, string> = {
+  normal: "#10b981",
+  caution: "#f59e0b",
+  warning: "#ef4444",
+};
+
+export const SEV_LABEL: Record<Sev, string> = {
+  normal: "정상",
+  caution: "주의",
+  warning: "경고",
+};

@@ -3,29 +3,22 @@
 import { useState } from "react";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
-import type { StackMetric } from "./deviation-stack-chart";
 import {
-  type Band,
-  type Sev,
-  binWorst,
+  SEV_COLOR,
+  SEV_LABEL,
   severityScore,
   sevOfScore,
-  worstSev,
+  type Band,
 } from "@/lib/farm/severity-score";
+import {
+  computeStackMetricRows,
+  currentStackMetricValue,
+  formatStackMetricValue,
+  worstStackMetricSev,
+  type StackMetric,
+  type StackMetricRow,
+} from "@/lib/farm/stack-metric";
 import { cn } from "@/lib/utils";
-
-/** 심각도 색 — STATUS_ACCENT(emerald/amber/red)와 동일 팔레트. */
-const SEV_COLOR: Record<Sev, string> = {
-  normal: "#10b981",
-  caution: "#f59e0b",
-  warning: "#ef4444",
-};
-
-const SEV_LABEL: Record<Sev, string> = {
-  normal: "정상",
-  caution: "주의",
-  warning: "경고",
-};
 
 const CELL_H = 14; // 집계 히트맵 행 높이(px)
 const MINI_CELL_H = 11; // 컨트롤러 미니 히트맵 행 높이(px)
@@ -39,33 +32,7 @@ export type HeatController = {
   href: string | null;
 };
 
-function currentValue(values: (number | null)[]): number | null {
-  for (let i = values.length - 1; i >= 0; i--) {
-    const v = values[i];
-    if (v != null && Number.isFinite(v)) return v;
-  }
-  return null;
-}
-
-function formatMetricValue(v: number | null, unit?: string): string {
-  if (v == null) return "—";
-  const rounded = unit === "℃" ? Math.round(v * 10) / 10 : Math.round(v);
-  return `${rounded}${unit ?? ""}`;
-}
-
-type Row = { metric: StackMetric; sevs: Sev[] };
-
-function computeRows(metrics: StackMetric[], bars?: number): Row[] {
-  return metrics.map((m) => {
-    const scores = m.values.map((v) => severityScore(v, m.band));
-    const binned = bars ? binWorst(scores, bars) : scores;
-    return { metric: m, sevs: binned.map((s) => sevOfScore(s)) };
-  });
-}
-
-function rowsWorst(rows: Row[]): Sev {
-  return worstSev(rows.flatMap((r) => r.sevs));
-}
+type Row = StackMetricRow;
 
 /** 지표(행)×시간(열) 히트맵 셀. interactive면 라벨/셀 클릭으로 지표 선택. */
 function HeatCells({
@@ -164,8 +131,8 @@ function ControllerMiniHeat({
   moving: boolean;
   canMove: boolean;
 }) {
-  const rows = computeRows(controller.metrics, bars);
-  const worst = rowsWorst(rows);
+  const rows = computeStackMetricRows(controller.metrics, bars);
+  const worst = worstStackMetricSev(rows);
   return (
     <div
       className={cn(
@@ -310,8 +277,8 @@ export function SeverityHeatmap({
   const [selected, setSelected] = useState<string | null>(null);
   const [seq, setSeq] = useState(0);
 
-  const rows = computeRows(metrics, bars);
-  const worst = rowsWorst(rows);
+  const rows = computeStackMetricRows(metrics, bars);
+  const worst = worstStackMetricSev(rows);
   const hasControllers = Boolean(controllers && controllers.length > 0);
 
   // 상위 확대 모드(onExpand)면 내부 상태 대신 상위가 선택을 관장한다.
@@ -328,7 +295,7 @@ export function SeverityHeatmap({
   };
 
   const selMetric = selected ? metrics.find((m) => m.id === selected) ?? null : null;
-  const selCur = selMetric ? currentValue(selMetric.values) : null;
+  const selCur = selMetric ? currentStackMetricValue(selMetric.values) : null;
 
   const move = (href: string | null) => {
     if (!href || isPending) return;
@@ -362,7 +329,7 @@ export function SeverityHeatmap({
               <div className="rounded-md border bg-background p-2">
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <span className="truncate text-[0.7rem] font-semibold">
-                    {selMetric?.label} · 현재 {formatMetricValue(selCur, selMetric?.unit)}
+                    {selMetric?.label} · 현재 {formatStackMetricValue(selCur, selMetric?.unit)}
                   </span>
                   <div className="flex shrink-0 items-center gap-1">
                     {controllerHref ? (

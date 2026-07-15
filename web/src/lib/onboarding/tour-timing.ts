@@ -107,15 +107,15 @@ export function waitForTourGridAction(
   if (typeof window === "undefined") return Promise.resolve();
 
   return new Promise((resolve) => {
-    const hardTimeout = window.setTimeout(done, timeoutMs);
-    const onDone = (e: Event) => {
-      const detail = (e as CustomEvent<{ action?: string }>).detail;
-      if (detail?.action === action) done();
-    };
     const done = () => {
       window.clearTimeout(hardTimeout);
       window.removeEventListener(FARM_TOUR_ACTION_DONE_EVENT, onDone);
       resolve();
+    };
+    const hardTimeout = window.setTimeout(done, timeoutMs);
+    const onDone = (e: Event) => {
+      const detail = (e as CustomEvent<{ action?: string }>).detail;
+      if (detail?.action === action) done();
     };
     window.addEventListener(FARM_TOUR_ACTION_DONE_EVENT, onDone);
   });

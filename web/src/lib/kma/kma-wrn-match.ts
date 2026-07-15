@@ -10,9 +10,13 @@ export type RegMapEntry = {
   matchScore?: number;
 };
 
-const regMapEntries: RegMapEntry[] = Array.isArray(regMapPayload)
-  ? regMapPayload
-  : (regMapPayload as { entries?: RegMapEntry[] }).entries ?? [];
+export function parseRegMapPayload(data: unknown): RegMapEntry[] {
+  return Array.isArray(data)
+    ? data
+    : (data as { entries?: RegMapEntry[] }).entries ?? [];
+}
+
+const regMapEntries: RegMapEntry[] = parseRegMapPayload(regMapPayload);
 
 export function loadRegIdMap(): RegMapEntry[] {
   return regMapEntries;
@@ -151,4 +155,22 @@ export function matchWarningsForFarm(
   }
 
   return matched;
+}
+
+export function matchFarmsToWarnings<
+  T extends { sido: string; sigungu: string },
+>(
+  farms: T[],
+  warnings: Record<string, unknown>[],
+  map: RegMapEntry[] = loadRegIdMap(),
+): Array<{ farm: T; warnings: MatchedWarning[] }> {
+  return farms.map((farm) => ({
+    farm,
+    warnings: matchWarningsForFarm(
+      warnings,
+      farm.sido,
+      farm.sigungu,
+      map,
+    ),
+  }));
 }
