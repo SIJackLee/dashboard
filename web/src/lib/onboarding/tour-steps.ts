@@ -6,8 +6,8 @@
  * | 정책            | 용도                                      | 스텝   |
  * |-----------------|-------------------------------------------|--------|
  * | none            | 스크롤 없음 (뷰 전환·짧은 UI)             | 1      |
- * | anchor-top      | 타깃 상단을 헤더 clearance에 고정         | 2,3,6,8|
- * | fit-between     | 헤더~툴팁 사이 band에 맞춤                | 4,5,7  |
+ * | anchor-top      | 타깃 상단을 헤더 clearance에 고정         | 2,3,6,7,8|
+ * | fit-between     | 헤더~툴팁 사이 band에 맞춤                | 4,5      |
  * | anchor-card-top | (레거시) 카드 상단 anchor — 미사용        | —      |
  */
 
@@ -122,7 +122,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     selector: "[data-controller-card-key]",
     mobileSelector: '[data-tour-id="controller-gauge-metrics"]',
     view: "list",
-    scrollPolicy: "fit-between",
+    scrollPolicy: "anchor-top",
     title: "컨트롤러 카드 — 게이지 읽는 법",
     body:
       "목록 뷰의 기본 단위입니다. 게이지 바에서 현재값과 허용범위·설정값을 함께 읽을 수 있습니다.",

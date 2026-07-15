@@ -206,10 +206,14 @@ function TourOverlay({
       timers.push(window.setTimeout(fn, ms));
     };
 
+    const prevStep = stepIdx > 0 ? TOUR_STEPS[stepIdx - 1] : null;
+
     schedule(() => {
       if (cancelled || stepGenRef.current !== stepGen) return;
       setView(step.view);
-      if (step.view === "list") resetTourScrollContainers();
+      if (step.view === "list" && prevStep?.view !== "list") {
+        resetTourScrollContainers();
+      }
       if (step.gridAction) dispatchGridAction(step.gridAction);
     }, 0);
 
@@ -281,9 +285,13 @@ function TourOverlay({
         revealHole(0);
       };
 
-      scrollTarget(el);
       const settleMs = stepScrollEnabled ? TOUR_MOBILE_SETTLE_MS : 120;
-      schedule(() => waitForTooltipExtra(0), settleMs);
+      if (step.extra) {
+        schedule(() => waitForTooltipExtra(0), settleMs);
+      } else {
+        scrollTarget(el);
+        schedule(() => waitForTooltipExtra(0), settleMs);
+      }
     };
 
     const finalizeDesktopStep = (el: HTMLElement) => {
@@ -319,7 +327,7 @@ function TourOverlay({
           accentRef.current = null;
         }
 
-        if (isMobileSheet && isAnchorScroll) {
+        if (isMobileSheet && isAnchorScroll && !step.extra) {
           scrollTarget(el as HTMLElement);
         }
 
