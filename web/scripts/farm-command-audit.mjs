@@ -28,7 +28,7 @@ dotenv.config({
 const BASE = process.env.UI_VERIFY_BASE ?? "http://localhost:3000";
 const VIEWPORT = { width: 390, height: 844 };
 const LIST_PATH = "/farm?lsind=FARM01&item=P00&tab=ops&view=list";
-const LIST_BULK_PATH = LIST_PATH;
+const LIST_BULK_PATH = "/farm?lsind=FARM01&item=P00&tab=ops&view=list&listLayout=flat";
 const MAP_PATH = "/farm?lsind=FARM01&item=P00";
 
 async function auditListApply(page) {
@@ -67,9 +67,15 @@ async function auditBulkAck(page) {
     return { skipped: true, reason: "bulk UI 없음" };
   }
   await bulkSwitch.click();
-  const chip = page
+  await page.waitForTimeout(300);
+  let chip = page
     .locator('[data-audit-region="barn-list-bulk-sp-chips"] button')
     .first();
+  if ((await chip.count()) === 0) {
+    chip = page
+      .locator('[data-audit-region="barn-list-summary"][data-bulk-mode="on"] section header[role="button"]')
+      .first();
+  }
   if ((await chip.count()) === 0) {
     return { skipped: true, reason: "SP chip 없음" };
   }

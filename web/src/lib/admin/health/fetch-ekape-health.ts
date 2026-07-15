@@ -2,9 +2,6 @@ import "server-only";
 
 import type { HealthPoint, HealthStatus } from "@/lib/admin/health/types";
 
-/** Ekape export pipeline disabled — DB objects dropped (migration 20260619000000). */
-export const EKAPE_PIPELINE_ENABLED = false;
-
 export type EkapeHealthSummary = {
   status: HealthStatus;
   externalStatus: HealthStatus;

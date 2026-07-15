@@ -28,7 +28,6 @@ web:knip:
   needs: [web:install]
   script:
     - cd web && npm run knip
-  allow_failure: true
 
 web:build:
   stage: verify
@@ -44,14 +43,21 @@ web:audit:
   stage: verify
   needs: [web:install]
   variables:
-    NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-anon-key"
-    SUPABASE_SERVICE_ROLE_KEY: "ci-service-role-key"
     UI_VERIFY_BASE: "http://127.0.0.1:3000"
   rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PLAYWRIGHT_AUDIT == "true"
   script:
+    - |
+      test -n "$NEXT_PUBLIC_SUPABASE_URL" && test -n "$SUPABASE_SERVICE_ROLE_KEY" || {
+        echo "Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in CI/CD variables."
+        exit 1
+      }
+    - |
+      cat > web/.env.local <<EOF
+      NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      EOF
     - cd web && npx playwright install chromium --with-deps
     - cd web && npm run dev -- --webpack --port 3000 > /tmp/next-dev.log 2>&1 &
     - |

@@ -414,8 +414,6 @@ export {
 
   buildControllerSlotSeries,
 
-  CONTROLLER_SLOT_COUNT,
-
   LIVE_SLOT_COUNT,
 
   LEGACY_SLOT_COUNT,

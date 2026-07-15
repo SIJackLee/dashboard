@@ -39,6 +39,3 @@ export function adminOpsHealthHref(opts?: AdminOpsHealthLink): string {
   const q = params.toString();
   return q ? `${ADMIN_OPS_BASE_PATH}?${q}` : ADMIN_OPS_BASE_PATH;
 }
-
-/** @deprecated use adminOpsHealthHref */
-export const ADMIN_OPS_HEALTH_HREF = ADMIN_OPS_BASE_PATH;

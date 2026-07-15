@@ -10,19 +10,21 @@
 
 ## 2. 기술 스택
 
-- Next.js 16 (App Router, Turbopack) + TypeScript
+- Next.js 16 (App Router, **webpack** dev/build) + TypeScript
 - Tailwind CSS + shadcn/ui
 - Supabase (`@supabase/ssr`, `@supabase/supabase-js`) — DB + Auth
 - 인증: 이메일/비밀번호 (Supabase Auth)
 
 ## 3. 실행 방법
 
+> **경로:** `dashboard/web/` (저장소 루트 `dashboard/` 기준). `Operation/simulator` 와 별개 프로젝트.
+
 ```bash
 cd web
 npm install
 # web/.env.local 에 환경변수 설정 (아래 4번 참고)
-npm run dev      # http://localhost:3000
-npm run build    # 프로덕션 빌드 검증
+npm run dev      # http://localhost:3000 (webpack)
+npm run build    # webpack 프로덕션 빌드 검증
 ```
 
 ## 4. 환경변수 (`web/.env.local`)

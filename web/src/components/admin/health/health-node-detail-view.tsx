@@ -11,6 +11,7 @@ import { HealthUsageBar } from "@/components/admin/health/health-usage-bar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { hintsFromPoints } from "@/lib/admin/health/d11-map";
 import { healthNodeTitle } from "@/lib/admin/health/health-ui-labels";
+import { adminOpsHealthHref } from "@/lib/admin/health/health-routes";
 import type { HealthSnapshot } from "@/lib/admin/health/types";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -272,7 +273,7 @@ export function HealthNodeDetailView({
     <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
       <div className="space-y-6">
         <p className={dashboardTypography.meta}>
-          /admin/health/{nodeId} · 2층 상세
+          {adminOpsHealthHref({ node: nodeId })} · 2층 상세
         </p>
         <NodeDetailPoints points={points} />
         <NodeDetailOverview {...sectionProps} />

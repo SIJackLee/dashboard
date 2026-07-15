@@ -25,12 +25,6 @@ export const LIVE_SLOT_COUNT = FIRMWARE_CTRL_COUNT;
 
 export const LEGACY_SLOT_COUNT = LEGACY_CTRL_COUNT;
 
-
-
-export const CONTROLLER_SLOT_COUNT = LEGACY_SLOT_COUNT;
-
-
-
 export type ControllerMetricKey =
 
   | "tempC"

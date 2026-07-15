@@ -44,9 +44,6 @@ export function buildGridSlots(cols: number, rows: number): GridPos[] {
   return slots;
 }
 
-export const GRID_COLS = GRID_COLS_DEFAULT;
-export const GRID_ROWS = GRID_ROWS_DEFAULT;
-
 export function pickNextGridSlot(
   existing: WithGrid[],
   cols = GRID_COLS_DEFAULT,

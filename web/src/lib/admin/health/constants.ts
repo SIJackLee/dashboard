@@ -22,8 +22,3 @@ export const INSERT_BUCKET_MINUTES = 5;
 export const CONTROLLER_STALE_WARN_MIN = 10;
 
 export const CONTROLLER_STALE_CRITICAL_MIN = 30;
-
-/** Bar chart reference lines (minutes) — CONTROLLER_STALE_* 와 동기 */
-export const MODULE_AGE_OK_MIN = CONTROLLER_STALE_WARN_MIN;
-
-export const MODULE_AGE_CRITICAL_MIN = CONTROLLER_STALE_CRITICAL_MIN;
