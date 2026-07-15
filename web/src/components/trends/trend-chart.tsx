@@ -91,14 +91,6 @@ export function TrendChart({
   const hasAny = series.some((s) => s.data?.some((v) => v != null));
   const n = categories.length;
 
-  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (n === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const xPx = e.clientX - rect.left;
-    const ratio = Math.min(1, Math.max(0, rect.width > 0 ? xPx / rect.width : 0));
-    setHover({ idx: Math.round(ratio * (n - 1)), xPx, w: rect.width });
-  };
-
   const axisH = 16;
   const chartH = height - axisH;
   const innerW = VIEW_W - PAD_X * 2;
@@ -118,6 +110,56 @@ export function TrendChart({
   const xFor = (i: number): number => {
     if (n <= 1) return PAD_X + innerW / 2;
     return PAD_X + (i / (n - 1)) * innerW;
+  };
+
+  const barGroupW = n > 0 ? innerW / n : innerW;
+  const rawBarW =
+    series.length > 0 ? (barGroupW * 0.7) / series.length : barGroupW * 0.7;
+  const barW =
+    barWidthCapPct != null ? Math.min(rawBarW, barWidthCapPct) : rawBarW;
+  const barSlotW = barW * Math.max(1, series.length);
+
+  /** 팬 1~4개 — 차트 중앙 기준 클러스터(1=중앙, 2=중앙 좌·우). 5개 이상은 전폭 분산. */
+  const barCenterCluster = mode === "bar" && n > 0 && n <= 4;
+
+  const xForBar = (i: number): number => {
+    const center = PAD_X + innerW / 2;
+    if (n <= 1) return center;
+    if (!barCenterCluster) return xFor(i);
+    const spacing = Math.min(
+      Math.max(barSlotW * 1.25, innerW / (n + 2)),
+      n > 1 ? innerW / (n - 1) : innerW,
+    );
+    const span = (n - 1) * spacing;
+    return center - span / 2 + i * spacing;
+  };
+
+  const xAtIndex = (i: number): number =>
+    mode === "bar" ? xForBar(i) : xFor(i);
+
+  const hoverIndexAtRatio = (ratio: number): number => {
+    if (mode === "bar" && barCenterCluster) {
+      const xView = PAD_X + ratio * innerW;
+      let idx = 0;
+      let best = Infinity;
+      for (let i = 0; i < n; i++) {
+        const d = Math.abs(xForBar(i) - xView);
+        if (d < best) {
+          best = d;
+          idx = i;
+        }
+      }
+      return idx;
+    }
+    return Math.round(ratio * (n - 1));
+  };
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (n === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const xPx = e.clientX - rect.left;
+    const ratio = Math.min(1, Math.max(0, rect.width > 0 ? xPx / rect.width : 0));
+    setHover({ idx: hoverIndexAtRatio(ratio), xPx, w: rect.width });
   };
 
   const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / 6));
@@ -150,15 +192,6 @@ export function TrendChart({
     if (cur.length > 1) segs.push(cur.join(" "));
     return segs;
   };
-
-  const barGroupW = n > 0 ? innerW / n : innerW;
-  const rawBarW =
-    series.length > 0 ? (barGroupW * 0.7) / series.length : barGroupW * 0.7;
-  // 상한 캡 — 카테고리가 적어도 바가 통짜로 커지지 않게 제한.
-  const barW =
-    barWidthCapPct != null ? Math.min(rawBarW, barWidthCapPct) : rawBarW;
-  // 캡 적용 후 실제 그룹 폭 기준으로 슬롯 중앙 정렬.
-  const barSlotW = barW * Math.max(1, series.length);
 
   return (
     <div className="space-y-1.5">
@@ -211,7 +244,7 @@ export function TrendChart({
                 const axis = s.axis ?? "left";
                 const yTop = yFor(v, axis);
                 const baseY = PAD_TOP + innerH;
-                const gx = xFor(i) - barSlotW / 2 + si * barW;
+                const gx = xForBar(i) - barSlotW / 2 + si * barW;
                 return (
                   <rect
                     key={`${s.name}-${i}`}
@@ -259,8 +292,8 @@ export function TrendChart({
 
         {hover && hover.idx >= 0 && hover.idx < n ? (
           <line
-            x1={xFor(hover.idx)}
-            x2={xFor(hover.idx)}
+            x1={xAtIndex(hover.idx)}
+            x2={xAtIndex(hover.idx)}
             y1={PAD_TOP}
             y2={PAD_TOP + innerH}
             stroke="currentColor"
@@ -300,19 +333,33 @@ export function TrendChart({
       ) : null}
       </div>
 
-      <div className={cn("flex w-full gap-px border-t pt-1")}>
-        {categories.map((label, i) => (
-          <div
-            key={`${label}-${i}`}
-            className={cn(
-              "min-w-0 flex-1 overflow-visible whitespace-nowrap text-[9px] leading-none text-muted-foreground",
-              i === 0 ? "text-left" : i === n - 1 ? "text-right" : "text-center",
-            )}
-          >
-            {showTick(i) ? label : ""}
-          </div>
-        ))}
-      </div>
+      {mode === "bar" && barCenterCluster ? (
+        <div className="relative h-3.5 border-t pt-1">
+          {categories.map((label, i) => (
+            <span
+              key={`${label}-${i}`}
+              className="absolute -translate-x-1/2 whitespace-nowrap text-[9px] leading-none text-muted-foreground"
+              style={{ left: `${(xForBar(i) / VIEW_W) * 100}%` }}
+            >
+              {showTick(i) ? label : ""}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className={cn("flex w-full gap-px border-t pt-1")}>
+          {categories.map((label, i) => (
+            <div
+              key={`${label}-${i}`}
+              className={cn(
+                "min-w-0 flex-1 overflow-visible whitespace-nowrap text-[9px] leading-none text-muted-foreground",
+                i === 0 ? "text-left" : i === n - 1 ? "text-right" : "text-center",
+              )}
+            >
+              {showTick(i) ? label : ""}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
@@ -16,6 +16,7 @@ import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
+import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
 
 type Props = {
   barns: BarnMapSnapshot[];
@@ -46,14 +47,42 @@ export function FarmMapMobileStage({
   const bulkEnabled = Boolean(controller?.canCommand);
   const graphMode = Boolean(trendByPeriod) && !bulkMode;
 
-  const { expanded, setExpanded, graphByBarnId, detail } = useBarnGraphs({
-    barns,
-    trendByPeriod,
-    controllerTrendByPeriod,
-    controller,
-    graphPeriod,
-    enabled: graphMode,
-  });
+  const barnsRef = useRef(barns);
+  useEffect(() => {
+    barnsRef.current = barns;
+  }, [barns]);
+
+  const { expanded, setExpanded, graphByBarnId, metricIdsByBarnId, detail } =
+    useBarnGraphs({
+      barns,
+      trendByPeriod,
+      controllerTrendByPeriod,
+      controller,
+      graphPeriod,
+      enabled: graphMode,
+    });
+
+  // 스포트라이트 투어 — 확대 상세 열기/닫기(FarmMapCanvas와 동일).
+  useEffect(() => {
+    const onTourAction = (e: Event) => {
+      const action = (e as CustomEvent).detail?.action as string | undefined;
+      if (action === "collapse") {
+        setExpanded(null);
+        return;
+      }
+      if (action === "expand-first") {
+        const first = barnsRef.current.find(
+          (b) => (metricIdsByBarnId.get(b.meta.id)?.length ?? 0) > 0,
+        );
+        const ids = first ? metricIdsByBarnId.get(first.meta.id) : undefined;
+        if (first && ids?.[0]) {
+          setExpanded({ barnId: first.meta.id, metricId: ids[0] });
+        }
+      }
+    };
+    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+  }, [metricIdsByBarnId, setExpanded]);
 
   const toggleSp = useCallback((sp: string) => {
     setSelectedSps((prev) => {
@@ -94,6 +123,7 @@ export function FarmMapMobileStage({
             className="inline-flex overflow-hidden rounded-md border bg-background text-xs"
             role="group"
             aria-label="기간"
+            data-tour-id="period-select"
           >
             {GRAPH_PERIOD_ORDER.map((p) => (
               <button

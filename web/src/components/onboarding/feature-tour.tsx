@@ -21,25 +21,100 @@ import {
   shouldShowOnboardingTourAction,
 } from "@/app/(dashboard)/farm/onboarding-actions";
 import { GaugeAnatomy, PanelPillsGuide } from "@/components/onboarding/tour-guides";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
 const HOLE_PAD = 6;
 const TOOLTIP_W = 440;
+const TOOLTIP_W_MOBILE = 400;
+const MOBILE_SHEET_GAP = 8;
 const FIND_RETRIES = 16;
 const FIND_INTERVAL_MS = 150;
 const READY_RETRIES = 40;
 const READY_INTERVAL_MS = 150;
 
 function isTourTargetVisible(selector: string): boolean {
-  const el = document.querySelector(selector);
-  return Boolean(el && (el as HTMLElement).offsetParent !== null);
+  return findVisibleTourTarget(selector) !== null;
+}
+
+/** display:none·lg:hidden 등으로 숨긴 첫 매치를 건너뛰고 실제 보이는 대상을 반환. */
+function findVisibleTourTarget(selector: string): Element | null {
+  for (const el of document.querySelectorAll(selector)) {
+    if ((el as HTMLElement).offsetParent !== null) return el;
+  }
+  return null;
 }
 
 function measure(el: Element): Rect {
   const r = el.getBoundingClientRect();
   return { top: r.top, left: r.left, width: r.width, height: r.height };
+}
+
+const SCROLL_MARGIN_TOP = 72;
+
+function findScrollContainer(el: Element): HTMLElement | null {
+  let node = el.parentElement;
+  while (node) {
+    if (node instanceof HTMLElement) {
+      const style = getComputedStyle(node);
+      if (
+        (style.overflowY === "auto" || style.overflowY === "scroll") &&
+        node.scrollHeight > node.clientHeight + 1
+      ) {
+        return node;
+      }
+    }
+    node = node.parentElement;
+  }
+  return document.scrollingElement instanceof HTMLElement
+    ? document.scrollingElement
+    : null;
+}
+
+function scrollContainerBy(el: Element, delta: number, behavior: ScrollBehavior) {
+  if (Math.abs(delta) < 1) return;
+  const scroller = findScrollContainer(el);
+  if (scroller) {
+    scroller.scrollBy({ top: delta, behavior });
+  } else {
+    window.scrollBy({ top: delta, behavior });
+  }
+}
+
+/** 모바일 bottom sheet 툴팁 위에 대상 전체가 보이도록 스크롤(main overflow 컨테이너 포함). */
+function scrollTourTargetIntoView(el: HTMLElement, mobileSheet: boolean) {
+  if (!mobileSheet) {
+    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    return;
+  }
+  const bottomReserve =
+    Math.min(window.innerHeight * 0.52, 340) + 72 + MOBILE_SHEET_GAP + 16;
+  const headerClearance = SCROLL_MARGIN_TOP;
+  const maxBottom = window.innerHeight - bottomReserve;
+
+  const align = (behavior: ScrollBehavior = "auto") => {
+    const rect = el.getBoundingClientRect();
+    const targetH = rect.height;
+    const desiredTop =
+      targetH > maxBottom - headerClearance - 24
+        ? headerClearance
+        : Math.max(headerClearance, maxBottom - targetH - 12);
+
+    scrollContainerBy(el, rect.top - desiredTop, behavior);
+
+    const after = el.getBoundingClientRect();
+    if (after.bottom > maxBottom - 8) {
+      scrollContainerBy(el, after.bottom - maxBottom + 12, behavior);
+    }
+  };
+
+  el.scrollIntoView({ block: "nearest", behavior: "auto" });
+  requestAnimationFrame(() => {
+    align("smooth");
+    window.setTimeout(() => align("smooth"), 280);
+  });
 }
 
 function dispatchGridAction(action: "expand-first" | "collapse") {
@@ -110,21 +185,31 @@ function TourOverlay({
 
     const locate = () => {
       if (cancelled) return;
-      const el = document.querySelector(step.selector);
+      const isMobileSheet = window.innerWidth < 768;
+      const el = findVisibleTourTarget(step.selector);
       if (el && (el as HTMLElement).offsetParent !== null) {
         targetRef.current = el;
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
+        scrollTourTargetIntoView(el as HTMLElement, isMobileSheet);
         if (step.accentSelector) {
-          accentRef.current = document.querySelector(step.accentSelector);
+          accentRef.current =
+            el.querySelector(step.accentSelector) ??
+            document.querySelector(step.accentSelector);
+        } else {
+          accentRef.current = null;
         }
-        // 스크롤 안착 후 측정.
+        // 스크롤·확대 상세 렌더 안착 후 측정.
+        const measureDelay = step.gridAction
+          ? 420
+          : isMobileSheet
+            ? 340
+            : 260;
         window.setTimeout(() => {
           if (cancelled || !targetRef.current) return;
           setRect(measure(targetRef.current));
           setAccentRect(
             accentRef.current ? measure(accentRef.current) : null,
           );
-        }, 260);
+        }, measureDelay);
         return;
       }
       if (step.skipIfMissing) {
@@ -143,12 +228,14 @@ function TourOverlay({
       }
       window.setTimeout(locate, FIND_INTERVAL_MS);
     };
-    // 뷰 전환·렌더 반영 뒤 첫 탐색.
-    window.setTimeout(locate, 80);
+    // 뷰 전환·그리드 액션(expand-first 등) 반영 뒤 첫 탐색.
+    const locateDelay = step.gridAction ? 160 : 80;
+    const locateTimer = window.setTimeout(locate, locateDelay);
 
     return () => {
       cancelled = true;
       window.clearTimeout(applyTimer);
+      window.clearTimeout(locateTimer);
     };
   }, [stepIdx, step, setView, finish]);
 
@@ -182,7 +269,10 @@ function TourOverlay({
   const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const mobileSheet = vw < 768;
-  const tooltipW = Math.min(TOOLTIP_W, vw - 24);
+  const tooltipW = mobileSheet
+    ? Math.min(TOOLTIP_W_MOBILE, vw - 24)
+    : Math.min(TOOLTIP_W, vw - 24);
+  const mobileSheetBottom = `calc(${dashboardUi.mobileBottomNavInset} + ${MOBILE_SHEET_GAP}px)`;
 
   const hole = rect
     ? {
@@ -196,7 +286,7 @@ function TourOverlay({
   // 툴팁 배치 — 대상 아래 우선, 공간 부족 시 위. 가로는 뷰포트 안으로 클램프.
   let tooltipStyle: React.CSSProperties;
   if (mobileSheet) {
-    tooltipStyle = { left: 8, right: 8, bottom: 8 };
+    tooltipStyle = { left: 8, right: 8, bottom: mobileSheetBottom };
   } else if (hole) {
     const left = Math.min(Math.max(hole.left, 12), Math.max(12, vw - tooltipW - 12));
     const spaceBelow = vh - (hole.top + hole.height);
@@ -247,54 +337,94 @@ function TourOverlay({
       {/* 툴팁 */}
       <div
         className={cn(
-          "farm-tour-tooltip fixed max-h-[75vh] overflow-y-auto rounded-xl border bg-card p-6 text-card-foreground shadow-2xl",
-          mobileSheet && "max-h-[60vh]",
+          "farm-tour-tooltip fixed overflow-y-auto rounded-xl border bg-card text-card-foreground shadow-2xl",
+          mobileSheet
+            ? "max-h-[52vh] p-5"
+            : "max-h-[75vh] p-6",
         )}
         style={tooltipStyle}
+        data-mobile={mobileSheet ? "true" : undefined}
       >
-        <div className="mb-2 flex items-center gap-2">
-          <span className="text-sm font-semibold tabular-nums text-muted-foreground">
+        <div className={cn("flex items-center gap-2", mobileSheet ? "mb-1.5" : "mb-2")}>
+          <span
+            className={cn(
+              "font-semibold tabular-nums text-muted-foreground",
+              mobileSheet ? "text-xs" : "text-sm",
+            )}
+          >
             {stepIdx + 1} / {TOUR_STEPS.length}
           </span>
           <span className="ml-auto" />
           <button
             type="button"
             onClick={() => finish(false)}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className={cn(
+              "rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+              mobileSheet ? "p-0.5" : "p-1",
+            )}
             aria-label="투어 닫기"
           >
-            <X className="size-4" aria-hidden />
+            <X className={mobileSheet ? "size-3.5" : "size-4"} aria-hidden />
           </button>
         </div>
-        <p className="text-lg font-bold leading-snug">{step.title}</p>
-        <p className="mt-1.5 text-[0.9375rem] leading-relaxed text-muted-foreground">{step.body}</p>
+        <p
+          className={cn(
+            "font-bold leading-snug",
+            mobileSheet ? "text-base" : "text-lg",
+          )}
+        >
+          {step.title}
+        </p>
+        <p
+          className={cn(
+            "leading-relaxed text-muted-foreground",
+            mobileSheet ? "mt-1 text-sm" : "mt-1.5 text-[0.9375rem]",
+          )}
+        >
+          {step.body}
+        </p>
         {step.extra === "anatomy" ? (
-          <div className="mt-3">
-            <GaugeAnatomy />
+          <div className={mobileSheet ? "mt-2.5" : "mt-3"}>
+            <GaugeAnatomy compact={mobileSheet} />
           </div>
         ) : null}
         {step.extra === "pills" ? (
-          <div className="mt-3">
-            <PanelPillsGuide />
+          <div className={mobileSheet ? "mt-2.5" : "mt-3"}>
+            <PanelPillsGuide compact={mobileSheet} />
           </div>
         ) : null}
 
-        <div className="mt-4 flex items-center gap-1.5">
-          {TOUR_STEPS.map((s, i) => (
-            <span
-              key={s.id}
-              className={cn(
-                "size-2 rounded-full transition-colors",
-                i === stepIdx ? "bg-sky-500" : "bg-muted-foreground/25",
-              )}
-              aria-hidden
-            />
-          ))}
-          <span className="ml-auto flex items-center gap-2">
+        <div
+          className={cn(
+            mobileSheet ? "mt-3 flex flex-col gap-2.5" : "mt-4 flex items-center gap-1.5",
+          )}
+        >
+          <div className="flex items-center justify-center gap-1.5">
+            {TOUR_STEPS.map((s, i) => (
+              <span
+                key={s.id}
+                className={cn(
+                  "rounded-full transition-colors",
+                  mobileSheet ? "size-1.5" : "size-2",
+                  i === stepIdx ? "bg-sky-500" : "bg-muted-foreground/25",
+                )}
+                aria-hidden
+              />
+            ))}
+          </div>
+          <div
+            className={cn(
+              "flex items-center gap-2",
+              mobileSheet ? "justify-end" : "ml-auto",
+            )}
+          >
             <button
               type="button"
               onClick={() => finish(false)}
-              className="rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
+              className={cn(
+                "rounded-md font-medium text-muted-foreground transition-colors hover:bg-muted",
+                mobileSheet ? "px-2 py-1.5 text-xs" : "px-2.5 py-1.5 text-sm",
+              )}
             >
               건너뛰기
             </button>
@@ -302,7 +432,10 @@ function TourOverlay({
               <button
                 type="button"
                 onClick={() => goTo(stepIdx - 1, -1)}
-                className="rounded-md border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:bg-muted"
+                className={cn(
+                  "rounded-md border font-semibold transition-colors hover:bg-muted",
+                  mobileSheet ? "px-2.5 py-1.5 text-xs" : "px-3.5 py-1.5 text-sm",
+                )}
               >
                 이전
               </button>
@@ -310,11 +443,14 @@ function TourOverlay({
             <button
               type="button"
               onClick={() => goTo(stepIdx + 1, 1)}
-              className="rounded-md bg-sky-600 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700"
+              className={cn(
+                "rounded-md bg-sky-600 font-semibold text-white transition-colors hover:bg-sky-700",
+                mobileSheet ? "px-3 py-1.5 text-xs" : "px-4 py-1.5 text-sm",
+              )}
             >
               {stepIdx === TOUR_STEPS.length - 1 ? "완료" : "다음"}
             </button>
-          </span>
+          </div>
         </div>
       </div>
     </div>,
@@ -376,8 +512,6 @@ export function FarmFeatureTour({
     } catch {
       /* storage 사용 불가 — 자동 확인으로 진행 */
     }
-    // 모바일 그리드는 전용 마크업(v1 미지원) — 데스크톱 폭에서만 자동 노출.
-    if (window.innerWidth < 1024) return;
     let cancelled = false;
     void shouldShowOnboardingTourAction()
       .then((show) => {

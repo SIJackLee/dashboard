@@ -102,6 +102,9 @@ export const dashboardUi = {
   /** 하단 모바일 네비 — fixed bar 높이 + safe-area */
   mobileBottomNav:
     "fixed bottom-0 left-0 right-0 z-40 flex border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90",
+  /** 투어 bottom sheet — mobileBottomNav + 여백 */
+  mobileBottomNavInset:
+    "calc(4.5rem + env(safe-area-inset-bottom, 0px))",
   mobileBottomNavItem:
     "flex min-h-[3.25rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium leading-tight transition-colors",
   pageStack: "mx-auto space-y-6 md:space-y-8",

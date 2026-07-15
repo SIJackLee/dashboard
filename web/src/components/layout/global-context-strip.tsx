@@ -154,7 +154,10 @@ export function GlobalContextStrip({
 
   if (headerInline) {
     return (
-      <div className="flex shrink-0 items-end justify-end gap-1 overflow-x-auto overscroll-x-contain px-0.5 pb-0.5 pt-1.5 [scrollbar-width:none] max-lg:[overflow-y:visible]">
+      <div
+        className="flex shrink-0 items-end justify-end gap-1 overflow-x-auto overscroll-x-contain px-0.5 pb-0.5 pt-1.5 [scrollbar-width:none] max-lg:[overflow-y:visible]"
+        data-tour-id="header-stats"
+      >
         <Kpi
           iconBadge
           icon={<Tractor aria-hidden />}

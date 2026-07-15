@@ -13,26 +13,38 @@ const ANATOMY_ITEMS = [
   { n: 4, label: "범위 이탈", desc: "마커가 범위를 벗어나면 주의·경고 색" },
 ] as const;
 
-export function GaugeAnatomy() {
+type GuideProps = {
+  /** 모바일 bottom sheet — B 스케일 */
+  compact?: boolean;
+};
+
+export function GaugeAnatomy({ compact = false }: GuideProps) {
   return (
-    <div className="rounded-lg border bg-muted/30 p-3.5">
-      <p className="mb-2 text-sm font-semibold text-muted-foreground">
+    <div className={cnBox(compact)}>
+      <p
+        className={
+          compact
+            ? "mb-1.5 text-xs font-semibold text-muted-foreground"
+            : "mb-2 text-sm font-semibold text-muted-foreground"
+        }
+      >
         게이지 바 읽는 법
       </p>
-      {/* 확대 모식도 — CardMetricGauge와 동일 요소(주황 채움·보라 설정대역·흰 마커) */}
-      <div className="relative mb-2 select-none pt-0.5">
+      <div className={compact ? "relative mb-1.5 select-none pt-0.5" : "relative mb-2 select-none pt-0.5"}>
         <div
-          className="relative h-4 w-full overflow-hidden rounded-md border bg-muted/40"
+          className={
+            compact
+              ? "relative h-3 w-full overflow-hidden rounded-md border bg-muted/40"
+              : "relative h-4 w-full overflow-hidden rounded-md border bg-muted/40"
+          }
           role="img"
           aria-label="게이지 예시 — 알람 하한~상한, 설정온도±편차, 현재값 마커"
         >
-          {/* 보라: 설정온도 ± 온도편차 */}
           <div
             className="pointer-events-none absolute inset-y-0 z-[1] rounded-sm bg-violet-500/40 ring-1 ring-inset ring-violet-600/45"
             style={{ left: "25%", width: "50%" }}
             aria-hidden
           />
-          {/* 주황: 하한 → 현재값 채움 */}
           <div
             className="absolute inset-y-0 left-0 z-[0] rounded-md bg-orange-500"
             style={{ width: "42%" }}
@@ -43,22 +55,44 @@ export function GaugeAnatomy() {
             style={{ width: "58%" }}
             aria-hidden
           />
-          {/* 흰(foreground) 현재값 마커 */}
           <div
-            className="absolute top-[-1px] z-[2] h-[1.125rem] w-3 rounded-full bg-foreground"
+            className={
+              compact
+                ? "absolute top-[-1px] z-[2] h-3.5 w-2.5 rounded-full bg-foreground"
+                : "absolute top-[-1px] z-[2] h-[1.125rem] w-3 rounded-full bg-foreground"
+            }
             style={{ left: "42%", transform: "translateX(-50%)" }}
             aria-hidden
           />
         </div>
-        <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+        <div
+          className={
+            compact
+              ? "mt-0.5 flex justify-between text-[0.65rem] text-muted-foreground"
+              : "mt-1 flex justify-between text-xs text-muted-foreground"
+          }
+        >
           <span>하한</span>
           <span>상한</span>
         </div>
       </div>
-      <ul className="space-y-1.5">
+      <ul className={compact ? "space-y-1" : "space-y-1.5"}>
         {ANATOMY_ITEMS.map((it) => (
-          <li key={it.n} className="flex items-start gap-2 text-sm leading-snug">
-            <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[0.65rem] font-bold text-white">
+          <li
+            key={it.n}
+            className={
+              compact
+                ? "flex items-start gap-1.5 text-xs leading-snug"
+                : "flex items-start gap-2 text-sm leading-snug"
+            }
+          >
+            <span
+              className={
+                compact
+                  ? "mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[0.55rem] font-bold text-white"
+                  : "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[0.65rem] font-bold text-white"
+              }
+            >
               {it.n}
             </span>
             <span>
@@ -87,13 +121,26 @@ const PILL_ITEMS = [
   },
 ] as const;
 
-export function PanelPillsGuide() {
+export function PanelPillsGuide({ compact = false }: GuideProps) {
   return (
-    <div className="rounded-lg border bg-muted/30 p-3.5">
-      <ul className="space-y-2">
+    <div className={cnBox(compact)}>
+      <ul className={compact ? "space-y-1.5" : "space-y-2"}>
         {PILL_ITEMS.map((p) => (
-          <li key={p.name} className="flex items-start gap-2.5 text-sm leading-snug">
-            <span className="shrink-0 rounded-full border bg-background px-2.5 py-0.5 text-xs font-semibold">
+          <li
+            key={p.name}
+            className={
+              compact
+                ? "flex items-start gap-2 text-xs leading-snug"
+                : "flex items-start gap-2.5 text-sm leading-snug"
+            }
+          >
+            <span
+              className={
+                compact
+                  ? "shrink-0 rounded-full border bg-background px-2 py-0.5 text-[0.65rem] font-semibold"
+                  : "shrink-0 rounded-full border bg-background px-2.5 py-0.5 text-xs font-semibold"
+              }
+            >
               {p.name}
             </span>
             <span className="text-muted-foreground">{p.desc}</span>
@@ -102,4 +149,10 @@ export function PanelPillsGuide() {
       </ul>
     </div>
   );
+}
+
+function cnBox(compact: boolean) {
+  return compact
+    ? "rounded-lg border bg-muted/30 p-2.5"
+    : "rounded-lg border bg-muted/30 p-3.5";
 }

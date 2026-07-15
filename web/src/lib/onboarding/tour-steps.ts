@@ -110,7 +110,8 @@ export const TOUR_STEPS: TourStepDef[] = [
   },
   {
     id: "panel-pills",
-    selector: '[data-tour-id="panel-pills"]',
+    selector: "[data-controller-card-key]",
+    accentSelector: '[data-tour-id="panel-pills"]',
     view: "list",
     title: "그래프 · 설정 · 모터 패널",
     body:
