@@ -93,7 +93,7 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "detail-panel",
     selector: '[data-tour-id="detail-panel"]',
-    mobileSelector: '[data-tour-id="detail-panel-charts"]',
+    mobileSelector: '[data-tour-id="detail-panel-chart-first"]',
     view: "map",
     gridAction: "expand-first",
     scrollPolicy: "fit-between",
@@ -114,7 +114,7 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "controller-row",
     selector: "[data-controller-card-key]",
-    mobileSelector: '[data-tour-id="controller-card"]',
+    mobileSelector: '[data-tour-id="controller-gauge"]',
     view: "list",
     scrollPolicy: "fit-between",
     title: "컨트롤러 카드 — 게이지 읽는 법",

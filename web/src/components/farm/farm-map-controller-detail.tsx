@@ -240,7 +240,7 @@ export function FarmMapControllerDetail({
                 : undefined
             }
           >
-            {controllers.map((c) => {
+            {controllers.map((c, chartIndex) => {
               const metric = c.metricsById[effectiveMetricId];
               const cur = metric ? currentValue(metric.values) : null;
               const worst = metric ? worstOf(metric) : "normal";
@@ -249,6 +249,9 @@ export function FarmMapControllerDetail({
                 <button
                   key={c.key}
                   type="button"
+                  data-tour-id={
+                    chartIndex === 0 ? "detail-panel-chart-first" : undefined
+                  }
                   onClick={() => selectController(c.key)}
                   aria-pressed={isSel}
                   className={cn(
