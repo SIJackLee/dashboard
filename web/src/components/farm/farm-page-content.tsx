@@ -84,6 +84,11 @@ export function FarmPageContent({
   const [view, setViewState] = useState<"map" | "list">(bootstrapView);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [urlTick, setUrlTick] = useState(0);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!hubMode) return;
@@ -262,11 +267,12 @@ export function FarmPageContent({
           role="tablist"
           aria-label="농장 보기"
           data-tour-id="view-toggle"
+          suppressHydrationWarning
         >
           <button
             type="button"
             role="tab"
-            aria-selected={view === "map"}
+            aria-selected={mounted ? view === "map" : bootstrapView === "map"}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,
@@ -282,7 +288,7 @@ export function FarmPageContent({
           <button
             type="button"
             role="tab"
-            aria-selected={view === "list"}
+            aria-selected={mounted ? view === "list" : bootstrapView === "list"}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,

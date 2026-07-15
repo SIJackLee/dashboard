@@ -250,8 +250,10 @@ export function FarmMapControllerPanel({
     onRefreshLive,
   });
 
+  const panelTarget = detail ?? activeReading;
+
   const panel = useControllerPanel(
-    detail,
+    panelTarget,
     knownSettings,
     canCommand,
     hasChannels ? activeChannel : undefined,
@@ -259,9 +261,10 @@ export function FarmMapControllerPanel({
     pipeline.registerCommand
   );
 
-  const online = isReadingOnline(detail?.status);
+  const online = isReadingOnline(detail?.status ?? activeReading.status);
   const powerOn = detail?.status === "normal" || detail?.status === "caution";
-  const controlsDisabled = !detail || !canCommand || panel.pending;
+  const controlsDisabled =
+    !canCommand || panel.pending || !panel.settingsKnown;
 
   const farmId = farmKeyId(activeReading.farmKey);
   const spCode = normalizeStallTyCode(activeReading.stallTyCode);
@@ -292,7 +295,7 @@ export function FarmMapControllerPanel({
   const saveDisabled = isSaving || (!canSaveControl && !canSaveAlarm);
   const saveDisabledReason = (() => {
     if (isSaving) return "저장 중…";
-    if (!detail) return "컨트롤러 상세를 불러오는 중…";
+    if (!panel.settingsKnown) return "설정값을 불러오는 중…";
     if (!canCommand) return "명령 권한이 없습니다.";
     if (!online) return "오프라인이라 적용할 수 없습니다.";
     if (!canSaveControl && !canSaveAlarm) return "변경된 설정이 없습니다.";

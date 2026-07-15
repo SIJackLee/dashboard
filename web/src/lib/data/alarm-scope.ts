@@ -12,14 +12,14 @@ import {
   type AlarmThresholds,
 } from "@/lib/data/alarms";
 
-export type AlarmScopeParts = {
+type AlarmScopeParts = {
   farmId: string;
   sp?: string;
   stall?: string;
   controllerKey?: string;
 };
 
-export function buildAlarmScopeKey(parts: AlarmScopeParts): string {
+function buildAlarmScopeKey(parts: AlarmScopeParts): string {
   const segments = [`farm:${parts.farmId}`];
   if (parts.sp) segments.push(`sp:${parts.sp}`);
   if (parts.stall) segments.push(`stall:${parts.stall}`);
@@ -29,7 +29,7 @@ export function buildAlarmScopeKey(parts: AlarmScopeParts): string {
   return segments.join("|");
 }
 
-export function parseAlarmScopeKey(key: string): AlarmScopeParts | null {
+function parseAlarmScopeKey(key: string): AlarmScopeParts | null {
   if (!key.startsWith("farm:")) return null;
   const parts: AlarmScopeParts = { farmId: "" };
   for (const seg of key.split("|")) {
@@ -43,7 +43,7 @@ export function parseAlarmScopeKey(key: string): AlarmScopeParts | null {
   return parts.farmId ? parts : null;
 }
 
-export function scopeCandidatesForReading(r: BarnReading): string[] {
+function scopeCandidatesForReading(r: BarnReading): string[] {
   const farmId = farmKeyId(r.farmKey);
   const sp = normalizeStallTyCode(r.stallTyCode);
   const stall = stallKeyFromReading(r);
@@ -214,7 +214,7 @@ export function mergeScopeThreshold(
 }
 
 /** ancestorKey 하위(stall·controller) scope override 여부 */
-export function isDescendantScopeKey(
+function isDescendantScopeKey(
   scopeKey: string,
   ancestorScopeKey: string
 ): boolean {

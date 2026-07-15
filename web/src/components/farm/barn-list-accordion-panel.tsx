@@ -167,8 +167,10 @@ export function BarnListAccordionPanel({
     onRefreshLive,
   });
 
+  const panelTarget = detail ?? reading;
+
   const panel = useControllerPanel(
-    detail,
+    panelTarget,
     knownSettings,
     canCommand,
     hasChannels ? activeChannel : undefined,
@@ -176,8 +178,9 @@ export function BarnListAccordionPanel({
     pipeline.registerCommand
   );
 
-  const online = isReadingOnline(detail?.status);
-  const controlsDisabled = !detail || !canCommand || panel.pending;
+  const online = isReadingOnline(detail?.status ?? reading.status);
+  const controlsDisabled =
+    !canCommand || panel.pending || !panel.settingsKnown;
 
   const farmId = farmKeyId(reading.farmKey);
   const spCode = normalizeStallTyCode(reading.stallTyCode);
@@ -201,6 +204,14 @@ export function BarnListAccordionPanel({
     thresholdHeader!.scopeReady &&
     thresholdHeader!.hasChanges;
   const saveDisabled = isSaving || (!canSaveControl && !canSaveAlarm);
+  const saveDisabledReason = (() => {
+    if (isSaving) return "저장 중…";
+    if (!panel.settingsKnown) return "설정값을 불러오는 중…";
+    if (!canCommand) return "명령 권한이 없습니다.";
+    if (!online) return "오프라인이라 적용할 수 없습니다.";
+    if (!canSaveControl && !canSaveAlarm) return "변경된 설정이 없습니다.";
+    return null;
+  })();
   const defaultsDisabled =
     isSaving ||
     Boolean(thresholdHeader && (!thresholdHeader.scopeReady || thresholdHeader.pending));
@@ -315,12 +326,16 @@ export function BarnListAccordionPanel({
           <button
             type="button"
             disabled={saveDisabled}
+            title={saveDisabledReason ?? undefined}
             onClick={handleSaveAll}
             className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 sm:text-sm"
           >
             {isSaving ? "적용 중…" : "적용"}
           </button>
         </div>
+        {saveDisabled && saveDisabledReason ? (
+          <p className="text-xs text-muted-foreground">{saveDisabledReason}</p>
+        ) : null}
         <ListStatusBanner
           command={pipeline.command}
           liveConfirmed={pipeline.liveConfirmed}
