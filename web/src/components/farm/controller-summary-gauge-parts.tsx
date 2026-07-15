@@ -407,6 +407,3 @@ export function EnvMetricPanel({
     </div>
   );
 }
-
-/** @deprecated CardMetricGauge 사용 */
-export const MobileAlarmTrackBar = CardMetricGauge;

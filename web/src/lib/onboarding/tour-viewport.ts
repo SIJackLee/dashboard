@@ -6,8 +6,8 @@ export const TOUR_MOBILE_SHEET_GAP = 8;
 export const TOUR_SCROLL_MARGIN_TOP = 96;
 /** TopBar 하단 ~ 스포트라이트 상단 최소 여백 */
 export const TOUR_HEADER_BOTTOM_GAP = 12;
-/** 스텝 진입 후 스크롤·레이아웃 안착 대기(ms) */
-export const TOUR_MOBILE_SETTLE_MS = 360;
+/** 스텝 진입 후 스크롤·레이아웃 fallback 대기(ms) — 이벤트 대기 실패 시. */
+export const TOUR_MOBILE_SETTLE_MS = 80;
 /** visualViewport resize debounce(ms) */
 export const TOUR_VIEWPORT_RESIZE_DEBOUNCE_MS = 320;
 /** 프로그램 스크롤 직후 vv.resize 무시(ms) — iOS 주소창 피드백 루프 차단 */
@@ -325,14 +325,6 @@ export function scrollTourTargetIntoView(
   align();
 }
 
-/** anchor-top — 헤더 clearance와의 절대 오차(px). */
-export function measureTourAnchorTopDrift(
-  el: HTMLElement,
-  tooltipHeight?: number | null,
-): number {
-  return measureTourTargetBandDrift(el, tooltipHeight, "anchor-top").topDrift;
-}
-
 /** 상·하단 scroll band와 타깃 rect 오차. anchor-top은 top만 검사. */
 export function measureTourTargetBandDrift(
   el: HTMLElement,
@@ -393,24 +385,6 @@ export function scrollTourTargetUntilBandAligned(
   }
 }
 
-/** @deprecated scrollTourTargetUntilBandAligned 사용 */
-export function scrollTourTargetUntilAnchored(
-  el: HTMLElement,
-  options?: ScrollTourTargetOptions,
-  maxAttempts = 4,
-): void {
-  scrollTourTargetUntilBandAligned(el, options, maxAttempts);
-}
-
-/** 타깃이 툴팁·헤더 사이 band를 벗어난 최대 오차(px). */
-export function measureTourTargetAlignmentDrift(
-  el: HTMLElement,
-  tooltipHeight?: number | null,
-  scrollPolicy?: TourScrollPolicy,
-): number {
-  return measureTourTargetBandDrift(el, tooltipHeight, scrollPolicy).drift;
-}
-
 /** 투어 시작 직후 주소창 접힘 유도 — 보조 수단(1회). */
 export function stabilizeMobileBrowserViewport(): Promise<void> {
   if (typeof window === "undefined" || window.innerWidth >= 768) {
@@ -418,17 +392,17 @@ export function stabilizeMobileBrowserViewport(): Promise<void> {
   }
 
   return new Promise((resolve) => {
-    markTourProgrammaticScroll(240);
+    markTourProgrammaticScroll(160);
     window.scrollBy({ top: 1, behavior: "auto" });
     window.setTimeout(() => {
-      markTourProgrammaticScroll(240);
+      markTourProgrammaticScroll(160);
       window.scrollBy({ top: -1, behavior: "auto" });
       syncTourViewportCssVars();
       window.setTimeout(() => {
         syncTourViewportCssVars();
         resolve();
-      }, 320);
-    }, 120);
+      }, 100);
+    }, 50);
   });
 }
 
@@ -447,4 +421,18 @@ export function resolveTourStepSelector(
 ): string {
   if (isMobileTourSheet() && mobileSelector) return mobileSelector;
   return selector;
+}
+
+/** 스크롤 anchor — mobileScrollSelector가 있으면 스포트라이트와 분리. */
+export function resolveTourScrollTarget(
+  spotlightEl: HTMLElement,
+  mobileScrollSelector?: string,
+): HTMLElement {
+  if (!isMobileTourSheet() || !mobileScrollSelector) return spotlightEl;
+  for (const node of document.querySelectorAll(mobileScrollSelector)) {
+    if ((node as HTMLElement).offsetParent !== null) {
+      return node as HTMLElement;
+    }
+  }
+  return spotlightEl;
 }

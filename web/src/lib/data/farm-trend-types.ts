@@ -5,9 +5,6 @@
 
 export type TrendPeriodId = "24h" | "7d" | "30d";
 
-/** 추이 데이터 로딩 상태 — 그리드/모바일 공용. */
-export type FarmMapTrendStatus = "ready" | "loading" | "error";
-
 export type TrendPeriodConfig = {
   id: TrendPeriodId;
   label: string;

@@ -4,8 +4,8 @@ import { useMemo } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
 import { GraphPanelSkeleton } from "@/components/common/loading-skeletons";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
+import { TrendPeriodToggle } from "@/components/farm/trend-period-toggle";
 import {
-  TREND_PERIODS,
   type TrendControllerPeriodData,
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
@@ -28,8 +28,6 @@ import {
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
-
-const PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
 
 type Props = {
   reading: BarnReading;
@@ -103,27 +101,7 @@ export function BarnListGraphPanel({
             {sp} · 축사 {stall} · {formatControllerNoLabel(reading.eqpmnNo)}
           </p>
         </div>
-        <div
-          className="inline-flex shrink-0 overflow-x-auto rounded-md border bg-background"
-          role="group"
-          aria-label="기간"
-        >
-          {PERIOD_ORDER.map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => onPeriodChange(p)}
-              className={cn(
-                "shrink-0 px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
-                period === p
-                  ? "bg-sky-50 text-sky-700"
-                  : "text-muted-foreground hover:bg-muted"
-              )}
-            >
-              {TREND_PERIODS[p].label}
-            </button>
-          ))}
-        </div>
+        <TrendPeriodToggle value={period} onChange={onPeriodChange} />
       </div>
 
       {!hasData ? (

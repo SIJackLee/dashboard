@@ -10,6 +10,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import {
   FARM_TOUR_ACTION_EVENT,
+  FARM_TOUR_ACTIVE_EVENT,
   FARM_TOUR_RESTART_EVENT,
   FARM_TOUR_RESTART_FLAG,
   TOUR_READY_SELECTOR,
@@ -17,6 +18,16 @@ import {
   type TourStepDef,
   type TourView,
 } from "@/lib/onboarding/tour-steps";
+import {
+  afterFrames,
+  markTourStepReady,
+  markTourStepSettling,
+  TOUR_FIND_INTERVAL_MS,
+  TOUR_READY_INTERVAL_MS,
+  TOUR_REVEAL_MAX_ATTEMPTS,
+  waitForTooltipExtraReady,
+  waitForTourGridAction,
+} from "@/lib/onboarding/tour-timing";
 import {
   markOnboardingTourDoneAction,
   shouldShowOnboardingTourAction,
@@ -29,6 +40,7 @@ import {
   measureTourTargetBandDrift,
   resetTourScrollContainers,
   resolveTourScrollPolicy,
+  resolveTourScrollTarget,
   resolveTourStepSelector,
   scrollTourTargetIntoView,
   scrollTourTargetUntilBandAligned,
@@ -46,10 +58,8 @@ type Rect = { top: number; left: number; width: number; height: number };
 const HOLE_PAD = 6;
 const TOOLTIP_W = 440;
 const TOOLTIP_W_MOBILE = 400;
-const FIND_RETRIES = 16;
-const FIND_INTERVAL_MS = 150;
-const READY_RETRIES = 40;
-const READY_INTERVAL_MS = 150;
+const FIND_RETRIES = 24;
+const READY_RETRIES = 60;
 
 function isTourTargetVisible(selector: string): boolean {
   return findVisibleTourTarget(selector) !== null;
@@ -78,20 +88,11 @@ function dispatchGridAction(action: "expand-first" | "collapse") {
   );
 }
 
-function getMobileStepMeasureDelay(
-  step: TourStepDef,
-  stepIdx: number,
-): number {
-  const prev = stepIdx > 0 ? TOUR_STEPS[stepIdx - 1] : null;
-  const viewSwitched = prev != null && prev.view !== step.view;
-  if (step.gridAction) return 680;
-  if (viewSwitched) return 620;
-  if (step.extra) return 520;
-  return 300;
+function setFarmTourActive(active: boolean): void {
+  window.dispatchEvent(
+    new CustomEvent(FARM_TOUR_ACTIVE_EVENT, { detail: { active } }),
+  );
 }
-
-const TOUR_EXTRA_MIN_HEIGHT = 120;
-const TOUR_REVEAL_MAX_ATTEMPTS = 12;
 
 /**
  * 스포트라이트 투어 오버레이 — 대상 요소를 밝게 남기고 나머지를 어둡게 처리.
@@ -135,14 +136,21 @@ function TourOverlay({
   }, []);
 
   const runTargetScrollOnce = useCallback(() => {
-    const el = targetRef.current as HTMLElement | null;
-    if (!el || window.innerWidth >= 768 || !scrollEnabled) return;
-    const opts = {
-      scrollPolicy,
-      tooltipHeight: getTooltipHeight(),
-    };
-    scrollTourTargetUntilBandAligned(el, opts);
-  }, [scrollPolicy, scrollEnabled, getTooltipHeight]);
+    const spotlight = targetRef.current as HTMLElement | null;
+    if (!spotlight || window.innerWidth >= 768 || !scrollEnabled) return;
+    const scrollEl = resolveTourScrollTarget(
+      spotlight,
+      step.mobileScrollSelector,
+    );
+    scrollTourTargetUntilBandAligned(
+      scrollEl,
+      {
+        scrollPolicy,
+        tooltipHeight: getTooltipHeight(),
+      },
+      3,
+    );
+  }, [scrollPolicy, scrollEnabled, getTooltipHeight, step.mobileScrollSelector]);
 
   const finish = useCallback(
     (completed: boolean) => {
@@ -163,10 +171,8 @@ function TourOverlay({
       }
       stepGenRef.current += 1;
       tooltipRealignedRef.current = false;
-      setHoleReady(false);
+      markTourStepSettling();
       setSettling(true);
-      setRect(null);
-      setAccentRect(null);
       setStepIdx(next);
     },
     [finish],
@@ -190,7 +196,7 @@ function TourOverlay({
     };
   }, []);
 
-  // 스텝 진입 — scroll-once → settle → hole 표시.
+  // 스텝 진입 — 이벤트 기반 layout settle → scroll 1회 → hole 표시.
   useEffect(() => {
     if (!viewportReady) return;
     const stepGen = stepGenRef.current;
@@ -198,6 +204,7 @@ function TourOverlay({
     let attempts = 0;
     const timers: number[] = [];
     const spotlightSelector = getStepSpotlightSelector(step);
+    const prevStep = stepIdx > 0 ? TOUR_STEPS[stepIdx - 1] : null;
 
     targetRef.current = null;
     accentRef.current = null;
@@ -206,105 +213,102 @@ function TourOverlay({
       timers.push(window.setTimeout(fn, ms));
     };
 
-    const prevStep = stepIdx > 0 ? TOUR_STEPS[stepIdx - 1] : null;
+    const stepScrollPolicy = resolveTourScrollPolicy(step);
+    const stepScrollEnabled = stepScrollPolicy !== "none";
 
-    schedule(() => {
+    const scrollTargetOnce = (scrollEl: HTMLElement) => {
+      if (!stepScrollEnabled || window.innerWidth >= 768) return;
+      scrollTourTargetUntilBandAligned(
+        scrollEl,
+        {
+          scrollPolicy: stepScrollPolicy,
+          tooltipHeight: getTooltipHeight(),
+        },
+        3,
+      );
+    };
+
+    const resolveScrollEl = (spotlightEl: HTMLElement) =>
+      resolveTourScrollTarget(spotlightEl, step.mobileScrollSelector);
+
+    const completeStep = (el: HTMLElement) => {
+      if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
+        return;
+      }
+      measureTargets();
+      setSettling(false);
+      setHoleReady(true);
+      markTourStepReady(stepIdx);
+    };
+
+    const revealHole = async (spotlightEl: HTMLElement) => {
+      const scrollEl = resolveScrollEl(spotlightEl);
+      for (let attempt = 0; attempt < TOUR_REVEAL_MAX_ATTEMPTS; attempt += 1) {
+        if (
+          cancelled ||
+          stepGenRef.current !== stepGen ||
+          targetRef.current !== spotlightEl
+        ) {
+          return;
+        }
+        if (stepScrollEnabled) scrollTargetOnce(scrollEl);
+        await afterFrames(1);
+        const band = measureTourTargetBandDrift(
+          scrollEl,
+          getTooltipHeight(),
+          stepScrollPolicy,
+        );
+        if (band.drift < TOUR_REALIGN_DRIFT_THRESHOLD) {
+          completeStep(spotlightEl);
+          return;
+        }
+      }
+      completeStep(spotlightEl);
+    };
+
+    const finalizeMobileStep = async (el: HTMLElement) => {
+      if (cancelled || stepGenRef.current !== stepGen) return;
+      setSettling(true);
+      markTourStepSettling();
+
+      try {
+        if (step.gridAction) {
+          await waitForTourGridAction(step.gridAction);
+        } else if (prevStep?.view !== step.view) {
+          await afterFrames(2);
+        } else {
+          await afterFrames(1);
+        }
+
+        if (step.extra && tooltipRef.current) {
+          await waitForTooltipExtraReady(tooltipRef.current);
+        }
+
+        if (!stepScrollEnabled) {
+          completeStep(el);
+          return;
+        }
+
+        await revealHole(el);
+      } catch {
+        completeStep(el);
+      }
+    };
+
+    const finalizeDesktopStep = async (el: HTMLElement) => {
+      if (cancelled || stepGenRef.current !== stepGen) return;
+      scrollTourTargetIntoView(el, false);
+      await afterFrames(2);
+      completeStep(el);
+    };
+
+    const runStepEntry = () => {
       if (cancelled || stepGenRef.current !== stepGen) return;
       setView(step.view);
       if (step.view === "list" && prevStep?.view !== "list") {
         resetTourScrollContainers();
       }
       if (step.gridAction) dispatchGridAction(step.gridAction);
-    }, 0);
-
-    const stepScrollPolicy = resolveTourScrollPolicy(step);
-    const stepScrollEnabled = stepScrollPolicy !== "none";
-    const isAnchorScroll =
-      stepScrollPolicy === "anchor-top" ||
-      stepScrollPolicy === "anchor-card-top";
-
-    const scrollTarget = (el: HTMLElement) => {
-      if (!stepScrollEnabled || window.innerWidth >= 768) return;
-      scrollTourTargetUntilBandAligned(el, {
-        scrollPolicy: stepScrollPolicy,
-        tooltipHeight: getTooltipHeight(),
-      });
-    };
-
-    const finalizeMobileStep = (el: HTMLElement) => {
-      if (cancelled || stepGenRef.current !== stepGen) return;
-      setSettling(true);
-
-      if (!stepScrollEnabled) {
-        schedule(() => {
-          if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
-            return;
-          }
-          measureTargets();
-          setSettling(false);
-          setHoleReady(true);
-        }, 120);
-        return;
-      }
-
-      const revealHole = (attempt = 0) => {
-        if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
-          return;
-        }
-        scrollTarget(el);
-        const tipH = getTooltipHeight();
-        const band = measureTourTargetBandDrift(el, tipH, stepScrollPolicy);
-        if (band.drift >= TOUR_REALIGN_DRIFT_THRESHOLD && attempt < TOUR_REVEAL_MAX_ATTEMPTS) {
-          schedule(() => revealHole(attempt + 1), 80);
-          return;
-        }
-        measureTargets();
-        setSettling(false);
-        setHoleReady(true);
-      };
-
-      const waitForTooltipExtra = (attempt = 0) => {
-        if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
-          return;
-        }
-        if (!step.extra) {
-          revealHole(0);
-          return;
-        }
-        const tip = tooltipRef.current;
-        const extraEl = tip?.querySelector("[data-tour-extra]");
-        const tipH = tip?.getBoundingClientRect().height ?? 0;
-        if (extraEl && tipH >= TOUR_EXTRA_MIN_HEIGHT) {
-          revealHole(0);
-          return;
-        }
-        if (attempt < 16) {
-          schedule(() => waitForTooltipExtra(attempt + 1), 50);
-          return;
-        }
-        revealHole(0);
-      };
-
-      const settleMs = stepScrollEnabled ? TOUR_MOBILE_SETTLE_MS : 120;
-      if (step.extra) {
-        schedule(() => waitForTooltipExtra(0), settleMs);
-      } else {
-        scrollTarget(el);
-        schedule(() => waitForTooltipExtra(0), settleMs);
-      }
-    };
-
-    const finalizeDesktopStep = (el: HTMLElement) => {
-      if (cancelled || stepGenRef.current !== stepGen) return;
-      scrollTourTargetIntoView(el, false);
-      schedule(() => {
-        if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
-          return;
-        }
-        measureTargets();
-        setSettling(false);
-        setHoleReady(true);
-      }, 260);
     };
 
     const locate = () => {
@@ -327,21 +331,9 @@ function TourOverlay({
           accentRef.current = null;
         }
 
-        if (isMobileSheet && isAnchorScroll && !step.extra) {
-          scrollTarget(el as HTMLElement);
-        }
-
-        const measureDelay = isMobileSheet
-          ? getMobileStepMeasureDelay(step, stepIdx)
-          : 80;
-
-        schedule(() => {
-          if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
-            return;
-          }
-          if (isMobileSheet) finalizeMobileStep(el as HTMLElement);
-          else finalizeDesktopStep(el as HTMLElement);
-        }, measureDelay);
+        void (isMobileSheet
+          ? finalizeMobileStep(el as HTMLElement)
+          : finalizeDesktopStep(el as HTMLElement));
         return;
       }
       if (step.skipIfMissing) {
@@ -357,10 +349,16 @@ function TourOverlay({
         else setStepIdx(next);
         return;
       }
-      schedule(locate, FIND_INTERVAL_MS);
+      schedule(locate, TOUR_FIND_INTERVAL_MS);
     };
 
-    schedule(locate, step.gridAction ? 160 : 80);
+    schedule(() => {
+      runStepEntry();
+    }, 0);
+
+    requestAnimationFrame(() => {
+      if (!cancelled && stepGenRef.current === stepGen) locate();
+    });
 
     return () => {
       cancelled = true;
@@ -372,9 +370,7 @@ function TourOverlay({
     setView,
     finish,
     viewportReady,
-    runTargetScrollOnce,
     measureTargets,
-    scrollEnabled,
     getTooltipHeight,
   ]);
 
@@ -391,10 +387,14 @@ function TourOverlay({
     };
 
     const realignMobileTargetIfNeeded = (force = false) => {
-      const el = targetRef.current as HTMLElement | null;
-      if (!el || window.innerWidth >= 768 || !scrollEnabled) return false;
+      const spotlight = targetRef.current as HTMLElement | null;
+      if (!spotlight || window.innerWidth >= 768 || !scrollEnabled) return false;
+      const scrollEl = resolveTourScrollTarget(
+        spotlight,
+        step.mobileScrollSelector,
+      );
       const drift = measureTourTargetBandDrift(
-        el,
+        scrollEl,
         getTooltipHeight(),
         scrollPolicy,
       ).drift;
@@ -696,10 +696,15 @@ export function FarmFeatureTour({
   }, [view]);
 
   const start = useCallback(() => {
+    setFarmTourActive(true);
     const activate = () => {
       setStartView(viewRef.current);
       setActive(true);
     };
+    if (isTourTargetVisible(TOUR_READY_SELECTOR)) {
+      activate();
+      return;
+    }
     const waitForReady = (attempt = 0) => {
       if (isTourTargetVisible(TOUR_READY_SELECTOR)) {
         activate();
@@ -709,16 +714,15 @@ export function FarmFeatureTour({
         activate();
         return;
       }
-      window.setTimeout(() => waitForReady(attempt + 1), READY_INTERVAL_MS);
+      window.setTimeout(() => waitForReady(attempt + 1), TOUR_READY_INTERVAL_MS);
     };
     waitForReady();
   }, []);
 
-  // 자동 시작 — 서버에 저장된 완료 상태 확인(1회).
+  // 자동 시작 — DOM 준비 폴링과 서버 완료 확인 병렬.
   useEffect(() => {
     if (!enabled || checkedRef.current) return;
     checkedRef.current = true;
-    // 계정 메뉴 → 다른 페이지에서 /farm 이동 후 재시작.
     try {
       if (sessionStorage.getItem(FARM_TOUR_RESTART_FLAG)) {
         sessionStorage.removeItem(FARM_TOUR_RESTART_FLAG);
@@ -726,19 +730,33 @@ export function FarmFeatureTour({
         return;
       }
     } catch {
-      /* storage 사용 불가 — 자동 확인으로 진행 */
+      /* storage 사용 불가 */
     }
+
     let cancelled = false;
+    let domReady = isTourTargetVisible(TOUR_READY_SELECTOR);
+    const domPoll = window.setInterval(() => {
+      if (!domReady) domReady = isTourTargetVisible(TOUR_READY_SELECTOR);
+    }, TOUR_READY_INTERVAL_MS);
+
     void shouldShowOnboardingTourAction()
       .then((show) => {
         if (cancelled || !show) return;
+        if (domReady) {
+          setFarmTourActive(true);
+          setStartView(viewRef.current);
+          setActive(true);
+          return;
+        }
         start();
       })
       .catch(() => {
-        /* 미로그인·네트워크 오류 — 투어 미노출 */
+        /* 미로그인·네트워크 오류 */
       });
+
     return () => {
       cancelled = true;
+      window.clearInterval(domPoll);
     };
   }, [enabled, start]);
 
@@ -751,6 +769,7 @@ export function FarmFeatureTour({
   }, [enabled, start]);
 
   const handleFinish = useCallback(() => {
+    setFarmTourActive(false);
     setActive(false);
     void markOnboardingTourDoneAction().catch(() => {
       /* 저장 실패 시 다음 진입에서 재노출 */

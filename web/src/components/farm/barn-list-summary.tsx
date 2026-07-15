@@ -23,6 +23,7 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { EnvChip } from "@/components/common/env-chip";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+import { FARM_TOUR_ACTIVE_EVENT } from "@/lib/onboarding/tour-steps";
 
 type ListLayout = "group" | "flat";
 
@@ -61,6 +62,18 @@ const CONTROLLER_GRID_IN_SP =
 
 const STAGGER_INITIAL = 8;
 const STAGGER_BATCH = 8;
+
+function useFarmTourActive(): boolean {
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    const onActive = (e: Event) => {
+      setActive(Boolean((e as CustomEvent<{ active?: boolean }>).detail?.active));
+    };
+    window.addEventListener(FARM_TOUR_ACTIVE_EVENT, onActive);
+    return () => window.removeEventListener(FARM_TOUR_ACTIVE_EVENT, onActive);
+  }, []);
+  return active;
+}
 
 function useStaggeredVisibleCount(total: number, enabled: boolean): number {
   const completedRef = useRef(false);
@@ -141,7 +154,11 @@ function ControllerCardGrid({
   selectedSps?: ReadonlySet<string>;
   staggerMount?: boolean;
 }) {
-  const visibleCount = useStaggeredVisibleCount(readings.length, staggerMount);
+  const tourActive = useFarmTourActive();
+  const visibleCount = useStaggeredVisibleCount(
+    readings.length,
+    staggerMount && !tourActive,
+  );
   const visibleReadings = staggerMount ? readings.slice(0, visibleCount) : readings;
 
   return (

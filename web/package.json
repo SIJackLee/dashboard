@@ -10,6 +10,7 @@
     "measure:live": "tsx scripts/measure-live-read.ts",
     "audit:mobile": "node scripts/mobile-ui-audit.mjs",
     "audit:mobile-tour": "node scripts/mobile-tour-band-audit.mjs",
+    "audit:mobile-tour-timing": "node scripts/mobile-tour-timing-audit.mjs",
     "set:test-passwords": "node scripts/set-test-passwords.mjs",
     "build:kma-wrn-map": "node scripts/kma/build-wrn-reg-id-map.mjs",
     "poc:kma-weather": "node scripts/kma/poc-kma-warn-status.mjs",

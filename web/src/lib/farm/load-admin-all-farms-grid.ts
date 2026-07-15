@@ -13,7 +13,6 @@ import { getLiveReadings } from "@/lib/data/iot";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 
 export type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
-export { unifyAdminFarmGridDimensions } from "@/lib/farm/admin-all-farms-grid-shared";
 
 const GRID_BATCH_SIZE = 4;
 

@@ -8,7 +8,6 @@ import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { type FarmKey } from "@/lib/data/farm-key";
 import type {
-  FarmMapTrendStatus,
   TrendControllerPeriodData,
   TrendPeriodData,
   TrendPeriodId,
@@ -19,15 +18,13 @@ import {
   replaceFarmUrlShallow,
 } from "@/lib/farm/farm-view-url";
 import { GRAPH_BARS, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
-import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
+import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapBulkApply } from "./farm-map-bulk-apply";
-import { TREND_PERIODS } from "@/lib/data/farm-trend-types";
+import { TrendPeriodToggle } from "./trend-period-toggle";
 import { cn } from "@/lib/utils";
-
-const GRAPH_PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
 
 /** 히트맵 — 지표(행)·심각도 색 범례 */
 function GraphModeLegend() {
@@ -55,23 +52,11 @@ type Props = {
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
   /** 컨트롤러 단위 3기간 시계열 — 히트맵 확대 시 컨트롤러별 미니 히트맵용(그리드 진입 프리페치). */
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
-  /** 히트맵 컨트롤러 '이동' — 목록 뷰로 클라이언트 전환(그리드 딥링크 스트립 회피). */
-  onOpenListController?: (opts: {
-    sp: string | null;
-    stallNo: string | null;
-    controllerKey: string;
-  }) => void;
-  /** @deprecated 레거시 그래프 제거 — 추이 로딩 상태(현재 미사용, 배선 호환용). */
-  trendStatus?: FarmMapTrendStatus;
-  /** @deprecated 레거시 그래프 제거 — 재시도 콜백(현재 미사용). */
-  onTrendRetry?: () => void;
   /** in-grid 컨트롤러 카드플립 구동용 데이터. */
   controller?: ControllerGridData | null;
   hubMode?: boolean;
   /** Admin 전체 보기 — 카드 클릭 시 해당 farm scoped URL로 이동 */
   navigateFarmKey?: FarmKey | null;
-  /** Admin — farm 간 cols×rows 통일(데이터); 레이아웃은 Farmer와 동일 auto 행 */
-  uniformGridLayout?: boolean;
 };
 
 const GRID_COL_MIN = "4.75rem";
@@ -155,11 +140,9 @@ export function FarmMapCanvas({
   gridRows,
   trendByPeriod,
   controllerTrendByPeriod,
-  // onOpenListController · trendStatus · onTrendRetry: 레거시 그래프 제거로 미사용(배선 호환용).
   controller,
   hubMode = false,
   navigateFarmKey = null,
-  uniformGridLayout: _uniformGridLayout = false,
 }: Props) {
   const router = useRouter();
   const isOverviewFarm = Boolean(navigateFarmKey);
@@ -217,27 +200,7 @@ export function FarmMapCanvas({
     enabled: graphMode,
   });
 
-  // 스포트라이트 투어 — 확대 상세 열기/닫기 액션 수신.
-  useEffect(() => {
-    const onTourAction = (e: Event) => {
-      const action = (e as CustomEvent).detail?.action as string | undefined;
-      if (action === "collapse") {
-        setExpanded(null);
-        return;
-      }
-      if (action === "expand-first") {
-        const first = barnsRef.current.find(
-          (b) => (metricIdsByBarnId.get(b.meta.id)?.length ?? 0) > 0,
-        );
-        const ids = first ? metricIdsByBarnId.get(first.meta.id) : undefined;
-        if (first && ids?.[0]) {
-          setExpanded({ barnId: first.meta.id, metricId: ids[0] });
-        }
-      }
-    };
-    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-  }, [metricIdsByBarnId, setExpanded]);
+  useFarmTourGridAction({ barns, metricIdsByBarnId, setExpanded });
 
   /** 상세 확대 중 — 보드를 '사용 중인 행'까지 축소해 상세 패널을 근접 배치. */
   const focusMode = graphMode && Boolean(expanded);
@@ -397,28 +360,12 @@ export function FarmMapCanvas({
       ) : null}
       {graphMode && barns.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-          <div
-            className="inline-flex overflow-hidden rounded-md border bg-background text-xs"
-            role="group"
-            aria-label="기간"
-            data-tour-id="period-select"
-          >
-            {GRAPH_PERIOD_ORDER.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setGraphPeriod(p)}
-                className={cn(
-                  "px-2.5 py-1 font-medium transition-colors",
-                  graphPeriod === p
-                    ? "bg-sky-50 text-sky-700"
-                    : "text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {TREND_PERIODS[p].label}
-              </button>
-            ))}
-          </div>
+          <TrendPeriodToggle
+            value={graphPeriod}
+            onChange={setGraphPeriod}
+            density="map"
+            tourTarget
+          />
           <GraphModeLegend />
         </div>
       ) : null}

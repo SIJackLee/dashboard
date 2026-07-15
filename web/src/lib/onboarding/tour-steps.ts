@@ -30,6 +30,10 @@ export function buildFarmTourPath(farmKey: FarmKey): string {
 
 /** 그리드(FarmMapCanvas)에 보내는 투어 액션 이벤트. */
 export const FARM_TOUR_ACTION_EVENT = "farm-tour-action";
+/** 그리드 expand/collapse 레이아웃 안착 완료. */
+export const FARM_TOUR_ACTION_DONE_EVENT = "farm-tour-action-done";
+/** 투어 활성 — staggerMount 등 UI 완화용. */
+export const FARM_TOUR_ACTIVE_EVENT = "farm-tour-active";
 /** 계정 메뉴 '기능 안내 다시 보기' → 런처 재시작 이벤트. */
 export const FARM_TOUR_RESTART_EVENT = "farm-tour-restart";
 /** 페이지 이동 후 재시작 — sessionStorage 플래그 키. */
@@ -43,6 +47,8 @@ export type TourStepDef = {
   selector: string;
   /** 모바일 전용 스포트라이트(작·안정 타깃). */
   mobileSelector?: string;
+  /** 모바일 스크롤 anchor — 스포트라이트와 다를 때(7/9: 8/9 scroll·7/9 hole). */
+  mobileScrollSelector?: string;
   /** 보조 강조(펄스 링) 대상 — 예: 드래그 손잡이. */
   accentSelector?: string;
   /** 스텝 진입 시 필요한 뷰. */
@@ -121,6 +127,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     id: "controller-row",
     selector: "[data-controller-card-key]",
     mobileSelector: '[data-tour-id="controller-gauge-metrics"]',
+    mobileScrollSelector: '[data-tour-id="panel-pills"]',
     view: "list",
     scrollPolicy: "anchor-top",
     title: "컨트롤러 카드 — 게이지 읽는 법",

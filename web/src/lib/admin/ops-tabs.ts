@@ -27,28 +27,9 @@ export function parseAdminOpsTabFromPathname(pathname: string): AdminOpsTabId {
   return "system";
 }
 
-/** 레거시 ?tab= + pathname */
-export function parseAdminOpsTab(
-  tab: string | null | undefined,
-  pathname?: string,
-): AdminOpsTabId {
-  if (tab === "users" || tab === "farms" || tab === "commands") return tab;
-  if (pathname) return parseAdminOpsTabFromPathname(pathname);
-  return "system";
-}
-
 export function adminOpsPath(tab: AdminOpsTabId = "system"): string {
   if (tab === "system") return ADMIN_OPS_BASE_PATH;
   return `${ADMIN_OPS_BASE_PATH}/${TAB_SEGMENT[tab]}`;
-}
-
-/** @deprecated query tab — 레거시 redirect용 */
-export function setAdminOpsTabParam(
-  params: URLSearchParams,
-  tab: AdminOpsTabId,
-): void {
-  if (tab === "system") params.delete("tab");
-  else params.set("tab", tab);
 }
 
 export function adminOpsHref(

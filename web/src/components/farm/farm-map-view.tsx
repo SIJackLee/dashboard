@@ -9,7 +9,6 @@ import {
 } from "@/lib/data/farm-grid-empty";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type {
-  FarmMapTrendStatus,
   TrendControllerPeriodData,
   TrendPeriodData,
   TrendPeriodId,
@@ -26,19 +25,11 @@ type Props = {
   gridRows?: number;
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
-  onOpenListController?: (opts: {
-    sp: string | null;
-    stallNo: string | null;
-    controllerKey: string;
-  }) => void;
-  trendStatus?: FarmMapTrendStatus;
   hubMode?: boolean;
   compactShell?: boolean;
-  onTrendRetry?: () => void;
   controller?: ControllerGridData | null;
   sectionTitle?: string;
   navigateFarmKey?: FarmKey | null;
-  uniformGridLayout?: boolean;
 };
 
 export function FarmMapView({
@@ -48,15 +39,11 @@ export function FarmMapView({
   gridRows = 4,
   trendByPeriod,
   controllerTrendByPeriod,
-  onOpenListController,
-  trendStatus = "ready",
-  onTrendRetry,
   controller,
   hubMode = false,
   compactShell = false,
   sectionTitle,
   navigateFarmKey = null,
-  uniformGridLayout = false,
 }: Props) {
   const viewportCompact = useDashboardCompact();
   /** ResizeObserver 기반 compact — SSR/첫 hydration과 불일치 방지 */
@@ -107,13 +94,9 @@ export function FarmMapView({
             gridRows={gridRows}
             trendByPeriod={trendByPeriod}
             controllerTrendByPeriod={controllerTrendByPeriod}
-            onOpenListController={onOpenListController}
-            trendStatus={trendStatus}
-            onTrendRetry={onTrendRetry}
             controller={controller}
             hubMode={hubMode}
             navigateFarmKey={navigateFarmKey}
-            uniformGridLayout={uniformGridLayout}
           />
         )}
       </SectionCard>

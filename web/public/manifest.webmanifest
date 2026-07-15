@@ -10,9 +10,9 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/window.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/logo.png",
+      "sizes": "432x129",
+      "type": "image/png",
       "purpose": "any"
     }
   ]

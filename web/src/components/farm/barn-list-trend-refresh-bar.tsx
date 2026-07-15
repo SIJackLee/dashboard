@@ -2,14 +2,10 @@
 
 import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
 import { RefreshActionButton } from "@/components/common/refresh-action-button";
-import {
-  TREND_PERIODS,
-  type TrendPeriodId,
-} from "@/lib/data/farm-trend-types";
+import { TrendPeriodToggle } from "@/components/farm/trend-period-toggle";
+import { type TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
-
-const PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
 
 type Props = {
   onRefresh: () => void;
@@ -44,27 +40,11 @@ export function BarnListTrendRefreshBar({
           <span className="text-xs font-medium text-muted-foreground sm:text-sm">
             전체 기간
           </span>
-          <div
-            className="inline-flex shrink-0 overflow-x-auto rounded-md border bg-background"
-            role="group"
-            aria-label="전체 기간"
-          >
-            {PERIOD_ORDER.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => onBulkPeriodChange(p)}
-                className={cn(
-                  "shrink-0 px-2.5 py-1.5 text-xs font-medium transition-colors sm:px-3 sm:text-sm",
-                  bulkPeriod === p
-                    ? "bg-sky-50 text-sky-700"
-                    : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                {TREND_PERIODS[p].label}
-              </button>
-            ))}
-          </div>
+          <TrendPeriodToggle
+            value={bulkPeriod}
+            onChange={onBulkPeriodChange}
+            ariaLabel="전체 기간"
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

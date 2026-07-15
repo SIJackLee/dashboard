@@ -6,7 +6,6 @@ import {
   excessRatio,
   severityScore,
   sevOfScore,
-  worstSev,
 } from "@/lib/farm/severity-score";
 
 /** 아래(index 0) → 위 순서로 스택된다. */
@@ -38,16 +37,6 @@ const SEV_COLOR: Record<Sev, string> = {
 
 const MIN_SEG = 6; // 정상 최소 세그먼트(5채널 항상 식별)
 const SEG_GAP = 1; // 세그먼트 사이 구분 간격(채널 경계 강조)
-
-export function computeStackWorst(metrics: StackMetric[]): Sev {
-  const sevs: Sev[] = [];
-  for (const m of metrics) {
-    for (const v of m.values) {
-      sevs.push(sevOfScore(severityScore(v, m.band)));
-    }
-  }
-  return worstSev(sevs);
-}
 
 /**
  * 편차 스택 바 — "한 시각 = 막대 1개".
@@ -136,79 +125,5 @@ export function DeviationStackChart({
           })
         : null}
     </svg>
-  );
-}
-
-/** 시계열 마지막 유효값 = 현재값. */
-function currentValue(values: (number | null)[]): number | null {
-  for (let i = values.length - 1; i >= 0; i--) {
-    const v = values[i];
-    if (v != null && Number.isFinite(v)) return v;
-  }
-  return null;
-}
-
-function formatMetricValue(v: number | null, unit?: string): string {
-  if (v == null) return "—";
-  const rounded = unit === "℃" ? Math.round(v * 10) / 10 : Math.round(v);
-  return `${rounded}${unit ?? ""}`;
-}
-
-/**
- * 그래프 모드 카드 본문 — 순서축(아래→위) + 스택 차트 + 실제값 라벨.
- * showLabels=false면 차트만(낮은 높이용).
- */
-export function StackCardBody({
-  metrics,
-  height = 104,
-  showLabels = true,
-  bars,
-  className,
-}: {
-  metrics: StackMetric[];
-  height?: number;
-  showLabels?: boolean;
-  bars?: number;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <div className="flex items-stretch gap-1">
-        {showLabels ? (
-          <div
-            className="flex flex-col-reverse justify-between py-0.5 text-[0.6rem] leading-none text-muted-foreground"
-            style={{ height }}
-            aria-hidden
-          >
-            {metrics.map((m) => (
-              <span key={m.id}>{m.label}</span>
-            ))}
-          </div>
-        ) : null}
-        <div className="min-w-0 flex-1">
-          <DeviationStackChart metrics={metrics} height={height} bars={bars} />
-        </div>
-      </div>
-      {showLabels ? (
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          {metrics.map((m) => {
-            const cur = currentValue(m.values);
-            const sev = sevOfScore(severityScore(cur, m.band));
-            return (
-              <span
-                key={m.id}
-                className="inline-flex items-center gap-1 text-[0.6rem] leading-none text-muted-foreground"
-              >
-                <span
-                  className="inline-block size-1.5 rounded-sm"
-                  style={{ background: SEV_COLOR[sev] }}
-                />
-                {m.label} {formatMetricValue(cur, m.unit)}
-              </span>
-            );
-          })}
-        </div>
-      ) : null}
-    </div>
   );
 }

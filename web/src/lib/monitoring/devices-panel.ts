@@ -25,11 +25,6 @@ function buildDevicesPanelSearch(
   return search;
 }
 
-/** 레거시 `panel` query 제거 — `/farm` 목록/지도로 통합 */
-export function setDevicesPanelParam(params: URLSearchParams): void {
-  params.delete("panel");
-}
-
 export function devicesPanelHref(
   params?: URLSearchParams | Record<string, string | undefined | null>,
   farmKey?: FarmKey

@@ -23,7 +23,6 @@ import {
   replaceFarmUrlShallow,
   resolveListViewMode,
 } from "@/lib/farm/farm-view-url";
-import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
 import { fetchFarmScopedPanelDataAction } from "@/app/(dashboard)/farm/actions";
@@ -125,44 +124,6 @@ export function FarmPageContent({
     farmKey: gridFarmKey,
     enabled: Boolean(gridFarmKey) && view === "map",
   });
-
-  // 히트맵 컨트롤러 '이동' — router.push 대신 클라이언트 뷰 전환.
-  // (map 모드로 마운트된 그리드의 sp/ctrl 딥링크가 파라미터를 스트립하는 충돌 회피)
-  const openListController = useCallback(
-    (opts: { sp: string | null; stallNo: string | null; controllerKey: string }) => {
-      if (hubMode) {
-        const params = new URLSearchParams(currentFarmSearchParams().toString());
-        applyHubScopedViewParams(params, "list");
-        if (opts.sp) params.set("sp", normalizeStallTyCode(opts.sp));
-        if (opts.stallNo) params.set("stall", opts.stallNo);
-        params.set("ctrl", encodeURIComponent(opts.controllerKey));
-        replaceFarmUrlShallow(params);
-        flushSync(() => {
-          setViewState("list");
-          setListEverOpened(true);
-        });
-        onHubUrlChange?.();
-        setUrlTick((n) => n + 1);
-        return;
-      }
-      const params = currentFarmSearchParams();
-      params.delete("tab");
-      params.delete("mapLevel");
-      params.set("view", "list");
-      if (opts.sp) params.set("sp", normalizeStallTyCode(opts.sp));
-      else params.delete("sp");
-      if (opts.stallNo) params.set("stall", opts.stallNo);
-      else params.delete("stall");
-      params.set("ctrl", encodeURIComponent(opts.controllerKey));
-      replaceFarmUrlShallow(params);
-      flushSync(() => {
-        setViewState("list");
-        setListEverOpened(true);
-      });
-      setUrlTick((n) => n + 1);
-    },
-    [hubMode, onHubUrlChange],
-  );
 
   const shallowParams = useMemo(() => {
     void urlTick;
@@ -270,8 +231,10 @@ export function FarmPageContent({
 
   const setView = useCallback(
     (next: "map" | "list") => {
-      flushSync(() => {
-        applyViewChange(next);
+      queueMicrotask(() => {
+        flushSync(() => {
+          applyViewChange(next);
+        });
       });
     },
     [applyViewChange]
@@ -354,12 +317,9 @@ export function FarmPageContent({
             gridRows={gridRows}
             trendByPeriod={trendByPeriod}
             controllerTrendByPeriod={gridControllerTrend}
-            onOpenListController={openListController}
-            trendStatus="ready"
             controller={controller}
             hubMode={hubMode}
             compactShell={gridCompactShell}
-            uniformGridLayout={gridCompactShell}
           />
         </div>
 

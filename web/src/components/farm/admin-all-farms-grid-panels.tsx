@@ -37,7 +37,6 @@ export function AdminAllFarmsGridPanels({ panels }: Props) {
             gridCols={panel.gridCols}
             gridRows={panel.gridRows}
             compactShell
-            uniformGridLayout
             navigateFarmKey={panel.farmKey}
             sectionTitle={farmShortLabel(panel.farmKey)}
           />

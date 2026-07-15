@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: "스마트 축사 IoT",
   description: "스마트 축사 IoT 모니터링 및 제어 대시보드",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

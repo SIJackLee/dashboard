@@ -114,14 +114,6 @@ export function channelFanTrendSeries(m: StallMetrics): TrendSeries[] {
   ];
 }
 
-export function fanTrendSeries(m: StallMetrics): TrendSeries[] {
-  return [
-    { name: "A", data: m.fanIntake, color: TREND_CHART_COLORS.fanIntake },
-    { name: "B", data: m.fanExhaust, color: TREND_CHART_COLORS.fanExhaust },
-    { name: "C", data: m.fanSupply, color: TREND_CHART_COLORS.fanSupply },
-  ];
-}
-
 export function stallTrendHasData(stall: TrendStallSeries | null): boolean {
   if (!stall) return false;
   const cols = [

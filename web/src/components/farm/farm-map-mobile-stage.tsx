@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import {
-  TREND_PERIODS,
   type TrendControllerPeriodData,
   type TrendPeriodData,
   type TrendPeriodId,
@@ -16,7 +15,8 @@ import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
-import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
+import { TrendPeriodToggle } from "./trend-period-toggle";
+import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 
 type Props = {
   barns: BarnMapSnapshot[];
@@ -25,8 +25,6 @@ type Props = {
   controller?: ControllerGridData | null;
   hubMode?: boolean;
 };
-
-const GRAPH_PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
 
 /**
  * lg 미만 — 데스크톱 그리드와 동일 정책(요약+히트맵 병합 카드, 이상 행 클릭 시 인라인 상세)을
@@ -47,11 +45,6 @@ export function FarmMapMobileStage({
   const bulkEnabled = Boolean(controller?.canCommand);
   const graphMode = Boolean(trendByPeriod) && !bulkMode;
 
-  const barnsRef = useRef(barns);
-  useEffect(() => {
-    barnsRef.current = barns;
-  }, [barns]);
-
   const { expanded, setExpanded, graphByBarnId, metricIdsByBarnId, detail } =
     useBarnGraphs({
       barns,
@@ -62,27 +55,7 @@ export function FarmMapMobileStage({
       enabled: graphMode,
     });
 
-  // 스포트라이트 투어 — 확대 상세 열기/닫기(FarmMapCanvas와 동일).
-  useEffect(() => {
-    const onTourAction = (e: Event) => {
-      const action = (e as CustomEvent).detail?.action as string | undefined;
-      if (action === "collapse") {
-        setExpanded(null);
-        return;
-      }
-      if (action === "expand-first") {
-        const first = barnsRef.current.find(
-          (b) => (metricIdsByBarnId.get(b.meta.id)?.length ?? 0) > 0,
-        );
-        const ids = first ? metricIdsByBarnId.get(first.meta.id) : undefined;
-        if (first && ids?.[0]) {
-          setExpanded({ barnId: first.meta.id, metricId: ids[0] });
-        }
-      }
-    };
-    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-  }, [metricIdsByBarnId, setExpanded]);
+  useFarmTourGridAction({ barns, metricIdsByBarnId, setExpanded });
 
   const toggleSp = useCallback((sp: string) => {
     setSelectedSps((prev) => {
@@ -119,28 +92,12 @@ export function FarmMapMobileStage({
 
       {graphMode && barns.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-          <div
-            className="inline-flex overflow-hidden rounded-md border bg-background text-xs"
-            role="group"
-            aria-label="기간"
-            data-tour-id="period-select"
-          >
-            {GRAPH_PERIOD_ORDER.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setGraphPeriod(p)}
-                className={cn(
-                  "px-2.5 py-1 font-medium transition-colors",
-                  graphPeriod === p
-                    ? "bg-sky-50 text-sky-700"
-                    : "text-muted-foreground hover:bg-muted",
-                )}
-              >
-                {TREND_PERIODS[p].label}
-              </button>
-            ))}
-          </div>
+          <TrendPeriodToggle
+            value={graphPeriod}
+            onChange={setGraphPeriod}
+            density="map"
+            tourTarget
+          />
         </div>
       ) : null}
 
