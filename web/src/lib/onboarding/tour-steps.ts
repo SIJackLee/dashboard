@@ -96,7 +96,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     mobileSelector: '[data-tour-id="detail-panel-charts"]',
     view: "map",
     gridAction: "expand-first",
-    scrollPolicy: "none",
+    scrollPolicy: "fit-between",
     title: "확대 상세 — 컨트롤러별 그래프",
     body:
       "선택한 지표를 컨트롤러별 작은 그래프로 나란히 보여줍니다. 그래프의 점선은 알람 상한·하한이며, 선이 점선을 벗어나면 주의·경고 색으로 표시됩니다. 컨트롤러를 클릭하면 아래에 해당 컨트롤러 카드가 열립니다.",
@@ -116,7 +116,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     selector: "[data-controller-card-key]",
     mobileSelector: '[data-tour-id="controller-card"]',
     view: "list",
-    scrollPolicy: "anchor-card-top",
+    scrollPolicy: "fit-between",
     title: "컨트롤러 카드 — 게이지 읽는 법",
     body:
       "목록 뷰의 기본 단위입니다. 게이지 바에서 현재값과 허용범위·설정값을 함께 읽을 수 있습니다.",

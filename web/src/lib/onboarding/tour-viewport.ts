@@ -3,7 +3,9 @@
  */
 
 export const TOUR_MOBILE_SHEET_GAP = 8;
-export const TOUR_SCROLL_MARGIN_TOP = 72;
+export const TOUR_SCROLL_MARGIN_TOP = 96;
+/** TopBar 하단 ~ 스포트라이트 상단 최소 여백 */
+export const TOUR_HEADER_BOTTOM_GAP = 12;
 /** 스텝 진입 후 스크롤·레이아웃 안착 대기(ms) */
 export const TOUR_MOBILE_SETTLE_MS = 360;
 /** visualViewport resize debounce(ms) */
@@ -169,12 +171,26 @@ export function resolveTooltipHeight(
   return estimateMobileTooltipHeight(viewport);
 }
 
+/** TopBar 실제 하단 + 여백 — 모바일 헤더 높이 반영. */
+export function measureHeaderClearance(viewport = getTourViewport()): number {
+  if (typeof document !== "undefined") {
+    const header = document.querySelector("header[data-app-header]");
+    if (header instanceof HTMLElement) {
+      const bottom = header.getBoundingClientRect().bottom;
+      if (bottom > 0) {
+        return Math.max(
+          TOUR_SCROLL_MARGIN_TOP,
+          bottom + TOUR_HEADER_BOTTOM_GAP,
+        );
+      }
+    }
+  }
+  return Math.max(TOUR_SCROLL_MARGIN_TOP, viewport.top + TOUR_HEADER_BOTTOM_GAP);
+}
+
 export function computeTourScrollBounds(tooltipHeight: number) {
   const viewport = getTourViewport();
-  const headerClearance = Math.max(
-    TOUR_SCROLL_MARGIN_TOP,
-    viewport.top + 12,
-  );
+  const headerClearance = measureHeaderClearance(viewport);
   const bottomReserve =
     tooltipHeight +
     viewport.browserChromeBottom +
