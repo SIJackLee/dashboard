@@ -5,8 +5,8 @@
  * 모바일 scrollPolicy (md 미만):
  * | 정책            | 용도                                      | 스텝   |
  * |-----------------|-------------------------------------------|--------|
- * | none            | 스크롤 없음 (뷰 전환·짧은 UI)             | 1, 8   |
- * | anchor-top      | 타깃 상단을 헤더 clearance에 고정         | 2,3,6  |
+ * | none            | 스크롤 없음 (뷰 전환·짧은 UI)             | 1      |
+ * | anchor-top      | 타깃 상단을 헤더 clearance에 고정         | 2,3,6,8|
  * | fit-between     | 헤더~툴팁 사이 band에 맞춤                | 4,5,7  |
  * | anchor-card-top | (레거시) 카드 상단 anchor — 미사용        | —      |
  */
@@ -120,7 +120,7 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "controller-row",
     selector: "[data-controller-card-key]",
-    mobileSelector: '[data-tour-id="controller-gauge"]',
+    mobileSelector: '[data-tour-id="controller-gauge-metrics"]',
     view: "list",
     scrollPolicy: "fit-between",
     title: "컨트롤러 카드 — 게이지 읽는 법",
@@ -134,7 +134,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     mobileSelector: '[data-tour-id="panel-pills"]',
     accentSelector: '[data-tour-id="panel-pills"]',
     view: "list",
-    scrollPolicy: "none",
+    scrollPolicy: "anchor-top",
     title: "그래프 · 설정 · 모터 패널",
     body:
       "카드 오른쪽 버튼으로 상세 패널을 펼칩니다. 각 버튼의 역할은 아래와 같습니다.",

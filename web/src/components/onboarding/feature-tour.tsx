@@ -27,6 +27,7 @@ import {
   mobileTourSheetBottomCss,
   isTourTargetBandAligned,
   measureTourTargetBandDrift,
+  resetTourScrollContainers,
   resolveTourScrollPolicy,
   resolveTourStepSelector,
   scrollTourTargetIntoView,
@@ -76,6 +77,21 @@ function dispatchGridAction(action: "expand-first" | "collapse") {
     new CustomEvent(FARM_TOUR_ACTION_EVENT, { detail: { action } }),
   );
 }
+
+function getMobileStepMeasureDelay(
+  step: TourStepDef,
+  stepIdx: number,
+): number {
+  const prev = stepIdx > 0 ? TOUR_STEPS[stepIdx - 1] : null;
+  const viewSwitched = prev != null && prev.view !== step.view;
+  if (step.gridAction) return 680;
+  if (viewSwitched) return 620;
+  if (step.extra) return 520;
+  return 300;
+}
+
+const TOUR_EXTRA_MIN_HEIGHT = 120;
+const TOUR_REVEAL_MAX_ATTEMPTS = 12;
 
 /**
  * 스포트라이트 투어 오버레이 — 대상 요소를 밝게 남기고 나머지를 어둡게 처리.
@@ -193,6 +209,7 @@ function TourOverlay({
     schedule(() => {
       if (cancelled || stepGenRef.current !== stepGen) return;
       setView(step.view);
+      if (step.view === "list") resetTourScrollContainers();
       if (step.gridAction) dispatchGridAction(step.gridAction);
     }, 0);
 
@@ -233,7 +250,7 @@ function TourOverlay({
         scrollTarget(el);
         const tipH = getTooltipHeight();
         const band = measureTourTargetBandDrift(el, tipH, stepScrollPolicy);
-        if (band.drift >= TOUR_REALIGN_DRIFT_THRESHOLD && attempt < 8) {
+        if (band.drift >= TOUR_REALIGN_DRIFT_THRESHOLD && attempt < TOUR_REVEAL_MAX_ATTEMPTS) {
           schedule(() => revealHole(attempt + 1), 80);
           return;
         }
@@ -242,9 +259,31 @@ function TourOverlay({
         setHoleReady(true);
       };
 
+      const waitForTooltipExtra = (attempt = 0) => {
+        if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
+          return;
+        }
+        if (!step.extra) {
+          revealHole(0);
+          return;
+        }
+        const tip = tooltipRef.current;
+        const extraEl = tip?.querySelector("[data-tour-extra]");
+        const tipH = tip?.getBoundingClientRect().height ?? 0;
+        if (extraEl && tipH >= TOUR_EXTRA_MIN_HEIGHT) {
+          revealHole(0);
+          return;
+        }
+        if (attempt < 16) {
+          schedule(() => waitForTooltipExtra(attempt + 1), 50);
+          return;
+        }
+        revealHole(0);
+      };
+
       scrollTarget(el);
       const settleMs = stepScrollEnabled ? TOUR_MOBILE_SETTLE_MS : 120;
-      schedule(() => revealHole(0), settleMs);
+      schedule(() => waitForTooltipExtra(0), settleMs);
     };
 
     const finalizeDesktopStep = (el: HTMLElement) => {
@@ -284,11 +323,9 @@ function TourOverlay({
           scrollTarget(el as HTMLElement);
         }
 
-        const measureDelay = step.gridAction
-          ? 680
-          : isMobileSheet
-            ? 300
-            : 80;
+        const measureDelay = isMobileSheet
+          ? getMobileStepMeasureDelay(step, stepIdx)
+          : 80;
 
         schedule(() => {
           if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
@@ -366,17 +403,23 @@ function TourOverlay({
     };
 
     const onTooltipResize = () => {
-      if (!holeReady || window.innerWidth >= 768 || tooltipRealignedRef.current) return;
+      if (window.innerWidth >= 768) return;
       window.clearTimeout(tooltipResizeTimer);
       tooltipResizeTimer = window.setTimeout(() => {
-        if (tooltipRealignedRef.current) return;
-        if (scrollEnabled) {
+        if (!scrollEnabled) {
+          measureTargets();
+          return;
+        }
+        if (!holeReady || settling) {
+          const el = targetRef.current as HTMLElement | null;
+          if (el && realignMobileTargetIfNeeded(true)) return;
+        }
+        if (holeReady && !tooltipRealignedRef.current) {
           if (realignMobileTargetIfNeeded(true)) {
             tooltipRealignedRef.current = true;
           }
-        } else {
+        } else if (holeReady) {
           measureTargets();
-          tooltipRealignedRef.current = true;
         }
       }, 120);
     };
@@ -549,12 +592,12 @@ function TourOverlay({
           {step.body}
         </p>
         {step.extra === "anatomy" ? (
-          <div className={mobileSheet ? "mt-2.5" : "mt-3"}>
+          <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="anatomy">
             <GaugeAnatomy compact={mobileSheet} />
           </div>
         ) : null}
         {step.extra === "pills" ? (
-          <div className={mobileSheet ? "mt-2.5" : "mt-3"}>
+          <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="pills">
             <PanelPillsGuide compact={mobileSheet} />
           </div>
         ) : null}

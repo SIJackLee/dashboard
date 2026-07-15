@@ -204,6 +204,20 @@ export function computeTourScrollBounds(tooltipHeight: number) {
   return { headerClearance, maxBottom, viewport };
 }
 
+/** 목록 뷰 진입 시 스크롤 위치 초기화 — 7/8 스텝 타깃 일관성. */
+export function resetTourScrollContainers(): void {
+  if (typeof document === "undefined") return;
+  const main = document.querySelector("main");
+  if (main instanceof HTMLElement) {
+    markTourProgrammaticScroll();
+    main.scrollTop = 0;
+  }
+  if (document.scrollingElement instanceof HTMLElement) {
+    markTourProgrammaticScroll();
+    document.scrollingElement.scrollTop = 0;
+  }
+}
+
 export function findTourScrollContainer(el: Element): HTMLElement | null {
   if (typeof document !== "undefined") {
     const main = document.querySelector("main");

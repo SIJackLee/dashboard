@@ -134,9 +134,9 @@ export function ControllerSummaryGaugeRow({
 
       <div
         className="flex min-h-0 flex-1 flex-col px-2.5 pb-2.5 sm:px-3 sm:pb-3"
-        data-tour-id="controller-gauge"
       >
-        <EnvMetricPanel
+        <div data-tour-id="controller-gauge-metrics">
+          <EnvMetricPanel
           className="mb-2"
           offline={offline}
           setpoint={setpoint}
@@ -156,6 +156,8 @@ export function ControllerSummaryGaugeRow({
             breached: humidityAlarmBreached,
           }}
         />
+
+        </div>
 
         <ChannelStrip
           reading={reading}
