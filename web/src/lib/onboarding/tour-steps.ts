@@ -33,6 +33,8 @@ export type TourStepDef = {
   id: string;
   /** 스포트라이트 대상 — document.querySelector 첫 매치. */
   selector: string;
+  /** 모바일 전용 스포트라이트(작·안정 타깃). */
+  mobileSelector?: string;
   /** 보조 강조(펄스 링) 대상 — 예: 드래그 손잡이. */
   accentSelector?: string;
   /** 스텝 진입 시 필요한 뷰. */
@@ -86,6 +88,7 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "detail-panel",
     selector: '[data-tour-id="detail-panel"]',
+    mobileSelector: '[data-tour-id="detail-panel-header"]',
     view: "map",
     gridAction: "expand-first",
     scrollAlign: "anchor-top",
@@ -105,6 +108,7 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "controller-row",
     selector: "[data-controller-card-key]",
+    mobileSelector: '[data-tour-id="controller-gauge"]',
     view: "list",
     scrollAlign: "anchor-top",
     title: "컨트롤러 카드 — 게이지 읽는 법",
@@ -115,6 +119,7 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "panel-pills",
     selector: "[data-controller-card-key]",
+    mobileSelector: '[data-tour-id="panel-pills"]',
     accentSelector: '[data-tour-id="panel-pills"]',
     view: "list",
     scrollAlign: "anchor-top",

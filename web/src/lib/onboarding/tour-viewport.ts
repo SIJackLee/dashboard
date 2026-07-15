@@ -4,8 +4,10 @@
 
 export const TOUR_MOBILE_SHEET_GAP = 8;
 export const TOUR_SCROLL_MARGIN_TOP = 72;
-/** dashboardUi.mobileBottomNavInset(4.5rem)과 동일 */
-export const TOUR_MOBILE_APP_TAB_BAR_PX = 72;
+/** 스텝 진입 후 스크롤·레이아웃 안착 대기(ms) */
+export const TOUR_MOBILE_SETTLE_MS = 360;
+/** visualViewport resize debounce(ms) */
+export const TOUR_VIEWPORT_RESIZE_DEBOUNCE_MS = 320;
 
 export type TourViewportMetrics = {
   top: number;
@@ -80,14 +82,11 @@ export function syncTourViewportCssVars(viewport = getTourViewport()): void {
   );
 }
 
-export function subscribeTourViewport(onChange: () => void): () => void {
+/** CSS 변수만 동기 — scroll/resize마다 호출, 재스크롤 없음. */
+export function subscribeTourViewportCssSync(): () => void {
   if (typeof window === "undefined") return () => undefined;
 
-  const handler = () => {
-    syncTourViewportCssVars();
-    onChange();
-  };
-
+  const handler = () => syncTourViewportCssVars();
   syncTourViewportCssVars();
   window.addEventListener("resize", handler);
   window.visualViewport?.addEventListener("resize", handler);
@@ -97,6 +96,30 @@ export function subscribeTourViewport(onChange: () => void): () => void {
     window.removeEventListener("resize", handler);
     window.visualViewport?.removeEventListener("resize", handler);
     window.visualViewport?.removeEventListener("scroll", handler);
+  };
+}
+
+/** 주소창 높이 변화 등 — debounce 후 1회 재스크롤. */
+export function subscribeTourViewportResize(
+  onResize: () => void,
+  debounceMs = TOUR_VIEWPORT_RESIZE_DEBOUNCE_MS,
+): () => void {
+  if (typeof window === "undefined") return () => undefined;
+
+  let timer: number | undefined;
+  const handler = () => {
+    syncTourViewportCssVars();
+    window.clearTimeout(timer);
+    timer = window.setTimeout(onResize, debounceMs);
+  };
+
+  window.addEventListener("resize", handler);
+  window.visualViewport?.addEventListener("resize", handler);
+
+  return () => {
+    window.clearTimeout(timer);
+    window.removeEventListener("resize", handler);
+    window.visualViewport?.removeEventListener("resize", handler);
   };
 }
 
@@ -122,7 +145,6 @@ export function computeTourScrollBounds(tooltipHeight: number) {
   );
   const bottomReserve =
     tooltipHeight +
-    TOUR_MOBILE_APP_TAB_BAR_PX +
     viewport.browserChromeBottom +
     TOUR_MOBILE_SHEET_GAP +
     16;
@@ -168,18 +190,7 @@ export type ScrollTourTargetOptions = {
   tooltipHeight?: number | null;
 };
 
-function runMobileScrollAlignPasses(
-  el: HTMLElement,
-  alignFn: (behavior: ScrollBehavior) => void,
-) {
-  requestAnimationFrame(() => {
-    alignFn("smooth");
-    window.setTimeout(() => alignFn("smooth"), 280);
-    window.setTimeout(() => alignFn("auto"), 520);
-  });
-}
-
-/** 모바일 bottom sheet 툴팁 위에 대상이 보이도록 스크롤(main overflow 컨테이너 포함). */
+/** 모바일 — instant(auto) 1회만. PC — center smooth. */
 export function scrollTourTargetIntoView(
   el: HTMLElement,
   mobileSheet: boolean,
@@ -193,20 +204,18 @@ export function scrollTourTargetIntoView(
   const alignMode = options?.align ?? "fit-between";
   const tooltipHeight = resolveTooltipHeight(options?.tooltipHeight);
   const { headerClearance, maxBottom } = computeTourScrollBounds(tooltipHeight);
+  const behavior: ScrollBehavior = "auto";
 
   if (alignMode === "anchor-top") {
-    const alignTop = (behavior: ScrollBehavior) => {
-      scrollTourContainerBy(
-        el,
-        el.getBoundingClientRect().top - headerClearance,
-        behavior,
-      );
-    };
-    runMobileScrollAlignPasses(el, alignTop);
+    scrollTourContainerBy(
+      el,
+      el.getBoundingClientRect().top - headerClearance,
+      behavior,
+    );
     return;
   }
 
-  const align = (behavior: ScrollBehavior = "auto") => {
+  const align = () => {
     const rect = el.getBoundingClientRect();
     const targetH = rect.height;
     const desiredTop =
@@ -223,7 +232,7 @@ export function scrollTourTargetIntoView(
   };
 
   el.scrollIntoView({ block: "nearest", behavior: "auto" });
-  runMobileScrollAlignPasses(el, align);
+  align();
 }
 
 /** 투어 시작 직후 주소창 접힘 유도 — 보조 수단(1회). */
@@ -245,6 +254,19 @@ export function stabilizeMobileBrowserViewport(): Promise<void> {
   });
 }
 
+/** 투어 bottom sheet — 화면 최하단(safe-area + 브라우저 크롬). */
 export function mobileTourSheetBottomCss(): string {
-  return `calc(4.5rem + env(safe-area-inset-bottom, 0px) + ${TOUR_MOBILE_SHEET_GAP}px + var(--vv-browser-chrome-bottom, 0px))`;
+  return `calc(env(safe-area-inset-bottom, 0px) + ${TOUR_MOBILE_SHEET_GAP}px + var(--vv-browser-chrome-bottom, 0px))`;
+}
+
+export function isMobileTourSheet(): boolean {
+  return typeof window !== "undefined" && window.innerWidth < 768;
+}
+
+export function resolveTourStepSelector(
+  selector: string,
+  mobileSelector?: string,
+): string {
+  if (isMobileTourSheet() && mobileSelector) return mobileSelector;
+  return selector;
 }

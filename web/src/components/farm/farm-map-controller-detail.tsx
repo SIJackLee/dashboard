@@ -172,7 +172,10 @@ export function FarmMapControllerDetail({
       data-tour-id="detail-panel"
     >
       {/* 헤더: 축사 · 지표 탭 · 닫기 */}
-      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+      <div
+        className="mb-2.5 flex flex-wrap items-center gap-2"
+        data-tour-id="detail-panel-header"
+      >
         <span className="text-sm font-semibold">{label}</span>
         <span className="text-xs text-muted-foreground">
           · {metricLabel} 추이 · 컨트롤러 {controllers.length}대

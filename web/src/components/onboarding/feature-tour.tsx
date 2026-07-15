@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -15,6 +14,7 @@ import {
   FARM_TOUR_RESTART_FLAG,
   TOUR_READY_SELECTOR,
   TOUR_STEPS,
+  type TourStepDef,
   type TourView,
 } from "@/lib/onboarding/tour-steps";
 import {
@@ -25,9 +25,12 @@ import { GaugeAnatomy, PanelPillsGuide } from "@/components/onboarding/tour-guid
 import {
   getTourViewport,
   mobileTourSheetBottomCss,
+  resolveTourStepSelector,
   scrollTourTargetIntoView,
   stabilizeMobileBrowserViewport,
-  subscribeTourViewport,
+  subscribeTourViewportCssSync,
+  subscribeTourViewportResize,
+  TOUR_MOBILE_SETTLE_MS,
   type TourScrollAlign,
 } from "@/lib/onboarding/tour-viewport";
 import { cn } from "@/lib/utils";
@@ -59,6 +62,10 @@ function measure(el: Element): Rect {
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
 
+function getStepSpotlightSelector(step: TourStepDef): string {
+  return resolveTourStepSelector(step.selector, step.mobileSelector);
+}
+
 function dispatchGridAction(action: "expand-first" | "collapse") {
   window.dispatchEvent(
     new CustomEvent(FARM_TOUR_ACTION_EVENT, { detail: { action } }),
@@ -82,6 +89,8 @@ function TourOverlay({
   const [stepIdx, setStepIdx] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
   const [accentRect, setAccentRect] = useState<Rect | null>(null);
+  const [holeReady, setHoleReady] = useState(false);
+  const [settling, setSettling] = useState(false);
   const dirRef = useRef<1 | -1>(1);
   const targetRef = useRef<Element | null>(null);
   const accentRef = useRef<Element | null>(null);
@@ -97,7 +106,13 @@ function TourOverlay({
     [],
   );
 
-  const runTargetScroll = useCallback(() => {
+  const measureTargets = useCallback(() => {
+    if (targetRef.current) setRect(measure(targetRef.current));
+    if (accentRef.current) setAccentRect(measure(accentRef.current));
+    else setAccentRect(null);
+  }, []);
+
+  const runTargetScrollOnce = useCallback(() => {
     const el = targetRef.current as HTMLElement | null;
     if (!el || window.innerWidth >= 768) return;
     scrollTourTargetIntoView(el, true, {
@@ -123,6 +138,10 @@ function TourOverlay({
         finish(true);
         return;
       }
+      setHoleReady(false);
+      setSettling(true);
+      setRect(null);
+      setAccentRect(null);
       setStepIdx(next);
     },
     [finish],
@@ -140,68 +159,78 @@ function TourOverlay({
     };
   }, [viewportReady]);
 
-  // 스텝 진입 — 뷰 전환·그리드 액션 후 대상 요소 폴링.
-  // 이전 스텝의 rect는 유지 → 홀이 CSS 트랜지션으로 새 대상까지 이동(모프).
+  // 스텝 진입 — scroll-once → settle → hole 표시.
   useEffect(() => {
     if (!viewportReady) return;
     let cancelled = false;
     let attempts = 0;
+    const timers: number[] = [];
+    const spotlightSelector = getStepSpotlightSelector(step);
+
     targetRef.current = null;
     accentRef.current = null;
 
-    // setView는 내부적으로 flushSync를 사용 — effect 본문에서 동기 호출하면
-    // React lifecycle 중 flushSync 오류가 나므로 태스크 큐로 미룬다.
-    const applyTimer = window.setTimeout(() => {
+    const schedule = (fn: () => void, ms: number) => {
+      timers.push(window.setTimeout(fn, ms));
+    };
+
+    schedule(() => {
       if (cancelled) return;
       setView(step.view);
       if (step.gridAction) dispatchGridAction(step.gridAction);
     }, 0);
 
+    const finalizeMobileStep = (el: HTMLElement) => {
+      setSettling(true);
+      runTargetScrollOnce();
+      schedule(() => {
+        if (cancelled || targetRef.current !== el) return;
+        measureTargets();
+        setSettling(false);
+        setHoleReady(true);
+      }, TOUR_MOBILE_SETTLE_MS);
+    };
+
+    const finalizeDesktopStep = (el: HTMLElement) => {
+      scrollTourTargetIntoView(el, false);
+      schedule(() => {
+        if (cancelled || targetRef.current !== el) return;
+        measureTargets();
+        setSettling(false);
+        setHoleReady(true);
+      }, 260);
+    };
+
     const locate = () => {
       if (cancelled) return;
       const isMobileSheet = window.innerWidth < 768;
-      const el = findVisibleTourTarget(step.selector);
+      const el = findVisibleTourTarget(spotlightSelector);
       if (el && (el as HTMLElement).offsetParent !== null) {
         targetRef.current = el;
-        const deferScroll = isMobileSheet && Boolean(step.gridAction);
-        if (!deferScroll) {
-          scrollTourTargetIntoView(el as HTMLElement, isMobileSheet, {
-            align: scrollAlign,
-            tooltipHeight: getTooltipHeight(),
-          });
-        }
         if (step.accentSelector) {
-          accentRef.current =
-            el.querySelector(step.accentSelector) ??
-            document.querySelector(step.accentSelector);
+          const useMobileAlt =
+            isMobileSheet && Boolean(step.mobileSelector);
+          if (!useMobileAlt) {
+            accentRef.current =
+              el.querySelector(step.accentSelector) ??
+              document.querySelector(step.accentSelector);
+          } else {
+            accentRef.current = null;
+          }
         } else {
           accentRef.current = null;
         }
-        // 스크롤·확대 상세 렌더 안착 후 측정.
+
         const measureDelay = step.gridAction
           ? 420
           : isMobileSheet
-            ? 340
-            : 260;
-        window.setTimeout(() => {
-          if (cancelled || !targetRef.current) return;
-          if (deferScroll) {
-            scrollTourTargetIntoView(
-              targetRef.current as HTMLElement,
-              isMobileSheet,
-              {
-                align: scrollAlign,
-                tooltipHeight: getTooltipHeight(),
-              },
-            );
-          }
-          setRect(measure(targetRef.current));
-          setAccentRect(
-            accentRef.current ? measure(accentRef.current) : null,
-          );
-          if (isMobileSheet) {
-            window.setTimeout(() => runTargetScroll(), 120);
-          }
+            ? 300
+            : 80;
+
+        schedule(() => {
+          if (cancelled || targetRef.current !== el) return;
+          if (isMobileSheet) finalizeMobileStep(el as HTMLElement);
+          else finalizeDesktopStep(el as HTMLElement);
         }, measureDelay);
         return;
       }
@@ -213,53 +242,67 @@ function TourOverlay({
       }
       attempts += 1;
       if (attempts >= FIND_RETRIES) {
-        // 대상 없음(데이터 없음 등) — 진행 방향으로 건너뛰기.
         const next = stepIdx + dirRef.current;
         if (next < 0 || next >= TOUR_STEPS.length) finish(true);
         else setStepIdx(next);
         return;
       }
-      window.setTimeout(locate, FIND_INTERVAL_MS);
+      schedule(locate, FIND_INTERVAL_MS);
     };
-    // 뷰 전환·그리드 액션(expand-first 등) 반영 뒤 첫 탐색.
-    const locateDelay = step.gridAction ? 160 : 80;
-    const locateTimer = window.setTimeout(locate, locateDelay);
+
+    schedule(locate, step.gridAction ? 160 : 80);
 
     return () => {
       cancelled = true;
-      window.clearTimeout(applyTimer);
-      window.clearTimeout(locateTimer);
+      for (const id of timers) window.clearTimeout(id);
     };
-  }, [stepIdx, step, setView, finish, scrollAlign, getTooltipHeight, runTargetScroll, viewportReady]);
+  }, [
+    stepIdx,
+    step,
+    setView,
+    finish,
+    viewportReady,
+    runTargetScrollOnce,
+    measureTargets,
+  ]);
 
-  // 툴팁 실측 높이 반영 — 스크롤 재정렬.
-  useLayoutEffect(() => {
-    if (!targetRef.current || window.innerWidth >= 768) return;
-    const frame = requestAnimationFrame(() => {
-      runTargetScroll();
-      if (targetRef.current) setRect(measure(targetRef.current));
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [stepIdx, step.extra, runTargetScroll]);
-
-  // visualViewport·주소창 변화 — rect sync + 스크롤 재정렬.
+  // scroll → rect만(rAF). resize → debounce 1회 재스크롤.
   useEffect(() => {
-    const sync = () => {
-      if (targetRef.current) {
-        setRect(measure(targetRef.current));
-        if (window.innerWidth < 768) runTargetScroll();
-      }
-      if (accentRef.current) setAccentRect(measure(accentRef.current));
+    let raf = 0;
+    const onScrollMeasure = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(measureTargets);
     };
-    const unsubViewport = subscribeTourViewport(sync);
-    window.addEventListener("scroll", sync, true);
-    const t = window.setInterval(sync, 400);
+
+    window.addEventListener("scroll", onScrollMeasure, true);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(onScrollMeasure);
+      if (targetRef.current) ro.observe(targetRef.current);
+      if (accentRef.current) ro.observe(accentRef.current);
+      if (tooltipRef.current) ro.observe(tooltipRef.current);
+    }
+
+    const unsubCss = subscribeTourViewportCssSync();
+    const unsubResize = subscribeTourViewportResize(() => {
+      if (!targetRef.current || window.innerWidth >= 768) return;
+      setSettling(true);
+      runTargetScrollOnce();
+      window.setTimeout(() => {
+        measureTargets();
+        setSettling(false);
+      }, TOUR_MOBILE_SETTLE_MS);
+    });
+
     return () => {
-      unsubViewport();
-      window.removeEventListener("scroll", sync, true);
-      window.clearInterval(t);
+      cancelAnimationFrame(raf);
+      window.removeEventListener("scroll", onScrollMeasure, true);
+      ro?.disconnect();
+      unsubCss();
+      unsubResize();
     };
-  }, [runTargetScroll]);
+  }, [stepIdx, holeReady, measureTargets, runTargetScrollOnce]);
 
   // Esc — 건너뛰기(완료 저장).
   useEffect(() => {
@@ -281,7 +324,7 @@ function TourOverlay({
     : Math.min(TOOLTIP_W, vw - 24);
   const mobileSheetBottom = mobileTourSheetBottomCss();
 
-  const hole = rect
+  const hole = holeReady && rect
     ? {
         top: rect.top - HOLE_PAD,
         left: rect.left - HOLE_PAD,
@@ -311,7 +354,11 @@ function TourOverlay({
       {/* 딤 + 스포트라이트 홀 */}
       {hole ? (
         <div
-          className="farm-tour-hole pointer-events-none fixed rounded-xl"
+          className={cn(
+            "farm-tour-hole pointer-events-none fixed rounded-xl",
+            mobileSheet && "farm-tour-hole--mobile",
+          )}
+          data-settling={settling ? "true" : undefined}
           style={{
             top: hole.top,
             left: hole.left,
