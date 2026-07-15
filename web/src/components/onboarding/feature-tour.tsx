@@ -25,12 +25,12 @@ import { GaugeAnatomy, PanelPillsGuide } from "@/components/onboarding/tour-guid
 import {
   getTourViewport,
   mobileTourSheetBottomCss,
-  measureTourTargetAlignmentDrift,
-  measureTourAnchorTopDrift,
+  isTourTargetBandAligned,
+  measureTourTargetBandDrift,
   resolveTourScrollPolicy,
   resolveTourStepSelector,
   scrollTourTargetIntoView,
-  scrollTourTargetUntilAnchored,
+  scrollTourTargetUntilBandAligned,
   stabilizeMobileBrowserViewport,
   subscribeTourViewportCssSync,
   subscribeTourViewportResize,
@@ -125,11 +125,7 @@ function TourOverlay({
       scrollPolicy,
       tooltipHeight: getTooltipHeight(),
     };
-    if (scrollPolicy === "anchor-top" || scrollPolicy === "anchor-card-top") {
-      scrollTourTargetUntilAnchored(el, opts);
-    } else {
-      scrollTourTargetIntoView(el, true, opts);
-    }
+    scrollTourTargetUntilBandAligned(el, opts);
   }, [scrollPolicy, scrollEnabled, getTooltipHeight]);
 
   const finish = useCallback(
@@ -208,15 +204,10 @@ function TourOverlay({
 
     const scrollTarget = (el: HTMLElement) => {
       if (!stepScrollEnabled || window.innerWidth >= 768) return;
-      const opts = {
+      scrollTourTargetUntilBandAligned(el, {
         scrollPolicy: stepScrollPolicy,
         tooltipHeight: getTooltipHeight(),
-      };
-      if (isAnchorScroll) {
-        scrollTourTargetUntilAnchored(el, opts);
-      } else {
-        scrollTourTargetIntoView(el, true, opts);
-      }
+      });
     };
 
     const finalizeMobileStep = (el: HTMLElement) => {
@@ -241,10 +232,8 @@ function TourOverlay({
         }
         scrollTarget(el);
         const tipH = getTooltipHeight();
-        const drift = isAnchorScroll
-          ? measureTourAnchorTopDrift(el, tipH)
-          : measureTourTargetAlignmentDrift(el, tipH, stepScrollPolicy);
-        if (drift >= TOUR_REALIGN_DRIFT_THRESHOLD && attempt < 8) {
+        const band = measureTourTargetBandDrift(el, tipH, stepScrollPolicy);
+        if (band.drift >= TOUR_REALIGN_DRIFT_THRESHOLD && attempt < 8) {
           schedule(() => revealHole(attempt + 1), 80);
           return;
         }
@@ -359,11 +348,11 @@ function TourOverlay({
     const realignMobileTargetIfNeeded = (force = false) => {
       const el = targetRef.current as HTMLElement | null;
       if (!el || window.innerWidth >= 768 || !scrollEnabled) return false;
-      const drift = measureTourTargetAlignmentDrift(
+      const drift = measureTourTargetBandDrift(
         el,
         getTooltipHeight(),
         scrollPolicy,
-      );
+      ).drift;
       if (!force && drift < TOUR_REALIGN_DRIFT_THRESHOLD) return false;
       setSettling(true);
       runTargetScrollOnce();

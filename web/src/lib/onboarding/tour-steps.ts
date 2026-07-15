@@ -1,6 +1,14 @@
 /**
  * 스포트라이트 투어 — 스텝 선언(데이터 전용).
  * 서버 액션·클라이언트 엔진 양쪽에서 import 하므로 "use client"/"server-only" 금지.
+ *
+ * 모바일 scrollPolicy (md 미만):
+ * | 정책            | 용도                                      | 스텝   |
+ * |-----------------|-------------------------------------------|--------|
+ * | none            | 스크롤 없음 (뷰 전환·짧은 UI)             | 1, 8   |
+ * | anchor-top      | 타깃 상단을 헤더 clearance에 고정         | 2,3,6  |
+ * | fit-between     | 헤더~툴팁 사이 band에 맞춤                | 4,5,7  |
+ * | anchor-card-top | (레거시) 카드 상단 anchor — 미사용        | —      |
  */
 
 import {
@@ -47,9 +55,7 @@ export type TourStepDef = {
   extra?: "anatomy" | "pills";
   /** 대상이 없으면(Admin 전국 KPI 등) 즉시 건너뜀. */
   skipIfMissing?: boolean;
-  /** 모바일 스크롤 — 긴 패널은 상단 고정, 작은 요소는 툴팁 위 fit. */
-  scrollAlign?: "anchor-top" | "fit-between";
-  /** 모바일 스크롤 정책 — scrollAlign보다 우선. */
+  /** 모바일 스크롤 정책. */
   scrollPolicy?: "none" | "fit-between" | "anchor-top" | "anchor-card-top";
 };
 

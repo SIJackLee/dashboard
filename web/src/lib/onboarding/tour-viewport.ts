@@ -38,21 +38,25 @@ export type TourViewportMetrics = {
   browserChromeBottom: number;
 };
 
-export type TourScrollAlign = "anchor-top" | "fit-between";
-
 export type TourScrollPolicy =
   | "none"
   | "fit-between"
   | "anchor-top"
   | "anchor-card-top";
 
+/** 상·하단 band 정렬 오차 — drift = max(topDrift, bottomDrift). */
+export type TourTargetBandDrift = {
+  topDrift: number;
+  bottomDrift: number;
+  drift: number;
+  headerClearance: number;
+  maxBottom: number;
+};
+
 export function resolveTourScrollPolicy(step: {
   scrollPolicy?: TourScrollPolicy;
-  scrollAlign?: TourScrollAlign;
 }): TourScrollPolicy {
-  if (step.scrollPolicy) return step.scrollPolicy;
-  if (step.scrollAlign) return step.scrollAlign;
-  return "fit-between";
+  return step.scrollPolicy ?? "fit-between";
 }
 
 export function getTourViewport(): TourViewportMetrics {
@@ -260,7 +264,6 @@ export function scrollTourContainerToAnchorTop(
 }
 
 export type ScrollTourTargetOptions = {
-  align?: TourScrollAlign;
   scrollPolicy?: TourScrollPolicy;
   tooltipHeight?: number | null;
 };
@@ -276,7 +279,7 @@ export function scrollTourTargetIntoView(
     return;
   }
 
-  const policy = options?.scrollPolicy ?? options?.align ?? "fit-between";
+  const policy = options?.scrollPolicy ?? "fit-between";
   if (policy === "none") return;
 
   const tooltipHeight = resolveTooltipHeight(options?.tooltipHeight);
@@ -313,51 +316,85 @@ export function measureTourAnchorTopDrift(
   el: HTMLElement,
   tooltipHeight?: number | null,
 ): number {
-  const { headerClearance } = computeTourScrollBounds(
-    resolveTooltipHeight(tooltipHeight),
-  );
-  return Math.abs(el.getBoundingClientRect().top - headerClearance);
+  return measureTourTargetBandDrift(el, tooltipHeight, "anchor-top").topDrift;
 }
 
-/** anchor-top — drift가 임계 이하가 될 때까지 반복 정렬. */
+/** 상·하단 scroll band와 타깃 rect 오차. anchor-top은 top만 검사. */
+export function measureTourTargetBandDrift(
+  el: HTMLElement,
+  tooltipHeight?: number | null,
+  scrollPolicy?: TourScrollPolicy,
+): TourTargetBandDrift {
+  const tipH = resolveTooltipHeight(tooltipHeight);
+  const { headerClearance, maxBottom } = computeTourScrollBounds(tipH);
+  const rect = el.getBoundingClientRect();
+
+  if (scrollPolicy === "anchor-top" || scrollPolicy === "anchor-card-top") {
+    const topDrift = Math.abs(rect.top - headerClearance);
+    return { topDrift, bottomDrift: 0, drift: topDrift, headerClearance, maxBottom };
+  }
+
+  const topDrift = Math.max(0, headerClearance - rect.top);
+  const bottomDrift = Math.max(0, rect.bottom - maxBottom);
+  return {
+    topDrift,
+    bottomDrift,
+    drift: Math.max(topDrift, bottomDrift),
+    headerClearance,
+    maxBottom,
+  };
+}
+
+export function isTourTargetBandAligned(
+  el: HTMLElement,
+  tooltipHeight?: number | null,
+  scrollPolicy?: TourScrollPolicy,
+  threshold = TOUR_REALIGN_DRIFT_THRESHOLD,
+): boolean {
+  return (
+    measureTourTargetBandDrift(el, tooltipHeight, scrollPolicy).drift < threshold
+  );
+}
+
+/** fit-between·anchor-top — band drift가 임계 이하가 될 때까지 반복 정렬. */
+export function scrollTourTargetUntilBandAligned(
+  el: HTMLElement,
+  options?: ScrollTourTargetOptions,
+  maxAttempts = 6,
+): void {
+  const policy = options?.scrollPolicy ?? "fit-between";
+  if (policy === "none") return;
+
+  for (let i = 0; i < maxAttempts; i += 1) {
+    if (isTourTargetBandAligned(el, options?.tooltipHeight, policy)) return;
+
+    if (policy === "anchor-top" || policy === "anchor-card-top") {
+      const { headerClearance } = computeTourScrollBounds(
+        resolveTooltipHeight(options?.tooltipHeight),
+      );
+      scrollTourContainerToAnchorTop(el, headerClearance);
+    } else {
+      scrollTourTargetIntoView(el, true, options);
+    }
+  }
+}
+
+/** @deprecated scrollTourTargetUntilBandAligned 사용 */
 export function scrollTourTargetUntilAnchored(
   el: HTMLElement,
   options?: ScrollTourTargetOptions,
   maxAttempts = 4,
 ): void {
-  const policy = options?.scrollPolicy ?? options?.align ?? "fit-between";
-  if (policy !== "anchor-top" && policy !== "anchor-card-top") {
-    scrollTourTargetIntoView(el, true, options);
-    return;
-  }
-
-  const tooltipHeight = resolveTooltipHeight(options?.tooltipHeight);
-  const { headerClearance } = computeTourScrollBounds(tooltipHeight);
-
-  for (let i = 0; i < maxAttempts; i += 1) {
-    if (measureTourAnchorTopDrift(el, tooltipHeight) < TOUR_REALIGN_DRIFT_THRESHOLD) {
-      return;
-    }
-    scrollTourContainerToAnchorTop(el, headerClearance);
-  }
+  scrollTourTargetUntilBandAligned(el, options, maxAttempts);
 }
 
-/** 타깃이 툴팁·헤더 사이에 들어오지 못한 경우 양수(px). */
+/** 타깃이 툴팁·헤더 사이 band를 벗어난 최대 오차(px). */
 export function measureTourTargetAlignmentDrift(
   el: HTMLElement,
   tooltipHeight?: number | null,
   scrollPolicy?: TourScrollPolicy,
 ): number {
-  if (scrollPolicy === "anchor-top" || scrollPolicy === "anchor-card-top") {
-    return measureTourAnchorTopDrift(el, tooltipHeight);
-  }
-
-  const tipH = resolveTooltipHeight(tooltipHeight);
-  const { headerClearance, maxBottom } = computeTourScrollBounds(tipH);
-  const rect = el.getBoundingClientRect();
-  const topDrift = Math.max(0, headerClearance - rect.top);
-  const bottomDrift = Math.max(0, rect.bottom - maxBottom);
-  return Math.max(topDrift, bottomDrift);
+  return measureTourTargetBandDrift(el, tooltipHeight, scrollPolicy).drift;
 }
 
 /** 투어 시작 직후 주소창 접힘 유도 — 보조 수단(1회). */
