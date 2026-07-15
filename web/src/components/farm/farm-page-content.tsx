@@ -13,7 +13,7 @@ import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import { FarmFeatureTour } from "@/components/onboarding/feature-tour";

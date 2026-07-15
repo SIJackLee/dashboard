@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { HealthSnapshot, HealthNodeId } from "@/lib/admin/health/types";
 import {
   HEALTH_UI,
   countHealthStatuses,
   worstHealthStatus,
 } from "@/lib/admin/health/health-ui-labels";
+import { parseHealthNodeId } from "@/lib/admin/health/health-routes";
+import { farmKeyUrlSlug } from "@/lib/data/farm-key";
 import type { HealthDagNodeSelectPayload, PeekAnchor } from "@/lib/admin/health/health-node-peek-content";
 import { HealthDagGraph } from "@/components/admin/health/health-dag-graph";
 import { HealthFarmModulePanel } from "@/components/admin/health/health-farm-module-panel";
@@ -29,9 +32,13 @@ type PeekState = {
 
 export function HealthSystemShell({ snapshot }: Props) {
   const isMobileLayout = useMobileLayout();
+  const searchParams = useSearchParams();
+  const queryNodeId = parseHealthNodeId(searchParams.get("node"));
+  const queryFarmId = searchParams.get("farm")?.trim() || null;
+  const queryModulesOpen = searchParams.get("modules") === "1";
   const [peek, setPeek] = useState<PeekState | null>(null);
   const [dialogNodeId, setDialogNodeId] = useState<HealthNodeId | null>(null);
-  const [farmPanelOpen, setFarmPanelOpen] = useState(false);
+  const [farmPanelOpen, setFarmPanelOpen] = useState(queryModulesOpen || Boolean(queryFarmId));
   const capWarn = snapshot.liveRowCount >= snapshot.liveRowLimit * 0.9;
   const moduleCounts = useMemo(
     () => countHealthStatuses(snapshot.modules),
@@ -64,6 +71,34 @@ export function HealthSystemShell({ snapshot }: Props) {
   const closeDialog = useCallback(() => {
     setDialogNodeId(null);
   }, []);
+
+  useEffect(() => {
+    if (!queryNodeId) return;
+    if (isMobileLayout) {
+      setDialogNodeId(queryNodeId);
+      setPeek(null);
+      return;
+    }
+    setDialogNodeId(queryNodeId);
+    setPeek(null);
+  }, [queryNodeId, isMobileLayout]);
+
+  useEffect(() => {
+    if (queryModulesOpen || queryFarmId) {
+      setFarmPanelOpen(true);
+    }
+  }, [queryModulesOpen, queryFarmId]);
+
+  useEffect(() => {
+    if (!queryFarmId || !farmPanelOpen) return;
+    const slug = farmKeyUrlSlug(queryFarmId);
+    const timer = window.setTimeout(() => {
+      document
+        .querySelector(`[data-health-farm-id="${slug}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [queryFarmId, farmPanelOpen, snapshot.modules.length]);
 
   const activeDrillId = dialogNodeId ?? peek?.nodeId ?? null;
 
@@ -136,7 +171,10 @@ export function HealthSystemShell({ snapshot }: Props) {
           contentClassName={farmPanelOpen ? undefined : "hidden"}
         >
           {farmPanelOpen ? (
-            <HealthFarmModulePanel modules={snapshot.modules} />
+            <HealthFarmModulePanel
+              modules={snapshot.modules}
+              highlightFarmId={queryFarmId}
+            />
           ) : null}
         </HealthSectionCard>
       </div>

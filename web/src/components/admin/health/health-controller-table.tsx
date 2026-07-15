@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { ControllerHealthRow } from "@/lib/admin/health/types";
+import { adminOpsHealthHref } from "@/lib/admin/health/health-routes";
 import { HealthControllerMobileList } from "@/components/admin/health/health-controller-mobile-list";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
-import { farmKeyUrlSlug } from "@/lib/data/farm-key";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +50,7 @@ export function HealthControllerTable({
             <tr key={row.id} className="border-b last:border-b-0">
               <td className={cn("px-4 py-3", dashboardTypography.tableCell)}>
                 <Link
-                  href={`/admin/health/farm/${farmKeyUrlSlug(row.farmId)}`}
+                  href={adminOpsHealthHref({ farm: row.farmId, modules: true })}
                   className="hover:text-foreground hover:underline"
                 >
                   {row.farmLabel}

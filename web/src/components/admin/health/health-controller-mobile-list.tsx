@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import type { ControllerHealthRow } from "@/lib/admin/health/types";
+import { adminOpsHealthHref } from "@/lib/admin/health/health-routes";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
-import { farmKeyUrlSlug } from "@/lib/data/farm-key";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +32,7 @@ export function HealthControllerMobileList({ controllers, limit }: Props) {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <Link
-                href={`/admin/health/farm/${farmKeyUrlSlug(row.farmId)}`}
+                href={adminOpsHealthHref({ farm: row.farmId, modules: true })}
                 className={cn(dashboardTypography.body, "text-sm font-semibold hover:underline")}
               >
                 {row.farmLabel}

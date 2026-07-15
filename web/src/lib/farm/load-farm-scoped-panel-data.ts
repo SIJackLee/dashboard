@@ -4,7 +4,7 @@ import {
   mergeThermoSettingsMaps,
   type ControllerThermoSettings,
 } from "@/lib/controllers/controller-settings";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import {
   getBarnLayoutPrefs,
   mergeBarnLayouts,

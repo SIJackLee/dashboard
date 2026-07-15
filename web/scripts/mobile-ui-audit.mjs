@@ -33,9 +33,9 @@ const ROUTES = {
     { path: "/admin/ops?tab=users", label: "운영·사용자" },
     { path: "/admin/ops?tab=farms", label: "운영·농장 위치" },
     { path: "/admin/ops?tab=commands", label: "운영·명령 이력" },
-    { path: "/admin/health/farm/FARM01--P00", label: "Health·농장 상세" },
-    { path: "/admin/health/group/col-a", label: "Health·그룹 상세" },
-    { path: "/admin/health/collector-mqtt", label: "Health·노드 상세" },
+    { path: "/admin/health/farm/FARM01--P00", label: "레거시 health→ops redirect" },
+    { path: "/admin/health/group/col-a", label: "레거시 health group→ops redirect" },
+    { path: "/admin/health/collector-mqtt", label: "레거시 health node→ops redirect" },
   ],
   operator: [
     { path: "/farm", label: "모니터링·현황" },
@@ -242,13 +242,32 @@ async function auditRoute(page, role, route, shotDir) {
   const shotPath = join(shotDir, `${role}_${slug}.png`);
   await page.screenshot({ path: shotPath, fullPage: false });
 
+  const finalUrl = page.url().replace(BASE, "");
+  const redirectIssues = [];
+  if (route.path.startsWith("/admin/health") && !finalUrl.startsWith("/admin/ops")) {
+    redirectIssues.push({
+      code: "LEGACY_HEALTH_REDIRECT",
+      severity: "high",
+      detail: `expected /admin/ops redirect, got ${finalUrl}`,
+    });
+  }
+  if (route.path === "/admin/users" && !finalUrl.startsWith("/admin/ops/users")) {
+    redirectIssues.push({
+      code: "LEGACY_USERS_REDIRECT",
+      severity: "high",
+      detail: `expected /admin/ops/users redirect, got ${finalUrl}`,
+    });
+  }
+
   return {
     role,
     label: route.label,
     path: route.path,
-    finalUrl: page.url().replace(BASE, ""),
+    finalUrl,
     screenshot: shotPath,
     ...data,
+    issues: [...(data.issues ?? []), ...redirectIssues],
+    issueCount: (data.issueCount ?? 0) + redirectIssues.length,
   };
 }
 

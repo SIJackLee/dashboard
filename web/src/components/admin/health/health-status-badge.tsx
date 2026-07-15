@@ -22,7 +22,7 @@ const dotClass: Record<HealthStatus, string> = {
 type HealthStatusBadgeProps = {
   status: HealthStatus;
   className?: string;
-  /** 모바일 DAG·리스트 — PC badgeMd(text-xl) 미사용 */
+  /** 모바??DAG·리스????PC badgeMd(text-xl) 미사??*/
   compact?: boolean;
 };
 

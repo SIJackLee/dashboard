@@ -13,7 +13,7 @@ import type {
   TrendPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
-import type { ControllerGridData } from "./farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapCanvas } from "./farm-map-canvas";
 import { FarmMapMobileStage } from "./farm-map-mobile-stage";
 import { useDashboardCompact } from "@/components/layout/dashboard-viewport-context";

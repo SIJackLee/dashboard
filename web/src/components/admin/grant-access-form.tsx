@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { UserPlus, Users } from "lucide-react";
-import { grantBulkFarmAccess } from "@/app/(dashboard)/admin/users/actions";
+import { grantBulkFarmAccess } from "@/app/(dashboard)/admin/ops/users-actions";
 import { FarmAccessGrantTable } from "@/components/admin/farm-access-grant-table";
 import type {
   FarmAccessState,

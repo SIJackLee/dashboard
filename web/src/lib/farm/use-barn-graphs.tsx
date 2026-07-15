@@ -22,7 +22,7 @@ import {
   statBand,
   tempBand,
 } from "@/lib/farm/severity-score";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { StackMetric } from "@/lib/farm/stack-metric";
 import { SeverityHeatmap } from "@/components/farm/severity-heatmap";
 import type { FarmMapControllerDetailData } from "@/components/farm/farm-map-controller-detail";

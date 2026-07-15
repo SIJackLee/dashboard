@@ -20,12 +20,14 @@ type Props = {
   modules: ModuleHealthRow[];
   scrollable?: boolean;
   embedded?: boolean;
+  highlightFarmId?: string | null;
 };
 
 export function HealthFarmModulePanel({
   modules,
   scrollable = false,
   embedded = false,
+  highlightFarmId = null,
 }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("issues");
   const [search, setSearch] = useState("");
@@ -93,6 +95,7 @@ export function HealthFarmModulePanel({
       <div className={embedded ? "min-h-0 flex-1 overflow-hidden" : undefined}>
         <HealthFarmModuleTable
           modules={filtered}
+          highlightFarmId={highlightFarmId}
           stickyHeader={scrollable || embedded}
           maxHeight={scrollable && !embedded ? "max-h-[min(60vh,640px)]" : undefined}
           compact={embedded}

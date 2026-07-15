@@ -15,7 +15,7 @@ import {
   fetchFarmScopedPanelDataAction,
   revalidateFarmLiveAction,
 } from "@/app/(dashboard)/farm/actions";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import {

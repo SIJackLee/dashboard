@@ -15,7 +15,7 @@ import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 import { currentFarmSearchParams } from "@/lib/farm/farm-view-url";
 import { useAdminHubPanels } from "@/lib/navigation/admin-hub-panels-context";

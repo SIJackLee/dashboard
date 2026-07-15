@@ -41,6 +41,7 @@ import {
   mqttPoints,
 } from "@/lib/admin/health/fetch-ekape-health";
 import { formatHealthTime } from "@/lib/admin/health/format-health-time";
+import { adminOpsHealthHref } from "@/lib/admin/health/health-routes";
 import { worstStatus } from "@/lib/admin/health/staleness";
 import type {
   CollectorNodeState,
@@ -487,7 +488,7 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
       short: "CTRL",
       status: fieldStatus,
       d11Hints: fieldStatus !== "ok" ? ["S3", "S5"] : [],
-      href: "/admin/health/field-controller",
+      href: adminOpsHealthHref({ node: "field-controller" }),
     },
     {
       id: "field-module",
@@ -495,7 +496,7 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
       short: "MOD",
       status: fieldStatus,
       d11Hints: fieldStatus === "critical" ? ["S1"] : ["S5"],
-      href: "/admin/health/field-module",
+      href: adminOpsHealthHref({ node: "field-module" }),
     },
     {
       id: "collector",
@@ -503,7 +504,7 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
       short: "COL",
       status: collectorRollup,
       d11Hints: collectorRollup !== "ok" ? ["S1"] : [],
-      href: "/admin/health/collector",
+      href: adminOpsHealthHref({ node: "collector" }),
     },
     {
       id: "storage",
@@ -511,7 +512,7 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
       short: "DB",
       status: storageStatus,
       d11Hints: storageStatus !== "ok" ? ["S2"] : [],
-      href: "/admin/health/storage",
+      href: adminOpsHealthHref({ node: "storage" }),
     },
     {
       id: "dashboard",
@@ -519,7 +520,7 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
       short: "UI",
       status: dashboardStatus,
       d11Hints: dashboardStatus !== "ok" ? ["S2"] : [],
-      href: "/admin/health/dashboard",
+      href: adminOpsHealthHref({ node: "dashboard" }),
     },
     {
       id: "external",
@@ -527,7 +528,7 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
       short: "EXT",
       status: "not_implemented",
       d11Hints: [],
-      href: "/admin/health/external",
+      href: adminOpsHealthHref({ node: "external" }),
     },
   ];
 

@@ -12,8 +12,8 @@ import { SimpleSelect } from "@/components/common/filter-bar";
 import { BarnListSummary } from "@/components/farm/barn-list-summary";
 import { BarnListModeToolbar } from "@/components/farm/barn-list-mode-toolbar";
 import { BarnListTrendRefreshBar } from "@/components/farm/barn-list-trend-refresh-bar";
-import { FarmMapBulkApply, type ApplyResult } from "@/components/farm/farm-map-bulk-apply";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "@/components/farm/farm-map-bulk-apply";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -44,27 +44,6 @@ import { FILTER_ALL, FILTER_ALL_LABEL, isFilterAll } from "@/lib/ui/filter-all";
 import { cn } from "@/lib/utils";
 
 type ListLayout = "group" | "flat";
-
-function formatBulkApplyToast(result: ApplyResult): string {
-  const parts: string[] = [];
-  if (result.control) {
-    parts.push(`제어 ${result.control.sent}대 전송`);
-    if (result.control.failed.length > 0) {
-      parts.push(`실패 ${result.control.failed.length}대`);
-    }
-  }
-  if (result.alarm) {
-    if (result.alarm.ok) {
-      parts.push(`알람 유형 ${result.alarm.spCount}개 갱신`);
-      if ((result.alarm.clearedOverrides ?? 0) > 0) {
-        parts.push(`개별 설정 ${result.alarm.clearedOverrides}건 제거`);
-      }
-    } else {
-      parts.push(`알람 저장 실패`);
-    }
-  }
-  return parts.join(" · ") || "일괄 적용 완료";
-}
 
 type Props = {
   rows?: BarnReading[];

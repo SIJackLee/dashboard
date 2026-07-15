@@ -1,0 +1,47 @@
+stages:
+  - verify
+
+default:
+  image: node:20-bookworm
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-web"
+    paths:
+      - web/node_modules/
+
+web:install:
+  stage: verify
+  script:
+    - cd web && npm ci
+  artifacts:
+    paths:
+      - web/node_modules/
+    expire_in: 2 hours
+
+web:lint:
+  stage: verify
+  needs: [web:install]
+  script:
+    - cd web && npm run lint
+
+web:build:
+  stage: verify
+  needs: [web:install]
+  variables:
+    NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-anon-key"
+    SUPABASE_SERVICE_ROLE_KEY: "ci-service-role-key"
+  script:
+    - cd web && npm run build
+
+web:audit:
+  stage: verify
+  needs: [web:install]
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - cd web && npx playwright install chromium --with-deps
+    - cd web && npm run audit:mobile-tour
+    - cd web && npm run audit:operator-apply
+    - cd web && npm run audit:farm-command
+  allow_failure: true

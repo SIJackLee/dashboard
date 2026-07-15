@@ -19,7 +19,7 @@ import {
   type SendBulkThermoCommandResult,
 } from "@/app/(dashboard)/controllers/actions";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import {
   DEFAULT_ALARM_SETTINGS,
   DEFAULT_ALARM_THRESHOLDS,
@@ -69,6 +69,27 @@ export type ApplyResult = {
     settings?: AlarmSettings;
   } | null;
 };
+
+export function formatBulkApplyToast(result: ApplyResult): string {
+  const parts: string[] = [];
+  if (result.control) {
+    parts.push(`제어 ${result.control.sent}대 전송`);
+    if (result.control.failed.length > 0) {
+      parts.push(`실패 ${result.control.failed.length}대`);
+    }
+  }
+  if (result.alarm) {
+    if (result.alarm.ok) {
+      parts.push(`알람 유형 ${result.alarm.spCount}개 갱신`);
+      if ((result.alarm.clearedOverrides ?? 0) > 0) {
+        parts.push(`개별 설정 ${result.alarm.clearedOverrides}건 제거`);
+      }
+    } else {
+      parts.push("알람 저장 실패");
+    }
+  }
+  return parts.join(" · ") || "일괄 적용 완료";
+}
 
 export function FarmMapBulkApply({
   controller,

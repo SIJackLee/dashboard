@@ -26,6 +26,8 @@ npm run build    # 타입체크 + 프로덕션 빌드
 npm run lint
 npm run verify:mobile-interaction
 npm run verify:routes
+npm run audit:operator-apply
+npm run audit:farm-command
 ```
 
 ## 환경변수 (`.env.local`)
@@ -124,6 +126,7 @@ npm run verify:routes
 | `/admin/health` | `/admin/ops` |
 | `/admin/health/*` (farm/group/node drill-down) | `/admin/ops` |
 | `/admin/users` | `/admin/ops/users` |
+| `/admin/users` | `/admin/ops/users` |
 | `/controllers` · `/alarms` | `/farm?tab=ops` |
 
 - **href helpers:** `buildControllerHref`·`buildFarmAlarmsHref` → `/farm?tab=ops…`.
@@ -137,7 +140,7 @@ npm run verify:routes
 
 - **Admin Ops 허브:** `/admin/ops` + `?tab=system|users|farms` — 시스템 · 사용자 · 농장 메타 3탭.
 - **사이드바:** 시스템 상태·사용자 관리 → **운영** 1항목.
-- **레거시:** `/admin/health`·`/admin/users` → `/admin/ops?tab=…` redirect (`next.config.ts`). health drill-down 페이지는 제거됨.
+- **레거시:** `/admin/health`·`/admin/users` → `/admin/ops` redirect (`next.config.ts`). health drill-down 페이지는 제거됨. ops 시스템 탭은 `?node=`·`?farm=`·`?modules=1` query로 in-page drill-down.
 - **설정:** Admin `farm` 탭 → 운영 **농장 메타** 탭으로 이전.
 
 ## 더 보기

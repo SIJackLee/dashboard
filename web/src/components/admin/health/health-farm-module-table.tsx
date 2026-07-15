@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ModuleHealthRow } from "@/lib/admin/health/types";
+import { adminOpsHealthHref } from "@/lib/admin/health/health-routes";
 import { HealthFarmModuleMobileList } from "@/components/admin/health/health-farm-module-mobile-list";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import { HEALTH_UI } from "@/lib/admin/health/health-ui-labels";
@@ -12,6 +13,7 @@ type HealthFarmModuleTableProps = {
   stickyHeader?: boolean;
   maxHeight?: string;
   compact?: boolean;
+  highlightFarmId?: string | null;
 };
 function formatLastSeen(iso: string | null, ageMin: number | null): string {
   if (ageMin === null) return "—";
@@ -24,6 +26,7 @@ export function HealthFarmModuleTable({
   stickyHeader = false,
   maxHeight,
   compact = false,
+  highlightFarmId = null,
 }: HealthFarmModuleTableProps) {
   if (modules.length === 0) {
     return (
@@ -50,7 +53,7 @@ export function HealthFarmModuleTable({
 
   return (
     <>
-      <HealthFarmModuleMobileList modules={modules} />
+      <HealthFarmModuleMobileList modules={modules} highlightFarmId={highlightFarmId} />
       <div
         className={cn(
           "hidden overflow-x-auto rounded-xl border lg:block",
@@ -73,11 +76,23 @@ export function HealthFarmModuleTable({
           </tr>
         </thead>
         <tbody>
-          {modules.map((row) => (
-            <tr key={row.id} className="border-b last:border-b-0 hover:bg-muted/20">
+          {modules.map((row) => {
+            const farmSlug = farmKeyUrlSlug(row.farmId);
+            const highlighted =
+              highlightFarmId != null &&
+              (row.farmId === highlightFarmId || farmSlug === highlightFarmId);
+            return (
+            <tr
+              key={row.id}
+              data-health-farm-id={farmSlug}
+              className={cn(
+                "border-b last:border-b-0 hover:bg-muted/20",
+                highlighted && "bg-emerald-50/80 ring-1 ring-inset ring-emerald-400/60"
+              )}
+            >
               <td className={cellCls}>
                 <Link
-                  href={`/admin/health/farm/${farmKeyUrlSlug(row.farmId)}`}
+                  href={adminOpsHealthHref({ farm: row.farmId, modules: true })}
                   className="hover:text-foreground hover:underline"
                 >
                   {row.farmLabel}
@@ -108,7 +123,8 @@ export function HealthFarmModuleTable({
                 </>
               )}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       </div>

@@ -11,6 +11,8 @@
     "audit:mobile": "node scripts/mobile-ui-audit.mjs",
     "audit:mobile-tour": "node scripts/mobile-tour-band-audit.mjs",
     "audit:mobile-tour-timing": "node scripts/mobile-tour-timing-audit.mjs",
+    "audit:operator-apply": "node scripts/operator-apply-audit.mjs",
+    "audit:farm-command": "node scripts/farm-command-audit.mjs",
     "set:test-passwords": "node scripts/set-test-passwords.mjs",
     "build:kma-wrn-map": "tsx scripts/kma/build-wrn-reg-id-map.mjs",
     "poc:kma-weather": "tsx scripts/kma/poc-kma-warn-status.mjs",

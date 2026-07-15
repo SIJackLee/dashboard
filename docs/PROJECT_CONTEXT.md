@@ -254,8 +254,7 @@ web/src/
   app/
     (dashboard)/farm/page.tsx          # map | ops 허브
     (dashboard)/{controllers,alarms,settings}/page.tsx  # redirect only
-    (dashboard)/admin/ops/page.tsx     # system | users | farms | display | commands
-    (dashboard)/admin/health/**        # drill-down
+    (dashboard)/admin/ops/**             # system | users | farms | commands (+ health-actions, users-actions)
     login/page.tsx  pending/page.tsx  auth/{actions.ts,callback/route.ts}
   components/
     layout/{top-bar,scope-bar,mobile-bottom-nav,...}

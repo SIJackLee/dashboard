@@ -1,5 +1,5 @@
 import type { BulkThermoCommand } from "@/app/(dashboard)/controllers/actions";
-import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { resolveThermoSettings } from "@/lib/controllers/controller-settings";
 import { EDIT_START_DRAFT } from "@/lib/controllers/controller-panel-map";
 import { cn } from "@/lib/utils";

@@ -19,11 +19,12 @@ import {
 } from "@/lib/farm/farm-view-url";
 import { GRAPH_BARS, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
-import type { ControllerGridData } from "./farm-map-controller-panel";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { FarmMapCard } from "./farm-map-card";
-import { FarmMapBulkApply } from "./farm-map-bulk-apply";
+import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "./farm-map-bulk-apply";
 import { TrendPeriodToggle } from "./trend-period-toggle";
+import { InlineStatusToast } from "@/components/common/inline-status-toast";
 import { cn } from "@/lib/utils";
 
 /** 히트맵 — 지표(행)·심각도 색 범례 */
@@ -154,6 +155,7 @@ export function FarmMapCanvas({
   const [bulkMode, setBulkMode] = useState(false);
   const [graphPeriod, setGraphPeriod] = useState<TrendPeriodId>("24h");
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
+  const [statusToast, setStatusToast] = useState<string | null>(null);
   const draggedIdRef = useRef<string | null>(null);
   const barnsRef = useRef(barns);
   barnsRef.current = barns;
@@ -342,7 +344,8 @@ export function FarmMapCanvas({
           }}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          onAfterApply={() => {
+          onAfterApply={(result: ApplyResult) => {
+            setStatusToast(formatBulkApplyToast(result));
             if (!hubMode) router.refresh();
           }}
         />
@@ -472,6 +475,10 @@ export function FarmMapCanvas({
           onClose={() => setExpanded(null)}
         />
       ) : null}
+      <InlineStatusToast
+        message={statusToast}
+        onDismiss={() => setStatusToast(null)}
+      />
     </div>
   );
 }

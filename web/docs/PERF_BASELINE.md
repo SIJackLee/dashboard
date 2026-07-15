@@ -9,7 +9,7 @@ cd dashboard/web
 npx tsx scripts/measure-live-read.ts
 ```
 
-페이지 TTFB는 브라우저 DevTools Network 탭에서 `/farm`, `/controllers`, `/alarms`, `/settings`, `/admin/health` 각 10회 샘플.
+페이지 TTFB는 브라우저 DevTools Network 탭에서 `/farm`, `/controllers`, `/alarms`, `/settings`, `/admin/ops` 각 10회 샘플.
 
 ## 목표 (local dev, post-optimization)
 

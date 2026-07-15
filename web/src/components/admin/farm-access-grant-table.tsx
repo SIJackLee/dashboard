@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import {
   toggleFarmCommandInline,
   toggleFarmReadInline,
-} from "@/app/(dashboard)/admin/users/actions";
+} from "@/app/(dashboard)/admin/ops/users-actions";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

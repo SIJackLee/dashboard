@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
         destination: "/admin/ops",
         permanent: false,
       },
+      {
+        source: "/admin/users",
+        destination: "/admin/ops/users",
+        permanent: false,
+      },
     ];
   },
 };

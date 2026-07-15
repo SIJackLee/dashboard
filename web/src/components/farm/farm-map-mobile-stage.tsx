@@ -11,11 +11,12 @@ import {
 } from "@/lib/data/farm-trend-types";
 import { GRAPH_BARS, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { cn } from "@/lib/utils";
-import type { ControllerGridData } from "./farm-map-controller-panel";
-import { FarmMapBulkApply } from "./farm-map-bulk-apply";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
+import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "./farm-map-bulk-apply";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { TrendPeriodToggle } from "./trend-period-toggle";
+import { InlineStatusToast } from "@/components/common/inline-status-toast";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 
 type Props = {
@@ -41,6 +42,7 @@ export function FarmMapMobileStage({
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
   const [graphPeriod, setGraphPeriod] = useState<TrendPeriodId>("24h");
+  const [statusToast, setStatusToast] = useState<string | null>(null);
 
   const bulkEnabled = Boolean(controller?.canCommand);
   const graphMode = Boolean(trendByPeriod) && !bulkMode;
@@ -84,7 +86,8 @@ export function FarmMapMobileStage({
           onEnter={() => setBulkMode(true)}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          onAfterApply={() => {
+          onAfterApply={(result: ApplyResult) => {
+            setStatusToast(formatBulkApplyToast(result));
             if (!hubMode) router.refresh();
           }}
         />
@@ -153,6 +156,10 @@ export function FarmMapMobileStage({
           );
         })}
       </div>
+      <InlineStatusToast
+        message={statusToast}
+        onDismiss={() => setStatusToast(null)}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { healthNodeTitle } from "@/lib/admin/health/health-ui-labels";
+import { adminOpsHealthHref } from "@/lib/admin/health/health-routes";
 import type {
   HealthAlertEvent,
   HealthSnapshot,
@@ -41,7 +42,7 @@ export function buildHealthAlerts(snapshot: HealthSnapshot): HealthAlertEvent[] 
       nodeLabel: sub.label,
       message: `수집 ${sub.label} ${HEALTH_STATUS_LABEL[sub.status]}`,
       d11Hint: sub.d11Hints[0],
-      href: `/admin/health/${sub.id}`,
+      href: adminOpsHealthHref({ node: sub.id }),
       observedAt: at,
     });
   }
@@ -55,7 +56,7 @@ export function buildHealthAlerts(snapshot: HealthSnapshot): HealthAlertEvent[] 
       nodeLabel: group.label,
       message: `${group.label} · ${group.badModuleCount}/${group.moduleCount} 모듈 이상 (R3)`,
       d11Hint: group.d11Hint !== "—" ? group.d11Hint : "S1",
-      href: `/admin/health/group/${group.id}`,
+      href: adminOpsHealthHref({ modules: true }),
       observedAt: at,
     });
   }
@@ -71,7 +72,7 @@ export function buildHealthAlerts(snapshot: HealthSnapshot): HealthAlertEvent[] 
         nodeLabel: healthNodeTitle(nodeId),
         message: `${p.label}: ${p.value}`,
         d11Hint: p.d11Hint,
-        href: `/admin/health/${nodeId}`,
+        href: adminOpsHealthHref({ node: nodeId }),
         observedAt: at,
       });
     }
