@@ -22,7 +22,7 @@ export function parseKmaResponse(json) {
   };
 }
 
-export async function fetchKmaJson(url, serviceKey, params = {}) {
+async function fetchKmaJson(url, serviceKey, params = {}) {
   const search = new URLSearchParams({
     serviceKey: serviceKey,
     pageNo: "1",
@@ -58,7 +58,7 @@ export async function fetchKmaJson(url, serviceKey, params = {}) {
   }
 }
 
-export async function fetchAllPages(url, serviceKey, params = {}, maxPages = 20) {
+async function fetchAllPages(url, serviceKey, params = {}, maxPages = 20) {
   const all = [];
   for (let page = 1; page <= maxPages; page++) {
     const search = new URLSearchParams({
@@ -97,7 +97,7 @@ export function fetchPwnCd(serviceKey) {
 }
 
 /** @see getFcstZoneCd — regSp(지상코드) 필수. 미지정 시 HTTP 403 */
-export const FCST_ZONE_DEFAULT_REG_SP = "A";
+const FCST_ZONE_DEFAULT_REG_SP = "A";
 
 export async function fetchFcstZoneCodes(serviceKey) {
   return fetchAllPages(FCST_ZONE_OPS.zoneCd, serviceKey, {
