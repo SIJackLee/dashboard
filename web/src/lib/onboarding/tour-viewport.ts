@@ -8,6 +8,22 @@ export const TOUR_SCROLL_MARGIN_TOP = 72;
 export const TOUR_MOBILE_SETTLE_MS = 360;
 /** visualViewport resize debounce(ms) */
 export const TOUR_VIEWPORT_RESIZE_DEBOUNCE_MS = 320;
+/** 프로그램 스크롤 직후 vv.resize 무시(ms) — iOS 주소창 피드백 루프 차단 */
+export const TOUR_PROGRAMMATIC_SCROLL_GUARD_MS = 520;
+/** 재스크롤 허용 최소 정렬 오차(px) */
+export const TOUR_REALIGN_DRIFT_THRESHOLD = 12;
+
+let programmaticScrollUntil = 0;
+
+export function markTourProgrammaticScroll(
+  ms = TOUR_PROGRAMMATIC_SCROLL_GUARD_MS,
+): void {
+  programmaticScrollUntil = performance.now() + ms;
+}
+
+export function isTourProgrammaticScrollGuarded(): boolean {
+  return performance.now() < programmaticScrollUntil;
+}
 
 export type TourViewportMetrics = {
   top: number;
@@ -21,6 +37,21 @@ export type TourViewportMetrics = {
 };
 
 export type TourScrollAlign = "anchor-top" | "fit-between";
+
+export type TourScrollPolicy =
+  | "none"
+  | "fit-between"
+  | "anchor-top"
+  | "anchor-card-top";
+
+export function resolveTourScrollPolicy(step: {
+  scrollPolicy?: TourScrollPolicy;
+  scrollAlign?: TourScrollAlign;
+}): TourScrollPolicy {
+  if (step.scrollPolicy) return step.scrollPolicy;
+  if (step.scrollAlign) return step.scrollAlign;
+  return "fit-between";
+}
 
 export function getTourViewport(): TourViewportMetrics {
   if (typeof window === "undefined") {
@@ -109,6 +140,7 @@ export function subscribeTourViewportResize(
   let timer: number | undefined;
   const handler = () => {
     syncTourViewportCssVars();
+    if (isTourProgrammaticScrollGuarded()) return;
     window.clearTimeout(timer);
     timer = window.setTimeout(onResize, debounceMs);
   };
@@ -153,14 +185,21 @@ export function computeTourScrollBounds(tooltipHeight: number) {
 }
 
 export function findTourScrollContainer(el: Element): HTMLElement | null {
+  if (typeof document !== "undefined") {
+    const main = document.querySelector("main");
+    if (main instanceof HTMLElement && main.contains(el)) {
+      const mainStyle = getComputedStyle(main);
+      if (mainStyle.overflowY === "auto" || mainStyle.overflowY === "scroll") {
+        return main;
+      }
+    }
+  }
+
   let node = el.parentElement;
   while (node) {
     if (node instanceof HTMLElement) {
       const style = getComputedStyle(node);
-      if (
-        (style.overflowY === "auto" || style.overflowY === "scroll") &&
-        node.scrollHeight > node.clientHeight + 1
-      ) {
+      if (style.overflowY === "auto" || style.overflowY === "scroll") {
         return node;
       }
     }
@@ -177,6 +216,7 @@ export function scrollTourContainerBy(
   behavior: ScrollBehavior,
 ) {
   if (Math.abs(delta) < 1) return;
+  markTourProgrammaticScroll();
   const scroller = findTourScrollContainer(el);
   if (scroller) {
     scroller.scrollBy({ top: delta, behavior });
@@ -185,8 +225,27 @@ export function scrollTourContainerBy(
   }
 }
 
+/** anchor-top — scrollTop 절대값으로 1회 정렬(연속 scrollBy 누적 오차 방지). */
+export function scrollTourContainerToAnchorTop(
+  el: Element,
+  headerClearance: number,
+): boolean {
+  const scroller = findTourScrollContainer(el);
+  if (!scroller) return false;
+
+  const elTop = el.getBoundingClientRect().top;
+  const targetScrollTop = Math.max(0, scroller.scrollTop + elTop - headerClearance);
+
+  if (Math.abs(scroller.scrollTop - targetScrollTop) < 1) return true;
+
+  markTourProgrammaticScroll();
+  scroller.scrollTop = targetScrollTop;
+  return true;
+}
+
 export type ScrollTourTargetOptions = {
   align?: TourScrollAlign;
+  scrollPolicy?: TourScrollPolicy;
   tooltipHeight?: number | null;
 };
 
@@ -201,17 +260,15 @@ export function scrollTourTargetIntoView(
     return;
   }
 
-  const alignMode = options?.align ?? "fit-between";
+  const policy = options?.scrollPolicy ?? options?.align ?? "fit-between";
+  if (policy === "none") return;
+
   const tooltipHeight = resolveTooltipHeight(options?.tooltipHeight);
   const { headerClearance, maxBottom } = computeTourScrollBounds(tooltipHeight);
   const behavior: ScrollBehavior = "auto";
 
-  if (alignMode === "anchor-top") {
-    scrollTourContainerBy(
-      el,
-      el.getBoundingClientRect().top - headerClearance,
-      behavior,
-    );
+  if (policy === "anchor-top" || policy === "anchor-card-top") {
+    scrollTourContainerToAnchorTop(el, headerClearance);
     return;
   }
 
@@ -231,8 +288,60 @@ export function scrollTourTargetIntoView(
     }
   };
 
-  el.scrollIntoView({ block: "nearest", behavior: "auto" });
+  // 모바일 — scrollIntoView는 vv.resize를 유발해 피드백 루프를 만들 수 있어 수동 정렬만 사용.
   align();
+}
+
+/** anchor-top — 헤더 clearance와의 절대 오차(px). */
+export function measureTourAnchorTopDrift(
+  el: HTMLElement,
+  tooltipHeight?: number | null,
+): number {
+  const { headerClearance } = computeTourScrollBounds(
+    resolveTooltipHeight(tooltipHeight),
+  );
+  return Math.abs(el.getBoundingClientRect().top - headerClearance);
+}
+
+/** anchor-top — drift가 임계 이하가 될 때까지 반복 정렬. */
+export function scrollTourTargetUntilAnchored(
+  el: HTMLElement,
+  options?: ScrollTourTargetOptions,
+  maxAttempts = 4,
+): void {
+  const policy = options?.scrollPolicy ?? options?.align ?? "fit-between";
+  if (policy !== "anchor-top" && policy !== "anchor-card-top") {
+    scrollTourTargetIntoView(el, true, options);
+    return;
+  }
+
+  const tooltipHeight = resolveTooltipHeight(options?.tooltipHeight);
+  const { headerClearance } = computeTourScrollBounds(tooltipHeight);
+
+  for (let i = 0; i < maxAttempts; i += 1) {
+    if (measureTourAnchorTopDrift(el, tooltipHeight) < TOUR_REALIGN_DRIFT_THRESHOLD) {
+      return;
+    }
+    scrollTourContainerToAnchorTop(el, headerClearance);
+  }
+}
+
+/** 타깃이 툴팁·헤더 사이에 들어오지 못한 경우 양수(px). */
+export function measureTourTargetAlignmentDrift(
+  el: HTMLElement,
+  tooltipHeight?: number | null,
+  scrollPolicy?: TourScrollPolicy,
+): number {
+  if (scrollPolicy === "anchor-top" || scrollPolicy === "anchor-card-top") {
+    return measureTourAnchorTopDrift(el, tooltipHeight);
+  }
+
+  const tipH = resolveTooltipHeight(tooltipHeight);
+  const { headerClearance, maxBottom } = computeTourScrollBounds(tipH);
+  const rect = el.getBoundingClientRect();
+  const topDrift = Math.max(0, headerClearance - rect.top);
+  const bottomDrift = Math.max(0, rect.bottom - maxBottom);
+  return Math.max(topDrift, bottomDrift);
 }
 
 /** 투어 시작 직후 주소창 접힘 유도 — 보조 수단(1회). */
@@ -242,8 +351,10 @@ export function stabilizeMobileBrowserViewport(): Promise<void> {
   }
 
   return new Promise((resolve) => {
+    markTourProgrammaticScroll(240);
     window.scrollBy({ top: 1, behavior: "auto" });
     window.setTimeout(() => {
+      markTourProgrammaticScroll(240);
       window.scrollBy({ top: -1, behavior: "auto" });
       syncTourViewportCssVars();
       window.setTimeout(() => {

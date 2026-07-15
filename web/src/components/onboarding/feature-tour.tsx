@@ -25,13 +25,18 @@ import { GaugeAnatomy, PanelPillsGuide } from "@/components/onboarding/tour-guid
 import {
   getTourViewport,
   mobileTourSheetBottomCss,
+  measureTourTargetAlignmentDrift,
+  measureTourAnchorTopDrift,
+  resolveTourScrollPolicy,
   resolveTourStepSelector,
   scrollTourTargetIntoView,
+  scrollTourTargetUntilAnchored,
   stabilizeMobileBrowserViewport,
   subscribeTourViewportCssSync,
   subscribeTourViewportResize,
   TOUR_MOBILE_SETTLE_MS,
-  type TourScrollAlign,
+  TOUR_REALIGN_DRIFT_THRESHOLD,
+  type TourScrollPolicy,
 } from "@/lib/onboarding/tour-viewport";
 import { cn } from "@/lib/utils";
 
@@ -92,14 +97,15 @@ function TourOverlay({
   const [holeReady, setHoleReady] = useState(false);
   const [settling, setSettling] = useState(false);
   const dirRef = useRef<1 | -1>(1);
+  const stepGenRef = useRef(0);
+  const tooltipRealignedRef = useRef(false);
   const targetRef = useRef<Element | null>(null);
   const accentRef = useRef<Element | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
-  const [viewportReady, setViewportReady] = useState(
-    () => typeof window === "undefined" || window.innerWidth >= 768,
-  );
+  const [viewportReady, setViewportReady] = useState(false);
   const step = TOUR_STEPS[stepIdx];
-  const scrollAlign: TourScrollAlign = step.scrollAlign ?? "fit-between";
+  const scrollPolicy: TourScrollPolicy = resolveTourScrollPolicy(step);
+  const scrollEnabled = scrollPolicy !== "none";
 
   const getTooltipHeight = useCallback(
     () => tooltipRef.current?.getBoundingClientRect().height ?? null,
@@ -114,12 +120,17 @@ function TourOverlay({
 
   const runTargetScrollOnce = useCallback(() => {
     const el = targetRef.current as HTMLElement | null;
-    if (!el || window.innerWidth >= 768) return;
-    scrollTourTargetIntoView(el, true, {
-      align: scrollAlign,
+    if (!el || window.innerWidth >= 768 || !scrollEnabled) return;
+    const opts = {
+      scrollPolicy,
       tooltipHeight: getTooltipHeight(),
-    });
-  }, [scrollAlign, getTooltipHeight]);
+    };
+    if (scrollPolicy === "anchor-top" || scrollPolicy === "anchor-card-top") {
+      scrollTourTargetUntilAnchored(el, opts);
+    } else {
+      scrollTourTargetIntoView(el, true, opts);
+    }
+  }, [scrollPolicy, scrollEnabled, getTooltipHeight]);
 
   const finish = useCallback(
     (completed: boolean) => {
@@ -138,6 +149,8 @@ function TourOverlay({
         finish(true);
         return;
       }
+      stepGenRef.current += 1;
+      tooltipRealignedRef.current = false;
       setHoleReady(false);
       setSettling(true);
       setRect(null);
@@ -149,19 +162,26 @@ function TourOverlay({
 
   // P2 — 투어 시작 시 모바일 브라우저 주소창 안정화(1회).
   useEffect(() => {
-    if (viewportReady) return;
     let cancelled = false;
-    void stabilizeMobileBrowserViewport().then(() => {
+    const markReady = () => {
       if (!cancelled) setViewportReady(true);
-    });
+    };
+    if (typeof window === "undefined" || window.innerWidth >= 768) {
+      markReady();
+      return () => {
+        cancelled = true;
+      };
+    }
+    void stabilizeMobileBrowserViewport().then(markReady);
     return () => {
       cancelled = true;
     };
-  }, [viewportReady]);
+  }, []);
 
   // 스텝 진입 — scroll-once → settle → hole 표시.
   useEffect(() => {
     if (!viewportReady) return;
+    const stepGen = stepGenRef.current;
     let cancelled = false;
     let attempts = 0;
     const timers: number[] = [];
@@ -175,26 +195,76 @@ function TourOverlay({
     };
 
     schedule(() => {
-      if (cancelled) return;
+      if (cancelled || stepGenRef.current !== stepGen) return;
       setView(step.view);
       if (step.gridAction) dispatchGridAction(step.gridAction);
     }, 0);
 
+    const stepScrollPolicy = resolveTourScrollPolicy(step);
+    const stepScrollEnabled = stepScrollPolicy !== "none";
+    const isAnchorScroll =
+      stepScrollPolicy === "anchor-top" ||
+      stepScrollPolicy === "anchor-card-top";
+
+    const scrollTarget = (el: HTMLElement) => {
+      if (!stepScrollEnabled || window.innerWidth >= 768) return;
+      const opts = {
+        scrollPolicy: stepScrollPolicy,
+        tooltipHeight: getTooltipHeight(),
+      };
+      if (isAnchorScroll) {
+        scrollTourTargetUntilAnchored(el, opts);
+      } else {
+        scrollTourTargetIntoView(el, true, opts);
+      }
+    };
+
     const finalizeMobileStep = (el: HTMLElement) => {
+      if (cancelled || stepGenRef.current !== stepGen) return;
       setSettling(true);
-      runTargetScrollOnce();
-      schedule(() => {
-        if (cancelled || targetRef.current !== el) return;
+
+      if (!stepScrollEnabled) {
+        schedule(() => {
+          if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
+            return;
+          }
+          measureTargets();
+          setSettling(false);
+          setHoleReady(true);
+        }, 120);
+        return;
+      }
+
+      const revealHole = (attempt = 0) => {
+        if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
+          return;
+        }
+        scrollTarget(el);
+        const tipH = getTooltipHeight();
+        const drift = isAnchorScroll
+          ? measureTourAnchorTopDrift(el, tipH)
+          : measureTourTargetAlignmentDrift(el, tipH, stepScrollPolicy);
+        if (drift >= TOUR_REALIGN_DRIFT_THRESHOLD && attempt < 8) {
+          schedule(() => revealHole(attempt + 1), 80);
+          return;
+        }
         measureTargets();
         setSettling(false);
         setHoleReady(true);
-      }, TOUR_MOBILE_SETTLE_MS);
+      };
+
+      scrollTarget(el);
+      const settleMs = stepScrollEnabled ? TOUR_MOBILE_SETTLE_MS : 120;
+      schedule(() => revealHole(0), settleMs);
     };
 
     const finalizeDesktopStep = (el: HTMLElement) => {
+      if (cancelled || stepGenRef.current !== stepGen) return;
       scrollTourTargetIntoView(el, false);
       schedule(() => {
-        if (cancelled || targetRef.current !== el) return;
+        if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
+          return;
+        }
         measureTargets();
         setSettling(false);
         setHoleReady(true);
@@ -202,7 +272,7 @@ function TourOverlay({
     };
 
     const locate = () => {
-      if (cancelled) return;
+      if (cancelled || stepGenRef.current !== stepGen) return;
       const isMobileSheet = window.innerWidth < 768;
       const el = findVisibleTourTarget(spotlightSelector);
       if (el && (el as HTMLElement).offsetParent !== null) {
@@ -221,14 +291,20 @@ function TourOverlay({
           accentRef.current = null;
         }
 
+        if (isMobileSheet && isAnchorScroll) {
+          scrollTarget(el as HTMLElement);
+        }
+
         const measureDelay = step.gridAction
-          ? 420
+          ? 680
           : isMobileSheet
             ? 300
             : 80;
 
         schedule(() => {
-          if (cancelled || targetRef.current !== el) return;
+          if (cancelled || stepGenRef.current !== stepGen || targetRef.current !== el) {
+            return;
+          }
           if (isMobileSheet) finalizeMobileStep(el as HTMLElement);
           else finalizeDesktopStep(el as HTMLElement);
         }, measureDelay);
@@ -264,21 +340,69 @@ function TourOverlay({
     viewportReady,
     runTargetScrollOnce,
     measureTargets,
+    scrollEnabled,
+    getTooltipHeight,
   ]);
 
-  // scroll → rect만(rAF). resize → debounce 1회 재스크롤.
+  // scroll → rect만(rAF). resize → drift 임계 초과 시 1회 재스크롤.
   useEffect(() => {
     let raf = 0;
+    let tooltipResizeTimer: number | undefined;
+    let realignSettleTimer: number | undefined;
+    const effectGen = stepGenRef.current;
+
     const onScrollMeasure = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(measureTargets);
+    };
+
+    const realignMobileTargetIfNeeded = (force = false) => {
+      const el = targetRef.current as HTMLElement | null;
+      if (!el || window.innerWidth >= 768 || !scrollEnabled) return false;
+      const drift = measureTourTargetAlignmentDrift(
+        el,
+        getTooltipHeight(),
+        scrollPolicy,
+      );
+      if (!force && drift < TOUR_REALIGN_DRIFT_THRESHOLD) return false;
+      setSettling(true);
+      runTargetScrollOnce();
+      window.clearTimeout(realignSettleTimer);
+      realignSettleTimer = window.setTimeout(() => {
+        if (stepGenRef.current !== effectGen) return;
+        measureTargets();
+        setSettling(false);
+      }, TOUR_MOBILE_SETTLE_MS);
+      return true;
+    };
+
+    const onTooltipResize = () => {
+      if (!holeReady || window.innerWidth >= 768 || tooltipRealignedRef.current) return;
+      window.clearTimeout(tooltipResizeTimer);
+      tooltipResizeTimer = window.setTimeout(() => {
+        if (tooltipRealignedRef.current) return;
+        if (scrollEnabled) {
+          if (realignMobileTargetIfNeeded(true)) {
+            tooltipRealignedRef.current = true;
+          }
+        } else {
+          measureTargets();
+          tooltipRealignedRef.current = true;
+        }
+      }, 120);
     };
 
     window.addEventListener("scroll", onScrollMeasure, true);
 
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(onScrollMeasure);
+      ro = new ResizeObserver((entries) => {
+        const fromTooltip = entries.some(
+          (entry) => entry.target === tooltipRef.current,
+        );
+        if (fromTooltip) onTooltipResize();
+        else onScrollMeasure();
+      });
       if (targetRef.current) ro.observe(targetRef.current);
       if (accentRef.current) ro.observe(accentRef.current);
       if (tooltipRef.current) ro.observe(tooltipRef.current);
@@ -286,23 +410,20 @@ function TourOverlay({
 
     const unsubCss = subscribeTourViewportCssSync();
     const unsubResize = subscribeTourViewportResize(() => {
-      if (!targetRef.current || window.innerWidth >= 768) return;
-      setSettling(true);
-      runTargetScrollOnce();
-      window.setTimeout(() => {
-        measureTargets();
-        setSettling(false);
-      }, TOUR_MOBILE_SETTLE_MS);
+      if (!holeReady || !targetRef.current || window.innerWidth >= 768) return;
+      realignMobileTargetIfNeeded(false);
     });
 
     return () => {
       cancelAnimationFrame(raf);
+      window.clearTimeout(tooltipResizeTimer);
+      window.clearTimeout(realignSettleTimer);
       window.removeEventListener("scroll", onScrollMeasure, true);
       ro?.disconnect();
       unsubCss();
       unsubResize();
     };
-  }, [stepIdx, holeReady, measureTargets, runTargetScrollOnce]);
+  }, [stepIdx, holeReady, measureTargets, runTargetScrollOnce, getTooltipHeight, scrollEnabled, scrollPolicy]);
 
   // Esc — 건너뛰기(완료 저장).
   useEffect(() => {

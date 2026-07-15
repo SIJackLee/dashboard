@@ -135,8 +135,14 @@ export function FarmMapControllerDetail({
     METRIC_TABS.find((t) => t.id === effectiveMetricId)?.label ??
     effectiveMetricId;
 
-  // 패널이 나타나면 화면에 보이도록 스크롤.
+  // 패널이 나타나면 화면에 보이도록 스크롤(투어 중에는 4→5 스크롤 위치 유지).
   useEffect(() => {
+    if (
+      typeof document !== "undefined" &&
+      document.querySelector('[aria-label="기능 안내 투어"]')
+    ) {
+      return;
+    }
     rootRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, []);
 
@@ -224,6 +230,7 @@ export function FarmMapControllerDetail({
               "grid",
               !useColGrid && cn("grid-cols-1 gap-2", gridColsClass),
             )}
+            data-tour-id="detail-panel-charts"
             style={
               useColGrid
                 ? {

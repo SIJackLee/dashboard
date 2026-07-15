@@ -238,6 +238,7 @@ export function ControllerSummaryGaugeRow({
           <div
             className={cardClass}
             style={{ gridColumn: `span ${cardSpan}` }}
+            data-tour-id="controller-card"
             data-controller-card-key={reading.key}
             data-controller-key={reading.controllerKey}
             data-list-mode={listMode}
@@ -262,6 +263,7 @@ export function ControllerSummaryGaugeRow({
       <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-start">
         <div
           className={cn(cardClass, "lg:w-80 lg:flex-none")}
+          data-tour-id="controller-card"
           data-controller-card-key={reading.key}
           data-controller-key={reading.controllerKey}
           data-list-mode={listMode}
@@ -281,6 +283,7 @@ export function ControllerSummaryGaugeRow({
   return (
     <div
       className={cardClass}
+      data-tour-id="controller-card"
       data-controller-card-key={reading.key}
       data-controller-key={reading.controllerKey}
       data-list-mode={listMode}

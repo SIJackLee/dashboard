@@ -49,6 +49,8 @@ export type TourStepDef = {
   skipIfMissing?: boolean;
   /** 모바일 스크롤 — 긴 패널은 상단 고정, 작은 요소는 툴팁 위 fit. */
   scrollAlign?: "anchor-top" | "fit-between";
+  /** 모바일 스크롤 정책 — scrollAlign보다 우선. */
+  scrollPolicy?: "none" | "fit-between" | "anchor-top" | "anchor-card-top";
 };
 
 export const TOUR_STEPS: TourStepDef[] = [
@@ -56,6 +58,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     id: "view-toggle",
     selector: '[data-tour-id="view-toggle"]',
     view: "map",
+    scrollPolicy: "none",
     title: "그리드 · 목록 전환",
     body:
       "농장을 보는 두 가지 방식입니다. 그리드는 축사 배치와 이상 징후를 한눈에, 목록은 컨트롤러별 상세 값과 설정을 보여줍니다.",
@@ -64,6 +67,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     id: "period-select",
     selector: '[data-tour-id="period-select"]',
     view: "map",
+    scrollPolicy: "anchor-top",
     title: "기간 선택",
     body:
       "히트맵이 보여줄 기간을 고릅니다. 24시간·7일·30일 중 선택하면 모든 축사 카드의 그래프가 함께 바뀝니다.",
@@ -73,6 +77,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     selector: '[data-tour-id="barn-card"]',
     accentSelector: '[data-tour-id="barn-drag"]',
     view: "map",
+    scrollPolicy: "anchor-top",
     title: "축사 카드",
     body:
       "축사 하나의 현재 온도·습도와 상태(테두리 색)를 보여줍니다. 카드 왼쪽 위 손잡이(⠿)를 끌면 카드를 원하는 위치로 옮길 수 있고, 배치는 자동 저장됩니다.",
@@ -88,10 +93,10 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "detail-panel",
     selector: '[data-tour-id="detail-panel"]',
-    mobileSelector: '[data-tour-id="detail-panel-header"]',
+    mobileSelector: '[data-tour-id="detail-panel-charts"]',
     view: "map",
     gridAction: "expand-first",
-    scrollAlign: "anchor-top",
+    scrollPolicy: "none",
     title: "확대 상세 — 컨트롤러별 그래프",
     body:
       "선택한 지표를 컨트롤러별 작은 그래프로 나란히 보여줍니다. 그래프의 점선은 알람 상한·하한이며, 선이 점선을 벗어나면 주의·경고 색으로 표시됩니다. 컨트롤러를 클릭하면 아래에 해당 컨트롤러 카드가 열립니다.",
@@ -101,6 +106,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     selector: '[data-tour-id="bulk-apply"]',
     view: "map",
     gridAction: "collapse",
+    scrollPolicy: "anchor-top",
     title: "일괄적용",
     body:
       "여러 축사 유형을 선택해 설정온도·알람 범위를 한 번에 적용합니다. 토글을 켜면 카드가 선택 모드로 바뀝니다.",
@@ -108,9 +114,9 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "controller-row",
     selector: "[data-controller-card-key]",
-    mobileSelector: '[data-tour-id="controller-gauge"]',
+    mobileSelector: '[data-tour-id="controller-card"]',
     view: "list",
-    scrollAlign: "anchor-top",
+    scrollPolicy: "anchor-card-top",
     title: "컨트롤러 카드 — 게이지 읽는 법",
     body:
       "목록 뷰의 기본 단위입니다. 게이지 바에서 현재값과 허용범위·설정값을 함께 읽을 수 있습니다.",
@@ -122,7 +128,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     mobileSelector: '[data-tour-id="panel-pills"]',
     accentSelector: '[data-tour-id="panel-pills"]',
     view: "list",
-    scrollAlign: "anchor-top",
+    scrollPolicy: "none",
     title: "그래프 · 설정 · 모터 패널",
     body:
       "카드 오른쪽 버튼으로 상세 패널을 펼칩니다. 각 버튼의 역할은 아래와 같습니다.",
