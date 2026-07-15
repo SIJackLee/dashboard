@@ -147,7 +147,7 @@ function FarmSwitcherBody({
         className={cn(
           compact
             ? cn(dashboardUi.scopePillMenu, "!w-auto min-w-[var(--anchor-width)]")
-            : "min-w-[28rem] rounded-xl p-2 text-[1.75rem] leading-snug !w-auto"
+            : "min-w-[28rem] rounded-xl p-2 text-sm leading-snug md:text-[1.75rem] !w-auto"
         )}
       >
         <DropdownMenuItem
@@ -155,7 +155,7 @@ function FarmSwitcherBody({
           className={cn(
             compact
               ? dashboardUi.scopePillMenuItem
-              : "gap-3 rounded-lg px-3 py-2.5 text-[1.75rem] leading-snug",
+              : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[1.75rem]",
             activeId === null && "bg-emerald-50 dark:bg-emerald-950/30"
           )}
         >
@@ -173,7 +173,7 @@ function FarmSwitcherBody({
               className={cn(
                 compact
                   ? dashboardUi.scopePillMenuItem
-                  : "gap-3 rounded-lg px-3 py-2.5 text-[1.75rem] leading-snug",
+                  : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[1.75rem]",
                 activeId === id && "bg-emerald-50 dark:bg-emerald-950/30"
               )}
             >
@@ -182,7 +182,7 @@ function FarmSwitcherBody({
                 <span
                   className={cn(
                     "tabular-nums font-semibold",
-                    compact ? "text-[1.75rem] leading-snug" : "text-[1.75rem] leading-snug",
+                    "text-sm leading-snug md:text-[1.75rem]",
                     alarms > 0
                       ? "text-amber-700 dark:text-amber-400"
                       : "text-muted-foreground"

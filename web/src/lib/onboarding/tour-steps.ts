@@ -45,6 +45,8 @@ export type TourStepDef = {
   extra?: "anatomy" | "pills";
   /** 대상이 없으면(Admin 전국 KPI 등) 즉시 건너뜀. */
   skipIfMissing?: boolean;
+  /** 모바일 스크롤 — 긴 패널은 상단 고정, 작은 요소는 툴팁 위 fit. */
+  scrollAlign?: "anchor-top" | "fit-between";
 };
 
 export const TOUR_STEPS: TourStepDef[] = [
@@ -86,6 +88,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     selector: '[data-tour-id="detail-panel"]',
     view: "map",
     gridAction: "expand-first",
+    scrollAlign: "anchor-top",
     title: "확대 상세 — 컨트롤러별 그래프",
     body:
       "선택한 지표를 컨트롤러별 작은 그래프로 나란히 보여줍니다. 그래프의 점선은 알람 상한·하한이며, 선이 점선을 벗어나면 주의·경고 색으로 표시됩니다. 컨트롤러를 클릭하면 아래에 해당 컨트롤러 카드가 열립니다.",
@@ -103,6 +106,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     id: "controller-row",
     selector: "[data-controller-card-key]",
     view: "list",
+    scrollAlign: "anchor-top",
     title: "컨트롤러 카드 — 게이지 읽는 법",
     body:
       "목록 뷰의 기본 단위입니다. 게이지 바에서 현재값과 허용범위·설정값을 함께 읽을 수 있습니다.",
@@ -113,6 +117,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     selector: "[data-controller-card-key]",
     accentSelector: '[data-tour-id="panel-pills"]',
     view: "list",
+    scrollAlign: "anchor-top",
     title: "그래프 · 설정 · 모터 패널",
     body:
       "카드 오른쪽 버튼으로 상세 패널을 펼칩니다. 각 버튼의 역할은 아래와 같습니다.",

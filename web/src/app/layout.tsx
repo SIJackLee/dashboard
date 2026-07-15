@@ -18,6 +18,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "스마트 축사 IoT",
   description: "스마트 축사 IoT 모니터링 및 제어 대시보드",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "축사 IoT",
+  },
 };
 
 export const viewport: Viewport = {

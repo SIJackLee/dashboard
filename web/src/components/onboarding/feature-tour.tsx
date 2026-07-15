@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -21,7 +22,14 @@ import {
   shouldShowOnboardingTourAction,
 } from "@/app/(dashboard)/farm/onboarding-actions";
 import { GaugeAnatomy, PanelPillsGuide } from "@/components/onboarding/tour-guides";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import {
+  getTourViewport,
+  mobileTourSheetBottomCss,
+  scrollTourTargetIntoView,
+  stabilizeMobileBrowserViewport,
+  subscribeTourViewport,
+  type TourScrollAlign,
+} from "@/lib/onboarding/tour-viewport";
 import { cn } from "@/lib/utils";
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -29,7 +37,6 @@ type Rect = { top: number; left: number; width: number; height: number };
 const HOLE_PAD = 6;
 const TOOLTIP_W = 440;
 const TOOLTIP_W_MOBILE = 400;
-const MOBILE_SHEET_GAP = 8;
 const FIND_RETRIES = 16;
 const FIND_INTERVAL_MS = 150;
 const READY_RETRIES = 40;
@@ -50,71 +57,6 @@ function findVisibleTourTarget(selector: string): Element | null {
 function measure(el: Element): Rect {
   const r = el.getBoundingClientRect();
   return { top: r.top, left: r.left, width: r.width, height: r.height };
-}
-
-const SCROLL_MARGIN_TOP = 72;
-
-function findScrollContainer(el: Element): HTMLElement | null {
-  let node = el.parentElement;
-  while (node) {
-    if (node instanceof HTMLElement) {
-      const style = getComputedStyle(node);
-      if (
-        (style.overflowY === "auto" || style.overflowY === "scroll") &&
-        node.scrollHeight > node.clientHeight + 1
-      ) {
-        return node;
-      }
-    }
-    node = node.parentElement;
-  }
-  return document.scrollingElement instanceof HTMLElement
-    ? document.scrollingElement
-    : null;
-}
-
-function scrollContainerBy(el: Element, delta: number, behavior: ScrollBehavior) {
-  if (Math.abs(delta) < 1) return;
-  const scroller = findScrollContainer(el);
-  if (scroller) {
-    scroller.scrollBy({ top: delta, behavior });
-  } else {
-    window.scrollBy({ top: delta, behavior });
-  }
-}
-
-/** 모바일 bottom sheet 툴팁 위에 대상 전체가 보이도록 스크롤(main overflow 컨테이너 포함). */
-function scrollTourTargetIntoView(el: HTMLElement, mobileSheet: boolean) {
-  if (!mobileSheet) {
-    el.scrollIntoView({ block: "center", behavior: "smooth" });
-    return;
-  }
-  const bottomReserve =
-    Math.min(window.innerHeight * 0.52, 340) + 72 + MOBILE_SHEET_GAP + 16;
-  const headerClearance = SCROLL_MARGIN_TOP;
-  const maxBottom = window.innerHeight - bottomReserve;
-
-  const align = (behavior: ScrollBehavior = "auto") => {
-    const rect = el.getBoundingClientRect();
-    const targetH = rect.height;
-    const desiredTop =
-      targetH > maxBottom - headerClearance - 24
-        ? headerClearance
-        : Math.max(headerClearance, maxBottom - targetH - 12);
-
-    scrollContainerBy(el, rect.top - desiredTop, behavior);
-
-    const after = el.getBoundingClientRect();
-    if (after.bottom > maxBottom - 8) {
-      scrollContainerBy(el, after.bottom - maxBottom + 12, behavior);
-    }
-  };
-
-  el.scrollIntoView({ block: "nearest", behavior: "auto" });
-  requestAnimationFrame(() => {
-    align("smooth");
-    window.setTimeout(() => align("smooth"), 280);
-  });
 }
 
 function dispatchGridAction(action: "expand-first" | "collapse") {
@@ -143,7 +85,26 @@ function TourOverlay({
   const dirRef = useRef<1 | -1>(1);
   const targetRef = useRef<Element | null>(null);
   const accentRef = useRef<Element | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const [viewportReady, setViewportReady] = useState(
+    () => typeof window === "undefined" || window.innerWidth >= 768,
+  );
   const step = TOUR_STEPS[stepIdx];
+  const scrollAlign: TourScrollAlign = step.scrollAlign ?? "fit-between";
+
+  const getTooltipHeight = useCallback(
+    () => tooltipRef.current?.getBoundingClientRect().height ?? null,
+    [],
+  );
+
+  const runTargetScroll = useCallback(() => {
+    const el = targetRef.current as HTMLElement | null;
+    if (!el || window.innerWidth >= 768) return;
+    scrollTourTargetIntoView(el, true, {
+      align: scrollAlign,
+      tooltipHeight: getTooltipHeight(),
+    });
+  }, [scrollAlign, getTooltipHeight]);
 
   const finish = useCallback(
     (completed: boolean) => {
@@ -167,9 +128,22 @@ function TourOverlay({
     [finish],
   );
 
+  // P2 — 투어 시작 시 모바일 브라우저 주소창 안정화(1회).
+  useEffect(() => {
+    if (viewportReady) return;
+    let cancelled = false;
+    void stabilizeMobileBrowserViewport().then(() => {
+      if (!cancelled) setViewportReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewportReady]);
+
   // 스텝 진입 — 뷰 전환·그리드 액션 후 대상 요소 폴링.
   // 이전 스텝의 rect는 유지 → 홀이 CSS 트랜지션으로 새 대상까지 이동(모프).
   useEffect(() => {
+    if (!viewportReady) return;
     let cancelled = false;
     let attempts = 0;
     targetRef.current = null;
@@ -189,7 +163,13 @@ function TourOverlay({
       const el = findVisibleTourTarget(step.selector);
       if (el && (el as HTMLElement).offsetParent !== null) {
         targetRef.current = el;
-        scrollTourTargetIntoView(el as HTMLElement, isMobileSheet);
+        const deferScroll = isMobileSheet && Boolean(step.gridAction);
+        if (!deferScroll) {
+          scrollTourTargetIntoView(el as HTMLElement, isMobileSheet, {
+            align: scrollAlign,
+            tooltipHeight: getTooltipHeight(),
+          });
+        }
         if (step.accentSelector) {
           accentRef.current =
             el.querySelector(step.accentSelector) ??
@@ -205,10 +185,23 @@ function TourOverlay({
             : 260;
         window.setTimeout(() => {
           if (cancelled || !targetRef.current) return;
+          if (deferScroll) {
+            scrollTourTargetIntoView(
+              targetRef.current as HTMLElement,
+              isMobileSheet,
+              {
+                align: scrollAlign,
+                tooltipHeight: getTooltipHeight(),
+              },
+            );
+          }
           setRect(measure(targetRef.current));
           setAccentRect(
             accentRef.current ? measure(accentRef.current) : null,
           );
+          if (isMobileSheet) {
+            window.setTimeout(() => runTargetScroll(), 120);
+          }
         }, measureDelay);
         return;
       }
@@ -237,23 +230,36 @@ function TourOverlay({
       window.clearTimeout(applyTimer);
       window.clearTimeout(locateTimer);
     };
-  }, [stepIdx, step, setView, finish]);
+  }, [stepIdx, step, setView, finish, scrollAlign, getTooltipHeight, runTargetScroll, viewportReady]);
 
-  // 위치 추적 — 리사이즈·스크롤·주기 재측정(폴링 값 갱신 등 리플로 대응).
+  // 툴팁 실측 높이 반영 — 스크롤 재정렬.
+  useLayoutEffect(() => {
+    if (!targetRef.current || window.innerWidth >= 768) return;
+    const frame = requestAnimationFrame(() => {
+      runTargetScroll();
+      if (targetRef.current) setRect(measure(targetRef.current));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [stepIdx, step.extra, runTargetScroll]);
+
+  // visualViewport·주소창 변화 — rect sync + 스크롤 재정렬.
   useEffect(() => {
     const sync = () => {
-      if (targetRef.current) setRect(measure(targetRef.current));
+      if (targetRef.current) {
+        setRect(measure(targetRef.current));
+        if (window.innerWidth < 768) runTargetScroll();
+      }
       if (accentRef.current) setAccentRect(measure(accentRef.current));
     };
-    window.addEventListener("resize", sync);
+    const unsubViewport = subscribeTourViewport(sync);
     window.addEventListener("scroll", sync, true);
     const t = window.setInterval(sync, 400);
     return () => {
-      window.removeEventListener("resize", sync);
+      unsubViewport();
       window.removeEventListener("scroll", sync, true);
       window.clearInterval(t);
     };
-  }, []);
+  }, [runTargetScroll]);
 
   // Esc — 건너뛰기(완료 저장).
   useEffect(() => {
@@ -266,13 +272,14 @@ function TourOverlay({
     return () => window.removeEventListener("keydown", onKey);
   }, [finish, goTo, stepIdx]);
 
-  const vw = typeof window !== "undefined" ? window.innerWidth : 1280;
-  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const tourVp = typeof window !== "undefined" ? getTourViewport() : null;
+  const vw = tourVp?.layoutWidth ?? 1280;
+  const vh = tourVp?.height ?? 800;
   const mobileSheet = vw < 768;
   const tooltipW = mobileSheet
     ? Math.min(TOOLTIP_W_MOBILE, vw - 24)
     : Math.min(TOOLTIP_W, vw - 24);
-  const mobileSheetBottom = `calc(${dashboardUi.mobileBottomNavInset} + ${MOBILE_SHEET_GAP}px)`;
+  const mobileSheetBottom = mobileTourSheetBottomCss();
 
   const hole = rect
     ? {
@@ -336,10 +343,11 @@ function TourOverlay({
 
       {/* 툴팁 */}
       <div
+        ref={tooltipRef}
         className={cn(
           "farm-tour-tooltip fixed overflow-y-auto rounded-xl border bg-card text-card-foreground shadow-2xl",
           mobileSheet
-            ? "max-h-[52vh] p-5"
+            ? "max-h-[min(52dvh,calc(var(--vvh,52dvh)*0.52))] p-5"
             : "max-h-[75vh] p-6",
         )}
         style={tooltipStyle}

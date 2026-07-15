@@ -223,9 +223,9 @@ export const dashboardUi = {
   scopePillIdle:
     "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
   scopePillMenu:
-    "max-h-80 min-w-[14rem] overflow-y-auto rounded-xl p-2 text-[1.75rem] leading-snug",
+    "max-h-80 min-w-[14rem] overflow-y-auto rounded-xl p-2 text-sm leading-snug md:text-[1.75rem]",
   scopePillMenuItem:
-    "gap-2 rounded-lg px-3 py-1.5 text-[1.75rem] leading-snug",
+    "gap-2 rounded-lg px-3 py-1.5 text-sm leading-snug md:text-[1.75rem]",
   scopePillSeparator: "size-5 shrink-0 text-muted-foreground/70",
 
   /* SectionCard lg */
