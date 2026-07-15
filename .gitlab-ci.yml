@@ -23,6 +23,13 @@ web:lint:
   script:
     - cd web && npm run lint
 
+web:knip:
+  stage: verify
+  needs: [web:install]
+  script:
+    - cd web && npm run knip
+  allow_failure: true
+
 web:build:
   stage: verify
   needs: [web:install]
@@ -36,12 +43,25 @@ web:build:
 web:audit:
   stage: verify
   needs: [web:install]
+  variables:
+    NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-anon-key"
+    SUPABASE_SERVICE_ROLE_KEY: "ci-service-role-key"
+    UI_VERIFY_BASE: "http://127.0.0.1:3000"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
     - cd web && npx playwright install chromium --with-deps
+    - cd web && npm run dev -- --webpack --port 3000 > /tmp/next-dev.log 2>&1 &
+    - |
+      for i in $(seq 1 60); do
+        curl -sf http://127.0.0.1:3000/login > /dev/null && break
+        sleep 2
+      done
+      curl -sf http://127.0.0.1:3000/login > /dev/null || (cat /tmp/next-dev.log && exit 1)
     - cd web && npm run audit:mobile-tour
     - cd web && npm run audit:operator-apply
     - cd web && npm run audit:farm-command
+    - cd web && npm run audit:health-drilldown
   allow_failure: true

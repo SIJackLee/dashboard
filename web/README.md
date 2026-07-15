@@ -16,19 +16,24 @@ IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabas
 ```bash
 npm install
 # .env.local 설정 (아래 환경변수 참고)
-npm run dev      # http://localhost:3000
+npm run dev      # http://localhost:3000 (webpack — Turbopack middleware 이슈 회피)
+# npm run dev:turbo  # Turbopack 실험 (Windows에서 middleware 컴파일 오류 가능)
 ```
 
 검증:
 
 ```bash
-npm run build    # 타입체크 + 프로덕션 빌드
+npm run build    # webpack 프로덕션 빌드
 npm run lint
+npm run knip     # unused export 탐지 (allow_failure in CI)
 npm run verify:mobile-interaction
 npm run verify:routes
 npm run audit:operator-apply
 npm run audit:farm-command
+npm run audit:health-drilldown
 ```
+
+Playwright audit은 **dev 서버 실행 중**(`npm run dev`)에 돌립니다. 다른 포트면 `UI_VERIFY_BASE=http://localhost:3001` 설정.
 
 ## 환경변수 (`.env.local`)
 
