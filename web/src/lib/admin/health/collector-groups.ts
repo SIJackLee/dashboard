@@ -59,10 +59,3 @@ function parseEnvGroups(): CollectorGroupDef[] {
     return [];
   }
 }
-
-export function findCollectorGroup(
-  groups: CollectorGroupDef[],
-  groupId: string
-): CollectorGroupDef | null {
-  return groups.find((g) => g.id === groupId) ?? null;
-}

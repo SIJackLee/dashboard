@@ -34,7 +34,7 @@ export function pipelineDetailMessage(
     case "applied":
       return "컨트롤러에 설정값이 반영되었습니다.";
     case "sent":
-      return "통신모듈로 전송됨 · 장치 반영 확인 중";
+      return "통신모듈로 전송됨 · 장치 ACK 대기 중";
     case "pending":
       return "명령을 등록했습니다 · 통신모듈 전송 대기 중";
     case "failed":
@@ -46,6 +46,21 @@ export function pipelineDetailMessage(
     default:
       return "";
   }
+}
+
+/** ACK 배너 — LIVE 확인 전 applied 단계 문구 분리 */
+export function pipelineStatusDetail(
+  status: ThermoCommand["status"],
+  errorMsg?: string | null,
+  liveConfirmed?: boolean
+): string {
+  if (liveConfirmed) {
+    return "LIVE 설정값이 명령과 일치합니다.";
+  }
+  if (status === "applied") {
+    return "장치 ACK 완료 · LIVE 데이터 반영 확인 중";
+  }
+  return pipelineDetailMessage(status, errorMsg);
 }
 
 export const UNKNOWN_SETTINGS_HINT =

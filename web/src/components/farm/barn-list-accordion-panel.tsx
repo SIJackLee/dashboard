@@ -30,7 +30,7 @@ import { farmKeyId } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { isReadingOnline } from "@/lib/data/reading-display";
-import { pipelineDetailMessage } from "@/lib/ui/controller-labels";
+import { pipelineStatusDetail } from "@/lib/ui/controller-labels";
 import { cn } from "@/lib/utils";
 
 /** 목록 카드 설정 패널 — 그래프 패널 차트 라벨과 동일 스케일 */
@@ -65,7 +65,7 @@ function ListStatusBanner({
 }) {
   if (!command && !flash) return null;
   const detail = command
-    ? pipelineDetailMessage(command.status, command.errorMsg)
+    ? pipelineStatusDetail(command.status, command.errorMsg, liveConfirmed)
     : null;
   return (
     <div

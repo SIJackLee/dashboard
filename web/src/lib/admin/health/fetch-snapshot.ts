@@ -24,7 +24,6 @@ import {
   rollupFieldStatus,
   type DbDecodedLatestRow,
 } from "@/lib/admin/health/aggregate-controllers";
-import { healthNodeTitle } from "@/lib/admin/health/health-ui-labels";
 import {
   aggregateCollectorGroups,
 } from "@/lib/admin/health/aggregate-collector-groups";
@@ -631,37 +630,3 @@ export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
     },
   )();
 });
-
-export function modulesForFarm(
-  modules: ModuleHealthRow[],
-  farmId: string
-): ModuleHealthRow[] {
-  return modules.filter((m) => m.farmId === farmId);
-}
-
-export function controllersForFarm(
-  controllers: ControllerHealthRow[],
-  farmId: string
-): ControllerHealthRow[] {
-  return controllers.filter((c) => c.farmId === farmId);
-}
-
-export function nodeTitle(nodeId: string): string {
-  return healthNodeTitle(nodeId);
-}
-
-export function isKnownHealthNode(nodeId: string): boolean {
-  return [
-    "collector",
-    "collector-rs",
-    "collector-mqtt",
-    "collector-c",
-    "collector-ekape",
-    "collector-ftp",
-    "storage",
-    "dashboard",
-    "external",
-    "field-module",
-    "field-controller",
-  ].includes(nodeId);
-}

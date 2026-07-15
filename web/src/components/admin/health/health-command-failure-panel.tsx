@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { acknowledgeCommandHealthCheckpoint } from "@/app/(dashboard)/admin/health/actions";
+import { acknowledgeCommandHealthCheckpoint } from "@/app/(dashboard)/admin/ops/health-actions";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import type { CommandFailureItem } from "@/lib/admin/health/types";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";

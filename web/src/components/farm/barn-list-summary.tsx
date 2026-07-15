@@ -131,6 +131,7 @@ function ControllerCardGrid({
   bulkMode = false,
   selectedSps,
   staggerMount = false,
+  showAffiliation = false,
 }: {
   readings: BarnReading[];
   allReadings: BarnReading[];
@@ -153,6 +154,7 @@ function ControllerCardGrid({
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
   staggerMount?: boolean;
+  showAffiliation?: boolean;
 }) {
   const tourActive = useFarmTourActive();
   const visibleCount = useStaggeredVisibleCount(
@@ -190,6 +192,7 @@ function ControllerCardGrid({
           bulkPeriod={bulkPeriod}
           panelPeriodOverrides={panelPeriodOverrides}
           onPanelPeriodChange={onPanelPeriodChange}
+          showAffiliation={showAffiliation}
         />
         );
       })}
@@ -266,6 +269,16 @@ export function BarnListSummary({
   staggerMount = false,
 }: Props) {
   const groups = useMemo(() => groupReadingsByHierarchy(readings), [readings]);
+  const visibleGroups = useMemo(
+    () =>
+      groups
+        .map((sp) => ({
+          ...sp,
+          stalls: sp.stalls.filter((stall) => stall.readings.length > 0),
+        }))
+        .filter((sp) => sp.stalls.length > 0),
+    [groups]
+  );
 
   const gridProps = {
     allReadings: readings,
@@ -302,12 +315,16 @@ export function BarnListSummary({
       <div className="min-w-0" data-audit-region="barn-list-summary" data-list-layout="flat" data-list-mode={listMode}>
         {bulkMode && onToggleSp ? (
           <SpBulkChipRow
-            groups={groups}
+            groups={visibleGroups}
             selectedSps={selectedSps}
             onToggleSp={onToggleSp}
           />
         ) : null}
-        <ControllerCardGrid readings={readings} {...gridProps} />
+        <ControllerCardGrid
+          readings={readings}
+          showAffiliation
+          {...gridProps}
+        />
       </div>
     );
   }
@@ -321,7 +338,7 @@ export function BarnListSummary({
       data-sp-columns="dual-xl"
       data-bulk-mode={bulkMode ? "on" : undefined}
     >
-      {groups.map((sp) => {
+      {visibleGroups.map((sp) => {
         const allReadings = sp.stalls.flatMap((s) => s.readings);
         const summary = summarizeReadings(allReadings);
         const ctrlCount = allReadings.length;

@@ -9,7 +9,7 @@ export type RoutedEdge = {
 };
 
 /** foreignObject 내부 button p-1 패딩 — 선이 카드 테두리에 맞닿도록 */
-export const DAG_NODE_VISUAL_INSET = 4;
+const DAG_NODE_VISUAL_INSET = 4;
 
 type Side = "left" | "right" | "top" | "bottom";
 
@@ -17,7 +17,7 @@ function round(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-export function nodeAnchor(
+function nodeAnchor(
   node: DAGLayoutNode,
   side: Side,
   inset = DAG_NODE_VISUAL_INSET

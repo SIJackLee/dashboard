@@ -1,4 +1,4 @@
-import type { D11Hint, HealthPoint, HealthStatus, ModuleHealthRow } from "@/lib/admin/health/types";
+import type { D11Hint, HealthPoint, ModuleHealthRow } from "@/lib/admin/health/types";
 
 const D11_CATALOG: Record<string, { title: string; summary: string }> = {
   S1: {
@@ -35,12 +35,12 @@ const D11_CATALOG: Record<string, { title: string; summary: string }> = {
   },
 };
 
-export function d11HintFromId(id: string): D11Hint {
+function d11HintFromId(id: string): D11Hint {
   const meta = D11_CATALOG[id] ?? { title: id, summary: "D11 incident-quickref 참조" };
   return { id, title: meta.title, summary: meta.summary };
 }
 
-export function collectD11Hints(ids: Iterable<string>): D11Hint[] {
+function collectD11Hints(ids: Iterable<string>): D11Hint[] {
   const seen = new Set<string>();
   const out: D11Hint[] = [];
   for (const id of ids) {
@@ -79,12 +79,4 @@ export function scopeFromModules(modules: ModuleHealthRow[]): string | null {
   if (farms.size === 1) return "R2";
   if (bad.length >= modules.length * 0.5) return "R3";
   return "R2";
-}
-
-export function statusToD11(status: HealthStatus, context: "uplink" | "query" | "export"): string {
-  if (status === "not_implemented") return "S6-A";
-  if (status === "critical" && context === "uplink") return "S1";
-  if (status === "warn" && context === "uplink") return "S3";
-  if (status === "critical" && context === "query") return "S2";
-  return "—";
 }

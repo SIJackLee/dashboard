@@ -51,7 +51,7 @@ npm run verify:routes
 
 - 이메일/비밀번호 로그인 (Supabase Auth). `/` 접속 시 `/login`으로 이동.
 - 권한은 DB의 RLS로 강제(`user_can_read_farm`, `is_admin` 등). 앱은 `lib/auth/get-current-user.ts`로 user+profile+access를 조합.
-- 데이터 접근 권한이 없으면 `/pending`, 관리자만 `/admin/users`, `/admin/health`(시스템 상태), `/admin/health/farm/[key]`(농장 drill-down), `/admin/health/group/[groupId]`(수집 그룹 R3) 접근.
+- 데이터 접근 권한이 없으면 `/pending`, 관리자만 `/admin/ops`(시스템·사용자·농장 메타) 접근.
 
 ## 디렉터리 개요
 
@@ -117,7 +117,15 @@ npm run verify:routes
 - **`OpsTriageView`:** `tab=ops`에서 3열 트리아지(농장·축사·컨트롤러·알람·설정 패널).
 - **`MonitoringTabs`:** 탭 전환 시 `lsind`·`ctrl`·`alarm` 등 scope query 유지.
 - **사이드바:** 농장·컨트롤러·알람 3항목 → **모니터링** 1항목 (+ 설정 · Admin 운영).
-- **레거시 URL:** `/controllers`·`/alarms` → `/farm?tab=ops` redirect; `tab=devices|alarms` query도 `ops`로 정리.
+- **레거시 URL redirect:**
+
+| 이전 경로 | 리다이렉트 |
+| --- | --- |
+| `/admin/health` | `/admin/ops` |
+| `/admin/health/*` (farm/group/node drill-down) | `/admin/ops` |
+| `/admin/users` | `/admin/ops/users` |
+| `/controllers` · `/alarms` | `/farm?tab=ops` |
+
 - **href helpers:** `buildControllerHref`·`buildFarmAlarmsHref` → `/farm?tab=ops…`.
 
 ## UI 개선 Phase 5 (적용됨)
@@ -129,7 +137,7 @@ npm run verify:routes
 
 - **Admin Ops 허브:** `/admin/ops` + `?tab=system|users|farms` — 시스템 · 사용자 · 농장 메타 3탭.
 - **사이드바:** 시스템 상태·사용자 관리 → **운영** 1항목.
-- **레거시:** `/admin/health`·`/admin/users` → `/admin/ops?tab=…` redirect. health drill-down 경로 유지.
+- **레거시:** `/admin/health`·`/admin/users` → `/admin/ops?tab=…` redirect (`next.config.ts`). health drill-down 페이지는 제거됨.
 - **설정:** Admin `farm` 탭 → 운영 **농장 메타** 탭으로 이전.
 
 ## 더 보기

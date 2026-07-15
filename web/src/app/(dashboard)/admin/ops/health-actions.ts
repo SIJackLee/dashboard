@@ -7,7 +7,6 @@ import { HEALTH_SNAPSHOT_CACHE_TAG } from "@/lib/admin/health/fetch-snapshot";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const HEALTH_PATH = "/admin/health";
 const ADMIN_OPS_SYSTEM_PATH = adminOpsPath("system");
 
 export async function acknowledgeCommandHealthCheckpoint(
@@ -16,7 +15,7 @@ export async function acknowledgeCommandHealthCheckpoint(
 ): Promise<{ ok: boolean; error?: string }> {
   const me = await getCurrentUser();
   if (!me?.isAdmin) {
-    redirect(`${HEALTH_PATH}?error=forbidden`);
+    redirect(`${ADMIN_OPS_SYSTEM_PATH}?error=forbidden`);
   }
 
   const trimmed = commandId?.trim();
@@ -41,8 +40,5 @@ export async function acknowledgeCommandHealthCheckpoint(
 
   revalidateTag(HEALTH_SNAPSHOT_CACHE_TAG, "max");
   revalidatePath(ADMIN_OPS_SYSTEM_PATH);
-  revalidatePath(HEALTH_PATH);
-  revalidatePath(`${HEALTH_PATH}/collector-c`);
-  revalidatePath(`${HEALTH_PATH}/collector`);
   return { ok: true };
 }

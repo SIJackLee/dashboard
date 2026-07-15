@@ -8,12 +8,12 @@ import {
 const WARN_SEC = CONTROLLER_STALE_WARN_MIN * 60;
 const CRITICAL_SEC = CONTROLLER_STALE_CRITICAL_MIN * 60;
 
-export function controllerCountClamped(n: number): number {
+function controllerCountClamped(n: number): number {
   return Math.max(1, Math.min(50, n));
 }
 
 /** 모듈 내 컨트롤러 순환 슬롯 간격(초) — 48C 가정 시 ≈6.25s. 헬스 판정과 별개. */
-export function gapSec(controllerCount: number): number {
+function gapSec(controllerCount: number): number {
   return UPLINK_ROUND_SEC / controllerCountClamped(controllerCount);
 }
 

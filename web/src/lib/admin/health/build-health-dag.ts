@@ -35,16 +35,16 @@ export type BuildHealthDagOptions = {
 };
 
 /** 농장당 환경 컨트롤러 슬롯 (sim_fleet 48C/farm) */
-export const CONTROLLERS_PER_FARM = 48;
+const CONTROLLERS_PER_FARM = 48;
 
 /** MQTT 브로커 통신모듈 수용 한도 */
 export const MQTT_BROKER_MOD_CAPACITY = 20;
 
 /** P2: 농장 펼침 시 zone1 그리드 열 수 (10농장 → 2×5) */
-export const DAG_FARM_GRID_COLUMNS = 2;
+const DAG_FARM_GRID_COLUMNS = 2;
 
 /** S4 가변폭 노드 스케일 (2×) */
-export const DAG_NODE_WIDTH = {
+const DAG_NODE_WIDTH = {
   min: 200,
   base: 280,
   wide: 336,

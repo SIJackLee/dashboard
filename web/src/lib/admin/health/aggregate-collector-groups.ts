@@ -53,7 +53,7 @@ export function aggregateCollectorGroups(
   });
 }
 
-export function isGroupR3Candidate(
+function isGroupR3Candidate(
   group: CollectorGroupHealthRow,
   allGroups: CollectorGroupHealthRow[]
 ): boolean {

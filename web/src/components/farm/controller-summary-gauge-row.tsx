@@ -52,6 +52,8 @@ type Props = {
   bulkPeriod?: TrendPeriodId;
   panelPeriodOverrides?: Record<string, TrendPeriodId>;
   onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
+  /** flat 목록 — SP·축사 소속 메타 */
+  showAffiliation?: boolean;
   className?: string;
 };
 
@@ -79,6 +81,7 @@ export function ControllerSummaryGaugeRow({
   bulkPeriod = DEFAULT_TREND_PERIOD,
   panelPeriodOverrides = {},
   onPanelPeriodChange,
+  showAffiliation = false,
   className,
 }: Props) {
   const [expandedChannel, setExpandedChannel] = useState<ChannelSlot | null>(null);
@@ -125,6 +128,7 @@ export function ControllerSummaryGaugeRow({
           settingsActive={settingsExpanded}
           motorActive={motorExpanded}
           showGraphPill={!hideGraphToggle}
+          showAffiliation={showAffiliation}
           onToggleGraph={onToggleGraph}
           onToggleSettings={onToggleSettings}
           onToggleMotor={onToggleMotor}

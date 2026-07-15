@@ -19,6 +19,11 @@ import {
   tempAlarmBreached,
 } from "@/lib/farm/controller-summary-display";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
+import { formatStallTypeLabel } from "@/lib/data/stall-type";
+import {
+  stallKeyFromReading,
+  stallLabelFromKey,
+} from "@/lib/data/reading-hierarchy";
 import { ChannelFanDropdown } from "@/components/farm/channel-fan-dropdown";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
@@ -129,6 +134,7 @@ export function ControllerSummaryHeader({
   showGraphPill = true,
   showSettingsPill = true,
   showMotorPill = true,
+  showAffiliation = false,
   onToggleGraph,
   onToggleSettings,
   onToggleMotor,
@@ -141,12 +147,16 @@ export function ControllerSummaryHeader({
   showGraphPill?: boolean;
   showSettingsPill?: boolean;
   showMotorPill?: boolean;
+  showAffiliation?: boolean;
   onToggleGraph?: () => void;
   onToggleSettings?: () => void;
   onToggleMotor?: () => void;
   className?: string;
 }) {
   const showPills = showGraphPill || showSettingsPill || showMotorPill;
+  const affiliationLabel = showAffiliation
+    ? `${formatStallTypeLabel(reading.stallTyCode)} · ${stallLabelFromKey(stallKeyFromReading(reading))}`
+    : null;
 
   return (
     <div className={cn("flex min-w-0 items-center gap-2", className)}>
@@ -159,9 +169,21 @@ export function ControllerSummaryHeader({
         )}
         aria-hidden
       />
-      <span className={cn("truncate font-semibold", dashboardUi.sectionTitle)}>
-        {formatControllerNoLabel(reading.eqpmnNo)}
-      </span>
+      <div className="min-w-0 flex-1">
+        <span className={cn("block truncate font-semibold", dashboardUi.sectionTitle)}>
+          {formatControllerNoLabel(reading.eqpmnNo)}
+        </span>
+        {affiliationLabel ? (
+          <span
+            className={cn(
+              "block truncate text-muted-foreground",
+              dashboardTypography.meta
+            )}
+          >
+            {affiliationLabel}
+          </span>
+        ) : null}
+      </div>
       {showPills ? (
         <div
           className="ml-auto flex shrink-0 items-center gap-1.5"

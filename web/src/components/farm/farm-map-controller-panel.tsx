@@ -42,7 +42,7 @@ import {
   formatTempForDisplay,
   isReadingOnline,
 } from "@/lib/data/reading-display";
-import { pipelineDetailMessage } from "@/lib/ui/controller-labels";
+import { pipelineStatusDetail } from "@/lib/ui/controller-labels";
 import { cn } from "@/lib/utils";
 import { InlineStatusToast } from "@/components/common/inline-status-toast";
 
@@ -95,7 +95,7 @@ function StatusBanner({
             ? "border-red-200 bg-red-50 text-red-700"
             : "border-border bg-muted/40 text-muted-foreground";
   const detail = command
-    ? pipelineDetailMessage(command.status, command.errorMsg)
+    ? pipelineStatusDetail(command.status, command.errorMsg, liveConfirmed)
     : null;
   return (
     <div className={cn("space-y-1.5 rounded-md border px-3 py-1.5 text-left", tone)}>

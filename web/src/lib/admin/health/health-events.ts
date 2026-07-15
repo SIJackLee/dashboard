@@ -1,6 +1,5 @@
-import { nodeTitle } from "@/lib/admin/health/fetch-snapshot";
+import { healthNodeTitle } from "@/lib/admin/health/health-ui-labels";
 import type {
-  CollectorGroupHealthRow,
   HealthAlertEvent,
   HealthSnapshot,
   HealthStatus,
@@ -69,7 +68,7 @@ export function buildHealthAlerts(snapshot: HealthSnapshot): HealthAlertEvent[] 
         id: `point-${nodeId}-${p.id}`,
         severity: p.status,
         nodeId,
-        nodeLabel: nodeTitle(nodeId),
+        nodeLabel: healthNodeTitle(nodeId),
         message: `${p.label}: ${p.value}`,
         d11Hint: p.d11Hint,
         href: `/admin/health/${nodeId}`,
@@ -81,11 +80,4 @@ export function buildHealthAlerts(snapshot: HealthSnapshot): HealthAlertEvent[] 
   return alerts.sort(
     (a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]
   );
-}
-
-export function r3GroupSummary(groups: CollectorGroupHealthRow[]): string | null {
-  const r3 = groups.filter((g) => g.scope === "R3" && g.badModuleCount > 0);
-  if (r3.length === 0) return null;
-  const primary = r3[0];
-  return `R3 ${primary.label} 의심 — ${primary.badModuleCount}/${primary.moduleCount} 모듈 이상`;
 }
