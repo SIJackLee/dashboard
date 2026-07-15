@@ -57,7 +57,7 @@ data.go.kr getPwnStatus (10~30분 Cron)
 | [src/lib/kma/kma-wrn-match.ts](../src/lib/kma/kma-wrn-match.ts) | 농장↔특보 매칭 (단일 소스) |
 | [src/lib/kma/kma-wrn-match-node.ts](../src/lib/kma/kma-wrn-match-node.ts) | Node 스크립트용 map 파일 로드 |
 | [scripts/kma/build-wrn-reg-id-map.mjs](../scripts/kma/build-wrn-reg-id-map.mjs) | REG_ID map 빌드 |
-| [scripts/kma/wrn-reg-id-map.json](../scripts/kma/wrn-reg-id-map.json) | 생성된 매핑 |
+| [src/lib/kma/wrn-reg-id-map.json](../src/lib/kma/wrn-reg-id-map.json) | REG_ID map (단일 소스 — `npm run build:kma-wrn-map`) |
 | [scripts/kma/poc-results.json](../scripts/kma/poc-results.json) | 최근 PoC JSON |
 | [scripts/kma/apply-data-go-kr.md](../scripts/kma/apply-data-go-kr.md) | 키 발급 가이드 |
 

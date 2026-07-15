@@ -9,6 +9,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { fetchFcstZoneCodes, fetchFcstZoneProbe } from "./kma-api-client.mjs";
 import { canonicalSido, normalizeSigungu } from "../../src/lib/kma/kma-wrn-match.ts";
+import { WRN_REG_ID_MAP_PATH } from "../../src/lib/kma/kma-wrn-match-node.ts";
 
 dotenv.config({
   path: join(dirname(fileURLToPath(import.meta.url)), "../../.env.local"),
@@ -16,8 +17,7 @@ dotenv.config({
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const regionsPath = join(__dir, "../../src/lib/geo/korea-regions.json");
-const outPath = join(__dir, "wrn-reg-id-map.json");
-const srcOutPath = join(__dir, "../../src/lib/kma/wrn-reg-id-map.json");
+const outPath = WRN_REG_ID_MAP_PATH;
 
 function loadRegions() {
   return JSON.parse(readFileSync(regionsPath, "utf8"));
@@ -144,11 +144,9 @@ async function main() {
   };
 
   writeFileSync(outPath, JSON.stringify(payload, null, 2), "utf8");
-  writeFileSync(srcOutPath, JSON.stringify(payload, null, 2), "utf8");
   console.log(
     `Wrote ${outPath} — mapped ${payload.entryCount}/${regions.length} (mode=${mode})`
   );
-  console.log(`  also: ${srcOutPath}`);
   if (unmatched.length > 0) {
     console.log(`  unmatched sample: ${unmatched.slice(0, 5).map((u) => u.sigungu).join(", ")}`);
   }

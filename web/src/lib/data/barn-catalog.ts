@@ -107,16 +107,3 @@ export function entryFromParts(
     stallTyCode: stallTy,
   };
 }
-
-export function mergeCatalogEntries(
-  ...lists: BarnCatalogEntry[][]
-): BarnCatalogEntry[] {
-  const map = new Map<string, BarnCatalogEntry>();
-  for (const list of lists) {
-    for (const e of list) {
-      if (!isValidFarmKey(e.farmKey)) continue;
-      map.set(e.catalogKey, e);
-    }
-  }
-  return sortCatalogEntries([...map.values()]);
-}

@@ -145,7 +145,7 @@ function decodeChannelBlock(
   };
 }
 
-export function decodeRow(row: Uint8Array): Omit<
+function decodeRow(row: Uint8Array): Omit<
   DecodedControllerPayload,
   "wireVer" | "packetMode" | "sessionId" | "chunkSeq" | "partial" | "lastChunk"
 > {
@@ -172,22 +172,8 @@ export function decodeRow(row: Uint8Array): Omit<
   };
 }
 
-export function parsePayloadBytea(value: unknown): Uint8Array | null {
-  if (value == null) return null;
-  if (value instanceof Uint8Array) return value;
-  const text = String(value).trim();
-  if (!text) return null;
-  const hex = text.startsWith("\\x") ? text.slice(2) : text;
-  if (hex.length % 2 !== 0) return null;
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
-}
-
 /** Decode first row in a v0x0B packet (supports n=1 row-stream). */
-export function decodeV0bPayload(wire: Uint8Array): DecodedControllerPayload | null {
+function decodeV0bPayload(wire: Uint8Array): DecodedControllerPayload | null {
   if (wire.length < HEADER_SIZE + ROW_SIZE + 2) return null;
   if (wire[0] !== VER_V0B) return null;
 
@@ -212,10 +198,4 @@ export function decodeV0bPayload(wire: Uint8Array): DecodedControllerPayload | n
     lastChunk: Boolean(flags & 0x02),
     ...decoded,
   };
-}
-
-export function decodeV0bPayloadFromDb(payloadBytea: unknown): DecodedControllerPayload | null {
-  const wire = parsePayloadBytea(payloadBytea);
-  if (!wire) return null;
-  return decodeV0bPayload(wire);
 }

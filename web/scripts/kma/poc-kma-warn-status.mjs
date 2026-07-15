@@ -124,7 +124,7 @@ async function main() {
     report.notes.push("probe-only: endpoint reachable + Unauthorized 확인");
   }
 
-  const map = loadRegIdMapFromFile(join(__dir, "wrn-reg-id-map.json"));
+  const map = loadRegIdMapFromFile();
   const mappedCount = map.filter((e) => e.regId).length;
   const mapTotal = map.length;
   const mapRatio = mapTotal > 0 ? mappedCount / mapTotal : 0;
