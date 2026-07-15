@@ -4,6 +4,7 @@ import { LogOut } from "lucide-react";
 import { signOut } from "@/app/auth/actions";
 import { AccountMenu } from "@/components/account/account-menu";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
+import type { FarmKey } from "@/lib/data/farm-key";
 import type { ModuleReceipt } from "@/lib/data/iot";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ type Props = {
   };
   receipts?: ModuleReceipt[];
   farmLocationOptions?: EditableFarmOption[];
+  farmOptions?: FarmKey[];
   canEditLocation?: boolean;
 };
 
@@ -25,6 +27,7 @@ export function AppHeaderAccount({
   user,
   receipts = [],
   farmLocationOptions = [],
+  farmOptions = [],
   canEditLocation = false,
 }: Props) {
   return (
@@ -33,6 +36,7 @@ export function AppHeaderAccount({
         user={user}
         receipts={receipts}
         farmLocationOptions={farmLocationOptions}
+        farmOptions={farmOptions}
         canEditLocation={canEditLocation}
       />
       <form action={signOut}>

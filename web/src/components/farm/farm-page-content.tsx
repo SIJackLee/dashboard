@@ -16,6 +16,7 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import type { ControllerGridData } from "@/components/farm/farm-map-controller-panel";
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { BarnTable } from "@/components/farm/barn-table";
+import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
 import {
   applyHubScopedViewParams,
   currentFarmSearchParams,
@@ -288,6 +289,7 @@ export function FarmPageContent({
 
   return (
     <div className="space-y-4">
+      <FarmFeatureTour view={view} setView={setView} enabled={!hideViewTabs} />
       {!hideViewTabs ? (
         <div
           className={cn(
@@ -296,6 +298,7 @@ export function FarmPageContent({
           )}
           role="tablist"
           aria-label="농장 보기"
+          data-tour-id="view-toggle"
         >
           <button
             type="button"

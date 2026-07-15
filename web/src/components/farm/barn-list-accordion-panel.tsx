@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Fan, Loader2 } from "lucide-react";
+import { Fan, Loader2, Thermometer } from "lucide-react";
 import {
   AlarmThresholdForm,
   type AlarmThresholdHeaderState,
@@ -34,7 +34,6 @@ import { pipelineDetailMessage } from "@/lib/ui/controller-labels";
 import { cn } from "@/lib/utils";
 
 /** 목록 카드 설정 패널 — 그래프 패널 차트 라벨과 동일 스케일 */
-const LIST_PANEL_LABEL = "text-xs font-semibold text-muted-foreground";
 const LIST_PANEL_META = "text-xs tabular-nums text-muted-foreground";
 const LIST_SLIDER_TITLE = "text-xs font-semibold";
 const LIST_SLIDER_THUMB = "text-xs tabular-nums";
@@ -49,25 +48,9 @@ type Props = {
   canCommand: boolean;
 };
 
-function SectionShell({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function SectionShell({ children }: { children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border bg-background p-3">
-      <p
-        className={cn(
-          "mb-2.5 border-b pb-1.5",
-          LIST_PANEL_LABEL
-        )}
-      >
-        {title}
-      </p>
-      {children}
-    </section>
+    <section className="rounded-lg border bg-background p-3">{children}</section>
   );
 }
 
@@ -247,7 +230,7 @@ export function BarnListAccordionPanel({
       ) : null}
 
       <div className="barn-list-panel-stagger--settings flex flex-col gap-3">
-        <SectionShell title="① 알람 허용 · 온도·습도">
+        <SectionShell>
           <AlarmThresholdForm
             key={reading.key}
             initialSettings={effectiveAlarmSettings}
@@ -262,14 +245,24 @@ export function BarnListAccordionPanel({
           />
         </SectionShell>
 
-        <SectionShell title="② 설정온도 · ③ 편차 · 환기">
+        <SectionShell>
           <div className="space-y-3">
             <div>
-              {panel.currentValues ? (
-                <p className={cn("mb-2 text-right", LIST_PANEL_META)}>
-                  현재 {panel.currentValues.setpoint}℃ +{panel.currentValues.deviation}℃
-                </p>
-              ) : null}
+              <div className="mb-2 flex items-center gap-2">
+                <Thermometer className="size-4 text-orange-600" aria-hidden />
+                <p className={LIST_SLIDER_TITLE}>설정온도 · 편차</p>
+                {panel.currentValues ? (
+                  <span
+                    className={cn(
+                      "ml-auto tabular-nums text-muted-foreground",
+                      LIST_PANEL_META
+                    )}
+                  >
+                    현재 {panel.currentValues.setpoint}℃ +
+                    {panel.currentValues.deviation}℃
+                  </span>
+                ) : null}
+              </div>
               <ControllerTempDualSlider
                 setpoint={panel.sliderValues.setpoint}
                 deviation={panel.sliderValues.deviation}

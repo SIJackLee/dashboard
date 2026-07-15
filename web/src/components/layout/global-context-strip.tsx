@@ -217,6 +217,7 @@ export function GlobalContextStrip({
           "max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:overscroll-x-contain max-lg:[scrollbar-width:none] lg:flex-wrap",
           compact && "max-lg:hidden"
         )}
+        data-tour-id="header-stats"
       >
         {kpis}
       </div>

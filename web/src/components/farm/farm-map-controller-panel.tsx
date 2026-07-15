@@ -438,7 +438,7 @@ export function FarmMapControllerPanel({
               <div className="rounded-lg border bg-background p-3">
                 <div className="mb-2 flex items-center gap-2">
                   <Thermometer className="size-5 text-orange-600" aria-hidden />
-                  <p className="text-base font-medium">온도</p>
+                  <p className="text-base font-medium">설정온도 · 편차</p>
                   {panel.currentValues ? (
                     <span className="ml-auto text-xs tabular-nums text-muted-foreground">
                       현재 {panel.currentValues.setpoint}℃ +

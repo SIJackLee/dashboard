@@ -8,6 +8,7 @@ import type { AlarmRow } from "@/lib/data/alarms";
 import type { WeatherWarningRow } from "@/lib/data/weather-warnings";
 import type { FarmOverview } from "@/lib/data/iot";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
+import type { FarmKey } from "@/lib/data/farm-key";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 
 type Role = "admin" | "operator" | "viewer";
@@ -20,6 +21,7 @@ type TopBarProps = {
   /** Admin 전국 뷰 — 데스크톱 GlobalContextStrip 숨김 */
   hideScopeKpi?: boolean;
   farmLocationOptions?: EditableFarmOption[];
+  farmOptions?: FarmKey[];
   canEditLocation?: boolean;
   user: {
     displayName: string | null;
@@ -40,6 +42,7 @@ export function TopBar({
   weatherWarnings = [],
   hideScopeKpi = false,
   farmLocationOptions = [],
+  farmOptions = [],
   canEditLocation = false,
   user,
 }: TopBarProps) {
@@ -79,6 +82,7 @@ export function TopBar({
             user={user}
             receipts={overview?.receipts}
             farmLocationOptions={farmLocationOptions}
+            farmOptions={farmOptions}
             canEditLocation={canEditLocation}
           />
         </div>

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Droplets, Thermometer } from "lucide-react";
 import { SectionCard } from "@/components/common/section-card";
 import { SimpleSelect } from "@/components/common/filter-bar";
 import { Label } from "@/components/ui/label";
 import { PageActionButton } from "@/components/common/page-action-button";
+import { AlarmDomainIcon } from "@/components/settings/alarm-domain-icon";
 import {
   saveAlarmSettingsAction,
   saveAlarmSettingsInlineAction,
@@ -475,12 +475,7 @@ export function AlarmThresholdForm({
           <>
             <ThresholdRangeSlider
               title="온도 알림"
-              icon={
-                <Thermometer
-                  className={cn("size-4", "text-orange-600")}
-                  aria-hidden
-                />
-              }
+              icon={<AlarmDomainIcon domain="temp" />}
               min={10}
               max={35}
               step={0.5}
@@ -503,12 +498,7 @@ export function AlarmThresholdForm({
             />
             <ThresholdRangeSlider
               title="습도 알림"
-              icon={
-                <Droplets
-                  className={cn("size-4", "text-sky-600")}
-                  aria-hidden
-                />
-              }
+              icon={<AlarmDomainIcon domain="humidity" />}
               min={0}
               max={100}
               step={1}
@@ -534,12 +524,7 @@ export function AlarmThresholdForm({
           <>
             <ThresholdFieldGroup
               title="온도"
-              icon={
-                <Thermometer
-                  className={cn("size-4", "text-orange-600")}
-                  aria-hidden
-                />
-              }
+              icon={<AlarmDomainIcon domain="temp" />}
               fields={tempFields}
               values={draft}
               onChange={updateDraft}
@@ -548,12 +533,7 @@ export function AlarmThresholdForm({
             />
             <ThresholdFieldGroup
               title="습도"
-              icon={
-                <Droplets
-                  className={cn("size-4", "text-sky-600")}
-                  aria-hidden
-                />
-              }
+              icon={<AlarmDomainIcon domain="humidity" />}
               fields={humidityFields}
               values={draft}
               onChange={updateDraft}
@@ -566,10 +546,7 @@ export function AlarmThresholdForm({
             <ThresholdRangeSlider
               title="온도"
               icon={
-                <Thermometer
-                  className={cn(dashboardUi.iconSm, "text-orange-600")}
-                  aria-hidden
-                />
+                <AlarmDomainIcon domain="temp" sizeClass={dashboardUi.iconSm} />
               }
               min={10}
               max={35}
@@ -586,9 +563,9 @@ export function AlarmThresholdForm({
             <ThresholdRangeSlider
               title="습도"
               icon={
-                <Droplets
-                  className={cn(dashboardUi.iconSm, "text-sky-600")}
-                  aria-hidden
+                <AlarmDomainIcon
+                  domain="humidity"
+                  sizeClass={dashboardUi.iconSm}
                 />
               }
               min={0}

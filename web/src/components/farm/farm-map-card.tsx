@@ -87,6 +87,7 @@ export function FarmMapCard({
   return (
     <div
       aria-label={`${title} ${STATUS_LABEL[snapshot.status]}`}
+      data-tour-id="barn-card"
       className={cn(
         "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background transition-shadow",
         layout === "stack" || !compact ? "h-auto" : "h-full",
@@ -138,6 +139,7 @@ export function FarmMapCard({
               compact ? "p-1" : "p-1.5",
             )}
             aria-label="축사 위치 이동"
+            data-tour-id="barn-drag"
           >
             <GripVertical
               className={cn(

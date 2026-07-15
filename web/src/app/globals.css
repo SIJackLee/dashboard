@@ -599,3 +599,57 @@
     outline: 2px solid rgba(16, 185, 129, 0.6);
   }
 }
+
+/* ── 스포트라이트 투어 (기능 안내) ── */
+
+.farm-tour-hole {
+  transition:
+    top 280ms cubic-bezier(0.22, 0.8, 0.36, 1),
+    left 280ms cubic-bezier(0.22, 0.8, 0.36, 1),
+    width 280ms cubic-bezier(0.22, 0.8, 0.36, 1),
+    height 280ms cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+
+@keyframes farm-tour-tip-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.farm-tour-tooltip {
+  animation: farm-tour-tip-in 220ms ease-out both;
+}
+
+@keyframes farm-tour-accent-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.9);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.35);
+  }
+}
+
+.farm-tour-accent {
+  animation: farm-tour-accent-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farm-tour-hole {
+    transition: none;
+  }
+
+  .farm-tour-tooltip {
+    animation: none;
+  }
+
+  .farm-tour-accent {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.9);
+  }
+}

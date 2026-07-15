@@ -169,6 +169,7 @@ export function FarmMapControllerDetail({
     <div
       ref={rootRef}
       className="farm-heat-morph border-t bg-muted/20 px-3 py-3"
+      data-tour-id="detail-panel"
     >
       {/* 헤더: 축사 · 지표 탭 · 닫기 */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">

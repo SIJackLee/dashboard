@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Bell,
   CheckCircle2,
   Fan,
   Loader2,
@@ -11,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { ControllerTempDualSlider } from "@/components/controllers/controller-temp-dual-slider";
+import { AlarmDomainIcon } from "@/components/settings/alarm-domain-icon";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import {
   sendBulkThermoCommandAction,
@@ -277,7 +279,7 @@ export function FarmMapBulkApply({
                         aria-hidden
                       />
                     }
-                    label="온도 (설정·편차)"
+                    label="설정온도 · 편차"
                   />
                   <div className="min-w-0 pt-3 md:pt-4">
                     <ControllerTempDualSlider
@@ -345,7 +347,7 @@ export function FarmMapBulkApply({
                     checked={applyAlarm}
                     onChange={setApplyAlarm}
                     icon={
-                      <Thermometer
+                      <Bell
                         className={cn(dashboardUi.iconSm, "text-red-600")}
                         aria-hidden
                       />
@@ -356,9 +358,9 @@ export function FarmMapBulkApply({
                     <ThresholdRangeSlider
                       title="온도 알림"
                       icon={
-                        <Thermometer
-                          className={cn(dashboardUi.iconSm, "text-orange-600")}
-                          aria-hidden
+                        <AlarmDomainIcon
+                          domain="temp"
+                          sizeClass={dashboardUi.iconSm}
                         />
                       }
                       min={10}
@@ -383,7 +385,10 @@ export function FarmMapBulkApply({
                     <ThresholdRangeSlider
                       title="습도 알림"
                       icon={
-                        <Fan className={cn(dashboardUi.iconSm, "text-sky-600")} aria-hidden />
+                        <AlarmDomainIcon
+                          domain="humidity"
+                          sizeClass={dashboardUi.iconSm}
+                        />
                       }
                       min={0}
                       max={100}
@@ -461,7 +466,10 @@ export function FarmMapBulkApply({
     <>
       {/* 그리드 상단 커맨드 바 — FarmMapCard·지도 카드와 동일 타이포 스케일 */}
       <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b bg-muted/30 px-3 py-2 lg:gap-x-4 lg:px-4 lg:py-2.5">
-        <div className="flex min-w-0 items-center gap-2 lg:gap-2.5">
+        <div
+          className="flex min-w-0 items-center gap-2 lg:gap-2.5"
+          data-tour-id="bulk-apply"
+        >
           <SlidersHorizontal
             className={cn(
               dashboardUi.iconSm,

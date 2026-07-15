@@ -19,6 +19,7 @@ import {
   replaceFarmUrlShallow,
 } from "@/lib/farm/farm-view-url";
 import { GRAPH_BARS, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
+import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
 import type { ControllerGridData } from "./farm-map-controller-panel";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { FarmMapCard } from "./farm-map-card";
@@ -207,7 +208,7 @@ export function FarmMapCanvas({
   /** 병합 카드는 요약(온·습도) + 히트맵이 들어가 요약 전용보다 큰 행 트랙 필요. */
   const rowTrack = graphMode ? "minmax(13rem, auto)" : GRID_ROW_TRACK;
   // 그리드/모바일 공용 — 히트맵 그래프 콘텐츠 + 확대 상세(데이터 없으면 히트맵 미표시).
-  const { expanded, setExpanded, graphByBarnId, detail } = useBarnGraphs({
+  const { expanded, setExpanded, graphByBarnId, metricIdsByBarnId, detail } = useBarnGraphs({
     barns,
     trendByPeriod,
     controllerTrendByPeriod,
@@ -215,6 +216,28 @@ export function FarmMapCanvas({
     graphPeriod,
     enabled: graphMode,
   });
+
+  // 스포트라이트 투어 — 확대 상세 열기/닫기 액션 수신.
+  useEffect(() => {
+    const onTourAction = (e: Event) => {
+      const action = (e as CustomEvent).detail?.action as string | undefined;
+      if (action === "collapse") {
+        setExpanded(null);
+        return;
+      }
+      if (action === "expand-first") {
+        const first = barnsRef.current.find(
+          (b) => (metricIdsByBarnId.get(b.meta.id)?.length ?? 0) > 0,
+        );
+        const ids = first ? metricIdsByBarnId.get(first.meta.id) : undefined;
+        if (first && ids?.[0]) {
+          setExpanded({ barnId: first.meta.id, metricId: ids[0] });
+        }
+      }
+    };
+    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+  }, [metricIdsByBarnId, setExpanded]);
 
   /** 상세 확대 중 — 보드를 '사용 중인 행'까지 축소해 상세 패널을 근접 배치. */
   const focusMode = graphMode && Boolean(expanded);
@@ -378,6 +401,7 @@ export function FarmMapCanvas({
             className="inline-flex overflow-hidden rounded-md border bg-background text-xs"
             role="group"
             aria-label="기간"
+            data-tour-id="period-select"
           >
             {GRAPH_PERIOD_ORDER.map((p) => (
               <button

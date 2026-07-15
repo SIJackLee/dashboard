@@ -319,7 +319,7 @@ export function CardMetricGauge({
           {offline ? <div className="absolute inset-0 bg-muted/40" aria-hidden /> : null}
           {pct != null && !offline ? (
             <div
-              className="absolute top-[-1px] z-[2] h-3.5 w-0.5 rounded-full bg-foreground"
+              className="absolute top-[-1px] z-[2] h-3.5 w-2.5 rounded-full bg-foreground"
               style={{ left: `${pct}%`, transform: "translateX(-50%)" }}
               aria-hidden
             />

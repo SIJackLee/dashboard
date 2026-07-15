@@ -1,19 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChevronDown, CircleHelp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  FARM_TOUR_RESTART_EVENT,
+  FARM_TOUR_RESTART_FLAG,
+  buildFarmTourPath,
+} from "@/lib/onboarding/tour-steps";
+import { parseFarmKeyFromQuery, DEFAULT_FARM } from "@/lib/data/farm-key";
 import { RecentActivityMenuSection } from "@/components/account/recent-activity-menu-section";
 import { FarmAddressInput } from "@/components/settings/farm-address-input";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
+import type { FarmKey } from "@/lib/data/farm-key";
 import type { ModuleReceipt } from "@/lib/data/iot";
 import { farmOptionId } from "@/lib/settings/farm-location-client";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -36,6 +44,7 @@ type Props = {
   };
   receipts?: ModuleReceipt[];
   farmLocationOptions?: EditableFarmOption[];
+  farmOptions?: FarmKey[];
   canEditLocation?: boolean;
 };
 
@@ -43,15 +52,43 @@ export function AccountMenu({
   user,
   receipts = [],
   farmLocationOptions = [],
+  farmOptions = [],
   canEditLocation = false,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const mobile = useMobileLayout();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const name = user.displayName?.trim() || user.email || "사용자";
   const initial = name.charAt(0).toUpperCase();
   const primaryFarm = farmLocationOptions[0];
+  const tourFarmKey =
+    farmLocationOptions.find((o) => o.hasLiveData)?.farmKey ??
+    primaryFarm?.farmKey ??
+    farmOptions[0] ??
+    DEFAULT_FARM;
+  const farmScopedOnPage = Boolean(
+    parseFarmKeyFromQuery(searchParams.get("lsind"), searchParams.get("item")),
+  );
+  const canRestartTourInPlace =
+    pathname?.startsWith("/farm") && farmScopedOnPage;
+
+  const restartTour = () => {
+    if (canRestartTourInPlace) {
+      window.dispatchEvent(new Event(FARM_TOUR_RESTART_EVENT));
+      return;
+    }
+    try {
+      sessionStorage.setItem(FARM_TOUR_RESTART_FLAG, "1");
+    } catch {
+      /* storage 사용 불가 시 이동만 수행 */
+    }
+    const target = buildFarmTourPath(tourFarmKey);
+    // admin 허브 → 단일 농장: router.push는 RSC props(농장 스코프)가 갱신되지 않을 수 있음.
+    window.location.assign(target);
+  };
 
   useEffect(() => setMounted(true), []);
 
@@ -103,6 +140,15 @@ export function AccountMenu({
             ) : null}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="mx-1 gap-2"
+          onClick={restartTour}
+        >
+          <CircleHelp className="size-4 text-muted-foreground" aria-hidden />
+          기능 안내 다시 보기
+        </DropdownMenuItem>
 
         {receipts.length > 0 ? (
           <>

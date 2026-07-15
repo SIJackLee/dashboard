@@ -336,7 +336,7 @@ export function SeverityHeatmap({
   };
 
   return (
-    <div className={cn("min-w-0", className)}>
+    <div className={cn("min-w-0", className)} data-tour-id="heatmap">
       <HeatCells rows={rows} rowH={CELL_H} selected={sel} onSelect={select} />
 
       {!external && selected ? (

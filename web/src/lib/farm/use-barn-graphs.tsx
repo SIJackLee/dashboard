@@ -64,9 +64,10 @@ export function useBarnGraphs({
   const [expanded, setExpanded] = useState<BarnGraphExpanded | null>(null);
 
   /** 축사 카드별 히트맵 — 데이터 없으면 항목을 만들지 않음(히트맵 미표시). */
-  const graphByBarnId = useMemo(() => {
+  const { graphByBarnId, metricIdsByBarnId } = useMemo(() => {
     const map = new Map<string, ReactNode>();
-    if (!enabled || !trendByPeriod) return map;
+    const idsMap = new Map<string, string[]>();
+    if (!enabled || !trendByPeriod) return { graphByBarnId: map, metricIdsByBarnId: idsMap };
     const readings = controller?.readings ?? [];
     const thermoSettings = controller?.thermoSettings ?? {};
     const alarmSettings = controller?.alarmSettings;
@@ -129,6 +130,7 @@ export function useBarnGraphs({
       );
       if (withData.length === 0) continue;
       const barnId = b.meta.id;
+      idsMap.set(barnId, withData.map((m) => m.id));
       map.set(
         barnId,
         <SeverityHeatmap
@@ -139,7 +141,7 @@ export function useBarnGraphs({
         />,
       );
     }
-    return map;
+    return { graphByBarnId: map, metricIdsByBarnId: idsMap };
   }, [enabled, graphPeriod, trendByPeriod, barns, controller, expanded]);
 
   /** 확대된 축사의 컨트롤러별 상세 데이터(스몰멀티플 + 목록 UI 재사용). */
@@ -203,5 +205,5 @@ export function useBarnGraphs({
     };
   }, [enabled, expanded, barns, controller, controllerTrendByPeriod, graphPeriod]);
 
-  return { expanded, setExpanded, graphByBarnId, detail };
+  return { expanded, setExpanded, graphByBarnId, metricIdsByBarnId, detail };
 }
