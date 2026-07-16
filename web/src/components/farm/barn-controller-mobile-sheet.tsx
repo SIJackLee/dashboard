@@ -59,7 +59,7 @@ function pageFromScroll(el: HTMLDivElement): {
   return { page: clampPage(ratio), ratio };
 }
 
-/** 모바일 stack — 컨트롤러(모터 추이) · 설정(온습 추이+설정) 2페이지 bottom sheet carousel. */
+/** 모바일 stack — picker·탭·본문을 sheet 본문 전체에서 단일 세로 스크롤. */
 export function BarnControllerMobileSheet({
   open,
   initialPage,
@@ -202,77 +202,82 @@ export function BarnControllerMobileSheet({
   const activeLabel =
     CONTROLLER_MOBILE_SHEET_PAGES.find((p) => p.id === viewPage)?.label ?? "";
 
+  const showPicker =
+    pickerReadings &&
+    pickerReadings.length > 0 &&
+    selectedReadingKey &&
+    onSelectReading;
+
   return (
     <BarnPanelBottomSheet
       open={open}
       onClose={onClose}
       title={`${eqpmn} · ${activeLabel}`}
       auditRegion="barn-controller-mobile-sheet"
-      contentClassName="flex min-h-0 flex-1 flex-col"
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      {pickerReadings && pickerReadings.length > 0 && selectedReadingKey && onSelectReading ? (
-        <ControllerMobilePickerStrip
-          readings={pickerReadings}
-          selectedKey={selectedReadingKey}
-          onSelect={onSelectReading}
-          showAffiliation={showPickerAffiliation}
-        />
-      ) : null}
-      <div
-        className="shrink-0 border-b px-3 py-2"
-        data-tour-id="controller-mobile-sheet-tabs"
-      >
+      <div className="barn-controller-mobile-sheet-body-scroll min-h-0 flex-1">
+        {showPicker ? (
+          <ControllerMobilePickerStrip
+            readings={pickerReadings}
+            selectedKey={selectedReadingKey}
+            onSelect={onSelectReading}
+            showAffiliation={showPickerAffiliation}
+            className="border-b bg-muted/20"
+          />
+        ) : null}
         <div
-          className="flex gap-1.5"
-          role="tablist"
-          aria-label="컨트롤러 상세 페이지"
+          className="border-b px-3 py-2"
+          data-tour-id="controller-mobile-sheet-tabs"
         >
-          {CONTROLLER_MOBILE_SHEET_PAGES.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              role="tab"
-              aria-selected={viewPage === p.id}
-              onClick={() => scrollToPage(p.id)}
-              className={cn(
-                "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold transition-colors",
-                viewPage === p.id
-                  ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {p.label}
-            </button>
-          ))}
+          <div
+            className="flex gap-1.5"
+            role="tablist"
+            aria-label="컨트롤러 상세 페이지"
+          >
+            {CONTROLLER_MOBILE_SHEET_PAGES.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="tab"
+                aria-selected={viewPage === p.id}
+                onClick={() => scrollToPage(p.id)}
+                className={cn(
+                  "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold transition-colors",
+                  viewPage === p.id
+                    ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div
-        ref={scrollerRef}
-        className="barn-controller-mobile-sheet-scroller min-h-0 min-w-0 flex-1 basis-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
-        onScroll={handleScroll}
-      >
-        <div className="barn-controller-mobile-sheet-track flex h-full min-h-0 w-[200%]">
-          <section
-            className="barn-controller-mobile-sheet-page flex h-full min-h-0 w-1/2 shrink-0 flex-col overflow-hidden"
-            data-panel="controller"
-            data-audit-region="controller-mobile-sheet-controller"
-            aria-hidden={viewPage !== 0}
-          >
-            <div className="barn-controller-mobile-sheet-page-scroll">
+        <div
+          ref={scrollerRef}
+          className="barn-controller-mobile-sheet-scroller min-w-0 overflow-x-auto"
+          onScroll={handleScroll}
+        >
+          <div className="barn-controller-mobile-sheet-track flex w-[200%] items-start">
+            <section
+              className="barn-controller-mobile-sheet-page w-1/2 shrink-0"
+              data-panel="controller"
+              data-audit-region="controller-mobile-sheet-controller"
+              aria-hidden={viewPage !== 0}
+            >
               {controllerPage}
-            </div>
-          </section>
-          <section
-            className="barn-controller-mobile-sheet-page flex h-full min-h-0 w-1/2 shrink-0 flex-col overflow-hidden"
-            data-panel="settings"
-            data-audit-region="controller-mobile-sheet-settings-panel"
-            aria-hidden={viewPage !== 1}
-          >
-            <div className="barn-controller-mobile-sheet-page-scroll">
+            </section>
+            <section
+              className="barn-controller-mobile-sheet-page w-1/2 shrink-0"
+              data-panel="settings"
+              data-audit-region="controller-mobile-sheet-settings-panel"
+              aria-hidden={viewPage !== 1}
+            >
               {settingsPage}
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
       </div>
     </BarnPanelBottomSheet>

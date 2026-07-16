@@ -48,7 +48,7 @@ export function ControllerMobilePickerStrip({
 
   return (
     <div
-      className={cn("shrink-0 border-b bg-muted/20 px-2 py-2", className)}
+      className={cn("border-b bg-muted/20 px-2 py-2", className)}
       data-tour-id="controller-mobile-picker"
     >
       <div

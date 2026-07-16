@@ -623,14 +623,24 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   max-width: calc(var(--mobile-preview-max-w) - 2rem) !important;
 }
 
+.barn-controller-mobile-sheet-body-scroll {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
 .barn-controller-mobile-sheet-scroller {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: visible;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  /* pan-x only blocks nested vertical scroll on touch devices */
-  touch-action: pan-x pan-y;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -640,23 +650,12 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 .barn-controller-mobile-sheet-track {
-  align-items: stretch;
+  align-items: start;
 }
 
 .barn-controller-mobile-sheet-page {
   scroll-snap-align: start;
   scroll-snap-stop: always;
-}
-
-.barn-controller-mobile-sheet-page-scroll {
-  height: 100%;
-  min-height: 0;
-  flex: 1 1 0%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  overscroll-behavior-y: contain;
 }
 
 .controller-mobile-picker-scroller {
