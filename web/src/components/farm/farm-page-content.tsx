@@ -36,6 +36,7 @@ import { FarmListSkeleton } from "@/components/common/loading-skeletons";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 
 type Props = {
   readings: BarnReading[];
@@ -271,9 +272,8 @@ export function FarmPageContent({
 
   const mapHidden = view !== "map";
   const listHidden = view !== "list";
-  const panelInactive =
-    "pointer-events-none absolute inset-x-0 top-0 -z-10 overflow-hidden opacity-0";
-  const panelActive = "opacity-100 transition-opacity duration-150 ease-out";
+  /** 비활성 패널 — hidden으로 클릭·inert 유령 UI 방지 (crossfade는 활성 패널만) */
+  const panelVisible = cn("opacity-100", motionClass.viewCrossfade);
 
   const tabView = mounted ? view : bootstrapView;
 
@@ -332,11 +332,9 @@ export function FarmPageContent({
         <div
           className={cn(
             "min-h-0 lg:min-h-[16rem]",
-            panelActive,
-            mapHidden && panelInactive
+            mapHidden ? "hidden" : panelVisible,
           )}
           aria-hidden={mapHidden}
-          inert={mapHidden ? true : undefined}
           data-farm-view-panel="map"
           data-farm-view-active={!mapHidden}
         >
@@ -359,9 +357,8 @@ export function FarmPageContent({
 
         {listEverOpened ? (
           <div
-            className={cn(panelActive, listHidden && panelInactive)}
+            className={cn(listHidden ? "hidden" : panelVisible)}
             aria-hidden={listHidden}
-            inert={listHidden ? true : undefined}
             data-farm-view-panel="list"
             data-farm-view-active={!listHidden}
           >

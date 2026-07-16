@@ -223,6 +223,7 @@ export function BarnControllerMobileSheet({
             selectedKey={selectedReadingKey}
             onSelect={onSelectReading}
             showAffiliation={showPickerAffiliation}
+            active={open}
             className="border-b bg-muted/20"
           />
         ) : null}

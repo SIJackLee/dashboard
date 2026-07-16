@@ -52,16 +52,19 @@ export function SettingsCollapsibleSection({
           <span className="flex-1" />
         )}
         <ChevronDown
-          className={cn(
-            "size-4 shrink-0 text-muted-foreground transition-transform",
-            open && "rotate-180",
-          )}
+          className="settings-collapsible-chevron size-4 shrink-0 text-muted-foreground"
+          data-open={open ? "true" : undefined}
           aria-hidden
         />
       </button>
-      {open ? (
-        <div className="border-t px-3 pb-3 pt-2">{children}</div>
-      ) : null}
+      <div
+        className="settings-collapsible-body border-t"
+        data-open={open ? "true" : undefined}
+      >
+        <div className="settings-collapsible-body-inner">
+          <div className="px-3 pb-3 pt-2">{children}</div>
+        </div>
+      </div>
     </section>
   );
 }

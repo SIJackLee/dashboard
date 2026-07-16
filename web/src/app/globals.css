@@ -133,6 +133,12 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --duration-motion-fast: 120ms;
+  --duration-motion-normal: 200ms;
+  --duration-motion-moderate: 280ms;
+  --duration-motion-emphasis: 360ms;
+  --duration-motion-exit: 150ms;
+  --duration-motion-view: 150ms;
 }
 
 :root {
@@ -174,6 +180,20 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* motion tokens — prefers-reduced-motion 시 0ms 로 덮어씀 */
+  --motion-duration-fast: 120ms;
+  --motion-duration-normal: 200ms;
+  --motion-duration-moderate: 280ms;
+  --motion-duration-emphasis: 360ms;
+  --motion-duration-exit: 150ms;
+  --motion-duration-view: 150ms;
+  --motion-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-ease-emphasis: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-distance-sm: 4px;
+  --motion-distance-md: 8px;
+  --motion-distance-lg: 16px;
 }
 
 .dark {
@@ -478,6 +498,147 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
+/* ── UI motion (tokens: :root --motion-*) ── */
+
+@keyframes ui-motion-toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--motion-distance-md));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes ui-motion-toast-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, var(--motion-distance-md));
+  }
+}
+
+.ui-motion-toast {
+  animation: ui-motion-toast-in var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+.ui-motion-toast[data-state="exit"] {
+  animation: ui-motion-toast-out var(--motion-duration-exit) var(--motion-ease-exit) both;
+}
+
+.ui-motion-nav-overlay {
+  animation: ui-motion-fade-in var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+@keyframes ui-motion-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ui-motion-modal-backdrop {
+  animation: ui-motion-fade-in var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+@keyframes ui-motion-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(var(--motion-distance-md));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.ui-motion-modal-panel {
+  animation: ui-motion-modal-in var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+.ui-motion-command-overlay {
+  transition: opacity var(--motion-duration-normal) var(--motion-ease-standard);
+}
+
+.ui-motion-command-card {
+  transition:
+    opacity var(--motion-duration-normal) var(--motion-ease-enter),
+    transform var(--motion-duration-normal) var(--motion-ease-enter);
+}
+
+.settings-collapsible-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-duration-moderate) var(--motion-ease-standard);
+}
+
+.settings-collapsible-body[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.settings-collapsible-body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.settings-collapsible-chevron {
+  transition: transform var(--motion-duration-normal) var(--motion-ease-standard);
+}
+
+.settings-collapsible-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.ui-motion-soft-refresh-bar {
+  animation: ui-motion-soft-refresh 1.2s var(--motion-ease-standard) infinite;
+}
+
+@keyframes ui-motion-soft-refresh {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: 0ms;
+    --motion-duration-normal: 0ms;
+    --motion-duration-moderate: 0ms;
+    --motion-duration-emphasis: 0ms;
+    --motion-duration-exit: 0ms;
+    --motion-duration-view: 0ms;
+  }
+
+  .ui-motion-toast,
+  .ui-motion-nav-overlay,
+  .ui-motion-modal-backdrop,
+  .ui-motion-modal-panel,
+  .ui-motion-command-overlay,
+  .ui-motion-command-card,
+  .ui-motion-soft-refresh-bar {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .settings-collapsible-body {
+    transition: none;
+  }
+
+  .settings-collapsible-chevron {
+    transition: none;
+  }
+}
+
 /* ── 축사 목록 — 그래프 / 설정 / 모터그래프 패널 드롭다운 (hybrid) ── */
 
 @keyframes barn-list-panel-in {
@@ -505,20 +666,19 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
 .barn-list-panel-shell {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: grid-template-rows var(--motion-duration-moderate) var(--motion-ease-standard);
 }
 
 .barn-list-panel-shell[data-open="true"] {
   grid-template-rows: 1fr;
-  transition-duration: 280ms;
 }
 
 .barn-list-panel-shell--settings[data-open="true"] {
-  transition-duration: 320ms;
+  transition-duration: var(--motion-duration-moderate);
 }
 
 .barn-list-panel-shell--motor[data-open="true"] {
-  transition-duration: 280ms;
+  transition-duration: var(--motion-duration-moderate);
 }
 
 .barn-list-panel-inner {
@@ -527,11 +687,12 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
 }
 
 .barn-list-panel-content[data-panel="graph"][data-state="open"] {
-  animation: barn-list-panel-in 240ms cubic-bezier(0, 0, 0.2, 1);
+  animation: barn-list-panel-in var(--motion-duration-moderate) var(--motion-ease-enter);
 }
 
 .barn-list-panel-stagger--settings > * {
-  animation: barn-list-stagger-in 240ms ease backwards;
+  animation: barn-list-stagger-in var(--motion-duration-moderate) var(--motion-ease-enter)
+    backwards;
 }
 
 .barn-list-panel-stagger--settings > *:nth-child(1) {
@@ -543,7 +704,8 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
 }
 
 .barn-list-panel-stagger--motor > * {
-  animation: barn-list-stagger-in 260ms ease backwards;
+  animation: barn-list-stagger-in var(--motion-duration-moderate) var(--motion-ease-enter)
+    backwards;
 }
 
 .barn-list-panel-stagger--motor > *:nth-child(1) {
@@ -722,7 +884,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
 .farm-heat-morph {
   transform-origin: top left;
-  animation: farm-heat-morph-in 460ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: farm-heat-morph-in var(--motion-duration-emphasis) var(--motion-ease-emphasis)
+    both;
 }
 
 @media (prefers-reduced-motion: reduce) {

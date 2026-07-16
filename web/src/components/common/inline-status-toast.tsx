@@ -29,7 +29,7 @@ export function InlineStatusToast({
       role="status"
       aria-live="polite"
       className={cn(
-        "fixed bottom-4 left-1/2 z-[60] max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 rounded-lg border bg-background px-4 py-2.5 text-sm shadow-lg",
+        "ui-motion-toast fixed bottom-4 left-1/2 z-[60] max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 rounded-lg border bg-background px-4 py-2.5 text-sm shadow-lg",
         className,
       )}
       data-mobile-viewport-toast

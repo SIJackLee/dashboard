@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motionDuration } from "@/lib/ui/motion-tokens";
 
 export type CommandPipelineOverlayPhase = "loading" | "success" | "info" | "error";
 
@@ -34,7 +35,10 @@ export function CommandPipelineOverlay({
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
   const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
+
+  useEffect(() => {
+    onDismissRef.current = onDismiss;
+  }, [onDismiss]);
 
   const dismissible = Boolean(onDismiss) && phase !== "loading";
 
@@ -46,7 +50,7 @@ export function CommandPipelineOverlay({
   useEffect(() => {
     if (!visible) {
       setShow(false);
-      const t = window.setTimeout(() => setMounted(false), 320);
+      const t = window.setTimeout(() => setMounted(false), motionDuration.normal + 20);
       return () => window.clearTimeout(t);
     }
     setMounted(true);
@@ -74,7 +78,7 @@ export function CommandPipelineOverlay({
   return createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-[70] flex items-center justify-center p-4 transition-opacity duration-300 ease-out",
+        "ui-motion-command-overlay fixed inset-0 z-[70] flex items-center justify-center p-4",
         show ? "opacity-100" : "opacity-0",
         dismissible ? "pointer-events-auto cursor-pointer" : "pointer-events-none",
       )}
@@ -97,8 +101,8 @@ export function CommandPipelineOverlay({
     >
       <div
         className={cn(
-          "max-w-[min(100vw-2rem,22rem)] rounded-xl border bg-background/95 px-5 py-4 text-center shadow-xl ring-1 ring-border/60 backdrop-blur-sm transition-all duration-300 ease-out",
-          show ? "translate-y-0 scale-100" : "translate-y-2 scale-95",
+          "ui-motion-command-card max-w-[min(100vw-2rem,22rem)] rounded-xl border bg-background/95 px-5 py-4 text-center shadow-xl ring-1 ring-border/60 backdrop-blur-sm",
+          show ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-95 opacity-0",
           phase === "success" && "border-emerald-200/80",
           phase === "error" && "border-red-200/80",
           phase === "info" && "border-sky-200/60",

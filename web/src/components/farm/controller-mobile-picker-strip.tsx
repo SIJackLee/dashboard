@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { BarnReading } from "@/lib/data/iot";
 import { formatControllerNoLabel } from "@/lib/farm/controller-summary-display";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
@@ -17,32 +17,81 @@ type Props = {
   onSelect: (key: string) => void;
   showAffiliation?: boolean;
   className?: string;
+  /** sheet/dialog 열림 — 레이아웃 후 선택 항목 중앙 정렬 */
+  active?: boolean;
 };
 
-/** bottom sheet 상단 — 컨트롤러 EQP 가로 swipe picker (스크롤바 숨김) */
+function centerSelectedInScroller(
+  scroller: HTMLDivElement,
+  btn: HTMLButtonElement,
+  behavior: ScrollBehavior,
+): void {
+  const maxScroll = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  const target =
+    btn.offsetLeft - (scroller.clientWidth - btn.offsetWidth) / 2;
+  scroller.scrollTo({
+    left: Math.max(0, Math.min(target, maxScroll)),
+    behavior,
+  });
+}
+
+/** bottom sheet 상단 — 컨트롤러 EQP 가로 swipe picker (선택 항목 중앙 표시) */
 export function ControllerMobilePickerStrip({
   readings,
   selectedKey,
   onSelect,
   showAffiliation = false,
   className,
+  active = true,
 }: Props) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
+  const initialScrollRef = useRef(true);
 
-  useEffect(() => {
+  const scrollToSelected = useCallback((behavior: ScrollBehavior = "auto") => {
     const scroller = scrollerRef.current;
     const btn = selectedRef.current;
-    if (!scroller || !btn) return;
-    const scrollerRect = scroller.getBoundingClientRect();
-    const btnRect = btn.getBoundingClientRect();
-    const delta =
-      btnRect.left -
-      scrollerRect.left -
-      scrollerRect.width / 2 +
-      btnRect.width / 2;
-    scroller.scrollBy({ left: delta, behavior: "smooth" });
-  }, [selectedKey]);
+    if (!scroller || !btn) return false;
+    centerSelectedInScroller(scroller, btn, behavior);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!active) {
+      initialScrollRef.current = true;
+      return;
+    }
+
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      const behavior = initialScrollRef.current ? "auto" : "smooth";
+      if (scrollToSelected(behavior)) {
+        initialScrollRef.current = false;
+      }
+    };
+
+    run();
+    const raf = window.requestAnimationFrame(() => {
+      run();
+      window.requestAnimationFrame(run);
+    });
+    const t = window.setTimeout(run, 120);
+
+    const scroller = scrollerRef.current;
+    const ro =
+      scroller && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => run())
+        : null;
+    ro?.observe(scroller!);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+      ro?.disconnect();
+    };
+  }, [active, selectedKey, readings, scrollToSelected]);
 
   if (readings.length <= 1) return null;
 
@@ -69,9 +118,10 @@ export function ControllerMobilePickerStrip({
               type="button"
               role="option"
               aria-selected={selected}
+              aria-current={selected ? "true" : undefined}
               onClick={() => onSelect(r.key)}
               className={cn(
-                "controller-mobile-picker-item inline-flex min-w-[5.5rem] shrink-0 snap-start flex-col items-start rounded-lg border px-2.5 py-1.5 text-left transition-colors",
+                "controller-mobile-picker-item inline-flex min-w-[5.5rem] shrink-0 snap-center flex-col items-start rounded-lg border px-2.5 py-1.5 text-left transition-colors",
                 selected
                   ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200"
                   : "border-border bg-background text-muted-foreground hover:bg-muted/50",

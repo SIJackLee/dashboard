@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 
 type Props = {
   open: boolean;
@@ -52,7 +53,8 @@ export function BarnPanelBottomSheet({
         showCloseButton
         className={cn(
           "top-auto flex max-h-none flex-col gap-0 overflow-hidden rounded-b-none rounded-t-xl p-0 pb-[env(safe-area-inset-bottom,0px)]",
-          "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
+          motionClass.durationModerate,
+          motionClass.sheetEnter,
           viewportCompact
             ? "bottom-auto left-1/2 h-full w-full -translate-x-1/2 translate-y-0"
             : "bottom-0 h-[85dvh] max-h-[85dvh] left-0 w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none md:h-[min(85dvh,36rem)] md:max-h-[min(85dvh,36rem)]",

@@ -17,7 +17,7 @@ export function SoftRefreshProgress({ visible, className }: Props) {
       )}
       aria-hidden
     >
-      <div className="h-full w-2/3 animate-pulse bg-emerald-500/80" />
+      <div className="ui-motion-soft-refresh-bar h-full w-2/3 bg-emerald-500/80" />
     </div>
   );
 }
