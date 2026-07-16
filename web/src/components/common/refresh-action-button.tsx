@@ -10,6 +10,7 @@ type Props = {
   loading?: boolean;
   showSpinner?: boolean;
   disabled?: boolean;
+  /** 기본: 아이콘만 (aria-label=새로고침) */
   children?: React.ReactNode;
   className?: string;
 };
@@ -20,7 +21,7 @@ export function RefreshActionButton({
   loading = false,
   showSpinner = false,
   disabled,
-  children = "새로고침",
+  children,
   className,
 }: Props) {
   return (
@@ -28,6 +29,7 @@ export function RefreshActionButton({
       onClick={onClick}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
+      aria-label="새로고침"
       className={className}
       icon={
         <RefreshCw

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   Bell,
   CheckCircle2,
-  Fan,
   Loader2,
   SlidersHorizontal,
   Thermometer,
@@ -57,6 +56,8 @@ type Props = {
   onExit: () => void;
   /** 적용 완료 후 — toast·soft refresh 등 부모 처리 */
   onAfterApply?: (result: ApplyResult) => void;
+  /** 일괄적용 off — 툴바 우측 (기간 선택 등) */
+  trailing?: ReactNode;
 };
 
 export type ApplyResult = {
@@ -99,6 +100,7 @@ export function FarmMapBulkApply({
   onClearSelection,
   onExit,
   onAfterApply,
+  trailing,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -326,7 +328,15 @@ export function FarmMapBulkApply({
                     checked={applyVent}
                     onChange={setApplyVent}
                     icon={
-                      <Fan className={cn(dashboardUi.iconSm, "text-sky-600")} aria-hidden />
+                      <span
+                        className={cn(
+                          dashboardUi.iconSm,
+                          "inline-flex items-center justify-center font-bold text-sky-600",
+                        )}
+                        aria-hidden
+                      >
+                        %
+                      </span>
                     }
                     label="환기 (최저·최고)"
                   />
@@ -334,7 +344,15 @@ export function FarmMapBulkApply({
                     <ThresholdRangeSlider
                       title="환기"
                       icon={
-                        <Fan className={cn(dashboardUi.iconSm, "text-sky-600")} aria-hidden />
+                        <span
+                          className={cn(
+                            dashboardUi.iconSm,
+                            "inline-flex items-center justify-center font-bold text-sky-600",
+                          )}
+                          aria-hidden
+                        >
+                          %
+                        </span>
                       }
                       min={0}
                       max={100}
@@ -522,38 +540,32 @@ export function FarmMapBulkApply({
         </div>
 
         {bulkMode ? (
-          <>
-            <span className="hidden h-5 w-px shrink-0 bg-border sm:block" aria-hidden />
-            <p className="min-w-0 text-xs text-muted-foreground leading-snug sm:text-sm lg:text-[1.75rem]">
-              유형 {selectedSps.length}개 · 컨트롤러 {targets.length}대
-              {offlineCount > 0 ? ` (오프라인 ${offlineCount}대 제외)` : ""}
-            </p>
-            <span className="hidden min-w-0 flex-1 sm:block" aria-hidden />
-            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
-              <button
-                type="button"
-                onClick={onClearSelection}
-                disabled={selectedSps.length === 0}
-                className={cn(
-                  bulkModalBtn,
-                  "border hover:bg-muted disabled:opacity-50"
-                )}
-              >
-                선택 해제
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(true)}
-                disabled={selectedSps.length === 0}
-                className={cn(
-                  bulkModalBtn,
-                  "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-                )}
-              >
-                설정 입력
-              </button>
-            </div>
-          </>
+          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClearSelection}
+              disabled={selectedSps.length === 0}
+              className={cn(
+                bulkModalBtn,
+                "border hover:bg-muted disabled:opacity-50"
+              )}
+            >
+              선택해제
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              disabled={selectedSps.length === 0}
+              className={cn(
+                bulkModalBtn,
+                "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+              )}
+            >
+              설정입력
+            </button>
+          </div>
+        ) : trailing ? (
+          <div className="ml-auto flex shrink-0 items-center gap-2">{trailing}</div>
         ) : null}
       </div>
 

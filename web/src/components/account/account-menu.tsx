@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, CircleHelp } from "lucide-react";
+import { ChevronDown, CircleHelp, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +21,7 @@ import type { EditableFarmOption } from "@/lib/data/farm-location";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { ModuleReceipt } from "@/lib/data/iot";
 import { farmOptionId } from "@/lib/settings/farm-location-client";
+import { signOut } from "@/app/auth/actions";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
@@ -89,11 +90,16 @@ export function AccountMenu({
   useEffect(() => setMounted(true), []);
 
   const triggerClassName =
-    "flex min-w-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60";
+    "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60";
 
   if (!mounted) {
     return (
-      <button type="button" className={triggerClassName} aria-label="계정 메뉴">
+      <button
+        type="button"
+        className={triggerClassName}
+        data-tour-id="header-account"
+        aria-label="계정 메뉴"
+      >
         <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
         <div className="hidden min-w-0 leading-tight sm:block">
           <p className={dashboardUi.headerAccountName}>{name}</p>
@@ -108,7 +114,11 @@ export function AccountMenu({
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger className={triggerClassName} aria-label="계정 메뉴">
+      <DropdownMenuTrigger
+        className={triggerClassName}
+        data-tour-id="header-account"
+        aria-label="계정 메뉴"
+      >
         <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
         <div className="hidden min-w-0 leading-tight sm:block">
           <p className={dashboardUi.headerAccountName}>{name}</p>
@@ -175,6 +185,18 @@ export function AccountMenu({
             />
           </div>
         ) : null}
+
+        <div className="border-t p-1.5 md:hidden">
+          <DropdownMenuItem
+            className="gap-2 rounded-lg px-3 py-2 text-destructive focus:text-destructive"
+            onClick={() => {
+              void signOut();
+            }}
+          >
+            <LogOut className="size-4 shrink-0" aria-hidden />
+            로그아웃
+          </DropdownMenuItem>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

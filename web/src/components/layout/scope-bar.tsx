@@ -61,6 +61,25 @@ function ScopeChip({
   );
 }
 
+function ScopeRefreshButton({
+  onRefresh,
+  refreshBusy,
+  refreshShowSpinner,
+}: {
+  onRefresh: () => void;
+  refreshBusy: boolean;
+  refreshShowSpinner: boolean;
+}) {
+  return (
+    <RefreshActionButton
+      onClick={onRefresh}
+      loading={refreshBusy}
+      showSpinner={refreshShowSpinner}
+      className="shrink-0"
+    />
+  );
+}
+
 /** farm · SP · stall · Refresh — controllers / alarms / farm 공통 */
 export function ScopeBar({
   sticky = false,
@@ -93,6 +112,50 @@ export function ScopeBar({
     (lsindRegistNo || stallTypeLabel) &&
     !showSpChips;
 
+  const refreshSlot =
+    onRefresh != null ? (
+      <ScopeRefreshButton
+        onRefresh={onRefresh}
+        refreshBusy={refreshBusy}
+        refreshShowSpinner={refreshShowSpinner}
+      />
+    ) : null;
+
+  const titleRow =
+    adminFarmSwitcher != null ? (
+      <FarmSwitcher {...adminFarmSwitcher} compact={adminFarmSwitcher.compact} />
+    ) : multiFarm && onFarmChange ? (
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+        <span className={dashboardUi.scopeLabel}>농장</span>
+        {farmOptions.map((f) => (
+          <ScopeChip
+            key={f.value}
+            label={f.label}
+            active={activeFarm === f.value}
+            onClick={() => onFarmChange(f.value)}
+          />
+        ))}
+      </div>
+    ) : showFarmMeta ? (
+      <p className="min-w-0 text-muted-foreground">
+        {lsindRegistNo ? (
+          <>
+            <span>축산업등록번호 </span>
+            <span className="font-medium text-foreground">{lsindRegistNo}</span>
+          </>
+        ) : null}
+        {lsindRegistNo && stallTypeLabel ? (
+          <span className="mx-2">·</span>
+        ) : null}
+        {stallTypeLabel ? (
+          <>
+            <span>축사유형 </span>
+            <span className="font-medium text-foreground">{stallTypeLabel}</span>
+          </>
+        ) : null}
+      </p>
+    ) : null;
+
   return (
     <div
       className={cn(
@@ -100,82 +163,44 @@ export function ScopeBar({
         sticky && dashboardUi.scopeBarSticky
       )}
     >
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className={cn("min-w-0 flex-1 space-y-3", dashboardUi.body)}>
-          {adminFarmSwitcher ? (
-            <FarmSwitcher {...adminFarmSwitcher} compact={adminFarmSwitcher.compact} />
-          ) : null}
+      <div className={cn("min-w-0 space-y-3", dashboardUi.body)}>
+        {titleRow || refreshSlot ? (
+          <div className="flex items-start justify-between gap-2">
+            {titleRow ? (
+              <div className="min-w-0 flex-1">{titleRow}</div>
+            ) : (
+              <div className="min-w-0 flex-1" />
+            )}
+            {refreshSlot}
+          </div>
+        ) : null}
 
-          {multiFarm && onFarmChange ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={dashboardUi.scopeLabel}>농장</span>
-              {farmOptions.map((f) => (
-                <ScopeChip
-                  key={f.value}
-                  label={f.label}
-                  active={activeFarm === f.value}
-                  onClick={() => onFarmChange(f.value)}
-                />
-              ))}
-            </div>
-          ) : null}
+        {showSpChips ? (
+          <div className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}>
+            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>축사유형</span>
+            {spOptions.map((sp) => (
+              <ScopeChip
+                key={sp.value}
+                label={sp.label}
+                active={activeSp === sp.value}
+                onClick={() => onSpChange(sp.value)}
+              />
+            ))}
+          </div>
+        ) : null}
 
-          {showFarmMeta ? (
-            <p className="text-muted-foreground">
-              {lsindRegistNo ? (
-                <>
-                  <span>축산업등록번호 </span>
-                  <span className="font-medium text-foreground">{lsindRegistNo}</span>
-                </>
-              ) : null}
-              {lsindRegistNo && stallTypeLabel ? (
-                <span className="mx-2">·</span>
-              ) : null}
-              {stallTypeLabel ? (
-                <>
-                  <span>축사유형 </span>
-                  <span className="font-medium text-foreground">{stallTypeLabel}</span>
-                </>
-              ) : null}
-            </p>
-          ) : null}
-
-          {showSpChips ? (
-            <div className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}>
-              <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>축사유형</span>
-              {spOptions.map((sp) => (
-                <ScopeChip
-                  key={sp.value}
-                  label={sp.label}
-                  active={activeSp === sp.value}
-                  onClick={() => onSpChange(sp.value)}
-                />
-              ))}
-            </div>
-          ) : null}
-
-          {showStallRow ? (
-            <div className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}>
-              <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>축사번호</span>
-              {stallOptions.map((stall) => (
-                <ScopeChip
-                  key={stall.value}
-                  label={stall.label}
-                  active={activeStall === stall.value}
-                  onClick={() => onStallChange(stall.value)}
-                />
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        {onRefresh ? (
-          <RefreshActionButton
-            onClick={onRefresh}
-            loading={refreshBusy}
-            showSpinner={refreshShowSpinner}
-            className="shrink-0"
-          />
+        {showStallRow ? (
+          <div className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}>
+            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>축사번호</span>
+            {stallOptions.map((stall) => (
+              <ScopeChip
+                key={stall.value}
+                label={stall.label}
+                active={activeStall === stall.value}
+                onClick={() => onStallChange(stall.value)}
+              />
+            ))}
+          </div>
         ) : null}
       </div>
     </div>

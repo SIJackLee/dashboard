@@ -18,6 +18,7 @@ import {
   type BarnListPanelSets,
   type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
+import { BarnListToolbarMobileSheet } from "@/components/farm/barn-list-toolbar-mobile-sheet";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
@@ -52,6 +53,13 @@ type Props = {
   onToggleSp?: (stallTyCode: string) => void;
   /** 안 D — 첫 paint 후 idle 배치 마운트 */
   staggerMount?: boolean;
+  /** 모바일 Graph/Set — 단일 toolbar sheet */
+  mobileToolbarSheetMode?: boolean;
+  toolbarSheetKey?: string | null;
+  toolbarSheetPage?: ControllerMobileSheetPage;
+  onToolbarSheetKeyChange?: (key: string, page?: ControllerMobileSheetPage) => void;
+  onToolbarSheetPageChange?: (page: ControllerMobileSheetPage) => void;
+  onToolbarSheetClose?: () => void;
 };
 
 /** flat(일반 보기) — 전체 너비 · 최대 5열 */
@@ -134,6 +142,9 @@ function ControllerCardGrid({
   selectedSps,
   staggerMount = false,
   showAffiliation = false,
+  mobileToolbarSheetMode = false,
+  toolbarSheetKey = null,
+  onToolbarSheetKeyChange,
 }: {
   readings: BarnReading[];
   allReadings: BarnReading[];
@@ -157,6 +168,9 @@ function ControllerCardGrid({
   selectedSps?: ReadonlySet<string>;
   staggerMount?: boolean;
   showAffiliation?: boolean;
+  mobileToolbarSheetMode?: boolean;
+  toolbarSheetKey?: string | null;
+  onToolbarSheetKeyChange?: (key: string, page?: ControllerMobileSheetPage) => void;
 }) {
   const tourActive = useFarmTourActive();
   const compact = useHydrationSafeDashboardCompact();
@@ -184,15 +198,44 @@ function ControllerCardGrid({
           canCommand={canCommand}
           listMode={listMode}
           className={bulkMode && !spSelected ? "opacity-50" : undefined}
-          graphExpanded={isBarnListGraphExpanded(r.key, listMode, panelSets)}
-          settingsExpanded={isBarnListSettingsExpanded(r.key, listMode, panelSets)}
-          mobileSheetOpen={
-            compact ? isBarnListMobileSheetOpen(r.key, panelSets) : false
+          graphExpanded={
+            mobileToolbarSheetMode
+              ? listMode === "graph"
+              : isBarnListGraphExpanded(r.key, listMode, panelSets)
           }
-          onToggleGraph={!bulkMode ? () => onToggleGraph(r.key) : undefined}
-          onToggleSettings={!bulkMode ? () => onToggleSettings(r.key) : undefined}
+          settingsExpanded={
+            mobileToolbarSheetMode
+              ? listMode === "settings"
+              : isBarnListSettingsExpanded(r.key, listMode, panelSets)
+          }
+          mobileSheetOpen={
+            compact && !mobileToolbarSheetMode
+              ? isBarnListMobileSheetOpen(r.key, panelSets)
+              : false
+          }
+          suppressMobileInlinePanels={mobileToolbarSheetMode}
+          suppressPerCardMobileSheet={mobileToolbarSheetMode}
+          toolbarSheetSelected={
+            mobileToolbarSheetMode && toolbarSheetKey === r.key
+          }
+          onToggleGraph={
+            !bulkMode
+              ? () =>
+                  mobileToolbarSheetMode && onToolbarSheetKeyChange
+                    ? onToolbarSheetKeyChange(r.key, 0)
+                    : onToggleGraph(r.key)
+              : undefined
+          }
+          onToggleSettings={
+            !bulkMode
+              ? () =>
+                  mobileToolbarSheetMode && onToolbarSheetKeyChange
+                    ? onToolbarSheetKeyChange(r.key, 1)
+                    : onToggleSettings(r.key)
+              : undefined
+          }
           onSheetPageChange={
-            !bulkMode && onSheetPageChange
+            !bulkMode && onSheetPageChange && !mobileToolbarSheetMode
               ? (page) => onSheetPageChange(r.key, page)
               : undefined
           }
@@ -204,6 +247,11 @@ function ControllerCardGrid({
           panelPeriodOverrides={panelPeriodOverrides}
           onPanelPeriodChange={onPanelPeriodChange}
           showAffiliation={showAffiliation}
+          onCardActivate={
+            mobileToolbarSheetMode && onToolbarSheetKeyChange
+              ? () => onToolbarSheetKeyChange(r.key)
+              : undefined
+          }
         />
         );
       })}
@@ -278,6 +326,12 @@ export function BarnListSummary({
   selectedSps = new Set(),
   onToggleSp,
   staggerMount = false,
+  mobileToolbarSheetMode = false,
+  toolbarSheetKey = null,
+  toolbarSheetPage = 0,
+  onToolbarSheetKeyChange,
+  onToolbarSheetPageChange,
+  onToolbarSheetClose,
 }: Props) {
   const groups = useMemo(() => groupReadingsByHierarchy(readings), [readings]);
   const visibleGroups = useMemo(
@@ -311,7 +365,33 @@ export function BarnListSummary({
     bulkMode,
     selectedSps,
     staggerMount,
+    mobileToolbarSheetMode,
+    toolbarSheetKey,
+    onToolbarSheetKeyChange,
   };
+
+  const toolbarSheet = mobileToolbarSheetMode && onToolbarSheetClose ? (
+    <BarnListToolbarMobileSheet
+      open={Boolean(toolbarSheetKey)}
+      readings={readings}
+      selectedKey={toolbarSheetKey}
+      sheetPage={toolbarSheetPage}
+      onSelectKey={(key) => onToolbarSheetKeyChange?.(key)}
+      onPageSettled={(page) => onToolbarSheetPageChange?.(page)}
+      onClose={onToolbarSheetClose}
+      thermoSettings={thermoSettings}
+      commands={commands}
+      alarmSettings={alarmSettings}
+      canCommand={canCommand}
+      controllerTrendByPeriod={controllerTrendByPeriod}
+      trendLoading={trendLoading}
+      trendStale={trendStale}
+      bulkPeriod={bulkPeriod}
+      panelPeriodOverrides={panelPeriodOverrides}
+      onPanelPeriodChange={onPanelPeriodChange}
+      showPickerAffiliation
+    />
+  ) : null;
 
   if (readings.length === 0) {
     return (
@@ -323,24 +403,28 @@ export function BarnListSummary({
 
   if (layout === "flat") {
     return (
-      <div className="min-w-0" data-audit-region="barn-list-summary" data-list-layout="flat" data-list-mode={listMode}>
-        {bulkMode && onToggleSp ? (
-          <SpBulkChipRow
-            groups={visibleGroups}
-            selectedSps={selectedSps}
-            onToggleSp={onToggleSp}
+      <>
+        <div className="min-w-0" data-audit-region="barn-list-summary" data-list-layout="flat" data-list-mode={listMode}>
+          {bulkMode && onToggleSp ? (
+            <SpBulkChipRow
+              groups={visibleGroups}
+              selectedSps={selectedSps}
+              onToggleSp={onToggleSp}
+            />
+          ) : null}
+          <ControllerCardGrid
+            readings={readings}
+            showAffiliation
+            {...gridProps}
           />
-        ) : null}
-        <ControllerCardGrid
-          readings={readings}
-          showAffiliation
-          {...gridProps}
-        />
-      </div>
+        </div>
+        {toolbarSheet}
+      </>
     );
   }
 
   return (
+    <>
     <div
       className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2"
       data-audit-region="barn-list-summary"
@@ -461,5 +545,7 @@ export function BarnListSummary({
         );
       })}
     </div>
+    {toolbarSheet}
+    </>
   );
 }

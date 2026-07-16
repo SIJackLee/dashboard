@@ -1,12 +1,12 @@
-import { Droplets, Fan, Thermometer } from "lucide-react";
+import { Droplets, Thermometer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const METRIC_ARIA: Record<string, string> = {
   T: "온도",
   H: "습도",
-  A: "팬 A",
-  B: "팬 B",
-  C: "팬 C",
+  A: "채널 A",
+  B: "채널 B",
+  C: "채널 C",
 };
 
 export function gridMetricAriaLabel(id: string, fallback?: string): string {
@@ -53,15 +53,14 @@ export function GridMetricLabel({
     return (
       <span
         className={cn(
-          "relative inline-flex shrink-0 items-center justify-center",
+          "inline-flex shrink-0 items-center justify-center rounded-full border border-sky-500/40 bg-sky-500/10 font-bold leading-none text-sky-700 dark:text-sky-300",
+          "size-3 text-[8px] sm:size-3.5 sm:text-[9px]",
+          iconClassName,
           className,
         )}
         aria-hidden
       >
-        <Fan className={cn(iconClassName, "text-sky-600 dark:text-sky-400")} />
-        <span className="absolute text-[0.45rem] font-bold leading-none text-sky-800 dark:text-sky-100">
-          {id}
-        </span>
+        {id}
       </span>
     );
   }

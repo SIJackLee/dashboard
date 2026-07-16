@@ -29,7 +29,7 @@ export function useDashboardCompact() {
 }
 
 /**
- * compact 레이아웃 여부 — ViewportPreview 토글(mobile|desktop)과 동기화.
+ * compact 레이아웃 여부 — 접속 기기 자동 감지(auto) 또는 수동 토글(mobile|desktop)과 동기화.
  * SSR·첫 hydration은 desktop.
  */
 export function useHydrationSafeDashboardCompact(): boolean {

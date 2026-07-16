@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -63,6 +63,18 @@ type Props = {
   onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   showAffiliation?: boolean;
   className?: string;
+  /** 모바일 목록 Graph/Set toolbar — 인라인 패널 숨김 */
+  suppressMobileInlinePanels?: boolean;
+  /** 모바일 목록 Graph/Set toolbar — per-card sheet 숨김 */
+  suppressPerCardMobileSheet?: boolean;
+  /** toolbar sheet에서 선택된 카드 */
+  toolbarSheetSelected?: boolean;
+  /** toolbar sheet — 카드 탭 시 컨트롤러 선택 */
+  onCardActivate?: () => void;
+  /** bottom sheet 상단 swipe picker (그리드·목록 Graph/Set) */
+  sheetPickerReadings?: BarnReading[];
+  onSheetPickerSelect?: (key: string) => void;
+  showSheetPickerAffiliation?: boolean;
 };
 
 /** PC·Mobile 공통 — 게이지·채널 고정 + 카드별 pill로 패널 드롭다운 / 모바일 sheet */
@@ -92,6 +104,13 @@ export function ControllerSummaryGaugeRow({
   onPanelPeriodChange,
   showAffiliation = false,
   className,
+  suppressMobileInlinePanels = false,
+  suppressPerCardMobileSheet = false,
+  toolbarSheetSelected = false,
+  onCardActivate,
+  sheetPickerReadings,
+  onSheetPickerSelect,
+  showSheetPickerAffiliation = false,
 }: Props) {
   const [expandedChannel, setExpandedChannel] = useState<ChannelSlot | null>(null);
 
@@ -119,9 +138,15 @@ export function ControllerSummaryGaugeRow({
       : graphExpanded || settingsExpanded);
 
   const showInlineGraphOnMobile =
-    useMobileSheet && graphExpanded && !mobileSheetOpen;
+    useMobileSheet &&
+    graphExpanded &&
+    !mobileSheetOpen &&
+    !suppressMobileInlinePanels;
   const showInlineSettingsOnMobile =
-    useMobileSheet && settingsExpanded && !mobileSheetOpen;
+    useMobileSheet &&
+    settingsExpanded &&
+    !mobileSheetOpen &&
+    !suppressMobileInlinePanels;
 
   const motorTrendVisible =
     panelPlacement === "right" && settingsExpanded;
@@ -133,14 +158,21 @@ export function ControllerSummaryGaugeRow({
     setExpandedChannel((prev) => (prev === slot ? null : slot));
   }, []);
 
+  useEffect(() => {
+    setExpandedChannel(null);
+  }, [reading.key]);
+
   const setpoint = thermo?.setpointTemp;
   const setDev = thermo?.tempDeviation;
 
   const cardClass = cn(
-    "flex h-full min-w-0 flex-col overflow-hidden rounded-xl border bg-card",
-    statusRingClass(reading.status),
-    graphExpanded && "ring-2 ring-sky-500/40",
-    settingsExpanded && "ring-2 ring-violet-500/40",
+    "flex h-full min-w-0 flex-col rounded-xl border bg-card",
+    expandedChannel ? "overflow-visible" : "overflow-hidden",
+    !toolbarSheetSelected && statusRingClass(reading.status),
+    toolbarSheetSelected && "ring-2 ring-emerald-500/70",
+    !toolbarSheetSelected && graphExpanded && "ring-2 ring-sky-500/40",
+    !toolbarSheetSelected && settingsExpanded && "ring-2 ring-violet-500/40",
+    onCardActivate && "cursor-pointer",
     className,
   );
 
@@ -241,13 +273,17 @@ export function ControllerSummaryGaugeRow({
     [onSheetPageChange],
   );
 
-  const mobileSheet = useMobileSheet ? (
+  const mobileSheet = useMobileSheet && !suppressPerCardMobileSheet ? (
     <BarnControllerMobileSheet
       open={mobileSheetOpen}
       initialPage={controllerMobileSheetPageFromFlags(settingsExpanded)}
       onClose={handleSheetClose}
       onPageSettled={handleSheetPageSettled}
       reading={reading}
+      pickerReadings={sheetPickerReadings}
+      selectedReadingKey={reading.key}
+      onSelectReading={onSheetPickerSelect}
+      showPickerAffiliation={showSheetPickerAffiliation}
       controllerPage={
         <ControllerMobilePage
           metricsSection={sheetMetricsBlock}
@@ -392,6 +428,19 @@ export function ControllerSummaryGaugeRow({
           data-controller-key={reading.controllerKey}
           data-list-mode={listMode}
           data-panel-layout="stack"
+          onClick={onCardActivate}
+          onKeyDown={
+            onCardActivate
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onCardActivate();
+                  }
+                }
+              : undefined
+          }
+          role={onCardActivate ? "button" : undefined}
+          tabIndex={onCardActivate ? 0 : undefined}
         >
           {cardBody}
           {showInlineGraphOnMobile ? graphPanel : null}

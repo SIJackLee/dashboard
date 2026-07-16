@@ -2,10 +2,13 @@
 
 import { useSyncExternalStore } from "react";
 import { isMobileLayoutActive } from "@/lib/ui/mobile-layout";
-import { subscribeViewportPreview } from "@/lib/ui/viewport-preview-store";
+import {
+  subscribeViewportPreview,
+  VIEWPORT_MOBILE_MEDIA_QUERY,
+} from "@/lib/ui/viewport-preview-store";
 
 function subscribeMobileLayout(onStoreChange: () => void): () => void {
-  const mq = window.matchMedia("(max-width: 767px)");
+  const mq = window.matchMedia(VIEWPORT_MOBILE_MEDIA_QUERY);
   const onMq = () => onStoreChange();
   mq.addEventListener("change", onMq);
   const unsubPreview = subscribeViewportPreview(onStoreChange);

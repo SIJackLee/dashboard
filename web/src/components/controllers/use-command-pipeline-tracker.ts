@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { fetchThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
 import {
   commandStatusLabel,
@@ -112,7 +111,6 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     onRefreshLive,
   } = opts;
 
-  const router = useRouter();
   const [tracked, setTracked] = useState<ThermoCommand | null>(null);
   const [flash, setFlash] = useState<CommandPipelineFlash | null>(null);
   const [liveConfirmed, setLiveConfirmed] = useState(false);
@@ -262,7 +260,6 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
         setTracked((prev) => pickFresherCommand(prev, next));
       }
       onRefreshLiveRef.current?.();
-      router.refresh();
     };
 
     void tick();
@@ -280,7 +277,7 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [command?.id, command?.status, awaitingLive, router]);
+  }, [command?.id, command?.status, awaitingLive]);
 
   return {
     command,

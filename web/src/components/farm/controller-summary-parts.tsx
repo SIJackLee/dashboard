@@ -4,7 +4,6 @@ import type { ControllerThermoSettings } from "@/lib/controllers/controller-sett
 import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
-import { channelBySlot } from "@/lib/data/iot-channel";
 import type {
   TrendControllerPeriodData,
   TrendPeriodId,
@@ -282,22 +281,17 @@ export function ChannelStrip({
   return (
     <div className="min-w-0">
       <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
-        {CHANNELS.map((slot) => {
-          const fanCount =
-            channelBySlot(reading.channels ?? [], slot)?.fanSeries?.length ?? 0;
-          return (
+        {CHANNELS.map((slot) => (
           <ChannelCell
             key={slot}
             slot={slot}
             value={formatChannelPercent(channels[slot])}
-            fanCount={fanCount}
             compact={compact}
             expanded={expandedChannel === slot}
             interactive={interactive}
             onToggle={onToggleChannel}
           />
-          );
-        })}
+        ))}
       </div>
       {!hideMotorExpand ? (
       <BarnListPanelShell
@@ -333,7 +327,6 @@ export function ChannelStrip({
 function ChannelCell({
   slot,
   value,
-  fanCount = 0,
   compact,
   expanded,
   interactive,
@@ -341,14 +334,12 @@ function ChannelCell({
 }: {
   slot: ChannelSlot;
   value: string;
-  fanCount?: number;
   compact?: boolean;
   expanded?: boolean;
   interactive?: boolean;
   onToggle?: (slot: ChannelSlot) => void;
 }) {
-  const fanBadge = fanCount > 0 ? ` · 팬 ${fanCount}` : "";
-  const label = `채널 ${slot}${fanBadge} ${value}${value !== "—" ? "%" : ""}`;
+  const label = `채널 ${slot} ${value}${value !== "—" ? "%" : ""}`;
   const cellClass = cn(
     "relative min-h-[3rem] rounded-md border bg-background/80 sm:min-h-[3.25rem]",
     compact ? "p-1.5 sm:p-2" : "p-2 sm:p-2.5",
@@ -362,14 +353,14 @@ function ChannelCell({
     <>
       <span
         className={cn(
-          "absolute top-1 left-1.5 leading-none sm:top-1.5 sm:left-2",
-          compact ? dashboardUi.gridCellMetaCompact : dashboardTypography.meta
+          "absolute top-1 left-1.5 font-semibold leading-none sm:top-1.5 sm:left-2",
+          compact
+            ? dashboardUi.gridCellMetaCompact
+            : "text-[10px] sm:text-[11px]",
+          "text-sky-700 dark:text-sky-300",
         )}
       >
         {slot}
-        {fanCount > 0 ? (
-          <span className="text-muted-foreground"> ·{fanCount}</span>
-        ) : null}
       </span>
       <div className="flex h-full min-h-[2.25rem] items-center justify-center pt-2 sm:min-h-[2.5rem]">
         <span

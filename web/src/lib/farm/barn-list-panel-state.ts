@@ -108,3 +108,22 @@ export function isBarnListSettingsExpanded(
   }
   return false;
 }
+
+/** 모바일 목록 — Graph/Set 툴바 모드에서 단일 bottom sheet + picker 사용 */
+export function isBarnListMobileToolbarSheetMode(
+  listMode: BarnListViewMode,
+  compact: boolean,
+  bulkMode: boolean,
+): boolean {
+  return (
+    compact &&
+    !bulkMode &&
+    (listMode === "graph" || listMode === "settings")
+  );
+}
+
+export function barnListToolbarSheetInitialPage(
+  listMode: BarnListViewMode,
+): ControllerMobileSheetPage {
+  return listMode === "settings" ? 1 : 0;
+}

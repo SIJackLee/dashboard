@@ -27,7 +27,6 @@ export async function PageShell({
       <TopBar
         overview={ctx.overview}
         alarms={ctx.alarms}
-        weatherWarnings={ctx.weatherWarnings}
         farmLocationOptions={ctx.farmLocationOptions}
         farmOptions={ctx.farmOptions}
         canEditLocation={ctx.canEditLocation}

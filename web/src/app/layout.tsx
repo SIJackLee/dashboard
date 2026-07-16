@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavigationPendingProvider } from "@/components/layout/navigation-pending-provider";
+import { ViewportPreviewBootstrap } from "@/components/layout/viewport-preview-bootstrap";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,8 +54,9 @@ export default function RootLayout({
           {`try{var t=localStorage.getItem("dashboard-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`}
         </Script>
         <Script id="dashboard-viewport-init" strategy="beforeInteractive">
-          {`try{var v=localStorage.getItem("dashboard-viewport-preview");document.documentElement.dataset.viewportPreview=(v==="mobile"?"mobile":"desktop")}catch(e){document.documentElement.dataset.viewportPreview="desktop"}`}
+          {`try{var k="dashboard-viewport-preview";var v=localStorage.getItem(k);var pref=(v==="mobile"||v==="desktop")?v:"auto";var mobile=window.matchMedia("(max-width: 767px)").matches;var mode=pref==="auto"?(mobile?"mobile":"desktop"):pref;document.documentElement.dataset.viewportPreview=mode}catch(e){document.documentElement.dataset.viewportPreview=window.matchMedia("(max-width: 767px)").matches?"mobile":"desktop"}`}
         </Script>
+        <ViewportPreviewBootstrap />
         <TooltipProvider>
           <NavigationPendingProvider>{children}</NavigationPendingProvider>
         </TooltipProvider>

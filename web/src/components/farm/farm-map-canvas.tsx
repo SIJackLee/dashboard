@@ -18,7 +18,7 @@ import {
   currentFarmSearchParams,
   replaceFarmUrlShallow,
 } from "@/lib/farm/farm-view-url";
-import { GRAPH_BARS, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
+import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
@@ -233,6 +233,29 @@ export function FarmMapCanvas({
     graphPeriod,
     enabled: graphMode,
   });
+  const [detailSelectedReadingKey, setDetailSelectedReadingKey] = useState<
+    string | null
+  >(null);
+
+  const handleDetailClose = useCallback(() => {
+    setExpanded(null);
+    setDetailSelectedReadingKey(null);
+  }, [setExpanded]);
+
+  const handlePickerNavigateReading = useCallback(
+    (readingKey: string) => {
+      const allReadings = controller?.readings ?? [];
+      const reading = allReadings.find((r) => r.key === readingKey);
+      if (!reading || !expanded) return;
+      const targetBarnId = barnIdForReading(barns, reading);
+      if (!targetBarnId) return;
+      setDetailSelectedReadingKey(readingKey);
+      if (targetBarnId !== expanded.barnId) {
+        setExpanded((e) => (e ? { ...e, barnId: targetBarnId } : e));
+      }
+    },
+    [barns, controller?.readings, expanded, setExpanded],
+  );
 
   useFarmTourGridAction({ barns, metricIdsByBarnId, setExpanded });
 
@@ -258,6 +281,7 @@ export function FarmMapCanvas({
         replaceFarmUrlShallow(params);
       }
       setExpanded(null);
+      setDetailSelectedReadingKey(null);
     }
   }, [initialBarns, barnIdsKey, setExpanded]);
 
@@ -372,7 +396,7 @@ export function FarmMapCanvas({
           selectedSps={Array.from(selectedSps)}
           onEnter={() => {
             setBulkMode(true);
-            setExpanded(null);
+            handleDetailClose();
           }}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
@@ -380,6 +404,16 @@ export function FarmMapCanvas({
             setStatusToast(formatBulkApplyToast(result));
             if (!hubMode) router.refresh();
           }}
+          trailing={
+            graphMode && barns.length > 0 ? (
+              <TrendPeriodToggle
+                value={graphPeriod}
+                onChange={setGraphPeriod}
+                density="map"
+                tourTarget
+              />
+            ) : undefined
+          }
         />
       ) : null}
       {pendingSaves > 0 && (
@@ -395,12 +429,14 @@ export function FarmMapCanvas({
       ) : null}
       {graphMode && barns.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-          <TrendPeriodToggle
-            value={graphPeriod}
-            onChange={setGraphPeriod}
-            density="map"
-            tourTarget
-          />
+          {!bulkEnabled ? (
+            <TrendPeriodToggle
+              value={graphPeriod}
+              onChange={setGraphPeriod}
+              density="map"
+              tourTarget
+            />
+          ) : null}
           <GraphModeLegend />
         </div>
       ) : null}
@@ -507,7 +543,10 @@ export function FarmMapCanvas({
           onChangeMetric={(metricId) =>
             setExpanded((e) => (e ? { ...e, metricId } : e))
           }
-          onClose={() => setExpanded(null)}
+          onClose={handleDetailClose}
+          selectedReadingKey={detailSelectedReadingKey}
+          onSelectedReadingKeyChange={setDetailSelectedReadingKey}
+          onPickerNavigateReading={handlePickerNavigateReading}
         />
       ) : null}
       <InlineStatusToast

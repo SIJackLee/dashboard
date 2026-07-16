@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
@@ -24,6 +24,8 @@ import { MetricLineChart } from "./severity-heatmap";
 import { PanelCloseButton } from "./panel-close-button";
 import { GridMetricLabel, gridMetricAriaLabel } from "@/lib/farm/grid-metric-label";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
+import { controllerKeyForReadingKey } from "@/lib/farm/use-barn-graphs";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { cn } from "@/lib/utils";
 
 /** 지표(행) 탭 — 히트맵 행과 동일한 순서/라벨. */
@@ -67,6 +69,11 @@ type Props = {
   trendStale?: boolean;
   onChangeMetric: (metricId: string) => void;
   onClose: () => void;
+  /** picker·외부 동기화 — BarnReading.key */
+  selectedReadingKey?: string | null;
+  onSelectedReadingKeyChange?: (readingKey: string | null) => void;
+  /** picker에서 다른 축사 컨트롤러 선택 */
+  onPickerNavigateReading?: (readingKey: string) => void;
 };
 
 export function FarmMapControllerDetail({
@@ -86,7 +93,11 @@ export function FarmMapControllerDetail({
   trendStale = false,
   onChangeMetric,
   onClose,
+  selectedReadingKey = null,
+  onSelectedReadingKeyChange,
+  onPickerNavigateReading,
 }: Props) {
+  const viewportCompact = useHydrationSafeDashboardCompact();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [graphOpen, setGraphOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -94,8 +105,11 @@ export function FarmMapControllerDetail({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const controllerCardRef = useRef<HTMLDivElement | null>(null);
 
-  const panelLayoutVariant =
-    typeof gridCols === "number" && gridCols >= 2 ? ("grid" as const) : ("stack" as const);
+  const panelLayoutVariant = viewportCompact
+    ? ("stack" as const)
+    : typeof gridCols === "number" && gridCols >= 2
+      ? ("grid" as const)
+      : ("stack" as const);
   const isMobileStack = panelLayoutVariant === "stack";
 
   const availableMetricIds = useMemo(() => {
@@ -142,14 +156,63 @@ export function FarmMapControllerDetail({
     [controllers, selectedKey],
   );
 
+  const sheetPickerReadings = useMemo(
+    () => readings,
+    [readings],
+  );
+
+  const syncSelectedReadingKey = (readingKey: string | null) => {
+    onSelectedReadingKeyChange?.(readingKey);
+  };
+
+  const resolveControllerKey = useCallback(
+    (readingKey: string): string | null => {
+      const fromReading = controllerKeyForReadingKey(readings, readingKey);
+      if (fromReading && controllers.some((c) => c.key === fromReading)) {
+        return fromReading;
+      }
+      return controllers.some((c) => c.key === readingKey) ? readingKey : null;
+    },
+    [controllers, readings],
+  );
+
+  useEffect(() => {
+    if (!selectedReadingKey) return;
+    const ctrlKey = resolveControllerKey(selectedReadingKey);
+    if (!ctrlKey) return;
+    setSelectedKey(ctrlKey);
+    if (isMobileStack) {
+      setGraphOpen(true);
+      setSettingsOpen(false);
+    }
+  }, [selectedReadingKey, resolveControllerKey, isMobileStack]);
+
+  const selectControllerFromPicker = (readingKey: string) => {
+    const ctrlKey = resolveControllerKey(readingKey);
+    if (ctrlKey) {
+      setSelectedKey(ctrlKey);
+      syncSelectedReadingKey(readingKey);
+      if (isMobileStack) {
+        setGraphOpen(true);
+        setSettingsOpen(false);
+      }
+      return;
+    }
+    syncSelectedReadingKey(readingKey);
+    onPickerNavigateReading?.(readingKey);
+  };
+
   const selectController = (key: string) => {
     if (selectedKey === key) {
       setSelectedKey(null);
       setGraphOpen(false);
       setSettingsOpen(false);
+      syncSelectedReadingKey(null);
       return;
     }
     setSelectedKey(key);
+    const reading = controllers.find((c) => c.key === key)?.reading;
+    syncSelectedReadingKey(reading?.key ?? null);
     if (isMobileStack) {
       setGraphOpen(true);
       setSettingsOpen(false);
@@ -161,12 +224,18 @@ export function FarmMapControllerDetail({
 
   const handleSheetPageChange = (page: ControllerMobileSheetPage) => {
     if (page === 0) {
-      setSettingsOpen(false);
-      setGraphOpen(true);
-    } else {
-      setGraphOpen(false);
-      setSettingsOpen(true);
+      setSettingsOpen((settingsOpen) => {
+        if (!settingsOpen) return settingsOpen;
+        return false;
+      });
+      setGraphOpen((graphOpen) => (graphOpen ? graphOpen : true));
+      return;
     }
+    setGraphOpen((graphOpen) => {
+      if (!graphOpen) return graphOpen;
+      return false;
+    });
+    setSettingsOpen((settingsOpen) => (settingsOpen ? settingsOpen : true));
   };
 
   const count = controllers.length;
@@ -315,14 +384,6 @@ export function FarmMapControllerDetail({
           </div>
           ) : null}
 
-          {!selected ? (
-          <p className="mt-2 text-[0.65rem] text-muted-foreground">
-            {isMobileStack
-              ? "그래프를 클릭하면 하단 sheet에서 컨트롤러(추이 포함)와 설정을 좌우로 볼 수 있습니다."
-              : "그래프를 클릭하면 해당 컨트롤러의 목록 상세가 아래에 열립니다."}
-          </p>
-          ) : null}
-
           {selected ? (
             selected.reading ? (
               <div ref={controllerCardRef} className="farm-heat-morph mt-3 space-y-3">
@@ -353,6 +414,13 @@ export function FarmMapControllerDetail({
                     setSettingsOpen((v) => !v);
                   }}
                   onSheetPageChange={isMobileStack ? handleSheetPageChange : undefined}
+                  sheetPickerReadings={
+                    isMobileStack ? sheetPickerReadings : undefined
+                  }
+                  onSheetPickerSelect={
+                    isMobileStack ? selectControllerFromPicker : undefined
+                  }
+                  showSheetPickerAffiliation={isMobileStack}
                 />
                 {!isMobileStack ? (
                   <BarnListGraphPanel

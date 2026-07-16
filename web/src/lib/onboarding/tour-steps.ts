@@ -21,7 +21,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 4;
+export const TOUR_VERSION = 5;
 
 /** 자동 시작 전 DOM 준비 확인 — 첫 축사 카드. */
 export const TOUR_READY_SELECTOR = '[data-tour-id="barn-card"]';
@@ -61,7 +61,7 @@ export type TourStepDef = {
   /** 스텝 진입 시 그리드에 보낼 액션(확대 상세 열기/닫기). */
   gridAction?: TourGridAction;
   /** 툴팁 하단 확장 콘텐츠. */
-  extra?: "anatomy" | "pills";
+  extra?: "anatomy" | "pills" | "header-icons";
   /** 대상이 없으면(Admin 전국 KPI 등) 즉시 건너뜀. */
   skipIfMissing?: boolean;
   /** 모바일 스크롤 정책. */
@@ -151,12 +151,13 @@ export const TOUR_STEPS: TourStepDef[] = [
     extra: "pills",
   },
   {
-    id: "header-connectivity",
-    selector: '[data-tour-id="header-connectivity"]',
+    id: "header-actions",
+    selector: '[data-tour-id="header-actions"]',
     view: "list",
-    skipIfMissing: true,
-    title: "컨트롤러 연결",
+    scrollPolicy: "none",
+    title: "상단 헤더 아이콘",
     body:
-      "WiFi 아이콘과 숫자는 등록된 컨트롤러 수입니다. 오프라인이 있으면 아이콘과 테두리가 붉게 표시됩니다. 마우스를 올리면 등록·오프라인 대수를 확인할 수 있습니다. 알람은 우측 벨 아이콘에서 확인합니다. 투어는 여기까지입니다 — 계정 메뉴에서 「기능 안내 다시 보기」로 언제든 다시 볼 수 있습니다.",
+      "오른쪽 상단 아이콘으로 화면 테마, 컨트롤러 연결, 알림, 계정 메뉴를 이용합니다. 각 아이콘의 역할은 아래와 같습니다. 투어는 여기까지입니다 — 계정 메뉴에서 「기능 안내 다시 보기」로 언제든 다시 볼 수 있습니다.",
+    extra: "header-icons",
   },
 ];

@@ -33,7 +33,7 @@ import {
   markOnboardingTourDoneAction,
   shouldShowOnboardingTourAction,
 } from "@/app/(dashboard)/farm/onboarding-actions";
-import { GaugeAnatomy, PanelPillsGuide } from "@/components/onboarding/tour-guides";
+import { GaugeAnatomy, HeaderIconsGuide, PanelPillsGuide } from "@/components/onboarding/tour-guides";
 import {
   getTourViewport,
   getTourPortalBounds,
@@ -655,6 +655,11 @@ function TourOverlay({
         {step.extra === "pills" ? (
           <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="pills">
             <PanelPillsGuide compact={mobileSheet} />
+          </div>
+        ) : null}
+        {step.extra === "header-icons" ? (
+          <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="header-icons">
+            <HeaderIconsGuide compact={mobileSheet} />
           </div>
         ) : null}
 

@@ -452,15 +452,13 @@ export function SeverityHeatmap({
             )}
           </div>
         </div>
-      ) : (
+      ) : external && worst === "normal" && !sel ? null : (
         <div className="mt-1 flex items-center gap-1 text-[0.55rem] leading-none text-muted-foreground">
           <span className="inline-block size-1.5 rounded-sm" style={{ background: SEV_COLOR[worst] }} />
           {external && sel
             ? `${metrics.find((m) => m.id === sel)?.label ?? ""} 그래프 표시 중 · 다른 행 클릭 시 전환`
             : worst === "normal"
-              ? external
-                ? "정상 · 행 클릭 시 그래프"
-                : "정상"
+              ? "정상"
               : `${SEV_LABEL[worst]} 감지 · 셀 클릭 시 ${external ? "그래프" : "컨트롤러별"} 확대`}
         </div>
       )}

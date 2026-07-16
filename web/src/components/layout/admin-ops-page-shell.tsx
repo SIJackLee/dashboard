@@ -20,7 +20,6 @@ export async function AdminOpsPageShell({ children }: Props) {
       <TopBar
         overview={ctx.overview}
         alarms={[]}
-        weatherWarnings={[]}
         farmLocationOptions={[]}
         canEditLocation={false}
         user={{

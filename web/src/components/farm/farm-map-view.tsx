@@ -62,7 +62,7 @@ export function FarmMapView({
   return (
     <div className="min-w-0">
       <SectionCard
-        title={sectionTitle ?? "농장 지도"}
+        title={sectionTitle}
         description={undefined}
         size={sectionSize}
         className="overflow-hidden"

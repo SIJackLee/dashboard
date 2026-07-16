@@ -14,8 +14,5 @@ max_rows = 1000
 [functions.decode-batch]
 verify_jwt = false
 
-[functions.fetch-weather-warn]
-verify_jwt = false
-
 [studio]
 enabled = true

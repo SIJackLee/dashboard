@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import type { BarnMapSnapshot } from "@/lib/data/iot";
+import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { getStallTypeName, normalizeStallTyCode } from "@/lib/data/stall-type";
 import type {
@@ -32,6 +32,33 @@ import { GRAPH_BARS } from "@/lib/farm/trend-display-buckets";
 export { GRAPH_BARS };
 
 export type BarnGraphExpanded = { barnId: string; metricId: string };
+
+/** picker `reading.key` → 상세 패널 `controllerKey` */
+export function controllerKeyForReadingKey(
+  readings: BarnReading[],
+  readingKey: string,
+): string | null {
+  const reading = readings.find((r) => r.key === readingKey);
+  return reading?.controllerKey ?? null;
+}
+
+/** 컨트롤러 판독값이 속한 축사 카드 id */
+export function barnIdForReading(
+  barns: BarnMapSnapshot[],
+  reading: BarnReading,
+): string | null {
+  for (const b of barns) {
+    const entry = parseBarnCatalogKey(b.meta.id);
+    if (
+      normalizeStallTyCode(entry?.stallTyCode ?? "") ===
+        normalizeStallTyCode(reading.stallTyCode ?? "") &&
+      (b.meta.stallNo ?? "") === (reading.stallNo ?? "")
+    ) {
+      return b.meta.id;
+    }
+  }
+  return null;
+}
 
 type Options = {
   barns: BarnMapSnapshot[];
@@ -142,7 +169,6 @@ export function useBarnGraphs({
         <SeverityHeatmap
           metrics={withData}
           bars={GRAPH_BARS[graphPeriod]}
-          caption={`축사 평균 · ${trendPeriodLabel(graphPeriod)}`}
           periodLabel={trendPeriodLabel(graphPeriod)}
           controllerCount={controllerCount > 0 ? controllerCount : undefined}
           labelMode={heatmapLabelMode}

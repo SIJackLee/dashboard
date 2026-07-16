@@ -1,0 +1,168 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ThermoCommand } from "@/lib/data/commands";
+import { commandStatusLabel } from "@/lib/controllers/controller-settings";
+import type { CommandPipelineFlash } from "@/components/controllers/use-command-pipeline-tracker";
+import type { CommandPipelineOverlayState } from "@/components/farm/command-pipeline-overlay";
+import {
+  pipelineDetailMessage,
+  pipelineStatusDetail,
+} from "@/lib/ui/controller-labels";
+
+type Args = {
+  isSaving: boolean;
+  command: ThermoCommand | null;
+  liveConfirmed: boolean;
+  flash: CommandPipelineFlash | null;
+  panelError: string | null;
+};
+
+export function useSettingsApplyOverlay({
+  isSaving,
+  command,
+  liveConfirmed,
+  flash,
+  panelError,
+}: Args) {
+  const [dismissed, setDismissed] = useState(false);
+  const [alarmSavedFlash, setAlarmSavedFlash] = useState(false);
+  const prevSavingRef = useRef(isSaving);
+  const commandIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (command?.id && command.id !== commandIdRef.current) {
+      commandIdRef.current = command.id;
+      setDismissed(false);
+    }
+  }, [command?.id]);
+
+  useEffect(() => {
+    const wasSaving = prevSavingRef.current;
+    prevSavingRef.current = isSaving;
+    if (wasSaving && !isSaving && !command) {
+      setAlarmSavedFlash(true);
+      setDismissed(false);
+      const t = window.setTimeout(() => setAlarmSavedFlash(false), 2800);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, [isSaving, command]);
+
+  const dismiss = useCallback(() => {
+    setDismissed(true);
+    setAlarmSavedFlash(false);
+  }, []);
+
+  const overlay = useMemo((): CommandPipelineOverlayState => {
+    if (isSaving) {
+      return {
+        visible: true,
+        phase: "loading",
+        title: "적용 중…",
+        detail: "설정을 저장하고 있습니다.",
+        autoDismiss: false,
+      };
+    }
+
+    if (dismissed) {
+      return { visible: false, phase: "info", title: "", autoDismiss: true };
+    }
+
+    if (panelError) {
+      return {
+        visible: true,
+        phase: "error",
+        title: "적용 실패",
+        detail: panelError,
+        autoDismiss: true,
+      };
+    }
+
+    if (liveConfirmed) {
+      return {
+        visible: true,
+        phase: "success",
+        title: "현장 반영 확인",
+        detail:
+          flash?.text ?? "LIVE 설정값이 명령과 일치합니다.",
+        autoDismiss: true,
+      };
+    }
+
+    if (alarmSavedFlash) {
+      return {
+        visible: true,
+        phase: "success",
+        title: "저장 완료",
+        detail: "알람·설정이 적용되었습니다.",
+        autoDismiss: true,
+      };
+    }
+
+    if (command?.status === "failed") {
+      return {
+        visible: true,
+        phase: "error",
+        title: commandStatusLabel(command.status),
+        detail: pipelineDetailMessage(command.status, command.errorMsg),
+        autoDismiss: true,
+      };
+    }
+
+    if (command && (command.status === "pending" || command.status === "sent")) {
+      return {
+        visible: true,
+        phase: "info",
+        title: commandStatusLabel(command.status),
+        detail: pipelineStatusDetail(
+          command.status,
+          command.errorMsg,
+          liveConfirmed,
+        ),
+        autoDismiss: false,
+      };
+    }
+
+    if (command?.status === "applied" && !liveConfirmed) {
+      return {
+        visible: true,
+        phase: "info",
+        title: commandStatusLabel(command.status),
+        detail: pipelineStatusDetail(
+          command.status,
+          command.errorMsg,
+          liveConfirmed,
+        ),
+        autoDismiss: false,
+      };
+    }
+
+    if (flash) {
+      return {
+        visible: true,
+        phase:
+          flash.tone === "error"
+            ? "error"
+            : flash.tone === "ok"
+              ? "success"
+              : "info",
+        title: command ? commandStatusLabel(command.status) : "상태",
+        detail: flash.text,
+        autoDismiss: flash.tone !== "info",
+      };
+    }
+
+    return { visible: false, phase: "info", title: "", autoDismiss: true };
+  }, [
+    alarmSavedFlash,
+    command,
+    dismissed,
+    flash,
+    isSaving,
+    liveConfirmed,
+    panelError,
+  ]);
+
+  return { overlay, dismiss };
+}

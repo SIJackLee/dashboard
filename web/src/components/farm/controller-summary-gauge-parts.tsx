@@ -6,7 +6,7 @@ import {
 } from "@/lib/farm/controller-summary-display";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
-import { Bell, Droplets, Fan, Thermometer } from "lucide-react";
+import { Bell, Droplets, Thermometer } from "lucide-react";
 
 type GaugeMetricProps = {
   label: "온도" | "습도";
@@ -99,7 +99,7 @@ function BellBadge({
   );
 }
 
-function FanBadge({
+function PercentEdgeBadge({
   value,
   unit,
   ariaLabel,
@@ -111,17 +111,20 @@ function FanBadge({
   compact?: boolean;
 }) {
   return (
-    <ValuePillBadge
-      icon={Fan}
-      label={`${value}${unit}`}
-      accentClass="text-sky-600 dark:text-sky-400"
-      ariaLabel={ariaLabel}
-      compact={compact}
-    />
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-md border border-border bg-muted/60 font-bold tabular-nums leading-none text-sky-600 dark:text-sky-400",
+        compact ? "h-5 min-w-8 px-0.5 text-[10px]" : "h-[22px] min-w-8 px-1 text-[11px]",
+      )}
+      aria-label={ariaLabel}
+    >
+      {value}
+      {unit}
+    </div>
   );
 }
 
-/** 환기안1 — 채널 칸 하단 FanBadge flanking + range bar */
+/** 환기 — 최저·최고 % pill + range bar */
 export function VentGaugeV1({
   min,
   max,
@@ -136,7 +139,7 @@ export function VentGaugeV1({
   const span = Math.max(max - min, 0);
   return (
     <div className={cn("flex min-w-0 items-center gap-1 sm:gap-1.5", className)}>
-      <FanBadge
+      <PercentEdgeBadge
         value={String(min)}
         unit="%"
         ariaLabel={`최저환기 ${min}%`}
@@ -156,7 +159,7 @@ export function VentGaugeV1({
           aria-hidden
         />
       </div>
-      <FanBadge
+      <PercentEdgeBadge
         value={String(max)}
         unit="%"
         ariaLabel={`최고환기 ${max}%`}

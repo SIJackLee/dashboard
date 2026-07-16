@@ -4,8 +4,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
-import { useRouter } from "next/navigation";
-
 import { sendThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
 
 import type { ControllerReading } from "@/lib/data/iot";
@@ -138,8 +136,6 @@ export function useControllerPanel(
   onCommandRegistered?: (command: import("@/lib/data/commands").ThermoCommand) => void
 
 ) {
-
-  const router = useRouter();
 
   const [pending, startTransition] = useTransition();
 
@@ -450,17 +446,7 @@ export function useControllerPanel(
 
         onCommandRegistered?.(result.command);
 
-        setMessage({
-
-          tone: "ok",
-
-          text: "명령이 등록되었습니다. 하단 상태 배너에서 전송·적용을 확인하세요.",
-
-        });
-
         setHasEdited(false);
-
-        router.refresh();
 
       } else {
 
@@ -470,7 +456,7 @@ export function useControllerPanel(
 
     });
 
-  }, [activeChannel, canCommand, channelEqpmnCode, draft, knownSettings, onCommandRegistered, router, target]);
+  }, [activeChannel, canCommand, channelEqpmnCode, draft, knownSettings, onCommandRegistered, target]);
 
 
 

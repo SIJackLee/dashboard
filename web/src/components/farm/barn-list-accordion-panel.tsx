@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Fan, Loader2, Thermometer } from "lucide-react";
+import { Loader2, Thermometer } from "lucide-react";
 import {
   AlarmThresholdForm,
   type AlarmThresholdHeaderState,
@@ -11,12 +11,13 @@ import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slid
 import { useControllerDetail } from "@/components/controllers/use-controller-detail";
 import { useControllerPanel } from "@/components/controllers/use-controller-panel";
 import { useCommandPipelineTracker } from "@/components/controllers/use-command-pipeline-tracker";
+import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
+import { useSettingsApplyOverlay } from "@/components/farm/use-settings-apply-overlay";
 import { SettingsCollapsibleSection } from "@/components/farm/settings-collapsible-section";
 import type { BarnReading } from "@/lib/data/iot";
 import type { ThermoCommand } from "@/lib/data/commands";
 import {
   type ControllerThermoSettings,
-  commandStatusLabel,
   resolveThermoSettings,
   thermoFromDecoded,
 } from "@/lib/controllers/controller-settings";
@@ -31,7 +32,6 @@ import { farmKeyId } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { isReadingOnline } from "@/lib/data/reading-display";
-import { pipelineStatusDetail } from "@/lib/ui/controller-labels";
 import { cn } from "@/lib/utils";
 
 /** 목록 카드 설정 패널 — 그래프 패널 차트 라벨과 동일 스케일 */
@@ -66,55 +66,6 @@ function formatControlCollapsedSummary(values: {
   maxVent: number;
 }): string {
   return `${values.setpoint}±${values.deviation}℃ · 환기 ${values.minVent}–${values.maxVent}%`;
-}
-
-function ListStatusBanner({
-  command,
-  liveConfirmed,
-  flash,
-}: {
-  command: ThermoCommand | null;
-  liveConfirmed: boolean;
-  flash: { tone: "ok" | "info" | "error"; text: string } | null;
-}) {
-  if (!command && !flash) return null;
-  const detail = command
-    ? pipelineStatusDetail(command.status, command.errorMsg, liveConfirmed)
-    : null;
-  return (
-    <div
-      className={cn(
-        "rounded-md border px-2.5 py-1.5 text-left",
-        liveConfirmed || command?.status === "applied"
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : command?.status === "sent"
-            ? "border-sky-200 bg-sky-50 text-sky-800"
-            : command?.status === "pending"
-              ? "border-amber-200 bg-amber-50 text-amber-800"
-              : command?.status === "failed" || flash?.tone === "error"
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-border bg-muted/40 text-muted-foreground",
-      )}
-    >
-      {command ? (
-        <p className="text-xs font-medium">
-          {liveConfirmed ? "현장 반영 확인" : commandStatusLabel(command.status)}
-          <span className="ml-1 font-normal tabular-nums opacity-80">
-            {command.setpointTemp}℃
-          </span>
-        </p>
-      ) : null}
-      {liveConfirmed ? (
-        <p className="text-[11px] leading-snug">
-          LIVE 설정값이 명령과 일치합니다.
-        </p>
-      ) : detail ? (
-        <p className="text-[11px] leading-snug">{detail}</p>
-      ) : flash ? (
-        <p className="text-[11px] leading-snug">{flash.text}</p>
-      ) : null}
-    </div>
-  );
 }
 
 export function BarnListAccordionPanel({
@@ -244,6 +195,22 @@ export function BarnListAccordionPanel({
     thresholdHeader?.onApplyDefaults();
   };
 
+  const panelError =
+    panel.message?.tone === "error" ? panel.message.text : null;
+
+  const { overlay, dismiss: dismissOverlay } = useSettingsApplyOverlay({
+    isSaving,
+    command: pipeline.command,
+    liveConfirmed: pipeline.liveConfirmed,
+    flash: pipeline.flash,
+    panelError,
+  });
+
+  const handleOverlayDismiss = useCallback(() => {
+    dismissOverlay();
+    pipeline.clearFlash();
+  }, [dismissOverlay, pipeline]);
+
   const toggleSection = (id: SettingsSectionId) => {
     setOpenSection((prev) => (prev === id ? null : id));
   };
@@ -300,7 +267,14 @@ export function BarnListAccordionPanel({
       </div>
       <ThresholdRangeSlider
         title="환기"
-        icon={<Fan className="size-4 text-sky-600" aria-hidden />}
+        icon={
+          <span
+            className="inline-flex size-4 items-center justify-center text-sm font-bold text-sky-600"
+            aria-hidden
+          >
+            %
+          </span>
+        }
         min={0}
         max={100}
         step={5}
@@ -374,33 +348,24 @@ export function BarnListAccordionPanel({
           {isSaving ? "적용 중…" : "적용"}
         </button>
       </div>
-      {saveDisabled && saveDisabledReason ? (
-        <p className="text-xs text-muted-foreground">{saveDisabledReason}</p>
-      ) : null}
-      <ListStatusBanner
-        command={pipeline.command}
-        liveConfirmed={pipeline.liveConfirmed}
-        flash={pipeline.flash}
-      />
       {!canCommand ? (
         <p className="text-xs text-amber-700">명령 권한이 없어 조작이 제한됩니다.</p>
-      ) : null}
-      {panel.message ? (
-        <p
-          className={cn(
-            "text-xs",
-            panel.message.tone === "ok" ? "text-emerald-700" : "text-red-600",
-          )}
-        >
-          {panel.message.text}
-        </p>
       ) : null}
     </div>
   );
 
+  const overlayNode = (
+    <CommandPipelineOverlay
+      {...overlay}
+      onDismiss={handleOverlayDismiss}
+    />
+  );
+
   if (collapsibleSections) {
     return (
-      <div
+      <>
+        {overlayNode}
+        <div
         className="bg-muted/20"
         data-audit-region="barn-list-accordion-panel"
         data-settings-layout="collapsible"
@@ -423,11 +388,14 @@ export function BarnListAccordionPanel({
           <div className="space-y-2 border-t pt-3">{footer}</div>
         </div>
       </div>
+      </>
     );
   }
 
   return (
-    <div
+    <>
+      {overlayNode}
+      <div
       className="border-t bg-muted/20 px-3 py-3 sm:px-4"
       data-audit-region="barn-list-accordion-panel"
       onClick={(e) => e.stopPropagation()}
@@ -442,5 +410,6 @@ export function BarnListAccordionPanel({
       {settingsSections}
       <div className="mt-3 space-y-2 border-t pt-3">{footer}</div>
     </div>
+    </>
   );
 }

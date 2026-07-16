@@ -32,6 +32,7 @@ export function ThemeToggle({ className }: { className?: string }) {
     <button
       type="button"
       className={cn(dashboardUi.topHeaderActionBtn, className)}
+      data-tour-id="header-theme"
       aria-label={mode === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
       title={mode === "dark" ? "라이트 모드" : "다크 모드"}
       onClick={() => {

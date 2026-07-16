@@ -10,7 +10,7 @@ import {
   type TrendPeriodData,
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
-import { GRAPH_BARS, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
+import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { cn } from "@/lib/utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "./farm-map-bulk-apply";
@@ -68,6 +68,29 @@ export function FarmMapMobileStage({
       graphPeriod,
       enabled: graphMode,
     });
+  const [detailSelectedReadingKey, setDetailSelectedReadingKey] = useState<
+    string | null
+  >(null);
+
+  const handleDetailClose = useCallback(() => {
+    setExpanded(null);
+    setDetailSelectedReadingKey(null);
+  }, [setExpanded]);
+
+  const handlePickerNavigateReading = useCallback(
+    (readingKey: string) => {
+      const allReadings = controller?.readings ?? [];
+      const reading = allReadings.find((r) => r.key === readingKey);
+      if (!reading || !expanded) return;
+      const targetBarnId = barnIdForReading(barns, reading);
+      if (!targetBarnId) return;
+      setDetailSelectedReadingKey(readingKey);
+      if (targetBarnId !== expanded.barnId) {
+        setExpanded((e) => (e ? { ...e, barnId: targetBarnId } : e));
+      }
+    },
+    [barns, controller?.readings, expanded, setExpanded],
+  );
 
   useFarmTourGridAction({ barns, metricIdsByBarnId, setExpanded });
 
@@ -102,10 +125,20 @@ export function FarmMapMobileStage({
             setStatusToast(formatBulkApplyToast(result));
             if (!hubMode) router.refresh();
           }}
+          trailing={
+            graphMode && barns.length > 0 ? (
+              <TrendPeriodToggle
+                value={graphPeriod}
+                onChange={setGraphPeriod}
+                density="map"
+                tourTarget
+              />
+            ) : undefined
+          }
         />
       ) : null}
 
-      {graphMode && barns.length > 0 ? (
+      {!bulkEnabled && graphMode && barns.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
           <TrendPeriodToggle
             value={graphPeriod}
@@ -165,7 +198,10 @@ export function FarmMapMobileStage({
                   onChangeMetric={(metricId) =>
                     setExpanded((e) => (e ? { ...e, metricId } : e))
                   }
-                  onClose={() => setExpanded(null)}
+                  onClose={handleDetailClose}
+                  selectedReadingKey={detailSelectedReadingKey}
+                  onSelectedReadingKeyChange={setDetailSelectedReadingKey}
+                  onPickerNavigateReading={handlePickerNavigateReading}
                 />
               ) : null}
             </div>

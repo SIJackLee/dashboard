@@ -31,7 +31,7 @@ export function AppHeaderAccount({
   canEditLocation = false,
 }: Props) {
   return (
-    <div className="flex shrink-0 items-center gap-2 md:gap-3">
+    <div className="flex shrink-0 items-center gap-1.5 md:gap-3">
       <AccountMenu
         user={user}
         receipts={receipts}
@@ -39,7 +39,7 @@ export function AppHeaderAccount({
         farmOptions={farmOptions}
         canEditLocation={canEditLocation}
       />
-      <form action={signOut}>
+      <form action={signOut} className="hidden shrink-0 md:block">
         <button
           type="submit"
           className={cn(dashboardUi.topLogoutBtn, "whitespace-nowrap")}

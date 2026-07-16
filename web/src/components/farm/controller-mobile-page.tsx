@@ -10,7 +10,7 @@ import type {
 import { BarnMotorTrendPanel } from "@/components/farm/barn-motor-trend-panel";
 
 type Props = {
-  /** 게이지·채널·환기 (hideMotorExpand 적용) */
+  /** 게이지·채널 (hideMotorExpand — 하단 split 추이가 기본 표시) */
   metricsSection: ReactNode;
   reading: BarnReading;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
@@ -18,7 +18,7 @@ type Props = {
   thermoSettings?: Record<string, ControllerThermoSettings>;
 };
 
-/** 모바일 sheet page[0] — 상단 컨트롤러 요약 + 하단 채널 모터 추이. */
+/** 모바일 sheet page[0] — 상단 컨트롤러 요약 + 하단 채널 A/B/C 모터 추이(기본 표시). */
 export function ControllerMobilePage({
   metricsSection,
   reading,

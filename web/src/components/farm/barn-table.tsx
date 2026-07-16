@@ -31,9 +31,12 @@ import {
   toggleBarnListGraph,
   toggleBarnListSettings,
   setBarnListSheetPage,
+  isBarnListMobileToolbarSheetMode,
+  barnListToolbarSheetInitialPage,
   type BarnListPanelSets,
   type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
 import {
   type TrendPeriodId,
@@ -90,7 +93,7 @@ export function BarnTable({
   initialSp,
   initialListMode,
   initialListLayout,
-  compactHeader = false,
+  compactHeader: _compactHeader = false,
   hubMode = false,
   onHubUrlChange,
   liveRefreshManaged = false,
@@ -101,6 +104,7 @@ export function BarnTable({
   onTrendPeriodChange,
 }: Props) {
   const router = useRouter();
+  const compact = useHydrationSafeDashboardCompact();
   const liveRefresh = useFarmLiveRefreshOptional();
   const searchParams = useSearchParams();
   const [hubParamsTick, setHubParamsTick] = useState(0);
@@ -124,6 +128,9 @@ export function BarnTable({
   const [panelSets, setPanelSets] = useState<BarnListPanelSets>(
     EMPTY_BARN_LIST_PANEL_SETS
   );
+  const [toolbarSheetKey, setToolbarSheetKey] = useState<string | null>(null);
+  const [toolbarSheetPage, setToolbarSheetPage] =
+    useState<ControllerMobileSheetPage>(0);
   const [statusToast, setStatusToast] = useState<string | null>(null);
 
   const onListRefresh = useCallback(() => {
@@ -190,13 +197,18 @@ export function BarnTable({
 
   const effectiveListMode: BarnListViewMode = bulkMode ? "controller" : listMode;
 
+  const mobileToolbarSheetMode = isBarnListMobileToolbarSheetMode(
+    effectiveListMode,
+    compact,
+    bulkMode,
+  );
+
   const graphToolbarMode = effectiveListMode === "graph";
   const graphPanelsOpen = panelSets.graphKeys.size > 0;
+  const hasTrendToolbarRow = graphToolbarMode || graphPanelsOpen;
   const settingsPanelsOpen = panelSets.settingsKeys.size > 0;
   const farmKey = rows[0]?.farmKey ?? null;
-  const trendEnabled =
-    Boolean(farmKey) &&
-    (effectiveListMode === "graph" || graphPanelsOpen);
+  const trendEnabled = Boolean(farmKey) && !bulkMode;
 
   const {
     data: lazyControllerTrend,
@@ -303,7 +315,23 @@ export function BarnTable({
 
   const handleSheetPageChange = useCallback(
     (key: string, page: ControllerMobileSheetPage) => {
-      setPanelSets((prev) => setBarnListSheetPage(prev, key, page));
+      setPanelSets((prev) => {
+        if (
+          page === 0 &&
+          prev.graphKeys.has(key) &&
+          !prev.settingsKeys.has(key)
+        ) {
+          return prev;
+        }
+        if (
+          page === 1 &&
+          prev.settingsKeys.has(key) &&
+          !prev.graphKeys.has(key)
+        ) {
+          return prev;
+        }
+        return setBarnListSheetPage(prev, key, page);
+      });
     },
     [],
   );
@@ -312,6 +340,24 @@ export function BarnTable({
     if (isFilterAll(filterSp)) return rows;
     return rows.filter((r) => r.stallTyCode === filterSp);
   }, [rows, filterSp]);
+
+  useEffect(() => {
+    if (!mobileToolbarSheetMode) {
+      setToolbarSheetKey(null);
+      return;
+    }
+    setToolbarSheetPage(barnListToolbarSheetInitialPage(effectiveListMode));
+    setToolbarSheetKey((prev) => {
+      if (prev && filteredRows.some((r) => r.key === prev)) return prev;
+      return filteredRows[0]?.key ?? null;
+    });
+  }, [mobileToolbarSheetMode, effectiveListMode, filteredRows]);
+
+  useEffect(() => {
+    if (!mobileToolbarSheetMode || !toolbarSheetKey) return;
+    if (filteredRows.some((r) => r.key === toolbarSheetKey)) return;
+    setToolbarSheetKey(filteredRows[0]?.key ?? null);
+  }, [filteredRows, mobileToolbarSheetMode, toolbarSheetKey]);
 
   const visibleSpCodes = useMemo(
     () => stallTyCodesFromReadings(filteredRows),
@@ -358,10 +404,34 @@ export function BarnTable({
     if (bulkMode) return;
     setListMode(mode);
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+    setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
     replaceListParams({
       listMode: mode === "controller" ? null : mode,
     });
   };
+
+  const handleToolbarSheetKeyChange = useCallback(
+    (key: string, page?: ControllerMobileSheetPage) => {
+      setToolbarSheetKey(key);
+      if (page !== undefined) setToolbarSheetPage(page);
+    },
+    [],
+  );
+
+  const handleToolbarSheetPageChange = useCallback(
+    (page: ControllerMobileSheetPage) => {
+      setToolbarSheetPage((prev) => (prev === page ? prev : page));
+    },
+    [],
+  );
+
+  const handleToolbarSheetClose = useCallback(() => {
+    if (bulkMode) return;
+    setListMode("controller");
+    setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+    setToolbarSheetKey(null);
+    replaceListParams({ listMode: null });
+  }, [bulkMode, replaceListParams]);
 
   const toggleSp = useCallback((sp: string) => {
     const code = normalizeStallTyCode(sp);
@@ -404,45 +474,49 @@ export function BarnTable({
     [hubMode, liveRefresh, liveRefreshManaged, refreshList],
   );
 
+  const listToolbar = (
+    <div className="flex flex-wrap items-center gap-2">
+      <SimpleSelect
+        placeholder={FILTER_ALL_LABEL}
+        options={spOptions}
+        value={filterSp}
+        onValueChange={handleSpChange}
+      />
+      <PageActionButton
+        icon={
+          listLayout === "group" ? (
+            <LayoutGrid className={dashboardUi.iconSm} aria-hidden />
+          ) : (
+            <LayoutList className={dashboardUi.iconSm} aria-hidden />
+          )
+        }
+        onClick={toggleListLayout}
+        aria-label={listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+      >
+        {listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+      </PageActionButton>
+      <BarnListModeToolbar
+        value={effectiveListMode}
+        onChange={handleListModeChange}
+      />
+    </div>
+  );
+
+  /** canCommand 없으면 CardHeader, 있으면 bulk bar trailing / bulk on 시 숨김 */
+  const toolbarInBulkBar = bulkEnabled && !bulkMode;
+  const showHeaderToolbar = !bulkEnabled;
+
   return (
     <RefreshScopeShell
       busy={listRefreshRing}
       showProgress={listRefreshVisible}
     >
       <SectionCard
-        title={compactHeader ? "축사 목록 (요약)" : "축사 목록"}
         className={cn(
           listRefreshRing &&
             "ring-2 ring-emerald-500/25 transition-shadow duration-300",
         )}
-        action={
-        <div className="flex flex-wrap items-center gap-2">
-          <SimpleSelect
-            placeholder={FILTER_ALL_LABEL}
-            options={spOptions}
-            value={filterSp}
-            onValueChange={handleSpChange}
-          />
-          <PageActionButton
-            icon={
-              listLayout === "group" ? (
-                <LayoutGrid className={dashboardUi.iconSm} aria-hidden />
-              ) : (
-                <LayoutList className={dashboardUi.iconSm} aria-hidden />
-              )
-            }
-            onClick={toggleListLayout}
-            disabled={bulkMode}
-          >
-            {listLayout === "group" ? "일반 보기" : "그룹별 보기"}
-          </PageActionButton>
-          <BarnListModeToolbar
-            value={effectiveListMode}
-            onChange={handleListModeChange}
-            disabled={bulkMode}
-          />
-        </div>
-        }
+        action={showHeaderToolbar ? listToolbar : undefined}
         contentClassName={bulkEnabled ? "flex flex-col gap-0 p-0" : undefined}
       >
       {bulkEnabled && controller ? (
@@ -454,9 +528,10 @@ export function BarnTable({
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
           onAfterApply={handleAfterBulkApply}
+          trailing={toolbarInBulkBar ? listToolbar : undefined}
         />
       ) : null}
-      {graphToolbarMode || graphPanelsOpen ? (
+      {hasTrendToolbarRow ? (
         <div
           className={cn(
             bulkEnabled && "px-4 md:px-6",
@@ -477,6 +552,7 @@ export function BarnTable({
       <div
         className={cn(
           bulkEnabled && "px-4 pb-4 md:px-6 md:pb-6",
+          bulkEnabled && !hasTrendToolbarRow && "pt-3 md:pt-4",
           bulkMode && "data-[bulk=list]",
         )}
         data-bulk={bulkMode ? "list" : undefined}
@@ -504,6 +580,12 @@ export function BarnTable({
           selectedSps={selectedSps}
           onToggleSp={toggleSp}
           staggerMount={staggerMount}
+          mobileToolbarSheetMode={mobileToolbarSheetMode}
+          toolbarSheetKey={toolbarSheetKey}
+          toolbarSheetPage={toolbarSheetPage}
+          onToolbarSheetKeyChange={handleToolbarSheetKeyChange}
+          onToolbarSheetPageChange={handleToolbarSheetPageChange}
+          onToolbarSheetClose={handleToolbarSheetClose}
         />
       </StaleWhileRevalidateShell>
       </div>
