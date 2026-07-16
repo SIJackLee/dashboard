@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import {
+  DEFAULT_TREND_PERIOD,
   type TrendControllerPeriodData,
   type TrendPeriodData,
   type TrendPeriodId,
@@ -25,6 +26,10 @@ type Props = {
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   controller?: ControllerGridData | null;
   hubMode?: boolean;
+  trendPeriod?: TrendPeriodId;
+  onTrendPeriodChange?: (period: TrendPeriodId) => void;
+  trendLoading?: boolean;
+  trendStale?: boolean;
 };
 
 /**
@@ -37,11 +42,18 @@ export function FarmMapMobileStage({
   controllerTrendByPeriod,
   controller,
   hubMode = false,
+  trendPeriod: trendPeriodProp,
+  onTrendPeriodChange,
+  trendLoading = false,
+  trendStale = false,
 }: Props) {
   const router = useRouter();
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
-  const [graphPeriod, setGraphPeriod] = useState<TrendPeriodId>("24h");
+  const [localGraphPeriod, setLocalGraphPeriod] =
+    useState<TrendPeriodId>(DEFAULT_TREND_PERIOD);
+  const graphPeriod = trendPeriodProp ?? localGraphPeriod;
+  const setGraphPeriod = onTrendPeriodChange ?? setLocalGraphPeriod;
   const [statusToast, setStatusToast] = useState<string | null>(null);
 
   const bulkEnabled = Boolean(controller?.canCommand);
@@ -119,6 +131,7 @@ export function FarmMapMobileStage({
               <FarmMapCard
                 snapshot={b}
                 layout="stack"
+                compact
                 graphContent={
                   graphMode ? graphByBarnId.get(b.meta.id) : undefined
                 }
@@ -146,6 +159,9 @@ export function FarmMapMobileStage({
                   canCommand={Boolean(controller?.canCommand)}
                   alarmSettings={controller?.alarmSettings}
                   controllerTrendByPeriod={controllerTrendByPeriod}
+                  onPeriodChange={setGraphPeriod}
+                  trendLoading={trendLoading}
+                  trendStale={trendStale}
                   onChangeMetric={(metricId) =>
                     setExpanded((e) => (e ? { ...e, metricId } : e))
                   }

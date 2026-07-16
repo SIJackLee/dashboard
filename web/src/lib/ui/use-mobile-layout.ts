@@ -1,20 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+import { isMobileLayoutActive } from "@/lib/ui/mobile-layout";
+import { subscribeViewportPreview } from "@/lib/ui/viewport-preview-store";
 
-/** Tailwind `md` 미만 — 모바일 전용 레이아웃 (768px+ 는 desktop hub) */
-const MD_MAX_QUERY = "(max-width: 767px)";
+function subscribeMobileLayout(onStoreChange: () => void): () => void {
+  const mq = window.matchMedia("(max-width: 767px)");
+  const onMq = () => onStoreChange();
+  mq.addEventListener("change", onMq);
+  const unsubPreview = subscribeViewportPreview(onStoreChange);
+  return () => {
+    mq.removeEventListener("change", onMq);
+    unsubPreview();
+  };
+}
 
+/** Tailwind `md` 미만 또는 모바일 뷰 토글 — 모바일 전용 레이아웃 */
 export function useMobileLayout(): boolean {
-  const [mobile, setMobile] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia(MD_MAX_QUERY);
-    const sync = () => setMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
-  }, []);
-
-  return mobile;
+  return useSyncExternalStore(
+    subscribeMobileLayout,
+    isMobileLayoutActive,
+    () => false,
+  );
 }

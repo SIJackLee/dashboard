@@ -24,10 +24,7 @@ export type ChannelPercents = Record<ChannelSlot, number | null>;
 
 const CHANNELS: ChannelSlot[] = ["A", "B", "C"];
 
-export function parseTrendPeriod(raw: string | null): TrendPeriodId {
-  if (raw === "24h" || raw === "7d" || raw === "30d") return raw;
-  return "24h";
-}
+export { parseTrendPeriodParam as parseTrendPeriod } from "@/lib/farm/farm-view-url";
 
 /** UI — EC 코드 대신 컨트롤러 번호만 (상위 트리에 축사 표시) */
 export function formatControllerNoLabel(eqpmnNo: string | undefined): string {

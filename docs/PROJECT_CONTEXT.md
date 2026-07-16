@@ -191,6 +191,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - 설정: `/settings?tab=barn` → 전송 데이터에 나타난 stallNo 중 **지도 위치·이름만** 지정 (`saveBarnMetasAction`)
 - 집계: `aggregateByBarn(readings, barnMetas)` — `(farmUid, moduleUid, stallNo)` 매칭, 평균값·최악 상태
 - 지도: `FarmMapView` — 4×4 CSS Grid, 게이트웨이 placeholder(중앙 상단), 축사 카드, 범례
+- **그래프 기간:** `?trendPeriod=24h|7d|30d` (기본 24h) — 그리드·목록 탭 공유. 그리드 히트맵=축사 평균(`farm_trend_history`), 목록/상세=TrendChart 컨트롤러 단위(`farm_trend_history_by_controller`).
 - 클릭: `/farm?tab=ops&…` 딥링크 (레거시 `/controllers`는 redirect)
 - 빈 상태: 축사 미설정 시 설정 탭 CTA
 - 모바일: `FarmMapList` 세로 카드 폴백

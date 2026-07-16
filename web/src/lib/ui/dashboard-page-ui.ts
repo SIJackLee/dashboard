@@ -75,7 +75,18 @@ export const dashboardUi = {
   topBadgeDot: "size-2.5 shrink-0 rounded-full",
   topBadgeIcon: "size-5 shrink-0",
   topIconBtn: "relative rounded-lg p-3 hover:bg-muted",
+  /** ThemeToggle · WiFi · 알람 — bordered 헤더 액션 버튼 */
+  topHeaderActionBtn:
+    "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:size-11",
+  topHeaderActionBtnAlert:
+    "border-red-300/60 bg-red-50/80 text-red-600 hover:text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400 dark:hover:text-red-400",
   topBellIcon: "size-7",
+  /** WiFi · 알람 bell 아이콘 (배지 오버레이용) */
+  topHeaderOverlayIcon: "size-7",
+  topHeaderCountBadge:
+    "absolute -right-0.5 -top-0.5 flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full px-0.5 text-[10px] font-bold leading-none tabular-nums text-white lg:min-h-[1.5rem] lg:min-w-[1.5rem] lg:px-1 lg:text-[1rem]",
+  topHeaderCountBadgeAlert: "bg-red-500",
+  topHeaderCountBadgeOk: "bg-emerald-600",
   topAlarmDot: "absolute right-1.5 top-1.5 size-2.5 rounded-full bg-red-500",
   topLogoutBtn:
     "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:px-4 md:py-2.5 md:text-2xl",
@@ -101,7 +112,10 @@ export const dashboardUi = {
     "flex-1 overflow-y-auto p-3 md:p-5 md:pb-5",
   /** 하단 모바일 네비 — fixed bar 높이 + safe-area */
   mobileBottomNav:
-    "fixed bottom-0 left-0 right-0 z-40 flex border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90",
+    "z-40 flex border-t bg-background/95 pb-safe backdrop-blur supports-[backdrop-filter]:bg-background/90",
+  mobileBottomNavFixed: "fixed bottom-0 left-0 right-0",
+  /** DashboardViewportShell 내부 — 폰 너비 컬럼에 맞춤 */
+  mobileBottomNavDocked: "absolute inset-x-0 bottom-0",
   /** 투어 bottom sheet — mobileBottomNav + 여백 */
   mobileBottomNavInset:
     "calc(4.5rem + env(safe-area-inset-bottom, 0px))",

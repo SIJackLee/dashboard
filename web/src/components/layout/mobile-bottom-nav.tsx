@@ -29,14 +29,12 @@ type Role = "admin" | "operator" | "viewer";
 
 
 type Props = {
-
   role: Role | null;
-
+  /** 폰 너비 컬럼 안에 고정 (뷰포트 전체 fixed 아님) */
+  docked?: boolean;
 };
 
-
-
-export function MobileBottomNav({ role }: Props) {
+export function MobileBottomNav({ role, docked = false }: Props) {
 
   const pathname = usePathname();
 
@@ -72,7 +70,13 @@ export function MobileBottomNav({ role }: Props) {
 
   return (
 
-    <nav className={dashboardUi.mobileBottomNav} aria-label="모바일 앱 메뉴">
+    <nav
+      className={cn(
+        dashboardUi.mobileBottomNav,
+        docked ? dashboardUi.mobileBottomNavDocked : dashboardUi.mobileBottomNavFixed,
+      )}
+      aria-label="모바일 앱 메뉴"
+    >
 
       <Link
 

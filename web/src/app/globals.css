@@ -4,6 +4,93 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 레이아웃 미리보기 — 브라우저 너비와 무관하게 Tailwind breakpoint 강제 */
+@variant sm {
+  html[data-viewport-preview="desktop"] & {
+    @slot;
+  }
+}
+
+@variant md {
+  html[data-viewport-preview="desktop"] & {
+    @slot;
+  }
+}
+
+@variant lg {
+  html[data-viewport-preview="desktop"] & {
+    @slot;
+  }
+}
+
+@variant xl {
+  html[data-viewport-preview="desktop"] & {
+    @slot;
+  }
+}
+
+@variant max-sm {
+  html[data-viewport-preview="mobile"] & {
+    @slot;
+  }
+}
+
+@variant max-md {
+  html[data-viewport-preview="mobile"] & {
+    @slot;
+  }
+}
+
+@variant max-lg {
+  html[data-viewport-preview="mobile"] & {
+    @slot;
+  }
+}
+
+@variant max-xl {
+  html[data-viewport-preview="mobile"] & {
+    @slot;
+  }
+}
+
+@variant 2xl {
+  html[data-viewport-preview="desktop"] & {
+    @slot;
+  }
+}
+
+/* 모바일 레이아웃 — 폰 너비·비율(390:844) 프레임 + bottom sheet 공용 변수 */
+html[data-viewport-preview="mobile"] {
+  --mobile-preview-frame-h: min(
+    100dvh,
+    calc(
+      min(100vw, var(--mobile-preview-max-w)) * var(--mobile-preview-aspect-h) /
+        var(--mobile-preview-aspect-w)
+    )
+  );
+  --mobile-preview-frame-inset-y: max(
+    0px,
+    calc((100dvh - var(--mobile-preview-frame-h)) / 2)
+  );
+  --mobile-preview-sheet-ratio: 0.85;
+  --mobile-preview-sheet-h: calc(
+    var(--mobile-preview-frame-h) * var(--mobile-preview-sheet-ratio)
+  );
+  --mobile-preview-dropdown-max-h: calc(var(--mobile-preview-frame-h) - 5.5rem);
+}
+
+html[data-viewport-preview="mobile"] [data-mobile-preview-frame] {
+  width: min(100vw, var(--mobile-preview-max-w));
+  max-width: var(--mobile-preview-max-w);
+  height: var(--mobile-preview-frame-h);
+  max-height: var(--mobile-preview-frame-h);
+  -webkit-overflow-scrolling: touch;
+}
+
+html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
+  -webkit-overflow-scrolling: touch;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -52,6 +139,9 @@
   --vvh: 100dvh;
   --vv-offset-top: 0px;
   --vv-browser-chrome-bottom: 0px;
+  --mobile-preview-max-w: 430px;
+  --mobile-preview-aspect-w: 390;
+  --mobile-preview-aspect-h: 844;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -468,6 +558,102 @@
   animation-delay: 100ms;
 }
 
+/* ── 모바일 컨트롤러 sheet — 2페이지 가로 carousel ── */
+
+/* bottom sheet — 모바일 프레임(390:844) 너비·높이·하단 정렬 */
+html[data-viewport-preview="mobile"] [data-mobile-viewport-sheet] {
+  top: auto !important;
+  bottom: var(--mobile-preview-frame-inset-y) !important;
+  left: 50% !important;
+  right: auto !important;
+  width: min(100vw, var(--mobile-preview-max-w)) !important;
+  max-width: var(--mobile-preview-max-w) !important;
+  height: var(--mobile-preview-sheet-h) !important;
+  max-height: var(--mobile-preview-sheet-h) !important;
+  translate: -50% 0 !important;
+}
+
+/* 헤더 WiFi·알람 dropdown — 모바일 프레임 너비·높이 */
+html[data-viewport-preview="mobile"] [data-mobile-viewport-dropdown],
+html[data-viewport-preview="mobile"] [data-slot="dropdown-menu-content"],
+html[data-viewport-preview="mobile"] [data-slot="dropdown-menu-sub-content"],
+html[data-viewport-preview="mobile"] [data-slot="select-content"] {
+  width: calc(min(100vw, var(--mobile-preview-max-w)) - 1rem) !important;
+  max-width: calc(var(--mobile-preview-max-w) - 1rem) !important;
+  min-width: min(14rem, calc(var(--mobile-preview-max-w) - 1rem)) !important;
+  max-height: var(--mobile-preview-dropdown-max-h) !important;
+  overflow-y: auto !important;
+}
+
+/* Dialog — 모바일 프레임 오버레이·콘텐츠 */
+html[data-viewport-preview="mobile"] [data-slot="dialog-overlay"] {
+  top: var(--mobile-preview-frame-inset-y) !important;
+  bottom: var(--mobile-preview-frame-inset-y) !important;
+  left: 50% !important;
+  right: auto !important;
+  width: min(100vw, var(--mobile-preview-max-w)) !important;
+  max-width: var(--mobile-preview-max-w) !important;
+  height: auto !important;
+  translate: -50% 0 !important;
+}
+
+html[data-viewport-preview="mobile"] [data-slot="dialog-content"] {
+  width: calc(min(100vw, var(--mobile-preview-max-w)) - 2rem) !important;
+  max-width: calc(var(--mobile-preview-max-w) - 2rem) !important;
+}
+
+html[data-viewport-preview="mobile"] [data-slot="tooltip-content"] {
+  max-width: calc(var(--mobile-preview-max-w) - 2rem) !important;
+}
+
+/* 전체 화면 오버레이·투어·로딩 — 모바일 프레임 영역 */
+html[data-viewport-preview="mobile"] [data-mobile-viewport-fullscreen] {
+  top: var(--mobile-preview-frame-inset-y) !important;
+  bottom: var(--mobile-preview-frame-inset-y) !important;
+  left: 50% !important;
+  right: auto !important;
+  width: min(100vw, var(--mobile-preview-max-w)) !important;
+  max-width: var(--mobile-preview-max-w) !important;
+  height: auto !important;
+  translate: -50% 0 !important;
+}
+
+html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
+  bottom: calc(var(--mobile-preview-frame-inset-y) + 1rem) !important;
+  max-width: calc(var(--mobile-preview-max-w) - 2rem) !important;
+}
+
+.barn-controller-mobile-sheet-scroller {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  /* pan-x only blocks nested vertical scroll on touch devices */
+  touch-action: pan-x pan-y;
+}
+
+.barn-controller-mobile-sheet-track {
+  align-items: stretch;
+}
+
+.barn-controller-mobile-sheet-page {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.barn-controller-mobile-sheet-page-scroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barn-controller-mobile-sheet-scroller {
+    scroll-behavior: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .barn-list-panel-shell {
     transition: none;
@@ -604,6 +790,13 @@
 }
 
 /* ── 스포트라이트 투어 (기능 안내) ── */
+
+html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[data-mobile="true"] {
+  max-height: min(
+    calc(var(--mobile-preview-frame-h) * 0.52),
+    calc(var(--vvh, 52dvh) * 0.52)
+  ) !important;
+}
 
 .farm-tour-hole {
   transition:

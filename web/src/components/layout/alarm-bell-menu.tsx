@@ -20,6 +20,7 @@ import { monitoringHref } from "@/lib/monitoring/monitoring-tabs";
 import { formatKst } from "@/lib/datetime/kst";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +32,7 @@ type Props = {
 export function AlarmBellMenu({ alarms, weatherWarnings = [] }: Props) {
   const { navigate, isPending } = useAppNavigate();
   const [mounted, setMounted] = useState(false);
+  const viewportCompact = useHydrationSafeDashboardCompact();
   const active = alarms.filter((a) => a.status === "active");
   const sensorCount = active.length;
   const weatherCount = weatherWarnings.length;
@@ -44,7 +46,10 @@ export function AlarmBellMenu({ alarms, weatherWarnings = [] }: Props) {
 
   const countBadge = count > 0 ? (
     <span
-      className="absolute -right-0.5 -top-0.5 flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-red-500 px-0.5 text-[10px] font-bold leading-none text-white lg:min-h-[1.5rem] lg:min-w-[1.5rem] lg:px-1 lg:text-[1rem]"
+      className={cn(
+        dashboardUi.topHeaderCountBadge,
+        dashboardUi.topHeaderCountBadgeAlert,
+      )}
       suppressHydrationWarning
     >
       {count > 99 ? "99+" : count}
@@ -55,10 +60,10 @@ export function AlarmBellMenu({ alarms, weatherWarnings = [] }: Props) {
     return (
       <button
         type="button"
-        className={cn(dashboardUi.topIconBtn, "relative")}
+        className={dashboardUi.topHeaderActionBtn}
         aria-label={triggerLabel}
       >
-        <Bell className={dashboardUi.topBellIcon} />
+        <Bell className={dashboardUi.topHeaderOverlayIcon} />
         {countBadge}
       </button>
     );
@@ -67,14 +72,15 @@ export function AlarmBellMenu({ alarms, weatherWarnings = [] }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className={cn(dashboardUi.topIconBtn, "relative")}
+        className={dashboardUi.topHeaderActionBtn}
         aria-label={triggerLabel}
       >
-        <Bell className={dashboardUi.topBellIcon} />
+        <Bell className={dashboardUi.topHeaderOverlayIcon} />
         {countBadge}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
+        data-mobile-viewport-dropdown={viewportCompact || undefined}
         className={cn(
           dashboardUi.alarmMenuContent,
           "max-md:rounded-2xl max-md:border max-md:border-border/60 max-md:bg-card max-md:p-3 max-md:shadow-none"

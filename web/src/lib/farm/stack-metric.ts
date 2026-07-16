@@ -18,14 +18,44 @@ export type StackMetric = {
 
 export type StackMetricRow = { metric: StackMetric; sevs: Sev[] };
 
+/** 히트맵 bin 구간 평균 — tooltip용. */
+export function computeBinnedMetricValues(
+  values: (number | null)[],
+  bars?: number,
+): (number | null)[] {
+  const n = values.length;
+  if (!bars || bars >= n) return values.slice();
+  const g = Math.ceil(n / bars);
+  const out: (number | null)[] = [];
+  for (let i = 0; i < n; i += g) {
+    const chunk: number[] = [];
+    for (let j = i; j < Math.min(n, i + g); j++) {
+      const v = values[j];
+      if (v != null && Number.isFinite(v)) chunk.push(v);
+    }
+    out.push(
+      chunk.length ? chunk.reduce((sum, v) => sum + v, 0) / chunk.length : null,
+    );
+  }
+  return out;
+}
+
+export type StackMetricRowWithValues = StackMetricRow & {
+  binnedValues: (number | null)[];
+};
+
 export function computeStackMetricRows(
   metrics: StackMetric[],
   bars?: number,
-): StackMetricRow[] {
+): StackMetricRowWithValues[] {
   return metrics.map((m) => {
     const scores = m.values.map((v) => severityScore(v, m.band));
     const binned = bars ? binWorst(scores, bars) : scores;
-    return { metric: m, sevs: binned.map((s) => sevOfScore(s)) };
+    return {
+      metric: m,
+      sevs: binned.map((s) => sevOfScore(s)),
+      binnedValues: computeBinnedMetricValues(m.values, bars),
+    };
   });
 }
 

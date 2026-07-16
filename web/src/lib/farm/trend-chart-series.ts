@@ -4,6 +4,15 @@ import {
   type AlarmThresholds,
 } from "@/lib/data/alarms";
 import type { TrendStallSeries } from "@/lib/data/farm-trend-types";
+import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
+import type { ChannelSlot } from "@/lib/data/iot-channel";
+import {
+  type Band,
+  fanBand,
+  humidityBand,
+  statBand,
+  tempBand,
+} from "@/lib/farm/severity-score";
 
 /** 온도 추이 Y축 — 알람 구간과 동일 (기간 전환 시 스케일 고정). */
 export function tempTrendLeftDomain(
@@ -83,14 +92,57 @@ type StallMetrics = Pick<
   "temp" | "humidity" | "fanSupply" | "fanExhaust" | "fanIntake"
 >;
 
-export function humidityOnlyTrendSeries(
-  m: Pick<TrendStallSeries, "humidity">
+export function humidityTrendLeftDomain(
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
+): [number, number] {
+  return [thresholds.humidityLow, thresholds.humidityHigh];
+}
+
+export function fanTrendReferenceLines(
+  band: Band,
+  axis: "left" | "right" = "left"
+): TrendReferenceLine[] {
+  return [
+    {
+      value: band.lo,
+      axis,
+      color: "#d97706",
+      label: `${band.lo}%`,
+    },
+    {
+      value: band.hi,
+      axis,
+      color: "#d97706",
+      label: `${band.hi}%`,
+    },
+  ];
+}
+
+/** 온도 시리즈 — 알람 band + severity 마커. */
+export function tempTrendSeries(
+  m: Pick<TrendStallSeries, "temp">,
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
+): TrendSeries {
+  return {
+    name: "온도",
+    data: m.temp,
+    color: TREND_CHART_COLORS.temp,
+    axis: "left",
+    band: tempBand(thresholds),
+  };
+}
+
+/** 습도 시리즈 — 알람 band + severity 마커. */
+export function humidityTrendSeries(
+  m: Pick<TrendStallSeries, "humidity">,
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
 ): TrendSeries {
   return {
     name: "습도",
     data: m.humidity,
     color: TREND_CHART_COLORS.humidity,
     axis: "left",
+    band: humidityBand(thresholds),
   };
 }
 
@@ -106,12 +158,49 @@ export function envTrendSeries(m: StallMetrics): TrendSeries[] {
   ];
 }
 
-export function channelFanTrendSeries(m: StallMetrics): TrendSeries[] {
+export function channelFanTrendSeries(
+  m: StallMetrics,
+  thermo: Pick<ControllerThermoSettings, "minVentPct" | "maxVentPct"> | null = null
+): TrendSeries[] {
+  const band = fanBand(thermo) ?? statBand([...m.fanIntake, ...m.fanExhaust, ...m.fanSupply]);
   return [
-    { name: "채널 A", data: m.fanIntake, color: TREND_CHART_COLORS.fanIntake },
-    { name: "채널 B", data: m.fanExhaust, color: TREND_CHART_COLORS.fanExhaust },
-    { name: "채널 C", data: m.fanSupply, color: TREND_CHART_COLORS.fanSupply },
+    { name: "채널 A", data: m.fanIntake, color: TREND_CHART_COLORS.fanIntake, band },
+    { name: "채널 B", data: m.fanExhaust, color: TREND_CHART_COLORS.fanExhaust, band },
+    { name: "채널 C", data: m.fanSupply, color: TREND_CHART_COLORS.fanSupply, band },
   ];
+}
+
+const CHANNEL_SLOT_META: Record<
+  ChannelSlot,
+  { field: keyof Pick<TrendStallSeries, "fanIntake" | "fanExhaust" | "fanSupply">; color: string; label: string }
+> = {
+  A: { field: "fanIntake", color: TREND_CHART_COLORS.fanIntake, label: "채널 A" },
+  B: { field: "fanExhaust", color: TREND_CHART_COLORS.fanExhaust, label: "채널 B" },
+  C: { field: "fanSupply", color: TREND_CHART_COLORS.fanSupply, label: "채널 C" },
+};
+
+/** 모터 pill / 채널 스트rip — 단일 채널 line trend. */
+export function channelSlotTrendSeries(
+  m: StallMetrics,
+  slot: ChannelSlot,
+  thermo: Pick<ControllerThermoSettings, "minVentPct" | "maxVentPct"> | null = null
+): TrendSeries {
+  const meta = CHANNEL_SLOT_META[slot];
+  const band =
+    fanBand(thermo) ?? statBand([...m.fanIntake, ...m.fanExhaust, ...m.fanSupply]);
+  return {
+    name: meta.label,
+    data: m[meta.field],
+    color: meta.color,
+    band,
+  };
+}
+
+export function humidityOnlyTrendSeries(
+  m: Pick<TrendStallSeries, "humidity">,
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
+): TrendSeries {
+  return humidityTrendSeries(m, thresholds);
 }
 
 export function stallTrendHasData(stall: TrendStallSeries | null): boolean {

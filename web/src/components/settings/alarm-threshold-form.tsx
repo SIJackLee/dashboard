@@ -52,10 +52,16 @@ export type AlarmThresholdHeaderState = {
   hasChanges: boolean;
   pending: boolean;
   validationError: string | null;
+  /** 모바일 접이식 summary — draft 기준 */
+  collapsedSummary: string;
   onSave: () => void;
   onApplyDefaults: () => void;
   onClear: () => void;
 };
+
+function formatAlarmCollapsedSummary(draft: AlarmThresholds): string {
+  return `온도 ${draft.tempLow}–${draft.tempHigh}℃ · 습도 ${draft.humidityLow}–${draft.humidityHigh}%`;
+}
 
 type Props = {
   initialSettings: AlarmSettings;
@@ -322,6 +328,7 @@ export function AlarmThresholdForm({
       hasChanges,
       pending,
       validationError,
+      collapsedSummary: formatAlarmCollapsedSummary(draft),
       onSave: handleSaveScope,
       onApplyDefaults: handleApplyDefaults,
       onClear: handleClearScope,

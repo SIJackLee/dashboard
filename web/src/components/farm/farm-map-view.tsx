@@ -1,6 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { SectionCard } from "@/components/common/section-card";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import {
@@ -16,7 +15,7 @@ import type {
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapCanvas } from "./farm-map-canvas";
 import { FarmMapMobileStage } from "./farm-map-mobile-stage";
-import { useDashboardCompact } from "@/components/layout/dashboard-viewport-context";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 
 type Props = {
   barns: BarnMapSnapshot[];
@@ -30,6 +29,10 @@ type Props = {
   controller?: ControllerGridData | null;
   sectionTitle?: string;
   navigateFarmKey?: FarmKey | null;
+  trendPeriod?: TrendPeriodId;
+  onTrendPeriodChange?: (period: TrendPeriodId) => void;
+  trendLoading?: boolean;
+  trendStale?: boolean;
 };
 
 export function FarmMapView({
@@ -44,26 +47,24 @@ export function FarmMapView({
   compactShell = false,
   sectionTitle,
   navigateFarmKey = null,
+  trendPeriod,
+  onTrendPeriodChange,
+  trendLoading = false,
+  trendStale = false,
 }: Props) {
-  const viewportCompact = useDashboardCompact();
-  /** ResizeObserver 기반 compact — SSR/첫 hydration과 불일치 방지 */
-  const showMobileListDesc = useSyncExternalStore(
-    () => () => {},
-    () => viewportCompact && !sectionTitle,
-    () => false
-  );
+  const viewportCompact = useHydrationSafeDashboardCompact();
   const emptyReason =
     barns.length === 0 ? resolveFarmGridEmptyReason(readings) : null;
   const emptyCopy = emptyReason ? farmGridEmptyCopy(emptyReason) : null;
+  const sectionSize =
+    compactShell || viewportCompact ? ("default" as const) : ("lg" as const);
 
   return (
     <div className="min-w-0">
       <SectionCard
         title={sectionTitle ?? "농장 지도"}
-        description={
-          showMobileListDesc ? "축사별 현황 · 세로 목록" : undefined
-        }
-        size={compactShell ? "default" : "lg"}
+        description={undefined}
+        size={sectionSize}
         className="overflow-hidden"
       >
         {emptyCopy ? (
@@ -86,6 +87,10 @@ export function FarmMapView({
             controllerTrendByPeriod={controllerTrendByPeriod}
             controller={controller}
             hubMode={hubMode}
+            trendPeriod={trendPeriod}
+            onTrendPeriodChange={onTrendPeriodChange}
+            trendLoading={trendLoading}
+            trendStale={trendStale}
           />
         ) : (
           <FarmMapCanvas
@@ -97,6 +102,10 @@ export function FarmMapView({
             controller={controller}
             hubMode={hubMode}
             navigateFarmKey={navigateFarmKey}
+            trendPeriod={trendPeriod}
+            onTrendPeriodChange={onTrendPeriodChange}
+            trendLoading={trendLoading}
+            trendStale={trendStale}
           />
         )}
       </SectionCard>

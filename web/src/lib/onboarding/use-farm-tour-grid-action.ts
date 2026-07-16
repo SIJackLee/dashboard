@@ -12,7 +12,7 @@ type Options = {
   setExpanded: (expanded: BarnGraphExpanded | null) => void;
 };
 
-/** 스포트라이트 투어 — 그리드 확대 상세 열기/닫기 액션 수신 (canvas·mobile 공용). */
+/** 스포트라이트 투어 — 그리드 확대 상세 열기/닫기 (canvas·mobile 공용). */
 export function useFarmTourGridAction({
   barns,
   metricIdsByBarnId,

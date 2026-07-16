@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
+import { PanelCloseButton } from "@/components/farm/panel-close-button";
+import { GridMetricLabel, gridMetricAriaLabel } from "@/lib/farm/grid-metric-label";
 import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   SEV_COLOR,
@@ -16,7 +18,7 @@ import {
   formatStackMetricValue,
   worstStackMetricSev,
   type StackMetric,
-  type StackMetricRow,
+  type StackMetricRowWithValues,
 } from "@/lib/farm/stack-metric";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +34,32 @@ export type HeatController = {
   href: string | null;
 };
 
-type Row = StackMetricRow;
+type Row = StackMetricRowWithValues;
+
+function heatmapCellTitle(opts: {
+  aggregationLabel: string;
+  periodLabel?: string;
+  metricLabel: string;
+  value: number | null;
+  unit?: string;
+  sev: keyof typeof SEV_LABEL;
+  controllerCount?: number;
+  binIndex: number;
+  binCount: number;
+}): string {
+  const parts = [
+    opts.aggregationLabel,
+    opts.periodLabel,
+    opts.metricLabel,
+    formatStackMetricValue(opts.value, opts.unit),
+    SEV_LABEL[opts.sev],
+    `구간 ${opts.binIndex + 1}/${opts.binCount}`,
+  ].filter(Boolean);
+  if (opts.controllerCount != null && opts.controllerCount > 0) {
+    parts.push(`컨트롤러 ${opts.controllerCount}대`);
+  }
+  return parts.join(" · ");
+}
 
 /** 지표(행)×시간(열) 히트맵 셀. interactive면 라벨/셀 클릭으로 지표 선택. */
 function HeatCells({
@@ -40,11 +67,19 @@ function HeatCells({
   rowH,
   selected,
   onSelect,
+  labelMode = "icon",
+  aggregationLabel = "축사 평균",
+  periodLabel,
+  controllerCount,
 }: {
   rows: Row[];
   rowH: number;
   selected?: string | null;
   onSelect?: (id: string) => void;
+  labelMode?: "text" | "icon";
+  aggregationLabel?: string;
+  periodLabel?: string;
+  controllerCount?: number;
 }) {
   const interactive = Boolean(onSelect);
   return (
@@ -53,29 +88,40 @@ function HeatCells({
         {rows.map((r) => {
           const active = selected === r.metric.id;
           const content = (
-            <span
+            <GridMetricLabel
+              id={r.metric.id}
+              label={r.metric.label}
+              mode={labelMode}
               className={cn(
-                "text-[0.6rem] leading-none",
+                labelMode === "text" && "text-[0.6rem] leading-none",
                 active
                   ? "font-semibold text-sky-600 dark:text-sky-400"
-                  : "text-muted-foreground"
+                  : labelMode === "text"
+                    ? "text-muted-foreground"
+                    : undefined,
               )}
-            >
-              {r.metric.label}
-            </span>
+              iconClassName="size-3.5"
+            />
           );
+          const rowLabel = gridMetricAriaLabel(r.metric.id, r.metric.label);
           return interactive ? (
             <button
               key={r.metric.id}
               type="button"
               onClick={() => onSelect?.(r.metric.id)}
               style={{ height: rowH }}
-              className="flex items-center transition-colors hover:text-foreground"
+              className="flex w-5 shrink-0 items-center justify-center transition-colors hover:text-foreground"
+              aria-label={rowLabel}
             >
               {content}
             </button>
           ) : (
-            <div key={r.metric.id} style={{ height: rowH }} className="flex items-center">
+            <div
+              key={r.metric.id}
+              style={{ height: rowH }}
+              className="flex w-5 shrink-0 items-center justify-center"
+              aria-label={rowLabel}
+            >
               {content}
             </div>
           );
@@ -90,6 +136,17 @@ function HeatCells({
                   key={i}
                   type="button"
                   onClick={() => onSelect?.(r.metric.id)}
+                  title={heatmapCellTitle({
+                    aggregationLabel,
+                    periodLabel,
+                    metricLabel: r.metric.label,
+                    value: r.binnedValues[i] ?? null,
+                    unit: r.metric.unit,
+                    sev,
+                    controllerCount,
+                    binIndex: i,
+                    binCount: r.sevs.length,
+                  })}
                   aria-label={`${r.metric.label} ${SEV_LABEL[sev]}`}
                   className={cn(
                     "min-w-0 flex-1 rounded-[1px] transition-opacity hover:opacity-100",
@@ -100,6 +157,17 @@ function HeatCells({
               ) : (
                 <div
                   key={i}
+                  title={heatmapCellTitle({
+                    aggregationLabel,
+                    periodLabel,
+                    metricLabel: r.metric.label,
+                    value: r.binnedValues[i] ?? null,
+                    unit: r.metric.unit,
+                    sev,
+                    controllerCount,
+                    binIndex: i,
+                    binCount: r.sevs.length,
+                  })}
                   className={cn(
                     "min-w-0 flex-1 rounded-[1px]",
                     selected === r.metric.id && "ring-1 ring-inset ring-sky-500/40"
@@ -123,6 +191,7 @@ function ControllerMiniHeat({
   onMove,
   moving,
   canMove,
+  labelMode = "icon",
 }: {
   controller: HeatController;
   bars?: number;
@@ -130,6 +199,7 @@ function ControllerMiniHeat({
   onMove: () => void;
   moving: boolean;
   canMove: boolean;
+  labelMode?: "text" | "icon";
 }) {
   const rows = computeStackMetricRows(controller.metrics, bars);
   const worst = worstStackMetricSev(rows);
@@ -165,7 +235,7 @@ function ControllerMiniHeat({
           ) : null}
         </span>
       </div>
-      <HeatCells rows={rows} rowH={MINI_CELL_H} selected={selected} />
+      <HeatCells rows={rows} rowH={MINI_CELL_H} selected={selected} labelMode={labelMode} />
     </div>
   );
 }
@@ -255,6 +325,12 @@ type Props = {
   onExpand?: (metricId: string) => void;
   /** 상위 확대 모드에서 현재 선택(펼쳐진) 지표 — 셀 하이라이트용. */
   activeMetricId?: string | null;
+  /** 히트맵 상단 집계 설명 (예: 축사 평균 · 24시간). */
+  caption?: string;
+  /** 행 라벨 — icon(기본) | text */
+  labelMode?: "text" | "icon";
+  periodLabel?: string;
+  controllerCount?: number;
   className?: string;
 };
 
@@ -271,6 +347,10 @@ export function SeverityHeatmap({
   controllerHref,
   onExpand,
   activeMetricId,
+  caption,
+  labelMode = "icon",
+  periodLabel,
+  controllerCount,
   className,
 }: Props) {
   const { navigate, isPending } = useAppNavigate();
@@ -304,7 +384,19 @@ export function SeverityHeatmap({
 
   return (
     <div className={cn("min-w-0", className)} data-tour-id="heatmap">
-      <HeatCells rows={rows} rowH={CELL_H} selected={sel} onSelect={select} />
+      {caption ? (
+        <p className="mb-1 text-[0.65rem] text-muted-foreground">{caption}</p>
+      ) : null}
+      <HeatCells
+        rows={rows}
+        rowH={CELL_H}
+        selected={sel}
+        onSelect={select}
+        labelMode={labelMode}
+        aggregationLabel="축사 평균"
+        periodLabel={periodLabel}
+        controllerCount={controllerCount}
+      />
 
       {!external && selected ? (
         <div className="overflow-hidden">
@@ -319,6 +411,7 @@ export function SeverityHeatmap({
                     selected={selected}
                     moving={isPending}
                     canMove={Boolean(onOpenController) || Boolean(c.href)}
+                    labelMode={labelMode}
                     onMove={() =>
                       onOpenController ? onOpenController(c) : move(c.href)
                     }
@@ -342,13 +435,10 @@ export function SeverityHeatmap({
                         컨트롤러 이동
                       </button>
                     ) : null}
-                    <button
-                      type="button"
+                    <PanelCloseButton
+                      size="sm"
                       onClick={() => setSelected(null)}
-                      className="rounded-full border px-2 py-0.5 text-[0.6rem] font-medium text-muted-foreground transition-colors hover:bg-muted"
-                    >
-                      닫기
-                    </button>
+                    />
                   </div>
                 </div>
                 {selMetric ? (

@@ -2,6 +2,13 @@
  * 모바일 브라우저 주소창·하단 제어창 대응 — visualViewport 기준 투어 레이아웃.
  */
 
+import { isMobileLayoutActive } from "@/lib/ui/mobile-layout";
+import {
+  getViewportPreviewMode,
+  isViewportCompact,
+  subscribeViewportPreview,
+} from "@/lib/ui/viewport-preview-store";
+
 export const TOUR_MOBILE_SHEET_GAP = 8;
 export const TOUR_SCROLL_MARGIN_TOP = 96;
 /** TopBar 하단 ~ 스포트라이트 상단 최소 여백 */
@@ -59,6 +66,54 @@ export function resolveTourScrollPolicy(step: {
   return step.scrollPolicy ?? "fit-between";
 }
 
+export type TourPortalBounds = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
+const MOBILE_PREVIEW_BOTTOM_NAV_PX = 72;
+
+/** PC 모바일 토글 — [data-mobile-preview-frame] 안에서 투어 UI를 그릴 때 */
+export function isMobilePreviewFrame(): boolean {
+  if (typeof document === "undefined") return false;
+  if (!isViewportCompact(getViewportPreviewMode())) return false;
+  return document.querySelector("[data-mobile-preview-frame]") !== null;
+}
+
+export function getTourPortalBounds(): TourPortalBounds | null {
+  if (!isMobilePreviewFrame()) return null;
+  const vp = getTourViewport();
+  return {
+    top: vp.top,
+    left: vp.left,
+    width: vp.width,
+    height: vp.height,
+  };
+}
+
+export function toTourLocalRect(rect: {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}): { top: number; left: number; width: number; height: number } {
+  const bounds = getTourPortalBounds();
+  if (!bounds) return rect;
+  return {
+    top: rect.top - bounds.top,
+    left: rect.left - bounds.left,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function getTourBottomChrome(viewport = getTourViewport()): number {
+  if (isMobilePreviewFrame()) return MOBILE_PREVIEW_BOTTOM_NAV_PX;
+  return viewport.browserChromeBottom;
+}
+
 export function getTourViewport(): TourViewportMetrics {
   if (typeof window === "undefined") {
     return {
@@ -68,6 +123,21 @@ export function getTourViewport(): TourViewportMetrics {
       width: 390,
       layoutHeight: 800,
       layoutWidth: 390,
+      browserChromeTop: 0,
+      browserChromeBottom: 0,
+    };
+  }
+
+  const previewFrame = document.querySelector("[data-mobile-preview-frame]");
+  if (previewFrame && isMobileLayoutActive()) {
+    const rect = previewFrame.getBoundingClientRect();
+    return {
+      top: rect.top,
+      left: rect.left,
+      height: rect.height,
+      width: rect.width,
+      layoutHeight: rect.height,
+      layoutWidth: rect.width,
       browserChromeTop: 0,
       browserChromeBottom: 0,
     };
@@ -128,11 +198,13 @@ export function subscribeTourViewportCssSync(): () => void {
   window.addEventListener("resize", handler);
   window.visualViewport?.addEventListener("resize", handler);
   window.visualViewport?.addEventListener("scroll", handler);
+  const unsubPreview = subscribeViewportPreview(handler);
 
   return () => {
     window.removeEventListener("resize", handler);
     window.visualViewport?.removeEventListener("resize", handler);
     window.visualViewport?.removeEventListener("scroll", handler);
+    unsubPreview();
   };
 }
 
@@ -197,7 +269,7 @@ export function computeTourScrollBounds(tooltipHeight: number) {
   const headerClearance = measureHeaderClearance(viewport);
   const bottomReserve =
     tooltipHeight +
-    viewport.browserChromeBottom +
+    getTourBottomChrome(viewport) +
     TOUR_MOBILE_SHEET_GAP +
     16;
   const maxBottom = viewport.top + viewport.height - bottomReserve;
@@ -387,7 +459,12 @@ export function scrollTourTargetUntilBandAligned(
 
 /** 투어 시작 직후 주소창 접힘 유도 — 보조 수단(1회). */
 export function stabilizeMobileBrowserViewport(): Promise<void> {
-  if (typeof window === "undefined" || window.innerWidth >= 768) {
+  if (typeof window === "undefined" || !isMobileLayoutActive()) {
+    return Promise.resolve();
+  }
+
+  if (isMobilePreviewFrame()) {
+    syncTourViewportCssVars();
     return Promise.resolve();
   }
 
@@ -406,13 +483,16 @@ export function stabilizeMobileBrowserViewport(): Promise<void> {
   });
 }
 
-/** 투어 bottom sheet — 화면 최하단(safe-area + 브라우저 크롬). */
+/** 투어 bottom sheet — 화면 최하단(safe-area + 브라우저 크롬·하단 네비). */
 export function mobileTourSheetBottomCss(): string {
+  if (isMobilePreviewFrame()) {
+    return `calc(env(safe-area-inset-bottom, 0px) + ${TOUR_MOBILE_SHEET_GAP}px + ${MOBILE_PREVIEW_BOTTOM_NAV_PX}px)`;
+  }
   return `calc(env(safe-area-inset-bottom, 0px) + ${TOUR_MOBILE_SHEET_GAP}px + var(--vv-browser-chrome-bottom, 0px))`;
 }
 
 export function isMobileTourSheet(): boolean {
-  return typeof window !== "undefined" && window.innerWidth < 768;
+  return isMobileLayoutActive();
 }
 
 export function resolveTourStepSelector(

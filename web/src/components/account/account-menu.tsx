@@ -6,10 +6,7 @@ import { ChevronDown, CircleHelp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -86,7 +83,6 @@ export function AccountMenu({
       /* storage 사용 불가 시 이동만 수행 */
     }
     const target = buildFarmTourPath(tourFarmKey);
-    // admin 허브 → 단일 농장: router.push는 RSC props(농장 스코프)가 갱신되지 않을 수 있음.
     window.location.assign(target);
   };
 
@@ -126,59 +122,58 @@ export function AccountMenu({
         align="end"
         sideOffset={mobile ? 8 : 4}
         className={cn(
-          "w-[min(100vw-1.5rem,22rem)] rounded-xl p-0",
+          "w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl p-0",
           dashboardUi.alarmMenuContent,
           mobile &&
-            "origin-top data-open:zoom-in-100 data-closed:zoom-out-100 data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-top-2 data-open:duration-200 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-top-1 data-closed:duration-150 max-md:rounded-2xl max-md:border max-md:border-border/60 max-md:bg-card max-md:shadow-lg"
+            "max-md:rounded-2xl max-md:border max-md:border-border/60 max-md:bg-card max-md:shadow-lg",
         )}
       >
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-3 py-2 font-normal">
-            <p className="font-medium">{name}</p>
-            {user.email ? (
-              <p className="text-xs font-normal text-muted-foreground">{user.email}</p>
-            ) : null}
-          </DropdownMenuLabel>
-        </DropdownMenuGroup>
+        <div className="border-b px-4 py-3">
+          <p className="truncate font-semibold leading-snug">{name}</p>
+          {user.email ? (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {user.email}
+            </p>
+          ) : null}
+          {user.role ? (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {roleLabel[user.role]}
+            </p>
+          ) : null}
+        </div>
 
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="mx-1 gap-2"
-          onClick={restartTour}
-        >
-          <CircleHelp className="size-4 text-muted-foreground" aria-hidden />
-          기능 안내 다시 보기
-        </DropdownMenuItem>
+        <div className="p-1.5">
+          <DropdownMenuItem className="gap-2 rounded-lg px-3 py-2" onClick={restartTour}>
+            <CircleHelp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            기능 안내 다시 보기
+          </DropdownMenuItem>
+        </div>
 
         {receipts.length > 0 ? (
-          <>
-            <DropdownMenuSeparator />
+          <div className="border-t">
             <RecentActivityMenuSection receipts={receipts} />
-          </>
+          </div>
         ) : null}
 
         {primaryFarm ? (
-          <>
-            <DropdownMenuSeparator />
-            <div
-              className="px-3 py-2"
-              onKeyDown={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <p className={cn("mb-2 font-medium", dashboardUi.tableMeta)}>
-                {primaryFarm.label}
-              </p>
-              <FarmAddressInput
-                key={farmOptionId(primaryFarm.farmKey)}
-                farmKey={primaryFarm.farmKey}
-                location={primaryFarm.location}
-                disabled={!canEditLocation}
-                compact
-                deferFocusUntilTap={mobile && open}
-                onSaved={() => router.refresh()}
-              />
-            </div>
-          </>
+          <div
+            className="border-t px-4 py-3"
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <p className={cn("mb-2 font-medium", dashboardUi.tableMeta)}>
+              {primaryFarm.label}
+            </p>
+            <FarmAddressInput
+              key={farmOptionId(primaryFarm.farmKey)}
+              farmKey={primaryFarm.farmKey}
+              location={primaryFarm.location}
+              disabled={!canEditLocation}
+              compact
+              deferFocusUntilTap={mobile && open}
+              onSaved={() => router.refresh()}
+            />
+          </div>
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>

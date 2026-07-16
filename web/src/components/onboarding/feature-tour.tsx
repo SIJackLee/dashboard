@@ -28,6 +28,7 @@ import {
   waitForTooltipExtraReady,
   waitForTourGridAction,
 } from "@/lib/onboarding/tour-timing";
+import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 import {
   markOnboardingTourDoneAction,
   shouldShowOnboardingTourAction,
@@ -35,6 +36,8 @@ import {
 import { GaugeAnatomy, PanelPillsGuide } from "@/components/onboarding/tour-guides";
 import {
   getTourViewport,
+  getTourPortalBounds,
+  toTourLocalRect,
   mobileTourSheetBottomCss,
   isTourTargetBandAligned,
   measureTourTargetBandDrift,
@@ -45,13 +48,14 @@ import {
   scrollTourTargetIntoView,
   scrollTourTargetUntilBandAligned,
   stabilizeMobileBrowserViewport,
+  isMobileTourSheet,
   subscribeTourViewportCssSync,
   subscribeTourViewportResize,
   TOUR_MOBILE_SETTLE_MS,
   TOUR_REALIGN_DRIFT_THRESHOLD,
   type TourScrollPolicy,
 } from "@/lib/onboarding/tour-viewport";
-import { cn } from "@/lib/utils";
+import { subscribeViewportPreview } from "@/lib/ui/viewport-preview-store";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
@@ -73,16 +77,23 @@ function findVisibleTourTarget(selector: string): Element | null {
   return null;
 }
 
+import { cn } from "@/lib/utils";
+
 function measure(el: Element): Rect {
   const r = el.getBoundingClientRect();
-  return { top: r.top, left: r.left, width: r.width, height: r.height };
+  return toTourLocalRect({
+    top: r.top,
+    left: r.left,
+    width: r.width,
+    height: r.height,
+  });
 }
 
 function getStepSpotlightSelector(step: TourStepDef): string {
   return resolveTourStepSelector(step.selector, step.mobileSelector);
 }
 
-function dispatchGridAction(action: "expand-first" | "collapse") {
+function dispatchGridAction(action: TourGridAction) {
   window.dispatchEvent(
     new CustomEvent(FARM_TOUR_ACTION_EVENT, { detail: { action } }),
   );
@@ -120,6 +131,9 @@ function TourOverlay({
   const accentRef = useRef<Element | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const [viewportReady, setViewportReady] = useState(false);
+  const [portalBounds, setPortalBounds] = useState<ReturnType<
+    typeof getTourPortalBounds
+  >>(() => (typeof window !== "undefined" ? getTourPortalBounds() : null));
   const step = TOUR_STEPS[stepIdx];
   const scrollPolicy: TourScrollPolicy = resolveTourScrollPolicy(step);
   const scrollEnabled = scrollPolicy !== "none";
@@ -137,7 +151,7 @@ function TourOverlay({
 
   const runTargetScrollOnce = useCallback(() => {
     const spotlight = targetRef.current as HTMLElement | null;
-    if (!spotlight || window.innerWidth >= 768 || !scrollEnabled) return;
+    if (!spotlight || !isMobileTourSheet() || !scrollEnabled) return;
     const scrollEl = resolveTourScrollTarget(
       spotlight,
       step.mobileScrollSelector,
@@ -184,7 +198,7 @@ function TourOverlay({
     const markReady = () => {
       if (!cancelled) setViewportReady(true);
     };
-    if (typeof window === "undefined" || window.innerWidth >= 768) {
+    if (typeof window === "undefined" || !isMobileTourSheet()) {
       markReady();
       return () => {
         cancelled = true;
@@ -195,6 +209,21 @@ function TourOverlay({
       cancelled = true;
     };
   }, []);
+
+  // 모바일 프리뷰 프레임 경계 — 토글·리사이즈 시 투어 오버레이 재정렬
+  useEffect(() => {
+    const sync = () => {
+      setPortalBounds(getTourPortalBounds());
+      measureTargets();
+    };
+    sync();
+    const unsub = subscribeViewportPreview(sync);
+    window.addEventListener("resize", sync);
+    return () => {
+      unsub();
+      window.removeEventListener("resize", sync);
+    };
+  }, [measureTargets]);
 
   // 스텝 진입 — 이벤트 기반 layout settle → scroll 1회 → hole 표시.
   useEffect(() => {
@@ -217,7 +246,7 @@ function TourOverlay({
     const stepScrollEnabled = stepScrollPolicy !== "none";
 
     const scrollTargetOnce = (scrollEl: HTMLElement) => {
-      if (!stepScrollEnabled || window.innerWidth >= 768) return;
+      if (!stepScrollEnabled || !isMobileTourSheet()) return;
       scrollTourTargetUntilBandAligned(
         scrollEl,
         {
@@ -313,7 +342,7 @@ function TourOverlay({
 
     const locate = () => {
       if (cancelled || stepGenRef.current !== stepGen) return;
-      const isMobileSheet = window.innerWidth < 768;
+      const isMobileSheet = isMobileTourSheet();
       const el = findVisibleTourTarget(spotlightSelector);
       if (el && (el as HTMLElement).offsetParent !== null) {
         targetRef.current = el;
@@ -388,7 +417,7 @@ function TourOverlay({
 
     const realignMobileTargetIfNeeded = (force = false) => {
       const spotlight = targetRef.current as HTMLElement | null;
-      if (!spotlight || window.innerWidth >= 768 || !scrollEnabled) return false;
+      if (!spotlight || !isMobileTourSheet() || !scrollEnabled) return false;
       const scrollEl = resolveTourScrollTarget(
         spotlight,
         step.mobileScrollSelector,
@@ -411,7 +440,7 @@ function TourOverlay({
     };
 
     const onTooltipResize = () => {
-      if (window.innerWidth >= 768) return;
+      if (!isMobileTourSheet()) return;
       window.clearTimeout(tooltipResizeTimer);
       tooltipResizeTimer = window.setTimeout(() => {
         if (!scrollEnabled) {
@@ -450,7 +479,7 @@ function TourOverlay({
 
     const unsubCss = subscribeTourViewportCssSync();
     const unsubResize = subscribeTourViewportResize(() => {
-      if (!holeReady || !targetRef.current || window.innerWidth >= 768) return;
+      if (!holeReady || !targetRef.current || !isMobileTourSheet()) return;
       realignMobileTargetIfNeeded(false);
     });
 
@@ -479,7 +508,7 @@ function TourOverlay({
   const tourVp = typeof window !== "undefined" ? getTourViewport() : null;
   const vw = tourVp?.layoutWidth ?? 1280;
   const vh = tourVp?.height ?? 800;
-  const mobileSheet = vw < 768;
+  const mobileSheet = isMobileTourSheet();
   const tooltipW = mobileSheet
     ? Math.min(TOOLTIP_W_MOBILE, vw - 24)
     : Math.min(TOOLTIP_W, vw - 24);
@@ -511,12 +540,31 @@ function TourOverlay({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[9990]" role="dialog" aria-modal="true" aria-label="기능 안내 투어">
+    <div
+      className={cn(
+        "fixed z-[9990] overflow-hidden",
+        portalBounds ? "" : "inset-0",
+      )}
+      style={
+        portalBounds
+          ? {
+              top: portalBounds.top,
+              left: portalBounds.left,
+              width: portalBounds.width,
+              height: portalBounds.height,
+            }
+          : undefined
+      }
+      data-farm-tour-root
+      role="dialog"
+      aria-modal="true"
+      aria-label="기능 안내 투어"
+    >
       {/* 딤 + 스포트라이트 홀 */}
       {hole ? (
         <div
           className={cn(
-            "farm-tour-hole pointer-events-none fixed rounded-xl",
+            "farm-tour-hole pointer-events-none absolute rounded-xl",
             mobileSheet && "farm-tour-hole--mobile",
           )}
           data-settling={settling ? "true" : undefined}
@@ -530,15 +578,15 @@ function TourOverlay({
           aria-hidden
         />
       ) : (
-        <div className="fixed inset-0 bg-[rgba(9,12,20,0.62)]" aria-hidden />
+        <div className="absolute inset-0 bg-[rgba(9,12,20,0.62)]" aria-hidden />
       )}
       {/* 클릭 차단 레이어(홀 포함 전체) */}
-      <div className="fixed inset-0" aria-hidden />
+      <div className="absolute inset-0" aria-hidden />
 
       {/* 보조 강조 — 드래그 손잡이 등 */}
       {accentRect ? (
         <div
-          className="farm-tour-accent pointer-events-none fixed rounded-md"
+          className="farm-tour-accent pointer-events-none absolute rounded-md"
           style={{
             top: accentRect.top - 4,
             left: accentRect.left - 4,
@@ -553,7 +601,7 @@ function TourOverlay({
       <div
         ref={tooltipRef}
         className={cn(
-          "farm-tour-tooltip fixed overflow-y-auto rounded-xl border bg-card text-card-foreground shadow-2xl",
+          "farm-tour-tooltip absolute overflow-y-auto rounded-xl border bg-card text-card-foreground shadow-2xl",
           mobileSheet
             ? "max-h-[min(52dvh,calc(var(--vvh,52dvh)*0.52))] p-5"
             : "max-h-[75vh] p-6",

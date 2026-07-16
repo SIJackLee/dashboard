@@ -9,9 +9,9 @@ export type SliderValueInputSize = "compact" | "dashboard";
 
 const SIZE_CLASS: Record<SliderValueInputSize, string> = {
   compact:
-    "h-7 w-[3.25rem] shrink-0 px-1 text-center text-xs tabular-nums md:h-8 md:w-16 md:text-sm",
+    "h-8 w-[3.5rem] shrink-0 border-input bg-background px-1.5 text-center text-sm font-semibold tabular-nums text-foreground shadow-sm md:h-8 md:w-16",
   dashboard:
-    "h-9 w-[4.5rem] shrink-0 px-2 text-center text-sm tabular-nums md:h-12 md:w-24 md:text-[1.75rem]",
+    "h-9 w-[4.5rem] shrink-0 border-input bg-background px-2 text-center text-sm font-semibold tabular-nums text-foreground shadow-sm md:h-12 md:w-24 md:text-[1.75rem]",
 };
 
 function clamp(n: number, min: number, max: number) {

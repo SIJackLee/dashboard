@@ -1,11 +1,12 @@
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 
-export type BarnListPanelKind = "none" | "graph" | "settings" | "motor";
+export type ControllerMobileSheetPage = 0 | 1;
+
+export type BarnListPanelKind = "none" | "graph" | "settings";
 
 export type BarnListPanelSets = {
   graphKeys: ReadonlySet<string>;
   settingsKeys: ReadonlySet<string>;
-  motorKeys: ReadonlySet<string>;
 };
 
 function toggleInSet(prev: ReadonlySet<string>, key: string): Set<string> {
@@ -22,7 +23,7 @@ function removeFromSet(prev: ReadonlySet<string>, key: string): Set<string> {
   return next;
 }
 
-/** 컨트롤러별 그래프 toggle — 같은 카드의 설정·모터 닫음 */
+/** 컨트롤러별 그래프 toggle — 같은 카드의 설정 닫음 */
 export function toggleBarnListGraph(
   prev: BarnListPanelSets,
   key: string
@@ -30,11 +31,10 @@ export function toggleBarnListGraph(
   return {
     graphKeys: toggleInSet(prev.graphKeys, key),
     settingsKeys: removeFromSet(prev.settingsKeys, key),
-    motorKeys: removeFromSet(prev.motorKeys, key),
   };
 }
 
-/** 컨트롤러별 설정 toggle — 같은 카드의 그래프·모터 닫음 */
+/** 컨트롤러별 설정 toggle — 같은 카드의 그래프 닫음 */
 export function toggleBarnListSettings(
   prev: BarnListPanelSets,
   key: string
@@ -42,37 +42,40 @@ export function toggleBarnListSettings(
   return {
     graphKeys: removeFromSet(prev.graphKeys, key),
     settingsKeys: toggleInSet(prev.settingsKeys, key),
-    motorKeys: removeFromSet(prev.motorKeys, key),
-  };
-}
-
-/** 컨트롤러별 모터그래프 toggle — 같은 카드의 그래프·설정 닫음 */
-export function toggleBarnListMotor(
-  prev: BarnListPanelSets,
-  key: string
-): BarnListPanelSets {
-  return {
-    graphKeys: removeFromSet(prev.graphKeys, key),
-    settingsKeys: removeFromSet(prev.settingsKeys, key),
-    motorKeys: toggleInSet(prev.motorKeys, key),
   };
 }
 
 export function panelForBarnListKey(
   key: string,
-  { graphKeys, settingsKeys, motorKeys }: BarnListPanelSets
+  { graphKeys, settingsKeys }: BarnListPanelSets
 ): BarnListPanelKind {
   if (graphKeys.has(key)) return "graph";
   if (settingsKeys.has(key)) return "settings";
-  if (motorKeys.has(key)) return "motor";
   return "none";
 }
 
 export const EMPTY_BARN_LIST_PANEL_SETS: BarnListPanelSets = {
   graphKeys: new Set(),
   settingsKeys: new Set(),
-  motorKeys: new Set(),
 };
+
+/** 모바일 sheet carousel — 0=컨트롤러(+compact graph) · 1=설정 */
+export function setBarnListSheetPage(
+  prev: BarnListPanelSets,
+  key: string,
+  page: ControllerMobileSheetPage,
+): BarnListPanelSets {
+  if (page === 0) {
+    return {
+      graphKeys: new Set(prev.graphKeys).add(key),
+      settingsKeys: removeFromSet(prev.settingsKeys, key),
+    };
+  }
+  return {
+    graphKeys: removeFromSet(prev.graphKeys, key),
+    settingsKeys: new Set(prev.settingsKeys).add(key),
+  };
+}
 
 /** 툴바 기본 + 카드별 override — 그래프 패널 표시 */
 export function isBarnListGraphExpanded(
@@ -80,9 +83,17 @@ export function isBarnListGraphExpanded(
   listMode: BarnListViewMode,
   panelSets: BarnListPanelSets
 ): boolean {
-  if (panelSets.settingsKeys.has(key) || panelSets.motorKeys.has(key)) return false;
+  if (panelSets.settingsKeys.has(key)) return false;
   if (listMode === "graph") return true;
   return panelSets.graphKeys.has(key);
+}
+
+/** 모바일 sheet — panelSets에 명시된 카드만 열림 (툴바 graph/settings 일괄 확장과 분리) */
+export function isBarnListMobileSheetOpen(
+  key: string,
+  panelSets: BarnListPanelSets,
+): boolean {
+  return panelSets.graphKeys.has(key) || panelSets.settingsKeys.has(key);
 }
 
 /** 툴바 기본 + 카드별 override — 설정 패널 표시 */
@@ -92,28 +103,7 @@ export function isBarnListSettingsExpanded(
   panelSets: BarnListPanelSets
 ): boolean {
   if (panelSets.settingsKeys.has(key)) return true;
-  if (
-    listMode === "settings" &&
-    !panelSets.graphKeys.has(key) &&
-    !panelSets.motorKeys.has(key)
-  ) {
-    return true;
-  }
-  return false;
-}
-
-/** 툴바 기본 + 카드별 override — 모터 패널 표시 */
-export function isBarnListMotorExpanded(
-  key: string,
-  listMode: BarnListViewMode,
-  panelSets: BarnListPanelSets
-): boolean {
-  if (panelSets.motorKeys.has(key)) return true;
-  if (
-    listMode === "channel" &&
-    !panelSets.graphKeys.has(key) &&
-    !panelSets.settingsKeys.has(key)
-  ) {
+  if (listMode === "settings" && !panelSets.graphKeys.has(key)) {
     return true;
   }
   return false;

@@ -8,9 +8,9 @@ import {
   type FarmKey,
 } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
-import {
-  setMonitoringTabParam,
-} from "@/lib/monitoring/monitoring-tabs";
+import { setMonitoringTabParam } from "@/lib/monitoring/monitoring-tabs";
+import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
+import { setTrendPeriodParam } from "@/lib/farm/farm-view-url";
 
 export type FarmQueryParams = {
   lsind?: string | null;
@@ -83,6 +83,8 @@ export function buildControllerHref(opts: {
   alarmId?: string | null;
   /** 도착 뷰 — "list"면 목록 뷰(ControllerSummaryGaugeRow)로 진입(레거시 그래프 미사용). */
   view?: "map" | "list";
+  /** 그리드·목록 공유 추이 기간 deep link. */
+  trendPeriod?: TrendPeriodId | null;
 }): string {
   const params = new URLSearchParams();
   appendFarmKeyParams(params, opts.farmKey);
@@ -102,5 +104,6 @@ export function buildControllerHref(opts: {
   } else {
     setMonitoringTabParam(params, "ops");
   }
+  if (opts.trendPeriod) setTrendPeriodParam(params, opts.trendPeriod);
   return `/farm?${params.toString()}`;
 }

@@ -26,13 +26,10 @@ import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { StackMetric } from "@/lib/farm/stack-metric";
 import { SeverityHeatmap } from "@/components/farm/severity-heatmap";
 import type { FarmMapControllerDetailData } from "@/components/farm/farm-map-controller-detail";
+import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
+import { GRAPH_BARS } from "@/lib/farm/trend-display-buckets";
 
-/** 그래프 모드 표시 막대 수(원본 버킷 → 간격 묶음). 24h=1시간, 7d=6시간, 30d=1일. */
-export const GRAPH_BARS: Record<TrendPeriodId, number> = {
-  "24h": 24,
-  "7d": 28,
-  "30d": 30,
-};
+export { GRAPH_BARS };
 
 export type BarnGraphExpanded = { barnId: string; metricId: string };
 
@@ -46,6 +43,8 @@ type Options = {
   graphPeriod: TrendPeriodId;
   /** 그래프 모드 활성(요약+히트맵 병합, 일괄모드 아님). */
   enabled: boolean;
+  /** 히트맵 행 라벨 — icon(기본) | text */
+  heatmapLabelMode?: "text" | "icon";
 };
 
 /**
@@ -60,6 +59,7 @@ export function useBarnGraphs({
   controller,
   graphPeriod,
   enabled,
+  heatmapLabelMode = "icon",
 }: Options) {
   const [expanded, setExpanded] = useState<BarnGraphExpanded | null>(null);
 
@@ -96,7 +96,7 @@ export function useBarnGraphs({
       const thresholds = reading
         ? resolveReadingAlarmThresholds(reading, alarmSettings)
         : DEFAULT_ALARM_THRESHOLDS;
-      const tBand = tempBand(thermo, thresholds);
+      const tBand = tempBand(thresholds);
       const hBand = humidityBand(thresholds);
       const fBand = fanBand(thermo);
       const metrics: StackMetric[] = [
@@ -129,6 +129,12 @@ export function useBarnGraphs({
         m.values.some((v) => v != null && Number.isFinite(v)),
       );
       if (withData.length === 0) continue;
+      const controllerCount = readings.filter(
+        (r) =>
+          normalizeStallTyCode(r.stallTyCode ?? "") ===
+            normalizeStallTyCode(stallTyCode ?? "") &&
+          (r.stallNo ?? "") === (stallNo ?? ""),
+      ).length;
       const barnId = b.meta.id;
       idsMap.set(barnId, withData.map((m) => m.id));
       map.set(
@@ -136,13 +142,17 @@ export function useBarnGraphs({
         <SeverityHeatmap
           metrics={withData}
           bars={GRAPH_BARS[graphPeriod]}
+          caption={`축사 평균 · ${trendPeriodLabel(graphPeriod)}`}
+          periodLabel={trendPeriodLabel(graphPeriod)}
+          controllerCount={controllerCount > 0 ? controllerCount : undefined}
+          labelMode={heatmapLabelMode}
           onExpand={(metricId) => setExpanded({ barnId, metricId })}
           activeMetricId={expanded?.barnId === barnId ? expanded.metricId : null}
         />,
       );
     }
     return { graphByBarnId: map, metricIdsByBarnId: idsMap };
-  }, [enabled, graphPeriod, trendByPeriod, barns, controller, expanded]);
+  }, [enabled, graphPeriod, trendByPeriod, barns, controller, expanded, heatmapLabelMode]);
 
   /** 확대된 축사의 컨트롤러별 상세 데이터(스몰멀티플 + 목록 UI 재사용). */
   const detail = useMemo<FarmMapControllerDetailData | null>(() => {
@@ -156,23 +166,6 @@ export function useBarnGraphs({
     const thermoSettings = controller?.thermoSettings ?? {};
     const alarmSettings = controller?.alarmSettings;
 
-    const repReading =
-      readings.find(
-        (r) =>
-          normalizeStallTyCode(r.stallTyCode ?? "") ===
-            normalizeStallTyCode(stallTyCode ?? "") &&
-          (r.stallNo ?? "") === (stallNo ?? ""),
-      ) ?? null;
-    const thermo = repReading
-      ? resolveReadingThermo(repReading, thermoSettings)
-      : null;
-    const thresholds = repReading
-      ? resolveReadingAlarmThresholds(repReading, alarmSettings)
-      : DEFAULT_ALARM_THRESHOLDS;
-    const tBand = tempBand(thermo, thresholds);
-    const hBand = humidityBand(thresholds);
-    const fBand = fanBand(thermo);
-
     const ctrlStall = (() => {
       if (!controllerTrendByPeriod) return null;
       const data = controllerTrendByPeriod[graphPeriod];
@@ -184,19 +177,51 @@ export function useBarnGraphs({
       return sp?.stalls.find((s) => s.stallNo === stallNo) ?? null;
     })();
 
-    const controllers = (ctrlStall?.controllers ?? []).map((cs) => ({
-      key: cs.controllerKey,
-      eqpmnNo: cs.eqpmnNo,
-      label: formatControllerNoLabel(cs.eqpmnNo),
-      reading: readings.find((r) => r.controllerKey === cs.controllerKey) ?? null,
-      metricsById: {
-        T: { id: "T", label: "온도", unit: "℃", values: cs.temp, band: tBand },
-        H: { id: "H", label: "습도", unit: "%", values: cs.humidity, band: hBand },
-        A: { id: "A", label: "A", unit: "%", values: cs.fanIntake, band: fBand ?? statBand(cs.fanIntake) },
-        B: { id: "B", label: "B", unit: "%", values: cs.fanExhaust, band: fBand ?? statBand(cs.fanExhaust) },
-        C: { id: "C", label: "C", unit: "%", values: cs.fanSupply, band: fBand ?? statBand(cs.fanSupply) },
-      } as Record<string, StackMetric>,
-    }));
+    const controllers = (ctrlStall?.controllers ?? []).map((cs) => {
+      const ctrlReading =
+        readings.find((r) => r.controllerKey === cs.controllerKey) ?? null;
+      const ctrlThermo = ctrlReading
+        ? resolveReadingThermo(ctrlReading, thermoSettings)
+        : null;
+      const ctrlThresholds = ctrlReading
+        ? resolveReadingAlarmThresholds(ctrlReading, alarmSettings)
+        : DEFAULT_ALARM_THRESHOLDS;
+      const ctrlTBand = tempBand(ctrlThresholds);
+      const ctrlHBand = humidityBand(ctrlThresholds);
+      const ctrlFBand = fanBand(ctrlThermo);
+
+      return {
+        key: cs.controllerKey,
+        eqpmnNo: cs.eqpmnNo,
+        label: formatControllerNoLabel(cs.eqpmnNo),
+        reading: ctrlReading,
+        metricsById: {
+          T: { id: "T", label: "온도", unit: "℃", values: cs.temp, band: ctrlTBand },
+          H: { id: "H", label: "습도", unit: "%", values: cs.humidity, band: ctrlHBand },
+          A: {
+            id: "A",
+            label: "A",
+            unit: "%",
+            values: cs.fanIntake,
+            band: ctrlFBand ?? statBand(cs.fanIntake),
+          },
+          B: {
+            id: "B",
+            label: "B",
+            unit: "%",
+            values: cs.fanExhaust,
+            band: ctrlFBand ?? statBand(cs.fanExhaust),
+          },
+          C: {
+            id: "C",
+            label: "C",
+            unit: "%",
+            values: cs.fanSupply,
+            band: ctrlFBand ?? statBand(cs.fanSupply),
+          },
+        } as Record<string, StackMetric>,
+      };
+    });
 
     return {
       barnId: b.meta.id,

@@ -8,7 +8,6 @@ const MODES: { id: BarnListViewMode; label: string; short: string }[] = [
   { id: "controller", label: "컨트롤러", short: "Ctrl" },
   { id: "graph", label: "그래프", short: "Graph" },
   { id: "settings", label: "설정", short: "Set" },
-  { id: "channel", label: "모터그래프", short: "모터" },
 ];
 
 type Props = {

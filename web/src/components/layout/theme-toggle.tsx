@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "dashboard-theme";
@@ -30,10 +31,7 @@ export function ThemeToggle({ className }: { className?: string }) {
   return (
     <button
       type="button"
-      className={cn(
-        "inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:size-11",
-        className,
-      )}
+      className={cn(dashboardUi.topHeaderActionBtn, className)}
       aria-label={mode === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
       title={mode === "dark" ? "라이트 모드" : "다크 모드"}
       onClick={() => {

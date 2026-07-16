@@ -21,7 +21,6 @@ export async function AdminOpsPageShell({ children }: Props) {
         overview={ctx.overview}
         alarms={[]}
         weatherWarnings={[]}
-        hideScopeKpi={ctx.hideScopeKpi}
         farmLocationOptions={[]}
         canEditLocation={false}
         user={{

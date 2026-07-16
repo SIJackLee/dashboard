@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import {
+  type Band,
+  SEV_COLOR,
+  sevOfScore,
+  severityScore,
+} from "@/lib/farm/severity-score";
 
 export type TrendAxis = "left" | "right";
 
@@ -11,6 +17,8 @@ export type TrendSeries = {
   /** Hex color for line/bar/legend. */
   color: string;
   axis?: TrendAxis;
+  /** 알람/환기 밴드 — fill + 주의·경고 마커 (MetricLineChart와 동일). */
+  band?: Band | null;
 };
 
 export type TrendReferenceLine = {
@@ -34,6 +42,8 @@ type TrendChartProps = {
   emptyLabel?: string;
   /** Show every Nth category tick (auto if omitted). */
   tickEvery?: number;
+  /** false면 시리즈 범례 행 숨김 (sheet compact 등). */
+  showLegend?: boolean;
   /**
    * bar 모드 — 바 1개의 최대 너비(차트 폭 % 단위, 0~100).
    * 카테고리 수가 적을 때 통짜 바가 되지 않게 상한을 두고 슬롯 중앙에 정렬한다.
@@ -86,6 +96,7 @@ export function TrendChart({
   emptyLabel = "데이터 없음",
   tickEvery,
   barWidthCapPct,
+  showLegend = true,
 }: TrendChartProps) {
   const [hover, setHover] = useState<{ idx: number; xPx: number; w: number } | null>(null);
   const hasAny = series.some((s) => s.data?.some((v) => v != null));
@@ -165,6 +176,21 @@ export function TrendChart({
   const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / 6));
   const showTick = (i: number) => i === 0 || i === n - 1 || i % autoTick === 0;
 
+  /** 동일 axis·밴드는 한 번만 fill (채널 A/B/C 중복 방지). */
+  const uniqueBands = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { band: Band; axis: TrendAxis }[] = [];
+    for (const s of series) {
+      if (!s.band) continue;
+      const axis = s.axis ?? "left";
+      const key = `${axis}:${s.band.lo}:${s.band.hi}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ band: s.band, axis });
+    }
+    return out;
+  }, [series]);
+
   if (!hasAny || n === 0) {
     return (
       <div
@@ -194,7 +220,8 @@ export function TrendChart({
   };
 
   return (
-    <div className="space-y-1.5">
+    <div className={showLegend ? "space-y-1.5" : "space-y-1"}>
+      {showLegend ? (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {series.map((s) => (
           <span key={s.name} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
@@ -204,6 +231,7 @@ export function TrendChart({
           </span>
         ))}
       </div>
+      ) : null}
 
       <div
         className="relative"
@@ -218,6 +246,47 @@ export function TrendChart({
         role="img"
         aria-label="추이 차트"
       >
+        {mode === "line"
+          ? uniqueBands.map(({ band, axis }, idx) => {
+              const yTop = yFor(band.hi, axis);
+              const yBot = yFor(band.lo, axis);
+              return (
+                <g key={`band-${idx}`}>
+                  <rect
+                    x={PAD_X}
+                    y={yTop}
+                    width={innerW}
+                    height={Math.max(0, yBot - yTop)}
+                    fill={SEV_COLOR.normal}
+                    fillOpacity={0.1}
+                  />
+                  <line
+                    x1={PAD_X}
+                    x2={VIEW_W - PAD_X}
+                    y1={yTop}
+                    y2={yTop}
+                    stroke={SEV_COLOR.warning}
+                    strokeWidth={0.5}
+                    strokeDasharray="2 1.5"
+                    strokeOpacity={0.5}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <line
+                    x1={PAD_X}
+                    x2={VIEW_W - PAD_X}
+                    y1={yBot}
+                    y2={yBot}
+                    stroke={SEV_COLOR.warning}
+                    strokeWidth={0.5}
+                    strokeDasharray="2 1.5"
+                    strokeOpacity={0.5}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </g>
+              );
+            })
+          : null}
+
         {referenceLines.map((ref, idx) => {
           const y = yFor(ref.value, ref.axis ?? "left");
           if (!Number.isFinite(y)) return null;
@@ -275,17 +344,33 @@ export function TrendChart({
                       vectorEffect="non-scaling-stroke"
                     />
                   ))}
-                  {s.data.map((v, i) =>
-                    v != null && Number.isFinite(v) ? (
+                  {s.data.map((v, i) => {
+                    if (v == null || !Number.isFinite(v)) return null;
+                    const cx = xFor(i);
+                    const cy = yFor(v, axis);
+                    if (s.band) {
+                      const sev = sevOfScore(severityScore(v, s.band));
+                      if (sev === "normal") return null;
+                      return (
+                        <circle
+                          key={`${s.name}-sev-${i}`}
+                          cx={cx}
+                          cy={cy}
+                          r={hover && hover.idx === i ? 2.4 : 2}
+                          fill={SEV_COLOR[sev]}
+                        />
+                      );
+                    }
+                    return (
                       <circle
                         key={`${s.name}-dot-${i}`}
-                        cx={xFor(i)}
-                        cy={yFor(v, axis)}
+                        cx={cx}
+                        cy={cy}
                         r={hover && hover.idx === i ? 1.8 : 0.9}
                         fill={s.color}
                       />
-                    ) : null,
-                  )}
+                    );
+                  })}
                 </g>
               );
             })}

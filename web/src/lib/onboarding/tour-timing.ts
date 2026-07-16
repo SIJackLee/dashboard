@@ -3,6 +3,7 @@
  */
 
 import { FARM_TOUR_ACTION_DONE_EVENT } from "@/lib/onboarding/tour-steps";
+import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 
 export const TOUR_LAYOUT_IDLE_MS = 48;
 export const TOUR_LAYOUT_TIMEOUT_MS = 720;
@@ -101,7 +102,7 @@ export function waitForTooltipExtraReady(
 
 /** 그리드 expand/collapse 완료 — farm-map에서 dispatch. */
 export function waitForTourGridAction(
-  action: "expand-first" | "collapse",
+  action: TourGridAction,
   timeoutMs = TOUR_GRID_ACTION_TIMEOUT_MS,
 ): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
@@ -121,9 +122,7 @@ export function waitForTourGridAction(
   });
 }
 
-export function dispatchTourGridActionDone(
-  action: "expand-first" | "collapse",
-): void {
+export function dispatchTourGridActionDone(action: TourGridAction): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(
     new CustomEvent(FARM_TOUR_ACTION_DONE_EVENT, { detail: { action } }),

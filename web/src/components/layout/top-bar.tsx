@@ -1,8 +1,9 @@
 import { AppHeaderAccount } from "@/components/layout/app-header-account";
 import { AppHeaderBrand } from "@/components/layout/app-header-brand";
 import { AppHeaderNav } from "@/components/layout/app-header-nav";
+import { ConnectivityStatusButton } from "@/components/layout/connectivity-status-button";
+import { MobileViewPreviewToggle } from "@/components/layout/mobile-view-preview-toggle";
 import { TopBarAlarmSlot } from "@/components/layout/top-bar-alarm-slot";
-import { GlobalContextStrip } from "@/components/layout/global-context-strip";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { WeatherWarningRow } from "@/lib/data/weather-warnings";
@@ -18,8 +19,6 @@ type TopBarProps = {
   alarms?: AlarmRow[];
   weatherWarnings?: WeatherWarningRow[];
   isAdmin?: boolean;
-  /** Admin 전국 뷰 — 데스크톱 GlobalContextStrip 숨김 */
-  hideScopeKpi?: boolean;
   farmLocationOptions?: EditableFarmOption[];
   farmOptions?: FarmKey[];
   canEditLocation?: boolean;
@@ -40,40 +39,32 @@ export function TopBar({
   overview,
   alarms = [],
   weatherWarnings = [],
-  hideScopeKpi = false,
   farmLocationOptions = [],
   farmOptions = [],
   canEditLocation = false,
   user,
 }: TopBarProps) {
-  const showMobileKpi = overview != null;
+  const showConnectivity = overview != null;
 
   return (
     <header className={dashboardUi.topBar} data-app-header>
       <div className="flex w-full min-w-0 items-center gap-1.5 md:gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:flex-wrap md:gap-3">
           <AppHeaderBrand />
-          <TopBarDivider />
-          <AppHeaderNav role={user.role} />
-        </div>
-
-        {showMobileKpi ? (
-          <div className="ml-auto shrink-0 overflow-visible max-lg:block lg:hidden">
-            <GlobalContextStrip overview={overview} headerInline />
-          </div>
-        ) : null}
-
-        <div className="hidden min-w-0 flex-1 lg:flex">
-          <GlobalContextStrip
-            overview={overview}
-            alarmCount={alarms.length + weatherWarnings.length}
-            hidden={hideScopeKpi}
-            compact={hideScopeKpi}
-          />
+          {user.role === "admin" ? (
+            <>
+              <TopBarDivider />
+              <AppHeaderNav role={user.role} />
+            </>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-1.5 md:gap-3">
+          <MobileViewPreviewToggle />
           <ThemeToggle />
+          {showConnectivity ? (
+            <ConnectivityStatusButton overview={overview} />
+          ) : null}
           <TopBarAlarmSlot
             alarms={alarms}
             weatherWarnings={weatherWarnings}

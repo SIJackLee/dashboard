@@ -20,10 +20,10 @@ export function RecentActivityMenuSection({ receipts, max = 4 }: Props) {
     .slice(0, max);
 
   return (
-    <div className="px-2 py-1.5">
-      <p className={cn("px-2 pb-1 font-medium", dashboardUi.tableMeta)}>최근 활동</p>
+    <div className="px-4 py-3">
+      <p className={cn("pb-2 font-medium", dashboardUi.tableMeta)}>최근 활동</p>
       {items.length === 0 ? (
-        <p className={cn("px-2 py-2 text-muted-foreground", dashboardUi.tableMeta)}>
+        <p className={cn("py-1 text-muted-foreground", dashboardUi.tableMeta)}>
           최근 수신 데이터가 없습니다.
         </p>
       ) : (
@@ -31,7 +31,7 @@ export function RecentActivityMenuSection({ receipts, max = 4 }: Props) {
           {items.map((r) => (
             <li
               key={`${farmKeyId(r.farmKey)}-${r.moduleUid}`}
-              className="flex items-start gap-2 rounded-md px-2 py-1.5 text-sm"
+              className="flex items-start gap-2 rounded-md py-1.5 text-sm"
             >
               <StatusBadge tone={r.status} compact />
               <div className="min-w-0 flex-1">

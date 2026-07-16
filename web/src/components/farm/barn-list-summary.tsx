@@ -13,11 +13,13 @@ import { groupReadingsByHierarchy } from "@/lib/data/reading-hierarchy";
 import { summarizeReadings } from "@/lib/data/hierarchy-summary";
 import {
   isBarnListGraphExpanded,
-  isBarnListMotorExpanded,
+  isBarnListMobileSheetOpen,
   isBarnListSettingsExpanded,
   type BarnListPanelSets,
+  type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { StatusBadge } from "@/components/common/status-badge";
 import { EnvChip } from "@/components/common/env-chip";
@@ -44,7 +46,7 @@ type Props = {
   panelSets: BarnListPanelSets;
   onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
-  onToggleMotor: (key: string) => void;
+  onSheetPageChange?: (key: string, page: ControllerMobileSheetPage) => void;
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
   onToggleSp?: (stallTyCode: string) => void;
@@ -126,7 +128,7 @@ function ControllerCardGrid({
   listMode,
   onToggleGraph,
   onToggleSettings,
-  onToggleMotor,
+  onSheetPageChange,
   inSpSection = false,
   bulkMode = false,
   selectedSps,
@@ -149,7 +151,7 @@ function ControllerCardGrid({
   listMode: BarnListViewMode;
   onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
-  onToggleMotor: (key: string) => void;
+  onSheetPageChange?: (key: string, page: ControllerMobileSheetPage) => void;
   inSpSection?: boolean;
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
@@ -157,6 +159,8 @@ function ControllerCardGrid({
   showAffiliation?: boolean;
 }) {
   const tourActive = useFarmTourActive();
+  const compact = useHydrationSafeDashboardCompact();
+  const panelLayoutVariant = compact ? ("stack" as const) : ("grid" as const);
   const visibleCount = useStaggeredVisibleCount(
     readings.length,
     staggerMount && !tourActive,
@@ -182,10 +186,17 @@ function ControllerCardGrid({
           className={bulkMode && !spSelected ? "opacity-50" : undefined}
           graphExpanded={isBarnListGraphExpanded(r.key, listMode, panelSets)}
           settingsExpanded={isBarnListSettingsExpanded(r.key, listMode, panelSets)}
-          motorExpanded={isBarnListMotorExpanded(r.key, listMode, panelSets)}
+          mobileSheetOpen={
+            compact ? isBarnListMobileSheetOpen(r.key, panelSets) : false
+          }
           onToggleGraph={!bulkMode ? () => onToggleGraph(r.key) : undefined}
           onToggleSettings={!bulkMode ? () => onToggleSettings(r.key) : undefined}
-          onToggleMotor={!bulkMode ? () => onToggleMotor(r.key) : undefined}
+          onSheetPageChange={
+            !bulkMode && onSheetPageChange
+              ? (page) => onSheetPageChange(r.key, page)
+              : undefined
+          }
+          panelLayoutVariant={panelLayoutVariant}
           controllerTrendByPeriod={controllerTrendByPeriod}
           trendLoading={trendLoading}
           trendStale={trendStale}
@@ -262,7 +273,7 @@ export function BarnListSummary({
   panelSets,
   onToggleGraph,
   onToggleSettings,
-  onToggleMotor,
+  onSheetPageChange,
   bulkMode = false,
   selectedSps = new Set(),
   onToggleSp,
@@ -296,7 +307,7 @@ export function BarnListSummary({
     listMode,
     onToggleGraph,
     onToggleSettings,
-    onToggleMotor,
+    onSheetPageChange,
     bulkMode,
     selectedSps,
     staggerMount,

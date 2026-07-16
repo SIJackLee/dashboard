@@ -5,6 +5,10 @@ import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 import { channelBySlot } from "@/lib/data/iot-channel";
+import type {
+  TrendControllerPeriodData,
+  TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
 import {
   CHANNELS,
   channelPercentsFromReading,
@@ -24,7 +28,7 @@ import {
   stallKeyFromReading,
   stallLabelFromKey,
 } from "@/lib/data/reading-hierarchy";
-import { ChannelFanDropdown } from "@/components/farm/channel-fan-dropdown";
+import { BarnMotorTrendPanel } from "@/components/farm/barn-motor-trend-panel";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
@@ -99,61 +103,28 @@ export function SettingsTogglePill({
   );
 }
 
-export function MotorTogglePill({
-  active,
-  onClick,
-  disabled,
-}: HeaderTogglePillProps) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      className={cn(
-        headerTogglePillClass,
-        active
-          ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
-          : "border-border bg-background text-muted-foreground hover:bg-muted",
-        disabled && "pointer-events-none",
-        disabled && !active && "opacity-50"
-      )}
-    >
-      모터
-    </button>
-  );
-}
-
 export function ControllerSummaryHeader({
   reading,
   graphActive,
   settingsActive,
-  motorActive,
   showGraphPill = true,
   showSettingsPill = true,
-  showMotorPill = true,
   showAffiliation = false,
   onToggleGraph,
   onToggleSettings,
-  onToggleMotor,
   className,
 }: {
   reading: BarnReading;
   graphActive?: boolean;
   settingsActive?: boolean;
-  motorActive?: boolean;
   showGraphPill?: boolean;
   showSettingsPill?: boolean;
-  showMotorPill?: boolean;
   showAffiliation?: boolean;
   onToggleGraph?: () => void;
   onToggleSettings?: () => void;
-  onToggleMotor?: () => void;
   className?: string;
 }) {
-  const showPills = showGraphPill || showSettingsPill || showMotorPill;
+  const showPills = showGraphPill || showSettingsPill;
   const affiliationLabel = showAffiliation
     ? `${formatStallTypeLabel(reading.stallTyCode)} · ${stallLabelFromKey(stallKeyFromReading(reading))}`
     : null;
@@ -201,13 +172,6 @@ export function ControllerSummaryHeader({
               active={settingsActive}
               onClick={onToggleSettings}
               disabled={onToggleSettings == null}
-            />
-          ) : null}
-          {showMotorPill ? (
-            <MotorTogglePill
-              active={motorActive}
-              onClick={onToggleMotor}
-              disabled={onToggleMotor == null}
             />
           ) : null}
         </div>
@@ -295,16 +259,21 @@ export function ChannelStrip({
   compact,
   expandedChannel,
   onToggleChannel,
-  channelDetail,
-  channelDetailLoading,
+  controllerTrendByPeriod = null,
+  period = "24h",
+  thermoSettings = {},
+  hideMotorExpand = false,
 }: {
   reading: BarnReading;
   thermo?: ControllerThermoSettings | null;
   compact?: boolean;
   expandedChannel?: ChannelSlot | null;
   onToggleChannel?: (slot: ChannelSlot) => void;
-  channelDetail?: BarnReading;
-  channelDetailLoading?: boolean;
+  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
+  period?: TrendPeriodId;
+  thermoSettings?: Record<string, ControllerThermoSettings>;
+  /** 모바일 sheet — 채널 탭 시 BarnMotorTrendPanel 펼침 비활성. */
+  hideMotorExpand?: boolean;
 }) {
   const channels = channelPercentsFromReading(reading);
   const offline = reading.status === "offline";
@@ -330,20 +299,25 @@ export function ChannelStrip({
           );
         })}
       </div>
+      {!hideMotorExpand ? (
       <BarnListPanelShell
         open={Boolean(expandedChannel && interactive)}
         panelKind="motor"
         className="mt-2"
       >
         {expandedChannel && interactive ? (
-          <ChannelFanDropdown
-            slot={expandedChannel}
+          <BarnMotorTrendPanel
             reading={reading}
-            detailReading={channelDetail}
-            loading={channelDetailLoading}
+            controllerTrendByPeriod={controllerTrendByPeriod}
+            period={period}
+            thermoSettings={thermoSettings}
+            layout="single"
+            slot={expandedChannel}
+            compact
           />
         ) : null}
       </BarnListPanelShell>
+      ) : null}
       {thermo ? (
         <VentGaugeV1
           min={thermo.minVentPct}

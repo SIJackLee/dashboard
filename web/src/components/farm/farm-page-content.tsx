@@ -13,7 +13,6 @@ import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
-import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
@@ -22,7 +21,10 @@ import {
   currentFarmSearchParams,
   replaceFarmUrlShallow,
   resolveListViewMode,
+  resolveTrendPeriodParam,
+  setTrendPeriodParam,
 } from "@/lib/farm/farm-view-url";
+import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
 import { fetchFarmScopedPanelDataAction } from "@/app/(dashboard)/farm/actions";
@@ -31,6 +33,7 @@ import {
   useFarmLiveRefreshOptional,
 } from "@/lib/navigation/farm-live-refresh";
 import { FarmListSkeleton } from "@/components/common/loading-skeletons";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +74,7 @@ export function FarmPageContent({
   lazyListFarmKey = null,
   initialHubView,
 }: Props) {
+  const viewportCompact = useHydrationSafeDashboardCompact();
   const searchParams = useSearchParams();
   const liveRefresh = useFarmLiveRefreshOptional();
   const liveRefreshRef = useRef(liveRefresh);
@@ -125,7 +129,7 @@ export function FarmPageContent({
     );
     return allSame ? first : null;
   }, [readings]);
-  const { data: gridControllerTrend } = useFarmControllerTrend({
+  const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } = useFarmControllerTrend({
     farmKey: gridFarmKey,
     enabled: Boolean(gridFarmKey) && view === "map",
   });
@@ -144,7 +148,22 @@ export function FarmPageContent({
     return resolveListViewMode(shallowParams, "controller");
   }, [shallowParams]);
   const listLayout =
-    shallowParams.get("listLayout") === "flat" ? ("flat" as const) : ("group" as const);
+    shallowParams.get("listLayout") === "group" ? ("group" as const) : ("flat" as const);
+  const trendPeriod = useMemo(
+    () => resolveTrendPeriodParam(shallowParams),
+    [shallowParams],
+  );
+
+  const onTrendPeriodChange = useCallback(
+    (period: TrendPeriodId) => {
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      setTrendPeriodParam(params, period);
+      replaceFarmUrlShallow(params);
+      onHubUrlChange?.();
+      setUrlTick((n) => n + 1);
+    },
+    [onHubUrlChange],
+  );
   const thermoSettings = controller?.thermoSettings ?? {};
   const alarmSettings = controller?.alarmSettings;
 
@@ -245,15 +264,18 @@ export function FarmPageContent({
     [applyViewChange]
   );
 
-  const tabNavClass = gridCompactShell
-    ? "text-sm font-medium md:text-sm"
-    : dashboardUi.tabNav;
+  const tabNavClass =
+    gridCompactShell || viewportCompact
+      ? "text-sm font-medium md:text-sm"
+      : dashboardUi.tabNav;
 
   const mapHidden = view !== "map";
   const listHidden = view !== "list";
   const panelInactive =
     "pointer-events-none absolute inset-x-0 top-0 -z-10 overflow-hidden opacity-0";
   const panelActive = "opacity-100 transition-opacity duration-150 ease-out";
+
+  const tabView = mounted ? view : bootstrapView;
 
   return (
     <div className="space-y-4">
@@ -262,7 +284,9 @@ export function FarmPageContent({
         <div
           className={cn(
             "inline-flex rounded-xl border bg-muted/20 p-1",
-            gridCompactShell ? "text-sm md:text-sm" : dashboardUi.body
+            gridCompactShell || viewportCompact
+              ? "text-sm md:text-sm"
+              : dashboardUi.body
           )}
           role="tablist"
           aria-label="농장 보기"
@@ -272,11 +296,11 @@ export function FarmPageContent({
           <button
             type="button"
             role="tab"
-            aria-selected={mounted ? view === "map" : bootstrapView === "map"}
+            aria-selected={tabView === "map"}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,
-              view === "map"
+              tabView === "map"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
@@ -288,11 +312,11 @@ export function FarmPageContent({
           <button
             type="button"
             role="tab"
-            aria-selected={mounted ? view === "list" : bootstrapView === "list"}
+            aria-selected={tabView === "list"}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,
-              view === "list"
+              tabView === "list"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
@@ -326,6 +350,10 @@ export function FarmPageContent({
             controller={controller}
             hubMode={hubMode}
             compactShell={gridCompactShell}
+            trendPeriod={trendPeriod}
+            onTrendPeriodChange={onTrendPeriodChange}
+            trendLoading={gridTrendLoading}
+            trendStale={gridTrendStale}
           />
         </div>
 
@@ -355,6 +383,8 @@ export function FarmPageContent({
                 liveRefreshManaged={liveRefreshManaged}
                 staggerMount
                 onRequestPanelEnrichment={enrichListIfNeeded}
+                trendPeriod={trendPeriod}
+                onTrendPeriodChange={onTrendPeriodChange}
               />
             )}
           </div>

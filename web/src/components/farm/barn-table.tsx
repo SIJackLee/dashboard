@@ -22,18 +22,20 @@ import {
   currentFarmSearchParams,
   replaceFarmUrlShallow,
   resolveListViewMode,
+  resolveTrendPeriodParam,
+  setTrendPeriodParam,
   type BarnListViewMode,
 } from "@/lib/farm/farm-view-url";
 import {
   EMPTY_BARN_LIST_PANEL_SETS,
   toggleBarnListGraph,
-  toggleBarnListMotor,
   toggleBarnListSettings,
+  setBarnListSheetPage,
   type BarnListPanelSets,
+  type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
 import {
-  DEFAULT_TREND_PERIOD,
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
@@ -63,6 +65,9 @@ type Props = {
   onRequestPanelEnrichment?: () => void | Promise<void>;
   /** 그리드 히트맵 '컨트롤러 이동' 도착 — 해당 controllerKey 카드로 스크롤/하이라이트 */
   focusControllerKey?: string | null;
+  /** 그리드·목록 공유 추이 기간 (URL 동기화). */
+  trendPeriod?: TrendPeriodId;
+  onTrendPeriodChange?: (period: TrendPeriodId) => void;
 };
 
 function stallTyCodesFromReadings(readings: BarnReading[]): string[] {
@@ -92,6 +97,8 @@ export function BarnTable({
   staggerMount = false,
   onRequestPanelEnrichment,
   focusControllerKey = null,
+  trendPeriod: trendPeriodProp,
+  onTrendPeriodChange,
 }: Props) {
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -152,7 +159,7 @@ export function BarnTable({
 
   const resolveListLayout = useCallback(
     (params: URLSearchParams): ListLayout =>
-      params.get("listLayout") === "flat" ? "flat" : "group",
+      params.get("listLayout") === "group" ? "group" : "flat",
     [],
   );
 
@@ -161,7 +168,7 @@ export function BarnTable({
     if (typeof window !== "undefined") {
       return resolveListLayout(currentFarmSearchParams());
     }
-    return initialListLayout ?? "group";
+    return initialListLayout ?? "flat";
   });
 
   const [listMode, setListMode] = useState<BarnListViewMode>(() =>
@@ -247,15 +254,28 @@ export function BarnTable({
     };
   }, [focusControllerKey]);
 
-  const [bulkPeriod, setBulkPeriod] = useState<TrendPeriodId>(DEFAULT_TREND_PERIOD);
+  const bulkPeriod = useMemo(
+    () => trendPeriodProp ?? resolveTrendPeriodParam(liveParams),
+    [trendPeriodProp, liveParams],
+  );
   const [panelPeriodOverrides, setPanelPeriodOverrides] = useState<
     Record<string, TrendPeriodId>
   >({});
 
-  const onBulkPeriodChange = useCallback((period: TrendPeriodId) => {
-    setBulkPeriod(period);
-    setPanelPeriodOverrides({});
-  }, []);
+  const onBulkPeriodChange = useCallback(
+    (period: TrendPeriodId) => {
+      setPanelPeriodOverrides({});
+      if (onTrendPeriodChange) {
+        onTrendPeriodChange(period);
+        return;
+      }
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      setTrendPeriodParam(params, period);
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
+    },
+    [onTrendPeriodChange],
+  );
 
   const onPanelPeriodChange = useCallback((key: string, period: TrendPeriodId) => {
     setPanelPeriodOverrides((prev) => ({ ...prev, [key]: period }));
@@ -281,9 +301,12 @@ export function BarnTable({
     setPanelSets((prev) => toggleBarnListSettings(prev, key));
   }, []);
 
-  const toggleMotorPanel = useCallback((key: string) => {
-    setPanelSets((prev) => toggleBarnListMotor(prev, key));
-  }, []);
+  const handleSheetPageChange = useCallback(
+    (key: string, page: ControllerMobileSheetPage) => {
+      setPanelSets((prev) => setBarnListSheetPage(prev, key, page));
+    },
+    [],
+  );
 
   const filteredRows = useMemo(() => {
     if (isFilterAll(filterSp)) return rows;
@@ -327,7 +350,7 @@ export function BarnTable({
     const next: ListLayout = listLayout === "group" ? "flat" : "group";
     setListLayout(next);
     replaceListParams({
-      listLayout: next === "flat" ? "flat" : null,
+      listLayout: next === "group" ? "group" : null,
     });
   };
 
@@ -476,7 +499,7 @@ export function BarnTable({
           panelSets={panelSets}
           onToggleGraph={toggleGraphPanel}
           onToggleSettings={toggleSettingsPanel}
-          onToggleMotor={toggleMotorPanel}
+          onSheetPageChange={handleSheetPageChange}
           bulkMode={bulkMode}
           selectedSps={selectedSps}
           onToggleSp={toggleSp}

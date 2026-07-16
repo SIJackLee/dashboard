@@ -35,7 +35,7 @@ export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
   "30d": { id: "30d", label: "30일", bucket: "1 day", durationMs: 30 * DAY, bucketCount: 30, strideMs: DAY },
 };
 
-export const DEFAULT_TREND_PERIOD: TrendPeriodId = "7d";
+export const DEFAULT_TREND_PERIOD: TrendPeriodId = "24h";
 
 /** One barn (stall_no) aligned series across the full continuous time axis. */
 export type TrendStallSeries = {

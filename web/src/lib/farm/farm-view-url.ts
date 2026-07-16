@@ -1,4 +1,35 @@
+import {
+  DEFAULT_TREND_PERIOD,
+  TREND_PERIODS,
+  type TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
+
+export const TREND_PERIOD_PARAM = "trendPeriod";
+
+export function parseTrendPeriodParam(
+  raw: string | null | undefined,
+): TrendPeriodId {
+  if (raw === "24h" || raw === "7d" || raw === "30d") return raw;
+  return DEFAULT_TREND_PERIOD;
+}
+
+export function resolveTrendPeriodParam(params: URLSearchParams): TrendPeriodId {
+  return parseTrendPeriodParam(params.get(TREND_PERIOD_PARAM));
+}
+
+/** 기본 period(24h)면 URL에서 생략. */
+export function setTrendPeriodParam(
+  params: URLSearchParams,
+  period: TrendPeriodId,
+): void {
+  if (period === DEFAULT_TREND_PERIOD) params.delete(TREND_PERIOD_PARAM);
+  else params.set(TREND_PERIOD_PARAM, period);
+}
+
+export function trendPeriodLabel(period: TrendPeriodId): string {
+  return TREND_PERIODS[period].label;
+}
 
 export type FarmMapDrillLevel = "sp" | "stalls";
 
@@ -15,6 +46,7 @@ const LIST_VIEW_MODES: BarnListViewMode[] = [
 export function parseListViewMode(
   raw: string | null | undefined
 ): BarnListViewMode {
+  if (raw === "channel") return "graph";
   if (raw && LIST_VIEW_MODES.includes(raw as BarnListViewMode)) {
     return raw as BarnListViewMode;
   }

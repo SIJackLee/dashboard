@@ -1,6 +1,11 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useSyncExternalStore } from "react";
+import {
+  getViewportPreviewMode,
+  isViewportCompact,
+  subscribeViewportPreview,
+} from "@/lib/ui/viewport-preview-store";
 
 const DashboardViewportContext = createContext(false);
 
@@ -18,7 +23,20 @@ export function DashboardViewportProvider({
   );
 }
 
-/** DashboardViewportShell의 실제 패널 너비 기준 compact 여부 */
+/** DashboardViewportShell의 compact 여부 (토글 기준) */
 export function useDashboardCompact() {
   return useContext(DashboardViewportContext);
+}
+
+/**
+ * compact 레이아웃 여부 — ViewportPreview 토글(mobile|desktop)과 동기화.
+ * SSR·첫 hydration은 desktop.
+ */
+export function useHydrationSafeDashboardCompact(): boolean {
+  const mode = useSyncExternalStore(
+    subscribeViewportPreview,
+    getViewportPreviewMode,
+    () => "desktop" as const,
+  );
+  return isViewportCompact(mode);
 }

@@ -26,6 +26,7 @@ export function NavigationLoadingOverlay({
           "fixed inset-0 z-[9999] flex items-center justify-center bg-background",
           exiting && "login-splash--exit"
         )}
+        data-mobile-viewport-fullscreen
         role="status"
         aria-live="polite"
         aria-busy="true"
@@ -53,6 +54,7 @@ export function NavigationLoadingOverlay({
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/55 backdrop-blur-[2px]"
+      data-mobile-viewport-fullscreen
       role="status"
       aria-live="polite"
       aria-busy="true"

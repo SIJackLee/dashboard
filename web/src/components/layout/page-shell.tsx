@@ -28,7 +28,6 @@ export async function PageShell({
         overview={ctx.overview}
         alarms={ctx.alarms}
         weatherWarnings={ctx.weatherWarnings}
-        hideScopeKpi={ctx.isAdmin && !ctx.activeFarmKey}
         farmLocationOptions={ctx.farmLocationOptions}
         farmOptions={ctx.farmOptions}
         canEditLocation={ctx.canEditLocation}

@@ -12,7 +12,6 @@ import type { FarmOverview } from "@/lib/data/iot";
 
 export type AdminOpsShellContext = {
   overview: FarmOverview;
-  hideScopeKpi: boolean;
 };
 
 /** 운영 페이지 TopBar — overview 집계만 (LIVE 병렬 조회 생략) */
@@ -37,7 +36,6 @@ export const getAdminOpsShellContext = cache(
           avgFanIntake: null,
           receipts: [],
         },
-        hideScopeKpi: false,
       };
     }
 
@@ -85,7 +83,6 @@ export const getAdminOpsShellContext = cache(
           avgFanIntake: null,
           receipts: [],
         },
-        hideScopeKpi: true,
       };
     }
 
@@ -105,7 +102,6 @@ export const getAdminOpsShellContext = cache(
         avgFanIntake: null,
         receipts: [],
       },
-      hideScopeKpi: true,
     };
   },
 );

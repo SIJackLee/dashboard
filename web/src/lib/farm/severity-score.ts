@@ -11,7 +11,7 @@
  *   정상: s <= 0.85 · 주의: 0.85 < s <= 1 · 경고: s > 1
  *
  * 밴드 소스:
- *   온도 = thermo.setpointTemp ± tempDeviation (없으면 알람 tempLow~tempHigh)
+ *   온도 = 알람 tempLow ~ tempHigh (설정온도·편차는 환기 제어용, 알람 시각화에 미사용)
  *   습도 = 알람 humidityLow ~ humidityHigh
  *   팬   = thermo.minVentPct ~ maxVentPct (없으면 자기 이력 통계 밴드로 폴백)
  */
@@ -79,13 +79,8 @@ export function binWorst(scores: (number | null)[], bars: number): (number | nul
 
 /* ---------- 밴드 빌더 ---------- */
 
-export function tempBand(
-  thermo: Pick<ControllerThermoSettings, "setpointTemp" | "tempDeviation"> | null,
-  thresholds: AlarmThresholds
-): Band {
-  if (thermo && Number.isFinite(thermo.setpointTemp) && Number.isFinite(thermo.tempDeviation) && thermo.tempDeviation > 0) {
-    return { lo: thermo.setpointTemp - thermo.tempDeviation, hi: thermo.setpointTemp + thermo.tempDeviation };
-  }
+/** 온도 알람 구간 — 그래프 상하한·주의/경고 판정용. */
+export function tempBand(thresholds: AlarmThresholds): Band {
   return { lo: thresholds.tempLow, hi: thresholds.tempHigh };
 }
 

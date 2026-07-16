@@ -7,10 +7,11 @@ import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { type FarmKey } from "@/lib/data/farm-key";
-import type {
-  TrendControllerPeriodData,
-  TrendPeriodData,
-  TrendPeriodId,
+import {
+  DEFAULT_TREND_PERIOD,
+  type TrendControllerPeriodData,
+  type TrendPeriodData,
+  type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import {
   clearMapDrillParams,
@@ -25,13 +26,33 @@ import { FarmMapCard } from "./farm-map-card";
 import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "./farm-map-bulk-apply";
 import { TrendPeriodToggle } from "./trend-period-toggle";
 import { InlineStatusToast } from "@/components/common/inline-status-toast";
+import { GridMetricLabel } from "@/lib/farm/grid-metric-label";
 import { cn } from "@/lib/utils";
+
+const LEGEND_METRICS = [
+  { id: "T", label: "온도" },
+  { id: "H", label: "습도" },
+  { id: "A", label: "A" },
+  { id: "B", label: "B" },
+  { id: "C", label: "C" },
+] as const;
 
 /** 히트맵 — 지표(행)·심각도 색 범례 */
 function GraphModeLegend() {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] text-muted-foreground">
-      <span>행: 온도·습도·A·B·C</span>
+      <span className="inline-flex items-center gap-1">
+        <span>행</span>
+        {LEGEND_METRICS.map((m) => (
+          <GridMetricLabel
+            key={m.id}
+            id={m.id}
+            label={m.label}
+            mode="icon"
+            iconClassName="size-3"
+          />
+        ))}
+      </span>
       <span className="inline-flex items-center gap-1">
         <span className="inline-block size-2 rounded-sm bg-emerald-500/60" />정상
       </span>
@@ -58,6 +79,10 @@ type Props = {
   hubMode?: boolean;
   /** Admin 전체 보기 — 카드 클릭 시 해당 farm scoped URL로 이동 */
   navigateFarmKey?: FarmKey | null;
+  trendPeriod?: TrendPeriodId;
+  onTrendPeriodChange?: (period: TrendPeriodId) => void;
+  trendLoading?: boolean;
+  trendStale?: boolean;
 };
 
 const GRID_COL_MIN = "4.75rem";
@@ -144,6 +169,10 @@ export function FarmMapCanvas({
   controller,
   hubMode = false,
   navigateFarmKey = null,
+  trendPeriod: trendPeriodProp,
+  onTrendPeriodChange,
+  trendLoading = false,
+  trendStale = false,
 }: Props) {
   const router = useRouter();
   const isOverviewFarm = Boolean(navigateFarmKey);
@@ -153,7 +182,10 @@ export function FarmMapCanvas({
   const [pendingSaves, setPendingSaves] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [bulkMode, setBulkMode] = useState(false);
-  const [graphPeriod, setGraphPeriod] = useState<TrendPeriodId>("24h");
+  const [localGraphPeriod, setLocalGraphPeriod] =
+    useState<TrendPeriodId>(DEFAULT_TREND_PERIOD);
+  const graphPeriod = trendPeriodProp ?? localGraphPeriod;
+  const setGraphPeriod = onTrendPeriodChange ?? setLocalGraphPeriod;
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
   const [statusToast, setStatusToast] = useState<string | null>(null);
   const draggedIdRef = useRef<string | null>(null);
@@ -469,6 +501,9 @@ export function FarmMapCanvas({
           canCommand={Boolean(controller?.canCommand)}
           alarmSettings={controller?.alarmSettings}
           controllerTrendByPeriod={controllerTrendByPeriod}
+          onPeriodChange={setGraphPeriod}
+          trendLoading={trendLoading}
+          trendStale={trendStale}
           onChangeMetric={(metricId) =>
             setExpanded((e) => (e ? { ...e, metricId } : e))
           }

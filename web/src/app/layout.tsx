@@ -44,12 +44,16 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
+      data-viewport-preview="desktop"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-muted/30 dark:bg-background">
         <Script id="dashboard-theme-init" strategy="beforeInteractive">
           {`try{var t=localStorage.getItem("dashboard-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`}
+        </Script>
+        <Script id="dashboard-viewport-init" strategy="beforeInteractive">
+          {`try{var v=localStorage.getItem("dashboard-viewport-preview");document.documentElement.dataset.viewportPreview=(v==="mobile"?"mobile":"desktop")}catch(e){document.documentElement.dataset.viewportPreview="desktop"}`}
         </Script>
         <TooltipProvider>
           <NavigationPendingProvider>{children}</NavigationPendingProvider>
