@@ -204,6 +204,8 @@ export function BarnListAccordionPanel({
     liveConfirmed: pipeline.liveConfirmed,
     flash: pipeline.flash,
     panelError,
+    isCommandOverlayDismissed: pipeline.isCommandOverlayDismissed,
+    onAcknowledgeCommandOverlay: pipeline.acknowledgeCommandOverlay,
   });
 
   const handleOverlayDismiss = useCallback(() => {

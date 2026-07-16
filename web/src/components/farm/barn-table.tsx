@@ -365,6 +365,40 @@ export function BarnTable({
     [hubMode],
   );
 
+  const openMobileToolbarSheet = useCallback(
+    (key: string, page: ControllerMobileSheetPage) => {
+      const mode: BarnListViewMode = page === 1 ? "settings" : "graph";
+      setListMode(mode);
+      setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+      setToolbarSheetKey(key);
+      setToolbarSheetPage(page);
+      replaceListParams({ listMode: mode });
+    },
+    [replaceListParams],
+  );
+
+  const handleToggleGraph = useCallback(
+    (key: string) => {
+      if (compact && !bulkMode) {
+        openMobileToolbarSheet(key, 0);
+        return;
+      }
+      toggleGraphPanel(key);
+    },
+    [bulkMode, compact, openMobileToolbarSheet, toggleGraphPanel],
+  );
+
+  const handleToggleSettings = useCallback(
+    (key: string) => {
+      if (compact && !bulkMode) {
+        openMobileToolbarSheet(key, 1);
+        return;
+      }
+      toggleSettingsPanel(key);
+    },
+    [bulkMode, compact, openMobileToolbarSheet, toggleSettingsPanel],
+  );
+
   const toggleListLayout = () => {
     if (bulkMode) return;
     const next: ListLayout = listLayout === "group" ? "flat" : "group";
@@ -448,7 +482,7 @@ export function BarnTable({
     [hubMode, liveRefresh, liveRefreshManaged, refreshList],
   );
 
-  const listToolbar = (
+  const listToolbarDesktop = (
     <div className="flex flex-wrap items-center gap-2">
       <PageActionButton
         icon={
@@ -469,6 +503,25 @@ export function BarnTable({
       />
     </div>
   );
+
+  /** 모바일 — bottom sheet로 Graph/Set 전환, 모드 탭·SP 필터 생략 */
+  const listToolbarMobile = (
+    <PageActionButton
+      icon={
+        listLayout === "group" ? (
+          <LayoutGrid className={dashboardUi.iconSm} aria-hidden />
+        ) : (
+          <LayoutList className={dashboardUi.iconSm} aria-hidden />
+        )
+      }
+      onClick={toggleListLayout}
+      aria-label={listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+    >
+      {listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+    </PageActionButton>
+  );
+
+  const listToolbar = compact ? listToolbarMobile : listToolbarDesktop;
 
   /** canCommand 없으면 CardHeader, 있으면 bulk bar trailing / bulk on 시 숨김 */
   const toolbarInBulkBar = bulkEnabled && !bulkMode;
@@ -497,6 +550,7 @@ export function BarnTable({
           onExit={exitBulk}
           onAfterApply={handleAfterBulkApply}
           trailing={toolbarInBulkBar ? listToolbar : undefined}
+          trailingCompact={compact && toolbarInBulkBar}
         />
       ) : null}
       {hasTrendToolbarRow ? (
@@ -541,8 +595,8 @@ export function BarnTable({
           panelPeriodOverrides={panelPeriodOverrides}
           onPanelPeriodChange={onPanelPeriodChange}
           panelSets={panelSets}
-          onToggleGraph={toggleGraphPanel}
-          onToggleSettings={toggleSettingsPanel}
+          onToggleGraph={handleToggleGraph}
+          onToggleSettings={handleToggleSettings}
           onSheetPageChange={handleSheetPageChange}
           bulkMode={bulkMode}
           selectedSps={selectedSps}

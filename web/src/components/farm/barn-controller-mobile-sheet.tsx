@@ -216,46 +216,46 @@ export function BarnControllerMobileSheet({
       auditRegion="barn-controller-mobile-sheet"
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <div className="barn-controller-mobile-sheet-body-scroll min-h-0 flex-1">
-        {showPicker ? (
-          <ControllerMobilePickerStrip
-            readings={pickerReadings}
-            selectedKey={selectedReadingKey}
-            onSelect={onSelectReading}
-            showAffiliation={showPickerAffiliation}
-            active={open}
-            className="border-b bg-muted/20"
-          />
-        ) : null}
+      {showPicker ? (
+        <ControllerMobilePickerStrip
+          readings={pickerReadings}
+          selectedKey={selectedReadingKey}
+          onSelect={onSelectReading}
+          showAffiliation={showPickerAffiliation}
+          active={open}
+          className="shrink-0 border-b bg-muted/20"
+        />
+      ) : null}
+      <div
+        className="shrink-0 border-b px-3 py-2"
+        data-tour-id="controller-mobile-sheet-tabs"
+      >
         <div
-          className="border-b px-3 py-2"
-          data-tour-id="controller-mobile-sheet-tabs"
+          className="flex gap-1.5"
+          role="tablist"
+          aria-label="컨트롤러 상세 페이지"
         >
-          <div
-            className="flex gap-1.5"
-            role="tablist"
-            aria-label="컨트롤러 상세 페이지"
-          >
-            {CONTROLLER_MOBILE_SHEET_PAGES.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                role="tab"
-                aria-selected={viewPage === p.id}
-                onClick={() => scrollToPage(p.id)}
-                className={cn(
-                  "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold transition-colors",
-                  viewPage === p.id
-                    ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
-                    : "border-border bg-background text-muted-foreground hover:bg-muted",
-                )}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+          {CONTROLLER_MOBILE_SHEET_PAGES.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              role="tab"
+              aria-selected={viewPage === p.id}
+              onClick={() => scrollToPage(p.id)}
+              className={cn(
+                "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold transition-colors",
+                viewPage === p.id
+                  ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
+      </div>
 
+      <div className="barn-controller-mobile-sheet-body-scroll min-h-0 flex-1">
         <div
           ref={scrollerRef}
           className="barn-controller-mobile-sheet-scroller min-w-0 overflow-x-auto"

@@ -16,6 +16,8 @@ type Args = {
   liveConfirmed: boolean;
   flash: CommandPipelineFlash | null;
   panelError: string | null;
+  isCommandOverlayDismissed: (commandId: string | undefined) => boolean;
+  onAcknowledgeCommandOverlay?: (commandId: string) => void;
 };
 
 export function useSettingsApplyOverlay({
@@ -24,6 +26,8 @@ export function useSettingsApplyOverlay({
   liveConfirmed,
   flash,
   panelError,
+  isCommandOverlayDismissed,
+  onAcknowledgeCommandOverlay,
 }: Args) {
   const [dismissed, setDismissed] = useState(false);
   const [alarmSavedFlash, setAlarmSavedFlash] = useState(false);
@@ -42,7 +46,6 @@ export function useSettingsApplyOverlay({
     prevSavingRef.current = isSaving;
     if (wasSaving && !isSaving && !command) {
       setAlarmSavedFlash(true);
-      setDismissed(false);
       const t = window.setTimeout(() => setAlarmSavedFlash(false), 2800);
       return () => window.clearTimeout(t);
     }
@@ -52,7 +55,10 @@ export function useSettingsApplyOverlay({
   const dismiss = useCallback(() => {
     setDismissed(true);
     setAlarmSavedFlash(false);
-  }, []);
+    if (command?.id) {
+      onAcknowledgeCommandOverlay?.(command.id);
+    }
+  }, [command?.id, onAcknowledgeCommandOverlay]);
 
   const overlay = useMemo((): CommandPipelineOverlayState => {
     if (isSaving) {
@@ -65,7 +71,7 @@ export function useSettingsApplyOverlay({
       };
     }
 
-    if (dismissed) {
+    if (dismissed || isCommandOverlayDismissed(command?.id)) {
       return { visible: false, phase: "info", title: "", autoDismiss: true };
     }
 
@@ -159,6 +165,7 @@ export function useSettingsApplyOverlay({
     command,
     dismissed,
     flash,
+    isCommandOverlayDismissed,
     isSaving,
     liveConfirmed,
     panelError,

@@ -28,6 +28,9 @@ const STATUS_RANK: Record<ThermoCommandStatus, number> = {
   cancelled: 3,
 };
 
+/** 사용자가 닫은 「현장 반영 확인」 — remount·알람 저장 후에도 재표시 방지 */
+const dismissedLiveOverlayCommandIds = new Set<string>();
+
 function pollIntervalMs(
   status: ThermoCommandStatus,
   awaitingLive: boolean
@@ -157,6 +160,20 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
 
   const clearFlash = useCallback(() => setFlash(null), []);
 
+  const isCommandOverlayDismissed = useCallback(
+    (commandId: string | undefined) =>
+      commandId != null && dismissedLiveOverlayCommandIds.has(commandId),
+    []
+  );
+
+  const acknowledgeCommandOverlay = useCallback(
+    (commandId: string) => {
+      dismissedLiveOverlayCommandIds.add(commandId);
+      setFlash(null);
+    },
+    []
+  );
+
   // 컨트롤러·채널 전환 시 추적 초기화
   useEffect(() => {
     setTracked(null);
@@ -211,6 +228,10 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
       return;
     }
     if (confirmedForIdRef.current === command.id) return;
+    if (dismissedLiveOverlayCommandIds.has(command.id)) {
+      confirmedForIdRef.current = command.id;
+      return;
+    }
 
     const candidates = [liveThermo, knownSettings].filter(
       Boolean
@@ -285,5 +306,7 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     flash,
     clearFlash,
     liveConfirmed,
+    isCommandOverlayDismissed,
+    acknowledgeCommandOverlay,
   };
 }
