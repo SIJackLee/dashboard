@@ -209,7 +209,7 @@ export function BarnListAccordionPanel({
   const handleOverlayDismiss = useCallback(() => {
     dismissOverlay();
     pipeline.clearFlash();
-  }, [dismissOverlay, pipeline]);
+  }, [dismissOverlay, pipeline.clearFlash]);
 
   const toggleSection = (id: SettingsSectionId) => {
     setOpenSection((prev) => (prev === id ? null : id));

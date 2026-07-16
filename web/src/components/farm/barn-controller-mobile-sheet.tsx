@@ -208,7 +208,7 @@ export function BarnControllerMobileSheet({
       onClose={onClose}
       title={`${eqpmn} · ${activeLabel}`}
       auditRegion="barn-controller-mobile-sheet"
-      contentClassName="flex min-h-0 flex-col"
+      contentClassName="flex min-h-0 flex-1 flex-col"
     >
       {pickerReadings && pickerReadings.length > 0 && selectedReadingKey && onSelectReading ? (
         <ControllerMobilePickerStrip
@@ -249,7 +249,7 @@ export function BarnControllerMobileSheet({
 
       <div
         ref={scrollerRef}
-        className="barn-controller-mobile-sheet-scroller min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+        className="barn-controller-mobile-sheet-scroller min-h-0 min-w-0 flex-1 basis-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
         onScroll={handleScroll}
       >
         <div className="barn-controller-mobile-sheet-track flex h-full min-h-0 w-[200%]">
@@ -259,7 +259,7 @@ export function BarnControllerMobileSheet({
             data-audit-region="controller-mobile-sheet-controller"
             aria-hidden={viewPage !== 0}
           >
-            <div className="barn-controller-mobile-sheet-page-scroll min-h-0 flex-1 overflow-y-auto">
+            <div className="barn-controller-mobile-sheet-page-scroll">
               {controllerPage}
             </div>
           </section>
@@ -269,7 +269,7 @@ export function BarnControllerMobileSheet({
             data-audit-region="controller-mobile-sheet-settings-panel"
             aria-hidden={viewPage !== 1}
           >
-            <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            <div className="barn-controller-mobile-sheet-page-scroll">
               {settingsPage}
             </div>
           </section>

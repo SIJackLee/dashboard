@@ -24,7 +24,7 @@ type Props = {
   trendStale?: boolean;
 };
 
-/** 모바일 sheet page[1] — 상단 고정 온·습 추이 + 하단 설정(단일 세로 스크롤). */
+/** 모바일 sheet page[1] — 온·습 추이 + 설정 (sheet 전체 높이 단일 세로 스크롤). */
 export function ControllerMobileSettingsPage({
   reading,
   readings,
@@ -39,25 +39,23 @@ export function ControllerMobileSettingsPage({
   trendStale = false,
 }: Props) {
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="shrink-0">
-        <BarnListGraphPanel
-          reading={reading}
-          controllerTrendByPeriod={controllerTrendByPeriod}
-          period={period}
-          onPeriodChange={onPeriodChange ?? (() => {})}
-          alarmSettings={alarmSettings}
-          thermoSettings={thermoSettings}
-          loading={trendLoading}
-          stale={trendStale}
-          showChannelSection={false}
-          layout="sheetCompact"
-        />
-      </div>
-      <div
-        className="barn-controller-mobile-sheet-page-scroll min-h-0 flex-1 overflow-y-auto overscroll-y-contain border-t"
-        data-audit-region="controller-mobile-sheet-settings"
-      >
+    <div
+      className="min-h-min w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+      data-audit-region="controller-mobile-sheet-settings"
+    >
+      <BarnListGraphPanel
+        reading={reading}
+        controllerTrendByPeriod={controllerTrendByPeriod}
+        period={period}
+        onPeriodChange={onPeriodChange ?? (() => {})}
+        alarmSettings={alarmSettings}
+        thermoSettings={thermoSettings}
+        loading={trendLoading}
+        stale={trendStale}
+        showChannelSection={false}
+        layout="sheetCompact"
+      />
+      <div className="border-t bg-muted/20">
         <BarnListAccordionPanel
           reading={reading}
           readings={readings}

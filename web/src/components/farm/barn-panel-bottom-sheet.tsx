@@ -51,10 +51,10 @@ export function BarnPanelBottomSheet({
       <DialogContent
         showCloseButton
         className={cn(
-          "top-auto flex flex-col gap-0 overflow-hidden rounded-b-none rounded-t-xl p-0 pb-[env(safe-area-inset-bottom,0px)]",
+          "top-auto flex max-h-none flex-col gap-0 overflow-hidden rounded-b-none rounded-t-xl p-0 pb-[env(safe-area-inset-bottom,0px)]",
           "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
           viewportCompact
-            ? "bottom-auto h-auto max-h-none left-1/2 w-full -translate-x-1/2 translate-y-0"
+            ? "bottom-auto left-1/2 h-full w-full -translate-x-1/2 translate-y-0"
             : "bottom-0 h-[85dvh] max-h-[85dvh] left-0 w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none md:h-[min(85dvh,36rem)] md:max-h-[min(85dvh,36rem)]",
           className,
         )}
@@ -66,7 +66,7 @@ export function BarnPanelBottomSheet({
         </DialogHeader>
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-hidden overscroll-contain",
+            "flex min-h-0 flex-1 flex-col overflow-hidden",
             contentClassName,
           )}
         >

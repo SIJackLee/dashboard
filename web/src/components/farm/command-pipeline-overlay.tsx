@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,15 @@ export function CommandPipelineOverlay({
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  const dismissible = Boolean(onDismiss) && phase !== "loading";
+
+  const handleDismiss = () => {
+    if (!dismissible) return;
+    onDismissRef.current?.();
+  };
 
   useEffect(() => {
     if (!visible) {
@@ -46,10 +55,10 @@ export function CommandPipelineOverlay({
   }, [visible]);
 
   useEffect(() => {
-    if (!visible || !onDismiss || !autoDismiss || phase === "loading") return;
-    const id = window.setTimeout(onDismiss, autoDismissMs);
+    if (!visible || !autoDismiss || phase === "loading") return;
+    const id = window.setTimeout(() => onDismissRef.current?.(), autoDismissMs);
     return () => window.clearTimeout(id);
-  }, [visible, phase, onDismiss, autoDismissMs, autoDismiss, title]);
+  }, [visible, phase, autoDismissMs, autoDismiss]);
 
   if (!mounted || typeof document === "undefined") return null;
 
@@ -65,12 +74,26 @@ export function CommandPipelineOverlay({
   return createPortal(
     <div
       className={cn(
-        "pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4 transition-opacity duration-300 ease-out",
+        "fixed inset-0 z-[70] flex items-center justify-center p-4 transition-opacity duration-300 ease-out",
         show ? "opacity-100" : "opacity-0",
+        dismissible ? "pointer-events-auto cursor-pointer" : "pointer-events-none",
       )}
       data-mobile-viewport-overlay
       aria-live="polite"
-      role="status"
+      role={dismissible ? "button" : "status"}
+      tabIndex={dismissible ? -1 : undefined}
+      aria-label={dismissible ? `${title}. 탭하여 닫기` : undefined}
+      onClick={dismissible ? handleDismiss : undefined}
+      onKeyDown={
+        dismissible
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleDismiss();
+              }
+            }
+          : undefined
+      }
     >
       <div
         className={cn(
@@ -94,6 +117,9 @@ export function CommandPipelineOverlay({
         <p className="text-sm font-semibold leading-snug">{title}</p>
         {detail ? (
           <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{detail}</p>
+        ) : null}
+        {dismissible ? (
+          <p className="mt-2.5 text-[11px] text-muted-foreground/80">탭하여 닫기</p>
         ) : null}
       </div>
     </div>,
