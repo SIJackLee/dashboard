@@ -8,7 +8,6 @@ import { InlineStatusToast } from "@/components/common/inline-status-toast";
 import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
 import { SectionCard } from "@/components/common/section-card";
 import { PageActionButton } from "@/components/common/page-action-button";
-import { SimpleSelect } from "@/components/common/filter-bar";
 import { BarnListSummary } from "@/components/farm/barn-list-summary";
 import { BarnListModeToolbar } from "@/components/farm/barn-list-mode-toolbar";
 import { BarnListTrendRefreshBar } from "@/components/farm/barn-list-trend-refresh-bar";
@@ -43,9 +42,9 @@ import {
 } from "@/lib/data/farm-trend-types";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { useSoftRefresh } from "@/lib/ui/use-soft-refresh";
-import { formatStallTypeLabel, normalizeStallTyCode } from "@/lib/data/stall-type";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
-import { FILTER_ALL, FILTER_ALL_LABEL, isFilterAll } from "@/lib/ui/filter-all";
+import { isFilterAll } from "@/lib/ui/filter-all";
 import { cn } from "@/lib/utils";
 
 type ListLayout = "group" | "flat";
@@ -147,22 +146,6 @@ export function BarnTable({
   } = useSoftRefresh(onListRefresh);
 
   const bulkEnabled = Boolean(controller?.canCommand);
-
-  const spOptions = useMemo(() => {
-    const codes = stallTyCodesFromReadings(rows);
-    return [
-      { value: FILTER_ALL, label: FILTER_ALL_LABEL },
-      ...codes.map((code) => ({
-        value: code,
-        label: formatStallTypeLabel(code),
-      })),
-    ];
-  }, [rows]);
-
-  const filterSp =
-    initialSp && spOptions.some((o) => o.value === initialSp)
-      ? initialSp
-      : FILTER_ALL;
 
   const resolveListLayout = useCallback(
     (params: URLSearchParams): ListLayout =>
@@ -337,9 +320,9 @@ export function BarnTable({
   );
 
   const filteredRows = useMemo(() => {
-    if (isFilterAll(filterSp)) return rows;
-    return rows.filter((r) => r.stallTyCode === filterSp);
-  }, [rows, filterSp]);
+    if (isFilterAll(initialSp)) return rows;
+    return rows.filter((r) => r.stallTyCode === initialSp);
+  }, [rows, initialSp]);
 
   useEffect(() => {
     if (!mobileToolbarSheetMode) {
@@ -381,15 +364,6 @@ export function BarnTable({
     },
     [hubMode],
   );
-
-  const handleSpChange = (value: string | null) => {
-    if (bulkMode) return;
-    if (!value || isFilterAll(value)) {
-      replaceListParams({ sp: null });
-      return;
-    }
-    replaceListParams({ sp: value });
-  };
 
   const toggleListLayout = () => {
     if (bulkMode) return;
@@ -476,12 +450,6 @@ export function BarnTable({
 
   const listToolbar = (
     <div className="flex flex-wrap items-center gap-2">
-      <SimpleSelect
-        placeholder={FILTER_ALL_LABEL}
-        options={spOptions}
-        value={filterSp}
-        onValueChange={handleSpChange}
-      />
       <PageActionButton
         icon={
           listLayout === "group" ? (
