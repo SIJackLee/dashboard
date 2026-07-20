@@ -34,7 +34,7 @@ async function loadDirectoryFarmOptions() {
 async function ScanSection() {
   const snapshot = await fetchHealthSnapshot();
   return (
-    <section id="scan" className="order-2 scroll-mt-3 md:order-1">
+    <section id="scan" className="order-3 scroll-mt-3 md:order-1">
       <HealthSystemShell snapshot={snapshot} />
     </section>
   );
@@ -82,7 +82,7 @@ async function DirectorySection() {
 async function CommandsSection() {
   const commands = await getThermoCommandHistory(10);
   return (
-    <section id="commands" className="order-3 scroll-mt-3">
+    <section id="commands" className="order-2 scroll-mt-3 md:order-3">
       <CommandHistorySlim commands={commands} />
     </section>
   );

@@ -180,12 +180,15 @@ export function BarnListAccordionPanel({
   const spCode = normalizeStallTyCode(reading.stallTyCode);
   const stallKey = stallKeyFromReading(reading);
   const effectiveAlarmSettings = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
-  const thresholdScope = {
-    farmId,
-    spCode,
-    stallKey,
-    readingKey: reading.key,
-  };
+  const thresholdScope = useMemo(
+    () => ({
+      farmId,
+      spCode,
+      stallKey,
+      readingKey: reading.key,
+    }),
+    [farmId, spCode, stallKey, reading.key],
+  );
 
   const isSaving = panel.pending || Boolean(thresholdHeader?.pending);
   const canSaveControl =

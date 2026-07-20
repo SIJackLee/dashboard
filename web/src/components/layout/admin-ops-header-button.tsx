@@ -26,7 +26,7 @@ export function AdminOpsHeaderButton() {
           "border-emerald-600/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300",
       )}
       aria-label={onOps ? "운영 종료 — 모니터링으로" : "운영"}
-      aria-pressed={onOps}
+      aria-pressed={onOps ? true : undefined}
       title={onOps ? "운영 → 모니터링" : "모니터링 → 운영"}
       data-tour-id="header-ops"
     >

@@ -130,11 +130,22 @@ export function AlarmThresholdForm({
 
   useEffect(() => {
     if (!fixedScope) return;
-    setFarmId(fixedScope.farmId);
-    setSpCode(fixedScope.spCode);
-    setStallKey(fixedScope.stallKey);
-    setControllerReadingKey(fixedScope.readingKey);
-  }, [fixedScope]);
+    // Parent often passes a fresh object each render — depend on primitives
+    // and skip setState when values are unchanged to avoid update loops.
+    setFarmId((prev) => (prev === fixedScope.farmId ? prev : fixedScope.farmId));
+    setSpCode((prev) => (prev === fixedScope.spCode ? prev : fixedScope.spCode));
+    setStallKey((prev) =>
+      prev === fixedScope.stallKey ? prev : fixedScope.stallKey,
+    );
+    setControllerReadingKey((prev) =>
+      prev === fixedScope.readingKey ? prev : fixedScope.readingKey,
+    );
+  }, [
+    fixedScope?.farmId,
+    fixedScope?.spCode,
+    fixedScope?.stallKey,
+    fixedScope?.readingKey,
+  ]);
 
   const spOptions = useMemo(() => {
     if (!farmId) return [];

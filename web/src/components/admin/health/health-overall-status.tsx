@@ -8,6 +8,8 @@ type Props = {
   overallStatus: HealthStatus;
   impactScope?: string | null;
   compact?: boolean;
+  /** 모바일 정상 바 — 제목 없이 배지·용량만 */
+  barOnly?: boolean;
   liveUsed?: number;
   liveTotal?: number;
   liveWarn?: boolean;
@@ -17,10 +19,33 @@ export function HealthOverallStatus({
   overallStatus,
   impactScope,
   compact = false,
+  barOnly = false,
   liveUsed,
   liveTotal,
   liveWarn = false,
 }: Props) {
+  if (barOnly) {
+    return (
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+        <HealthStatusBadge status={overallStatus} />
+        {liveTotal != null && liveUsed != null ? (
+          <span
+            className={cn(
+              "rounded-md border px-1.5 py-0.5 tabular-nums",
+              opsTypography.meta,
+              liveWarn
+                ? "border-amber-300/50 bg-amber-50 text-amber-800"
+                : "border-border bg-muted/40 text-muted-foreground",
+            )}
+            title={HEALTH_UI.liveCap}
+          >
+            {liveUsed}/{liveTotal}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
       <div className="min-w-0">

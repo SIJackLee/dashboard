@@ -349,8 +349,6 @@ export function CommandHistorySlim({ commands: initial }: Props) {
         <BarnPanelBottomSheet
           open={Boolean(detail) && pcFull}
           onClose={() => setDetail(null)}
-          onBack={() => setDetail(null)}
-          backLabel="닫기"
           title="명령 상세"
           auditRegion="ops-command-detail-sheet"
           contentClassName="overflow-y-auto p-3"

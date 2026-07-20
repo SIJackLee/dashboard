@@ -95,6 +95,7 @@ export function HealthSystemShell({ snapshot }: Props) {
 
   const capWarn = snapshot.liveRowCount >= snapshot.liveRowLimit * 0.9;
   const showAlert = needsAttention(overallStatus) || pipelineBad;
+  const mobileQuiet = isMobileLayout && !showAlert && !detailOpen;
 
   const handleNodeSelect = useCallback(
     (payload: HealthDagNodeSelectPayload) => {
@@ -189,18 +190,20 @@ export function HealthSystemShell({ snapshot }: Props) {
           showAlert
             ? "border-amber-400/70 bg-amber-50/40 dark:bg-amber-950/20"
             : "border-border/70 bg-muted/15",
+          mobileQuiet && "border-transparent bg-transparent",
         )}
       >
         <div
           className={cn(
             "flex flex-wrap items-center gap-2 px-3",
-            showAlert || detailOpen ? "py-2" : "py-1.5",
+            mobileQuiet ? "px-0 py-0.5" : showAlert || detailOpen ? "py-2" : "py-1.5",
           )}
         >
           <div className="min-w-0 flex-1">
             <HealthOverallStatus
               overallStatus={overallStatus}
               compact
+              barOnly={mobileQuiet}
               liveUsed={snapshot.liveRowCount}
               liveTotal={snapshot.liveRowLimit}
               liveWarn={capWarn}
@@ -217,7 +220,7 @@ export function HealthSystemShell({ snapshot }: Props) {
             onClick={toggleDetail}
             className={cn(opsControl.buttonOutline, "shrink-0 border")}
           >
-            {detailOpen ? "상세 접기" : "상세"}
+            {detailOpen ? "접기" : "상세"}
           </button>
         </div>
         {!showAlert && !detailOpen ? null : (

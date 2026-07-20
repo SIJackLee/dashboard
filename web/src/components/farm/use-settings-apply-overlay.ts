@@ -110,7 +110,7 @@ export function useSettingsApplyOverlay({
       };
     }
 
-    if (command?.status === "failed") {
+    if (command?.status === "failed" && isUserInitiatedCommand(command.id)) {
       return {
         visible: true,
         phase: "error",
@@ -120,7 +120,12 @@ export function useSettingsApplyOverlay({
       };
     }
 
-    if (command && (command.status === "pending" || command.status === "sent")) {
+    // 이력에 남은 pending/sent/applied는 오버레이 금지 — 이번 세션 적용(registerCommand)만
+    if (
+      command &&
+      isUserInitiatedCommand(command.id) &&
+      (command.status === "pending" || command.status === "sent")
+    ) {
       return {
         visible: true,
         phase: "info",
@@ -134,7 +139,11 @@ export function useSettingsApplyOverlay({
       };
     }
 
-    if (command?.status === "applied" && !liveConfirmed) {
+    if (
+      command?.status === "applied" &&
+      !liveConfirmed &&
+      isUserInitiatedCommand(command.id)
+    ) {
       return {
         visible: true,
         phase: "info",

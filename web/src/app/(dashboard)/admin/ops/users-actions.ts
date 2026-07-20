@@ -1,32 +1,20 @@
 "use server";
 
 import { revalidatePath, revalidateTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { findAuthUserByEmail } from "@/lib/admin/auth-users";
 import { MANAGED_USERS_CACHE_TAG } from "@/lib/admin/list-users";
-import type { Role } from "@/lib/auth/get-current-user";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import type { FarmKey } from "@/lib/data/farm-key";
-import { DEFAULT_FARM } from "@/lib/data/farm-key";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminOpsPath } from "@/lib/admin/ops-tabs";
 
 const ADMIN_OPS_HOME = "/admin/ops";
 const ADMIN_USERS_PATH = adminOpsPath("users");
-const ROLES: Role[] = ["admin", "operator", "viewer"];
 
 function revalidateAdminUsers() {
   revalidateTag(MANAGED_USERS_CACHE_TAG, "max");
   revalidatePath(ADMIN_OPS_HOME);
   revalidatePath(ADMIN_USERS_PATH);
-}
-
-async function requireAdminAction() {
-  const me = await getCurrentUser();
-  if (!me?.isAdmin) {
-    redirect(`${ADMIN_USERS_PATH}?error=forbidden`);
-  }
-  return me;
 }
 
 async function ensureProfile(userId: string) {
@@ -236,90 +224,4 @@ export async function toggleFarmCommandInline(input: {
 
   revalidateAdminUsers();
   return { ok: true };
-}
-
-export async function grantFarmAccess(formData: FormData) {
-  await requireAdminAction();
-
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const lsindRegistNo = String(
-    formData.get("lsind_regist_no") ?? DEFAULT_FARM.lsindRegistNo
-  ).trim();
-  const itemCode = String(
-    formData.get("item_code") ?? DEFAULT_FARM.itemCode
-  ).trim();
-  const canCommand = formData.get("can_command") === "on";
-
-  const result = await grantFarmAccessCore(
-    email,
-    { lsindRegistNo, itemCode },
-    canCommand
-  );
-
-  if (!result.ok) {
-    redirect(`${ADMIN_USERS_PATH}?error=${result.error}`);
-  }
-
-  redirect(`${ADMIN_USERS_PATH}?ok=granted`);
-}
-
-export async function revokeAccess(formData: FormData) {
-  await requireAdminAction();
-
-  const accessId = Number(formData.get("access_id"));
-  if (!Number.isInteger(accessId)) {
-    redirect(`${ADMIN_USERS_PATH}?error=invalid`);
-  }
-
-  const admin = createAdminClient();
-  const { data: row } = await admin
-    .from("user_access")
-    .select("user_id, lsind_regist_no, item_code")
-    .eq("id", accessId)
-    .maybeSingle();
-
-  if (!row) {
-    redirect(`${ADMIN_USERS_PATH}?error=invalid`);
-  }
-
-  await admin
-    .from("user_access")
-    .delete()
-    .eq("user_id", row.user_id)
-    .eq("lsind_regist_no", row.lsind_regist_no)
-    .eq("item_code", row.item_code);
-
-  revalidateAdminUsers();
-  redirect(`${ADMIN_USERS_PATH}?ok=revoked`);
-}
-
-export async function updateUserRole(formData: FormData) {
-  const me = await requireAdminAction();
-
-  const userId = String(formData.get("user_id") ?? "").trim();
-  const role = String(formData.get("role") ?? "").trim() as Role;
-
-  if (!userId || !ROLES.includes(role)) {
-    redirect(`${ADMIN_USERS_PATH}?error=invalid`);
-  }
-
-  if (userId === me.id && role !== "admin") {
-    redirect(`${ADMIN_USERS_PATH}?error=self_demote`);
-  }
-
-  const admin = createAdminClient();
-  const { data: existing } = await admin
-    .from("profiles")
-    .select("user_id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (existing) {
-    await admin.from("profiles").update({ role }).eq("user_id", userId);
-  } else {
-    await admin.from("profiles").insert({ user_id: userId, role });
-  }
-
-  revalidateAdminUsers();
-  redirect(`${ADMIN_USERS_PATH}?ok=role_updated`);
 }

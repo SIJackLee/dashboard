@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { AdminOpsPageShell } from "@/components/layout/admin-ops-page-shell";
-import { AdminOpsSectionNav } from "@/components/admin/admin-ops-section-nav";
 import { AdminOpsNoticeFromUrl } from "@/components/admin/admin-ops-notice-from-url";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
@@ -17,7 +16,6 @@ export default async function AdminOpsLayout({
   return (
     <AdminOpsPageShell>
       <div className="flex min-h-0 flex-1 flex-col gap-2 md:gap-3">
-        <AdminOpsSectionNav />
         <Suspense fallback={null}>
           <AdminOpsNoticeFromUrl />
         </Suspense>

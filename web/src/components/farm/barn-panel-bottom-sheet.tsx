@@ -22,6 +22,11 @@ type Props = {
   /** 있으면 헤더에「뒤로」— 시트 내 push 네비. */
   onBack?: () => void;
   backLabel?: string;
+  /**
+   * 컨트롤러 피커 등 — 본문 remount로 focus-out 시 닫히지 않게.
+   * 운영 명령 상세 등에는 false(기본)로 두어 오버레이/ESC 닫기를 허용.
+   */
+  suppressFocusOutClose?: boolean;
 };
 
 /** 모바일 stack — bottom sheet shell (설정·컨트롤러 carousel 공용). */
@@ -35,6 +40,7 @@ export function BarnPanelBottomSheet({
   auditRegion = "barn-panel-bottom-sheet",
   onBack,
   backLabel = "뒤로",
+  suppressFocusOutClose = false,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
 
@@ -47,13 +53,14 @@ export function BarnPanelBottomSheet({
     };
   }, [open]);
 
+  if (!open) return null;
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next, eventDetails) => {
         if (next) return;
-        // 컨트롤러 전환 시 본문 remount로 focus가 빠지며 닫히는 것 방지
-        if (eventDetails.reason === "focus-out") {
+        if (suppressFocusOutClose && eventDetails.reason === "focus-out") {
           eventDetails.cancel();
           return;
         }
@@ -75,7 +82,7 @@ export function BarnPanelBottomSheet({
         data-audit-region={auditRegion}
       >
         <DialogHeader className="shrink-0 border-b px-4 py-3">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-8">
             {onBack ? (
               <button
                 type="button"
