@@ -1,12 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { fetchOpsCommandHistoryAction } from "@/app/(dashboard)/admin/ops/command-history-actions";
 import { CommandHistoryDetail } from "@/components/controllers/command-history-detail";
-import {
-  filterThermoCommands,
-  type CommandHistoryStatusFilter,
-} from "@/components/controllers/command-history-filter";
+import type { CommandHistoryStatusFilter } from "@/components/controllers/command-history-filter";
 import { CommandHistoryTable } from "@/components/controllers/command-history-table";
 import { CommandHistoryMobileList } from "@/components/controllers/command-history-mobile-list";
 import {
@@ -25,6 +22,9 @@ import { cn } from "@/lib/utils";
 
 const PREVIEW_LIMIT = 5;
 const FULL_FETCH_LIMIT = 200;
+const QUERY_DEBOUNCE_MS = 350;
+const LOAD_ERROR_MESSAGE =
+  "명령 이력을 불러오지 못했습니다. 잠시 후 다시 시도하세요.";
 
 type Props = {
   commands: ThermoCommand[];
@@ -33,14 +33,12 @@ type Props = {
 function EmptyLookupCta({
   kind,
   range,
-  atCap,
   pending,
   onResetFilters,
   onWidenRange,
 }: {
   kind: "filtered" | "period";
   range: CommandHistoryRangeId;
-  atCap: boolean;
   pending: boolean;
   onResetFilters: () => void;
   onWidenRange: (range: CommandHistoryRangeId) => void;
@@ -52,12 +50,6 @@ function EmptyLookupCta({
           ? "해당 기간 명령이 없습니다."
           : "조건에 맞는 명령이 없습니다."}
       </p>
-      {kind === "filtered" && atCap ? (
-        <p className={opsTypography.meta}>
-          최대 {FULL_FETCH_LIMIT}건까지 검색합니다. 기간을 넓히거나 검색어를
-          바꿔보세요.
-        </p>
-      ) : null}
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         {kind === "filtered" ? (
           <button
@@ -94,7 +86,7 @@ function EmptyLookupCta({
   );
 }
 
-/** 운영 홈 — 접힘 → 5건 · 조회(+기간·상태·검색) · 행 상세. */
+/** 운영 홈 — 접힘 → 5건 · 조회(+기간·상태·서버 검색) · 행 상세. */
 export function CommandHistorySlim({ commands: initial }: Props) {
   const isMobile = useMobileLayout();
   const [previewCommands] = useState(initial);
@@ -109,34 +101,31 @@ export function CommandHistorySlim({ commands: initial }: Props) {
     useState<CommandHistoryStatusFilter>("all");
   const [query, setQuery] = useState("");
   const [detail, setDetail] = useState<ThermoCommand | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const fetchSeq = useRef(0);
+  const lookupActive = useRef(false);
+  const skipQueryDebounce = useRef(false);
+  const rangeRef = useRef(range);
+  const statusRef = useRef(statusFilter);
+  const queryRef = useRef(query);
+  const isMobileRef = useRef(isMobile);
+
+  useEffect(() => {
+    rangeRef.current = range;
+    statusRef.current = statusFilter;
+    queryRef.current = query;
+    isMobileRef.current = isMobile;
+  }, [range, statusFilter, query, isMobile]);
 
   const preview = previewCommands.slice(0, PREVIEW_LIMIT);
   const atCap = fullCommands.length >= FULL_FETCH_LIMIT;
-
-  const filteredFull = useMemo(
-    () =>
-      filterThermoCommands(fullCommands, {
-        query,
-        status: statusFilter,
-      }),
-    [fullCommands, query, statusFilter],
-  );
-
-  const shown = !sectionOpen
-    ? []
-    : isMobile
-      ? preview
-      : pcFull
-        ? filteredFull
-        : preview;
+  const lookupOpen = pcFull || sheetOpen;
 
   const hasActiveLookup =
     Boolean(query.trim()) || statusFilter !== "all";
 
-  const fullTitleCount = hasActiveLookup
-    ? `${filteredFull.length}/${fullCommands.length}`
-    : `${fullCommands.length}`;
+  const fullTitleCount = `${fullCommands.length}`;
 
   const title = !sectionOpen
     ? `명령 · 최근 ${Math.min(PREVIEW_LIMIT, previewCommands.length)}건`
@@ -144,70 +133,164 @@ export function CommandHistorySlim({ commands: initial }: Props) {
       ? `최근 명령 · ${Math.min(PREVIEW_LIMIT, previewCommands.length)}건`
       : `명령 조회 · ${fullTitleCount}건`;
 
-  const loadRange = (next: CommandHistoryRangeId, openTarget: "sheet" | "pc") => {
+  const shown = !sectionOpen
+    ? []
+    : isMobile
+      ? preview
+      : pcFull
+        ? fullCommands
+        : preview;
+
+  const fetchLookup = (opts: {
+    range: CommandHistoryRangeId;
+    status: CommandHistoryStatusFilter;
+    query: string;
+    openTarget?: "sheet" | "pc";
+  }) => {
+    const seq = ++fetchSeq.current;
+    const hadRows = lookupActive.current;
     startTransition(async () => {
-      const fromIso = commandHistoryRangeFromIso(next);
-      const rows = await fetchOpsCommandHistoryAction({
+      const fromIso = commandHistoryRangeFromIso(opts.range);
+      const result = await fetchOpsCommandHistoryAction({
         limit: FULL_FETCH_LIMIT,
         fromIso,
+        status: opts.status,
+        q: opts.query.trim() || undefined,
       });
-      setFullCommands(rows);
-      setRange(next);
-      if (openTarget === "sheet") setSheetOpen(true);
-      if (openTarget === "pc") setPcFull(true);
+      if (seq !== fetchSeq.current) return;
+
+      if (opts.openTarget === "sheet") setSheetOpen(true);
+      if (opts.openTarget === "pc") setPcFull(true);
+      setRange(opts.range);
+      lookupActive.current = true;
+
+      if (result.error) {
+        setLoadError(LOAD_ERROR_MESSAGE);
+        if (!hadRows) setFullCommands([]);
+        return;
+      }
+
+      setLoadError(null);
+      setFullCommands(result.commands);
+    });
+  };
+
+  const openTargetForLayout = (): "sheet" | "pc" =>
+    isMobileRef.current ? "sheet" : "pc";
+
+  const retryLookup = () => {
+    fetchLookup({
+      range: rangeRef.current,
+      status: statusRef.current,
+      query: queryRef.current,
+      openTarget: openTargetForLayout(),
     });
   };
 
   const openFull = () => {
+    skipQueryDebounce.current = true;
     setQuery("");
     setStatusFilter("all");
     setDetail(null);
-    loadRange(COMMAND_HISTORY_RANGE_DEFAULT, isMobile ? "sheet" : "pc");
+    setLoadError(null);
+    fetchLookup({
+      range: COMMAND_HISTORY_RANGE_DEFAULT,
+      status: "all",
+      query: "",
+      openTarget: openTargetForLayout(),
+    });
   };
 
   const onRangeChange = (next: CommandHistoryRangeId) => {
-    if (next === range && fullCommands.length > 0) return;
+    if (next === range && fullCommands.length > 0 && !loadError) return;
     setDetail(null);
-    loadRange(next, isMobile ? "sheet" : "pc");
+    setLoadError(null);
+    fetchLookup({
+      range: next,
+      status: statusRef.current,
+      query: queryRef.current,
+      openTarget: openTargetForLayout(),
+    });
+  };
+
+  const onStatusChange = (next: CommandHistoryStatusFilter) => {
+    setStatusFilter(next);
+    setDetail(null);
+    if (!lookupActive.current && !lookupOpen) return;
+    setLoadError(null);
+    fetchLookup({
+      range: rangeRef.current,
+      status: next,
+      query: queryRef.current,
+      openTarget: openTargetForLayout(),
+    });
   };
 
   const resetFilters = () => {
+    skipQueryDebounce.current = true;
     setQuery("");
     setStatusFilter("all");
+    setDetail(null);
+    setLoadError(null);
+    fetchLookup({
+      range: rangeRef.current,
+      status: "all",
+      query: "",
+      openTarget: openTargetForLayout(),
+    });
   };
+
+  // 검색어만 디바운스 — range/status는 ref로 최신값 사용 (stale closure 방지)
+  useEffect(() => {
+    if (skipQueryDebounce.current) {
+      skipQueryDebounce.current = false;
+      return;
+    }
+    if (!lookupActive.current && !lookupOpen) return;
+    const handle = window.setTimeout(() => {
+      setLoadError(null);
+      fetchLookup({
+        range: rangeRef.current,
+        status: statusRef.current,
+        query: queryRef.current,
+        openTarget: openTargetForLayout(),
+      });
+    }, QUERY_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce on query only
+  }, [query]);
 
   const collapse = () => {
     setSectionOpen(false);
     setPcFull(false);
     setSheetOpen(false);
     setDetail(null);
+    setLoadError(null);
+    lookupActive.current = false;
   };
 
   const closeSheet = () => {
     setSheetOpen(false);
     setDetail(null);
+    if (!pcFull) {
+      lookupActive.current = false;
+      setLoadError(null);
+    }
   };
 
   const showFullBtn = sectionOpen && (isMobile || !pcFull);
 
   const emptyKind: "filtered" | "period" | null =
-    fullCommands.length === 0
-      ? "period"
-      : filteredFull.length === 0
+    loadError || fullCommands.length > 0
+      ? null
+      : hasActiveLookup
         ? "filtered"
-        : null;
+        : "period";
 
   const emptyMessage =
     emptyKind === "filtered"
       ? "조건에 맞는 명령이 없습니다."
       : "해당 기간 명령이 없습니다.";
-
-  const capHint = (
-    <p className={opsTypography.meta}>
-      기본 7일 · 최대 {FULL_FETCH_LIMIT}건
-      {atCap ? " · 상한 도달" : ""}
-    </p>
-  );
 
   const lookupToolbar = (
     <div className="flex flex-col gap-2">
@@ -218,7 +301,7 @@ export function CommandHistorySlim({ commands: initial }: Props) {
       />
       <CommandHistoryStatusChips
         value={statusFilter}
-        onChange={setStatusFilter}
+        onChange={onStatusChange}
         disabled={pending}
       />
       <Input
@@ -228,11 +311,36 @@ export function CommandHistorySlim({ commands: initial }: Props) {
         placeholder="검색: 농장·축사·장비·메모·오류·ID…"
         aria-label="명령 검색"
         className={opsControl.input}
+        disabled={pending && fullCommands.length === 0}
       />
-      {capHint}
-      {(pcFull || sheetOpen) && !pending ? (
+      <p className={opsTypography.meta}>
+        {pending
+          ? "불러오는 중…"
+          : `기본 7일 · 조건에 맞는 최대 ${FULL_FETCH_LIMIT}건${
+              atCap ? " · 상한 도달" : ""
+            }`}
+      </p>
+      {loadError && fullCommands.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p
+            role="alert"
+            className={cn(opsTypography.meta, "text-destructive")}
+          >
+            {loadError}
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={retryLookup}
+            className={cn(opsControl.buttonOutline, "border disabled:opacity-50")}
+          >
+            다시 시도
+          </button>
+        </div>
+      ) : null}
+      {lookupOpen && !pending && !loadError ? (
         <p aria-live="polite" className="sr-only">
-          조회 결과 {filteredFull.length}건
+          조회 결과 {fullCommands.length}건
           {atCap ? `, 최대 ${FULL_FETCH_LIMIT}건 상한` : ""}
         </p>
       ) : null}
@@ -240,15 +348,31 @@ export function CommandHistorySlim({ commands: initial }: Props) {
   );
 
   const emptyCta =
-    emptyKind && (pcFull || sheetOpen) ? (
+    emptyKind && lookupOpen && !pending ? (
       <EmptyLookupCta
         kind={emptyKind}
         range={range}
-        atCap={atCap}
         pending={pending}
         onResetFilters={resetFilters}
         onWidenRange={(r) => onRangeChange(r)}
       />
+    ) : null;
+
+  const loadErrorEmpty =
+    loadError && lookupOpen && fullCommands.length === 0 && !pending ? (
+      <div className="flex flex-col items-center gap-3 py-6 text-center">
+        <p role="alert" className={cn(opsTypography.meta, "text-destructive")}>
+          {loadError}
+        </p>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={retryLookup}
+          className={cn(opsControl.buttonOutline, "border disabled:opacity-50")}
+        >
+          다시 시도
+        </button>
+      </div>
     ) : null;
 
   return (
@@ -257,6 +381,7 @@ export function CommandHistorySlim({ commands: initial }: Props) {
         commands={shown}
         title={title}
         bodyHidden={!sectionOpen}
+        busy={pcFull && !isMobile && pending && fullCommands.length > 0}
         mobileDensity={isMobile ? "brief" : "default"}
         toolbar={pcFull && !isMobile ? lookupToolbar : undefined}
         onSelect={
@@ -268,7 +393,15 @@ export function CommandHistorySlim({ commands: initial }: Props) {
         }
         emptyMessage={emptyMessage}
         emptyExtra={
-          pcFull && !isMobile && emptyKind && !pending ? emptyCta : undefined
+          pcFull && !isMobile
+            ? loadErrorEmpty ||
+              (emptyKind && !pending ? emptyCta : undefined) ||
+              (pending ? (
+                <p className={cn("py-6 text-center", opsTypography.meta)}>
+                  불러오는 중…
+                </p>
+              ) : undefined)
+            : undefined
         }
         className="border-border/60 bg-muted/10"
         action={
@@ -330,15 +463,25 @@ export function CommandHistorySlim({ commands: initial }: Props) {
                 <p className={cn("py-6 text-center", opsTypography.meta)}>
                   불러오는 중…
                 </p>
+              ) : loadErrorEmpty ? (
+                loadErrorEmpty
               ) : emptyKind ? (
                 emptyCta
               ) : (
-                <CommandHistoryMobileList
-                  commands={filteredFull}
-                  density="default"
-                  forceVisible
-                  onSelect={setDetail}
-                />
+                <div
+                  className={cn(
+                    pending &&
+                      "pointer-events-none opacity-50 transition-opacity",
+                  )}
+                  aria-busy={pending || undefined}
+                >
+                  <CommandHistoryMobileList
+                    commands={fullCommands}
+                    density="default"
+                    forceVisible
+                    onSelect={setDetail}
+                  />
+                </div>
               )}
             </>
           )}

@@ -1,7 +1,4 @@
-import type { ThermoCommand, ThermoCommandStatus } from "@/lib/data/commands";
-import { farmKeyId } from "@/lib/data/farm-key";
-import { formatCommandTarget } from "@/lib/ui/controller-labels";
-import { commandStatusLabel } from "@/lib/controllers/controller-settings";
+import type { ThermoCommandStatus } from "@/lib/data/commands";
 
 /** all | 개별 상태 | other(sent·applied·cancelled) */
 export type CommandHistoryStatusFilter =
@@ -9,48 +6,17 @@ export type CommandHistoryStatusFilter =
   | ThermoCommandStatus
   | "other";
 
-const OTHER_STATUSES: ReadonlySet<ThermoCommandStatus> = new Set([
+const OTHER_STATUSES: readonly ThermoCommandStatus[] = [
   "sent",
   "applied",
   "cancelled",
-]);
+];
 
-export function matchesCommandStatusFilter(
-  status: ThermoCommandStatus,
+/** 서버 조회용 — null이면 상태 조건 없음 */
+export function statusesForCommandHistoryFilter(
   filter: CommandHistoryStatusFilter,
-): boolean {
-  if (filter === "all") return true;
-  if (filter === "other") return OTHER_STATUSES.has(status);
-  return status === filter;
-}
-
-export function filterThermoCommands(
-  commands: ThermoCommand[],
-  opts: { query: string; status: CommandHistoryStatusFilter },
-): ThermoCommand[] {
-  const needle = opts.query.trim().toLowerCase();
-  return commands.filter((c) => {
-    if (!matchesCommandStatusFilter(c.status, opts.status)) return false;
-    if (!needle) return true;
-    const hay = [
-      formatCommandTarget(c),
-      farmKeyId(c.farmKey),
-      c.id,
-      c.stallNo,
-      c.eqpmnNo,
-      c.stallTyCode,
-      c.controllerKey,
-      c.note,
-      c.errorMsg,
-      commandStatusLabel(c.status),
-      String(c.minVentPct),
-      String(c.maxVentPct),
-      String(c.setpointTemp),
-      String(c.tempDeviation),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return hay.includes(needle);
-  });
+): ThermoCommandStatus[] | null {
+  if (filter === "all") return null;
+  if (filter === "other") return [...OTHER_STATUSES];
+  return [filter];
 }

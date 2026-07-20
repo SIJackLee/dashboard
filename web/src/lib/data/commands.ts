@@ -5,7 +5,7 @@ import {
   legacyControllerKey,
   normalizeEqpmnNo,
 } from "@/lib/data/controller-key";
-import type { FarmKey } from "@/lib/data/farm-key";
+import { parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
 
 export type ThermoCommandStatus =
   | "pending"
@@ -114,11 +114,27 @@ export function mapThermoCommandRow(row: Row): ThermoCommand {
   };
 }
 
-/** ctrl_thermo_command 최근 이력 (RLS: 본인·admin·농장 읽기권한 sent/applied) */
-export async function getThermoCommandHistory(
-  limit = 20,
-  options?: { fromIso?: string },
-): Promise<ThermoCommand[]> {
+export type ThermoCommandHistoryOptions = {
+  fromIso?: string;
+  /** 비우면 상태 조건 없음 */
+  statuses?: ThermoCommandStatus[];
+  /** id·농장·축사·장비·메모·오류 부분 검색 */
+  q?: string;
+};
+
+export type ThermoCommandHistoryResult = {
+  commands: ThermoCommand[];
+  error: string | null;
+};
+
+function escapeIlikePattern(raw: string): string {
+  return raw.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
+async function queryThermoCommandHistory(
+  limit: number,
+  options?: ThermoCommandHistoryOptions,
+): Promise<ThermoCommandHistoryResult> {
   const supabase = await createClient();
 
   let query = supabase
@@ -132,10 +148,70 @@ export async function getThermoCommandHistory(
     query = query.gte("created_at", fromIso);
   }
 
+  const statuses = options?.statuses?.filter(Boolean);
+  if (statuses && statuses.length === 1) {
+    query = query.eq("status", statuses[0]);
+  } else if (statuses && statuses.length > 1) {
+    query = query.in("status", statuses);
+  }
+
+  const needle = options?.q?.trim().slice(0, 64) ?? "";
+  if (needle) {
+    const farm = parseFarmKeyId(needle);
+    if (farm) {
+      query = query
+        .eq("lsind_regist_no", farm.lsindRegistNo)
+        .eq("item_code", farm.itemCode);
+    } else {
+      // Strip chars that break PostgREST or() parsing
+      const safe = needle.replace(/[,()]/g, " ").trim();
+      if (safe) {
+        const pattern = `%${escapeIlikePattern(safe)}%`;
+        const quoted = `"${pattern.replace(/"/g, "")}"`;
+        query = query.or(
+          [
+            `id.ilike.${quoted}`,
+            `lsind_regist_no.ilike.${quoted}`,
+            `item_code.ilike.${quoted}`,
+            `stall_ty_code.ilike.${quoted}`,
+            `stall_no.ilike.${quoted}`,
+            `eqpmn_no.ilike.${quoted}`,
+            `note.ilike.${quoted}`,
+            `error_msg.ilike.${quoted}`,
+          ].join(","),
+        );
+      }
+    }
+  }
+
   const { data, error } = await query;
 
-  if (error || !data) return [];
-  return (data as Row[]).map(mapThermoCommandRow);
+  if (error) {
+    console.error("[getThermoCommandHistory]", error.message);
+    return { commands: [], error: error.message };
+  }
+  if (!data) return { commands: [], error: null };
+  return {
+    commands: (data as Row[]).map(mapThermoCommandRow),
+    error: null,
+  };
+}
+
+/** ctrl_thermo_command 최근 이력 (RLS: 본인·admin·농장 읽기권한 sent/applied) */
+export async function getThermoCommandHistory(
+  limit = 20,
+  options?: ThermoCommandHistoryOptions,
+): Promise<ThermoCommand[]> {
+  const { commands } = await queryThermoCommandHistory(limit, options);
+  return commands;
+}
+
+/** ops 조회 — 오류 메시지 포함 */
+export async function getThermoCommandHistoryResult(
+  limit = 20,
+  options?: ThermoCommandHistoryOptions,
+): Promise<ThermoCommandHistoryResult> {
+  return queryThermoCommandHistory(limit, options);
 }
 
 /** 단건 조회 — 적용 배너 폴링용 */

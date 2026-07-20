@@ -55,6 +55,8 @@ type Props = {
   emptyMessage?: string;
   /** 빈 상태 아래 CTA 등. */
   emptyExtra?: ReactNode;
+  /** 재조회 중 — 목록 dim */
+  busy?: boolean;
   /** true면 본문 숨김 (PC 접힘). */
   bodyHidden?: boolean;
   /** 모바일 리스트 밀도. */
@@ -70,6 +72,7 @@ export function CommandHistoryTable({
   toolbar,
   emptyMessage = "등록된 명령이 없습니다.",
   emptyExtra,
+  busy = false,
   bodyHidden = false,
   mobileDensity = "default",
   onSelect,
@@ -94,7 +97,12 @@ export function CommandHistoryTable({
               </p>
             )
           ) : (
-            <>
+            <div
+              className={cn(
+                busy && "pointer-events-none opacity-50 transition-opacity",
+              )}
+              aria-busy={busy || undefined}
+            >
               <CommandHistoryMobileList
                 commands={commands}
                 density={mobileDensity}
@@ -197,7 +205,7 @@ export function CommandHistoryTable({
                   </table>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </>
       )}
