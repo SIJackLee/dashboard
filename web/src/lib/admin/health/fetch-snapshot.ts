@@ -30,7 +30,6 @@ import {
 import {
   resolveCollectorGroups,
 } from "@/lib/admin/health/collector-groups";
-import { fetchGroupInsertBuckets } from "@/lib/admin/health/group-insert-buckets";
 import { fetchCommandHealth } from "@/lib/admin/health/fetch-command-health";
 import {
   buildHealthAlerts,
@@ -411,12 +410,9 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
   const rsStatus = insertRateStatus(insertBuckets);
 
   const groupDefs = resolveCollectorGroups(modules);
-  let groupBuckets = new Map<string, InsertBucket[]>();
-  try {
-    groupBuckets = await fetchGroupInsertBuckets(groupDefs, nowMs);
-  } catch {
-    /* empty buckets */
-  }
+  // B2 — 그룹별 raw count(그룹×버킷)는 스냅샷 경로에서 생략.
+  // 그룹 상태는 모듈 rollup으로 유지, insertBuckets는 비움(rsStatus=unknown).
+  const groupBuckets = new Map<string, InsertBucket[]>();
   const collectorGroups = aggregateCollectorGroups(
     groupDefs,
     modules,
@@ -624,7 +620,7 @@ async function computeHealthSnapshot(): Promise<HealthSnapshot> {
 export const fetchHealthSnapshot = cache(async (): Promise<HealthSnapshot> => {
   return unstable_cache(
     computeHealthSnapshot,
-    ["health-snapshot-v1"],
+    ["health-snapshot-v2-lean-buckets"],
     {
       revalidate: HEALTH_REVALIDATE_SEC,
       tags: [HEALTH_SNAPSHOT_CACHE_TAG],

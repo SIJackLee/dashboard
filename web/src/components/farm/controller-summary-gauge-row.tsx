@@ -286,6 +286,7 @@ export function ControllerSummaryGaugeRow({
       showPickerAffiliation={showSheetPickerAffiliation}
       controllerPage={
         <ControllerMobilePage
+          key={reading.key}
           metricsSection={sheetMetricsBlock}
           reading={reading}
           controllerTrendByPeriod={controllerTrendByPeriod}
@@ -295,6 +296,7 @@ export function ControllerSummaryGaugeRow({
       }
       settingsPage={
         <ControllerMobileSettingsPage
+          key={reading.key}
           reading={reading}
           readings={readings}
           thermoSettings={thermoSettings}

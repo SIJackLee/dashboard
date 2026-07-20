@@ -11,7 +11,7 @@ import {
   channelPercentsFromReading,
   findControllerTrendSeries,
   formatChannelPercent,
-  resolveReadingThermo,
+  resolveReadingChannelThermo,
 } from "@/lib/farm/controller-summary-display";
 import {
   channelSlotTrendSeries,
@@ -70,7 +70,7 @@ function ChannelSlotTrendChart({
   slot: ChannelSlot;
   controllerSeries: NonNullable<ReturnType<typeof findControllerTrendSeries>>;
   categories: string[];
-  thermo: ReturnType<typeof resolveReadingThermo>;
+  thermo: ReturnType<typeof resolveReadingChannelThermo>;
   tickEvery: number;
   compact?: boolean;
   dense?: boolean;
@@ -139,7 +139,6 @@ export function BarnMotorTrendPanel({
   dense = false,
   className,
 }: Props) {
-  const thermo = resolveReadingThermo(reading, thermoSettings);
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
     () =>
@@ -240,7 +239,7 @@ export function BarnMotorTrendPanel({
           slot={s}
           controllerSeries={chartSeries}
           categories={categories}
-          thermo={thermo}
+          thermo={resolveReadingChannelThermo(reading, thermoSettings, s)}
           tickEvery={tickEvery}
           compact={compact}
           dense={dense}

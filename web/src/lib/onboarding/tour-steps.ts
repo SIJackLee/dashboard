@@ -23,8 +23,13 @@ export type { TourGridAction };
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
 export const TOUR_VERSION = 5;
 
-/** 자동 시작 전 DOM 준비 확인 — 첫 축사 카드. */
+/** 자동 시작 전 DOM 준비 — 보기 탭 + 축사 카드 + 히트맵. */
 export const TOUR_READY_SELECTOR = '[data-tour-id="barn-card"]';
+export const TOUR_READY_VIEW_TOGGLE_SELECTOR = '[data-tour-id="view-toggle"]';
+/** stall trend 반영 후 히트맵이 떠야 카드 높이·스텝 4/5가 안정. */
+export const TOUR_READY_HEATMAP_SELECTOR = '[data-tour-id="heatmap"]';
+/** 콘텐츠 ready로 인정할 최소 축사 카드 수. */
+export const TOUR_READY_MIN_CARDS = 1;
 
 /** 단일 농장 스코프 URL — admin 허브에서 투어 재시작 시 사용. */
 export function buildFarmTourPath(farmKey: FarmKey): string {

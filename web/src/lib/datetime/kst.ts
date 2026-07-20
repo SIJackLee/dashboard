@@ -31,3 +31,15 @@ export function formatKst(
   if (Number.isNaN(d.getTime())) return "--";
   return d.toLocaleString("ko-KR", style === "short" ? KST_SHORT : KST_FORMAT);
 }
+
+/** KST 달력일 기준 자정(UTC ISO). offsetDays=0 오늘, -6 = 최근 7일 시작. */
+export function kstDayStartIso(offsetDays = 0): string {
+  const dateStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: KST_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const base = new Date(`${dateStr}T00:00:00+09:00`);
+  return new Date(base.getTime() + offsetDays * 86_400_000).toISOString();
+}

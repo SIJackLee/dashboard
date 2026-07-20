@@ -1,22 +1,6 @@
-import { Suspense } from "react";
-import { AdminOpsTabShell } from "@/components/admin/admin-ops-tab-shell";
-import { CommandHistoryTable } from "@/components/controllers/command-history-table";
-import { AdminOpsTabContentSkeleton } from "@/components/admin/admin-ops-loading-skeleton";
-import { getThermoCommandHistory } from "@/lib/data/commands";
+import { redirect } from "next/navigation";
 
-async function CommandsTabContent() {
-  const commands = await getThermoCommandHistory(100);
-  return (
-    <AdminOpsTabShell>
-      <CommandHistoryTable commands={commands} />
-    </AdminOpsTabShell>
-  );
-}
-
-export default function AdminOpsCommandsPage() {
-  return (
-    <Suspense fallback={<AdminOpsTabContentSkeleton label="명령 이력" />}>
-      <CommandsTabContent />
-    </Suspense>
-  );
+/** 레거시 탭 → 통합 홈 명령 구역 */
+export default function AdminOpsCommandsRedirectPage() {
+  redirect("/admin/ops#commands");
 }

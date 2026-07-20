@@ -11,11 +11,13 @@ import { DEFAULT_FARM } from "@/lib/data/farm-key";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminOpsPath } from "@/lib/admin/ops-tabs";
 
+const ADMIN_OPS_HOME = "/admin/ops";
 const ADMIN_USERS_PATH = adminOpsPath("users");
 const ROLES: Role[] = ["admin", "operator", "viewer"];
 
 function revalidateAdminUsers() {
   revalidateTag(MANAGED_USERS_CACHE_TAG, "max");
+  revalidatePath(ADMIN_OPS_HOME);
   revalidatePath(ADMIN_USERS_PATH);
 }
 
@@ -98,15 +100,6 @@ async function deleteOrphanFarmScopes(userId: string, farmKey: FarmKey) {
     .eq("lsind_regist_no", farmKey.lsindRegistNo)
     .eq("item_code", farmKey.itemCode)
     .neq("scope_type", "farm");
-}
-
-function parseFarmKey(raw: unknown): FarmKey | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-  const lsindRegistNo = String(o.lsindRegistNo ?? "").trim();
-  const itemCode = String(o.itemCode ?? "").trim();
-  if (!lsindRegistNo || !itemCode) return null;
-  return { lsindRegistNo, itemCode };
 }
 
 export type GrantFarmAccessResult =
@@ -268,45 +261,6 @@ export async function grantFarmAccess(formData: FormData) {
   }
 
   redirect(`${ADMIN_USERS_PATH}?ok=granted`);
-}
-
-export async function grantBulkFarmAccess(formData: FormData) {
-  await requireAdminAction();
-
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
-  const canCommand = formData.get("can_command") === "on";
-  const farmsRaw = String(formData.get("farms_json") ?? "[]");
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(farmsRaw);
-  } catch {
-    redirect(`${ADMIN_USERS_PATH}?error=invalid`);
-  }
-
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    redirect(`${ADMIN_USERS_PATH}?error=invalid`);
-  }
-
-  const farms = parsed.map(parseFarmKey).filter((f): f is FarmKey => f != null);
-  if (!email || farms.length === 0) {
-    redirect(`${ADMIN_USERS_PATH}?error=invalid`);
-  }
-
-  const target = await findAuthUserByEmail(email);
-  if (!target) {
-    redirect(`${ADMIN_USERS_PATH}?error=notfound`);
-  }
-
-  await ensureProfile(target.id);
-  for (const farmKey of farms) {
-    await upsertFarmAccess(target.id, farmKey, canCommand);
-  }
-
-  revalidateAdminUsers();
-  redirect(
-    `${ADMIN_USERS_PATH}?ok=bulk_granted&count=${encodeURIComponent(String(farms.length))}`
-  );
 }
 
 export async function revokeAccess(formData: FormData) {

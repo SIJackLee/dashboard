@@ -6,12 +6,14 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
 import type { BarnReading } from "@/lib/data/iot";
 import { BarnPanelBottomSheet } from "@/components/farm/barn-panel-bottom-sheet";
 import { ControllerMobilePickerStrip } from "@/components/farm/controller-mobile-picker-strip";
 import { formatControllerNoLabel } from "@/lib/farm/controller-summary-display";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 
 import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state";
 
@@ -26,9 +28,7 @@ export function controllerMobileSheetPageFromFlags(
   return settingsExpanded ? 1 : 0;
 }
 
-const SETTLE_MS = 80;
-const SYNC_GUARD_MS = 400;
-const PAGE_SNAP_TOLERANCE = 0.12;
+const SWIPE_THRESHOLD_PX = 56;
 
 type Props = {
   open: boolean;
@@ -50,16 +50,10 @@ function clampPage(raw: number): ControllerMobileSheetPage {
   return Math.min(1, Math.max(0, Math.round(raw))) as ControllerMobileSheetPage;
 }
 
-function pageFromScroll(el: HTMLDivElement): {
-  page: ControllerMobileSheetPage;
-  ratio: number;
-} {
-  const width = el.clientWidth;
-  const ratio = width > 0 ? el.scrollLeft / width : 0;
-  return { page: clampPage(ratio), ratio };
-}
-
-/** 모바일 stack — picker·탭·본문을 sheet 본문 전체에서 단일 세로 스크롤. */
+/**
+ * 모바일 stack — picker·탭·본문.
+ * Dialog enter transform과 충돌하지 않도록 페이지 전환은 scrollLeft 대신 translateX 사용.
+ */
 export function BarnControllerMobileSheet({
   open,
   initialPage,
@@ -73,130 +67,97 @@ export function BarnControllerMobileSheet({
   onSelectReading,
   showPickerAffiliation = false,
 }: Props) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
   const [viewPage, setViewPage] = useState<ControllerMobileSheetPage>(initialPage);
-  const settleTimerRef = useRef<number | null>(null);
-  const syncingRef = useRef(false);
-  const syncTimerRef = useRef<number | null>(null);
-  const lastSettledRef = useRef<ControllerMobileSheetPage>(initialPage);
-  const prevScrollLeftRef = useRef(0);
-  const gradualScrollRef = useRef(false);
-  const openSyncedRef = useRef(false);
+  const [dragOffsetPx, setDragOffsetPx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const lockAxisRef = useRef<"x" | "y" | null>(null);
+  const viewPageRef = useRef(viewPage);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
-  const beginSyncGuard = useCallback(() => {
-    syncingRef.current = true;
-    if (syncTimerRef.current != null) {
-      window.clearTimeout(syncTimerRef.current);
-    }
-    syncTimerRef.current = window.setTimeout(() => {
-      syncingRef.current = false;
-      syncTimerRef.current = null;
-      const el = scrollerRef.current;
-      if (el) prevScrollLeftRef.current = el.scrollLeft;
-    }, SYNC_GUARD_MS);
-  }, []);
-
-  const syncToPage = useCallback(
-    (page: ControllerMobileSheetPage, behavior: ScrollBehavior = "auto") => {
-      const el = scrollerRef.current;
-      lastSettledRef.current = page;
-      gradualScrollRef.current = false;
-      setViewPage(page);
-      if (!el) return;
-      beginSyncGuard();
-      window.requestAnimationFrame(() => {
-        el.scrollTo({ left: page * el.clientWidth, behavior });
-        prevScrollLeftRef.current = page * el.clientWidth;
-      });
-    },
-    [beginSyncGuard],
-  );
+  useEffect(() => {
+    viewPageRef.current = viewPage;
+  }, [viewPage]);
 
   useEffect(() => {
     if (!open) {
-      openSyncedRef.current = false;
+      setDragOffsetPx(0);
+      setDragging(false);
+      touchStartXRef.current = null;
+      lockAxisRef.current = null;
       return;
     }
+    setViewPage(initialPage);
+    setDragOffsetPx(0);
+  }, [open, initialPage]);
 
-    if (!openSyncedRef.current) {
-      openSyncedRef.current = true;
-      syncToPage(initialPage);
-      return;
-    }
-
-    if (initialPage !== lastSettledRef.current) {
-      syncToPage(initialPage);
-    }
-  }, [open, initialPage, syncToPage]);
-
-  useEffect(
-    () => () => {
-      if (settleTimerRef.current != null) {
-        window.clearTimeout(settleTimerRef.current);
-      }
-      if (syncTimerRef.current != null) {
-        window.clearTimeout(syncTimerRef.current);
-      }
-    },
-    [],
-  );
-
-  const scrollToPage = useCallback(
+  const selectTab = useCallback(
     (page: ControllerMobileSheetPage) => {
-      syncToPage(page, "smooth");
+      setViewPage(page);
+      setDragOffsetPx(0);
       onPageSettled?.(page);
     },
-    [onPageSettled, syncToPage],
+    [onPageSettled],
   );
 
-  const handleScroll = useCallback(() => {
-    if (syncingRef.current) return;
-    const el = scrollerRef.current;
-    if (!el || el.clientWidth <= 0) return;
+  const onTouchStart = useCallback((e: ReactTouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartXRef.current = t.clientX;
+    touchStartYRef.current = t.clientY;
+    lockAxisRef.current = null;
+    setDragging(true);
+  }, []);
 
-    const width = el.clientWidth;
-    const scrollLeft = el.scrollLeft;
-    const prev = prevScrollLeftRef.current;
-    const delta = Math.abs(scrollLeft - prev);
+  const onTouchMove = useCallback((e: ReactTouchEvent) => {
+    const startX = touchStartXRef.current;
+    const startY = touchStartYRef.current;
+    const t = e.touches[0];
+    if (startX == null || startY == null || !t) return;
 
-    if (delta > 2 && delta < width * 0.85) {
-      gradualScrollRef.current = true;
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+
+    if (lockAxisRef.current == null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      lockAxisRef.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (lockAxisRef.current === "y") {
+        setDragging(false);
+        setDragOffsetPx(0);
+        return;
+      }
     }
 
-    if (delta >= width * 0.85) {
-      gradualScrollRef.current = false;
-      syncToPage(lastSettledRef.current, "auto");
+    if (lockAxisRef.current !== "x") return;
+
+    const page = viewPageRef.current;
+    const width = viewportRef.current?.clientWidth ?? 1;
+    let next = dx;
+    if (page === 0 && dx > 0) next = dx * 0.25;
+    if (page === 1 && dx < 0) next = dx * 0.25;
+    next = Math.max(-width, Math.min(width, next));
+    setDragOffsetPx(next);
+  }, []);
+
+  const onTouchEnd = useCallback(() => {
+    const offset = dragOffsetPx;
+    const page = viewPageRef.current;
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+    lockAxisRef.current = null;
+    setDragging(false);
+
+    if (Math.abs(offset) < SWIPE_THRESHOLD_PX) {
+      setDragOffsetPx(0);
       return;
     }
 
-    prevScrollLeftRef.current = scrollLeft;
-
-    if (settleTimerRef.current != null) {
-      window.clearTimeout(settleTimerRef.current);
-    }
-    settleTimerRef.current = window.setTimeout(() => {
-      if (syncingRef.current) return;
-
-      const { page, ratio } = pageFromScroll(el);
-      if (Math.abs(ratio - page) > PAGE_SNAP_TOLERANCE) return;
-
-      if (page !== lastSettledRef.current && !gradualScrollRef.current) {
-        syncToPage(lastSettledRef.current, "auto");
-        return;
-      }
-
-      gradualScrollRef.current = false;
-
-      if (page === lastSettledRef.current) {
-        setViewPage(page);
-        return;
-      }
-
-      lastSettledRef.current = page;
-      setViewPage(page);
-      onPageSettled?.(page);
-    }, SETTLE_MS);
-  }, [onPageSettled, syncToPage]);
+    const next = offset < 0 ? clampPage(page + 1) : clampPage(page - 1);
+    setViewPage(next);
+    setDragOffsetPx(0);
+    if (next !== page) onPageSettled?.(next);
+  }, [dragOffsetPx, onPageSettled]);
 
   const eqpmn = formatControllerNoLabel(reading.eqpmnNo);
   const activeLabel =
@@ -207,6 +168,8 @@ export function BarnControllerMobileSheet({
     pickerReadings.length > 0 &&
     selectedReadingKey &&
     onSelectReading;
+
+  const trackTransform = `translate3d(calc(${viewPage * -50}% + ${dragOffsetPx}px), 0, 0)`;
 
   return (
     <BarnPanelBottomSheet
@@ -241,7 +204,7 @@ export function BarnControllerMobileSheet({
               type="button"
               role="tab"
               aria-selected={viewPage === p.id}
-              onClick={() => scrollToPage(p.id)}
+              onClick={() => selectTab(p.id)}
               className={cn(
                 "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold transition-colors",
                 viewPage === p.id
@@ -257,11 +220,21 @@ export function BarnControllerMobileSheet({
 
       <div className="barn-controller-mobile-sheet-body-scroll min-h-0 flex-1">
         <div
-          ref={scrollerRef}
-          className="barn-controller-mobile-sheet-scroller min-w-0 overflow-x-auto"
-          onScroll={handleScroll}
+          ref={viewportRef}
+          className="barn-controller-mobile-sheet-scroller min-h-0 min-w-0 overflow-x-hidden overflow-y-visible"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
         >
-          <div className="barn-controller-mobile-sheet-track flex w-[200%] items-start">
+          <div
+            className={cn(
+              "barn-controller-mobile-sheet-track flex w-[200%] items-start will-change-transform",
+              !dragging && motionClass.durationModerate,
+              !dragging && "transition-transform ease-out",
+            )}
+            style={{ transform: trackTransform }}
+          >
             <section
               className="barn-controller-mobile-sheet-page w-1/2 shrink-0"
               data-panel="controller"

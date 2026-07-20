@@ -149,6 +149,17 @@ export function thermoFromDecoded(
 }
 
 /** LIVE decoded_json — ctrl·채널별 설정 (최신 receivedAt 우선) */
+function assignLiveThermo(
+  out: Record<string, ControllerThermoSettings>,
+  key: string,
+  parsed: Omit<ControllerThermoSettings, "source" | "updatedAt">,
+  receivedAt: string,
+): void {
+  const existing = out[key];
+  if (existing && existing.updatedAt >= receivedAt) return;
+  out[key] = { ...parsed, source: "live", updatedAt: receivedAt };
+}
+
 export function buildThermoSettingsFromReadings(
   readings: Array<{
     farmKey: import("@/lib/data/farm-key").FarmKey;
@@ -176,27 +187,19 @@ export function buildThermoSettingsFromReadings(
           r.controllerKey,
           ch.channel
         );
-        const existing = out[key];
-        if (existing && existing.updatedAt >= r.receivedAt) continue;
-        out[key] = { ...parsed, source: "live", updatedAt: r.receivedAt };
+        assignLiveThermo(out, key, parsed, r.receivedAt);
       }
       continue;
     }
     const parsed = thermoFromDecoded(r.thermo);
     if (!parsed) continue;
     const key = thermoSettingsKey(r.farmKey, r.moduleUid, r.controllerKey);
-    const existing = out[key];
-    if (existing && existing.updatedAt >= r.receivedAt) continue;
-    out[key] = {
-      ...parsed,
-      source: "live",
-      updatedAt: r.receivedAt,
-    };
+    assignLiveThermo(out, key, parsed, r.receivedAt);
   }
   return out;
 }
 
-/** 명령 + LIVE 병합: LIVE가 명령과 일치하면 장치 반영값 우선 */
+/** 명령 + LIVE 병합 — LIVE≠명령이면 명령(낙관·진행 중) 우선, 일치하면 live */
 export function mergeThermoSettingsMaps(
   commandMap: Record<string, ControllerThermoSettings>,
   liveMap: Record<string, ControllerThermoSettings>

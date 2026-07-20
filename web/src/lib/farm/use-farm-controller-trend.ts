@@ -49,8 +49,9 @@ export function useFarmControllerTrend(params: {
       .finally(() => setRefreshing(false));
   }, [params.farmKey, scopeId]);
 
-  const data =
-    active && bundle?.scopeId === scopeId ? bundle.data : null;
+  // enabled=false여도 캐시는 유지 — 투어 pause 등으로 active가 꺼져도
+  // 이미 받은 controllerTrend를 null로 지우지 않는다.
+  const data = bundle?.scopeId === scopeId ? bundle.data : null;
   const initialPending = active && data === null && !error;
   const showInitialLoading = useDeferredLoading(initialPending);
   const showRefreshing = useDeferredLoading(refreshing);

@@ -12,6 +12,10 @@ export const TOUR_EXTRA_MIN_HEIGHT = 120;
 export const TOUR_REVEAL_MAX_ATTEMPTS = 4;
 export const TOUR_FIND_INTERVAL_MS = 50;
 export const TOUR_READY_INTERVAL_MS = 50;
+/** 자동 투어 — 콘텐츠 ready 최대 대기(ms). 초과 시 시작하지 않음. */
+export const TOUR_AUTO_READY_GIVE_UP_MS = 45_000;
+/** 수동 재시작 — ready 강제 시작까지 대기(ms). */
+export const TOUR_MANUAL_READY_FORCE_MS = 10_000;
 
 /** rAF 연속 대기 */
 export function afterFrames(count = 2): Promise<void> {

@@ -14,7 +14,7 @@ import {
   findStallTrendSeries,
   formatControllerNoLabel,
   resolveReadingAlarmThresholds,
-  resolveReadingThermo,
+  resolveReadingChannelThermo,
 } from "@/lib/farm/controller-summary-display";
 import {
   fanBand,
@@ -117,15 +117,17 @@ export function useBarnGraphs({
               normalizeStallTyCode(stallTyCode ?? "") &&
             (r.stallNo ?? "") === (stallNo ?? ""),
         ) ?? null;
-      const thermo = reading
-        ? resolveReadingThermo(reading, thermoSettings)
-        : null;
       const thresholds = reading
         ? resolveReadingAlarmThresholds(reading, alarmSettings)
         : DEFAULT_ALARM_THRESHOLDS;
       const tBand = tempBand(thresholds);
       const hBand = humidityBand(thresholds);
-      const fBand = fanBand(thermo);
+      const bandForChannel = (slot: "A" | "B" | "C", values: (number | null)[]) => {
+        const thermo = reading
+          ? resolveReadingChannelThermo(reading, thermoSettings, slot)
+          : null;
+        return fanBand(thermo) ?? statBand(values);
+      };
       const metrics: StackMetric[] = [
         { id: "T", label: "온도", unit: "℃", values: series.temp, band: tBand },
         { id: "H", label: "습도", unit: "%", values: series.humidity, band: hBand },
@@ -134,21 +136,21 @@ export function useBarnGraphs({
           label: "A",
           unit: "%",
           values: series.fanIntake,
-          band: fBand ?? statBand(series.fanIntake),
+          band: bandForChannel("A", series.fanIntake),
         },
         {
           id: "B",
           label: "B",
           unit: "%",
           values: series.fanExhaust,
-          band: fBand ?? statBand(series.fanExhaust),
+          band: bandForChannel("B", series.fanExhaust),
         },
         {
           id: "C",
           label: "C",
           unit: "%",
           values: series.fanSupply,
-          band: fBand ?? statBand(series.fanSupply),
+          band: bandForChannel("C", series.fanSupply),
         },
       ];
       // 데이터가 없는 지표(행)는 히트맵에서 제외 — 값이 하나도 없으면 표시하지 않는다.
@@ -206,15 +208,20 @@ export function useBarnGraphs({
     const controllers = (ctrlStall?.controllers ?? []).map((cs) => {
       const ctrlReading =
         readings.find((r) => r.controllerKey === cs.controllerKey) ?? null;
-      const ctrlThermo = ctrlReading
-        ? resolveReadingThermo(ctrlReading, thermoSettings)
-        : null;
       const ctrlThresholds = ctrlReading
         ? resolveReadingAlarmThresholds(ctrlReading, alarmSettings)
         : DEFAULT_ALARM_THRESHOLDS;
       const ctrlTBand = tempBand(ctrlThresholds);
       const ctrlHBand = humidityBand(ctrlThresholds);
-      const ctrlFBand = fanBand(ctrlThermo);
+      const ctrlBandForChannel = (
+        slot: "A" | "B" | "C",
+        values: (number | null)[],
+      ) => {
+        const thermo = ctrlReading
+          ? resolveReadingChannelThermo(ctrlReading, thermoSettings, slot)
+          : null;
+        return fanBand(thermo) ?? statBand(values);
+      };
 
       return {
         key: cs.controllerKey,
@@ -229,21 +236,21 @@ export function useBarnGraphs({
             label: "A",
             unit: "%",
             values: cs.fanIntake,
-            band: ctrlFBand ?? statBand(cs.fanIntake),
+            band: ctrlBandForChannel("A", cs.fanIntake),
           },
           B: {
             id: "B",
             label: "B",
             unit: "%",
             values: cs.fanExhaust,
-            band: ctrlFBand ?? statBand(cs.fanExhaust),
+            band: ctrlBandForChannel("B", cs.fanExhaust),
           },
           C: {
             id: "C",
             label: "C",
             unit: "%",
             values: cs.fanSupply,
-            band: ctrlFBand ?? statBand(cs.fanSupply),
+            band: ctrlBandForChannel("C", cs.fanSupply),
           },
         } as Record<string, StackMetric>,
       };

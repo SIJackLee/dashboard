@@ -19,16 +19,14 @@ import {
   type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
 import { BarnListToolbarMobileSheet } from "@/components/farm/barn-list-toolbar-mobile-sheet";
-import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
+import type { BarnListViewMode, ListLayout } from "@/lib/farm/farm-view-url";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { StatusBadge } from "@/components/common/status-badge";
 import { EnvChip } from "@/components/common/env-chip";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
-import { FARM_TOUR_ACTIVE_EVENT } from "@/lib/onboarding/tour-steps";
-
-type ListLayout = "group" | "flat";
+import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 
 type Props = {
   readings: BarnReading[];
@@ -56,6 +54,8 @@ type Props = {
   /** 모바일 Graph/Set — 단일 toolbar sheet */
   mobileToolbarSheetMode?: boolean;
   toolbarSheetKey?: string | null;
+  /** Dialog open — key 전환과 분리해 sheet 유지 */
+  toolbarSheetOpen?: boolean;
   toolbarSheetPage?: ControllerMobileSheetPage;
   onToolbarSheetKeyChange?: (key: string, page?: ControllerMobileSheetPage) => void;
   onToolbarSheetPageChange?: (page: ControllerMobileSheetPage) => void;
@@ -72,18 +72,6 @@ const CONTROLLER_GRID_IN_SP =
 
 const STAGGER_INITIAL = 8;
 const STAGGER_BATCH = 8;
-
-function useFarmTourActive(): boolean {
-  const [active, setActive] = useState(false);
-  useEffect(() => {
-    const onActive = (e: Event) => {
-      setActive(Boolean((e as CustomEvent<{ active?: boolean }>).detail?.active));
-    };
-    window.addEventListener(FARM_TOUR_ACTIVE_EVENT, onActive);
-    return () => window.removeEventListener(FARM_TOUR_ACTIVE_EVENT, onActive);
-  }, []);
-  return active;
-}
 
 function useStaggeredVisibleCount(total: number, enabled: boolean): number {
   const completedRef = useRef(false);
@@ -218,21 +206,9 @@ function ControllerCardGrid({
           toolbarSheetSelected={
             mobileToolbarSheetMode && toolbarSheetKey === r.key
           }
-          onToggleGraph={
-            !bulkMode
-              ? () =>
-                  mobileToolbarSheetMode && onToolbarSheetKeyChange
-                    ? onToolbarSheetKeyChange(r.key, 0)
-                    : onToggleGraph(r.key)
-              : undefined
-          }
+          onToggleGraph={!bulkMode ? () => onToggleGraph(r.key) : undefined}
           onToggleSettings={
-            !bulkMode
-              ? () =>
-                  mobileToolbarSheetMode && onToolbarSheetKeyChange
-                    ? onToolbarSheetKeyChange(r.key, 1)
-                    : onToggleSettings(r.key)
-              : undefined
+            !bulkMode ? () => onToggleSettings(r.key) : undefined
           }
           onSheetPageChange={
             !bulkMode && onSheetPageChange && !mobileToolbarSheetMode
@@ -328,6 +304,7 @@ export function BarnListSummary({
   staggerMount = false,
   mobileToolbarSheetMode = false,
   toolbarSheetKey = null,
+  toolbarSheetOpen = false,
   toolbarSheetPage = 0,
   onToolbarSheetKeyChange,
   onToolbarSheetPageChange,
@@ -372,7 +349,7 @@ export function BarnListSummary({
 
   const toolbarSheet = mobileToolbarSheetMode && onToolbarSheetClose ? (
     <BarnListToolbarMobileSheet
-      open={Boolean(toolbarSheetKey)}
+      open={toolbarSheetOpen}
       readings={readings}
       selectedKey={toolbarSheetKey}
       sheetPage={toolbarSheetPage}

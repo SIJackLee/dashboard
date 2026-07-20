@@ -158,18 +158,6 @@ export function envTrendSeries(m: StallMetrics): TrendSeries[] {
   ];
 }
 
-export function channelFanTrendSeries(
-  m: StallMetrics,
-  thermo: Pick<ControllerThermoSettings, "minVentPct" | "maxVentPct"> | null = null
-): TrendSeries[] {
-  const band = fanBand(thermo) ?? statBand([...m.fanIntake, ...m.fanExhaust, ...m.fanSupply]);
-  return [
-    { name: "채널 A", data: m.fanIntake, color: TREND_CHART_COLORS.fanIntake, band },
-    { name: "채널 B", data: m.fanExhaust, color: TREND_CHART_COLORS.fanExhaust, band },
-    { name: "채널 C", data: m.fanSupply, color: TREND_CHART_COLORS.fanSupply, band },
-  ];
-}
-
 const CHANNEL_SLOT_META: Record<
   ChannelSlot,
   { field: keyof Pick<TrendStallSeries, "fanIntake" | "fanExhaust" | "fanSupply">; color: string; label: string }
@@ -179,6 +167,31 @@ const CHANNEL_SLOT_META: Record<
   C: { field: "fanSupply", color: TREND_CHART_COLORS.fanSupply, label: "채널 C" },
 };
 
+export function channelFanTrendSeries(
+  m: StallMetrics,
+  thermoByChannel:
+    | Partial<
+        Record<
+          ChannelSlot,
+          Pick<ControllerThermoSettings, "minVentPct" | "maxVentPct"> | null
+        >
+      >
+    | null = null
+): TrendSeries[] {
+  return (["A", "B", "C"] as const).map((slot) => {
+    const meta = CHANNEL_SLOT_META[slot];
+    const data = m[meta.field];
+    const thermo = thermoByChannel?.[slot] ?? null;
+    const band = fanBand(thermo) ?? statBand(data);
+    return {
+      name: meta.label,
+      data,
+      color: meta.color,
+      band: band ?? undefined,
+    };
+  });
+}
+
 /** 모터 pill / 채널 스트rip — 단일 채널 line trend. */
 export function channelSlotTrendSeries(
   m: StallMetrics,
@@ -186,13 +199,13 @@ export function channelSlotTrendSeries(
   thermo: Pick<ControllerThermoSettings, "minVentPct" | "maxVentPct"> | null = null
 ): TrendSeries {
   const meta = CHANNEL_SLOT_META[slot];
-  const band =
-    fanBand(thermo) ?? statBand([...m.fanIntake, ...m.fanExhaust, ...m.fanSupply]);
+  const data = m[meta.field];
+  const band = fanBand(thermo) ?? statBand(data);
   return {
     name: meta.label,
-    data: m[meta.field],
+    data,
     color: meta.color,
-    band,
+    band: band ?? undefined,
   };
 }
 

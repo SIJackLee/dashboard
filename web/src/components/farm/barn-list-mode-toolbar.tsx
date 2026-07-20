@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const MODES: { id: BarnListViewMode; label: string; short: string }[] = [
   { id: "controller", label: "컨트롤러", short: "Ctrl" },
-  { id: "graph", label: "그래프", short: "Graph" },
+  { id: "graph", label: "모터", short: "Motor" },
   { id: "settings", label: "설정", short: "Set" },
 ];
 

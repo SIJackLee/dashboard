@@ -1,4 +1,5 @@
 import { SectionCard } from "@/components/common/section-card";
+import { opsTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -29,11 +30,13 @@ export function HealthSectionCard({
       description={hub ? undefined : description}
       action={action}
       size={hub ? "default" : "lg"}
+      headerInline={hub}
       className={cn(hub && "min-h-0", className)}
       contentClassName={cn(hub && "pt-0", contentClassName)}
+      titleClassName={hub ? opsTypography.sectionTitle : undefined}
     >
       {hub && description ? (
-        <p className="mb-2 text-sm text-muted-foreground">{description}</p>
+        <p className={cn("mb-2", opsTypography.sectionDesc)}>{description}</p>
       ) : null}
       {children}
     </SectionCard>

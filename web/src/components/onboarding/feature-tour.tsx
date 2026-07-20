@@ -13,7 +13,10 @@ import {
   FARM_TOUR_ACTIVE_EVENT,
   FARM_TOUR_RESTART_EVENT,
   FARM_TOUR_RESTART_FLAG,
+  TOUR_READY_HEATMAP_SELECTOR,
+  TOUR_READY_MIN_CARDS,
   TOUR_READY_SELECTOR,
+  TOUR_READY_VIEW_TOGGLE_SELECTOR,
   TOUR_STEPS,
   type TourStepDef,
   type TourView,
@@ -22,7 +25,9 @@ import {
   afterFrames,
   markTourStepReady,
   markTourStepSettling,
+  TOUR_AUTO_READY_GIVE_UP_MS,
   TOUR_FIND_INTERVAL_MS,
+  TOUR_MANUAL_READY_FORCE_MS,
   TOUR_READY_INTERVAL_MS,
   TOUR_REVEAL_MAX_ATTEMPTS,
   waitForTooltipExtraReady,
@@ -63,10 +68,29 @@ const HOLE_PAD = 6;
 const TOOLTIP_W = 440;
 const TOOLTIP_W_MOBILE = 400;
 const FIND_RETRIES = 24;
-const READY_RETRIES = 60;
 
 function isTourTargetVisible(selector: string): boolean {
   return findVisibleTourTarget(selector) !== null;
+}
+
+function countVisibleTourTargets(selector: string): number {
+  let n = 0;
+  for (const el of document.querySelectorAll(selector)) {
+    if ((el as HTMLElement).offsetParent !== null) n += 1;
+  }
+  return n;
+}
+
+/**
+ * 보기 탭 + 축사 카드 + 히트맵 — 스켈레톤/빈 그리드·trend 미도착 위 투어 시작 방지.
+ * (히트맵 없는 농장은 manual force / auto give-up으로만 진입)
+ */
+function isTourContentReady(): boolean {
+  if (!isTourTargetVisible(TOUR_READY_VIEW_TOGGLE_SELECTOR)) return false;
+  if (countVisibleTourTargets(TOUR_READY_SELECTOR) < TOUR_READY_MIN_CARDS) {
+    return false;
+  }
+  return isTourTargetVisible(TOUR_READY_HEATMAP_SELECTOR);
 }
 
 /** display:none·lg:hidden 등으로 숨긴 첫 매치를 건너뛰고 실제 보이는 대상을 반환. */
@@ -301,12 +325,10 @@ function TourOverlay({
       markTourStepSettling();
 
       try {
-        if (step.gridAction) {
-          await waitForTourGridAction(step.gridAction);
-        } else if (prevStep?.view !== step.view) {
-          await afterFrames(2);
-        } else {
-          await afterFrames(1);
+        // gridAction은 runStepEntry에서 이미 대기함 — 여기서 재대기하면 done 레이스를 놓침.
+        if (!step.gridAction) {
+          if (prevStep?.view !== step.view) await afterFrames(2);
+          else await afterFrames(1);
         }
 
         if (step.extra && tooltipRef.current) {
@@ -331,19 +353,15 @@ function TourOverlay({
       completeStep(el);
     };
 
-    const runStepEntry = () => {
-      if (cancelled || stepGenRef.current !== stepGen) return;
-      setView(step.view);
-      if (step.view === "list" && prevStep?.view !== "list") {
-        resetTourScrollContainers();
-      }
-      if (step.gridAction) dispatchGridAction(step.gridAction);
-    };
-
     const locate = () => {
       if (cancelled || stepGenRef.current !== stepGen) return;
       const isMobileSheet = isMobileTourSheet();
-      const el = findVisibleTourTarget(spotlightSelector);
+      // 모바일 전용 셀렉터 미존재 시 데스크톱 셀렉터로 폴백(5/9 chart-first 등).
+      const el =
+        findVisibleTourTarget(spotlightSelector) ??
+        (step.mobileSelector
+          ? findVisibleTourTarget(step.selector)
+          : null);
       if (el && (el as HTMLElement).offsetParent !== null) {
         targetRef.current = el;
         if (step.accentSelector) {
@@ -381,13 +399,21 @@ function TourOverlay({
       schedule(locate, TOUR_FIND_INTERVAL_MS);
     };
 
-    schedule(() => {
-      runStepEntry();
-    }, 0);
-
-    requestAnimationFrame(() => {
+    // expand/collapse done 수신 후에 locate — done을 locate 뒤에서 놓치지 않음.
+    void (async () => {
+      if (cancelled || stepGenRef.current !== stepGen) return;
+      setView(step.view);
+      if (step.view === "list" && prevStep?.view !== "list") {
+        resetTourScrollContainers();
+      }
+      if (step.gridAction) {
+        const pending = waitForTourGridAction(step.gridAction);
+        dispatchGridAction(step.gridAction);
+        await pending;
+        await afterFrames(2);
+      }
       if (!cancelled && stepGenRef.current === stepGen) locate();
-    });
+    })();
 
     return () => {
       cancelled = true;
@@ -748,26 +774,46 @@ export function FarmFeatureTour({
     viewRef.current = view;
   }, [view]);
 
-  const start = useCallback(() => {
-    setFarmTourActive(true);
+  const start = useCallback((opts?: { manual?: boolean }) => {
+    const manual = Boolean(opts?.manual);
+    // tourActive는 오버레이 표시 직전에만 true — 대기 중 soft fetch/enrich 유지(3).
     const activate = () => {
+      setFarmTourActive(true);
       setStartView(viewRef.current);
       setActive(true);
     };
-    if (isTourTargetVisible(TOUR_READY_SELECTOR)) {
+    const abort = () => {
+      setFarmTourActive(false);
+      setActive(false);
+    };
+
+    if (isTourContentReady()) {
       activate();
       return;
     }
-    const waitForReady = (attempt = 0) => {
-      if (isTourTargetVisible(TOUR_READY_SELECTOR)) {
+
+    const startedAt = Date.now();
+    const forceAfterMs = manual ? TOUR_MANUAL_READY_FORCE_MS : null;
+    const giveUpMs = manual
+      ? TOUR_MANUAL_READY_FORCE_MS
+      : TOUR_AUTO_READY_GIVE_UP_MS;
+
+    const waitForReady = () => {
+      if (isTourContentReady()) {
         activate();
         return;
       }
-      if (attempt >= READY_RETRIES) {
+      const elapsed = Date.now() - startedAt;
+      if (forceAfterMs != null && elapsed >= forceAfterMs) {
         activate();
         return;
       }
-      window.setTimeout(() => waitForReady(attempt + 1), TOUR_READY_INTERVAL_MS);
+      if (elapsed >= giveUpMs) {
+        // 자동: 콘텐츠 미준비 시 투어 보류 (스켈레톤 위 난잡 방지)
+        abort();
+        return;
+      }
+      window.setTimeout(waitForReady, TOUR_READY_INTERVAL_MS);
     };
     waitForReady();
   }, []);
@@ -779,7 +825,7 @@ export function FarmFeatureTour({
     try {
       if (sessionStorage.getItem(FARM_TOUR_RESTART_FLAG)) {
         sessionStorage.removeItem(FARM_TOUR_RESTART_FLAG);
-        start();
+        start({ manual: true });
         return;
       }
     } catch {
@@ -787,21 +833,11 @@ export function FarmFeatureTour({
     }
 
     let cancelled = false;
-    let domReady = isTourTargetVisible(TOUR_READY_SELECTOR);
-    const domPoll = window.setInterval(() => {
-      if (!domReady) domReady = isTourTargetVisible(TOUR_READY_SELECTOR);
-    }, TOUR_READY_INTERVAL_MS);
 
     void shouldShowOnboardingTourAction()
       .then((show) => {
         if (cancelled || !show) return;
-        if (domReady) {
-          setFarmTourActive(true);
-          setStartView(viewRef.current);
-          setActive(true);
-          return;
-        }
-        start();
+        start({ manual: false });
       })
       .catch(() => {
         /* 미로그인·네트워크 오류 */
@@ -809,14 +845,13 @@ export function FarmFeatureTour({
 
     return () => {
       cancelled = true;
-      window.clearInterval(domPoll);
     };
   }, [enabled, start]);
 
   // 계정 메뉴 '기능 안내 다시 보기' — 수동 재시작.
   useEffect(() => {
     if (!enabled) return;
-    const onRestart = () => start();
+    const onRestart = () => start({ manual: true });
     window.addEventListener(FARM_TOUR_RESTART_EVENT, onRestart);
     return () => window.removeEventListener(FARM_TOUR_RESTART_EVENT, onRestart);
   }, [enabled, start]);

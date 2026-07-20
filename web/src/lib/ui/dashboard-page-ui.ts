@@ -35,6 +35,68 @@ export const dashboardControl = {
     "h-8 min-h-8 px-3 text-sm font-medium leading-snug md:h-11 md:min-h-11 md:px-4 md:text-[1.75rem]",
 } as const;
 
+/**
+ * 운영(/admin/ops) 전용 컴팩트 스케일.
+ * 대시보드 md 2배 타이포를 쓰지 않고, 역할별 크기를 고정한다.
+ */
+export const opsTypography = {
+  sectionTitle: "text-sm font-semibold leading-tight md:text-base",
+  sectionDesc: "text-xs text-muted-foreground leading-snug md:text-sm",
+  body: "text-sm leading-snug",
+  meta: "text-xs text-muted-foreground leading-snug",
+  /** 경로 칩 — 모바일 short만, PC 라벨 확대 */
+  chipLabel:
+    "block truncate text-center text-[0.65rem] font-semibold leading-tight md:text-left md:text-sm lg:text-base",
+  chipMeta:
+    "mt-0.5 hidden truncate text-xs text-muted-foreground leading-tight md:block md:text-sm",
+  nav: "text-xs text-muted-foreground",
+  alert: "text-sm leading-snug",
+} as const;
+
+export const opsControl = {
+  button:
+    "h-9 min-h-9 rounded-lg px-3 text-sm font-medium leading-snug md:h-10 md:min-h-10",
+  buttonOutline:
+    "h-9 min-h-9 rounded-lg px-3 text-sm font-medium leading-snug md:h-10 md:min-h-10",
+  input: "h-9 min-h-9 px-3 text-sm leading-snug md:h-10 md:min-h-10",
+  select:
+    "mt-1 w-full rounded-lg border bg-background px-2 py-2 text-sm text-foreground",
+  /** 경로 칩 — 모바일 균등 분배, PC 고정 크기 */
+  pathStrip: "flex w-full flex-nowrap items-center gap-0.5 md:gap-2",
+  pathStep: "flex min-w-0 flex-1 items-center gap-0.5 md:flex-none md:gap-2",
+  pathArrow: "hidden shrink-0 text-muted-foreground/50 md:inline",
+  chip:
+    "inline-flex w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1.5 text-center transition-colors hover:bg-muted/60 md:w-auto md:min-w-[5.5rem] md:flex-row md:items-center md:gap-1.5 md:px-3 md:py-2 md:text-left lg:min-w-[6.5rem]",
+  chipSub:
+    "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium",
+} as const;
+
+export const opsLayout = {
+  stack: "flex flex-col gap-3 md:gap-4",
+  stackTight: "flex flex-col gap-2 md:gap-3",
+  sectionGap: "gap-3 md:gap-4",
+  /** PC 명령 전체 — 페이지 길이 캡, 내부 스크롤 */
+  commandTableScroll:
+    "max-h-[min(40vh,28rem)] overflow-auto overscroll-contain rounded-lg border",
+  commandTableStickyTh:
+    "sticky top-0 z-10 bg-card after:absolute after:inset-x-0 after:bottom-0 after:h-px after:bg-border",
+} as const;
+
+/**
+ * 운영 상태 팔레트 — 정상 / 경고 / 위험 / 선택 / 비활성.
+ * 경로 칩·배지·필터 칩에서 동일 규칙을 쓴다.
+ */
+export const opsStatus = {
+  ok: "border-emerald-600/50 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
+  warn: "border-amber-300/60 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100",
+  danger: "border-red-300/60 bg-red-50 text-red-900 dark:bg-red-950/30 dark:text-red-100",
+  selected:
+    "border-emerald-600/50 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
+  idle: "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+  chipFocus:
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+} as const;
+
 export const dashboardUi = {
   /* 레이아웃 — 사이드바·탑바 */
   sidebarWidth: "w-[20rem] shrink-0",

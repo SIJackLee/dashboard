@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { adminOpsHref } from "@/lib/admin/ops-tabs";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { parseFarmKeyFromQuery } from "@/lib/data/farm-key";
 import {
@@ -35,7 +34,7 @@ export default async function SettingsLegacyRedirectPage({
     case "alarm":
       redirect(devicesAlarmSettingsHref(passthrough));
     case "farm":
-      redirect(isAdmin ? adminOpsHref("farms") : "/farm");
+      redirect(isAdmin ? "/admin/ops#directory" : "/farm");
     case "dashboard":
       redirect("/farm");
     default:

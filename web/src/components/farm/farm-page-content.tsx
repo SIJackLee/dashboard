@@ -20,10 +20,12 @@ import {
   applyHubScopedViewParams,
   currentFarmSearchParams,
   replaceFarmUrlShallow,
+  resolveListLayoutParam,
   resolveListViewMode,
   resolveTrendPeriodParam,
   setTrendPeriodParam,
 } from "@/lib/farm/farm-view-url";
+import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
@@ -37,6 +39,7 @@ import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 
 type Props = {
   readings: BarnReading[];
@@ -76,24 +79,22 @@ export function FarmPageContent({
   initialHubView,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
+  const tourActive = useFarmTourActive();
   const searchParams = useSearchParams();
   const liveRefresh = useFarmLiveRefreshOptional();
   const liveRefreshRef = useRef(liveRefresh);
   liveRefreshRef.current = liveRefresh;
   const enrichFarmRef = useRef<string | null>(null);
   const [listEnriching, setListEnriching] = useState(false);
-  const liveParams = hubMode ? currentFarmSearchParams() : searchParams;
+  /** SSR·첫 페인트와 동일한 URL 기준 초기 탭 (window 읽지 않음) */
   const bootstrapView: "map" | "list" =
     initialHubView ??
-    (liveParams.get("view") === "list" ? "list" : "map");
+    (searchParams.get("view") === "list" ? "list" : "map");
   const [view, setViewState] = useState<"map" | "list">(bootstrapView);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [urlTick, setUrlTick] = useState(0);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const tourActiveRef = useRef(tourActive);
+  tourActiveRef.current = tourActive;
 
   useEffect(() => {
     if (!hubMode) return;
@@ -130,6 +131,8 @@ export function FarmPageContent({
     );
     return allSame ? first : null;
   }, [readings]);
+  // 투어 중에도 유지 — 5/9(detail-panel-chart-first)가 controllerTrend에 의존.
+  // 목록 enrich·soft panel fetch만 tourActive로 일시정지.
   const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } = useFarmControllerTrend({
     farmKey: gridFarmKey,
     enabled: Boolean(gridFarmKey) && view === "map",
@@ -148,8 +151,7 @@ export function FarmPageContent({
   const listMode = useMemo(() => {
     return resolveListViewMode(shallowParams, "controller");
   }, [shallowParams]);
-  const listLayout =
-    shallowParams.get("listLayout") === "group" ? ("group" as const) : ("flat" as const);
+  const listLayout = resolveListLayoutParam(shallowParams);
   const trendPeriod = useMemo(
     () => resolveTrendPeriodParam(shallowParams),
     [shallowParams],
@@ -170,20 +172,18 @@ export function FarmPageContent({
 
   const enrichListIfNeeded = useCallback(async () => {
     if (!lazyListEnrichment || !lazyListFarmKey) return;
+    // A2 — 투어 중 목록 보강 억제 (카드가 뒤늦게 튀어나와 난잡해지는 것 방지)
+    if (tourActiveRef.current) return;
 
     const lr = liveRefreshRef.current;
     if (!lr) return;
 
     const sliceController = lr.slice.controller;
-    const hasThermo =
-      Object.keys(sliceController?.thermoSettings ?? {}).length > 0;
-    if (sliceController?.alarmSettings && hasThermo) return;
+    if (isScopedControllerEnriched(sliceController)) return;
 
     const farmId = farmKeyId(lazyListFarmKey);
     const cached = readFarmPanelCache(farmId);
-    const cachedHasThermo =
-      Object.keys(cached?.controller?.thermoSettings ?? {}).length > 0;
-    if (cached?.controller?.alarmSettings && cachedHasThermo) {
+    if (cached && isScopedControllerEnriched(cached.controller)) {
       lr.hydrateScopedPanel(cached);
       return;
     }
@@ -205,12 +205,11 @@ export function FarmPageContent({
 
   useEffect(() => {
     if (!lazyListEnrichment || !lazyListFarmKey) return;
+    if (tourActive) return;
 
     const farmId = farmKeyId(lazyListFarmKey);
     if (enrichFarmRef.current === farmId) return;
-    const hasThermo =
-      Object.keys(liveRefresh?.slice.controller?.thermoSettings ?? {}).length > 0;
-    if (liveRefresh?.slice.controller?.alarmSettings && hasThermo) {
+    if (isScopedControllerEnriched(liveRefresh?.slice.controller)) {
       enrichFarmRef.current = farmId;
       return;
     }
@@ -220,8 +219,33 @@ export function FarmPageContent({
   }, [
     lazyListEnrichment,
     lazyListFarmKey,
+    tourActive,
     liveRefresh?.slice.controller?.alarmSettings,
     liveRefresh?.slice.controller?.thermoSettings,
+    enrichListIfNeeded,
+  ]);
+
+  // 투어 종료(active→inactive) 직후 목록 보강 재개
+  const wasTourActiveRef = useRef(false);
+  useEffect(() => {
+    const wasActive = wasTourActiveRef.current;
+    wasTourActiveRef.current = tourActive;
+    if (tourActive || !wasActive) return;
+    if (!listEverOpened && view !== "list") return;
+    if (!lazyListEnrichment || !lazyListFarmKey) return;
+    if (isScopedControllerEnriched(liveRefresh?.slice.controller)) return;
+    enrichFarmRef.current = null;
+    // effect 동기 setState 경고 회피 — 마이크로태스크로 보강 시작
+    queueMicrotask(() => {
+      void enrichListIfNeeded();
+    });
+  }, [
+    tourActive,
+    listEverOpened,
+    view,
+    lazyListEnrichment,
+    lazyListFarmKey,
+    liveRefresh?.slice.controller,
     enrichListIfNeeded,
   ]);
 
@@ -275,8 +299,6 @@ export function FarmPageContent({
   /** 비활성 패널 — hidden으로 클릭·inert 유령 UI 방지 (crossfade는 활성 패널만) */
   const panelVisible = cn("opacity-100", motionClass.viewCrossfade);
 
-  const tabView = mounted ? view : bootstrapView;
-
   return (
     <div className="space-y-4">
       <FarmFeatureTour view={view} setView={setView} enabled={!hideViewTabs} />
@@ -291,16 +313,15 @@ export function FarmPageContent({
           role="tablist"
           aria-label="농장 보기"
           data-tour-id="view-toggle"
-          suppressHydrationWarning
         >
           <button
             type="button"
             role="tab"
-            aria-selected={tabView === "map"}
+            aria-selected={view === "map"}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,
-              tabView === "map"
+              view === "map"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}
@@ -312,11 +333,11 @@ export function FarmPageContent({
           <button
             type="button"
             role="tab"
-            aria-selected={tabView === "list"}
+            aria-selected={view === "list"}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
               tabNavClass,
-              tabView === "list"
+              view === "list"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
                 : "text-muted-foreground hover:text-foreground"
             )}

@@ -21,9 +21,11 @@ import {
   currentFarmSearchParams,
   replaceFarmUrlShallow,
   resolveListViewMode,
+  resolveListLayoutParam,
   resolveTrendPeriodParam,
   setTrendPeriodParam,
   type BarnListViewMode,
+  type ListLayout,
 } from "@/lib/farm/farm-view-url";
 import {
   EMPTY_BARN_LIST_PANEL_SETS,
@@ -46,8 +48,6 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { isFilterAll } from "@/lib/ui/filter-all";
 import { cn } from "@/lib/utils";
-
-type ListLayout = "group" | "flat";
 
 type Props = {
   rows?: BarnReading[];
@@ -128,6 +128,7 @@ export function BarnTable({
     EMPTY_BARN_LIST_PANEL_SETS
   );
   const [toolbarSheetKey, setToolbarSheetKey] = useState<string | null>(null);
+  const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
   const [toolbarSheetPage, setToolbarSheetPage] =
     useState<ControllerMobileSheetPage>(0);
   const [statusToast, setStatusToast] = useState<string | null>(null);
@@ -148,8 +149,7 @@ export function BarnTable({
   const bulkEnabled = Boolean(controller?.canCommand);
 
   const resolveListLayout = useCallback(
-    (params: URLSearchParams): ListLayout =>
-      params.get("listLayout") === "group" ? "group" : "flat",
+    (params: URLSearchParams): ListLayout => resolveListLayoutParam(params),
     [],
   );
 
@@ -327,20 +327,24 @@ export function BarnTable({
   useEffect(() => {
     if (!mobileToolbarSheetMode) {
       setToolbarSheetKey(null);
+      setToolbarSheetOpen(false);
       return;
     }
-    setToolbarSheetPage(barnListToolbarSheetInitialPage(effectiveListMode));
     setToolbarSheetKey((prev) => {
       if (prev && filteredRows.some((r) => r.key === prev)) return prev;
       return filteredRows[0]?.key ?? null;
     });
-  }, [mobileToolbarSheetMode, effectiveListMode, filteredRows]);
+  }, [mobileToolbarSheetMode, filteredRows]);
 
   useEffect(() => {
-    if (!mobileToolbarSheetMode || !toolbarSheetKey) return;
-    if (filteredRows.some((r) => r.key === toolbarSheetKey)) return;
-    setToolbarSheetKey(filteredRows[0]?.key ?? null);
-  }, [filteredRows, mobileToolbarSheetMode, toolbarSheetKey]);
+    if (!mobileToolbarSheetMode) return;
+    if (toolbarSheetKey) setToolbarSheetOpen(true);
+  }, [mobileToolbarSheetMode, toolbarSheetKey]);
+
+  useEffect(() => {
+    if (!mobileToolbarSheetMode) return;
+    setToolbarSheetPage(barnListToolbarSheetInitialPage(effectiveListMode));
+  }, [mobileToolbarSheetMode, effectiveListMode]);
 
   const visibleSpCodes = useMemo(
     () => stallTyCodesFromReadings(filteredRows),
@@ -372,6 +376,7 @@ export function BarnTable({
       setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
       setToolbarSheetKey(key);
       setToolbarSheetPage(page);
+      setToolbarSheetOpen(true);
       replaceListParams({ listMode: mode });
     },
     [replaceListParams],
@@ -435,6 +440,7 @@ export function BarnTable({
 
   const handleToolbarSheetClose = useCallback(() => {
     if (bulkMode) return;
+    setToolbarSheetOpen(false);
     setListMode("controller");
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
     setToolbarSheetKey(null);
@@ -604,6 +610,7 @@ export function BarnTable({
           staggerMount={staggerMount}
           mobileToolbarSheetMode={mobileToolbarSheetMode}
           toolbarSheetKey={toolbarSheetKey}
+          toolbarSheetOpen={toolbarSheetOpen}
           toolbarSheetPage={toolbarSheetPage}
           onToolbarSheetKeyChange={handleToolbarSheetKeyChange}
           onToolbarSheetPageChange={handleToolbarSheetPageChange}

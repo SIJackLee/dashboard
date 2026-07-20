@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -46,14 +46,10 @@ function SheetMetricsBlock({
   reading,
   thermoSettings,
   alarmSettings,
-  panelPeriod,
-  controllerTrendByPeriod,
 }: {
   reading: BarnReading;
   thermoSettings: Record<string, ControllerThermoSettings>;
   alarmSettings?: AlarmSettings;
-  panelPeriod: TrendPeriodId;
-  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
 }) {
   const {
     offline,
@@ -123,42 +119,39 @@ export function BarnListToolbarMobileSheet({
     [readings, selectedKey],
   );
 
-  const panelPeriod = reading
-    ? (panelPeriodOverrides[reading.key] ?? bulkPeriod)
+  /** key 전환 중 reading이 잠깐 비어도 Dialog를 언마운트하지 않음 */
+  const lastReadingRef = useRef<BarnReading | null>(null);
+  if (reading) lastReadingRef.current = reading;
+  const displayReading = reading ?? lastReadingRef.current;
+
+  const panelPeriod = displayReading
+    ? (panelPeriodOverrides[displayReading.key] ?? bulkPeriod)
     : bulkPeriod;
 
-  const handlePageSettled = useCallback(
-    (page: ControllerMobileSheetPage) => {
-      onPageSettled(page);
-    },
-    [onPageSettled],
-  );
-
-  if (!reading) return null;
+  if (!displayReading) return null;
 
   return (
     <BarnControllerMobileSheet
       open={open}
       initialPage={sheetPage}
       onClose={onClose}
-      onPageSettled={handlePageSettled}
-      reading={reading}
+      onPageSettled={onPageSettled}
+      reading={displayReading}
       pickerReadings={readings}
-      selectedReadingKey={reading.key}
+      selectedReadingKey={selectedKey ?? displayReading.key}
       onSelectReading={onSelectKey}
       showPickerAffiliation={showPickerAffiliation}
       controllerPage={
         <ControllerMobilePage
+          key={displayReading.key}
           metricsSection={
             <SheetMetricsBlock
-              reading={reading}
+              reading={displayReading}
               thermoSettings={thermoSettings}
               alarmSettings={alarmSettings}
-              panelPeriod={panelPeriod}
-              controllerTrendByPeriod={controllerTrendByPeriod}
             />
           }
-          reading={reading}
+          reading={displayReading}
           controllerTrendByPeriod={controllerTrendByPeriod}
           period={panelPeriod}
           thermoSettings={thermoSettings}
@@ -166,7 +159,8 @@ export function BarnListToolbarMobileSheet({
       }
       settingsPage={
         <ControllerMobileSettingsPage
-          reading={reading}
+          key={displayReading.key}
+          reading={displayReading}
           readings={readings}
           thermoSettings={thermoSettings}
           commands={commands}
@@ -174,7 +168,7 @@ export function BarnListToolbarMobileSheet({
           canCommand={canCommand}
           controllerTrendByPeriod={controllerTrendByPeriod}
           period={panelPeriod}
-          onPeriodChange={(p) => onPanelPeriodChange?.(reading.key, p)}
+          onPeriodChange={(p) => onPanelPeriodChange?.(displayReading.key, p)}
           trendLoading={trendLoading}
           trendStale={trendStale}
         />

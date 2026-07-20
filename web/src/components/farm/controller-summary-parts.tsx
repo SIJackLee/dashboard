@@ -42,17 +42,24 @@ export function statusRingClass(status: ControllerStatus): string {
 const headerTogglePillClass =
   "inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3.5 text-sm font-semibold leading-snug transition-colors";
 
+const headerTogglePillActiveClass = {
+  motor: "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300",
+  settings: "border-violet-500 bg-violet-500/10 text-violet-800 dark:text-violet-300",
+} as const;
+
 type HeaderTogglePillProps = {
   active?: boolean;
   onClick?: () => void;
   disabled?: boolean;
 };
 
-export function GraphTogglePill({
+function HeaderTogglePill({
   active,
   onClick,
   disabled,
-}: HeaderTogglePillProps) {
+  label,
+  activeClass,
+}: HeaderTogglePillProps & { label: string; activeClass: string }) {
   return (
     <button
       type="button"
@@ -64,41 +71,38 @@ export function GraphTogglePill({
       className={cn(
         headerTogglePillClass,
         active
-          ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
+          ? activeClass
           : "border-border bg-background text-muted-foreground hover:bg-muted",
         disabled && "pointer-events-none",
         disabled && !active && "opacity-50"
       )}
     >
-      그래프
+      {label}
     </button>
+  );
+}
+
+export function GraphTogglePill(props: HeaderTogglePillProps) {
+  return (
+    <HeaderTogglePill
+      {...props}
+      label="모터"
+      activeClass={headerTogglePillActiveClass.motor}
+    />
   );
 }
 
 export function SettingsTogglePill({
   active,
-  onClick,
-  disabled,
+  ...props
 }: HeaderTogglePillProps) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick?.();
-      }}
-      className={cn(
-        headerTogglePillClass,
-        active
-          ? "border-violet-500 bg-violet-500/10 text-violet-800 dark:text-violet-300"
-          : "border-border bg-background text-muted-foreground hover:bg-muted",
-        disabled && "pointer-events-none",
-        disabled && !active && "opacity-50"
-      )}
-    >
-      {active ? "설정 중" : "설정"}
-    </button>
+    <HeaderTogglePill
+      {...props}
+      active={active}
+      label={active ? "설정 중" : "설정"}
+      activeClass={headerTogglePillActiveClass.settings}
+    />
   );
 }
 

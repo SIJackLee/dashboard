@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Thermometer } from "lucide-react";
 import {
   AlarmThresholdForm,
@@ -14,6 +14,7 @@ import { useCommandPipelineTracker } from "@/components/controllers/use-command-
 import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
 import { useSettingsApplyOverlay } from "@/components/farm/use-settings-apply-overlay";
 import { SettingsCollapsibleSection } from "@/components/farm/settings-collapsible-section";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import type { BarnReading } from "@/lib/data/iot";
 import type { ThermoCommand } from "@/lib/data/commands";
 import {
@@ -24,6 +25,7 @@ import {
 import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
 import { DEFAULT_ALARM_SETTINGS, type AlarmSettings } from "@/lib/data/alarms";
 import {
+  CHANNEL_SLOT_LABELS,
   channelBySlot,
   DEFAULT_CHANNEL_EQPMN,
   type ChannelSlot,
@@ -82,12 +84,25 @@ export function BarnListAccordionPanel({
   const [openSection, setOpenSection] = useState<SettingsSectionId | null>(
     null,
   );
-  const [activeChannel] = useState<ChannelSlot>("A");
+  const [activeChannel, setActiveChannel] = useState<ChannelSlot>("A");
 
   const { reading: detail, showLoading, refresh: refreshDetail } =
     useControllerDetail(reading);
-  const channels = detail?.channels ?? [];
+  const channels = detail?.channels ?? reading.channels ?? [];
   const hasChannels = channels.length > 0;
+  const channelSlots = useMemo(
+    () => channels.map((c) => c.channel),
+    [channels],
+  );
+
+  /** detail 로드·채널 구성 변경 시 가용 슬롯으로 맞춤 */
+  useEffect(() => {
+    if (!hasChannels) return;
+    if (!channelSlots.includes(activeChannel)) {
+      setActiveChannel(channelSlots[0] ?? "A");
+    }
+  }, [hasChannels, channelSlots, activeChannel]);
+
   const channelEqpmnCode =
     channelBySlot(channels, activeChannel)?.eqpmnCode ??
     DEFAULT_CHANNEL_EQPMN[activeChannel];
@@ -124,6 +139,8 @@ export function BarnListAccordionPanel({
     refreshDetail();
   }, [refreshDetail]);
 
+  const liveRefresh = useFarmLiveRefreshOptional();
+
   const pipeline = useCommandPipelineTracker({
     commands,
     farmKey: detail?.farmKey ?? reading.farmKey,
@@ -136,6 +153,14 @@ export function BarnListAccordionPanel({
     onRefreshLive,
   });
 
+  const registerCommand = useCallback(
+    (cmd: ThermoCommand) => {
+      liveRefresh?.patchThermoFromCommand(cmd);
+      pipeline.registerCommand(cmd);
+    },
+    [liveRefresh, pipeline.registerCommand],
+  );
+
   const panelTarget = detail ?? reading;
 
   const panel = useControllerPanel(
@@ -144,7 +169,7 @@ export function BarnListAccordionPanel({
     canCommand,
     hasChannels ? activeChannel : undefined,
     hasChannels ? channelEqpmnCode : undefined,
-    pipeline.registerCommand,
+    registerCommand,
   );
 
   const online = isReadingOnline(detail?.status ?? reading.status);
@@ -206,6 +231,7 @@ export function BarnListAccordionPanel({
     panelError,
     isCommandOverlayDismissed: pipeline.isCommandOverlayDismissed,
     onAcknowledgeCommandOverlay: pipeline.acknowledgeCommandOverlay,
+    isUserInitiatedCommand: pipeline.isUserInitiatedCommand,
   });
 
   const handleOverlayDismiss = useCallback(() => {
@@ -220,6 +246,42 @@ export function BarnListAccordionPanel({
   const alarmSummary =
     thresholdHeader?.collapsedSummary ?? "온도 · 습도 알람";
   const controlSummary = formatControlCollapsedSummary(panel.sliderValues);
+  const controlTitle = hasChannels
+    ? `제어 · ${CHANNEL_SLOT_LABELS[activeChannel]}`
+    : "제어";
+
+  const channelPicker =
+    hasChannels && channelSlots.length > 1 ? (
+      <div
+        role="tablist"
+        aria-label="제어 채널"
+        className="inline-flex overflow-hidden rounded-lg border bg-muted/30"
+      >
+        {channelSlots.map((slot, index) => {
+          const selected = slot === activeChannel;
+          return (
+            <button
+              key={slot}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              disabled={isSaving}
+              className={cn(
+                "inline-flex min-h-8 items-center justify-center px-3 py-1.5 text-xs font-medium transition-colors",
+                index > 0 && "border-l border-border",
+                selected
+                  ? "bg-background text-foreground"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                isSaving && "opacity-50",
+              )}
+              onClick={() => setActiveChannel(slot)}
+            >
+              {slot}
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
 
   const alarmForm = (
     <AlarmThresholdForm
@@ -238,6 +300,7 @@ export function BarnListAccordionPanel({
 
   const controlBody = (
     <div className="space-y-3">
+      {channelPicker}
       <div>
         <div className="mb-2 flex items-center gap-2">
           <Thermometer className="size-4 text-orange-600" aria-hidden />
@@ -313,7 +376,7 @@ export function BarnListAccordionPanel({
       </SettingsCollapsibleSection>
       <SettingsCollapsibleSection
         id="control"
-        title="제어"
+        title={controlTitle}
         summary={controlSummary}
         changed={panel.hasChanges}
         open={openSection === "control"}
@@ -325,7 +388,14 @@ export function BarnListAccordionPanel({
   ) : (
     <div className="barn-list-panel-stagger--settings flex flex-col gap-3">
       <SectionShell>{alarmForm}</SectionShell>
-      <SectionShell>{controlBody}</SectionShell>
+      <SectionShell>
+        {hasChannels ? (
+          <p className={cn("mb-2 font-medium", LIST_SLIDER_TITLE)}>
+            {controlTitle}
+          </p>
+        ) : null}
+        {controlBody}
+      </SectionShell>
     </div>
   );
 

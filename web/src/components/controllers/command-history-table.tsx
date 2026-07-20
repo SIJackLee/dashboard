@@ -2,7 +2,6 @@ import { HealthSectionCard } from "@/components/admin/health/health-section-card
 import { CommandHistoryMobileList } from "@/components/controllers/command-history-mobile-list";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -16,8 +15,9 @@ import {
   formatCommandDetail,
   formatCommandTarget,
 } from "@/lib/ui/controller-labels";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { opsLayout, opsTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
 const statusLabel: Record<string, string> = {
   pending: commandStatusLabel("pending"),
@@ -28,7 +28,7 @@ const statusLabel: Record<string, string> = {
 };
 
 const statusVariant = (
-  status: string
+  status: string,
 ): "default" | "secondary" | "destructive" | "outline" => {
   if (status === "applied") return "default";
   if (status === "sent") return "secondary";
@@ -47,59 +47,158 @@ function fmtCommand(c: ThermoCommand) {
 
 type Props = {
   commands?: ThermoCommand[];
+  title?: string;
+  action?: ReactNode;
+  /** 본문 상단 (기간 칩 등). */
+  toolbar?: ReactNode;
+  /** 비어 있을 때 문구 (접힘 상태 등). */
+  emptyMessage?: string;
+  /** 빈 상태 아래 CTA 등. */
+  emptyExtra?: ReactNode;
+  /** true면 본문 숨김 (PC 접힘). */
+  bodyHidden?: boolean;
+  /** 모바일 리스트 밀도. */
+  mobileDensity?: "default" | "brief";
+  onSelect?: (command: ThermoCommand) => void;
+  className?: string;
 };
 
-export function CommandHistoryTable({ commands = [] }: Props) {
+export function CommandHistoryTable({
+  commands = [],
+  title = "명령 히스토리",
+  action,
+  toolbar,
+  emptyMessage = "등록된 명령이 없습니다.",
+  emptyExtra,
+  bodyHidden = false,
+  mobileDensity = "default",
+  onSelect,
+  className,
+}: Props) {
   return (
     <HealthSectionCard
       density="hub"
-      title="명령 히스토리"
-      className="w-full shrink-0"
+      title={title}
+      action={action}
+      className={cn("w-full shrink-0", className)}
     >
-      {commands.length === 0 ? (
-        <p className={cn("py-6 text-center", dashboardUi.body, "text-muted-foreground")}>
-          등록된 명령이 없습니다.
-        </p>
-      ) : (
+      {bodyHidden ? null : (
         <>
-          <CommandHistoryMobileList commands={commands} />
-          <div className="hidden md:block">
-            <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1">
-              <Table className={cn(dashboardUi.body, "min-w-[36rem]")}>
-          <TableHeader>
-            <TableRow>
-              <TableHead>시간</TableHead>
-              <TableHead>명령</TableHead>
-              <TableHead>대상</TableHead>
-              <TableHead>상태</TableHead>
-              <TableHead>상세</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {commands.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {fmtTime(c.createdAt)}
-                </TableCell>
-                <TableCell>{fmtCommand(c)}</TableCell>
-                <TableCell>{formatCommandTarget(c)}</TableCell>
-                <TableCell>
-                  <Badge
-                    variant={statusVariant(c.status)}
-                    className={dashboardUi.badgeLg}
+          {toolbar ? <div className="mb-2">{toolbar}</div> : null}
+          {commands.length === 0 ? (
+            emptyExtra ? (
+              emptyExtra
+            ) : (
+              <p className={cn("py-4 text-center", opsTypography.meta)}>
+                {emptyMessage}
+              </p>
+            )
+          ) : (
+            <>
+              <CommandHistoryMobileList
+                commands={commands}
+                density={mobileDensity}
+                onSelect={onSelect}
+              />
+              <div className="hidden md:block">
+                <div className={opsLayout.commandTableScroll}>
+                  <table
+                    className={cn(
+                      opsTypography.body,
+                      "w-full min-w-[36rem] caption-bottom text-sm",
+                    )}
                   >
-                    {statusLabel[c.status] ?? c.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="max-w-[8rem] truncate text-muted-foreground">
-                  {formatCommandDetail(c.errorMsg, c.note)}
-                </TableCell>
-              </TableRow>
-            ))}
-              </TableBody>
-            </Table>
-            </div>
-          </div>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead
+                          className={cn(
+                            opsTypography.meta,
+                            opsLayout.commandTableStickyTh,
+                          )}
+                        >
+                          시간
+                        </TableHead>
+                        <TableHead
+                          className={cn(
+                            opsTypography.meta,
+                            opsLayout.commandTableStickyTh,
+                          )}
+                        >
+                          명령
+                        </TableHead>
+                        <TableHead
+                          className={cn(
+                            opsTypography.meta,
+                            opsLayout.commandTableStickyTh,
+                          )}
+                        >
+                          대상
+                        </TableHead>
+                        <TableHead
+                          className={cn(
+                            opsTypography.meta,
+                            opsLayout.commandTableStickyTh,
+                          )}
+                        >
+                          상태
+                        </TableHead>
+                        <TableHead
+                          className={cn(
+                            opsTypography.meta,
+                            opsLayout.commandTableStickyTh,
+                          )}
+                        >
+                          상세
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {commands.map((c) => (
+                        <TableRow
+                          key={c.id}
+                          tabIndex={onSelect ? 0 : undefined}
+                          role={onSelect ? "button" : undefined}
+                          className={
+                            onSelect
+                              ? "cursor-pointer hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                              : undefined
+                          }
+                          onClick={onSelect ? () => onSelect(c) : undefined}
+                          onKeyDown={
+                            onSelect
+                              ? (e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    onSelect(c);
+                                  }
+                                }
+                              : undefined
+                          }
+                        >
+                          <TableCell className="whitespace-nowrap text-muted-foreground">
+                            {fmtTime(c.createdAt)}
+                          </TableCell>
+                          <TableCell>{fmtCommand(c)}</TableCell>
+                          <TableCell>{formatCommandTarget(c)}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={statusVariant(c.status)}
+                              className="text-xs font-medium"
+                            >
+                              {statusLabel[c.status] ?? c.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[8rem] truncate text-muted-foreground">
+                            {formatCommandDetail(c.errorMsg, c.note)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </HealthSectionCard>

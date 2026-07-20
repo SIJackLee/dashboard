@@ -796,28 +796,15 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 .barn-controller-mobile-sheet-scroller {
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: visible;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.barn-controller-mobile-sheet-scroller::-webkit-scrollbar {
-  display: none;
+  touch-action: pan-y;
+  overscroll-behavior-x: none;
 }
 
 .barn-controller-mobile-sheet-track {
   align-items: start;
-}
-
-.barn-controller-mobile-sheet-page {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
 }
 
 .controller-mobile-picker-scroller {
@@ -841,12 +828,6 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
 @media (prefers-reduced-motion: reduce) {
   .controller-mobile-picker-scroller {
-    scroll-behavior: auto;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .barn-controller-mobile-sheet-scroller {
     scroll-behavior: auto;
   }
 }

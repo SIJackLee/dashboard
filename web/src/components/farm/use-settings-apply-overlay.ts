@@ -18,6 +18,7 @@ type Args = {
   panelError: string | null;
   isCommandOverlayDismissed: (commandId: string | undefined) => boolean;
   onAcknowledgeCommandOverlay?: (commandId: string) => void;
+  isUserInitiatedCommand: (commandId: string | undefined) => boolean;
 };
 
 export function useSettingsApplyOverlay({
@@ -28,6 +29,7 @@ export function useSettingsApplyOverlay({
   panelError,
   isCommandOverlayDismissed,
   onAcknowledgeCommandOverlay,
+  isUserInitiatedCommand,
 }: Args) {
   const [dismissed, setDismissed] = useState(false);
   const [alarmSavedFlash, setAlarmSavedFlash] = useState(false);
@@ -37,9 +39,11 @@ export function useSettingsApplyOverlay({
   useEffect(() => {
     if (command?.id && command.id !== commandIdRef.current) {
       commandIdRef.current = command.id;
-      setDismissed(false);
+      if (isUserInitiatedCommand(command.id)) {
+        setDismissed(false);
+      }
     }
-  }, [command?.id]);
+  }, [command?.id, isUserInitiatedCommand]);
 
   useEffect(() => {
     const wasSaving = prevSavingRef.current;
@@ -85,7 +89,7 @@ export function useSettingsApplyOverlay({
       };
     }
 
-    if (liveConfirmed) {
+    if (liveConfirmed && isUserInitiatedCommand(command?.id)) {
       return {
         visible: true,
         phase: "success",
@@ -145,6 +149,16 @@ export function useSettingsApplyOverlay({
     }
 
     if (flash) {
+      const isLiveConfirmFlash =
+        flash.tone === "ok" && flash.text.includes("현장 반영 확인");
+      if (
+        isLiveConfirmFlash &&
+        (!isUserInitiatedCommand(command?.id) ||
+          dismissed ||
+          isCommandOverlayDismissed(command?.id))
+      ) {
+        return { visible: false, phase: "info", title: "", autoDismiss: true };
+      }
       return {
         visible: true,
         phase:
@@ -167,6 +181,7 @@ export function useSettingsApplyOverlay({
     flash,
     isCommandOverlayDismissed,
     isSaving,
+    isUserInitiatedCommand,
     liveConfirmed,
     panelError,
   ]);

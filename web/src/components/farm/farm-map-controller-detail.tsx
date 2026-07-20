@@ -37,6 +37,13 @@ const METRIC_TABS: { id: string; label: string }[] = [
   { id: "C", label: "C" },
 ];
 
+function isFeatureTourActive(): boolean {
+  return (
+    typeof document !== "undefined" &&
+    Boolean(document.querySelector('[aria-label="기능 안내 투어"]'))
+  );
+}
+
 export type FarmMapControllerDetailController = {
   key: string;
   eqpmnNo: string;
@@ -74,6 +81,14 @@ type Props = {
   onSelectedReadingKeyChange?: (readingKey: string | null) => void;
   /** picker에서 다른 축사 컨트롤러 선택 */
   onPickerNavigateReading?: (readingKey: string) => void;
+  /**
+   * 부모가 bottom sheet를 호스트할 때.
+   * Detail이 축사유형 전환으로 remount되어도 sheet는 유지된다.
+   */
+  hostedMobileSheetOpen?: boolean;
+  hostedMobileSheetPage?: ControllerMobileSheetPage;
+  onHostedMobileSheetOpenChange?: (open: boolean) => void;
+  onHostedMobileSheetPageChange?: (page: ControllerMobileSheetPage) => void;
 };
 
 export function FarmMapControllerDetail({
@@ -96,6 +111,10 @@ export function FarmMapControllerDetail({
   selectedReadingKey = null,
   onSelectedReadingKeyChange,
   onPickerNavigateReading,
+  hostedMobileSheetOpen = false,
+  hostedMobileSheetPage = 0,
+  onHostedMobileSheetOpenChange,
+  onHostedMobileSheetPageChange,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -111,6 +130,14 @@ export function FarmMapControllerDetail({
       ? ("grid" as const)
       : ("stack" as const);
   const isMobileStack = panelLayoutVariant === "stack";
+  const sheetHosted = typeof onHostedMobileSheetOpenChange === "function";
+
+  const mobileGraphOpen = sheetHosted
+    ? hostedMobileSheetOpen && hostedMobileSheetPage === 0
+    : graphOpen;
+  const mobileSettingsOpen = sheetHosted
+    ? hostedMobileSheetOpen && hostedMobileSheetPage === 1
+    : settingsOpen;
 
   const availableMetricIds = useMemo(() => {
     const has = (id: string) =>
@@ -131,35 +158,15 @@ export function FarmMapControllerDetail({
   }, [period]);
 
   useEffect(() => {
-    if (
-      typeof document !== "undefined" &&
-      document.querySelector('[aria-label="기능 안내 투어"]')
-    ) {
-      return;
-    }
+    if (isFeatureTourActive()) return;
     rootRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, []);
+  }, [label]);
 
   useEffect(() => {
-    if (!settingsOpen || !isMobileStack) return;
-    if (
-      typeof document !== "undefined" &&
-      document.querySelector('[aria-label="기능 안내 투어"]')
-    ) {
-      return;
-    }
+    if (!mobileSettingsOpen || !isMobileStack) return;
+    if (isFeatureTourActive()) return;
     controllerCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [settingsOpen, isMobileStack]);
-
-  const selected = useMemo(
-    () => controllers.find((c) => c.key === selectedKey) ?? null,
-    [controllers, selectedKey],
-  );
-
-  const sheetPickerReadings = useMemo(
-    () => readings,
-    [readings],
-  );
+  }, [mobileSettingsOpen, isMobileStack]);
 
   const syncSelectedReadingKey = (readingKey: string | null) => {
     onSelectedReadingKeyChange?.(readingKey);
@@ -176,26 +183,88 @@ export function FarmMapControllerDetail({
     [controllers, readings],
   );
 
+  const selected = useMemo(() => {
+    const fromState =
+      selectedKey && controllers.some((c) => c.key === selectedKey)
+        ? selectedKey
+        : null;
+    const fromReading = selectedReadingKey
+      ? resolveControllerKey(selectedReadingKey)
+      : null;
+    const key = fromState ?? fromReading;
+    return key ? (controllers.find((c) => c.key === key) ?? null) : null;
+  }, [
+    controllers,
+    selectedKey,
+    selectedReadingKey,
+    resolveControllerKey,
+  ]);
+
+  const sheetOpenRef = useRef(false);
+  sheetOpenRef.current = sheetHosted
+    ? hostedMobileSheetOpen
+    : graphOpen || settingsOpen;
+
+  const openMobileSheet = useCallback(
+    (page: ControllerMobileSheetPage) => {
+      const readingKey =
+        selected?.reading?.key ??
+        selectedReadingKey ??
+        null;
+      if (readingKey) syncSelectedReadingKey(readingKey);
+      if (sheetHosted) {
+        onHostedMobileSheetOpenChange?.(true);
+        onHostedMobileSheetPageChange?.(page);
+        return;
+      }
+      if (page === 1) {
+        setGraphOpen(false);
+        setSettingsOpen(true);
+      } else {
+        setSettingsOpen(false);
+        setGraphOpen(true);
+      }
+    },
+    [
+      selected?.reading?.key,
+      selectedReadingKey,
+      sheetHosted,
+      onHostedMobileSheetOpenChange,
+      onHostedMobileSheetPageChange,
+    ],
+  );
+
+  const closeMobileSheet = useCallback(() => {
+    if (sheetHosted) {
+      onHostedMobileSheetOpenChange?.(false);
+      return;
+    }
+    setGraphOpen(false);
+    setSettingsOpen(false);
+  }, [sheetHosted, onHostedMobileSheetOpenChange]);
+
   useEffect(() => {
     if (!selectedReadingKey) return;
     const ctrlKey = resolveControllerKey(selectedReadingKey);
     if (!ctrlKey) return;
     setSelectedKey(ctrlKey);
-    if (isMobileStack) {
-      setGraphOpen(true);
-      setSettingsOpen(false);
+    // sheet가 이미 열려 있으면 페이지(모터/설정) 유지 — 닫혀 있을 때만 기본 오픈
+    if (isMobileStack && !sheetOpenRef.current) {
+      openMobileSheet(0);
     }
-  }, [selectedReadingKey, resolveControllerKey, isMobileStack]);
+  }, [
+    selectedReadingKey,
+    resolveControllerKey,
+    isMobileStack,
+    openMobileSheet,
+  ]);
 
   const selectControllerFromPicker = (readingKey: string) => {
     const ctrlKey = resolveControllerKey(readingKey);
     if (ctrlKey) {
       setSelectedKey(ctrlKey);
       syncSelectedReadingKey(readingKey);
-      if (isMobileStack) {
-        setGraphOpen(true);
-        setSettingsOpen(false);
-      }
+      // picker 전환 — sheet 유지, 표시 컨트롤러만 변경
       return;
     }
     syncSelectedReadingKey(readingKey);
@@ -205,8 +274,7 @@ export function FarmMapControllerDetail({
   const selectController = (key: string) => {
     if (selectedKey === key) {
       setSelectedKey(null);
-      setGraphOpen(false);
-      setSettingsOpen(false);
+      closeMobileSheet();
       syncSelectedReadingKey(null);
       return;
     }
@@ -214,8 +282,7 @@ export function FarmMapControllerDetail({
     const reading = controllers.find((c) => c.key === key)?.reading;
     syncSelectedReadingKey(reading?.key ?? null);
     if (isMobileStack) {
-      setGraphOpen(true);
-      setSettingsOpen(false);
+      if (!sheetOpenRef.current) openMobileSheet(0);
     } else {
       setGraphOpen(false);
       setSettingsOpen(false);
@@ -223,6 +290,11 @@ export function FarmMapControllerDetail({
   };
 
   const handleSheetPageChange = (page: ControllerMobileSheetPage) => {
+    if (sheetHosted) {
+      onHostedMobileSheetOpenChange?.(true);
+      onHostedMobileSheetPageChange?.(page);
+      return;
+    }
     if (page === 0) {
       setSettingsOpen((settingsOpen) => {
         if (!settingsOpen) return settingsOpen;
@@ -388,7 +460,6 @@ export function FarmMapControllerDetail({
             selected.reading ? (
               <div ref={controllerCardRef} className="farm-heat-morph mt-3 space-y-3">
                 <ControllerSummaryGaugeRow
-                  key={selected.key}
                   reading={selected.reading}
                   readings={readings}
                   thermoSettings={thermoSettings}
@@ -403,24 +474,45 @@ export function FarmMapControllerDetail({
                   panelPlacement="right"
                   gridCols={gridCols}
                   panelLayoutVariant={panelLayoutVariant}
-                  graphExpanded={isMobileStack ? graphOpen : false}
-                  settingsExpanded={settingsOpen}
+                  graphExpanded={isMobileStack ? mobileGraphOpen : false}
+                  settingsExpanded={
+                    isMobileStack ? mobileSettingsOpen : settingsOpen
+                  }
                   onToggleGraph={() => {
+                    if (sheetHosted && isMobileStack) {
+                      if (hostedMobileSheetOpen && hostedMobileSheetPage === 0) {
+                        onHostedMobileSheetOpenChange?.(false);
+                      } else {
+                        openMobileSheet(0);
+                      }
+                      return;
+                    }
                     setSettingsOpen(false);
                     setGraphOpen((v) => !v);
                   }}
                   onToggleSettings={() => {
+                    if (sheetHosted && isMobileStack) {
+                      if (hostedMobileSheetOpen && hostedMobileSheetPage === 1) {
+                        onHostedMobileSheetOpenChange?.(false);
+                      } else {
+                        openMobileSheet(1);
+                      }
+                      return;
+                    }
                     setGraphOpen(false);
                     setSettingsOpen((v) => !v);
                   }}
-                  onSheetPageChange={isMobileStack ? handleSheetPageChange : undefined}
+                  onSheetPageChange={
+                    isMobileStack ? handleSheetPageChange : undefined
+                  }
                   sheetPickerReadings={
-                    isMobileStack ? sheetPickerReadings : undefined
+                    isMobileStack ? readings : undefined
                   }
                   onSheetPickerSelect={
                     isMobileStack ? selectControllerFromPicker : undefined
                   }
                   showSheetPickerAffiliation={isMobileStack}
+                  suppressPerCardMobileSheet={sheetHosted && isMobileStack}
                 />
                 {!isMobileStack ? (
                   <BarnListGraphPanel

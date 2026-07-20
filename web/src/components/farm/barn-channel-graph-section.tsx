@@ -12,10 +12,11 @@ import {
 } from "@/lib/farm/trend-chart-series";
 import {
   findControllerTrendSeries,
-  resolveReadingThermo,
+  resolveReadingChannelThermo,
 } from "@/lib/farm/controller-summary-display";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { cn } from "@/lib/utils";
+import type { ChannelSlot } from "@/lib/data/iot-channel";
 
 type Props = {
   reading: BarnReading;
@@ -47,7 +48,17 @@ export function BarnChannelGraphSection({
   compact = false,
   className,
 }: Props) {
-  const thermo = resolveReadingThermo(reading, thermoSettings);
+  const thermoByChannel = useMemo(() => {
+    const slots: ChannelSlot[] = ["A", "B", "C"];
+    const out: Partial<
+      Record<ChannelSlot, ReturnType<typeof resolveReadingChannelThermo>>
+    > = {};
+    for (const slot of slots) {
+      out[slot] = resolveReadingChannelThermo(reading, thermoSettings, slot);
+    }
+    return out;
+  }, [reading, thermoSettings]);
+
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
     () =>
@@ -69,11 +80,21 @@ export function BarnChannelGraphSection({
 
   const fanSeries = useMemo(
     () =>
-      controllerSeries ? channelFanTrendSeries(controllerSeries, thermo) : [],
-    [controllerSeries, thermo]
+      controllerSeries
+        ? channelFanTrendSeries(controllerSeries, thermoByChannel)
+        : [],
+    [controllerSeries, thermoByChannel]
   );
-  const fanBand = fanSeries[0]?.band ?? null;
-  const fanRefs = fanBand ? fanTrendReferenceLines(fanBand) : [];
+  const fanRefs = useMemo(() => {
+    const seen = new Set<string>();
+    return fanSeries.flatMap((s) => {
+      if (!s.band) return [];
+      const key = `${s.band.lo}:${s.band.hi}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return fanTrendReferenceLines(s.band);
+    });
+  }, [fanSeries]);
 
   const categories = periodData?.categories ?? [];
   const hasData = stallTrendHasData(controllerSeries) && categories.length > 0;

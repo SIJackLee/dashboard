@@ -524,7 +524,6 @@ export function FarmMapCanvas({
       </div>
       {graphMode && detail && expanded ? (
         <FarmMapControllerDetail
-          key={`${detail.barnId}`}
           label={detail.label}
           metricId={expanded.metricId}
           controllers={detail.controllers}

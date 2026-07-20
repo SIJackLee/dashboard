@@ -10,12 +10,14 @@ import {
   type TrendPeriodData,
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state";
 import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { cn } from "@/lib/utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "./farm-map-bulk-apply";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
+import { BarnListToolbarMobileSheet } from "./barn-list-toolbar-mobile-sheet";
 import { TrendPeriodToggle } from "./trend-period-toggle";
 import { InlineStatusToast } from "@/components/common/inline-status-toast";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
@@ -71,10 +73,14 @@ export function FarmMapMobileStage({
   const [detailSelectedReadingKey, setDetailSelectedReadingKey] = useState<
     string | null
   >(null);
+  const [hostedSheetOpen, setHostedSheetOpen] = useState(false);
+  const [hostedSheetPage, setHostedSheetPage] =
+    useState<ControllerMobileSheetPage>(0);
 
   const handleDetailClose = useCallback(() => {
     setExpanded(null);
     setDetailSelectedReadingKey(null);
+    setHostedSheetOpen(false);
   }, [setExpanded]);
 
   const handlePickerNavigateReading = useCallback(
@@ -86,6 +92,23 @@ export function FarmMapMobileStage({
       if (!targetBarnId) return;
       setDetailSelectedReadingKey(readingKey);
       if (targetBarnId !== expanded.barnId) {
+        setExpanded((e) => (e ? { ...e, barnId: targetBarnId } : e));
+      }
+    },
+    [barns, controller?.readings, expanded, setExpanded],
+  );
+
+  const handleHostedSheetSelectKey = useCallback(
+    (readingKey: string) => {
+      const allReadings = controller?.readings ?? [];
+      const reading = allReadings.find((r) => r.key === readingKey);
+      if (!reading || !expanded) {
+        setDetailSelectedReadingKey(readingKey);
+        return;
+      }
+      const targetBarnId = barnIdForReading(barns, reading);
+      setDetailSelectedReadingKey(readingKey);
+      if (targetBarnId && targetBarnId !== expanded.barnId) {
         setExpanded((e) => (e ? { ...e, barnId: targetBarnId } : e));
       }
     },
@@ -180,7 +203,6 @@ export function FarmMapMobileStage({
               />
               {graphMode && detail && isExpanded ? (
                 <FarmMapControllerDetail
-                  key={detail.barnId}
                   label={detail.label}
                   metricId={expanded.metricId}
                   controllers={detail.controllers}
@@ -202,12 +224,35 @@ export function FarmMapMobileStage({
                   selectedReadingKey={detailSelectedReadingKey}
                   onSelectedReadingKeyChange={setDetailSelectedReadingKey}
                   onPickerNavigateReading={handlePickerNavigateReading}
+                  hostedMobileSheetOpen={hostedSheetOpen}
+                  hostedMobileSheetPage={hostedSheetPage}
+                  onHostedMobileSheetOpenChange={setHostedSheetOpen}
+                  onHostedMobileSheetPageChange={setHostedSheetPage}
                 />
               ) : null}
             </div>
           );
         })}
       </div>
+      {/* Detail remount와 무관하게 sheet 유지 — 축사유형 전환 시 닫힘/재오픈 방지 */}
+      <BarnListToolbarMobileSheet
+        open={hostedSheetOpen}
+        readings={controller?.readings ?? []}
+        selectedKey={detailSelectedReadingKey}
+        sheetPage={hostedSheetPage}
+        onSelectKey={handleHostedSheetSelectKey}
+        onPageSettled={setHostedSheetPage}
+        onClose={() => setHostedSheetOpen(false)}
+        thermoSettings={controller?.thermoSettings ?? {}}
+        commands={controller?.commands}
+        alarmSettings={controller?.alarmSettings}
+        canCommand={Boolean(controller?.canCommand)}
+        controllerTrendByPeriod={controllerTrendByPeriod}
+        trendLoading={trendLoading}
+        trendStale={trendStale}
+        bulkPeriod={graphPeriod}
+        showPickerAffiliation
+      />
       <InlineStatusToast
         message={statusToast}
         onDismiss={() => setStatusToast(null)}

@@ -14,7 +14,13 @@ export const UPLINK_ROUND_SEC = 300;
 
 export const HEALTH_REVALIDATE_SEC = 300;
 
-export const INSERT_BUCKET_COUNT = 7;
+/**
+ * Health RS insert 버킷 수.
+ * insertRateStatus는 최근 2칸만 보므로 3칸이면 충분 (구 7칸 → DB count 왕복 축소).
+ */
+export const HEALTH_INSERT_BUCKET_COUNT = 3;
+
+export const INSERT_BUCKET_COUNT = HEALTH_INSERT_BUCKET_COUNT;
 
 export const INSERT_BUCKET_MINUTES = 5;
 

@@ -116,15 +116,23 @@ export function mapThermoCommandRow(row: Row): ThermoCommand {
 
 /** ctrl_thermo_command 최근 이력 (RLS: 본인·admin·농장 읽기권한 sent/applied) */
 export async function getThermoCommandHistory(
-  limit = 20
+  limit = 20,
+  options?: { fromIso?: string },
 ): Promise<ThermoCommand[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("ctrl_thermo_command")
     .select(THERMO_COMMAND_SELECT)
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  const fromIso = options?.fromIso?.trim();
+  if (fromIso) {
+    query = query.gte("created_at", fromIso);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) return [];
   return (data as Row[]).map(mapThermoCommandRow);

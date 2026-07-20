@@ -11,6 +11,10 @@ import type { ThermoCommand, ThermoCommandStatus } from "@/lib/data/commands";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 import { farmKeyId } from "@/lib/data/farm-key";
 import { pipelineDetailMessage } from "@/lib/ui/controller-labels";
+import {
+  addTimedId,
+  hasTimedId,
+} from "@/lib/controllers/command-pipeline-id-ttl";
 
 /** C.py COMMAND_SLEEP_IDLE(2s)에 맞춘 pending 폴링 */
 const PENDING_POLL_MS = 2000;
@@ -28,8 +32,10 @@ const STATUS_RANK: Record<ThermoCommandStatus, number> = {
   cancelled: 3,
 };
 
-/** 사용자가 닫은 「현장 반영 확인」 — remount·알람 저장 후에도 재표시 방지 */
-const dismissedLiveOverlayCommandIds = new Set<string>();
+/** 사용자가 닫은 「현장 반영 확인」 — remount·알람 저장 후에도 재표시 방지 (TTL) */
+const dismissedLiveOverlayCommandIds = new Map<string, number>();
+/** 적용 버튼(registerCommand)으로 시작된 명령만 현장 반영 확인 대상 (TTL) */
+const userInitiatedCommandIds = new Map<string, number>();
 
 function pollIntervalMs(
   status: ThermoCommandStatus,
@@ -85,9 +91,9 @@ type TrackerOpts = {
   controllerKey?: string;
   hasChannels: boolean;
   activeChannel?: ChannelSlot;
-  /** LIVE·병합 설정값 — 명령과 일치 시 현장 반영 확인 */
+  /** 병합 설정값 — source===live일 때만 현장 반영 확인에 사용 */
   knownSettings: ControllerThermoSettings | null;
-  /** LIVE 디코드 설정 (상세 API) — knownSettings보다 우선 매칭에 사용 */
+  /** LIVE 디코드 설정 (상세 API) — 현장 반영 확인 1순위 */
   liveThermo?: Pick<
     ControllerThermoSettings,
     "setpointTemp" | "tempDeviation" | "minVentPct" | "maxVentPct"
@@ -148,6 +154,7 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
   );
 
   const registerCommand = useCallback((cmd: ThermoCommand) => {
+    addTimedId(userInitiatedCommandIds, cmd.id);
     setTracked(cmd);
     setLiveConfirmed(false);
     confirmedForIdRef.current = null;
@@ -162,15 +169,21 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
 
   const isCommandOverlayDismissed = useCallback(
     (commandId: string | undefined) =>
-      commandId != null && dismissedLiveOverlayCommandIds.has(commandId),
+      commandId != null && hasTimedId(dismissedLiveOverlayCommandIds, commandId),
     []
   );
 
   const acknowledgeCommandOverlay = useCallback(
     (commandId: string) => {
-      dismissedLiveOverlayCommandIds.add(commandId);
+      addTimedId(dismissedLiveOverlayCommandIds, commandId);
       setFlash(null);
     },
+    []
+  );
+
+  const isUserInitiatedCommand = useCallback(
+    (commandId: string | undefined) =>
+      commandId != null && hasTimedId(userInitiatedCommandIds, commandId),
     []
   );
 
@@ -228,19 +241,23 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
       return;
     }
     if (confirmedForIdRef.current === command.id) return;
-    if (dismissedLiveOverlayCommandIds.has(command.id)) {
+    if (hasTimedId(dismissedLiveOverlayCommandIds, command.id)) {
       confirmedForIdRef.current = command.id;
       return;
     }
+    if (!hasTimedId(userInitiatedCommandIds, command.id)) return;
 
-    const candidates = [liveThermo, knownSettings].filter(
-      Boolean
-    ) as Pick<
+    // 명령/병합 출처 knownSettings는 제외 — LIVE(또는 source===live)만 현장 반영으로 인정
+    const liveCandidates: Pick<
       ControllerThermoSettings,
       "setpointTemp" | "tempDeviation" | "minVentPct" | "maxVentPct"
-    >[];
+    >[] = [];
+    if (liveThermo) liveCandidates.push(liveThermo);
+    if (knownSettings?.source === "live") {
+      liveCandidates.push(knownSettings);
+    }
 
-    const matched = candidates.some((values) =>
+    const matched = liveCandidates.some((values) =>
       thermoValuesMatch(values, command)
     );
     if (!matched) return;
@@ -308,5 +325,6 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     liveConfirmed,
     isCommandOverlayDismissed,
     acknowledgeCommandOverlay,
+    isUserInitiatedCommand,
   };
 }

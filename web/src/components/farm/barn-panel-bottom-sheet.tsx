@@ -19,6 +19,9 @@ type Props = {
   className?: string;
   contentClassName?: string;
   auditRegion?: string;
+  /** 있으면 헤더에「뒤로」— 시트 내 push 네비. */
+  onBack?: () => void;
+  backLabel?: string;
 };
 
 /** 모바일 stack — bottom sheet shell (설정·컨트롤러 carousel 공용). */
@@ -30,6 +33,8 @@ export function BarnPanelBottomSheet({
   className,
   contentClassName,
   auditRegion = "barn-panel-bottom-sheet",
+  onBack,
+  backLabel = "뒤로",
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
 
@@ -45,8 +50,14 @@ export function BarnPanelBottomSheet({
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
+      onOpenChange={(next, eventDetails) => {
+        if (next) return;
+        // 컨트롤러 전환 시 본문 remount로 focus가 빠지며 닫히는 것 방지
+        if (eventDetails.reason === "focus-out") {
+          eventDetails.cancel();
+          return;
+        }
+        onClose();
       }}
     >
       <DialogContent
@@ -64,7 +75,20 @@ export function BarnPanelBottomSheet({
         data-audit-region={auditRegion}
       >
         <DialogHeader className="shrink-0 border-b px-4 py-3">
-          <DialogTitle className="text-sm font-semibold">{title}</DialogTitle>
+          <div className="flex items-center gap-2">
+            {onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="shrink-0 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              >
+                {backLabel}
+              </button>
+            ) : null}
+            <DialogTitle className="min-w-0 flex-1 text-sm font-semibold">
+              {title}
+            </DialogTitle>
+          </div>
         </DialogHeader>
         <div
           className={cn(
@@ -76,33 +100,5 @@ export function BarnPanelBottomSheet({
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** @deprecated BarnPanelBottomSheet 사용 */
-export function BarnSettingsBottomSheet({
-  open,
-  onClose,
-  title,
-  children,
-  className,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <BarnPanelBottomSheet
-      open={open}
-      onClose={onClose}
-      title={title}
-      className={className}
-      contentClassName="overflow-y-auto"
-      auditRegion="barn-settings-bottom-sheet"
-    >
-      {children}
-    </BarnPanelBottomSheet>
   );
 }

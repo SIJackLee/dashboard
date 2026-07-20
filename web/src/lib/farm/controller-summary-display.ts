@@ -82,6 +82,53 @@ export function resolveReadingThermo(
   };
 }
 
+/**
+ * 채널별 thermo — fanBand/히트맵용.
+ * B·C는 A thermo로 폴백하지 않음 (없으면 null → 호출측 statBand).
+ * channels 없는 레거시 reading만 컨트롤러 단위 thermo를 공유.
+ */
+export function resolveReadingChannelThermo(
+  r: BarnReading,
+  thermoSettings: Record<string, ControllerThermoSettings>,
+  channel: ChannelSlot
+): ControllerThermoSettings | null {
+  const fromChannel = resolveThermoSettings(
+    thermoSettings,
+    r.farmKey,
+    r.moduleUid,
+    r.controllerKey,
+    channel
+  );
+  if (fromChannel) return fromChannel;
+
+  if (r.channels?.length) {
+    const live = channelBySlot(r.channels, channel)?.thermo;
+    const parsed = thermoFromDecoded(live ?? null);
+    if (!parsed) return null;
+    return {
+      ...parsed,
+      source: "live",
+      updatedAt: r.receivedAt,
+    };
+  }
+
+  const fromCtrl = resolveThermoSettings(
+    thermoSettings,
+    r.farmKey,
+    r.moduleUid,
+    r.controllerKey
+  );
+  if (fromCtrl) return fromCtrl;
+
+  const parsedRow = thermoFromDecoded(r.thermo);
+  if (!parsedRow) return null;
+  return {
+    ...parsedRow,
+    source: "live",
+    updatedAt: r.receivedAt,
+  };
+}
+
 export function formatSetpointDisplay(
   thermo: ControllerThermoSettings | null
 ): { main: string; sub: string } {

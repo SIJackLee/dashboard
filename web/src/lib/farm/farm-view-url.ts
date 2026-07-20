@@ -161,3 +161,10 @@ export function parseMapDrillLevel(
 ): FarmMapDrillLevel {
   return raw === "stalls" ? "stalls" : "sp";
 }
+
+/** 목록 탭 — flat(기본) / group(그룹별) */
+export type ListLayout = "group" | "flat";
+
+export function resolveListLayoutParam(params: URLSearchParams): ListLayout {
+  return params.get("listLayout") === "group" ? "group" : "flat";
+}
