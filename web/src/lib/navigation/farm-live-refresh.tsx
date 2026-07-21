@@ -52,6 +52,8 @@ type FarmLiveRefreshContextValue = {
   slice: FarmLiveSlice;
   revalidating: boolean;
   isStale: boolean;
+  /** admin defer 등 — farmKey는 있으나 readings 로딩 중 (빈 화면 대신 스켈레톤) */
+  isBootstrapping: boolean;
   revalidateFarmLive: () => Promise<void>;
   patchAlarmSettings: (settings: AlarmSettings) => void;
   /** 적용 직후 thermoSettings·commands에 명령값 즉시 반영 (낙관적) */
@@ -123,6 +125,10 @@ export function FarmLiveRefreshProvider({
   const [, startTransition] = useTransition();
   const [slice, setSlice] = useState<FarmLiveSlice>(initial);
   const [revalidating, setRevalidating] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(() => {
+    if (!farmKey || initial.readings.length > 0) return false;
+    return !getFarmPanelCache(farmKeyId(farmKey));
+  });
   const [alarmPatch, setAlarmPatch] = useState<AlarmSettings | null>(null);
   const [thermoPatch, setThermoPatch] = useState<
     Record<string, ControllerThermoSettings>
@@ -146,6 +152,7 @@ export function FarmLiveRefreshProvider({
       const cached = getFarmPanelCache(farmKeyId(farmKey));
       if (cached) {
         setSlice(sliceFromPanel(cached));
+        setIsBootstrapping(false);
         return;
       }
     }
@@ -154,6 +161,7 @@ export function FarmLiveRefreshProvider({
     setAlarmPatch(null);
     setThermoPatch({});
     if (farmKey && initial.readings.length > 0) {
+      setIsBootstrapping(false);
       setFarmPanelCache(
         farmKeyId(farmKey),
         farmPanelCacheFromSlice(farmKey, initial),
@@ -174,9 +182,11 @@ export function FarmLiveRefreshProvider({
           setAlarmPatch,
           setThermoPatch,
         });
+        setIsBootstrapping(false);
       })
       .catch(() => {
         /* cold bootstrap / hub warm — 실패 시 기존 slice 유지 */
+        if (!cancelled) setIsBootstrapping(false);
       });
     return () => {
       cancelled = true;
@@ -185,8 +195,21 @@ export function FarmLiveRefreshProvider({
 
   /** Admin defer — readings 없이 진입 시 cold bootstrap */
   useEffect(() => {
-    if (!farmKey || initial.readings.length > 0) return;
-    if (sliceRef.current.readings.length > 0) return;
+    if (!farmKey || initial.readings.length > 0) {
+      setIsBootstrapping(false);
+      return;
+    }
+    if (sliceRef.current.readings.length > 0) {
+      setIsBootstrapping(false);
+      return;
+    }
+    const cached = getFarmPanelCache(farmKeyId(farmKey));
+    if (cached) {
+      setSlice(sliceFromPanel(cached));
+      setIsBootstrapping(false);
+      return;
+    }
+    setIsBootstrapping(true);
     return fetchAndApplyPanel(farmKey);
   }, [farmKey, fetchAndApplyPanel, initial.readings.length]);
 
@@ -245,6 +268,7 @@ export function FarmLiveRefreshProvider({
     setSlice(sliceFromPanel(data));
     setAlarmPatch(null);
     setThermoPatch({});
+    setIsBootstrapping(false);
   }, []);
 
   /** Admin hub — readings만 있는 slice에 thermo·alarm 패널 데이터 보강 */
@@ -311,6 +335,7 @@ export function FarmLiveRefreshProvider({
       slice: mergedSlice,
       revalidating,
       isStale: revalidating && slice.readings.length > 0,
+      isBootstrapping,
       revalidateFarmLive,
       patchAlarmSettings,
       patchThermoFromCommand,
@@ -324,6 +349,7 @@ export function FarmLiveRefreshProvider({
       hydrateScopedPanel,
       revalidateFarmLive,
       revalidating,
+      isBootstrapping,
       slice.readings.length,
     ],
   );

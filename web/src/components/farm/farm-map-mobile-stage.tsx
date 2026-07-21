@@ -76,6 +76,16 @@ export function FarmMapMobileStage({
   const [hostedSheetOpen, setHostedSheetOpen] = useState(false);
   const [hostedSheetPage, setHostedSheetPage] =
     useState<ControllerMobileSheetPage>(0);
+  /** sheet 설정 페이지 그래프 — 카드별 기간 오버라이드 (미전달 시 토글 no-op 버그) */
+  const [panelPeriodOverrides, setPanelPeriodOverrides] = useState<
+    Record<string, TrendPeriodId>
+  >({});
+  const handlePanelPeriodChange = useCallback(
+    (key: string, period: TrendPeriodId) => {
+      setPanelPeriodOverrides((prev) => ({ ...prev, [key]: period }));
+    },
+    [],
+  );
 
   const handleDetailClose = useCallback(() => {
     setExpanded(null);
@@ -251,6 +261,8 @@ export function FarmMapMobileStage({
         trendLoading={trendLoading}
         trendStale={trendStale}
         bulkPeriod={graphPeriod}
+        panelPeriodOverrides={panelPeriodOverrides}
+        onPanelPeriodChange={handlePanelPeriodChange}
         showPickerAffiliation
       />
       <InlineStatusToast

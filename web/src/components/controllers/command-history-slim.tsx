@@ -118,6 +118,22 @@ export function CommandHistorySlim({ commands: initial }: Props) {
     isMobileRef.current = isMobile;
   }, [range, statusFilter, query, isMobile]);
 
+  /** `/admin/ops#commands` · 레거시 `/admin/ops/commands` — 섹션 자동 펼침 + 스크롤 */
+  useEffect(() => {
+    const syncFromHash = () => {
+      if (window.location.hash !== "#commands") return;
+      setSectionOpen(true);
+      requestAnimationFrame(() => {
+        document
+          .getElementById("commands")
+          ?.scrollIntoView({ block: "start", behavior: "smooth" });
+      });
+    };
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, []);
+
   const preview = previewCommands.slice(0, PREVIEW_LIMIT);
   const atCap = fullCommands.length >= FULL_FETCH_LIMIT;
   const lookupOpen = pcFull || sheetOpen;

@@ -141,8 +141,12 @@ export function FarmPageContent({
   const shallowParams = useMemo(() => {
     void urlTick;
     void hubUrlEpoch;
-    void searchParams;
-    // 항상 window.location 기준 — hub/일반 모드 동일. deps 변화 시 재계산만 트리거.
+    // SSR은 window가 없어 빈 파라미터가 되므로 useSearchParams 기준으로 렌더
+    // (예: ?trendPeriod=7d 새로고침 시 서버 24h vs 클라 7d hydration 불일치 방지).
+    // hydration 이후에는 shallow replaceState 반영을 위해 window.location 기준.
+    if (typeof window === "undefined") {
+      return new URLSearchParams(searchParams.toString());
+    }
     return currentFarmSearchParams();
   }, [hubMode, hubUrlEpoch, urlTick, searchParams]);
 

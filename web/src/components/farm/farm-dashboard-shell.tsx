@@ -118,7 +118,15 @@ function FarmLivePageContent({
   lazyListFarmKey?: FarmKey | null;
   initialHubView?: "map" | "list";
 }) {
-  const { slice, isStale } = useFarmLiveRefresh();
+  const { slice, isStale, isBootstrapping } = useFarmLiveRefresh();
+
+  if (isBootstrapping) {
+    return (
+      <FarmContentSkeleton
+        view={initialHubView === "list" ? "list" : undefined}
+      />
+    );
+  }
 
   return (
     <StaleWhileRevalidateShell stale={isStale}>
