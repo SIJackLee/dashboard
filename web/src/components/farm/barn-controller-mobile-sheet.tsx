@@ -104,6 +104,16 @@ export function BarnControllerMobileSheet({
   const onTouchStart = useCallback((e: ReactTouchEvent) => {
     const t = e.touches[0];
     if (!t) return;
+    // 슬라이더 핸들 조작은 페이지 스와이프로 해석하지 않음
+    if (
+      e.target instanceof Element &&
+      e.target.closest('input[type="range"], [data-sheet-swipe-ignore]')
+    ) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      lockAxisRef.current = null;
+      return;
+    }
     touchStartXRef.current = t.clientX;
     touchStartYRef.current = t.clientY;
     lockAxisRef.current = null;
