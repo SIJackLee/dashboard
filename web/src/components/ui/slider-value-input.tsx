@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
-import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 
 export type SliderValueInputSize = "compact" | "dashboard";
@@ -49,7 +48,7 @@ type SliderValueInputProps = {
   onCommit: (value: number) => void;
 };
 
-/** 슬라이더 축 숫자 입력 — 타이핑 중 draft만, PC Enter / blur 시 commit */
+/** 슬라이더 축 숫자 입력 — 완성된 숫자는 타이핑 중 commit, Enter/blur 시 확정 */
 export function SliderValueInput({
   value,
   min,
@@ -62,7 +61,6 @@ export function SliderValueInput({
   prefix,
   onCommit,
 }: SliderValueInputProps) {
-  const mobile = useMobileLayout();
   const focusedRef = useRef(false);
   const [draft, setDraft] = useState(() => fmtSliderInputValue(value, step));
   const [invalid, setInvalid] = useState(false);
@@ -91,6 +89,19 @@ export function SliderValueInput({
     setInvalid(false);
   }, [draft, min, max, onCommit, revert, step]);
 
+  /** 타이핑 중에도 dirty 반영 — blur 전 「적용」이 disabled로 남는 문제 방지 */
+  const commitIfComplete = useCallback(
+    (raw: string) => {
+      const t = raw.trim();
+      if (!t || t.endsWith(".") || t === "-" || t.endsWith("-")) return;
+      const parsed = parseDraft(t);
+      if (parsed === null) return;
+      const next = snap(clamp(parsed, min, max), step);
+      if (next !== value) onCommit(next);
+    },
+    [max, min, onCommit, step, value],
+  );
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -98,7 +109,7 @@ export function SliderValueInput({
       e.currentTarget.blur();
       return;
     }
-    if (!mobile && e.key === "Enter") {
+    if (e.key === "Enter") {
       e.preventDefault();
       e.currentTarget.blur();
     }
@@ -135,8 +146,10 @@ export function SliderValueInput({
         }}
         onKeyDown={handleKeyDown}
         onChange={(e) => {
-          setDraft(e.target.value.replace(/[^\d.-]/g, ""));
+          const cleaned = e.target.value.replace(/[^\d.-]/g, "");
+          setDraft(cleaned);
           setInvalid(false);
+          commitIfComplete(cleaned);
         }}
       />
       <span

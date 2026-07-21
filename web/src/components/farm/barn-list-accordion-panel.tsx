@@ -172,9 +172,11 @@ export function BarnListAccordionPanel({
     registerCommand,
   );
 
-  const online = isReadingOnline(detail?.status ?? reading.status);
-  const controlsDisabled =
-    !canCommand || panel.pending || !panel.settingsKnown;
+  /** 카드 LIVE 상태 우선 — detail API가 늦거나 offline이면 적용이 잠기지 않게 */
+  const online =
+    isReadingOnline(reading.status) || isReadingOnline(detail?.status);
+  /** settings 미확인이어도 편집은 허용(기본 draft). 저장은 hasChanges 필요 */
+  const controlsDisabled = !canCommand || panel.pending;
 
   const farmId = farmKeyId(reading.farmKey);
   const spCode = normalizeStallTyCode(reading.stallTyCode);
@@ -192,7 +194,7 @@ export function BarnListAccordionPanel({
 
   const isSaving = panel.pending || Boolean(thresholdHeader?.pending);
   const canSaveControl =
-    online && !controlsDisabled && (!panel.settingsKnown || panel.hasChanges);
+    online && canCommand && !panel.pending && panel.hasChanges;
   const canSaveAlarm =
     Boolean(thresholdHeader) &&
     online &&
@@ -203,9 +205,11 @@ export function BarnListAccordionPanel({
   const saveDisabled = isSaving || (!canSaveControl && !canSaveAlarm);
   const saveDisabledReason = (() => {
     if (isSaving) return "저장 중…";
-    if (!panel.settingsKnown) return "설정값을 불러오는 중…";
     if (!canCommand) return "명령 권한이 없습니다.";
     if (!online) return "오프라인이라 적용할 수 없습니다.";
+    if (!panel.settingsKnown && !panel.hasEdited && !canSaveAlarm) {
+      return "설정값을 불러오는 중…";
+    }
     if (!canSaveControl && !canSaveAlarm) return "변경된 설정이 없습니다.";
     return null;
   })();
@@ -423,6 +427,11 @@ export function BarnListAccordionPanel({
           {isSaving ? "적용 중…" : "적용"}
         </button>
       </div>
+      {canCommand && saveDisabled && saveDisabledReason ? (
+        <p className="text-right text-xs text-muted-foreground">
+          {saveDisabledReason}
+        </p>
+      ) : null}
       {!canCommand ? (
         <p className="text-xs text-amber-700">명령 권한이 없어 조작이 제한됩니다.</p>
       ) : null}

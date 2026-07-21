@@ -301,6 +301,7 @@ export function useControllerPanel(
   );
 
   const hasChanges = useMemo(() => {
+    if (!hasEdited && !currentValues) return false;
     if (!currentValues) return hasEdited;
     return PANEL_MENU_ITEMS.some(
       (item) => sliderValues[item.id] !== currentValues[item.id],
