@@ -90,13 +90,20 @@ export function useSettingsApplyOverlay({
     }
 
     if (liveConfirmed && isUserInitiatedCommand(command?.id)) {
+      const setpoint =
+        command?.setpointTemp != null ? `${command.setpointTemp}℃` : null;
       return {
         visible: true,
         phase: "success",
-        title: "현장 반영 확인",
+        title: "현장 반영 완료",
         detail:
-          flash?.text ?? "LIVE 설정값이 명령과 일치합니다.",
+          flash?.text ??
+          (setpoint
+            ? `LIVE 설정온도 ${setpoint}가 명령과 일치합니다. 패널의 현재값을 확인하세요.`
+            : "LIVE 설정값이 명령과 일치합니다. 패널의 현재값을 확인하세요."),
         autoDismiss: true,
+        /** 성공 체감용 — 탭으로 언제든 닫기 가능 */
+        autoDismissMs: 6500,
       };
     }
 
@@ -107,6 +114,7 @@ export function useSettingsApplyOverlay({
         title: "저장 완료",
         detail: "알람·설정이 적용되었습니다.",
         autoDismiss: true,
+        autoDismissMs: 4000,
       };
     }
 
@@ -159,7 +167,10 @@ export function useSettingsApplyOverlay({
 
     if (flash) {
       const isLiveConfirmFlash =
-        flash.tone === "ok" && flash.text.includes("현장 반영 확인");
+        flash.tone === "ok" &&
+        (flash.text.includes("현장 반영") ||
+          flash.text.includes("LIVE 설정온도") ||
+          flash.text.includes("LIVE 설정값이 명령과 일치"));
       if (
         isLiveConfirmFlash &&
         (!isUserInitiatedCommand(command?.id) ||

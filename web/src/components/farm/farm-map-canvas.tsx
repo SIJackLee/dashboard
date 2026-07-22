@@ -23,9 +23,12 @@ import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-actio
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { FarmMapCard } from "./farm-map-card";
-import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "./farm-map-bulk-apply";
+import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { TrendPeriodToggle } from "./trend-period-toggle";
-import { InlineStatusToast } from "@/components/common/inline-status-toast";
+import {
+  InlineStatusToast,
+  type InlineStatusTone,
+} from "@/components/common/inline-status-toast";
 import { GridMetricLabel } from "@/lib/farm/grid-metric-label";
 import { cn } from "@/lib/utils";
 
@@ -187,7 +190,10 @@ export function FarmMapCanvas({
   const graphPeriod = trendPeriodProp ?? localGraphPeriod;
   const setGraphPeriod = onTrendPeriodChange ?? setLocalGraphPeriod;
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
-  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [statusToast, setStatusToast] = useState<{
+    message: string;
+    tone: InlineStatusTone;
+  } | null>(null);
   const draggedIdRef = useRef<string | null>(null);
   const barnsRef = useRef(barns);
   barnsRef.current = barns;
@@ -400,8 +406,8 @@ export function FarmMapCanvas({
           }}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          onAfterApply={(result: ApplyResult) => {
-            setStatusToast(formatBulkApplyToast(result));
+          onAfterApply={(_result, feedback) => {
+            setStatusToast({ message: feedback.message, tone: feedback.tone });
             if (!hubMode) router.refresh();
           }}
           trailing={
@@ -549,7 +555,8 @@ export function FarmMapCanvas({
         />
       ) : null}
       <InlineStatusToast
-        message={statusToast}
+        message={statusToast?.message ?? null}
+        tone={statusToast?.tone}
         onDismiss={() => setStatusToast(null)}
       />
     </div>

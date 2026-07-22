@@ -14,12 +14,15 @@ import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state
 import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { cn } from "@/lib/utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "./farm-map-bulk-apply";
+import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { BarnListToolbarMobileSheet } from "./barn-list-toolbar-mobile-sheet";
 import { TrendPeriodToggle } from "./trend-period-toggle";
-import { InlineStatusToast } from "@/components/common/inline-status-toast";
+import {
+  InlineStatusToast,
+  type InlineStatusTone,
+} from "@/components/common/inline-status-toast";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 
 type Props = {
@@ -56,7 +59,10 @@ export function FarmMapMobileStage({
     useState<TrendPeriodId>(DEFAULT_TREND_PERIOD);
   const graphPeriod = trendPeriodProp ?? localGraphPeriod;
   const setGraphPeriod = onTrendPeriodChange ?? setLocalGraphPeriod;
-  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [statusToast, setStatusToast] = useState<{
+    message: string;
+    tone: InlineStatusTone;
+  } | null>(null);
 
   const bulkEnabled = Boolean(controller?.canCommand);
   const graphMode = Boolean(trendByPeriod) && !bulkMode;
@@ -154,8 +160,8 @@ export function FarmMapMobileStage({
           onEnter={() => setBulkMode(true)}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          onAfterApply={(result: ApplyResult) => {
-            setStatusToast(formatBulkApplyToast(result));
+          onAfterApply={(_result, feedback) => {
+            setStatusToast({ message: feedback.message, tone: feedback.tone });
             if (!hubMode) router.refresh();
           }}
           trailing={
@@ -266,7 +272,8 @@ export function FarmMapMobileStage({
         showPickerAffiliation
       />
       <InlineStatusToast
-        message={statusToast}
+        message={statusToast?.message ?? null}
+        tone={statusToast?.tone}
         onDismiss={() => setStatusToast(null)}
       />
     </div>

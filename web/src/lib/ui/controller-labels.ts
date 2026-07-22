@@ -55,7 +55,7 @@ export function pipelineStatusDetail(
   liveConfirmed?: boolean
 ): string {
   if (liveConfirmed) {
-    return "LIVE 설정값이 명령과 일치합니다.";
+    return "LIVE 설정값이 명령과 일치합니다. 패널의 현재값을 확인하세요.";
   }
   if (status === "applied") {
     return "장치 ACK 완료 · LIVE 데이터 반영 확인 중";

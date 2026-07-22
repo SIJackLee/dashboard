@@ -5,7 +5,9 @@ export const ACK_PATTERNS = [
   /통신모듈/,
   /장치 ACK/,
   /현장 반영 확인/,
+  /현장 반영 완료/,
   /LIVE 설정값/,
+  /LIVE 설정온도/,
   /pending|sent|applied/i,
 ];
 

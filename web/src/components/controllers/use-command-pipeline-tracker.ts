@@ -269,7 +269,7 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     setLiveConfirmed(true);
     setFlash({
       tone: "ok",
-      text: `현장 반영 확인 — LIVE 설정온도 ${command.setpointTemp}℃가 명령과 일치합니다.`,
+      text: `LIVE 설정온도 ${command.setpointTemp}℃가 명령과 일치합니다. 패널의 현재값을 확인하세요.`,
     });
   }, [command, knownSettings, liveThermo]);
 

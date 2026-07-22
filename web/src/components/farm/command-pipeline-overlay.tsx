@@ -15,11 +15,19 @@ export type CommandPipelineOverlayState = {
   detail?: string;
   /** false — pending/sent 등 진행 중에는 자동 닫힘 없음 */
   autoDismiss?: boolean;
+  /** 미지정 시 phase별 기본값 (success 더 길게) */
+  autoDismissMs?: number;
 };
 
 type Props = CommandPipelineOverlayState & {
   onDismiss?: () => void;
-  autoDismissMs?: number;
+};
+
+const DEFAULT_AUTO_DISMISS_MS: Record<CommandPipelineOverlayPhase, number> = {
+  loading: 0,
+  success: 5200,
+  error: 4000,
+  info: 3200,
 };
 
 /** 알람·설정 적용 — 로딩·현장반영 확인 등 (페이드 인/아웃 오버레이) */
@@ -30,11 +38,13 @@ export function CommandPipelineOverlay({
   detail,
   autoDismiss = true,
   onDismiss,
-  autoDismissMs = 2800,
+  autoDismissMs,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [show, setShow] = useState(false);
   const onDismissRef = useRef(onDismiss);
+  const dismissAfterMs =
+    autoDismissMs ?? DEFAULT_AUTO_DISMISS_MS[phase] ?? 3200;
 
   useEffect(() => {
     onDismissRef.current = onDismiss;
@@ -60,9 +70,9 @@ export function CommandPipelineOverlay({
 
   useEffect(() => {
     if (!visible || !autoDismiss || phase === "loading") return;
-    const id = window.setTimeout(() => onDismissRef.current?.(), autoDismissMs);
+    const id = window.setTimeout(() => onDismissRef.current?.(), dismissAfterMs);
     return () => window.clearTimeout(id);
-  }, [visible, phase, autoDismissMs, autoDismiss]);
+  }, [visible, phase, dismissAfterMs, autoDismiss]);
 
   if (!mounted || typeof document === "undefined") return null;
 

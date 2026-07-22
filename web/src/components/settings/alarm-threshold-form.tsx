@@ -83,6 +83,8 @@ type Props = {
   sliderTitleClassName?: string;
   sliderThumbLabelClassName?: string;
   sliderAxisClassName?: string;
+  /** true — 조회 전용(슬라이더·저장 비활성) */
+  disabled?: boolean;
 };
 
 const SCOPE_ALL = "__all__";
@@ -108,6 +110,7 @@ export function AlarmThresholdForm({
   sliderTitleClassName,
   sliderThumbLabelClassName,
   sliderAxisClassName,
+  disabled = false,
 }: Props) {
   const compact = embedded && density === "compact";
   const mobileSplit = embedded && density === "mobileSplit";
@@ -197,6 +200,7 @@ export function AlarmThresholdForm({
   );
 
   const scopeReady = Boolean(farmId && spCode !== SCOPE_ALL);
+  const fieldsDisabled = disabled || !scopeReady || pending;
 
   useEffect(() => {
     if (!scopeReady || !activeScopeKey) {
@@ -270,6 +274,7 @@ export function AlarmThresholdForm({
   };
 
   const updateDraft = (next: AlarmThresholds) => {
+    if (disabled) return;
     setValidationError(validateAlarmThresholds(next));
     setDraft(next);
   };
@@ -301,7 +306,7 @@ export function AlarmThresholdForm({
   };
 
   const handleSaveScope = () => {
-    if (!activeScopeKey) return;
+    if (disabled || !activeScopeKey) return;
     const err = validateAlarmThresholds(draft);
     if (err) {
       setValidationError(err);
@@ -314,7 +319,7 @@ export function AlarmThresholdForm({
   };
 
   const handleClearScope = () => {
-    if (!activeScopeKey) return;
+    if (disabled || !activeScopeKey) return;
     const previousSettings = settings;
     const nextSettings = clearScopeThreshold(settings, activeScopeKey);
     setSettings(nextSettings);
@@ -323,6 +328,7 @@ export function AlarmThresholdForm({
   };
 
   const handleApplyDefaults = () => {
+    if (disabled) return;
     updateDraft({ ...DEFAULT_ALARM_THRESHOLDS });
   };
 
@@ -336,7 +342,7 @@ export function AlarmThresholdForm({
       scopeDescription,
       scopeHasOverride,
       scopeReady,
-      hasChanges,
+      hasChanges: disabled ? false : hasChanges,
       pending,
       validationError,
       collapsedSummary: formatAlarmCollapsedSummary(draft),
@@ -357,6 +363,7 @@ export function AlarmThresholdForm({
     draft,
     settings,
     hasChanges,
+    disabled,
   ]);
 
   const formBody = (
@@ -456,6 +463,7 @@ export function AlarmThresholdForm({
             <PageActionButton
               type="button"
               variant="outline"
+              disabled={fieldsDisabled}
               onClick={handleApplyDefaults}
             >
               기본값
@@ -464,7 +472,7 @@ export function AlarmThresholdForm({
               <PageActionButton
                 type="button"
                 variant="outline"
-                disabled={pending}
+                disabled={fieldsDisabled}
                 onClick={handleClearScope}
               >
                 설정 삭제
@@ -474,7 +482,11 @@ export function AlarmThresholdForm({
               <PageActionButton
                 type="submit"
                 variant="primary"
-                disabled={pending || !!validationError || !scopeReady || !hasChanges}
+                disabled={
+                  fieldsDisabled ||
+                  !!validationError ||
+                  !hasChanges
+                }
               >
                 {pending ? "저장 중…" : "저장"}
               </PageActionButton>
@@ -501,7 +513,7 @@ export function AlarmThresholdForm({
               high={draft.tempHigh}
               unit="℃"
               accentClass="bg-orange-500/35"
-              disabled={!scopeReady || pending}
+              disabled={fieldsDisabled}
               compact
               titleClassName={sliderTitleClassName}
               thumbLabelClassName={
@@ -524,7 +536,7 @@ export function AlarmThresholdForm({
               high={draft.humidityHigh}
               unit="%"
               accentClass="bg-sky-500/35"
-              disabled={!scopeReady || pending}
+              disabled={fieldsDisabled}
               compact
               titleClassName={sliderTitleClassName}
               thumbLabelClassName={
@@ -546,7 +558,7 @@ export function AlarmThresholdForm({
               fields={tempFields}
               values={draft}
               onChange={updateDraft}
-              disabled={!scopeReady || pending}
+              disabled={fieldsDisabled}
               compact
             />
             <ThresholdFieldGroup
@@ -555,7 +567,7 @@ export function AlarmThresholdForm({
               fields={humidityFields}
               values={draft}
               onChange={updateDraft}
-              disabled={!scopeReady || pending}
+              disabled={fieldsDisabled}
               compact
             />
           </>
@@ -573,7 +585,7 @@ export function AlarmThresholdForm({
               high={draft.tempHigh}
               unit="℃"
               accentClass="bg-orange-500/35"
-              disabled={!scopeReady || pending}
+              disabled={fieldsDisabled}
               onChange={(tempLow, tempHigh) =>
                 updateDraft({ ...draft, tempLow, tempHigh })
               }
@@ -593,7 +605,7 @@ export function AlarmThresholdForm({
               high={draft.humidityHigh}
               unit="%"
               accentClass="bg-sky-500/35"
-              disabled={!scopeReady || pending}
+              disabled={fieldsDisabled}
               onChange={(humidityLow, humidityHigh) =>
                 updateDraft({ ...draft, humidityLow, humidityHigh })
               }
@@ -608,7 +620,7 @@ export function AlarmThresholdForm({
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (scopeReady && activeScopeKey) handleSaveScope();
+        if (!disabled && scopeReady && activeScopeKey) handleSaveScope();
       }}
     >
       <input type="hidden" name="settings_json" value={JSON.stringify(settings)} />
@@ -622,7 +634,7 @@ export function AlarmThresholdForm({
             <PageActionButton
               type="submit"
               variant="primary"
-              disabled={pending || !!validationError || !scopeReady}
+              disabled={disabled || pending || !!validationError || !scopeReady}
             >
               {pending ? "저장 중…" : "저장"}
             </PageActionButton>

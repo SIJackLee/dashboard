@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
+  AlertCircle,
+  AlertTriangle,
   Bell,
   CheckCircle2,
   Loader2,
@@ -30,6 +32,7 @@ import { applyBulkSpAlarmThresholds } from "@/lib/data/alarm-scope";
 import { EDIT_START_DRAFT } from "@/lib/controllers/controller-panel-map";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { isReadingOnline } from "@/lib/data/reading-display";
+import type { InlineStatusTone } from "@/components/common/inline-status-toast";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
   SectionToggle,
@@ -55,7 +58,7 @@ type Props = {
   onClearSelection: () => void;
   onExit: () => void;
   /** 적용 완료 후 — toast·soft refresh 등 부모 처리 */
-  onAfterApply?: (result: ApplyResult) => void;
+  onAfterApply?: (result: ApplyResult, feedback: BulkApplyFeedback) => void;
   /** 일괄적용 off — 툴바 우측 (기간 선택 등) */
   trailing?: ReactNode;
   /** 모바일 목록 — bulk bar 한 줄 배치 (일괄적용 ↔ trailing) */
@@ -73,14 +76,84 @@ export type ApplyResult = {
   } | null;
 };
 
-export function formatBulkApplyToast(result: ApplyResult): string {
-  const parts: string[] = [];
-  if (result.control) {
-    parts.push(`제어 ${result.control.sent}대 전송`);
-    if (result.control.failed.length > 0) {
-      parts.push(`실패 ${result.control.failed.length}대`);
-    }
+export type BulkApplyOutcome = "success" | "partial" | "error";
+
+export type BulkApplyFeedback = {
+  message: string;
+  tone: InlineStatusTone;
+  title: string;
+  outcome: BulkApplyOutcome;
+};
+
+type ApplyPhase = "idle" | "control" | "alarm";
+
+function controlHadWork(result: ApplyResult): boolean {
+  return result.control != null;
+}
+
+function alarmFailed(result: ApplyResult): boolean {
+  return Boolean(result.alarm && !result.alarm.ok);
+}
+
+function controlHardFailed(result: ApplyResult): boolean {
+  const c = result.control;
+  if (!c) return false;
+  if (c.error && c.sent === 0) return true;
+  return !c.ok && c.sent === 0 && c.failed.length > 0;
+}
+
+function controlPartial(result: ApplyResult): boolean {
+  const c = result.control;
+  if (!c) return false;
+  return c.failed.length > 0 && c.sent > 0;
+}
+
+/** 일괄 적용 결과 — 성공 / 부분 / 실패 분류 */
+export function classifyBulkApplyResult(
+  result: ApplyResult,
+  opts?: { wantedControl?: boolean; offlineSkipped?: number },
+): BulkApplyOutcome {
+  const wantedControl = opts?.wantedControl ?? controlHadWork(result);
+  const offlineSkipped = opts?.offlineSkipped ?? 0;
+
+  if (controlHardFailed(result) && alarmFailed(result)) return "error";
+  if (controlHardFailed(result) && !result.alarm) return "error";
+  if (alarmFailed(result) && !controlHadWork(result)) return "error";
+  if (controlPartial(result) || alarmFailed(result)) return "partial";
+  if (wantedControl && !controlHadWork(result) && offlineSkipped > 0) {
+    return result.alarm?.ok ? "partial" : "error";
   }
+  if (result.control && !result.control.ok && result.control.failed.length > 0) {
+    return "partial";
+  }
+  return "success";
+}
+
+export function formatBulkApplyFeedback(
+  result: ApplyResult,
+  opts?: { wantedControl?: boolean; offlineSkipped?: number },
+): BulkApplyFeedback {
+  const outcome = classifyBulkApplyResult(result, opts);
+  const parts: string[] = [];
+
+  if (result.control) {
+    if (result.control.error && result.control.sent === 0) {
+      parts.push(
+        result.control.error === "forbidden" ||
+          result.control.error === "unauthorized"
+          ? "제어 권한 없음"
+          : `제어 전송 실패 (${result.control.error})`,
+      );
+    } else {
+      parts.push(`제어 ${result.control.sent}대 전송`);
+      if (result.control.failed.length > 0) {
+        parts.push(`실패 ${result.control.failed.length}대`);
+      }
+    }
+  } else if (opts?.wantedControl && (opts.offlineSkipped ?? 0) > 0) {
+    parts.push("온라인 컨트롤러 없음 · 제어 미전송");
+  }
+
   if (result.alarm) {
     if (result.alarm.ok) {
       parts.push(`알람 유형 ${result.alarm.spCount}개 갱신`);
@@ -88,10 +161,34 @@ export function formatBulkApplyToast(result: ApplyResult): string {
         parts.push(`개별 설정 ${result.alarm.clearedOverrides}건 제거`);
       }
     } else {
-      parts.push("알람 저장 실패");
+      parts.push(
+        result.alarm.error
+          ? `알람 저장 실패 (${result.alarm.error})`
+          : "알람 저장 실패",
+      );
     }
   }
-  return parts.join(" · ") || "일괄 적용 완료";
+
+  const message =
+    parts.join(" · ") ||
+    (outcome === "error" ? "일괄 적용 실패" : "일괄 적용 완료");
+
+  const title =
+    outcome === "success"
+      ? "일괄 적용 완료"
+      : outcome === "partial"
+        ? "일부만 적용됨"
+        : "일괄 적용 실패";
+
+  const tone: InlineStatusTone =
+    outcome === "success" ? "ok" : outcome === "partial" ? "warn" : "error";
+
+  return { message, tone, title, outcome };
+}
+
+/** @deprecated — formatBulkApplyFeedback 사용 권장 */
+export function formatBulkApplyToast(result: ApplyResult): string {
+  return formatBulkApplyFeedback(result).message;
 }
 
 export function FarmMapBulkApply({
@@ -108,6 +205,7 @@ export function FarmMapBulkApply({
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
+  const [applyPhase, setApplyPhase] = useState<ApplyPhase>("idle");
   const [result, setResult] = useState<ApplyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,11 +262,14 @@ export function FarmMapBulkApply({
     }
 
     setRunning(true);
+    setApplyPhase("idle");
     let control: SendBulkThermoCommandResult | null = null;
     let alarmResult: ApplyResult["alarm"] = null;
+    const wantedControl = applyTemp || applyVent;
 
     // 1) 제어값(온도/환기) — 온라인 컨트롤러만, 컨트롤러별 값 구성
-    if ((applyTemp || applyVent) && onlineTargets.length > 0) {
+    if (wantedControl && onlineTargets.length > 0) {
+      setApplyPhase("control");
       const commands = buildBulkThermoCommands(
         onlineTargets,
         controller.thermoSettings,
@@ -179,6 +280,7 @@ export function FarmMapBulkApply({
 
     // 2) 알람 임계값 — farm+sp override + 하위 stall·controller override cascade
     if (applyAlarm) {
+      setApplyPhase("alarm");
       const base = controller.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
       const { settings, spScopeKeys, clearedOverrides } = applyBulkSpAlarmThresholds(
         base,
@@ -198,18 +300,31 @@ export function FarmMapBulkApply({
       };
     }
 
-    setResult({ control, alarm: alarmResult });
+    const applied: ApplyResult = { control, alarm: alarmResult };
+    const feedback = formatBulkApplyFeedback(applied, {
+      wantedControl,
+      offlineSkipped: offlineCount,
+    });
+    setResult(applied);
+    setApplyPhase("idle");
     setRunning(false);
-    const applied = { control, alarm: alarmResult };
-    onAfterApply?.(applied);
+    onAfterApply?.(applied, feedback);
   };
 
   const closeAll = () => {
     setOpen(false);
     setResult(null);
     setError(null);
+    setApplyPhase("idle");
     onExit();
   };
+
+  const resultFeedback = result
+    ? formatBulkApplyFeedback(result, {
+        wantedControl: applyTemp || applyVent,
+        offlineSkipped: offlineCount,
+      })
+    : null;
 
   const modalContent =
     open && mounted ? (
@@ -238,12 +353,25 @@ export function FarmMapBulkApply({
             </button>
           </div>
 
-          {result ? (
+          {result && resultFeedback ? (
             <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 md:px-6 md:py-5">
-              <div className="flex items-center gap-2.5 text-emerald-700">
-                <CheckCircle2 className={dashboardUi.iconSm} />
+              <div
+                className={cn(
+                  "flex items-center gap-2.5",
+                  resultFeedback.outcome === "success" && "text-emerald-700 dark:text-emerald-400",
+                  resultFeedback.outcome === "partial" && "text-amber-800 dark:text-amber-300",
+                  resultFeedback.outcome === "error" && "text-red-700 dark:text-red-400",
+                )}
+              >
+                {resultFeedback.outcome === "success" ? (
+                  <CheckCircle2 className={dashboardUi.iconSm} aria-hidden />
+                ) : resultFeedback.outcome === "partial" ? (
+                  <AlertTriangle className={dashboardUi.iconSm} aria-hidden />
+                ) : (
+                  <AlertCircle className={dashboardUi.iconSm} aria-hidden />
+                )}
                 <p className={cn("font-semibold leading-snug", bulkModalSectionTitle)}>
-                  일괄 적용 완료
+                  {resultFeedback.title}
                 </p>
               </div>
               <ul className="mt-3 space-y-1.5 leading-snug">
@@ -253,10 +381,13 @@ export function FarmMapBulkApply({
                     {result.control.failed.length > 0
                       ? ` · 실패 ${result.control.failed.length}대`
                       : ""}
+                    {result.control.error && result.control.sent === 0
+                      ? ` · ${result.control.error}`
+                      : ""}
                     {offlineCount > 0 ? ` · 오프라인 ${offlineCount}대 제외` : ""}
                   </li>
                 ) : applyTemp || applyVent ? (
-                  <li className="text-amber-700">
+                  <li className="text-amber-700 dark:text-amber-300">
                     제어 명령: 온라인 컨트롤러가 없어 전송하지 않았습니다.
                   </li>
                 ) : null}
@@ -273,9 +404,14 @@ export function FarmMapBulkApply({
                   </li>
                 ) : null}
               </ul>
-              {result.control && result.control.failed.length > 0 ? (
-                <p className={cn("mt-2 text-red-600", bulkModalMeta)}>
-                  일부 컨트롤러 전송에 실패했습니다. 개별 패널에서 재시도하세요.
+              {resultFeedback.outcome === "partial" ? (
+                <p className={cn("mt-2 text-amber-800 dark:text-amber-300", bulkModalMeta)}>
+                  일부만 반영되었습니다. 실패 항목은 개별 패널에서 재시도하세요.
+                </p>
+              ) : null}
+              {resultFeedback.outcome === "error" ? (
+                <p className={cn("mt-2 text-red-600 dark:text-red-400", bulkModalMeta)}>
+                  적용에 실패했습니다. 권한·네트워크·대상 상태를 확인한 뒤 다시 시도하세요.
                 </p>
               ) : null}
               <div className="mt-4 flex justify-end">
@@ -284,12 +420,36 @@ export function FarmMapBulkApply({
                   onClick={closeAll}
                   className={cn(
                     bulkModalBtn,
-                    "bg-emerald-600 text-white hover:bg-emerald-700"
+                    resultFeedback.outcome === "error"
+                      ? "bg-red-600 text-white hover:bg-red-700"
+                      : resultFeedback.outcome === "partial"
+                        ? "bg-amber-600 text-white hover:bg-amber-700"
+                        : "bg-emerald-600 text-white hover:bg-emerald-700",
                   )}
                 >
-                  완료
+                  확인
                 </button>
               </div>
+            </div>
+          ) : running ? (
+            <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 px-4 py-10 text-center md:px-6">
+              <Loader2
+                className="size-8 animate-spin text-emerald-600 md:size-10"
+                aria-hidden
+              />
+              <p className={cn("font-semibold", bulkModalSectionTitle)}>
+                일괄 적용 중…
+              </p>
+              <p className={cn("leading-snug", bulkModalMeta)}>
+                {applyPhase === "alarm"
+                  ? "알람 임계값을 저장하고 있습니다."
+                  : applyPhase === "control"
+                    ? `제어 명령을 전송하고 있습니다. (${onlineTargets.length}대)`
+                    : "적용을 준비하고 있습니다."}
+              </p>
+              <p className={cn("text-xs leading-snug", bulkModalMeta)}>
+                창을 닫지 마세요.
+              </p>
             </div>
           ) : (
             <>

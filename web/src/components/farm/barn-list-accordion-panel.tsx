@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2, Thermometer } from "lucide-react";
+import { Eye, Loader2, Thermometer } from "lucide-react";
 import {
   AlarmThresholdForm,
   type AlarmThresholdHeaderState,
@@ -197,6 +197,7 @@ export function BarnListAccordionPanel({
     online && canCommand && !panel.pending && panel.hasChanges;
   const canSaveAlarm =
     Boolean(thresholdHeader) &&
+    canCommand &&
     online &&
     !thresholdHeader!.pending &&
     !thresholdHeader!.validationError &&
@@ -205,7 +206,7 @@ export function BarnListAccordionPanel({
   const saveDisabled = isSaving || (!canSaveControl && !canSaveAlarm);
   const saveDisabledReason = (() => {
     if (isSaving) return "저장 중…";
-    if (!canCommand) return "명령 권한이 없습니다.";
+    if (!canCommand) return "조회 전용 계정입니다. 설정 변경 권한이 없습니다.";
     if (!online) return "오프라인이라 적용할 수 없습니다.";
     if (!panel.settingsKnown && !panel.hasEdited && !canSaveAlarm) {
       return "설정값을 불러오는 중…";
@@ -214,6 +215,7 @@ export function BarnListAccordionPanel({
     return null;
   })();
   const defaultsDisabled =
+    !canCommand ||
     isSaving ||
     Boolean(thresholdHeader && (!thresholdHeader.scopeReady || thresholdHeader.pending));
 
@@ -298,6 +300,7 @@ export function BarnListAccordionPanel({
       fixedScope={thresholdScope}
       embedded
       density="mobileSplit"
+      disabled={!canCommand}
       sliderTitleClassName={LIST_SLIDER_TITLE}
       sliderThumbLabelClassName={LIST_SLIDER_THUMB}
       sliderAxisClassName={LIST_SLIDER_AXIS}
@@ -406,34 +409,51 @@ export function BarnListAccordionPanel({
     </div>
   );
 
+  const readOnlyBanner = !canCommand ? (
+    <div
+      role="status"
+      className="flex items-start gap-2 rounded-lg border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+    >
+      <Eye className="mt-0.5 size-3.5 shrink-0 opacity-80" aria-hidden />
+      <div className="min-w-0 space-y-0.5">
+        <p className="font-semibold leading-snug">조회 전용</p>
+        <p className="leading-snug text-amber-800/90 dark:text-amber-100/80">
+          설정값·알람 임계값은 확인할 수 있지만 변경·적용할 수 없습니다.
+          조정이 필요하면 운영자 권한이 있는 계정으로 요청하세요.
+        </p>
+      </div>
+    </div>
+  ) : null;
+
   const footer = (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <button
-          type="button"
-          disabled={defaultsDisabled}
-          onClick={handleApplyDefaults}
-          className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50 sm:text-sm"
-        >
-          기본값
-        </button>
-        <button
-          type="button"
-          disabled={saveDisabled}
-          title={saveDisabledReason ?? undefined}
-          onClick={handleSaveAll}
-          className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 sm:text-sm"
-        >
-          {isSaving ? "적용 중…" : "적용"}
-        </button>
-      </div>
-      {canCommand && saveDisabled && saveDisabledReason ? (
-        <p className="text-right text-xs text-muted-foreground">
-          {saveDisabledReason}
-        </p>
-      ) : null}
-      {!canCommand ? (
-        <p className="text-xs text-amber-700">명령 권한이 없어 조작이 제한됩니다.</p>
+      {canCommand ? (
+        <>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              disabled={defaultsDisabled}
+              onClick={handleApplyDefaults}
+              className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50 sm:text-sm"
+            >
+              기본값
+            </button>
+            <button
+              type="button"
+              disabled={saveDisabled}
+              title={saveDisabledReason ?? undefined}
+              onClick={handleSaveAll}
+              className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 sm:text-sm"
+            >
+              {isSaving ? "적용 중…" : "적용"}
+            </button>
+          </div>
+          {saveDisabled && saveDisabledReason ? (
+            <p className="text-right text-xs text-muted-foreground">
+              {saveDisabledReason}
+            </p>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -468,8 +488,11 @@ export function BarnListAccordionPanel({
           </p>
         ) : null}
         <div className="space-y-2 px-3 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+          {readOnlyBanner}
           {settingsSections}
-          <div className="space-y-2 border-t pt-3">{footer}</div>
+          {canCommand ? (
+            <div className="space-y-2 border-t pt-3">{footer}</div>
+          ) : null}
         </div>
       </div>
       </>
@@ -491,8 +514,11 @@ export function BarnListAccordionPanel({
           상세 데이터 불러오는 중…
         </p>
       ) : null}
+      {readOnlyBanner ? <div className="mb-3">{readOnlyBanner}</div> : null}
       {settingsSections}
-      <div className="mt-3 space-y-2 border-t pt-3">{footer}</div>
+      {canCommand ? (
+        <div className="mt-3 space-y-2 border-t pt-3">{footer}</div>
+      ) : null}
     </div>
     </>
   );

@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, LayoutList } from "lucide-react";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
-import { InlineStatusToast } from "@/components/common/inline-status-toast";
+import { InlineStatusToast, type InlineStatusTone } from "@/components/common/inline-status-toast";
 import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
 import { SectionCard } from "@/components/common/section-card";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { BarnListSummary } from "@/components/farm/barn-list-summary";
 import { BarnListModeToolbar } from "@/components/farm/barn-list-mode-toolbar";
 import { BarnListTrendRefreshBar } from "@/components/farm/barn-list-trend-refresh-bar";
-import { FarmMapBulkApply, formatBulkApplyToast, type ApplyResult } from "@/components/farm/farm-map-bulk-apply";
+import { FarmMapBulkApply, type ApplyResult, type BulkApplyFeedback } from "@/components/farm/farm-map-bulk-apply";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
@@ -131,7 +131,10 @@ export function BarnTable({
   const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
   const [toolbarSheetPage, setToolbarSheetPage] =
     useState<ControllerMobileSheetPage>(0);
-  const [statusToast, setStatusToast] = useState<string | null>(null);
+  const [statusToast, setStatusToast] = useState<{
+    message: string;
+    tone: InlineStatusTone;
+  } | null>(null);
 
   const onListRefresh = useCallback(() => {
     if (liveRefreshManaged && liveRefresh) {
@@ -474,8 +477,8 @@ export function BarnTable({
     Boolean(liveRefresh?.isStale);
 
   const handleAfterBulkApply = useCallback(
-    (result: ApplyResult) => {
-      setStatusToast(formatBulkApplyToast(result));
+    (result: ApplyResult, feedback: BulkApplyFeedback) => {
+      setStatusToast({ message: feedback.message, tone: feedback.tone });
       if (result.alarm?.ok && result.alarm.settings && liveRefresh) {
         liveRefresh.patchAlarmSettings(result.alarm.settings);
       }
@@ -620,7 +623,8 @@ export function BarnTable({
       </div>
       </SectionCard>
       <InlineStatusToast
-        message={statusToast}
+        message={statusToast?.message ?? null}
+        tone={statusToast?.tone}
         onDismiss={() => setStatusToast(null)}
       />
     </RefreshScopeShell>
