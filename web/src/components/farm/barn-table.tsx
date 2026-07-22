@@ -156,21 +156,13 @@ export function BarnTable({
     [],
   );
 
-  const [listLayout, setListLayout] = useState<ListLayout>(() => {
-    if (hubMode && initialListLayout) return initialListLayout;
-    if (typeof window !== "undefined") {
-      return resolveListLayout(currentFarmSearchParams());
-    }
-    return initialListLayout ?? "flat";
-  });
+  /** SSR·hydration 동일 — window URL 금지. mount 후 urlTick effect로 동기화 */
+  const [listLayout, setListLayout] = useState<ListLayout>(
+    () => initialListLayout ?? "flat",
+  );
 
-  const [listMode, setListMode] = useState<BarnListViewMode>(() =>
-    resolveListViewMode(
-      typeof window !== "undefined"
-        ? currentFarmSearchParams()
-        : new URLSearchParams(),
-      hubMode ? initialListMode : undefined,
-    ),
+  const [listMode, setListMode] = useState<BarnListViewMode>(
+    () => initialListMode ?? "controller",
   );
 
   useEffect(() => {
