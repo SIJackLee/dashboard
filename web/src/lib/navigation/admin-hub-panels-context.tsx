@@ -15,6 +15,11 @@ type AdminHubPanelsContextValue = {
   panels: AdminFarmGridPanel[];
   ready: boolean;
   setPanels: (panels: AdminFarmGridPanel[]) => void;
+  /** progressive hub hydrate — 기존 패널에 병합(동일 farmKey는 교체) */
+  appendPanels: (panels: AdminFarmGridPanel[]) => void;
+  /** SSR 이후 남은 farm keys — TailLoader가 hub 뷰에서 이어서 로드 */
+  tailFarmKeys: FarmKey[];
+  setTailFarmKeys: (keys: FarmKey[]) => void;
   getPanelByFarmKey: (farmKey: FarmKey) => AdminFarmGridPanel | undefined;
   hubUrlEpoch: number;
   notifyHubUrlChange: () => void;
@@ -28,10 +33,23 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
   const [panels, setPanelsState] = useState<AdminFarmGridPanel[]>([]);
   const [ready, setReady] = useState(false);
   const [hubUrlEpoch, setHubUrlEpoch] = useState(0);
+  const [tailFarmKeys, setTailFarmKeys] = useState<FarmKey[]>([]);
 
   const setPanels = useCallback((next: AdminFarmGridPanel[]) => {
     setPanelsState(next);
     setReady(next.length > 0);
+  }, []);
+
+  const appendPanels = useCallback((incoming: AdminFarmGridPanel[]) => {
+    if (incoming.length === 0) return;
+    setPanelsState((prev) => {
+      const map = new Map(
+        prev.map((p) => [farmKeyId(p.farmKey), p] as const),
+      );
+      for (const p of incoming) map.set(farmKeyId(p.farmKey), p);
+      return [...map.values()];
+    });
+    setReady(true);
   }, []);
 
   const getPanelByFarmKey = useCallback(
@@ -49,6 +67,9 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
       panels,
       ready,
       setPanels,
+      appendPanels,
+      tailFarmKeys,
+      setTailFarmKeys,
       getPanelByFarmKey,
       hubUrlEpoch,
       notifyHubUrlChange,
@@ -57,6 +78,8 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
       panels,
       ready,
       setPanels,
+      appendPanels,
+      tailFarmKeys,
       getPanelByFarmKey,
       hubUrlEpoch,
       notifyHubUrlChange,

@@ -3,15 +3,28 @@
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { adminOpsPath } from "@/lib/admin/ops-tabs";
-import { HEALTH_SNAPSHOT_CACHE_TAG } from "@/lib/admin/health/fetch-snapshot";
+import {
+  computeHealthSnapshot,
+  HEALTH_SNAPSHOT_CACHE_TAG,
+} from "@/lib/admin/health/fetch-snapshot";
+import type { HealthSnapshot } from "@/lib/admin/health/types";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const ADMIN_OPS_SYSTEM_PATH = adminOpsPath("system");
 
+/** Ops 주기/수동 갱신 — router.refresh 대신 스냅샷만 반환 */
+export async function fetchHealthSnapshotAction(): Promise<HealthSnapshot> {
+  const me = await getCurrentUser();
+  if (!me?.isAdmin) {
+    throw new Error("Forbidden");
+  }
+  return computeHealthSnapshot();
+}
+
 export async function acknowledgeCommandHealthCheckpoint(
   commandId: string,
-  note?: string
+  note?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const me = await getCurrentUser();
   if (!me?.isAdmin) {
@@ -31,7 +44,7 @@ export async function acknowledgeCommandHealthCheckpoint(
       acknowledged_at: new Date().toISOString(),
       note: note?.trim() || null,
     },
-    { onConflict: "command_id" }
+    { onConflict: "command_id" },
   );
 
   if (error) {

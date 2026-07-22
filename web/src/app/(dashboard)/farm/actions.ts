@@ -27,6 +27,8 @@ import {
   type FarmScopedLiveData,
   type FarmScopedPanelData,
 } from "@/lib/farm/load-farm-scoped-panel-data";
+import { loadAdminFarmGridPanelsForKeys } from "@/lib/farm/load-admin-all-farms-grid";
+import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 
 async function assertFarmReadAccess(farmKey: FarmKey) {
   const user = await getCurrentUser();
@@ -52,6 +54,17 @@ export async function fetchFarmTrendAllPeriodsAction(
   farmKey: FarmKey
 ): Promise<Record<TrendPeriodId, TrendPeriodData>> {
   return getFarmTrendAllPeriods({ farmKey });
+}
+
+/** Admin hub — progressive grid hydrate (클라이언트 batch). */
+export async function fetchAdminHubGridBatchAction(
+  farmKeys: FarmKey[],
+): Promise<AdminFarmGridPanel[]> {
+  const user = await getCurrentUser();
+  if (!user?.isAdmin) {
+    throw new Error("Forbidden");
+  }
+  return loadAdminFarmGridPanelsForKeys(farmKeys);
 }
 
 /** soft refresh / ACK — LIVE(+layout)만. settings·trend 제외 */

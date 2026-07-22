@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { AdminAllFarmsGridPanels } from "@/components/farm/admin-all-farms-grid-panels";
+import { AdminHubGridTailLoader } from "@/components/farm/admin-hub-grid-tail-loader";
 import { FarmPageContent } from "@/components/farm/farm-page-content";
 import {
   AdminHubGridSkeleton,
@@ -194,7 +195,12 @@ function AdminHubBody({
 
   if (hubClientNav) {
     if (!clientActiveFarmKey) {
-      return <AdminAllFarmsGridPanels panels={panels} />;
+      return (
+        <>
+          <AdminAllFarmsGridPanels panels={panels} liveFromContext />
+          <AdminHubGridTailLoader />
+        </>
+      );
     }
     if (cachedPanel) {
       return (

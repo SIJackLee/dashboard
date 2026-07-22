@@ -11,10 +11,10 @@ import {
 import type { FarmKey } from "@/lib/data/farm-key";
 import { getLiveReadings } from "@/lib/data/iot";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
+import { ADMIN_HUB_GRID_BATCH_SIZE } from "@/lib/farm/admin-all-farms-grid-shared";
 
 export type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
-
-const GRID_BATCH_SIZE = 4;
+export { ADMIN_HUB_GRID_BATCH_SIZE } from "@/lib/farm/admin-all-farms-grid-shared";
 
 async function loadFarmGridPanel(
   farmKey: FarmKey,
@@ -41,6 +41,19 @@ async function loadFarmGridPanel(
   };
 }
 
+/** 지정 키만 로드 (배치 hydrate용). LIVE 축사 없는 농장은 제외. */
+export async function loadAdminFarmGridPanelsForKeys(
+  farmKeys: FarmKey[],
+  layoutPrefs?: BarnLayoutPrefs,
+): Promise<AdminFarmGridPanel[]> {
+  if (farmKeys.length === 0) return [];
+  const prefs = layoutPrefs ?? (await getBarnLayoutPrefs());
+  const batchPanels = await Promise.all(
+    farmKeys.map((farmKey) => loadFarmGridPanel(farmKey, prefs)),
+  );
+  return batchPanels.filter((p) => p.barnSnapshots.length > 0);
+}
+
 /** Admin 전체 농장 — farm별 축사유형 그리드 (trend·명령 제외, overview용).
  * LIVE 축사 카드가 없는(위치만) 농장은 제외한다.
  */
@@ -54,14 +67,10 @@ export async function loadAdminAllFarmsGridPanels(
   const prefs = layoutPrefs ?? (await getBarnLayoutPrefs());
   const panels: AdminFarmGridPanel[] = [];
 
-  for (let i = 0; i < keys.length; i += GRID_BATCH_SIZE) {
-    const batch = keys.slice(i, i + GRID_BATCH_SIZE);
-    const batchPanels = await Promise.all(
-      batch.map((farmKey) => loadFarmGridPanel(farmKey, prefs)),
-    );
-    for (const panel of batchPanels) {
-      if (panel.barnSnapshots.length > 0) panels.push(panel);
-    }
+  for (let i = 0; i < keys.length; i += ADMIN_HUB_GRID_BATCH_SIZE) {
+    const batch = keys.slice(i, i + ADMIN_HUB_GRID_BATCH_SIZE);
+    const batchPanels = await loadAdminFarmGridPanelsForKeys(batch, prefs);
+    panels.push(...batchPanels);
   }
 
   return panels;

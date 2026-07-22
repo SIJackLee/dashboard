@@ -347,7 +347,8 @@ function dedupeHints(hints: D11Hint[]): D11Hint[] {
 
 export const HEALTH_SNAPSHOT_CACHE_TAG = "health-snapshot";
 
-async function computeHealthSnapshot(): Promise<HealthSnapshot> {
+/** 캐시 우회 — Ops soft refresh / 주기 패치용 */
+export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
   const nowMs = Date.now();
   const fetchedAt = new Date(nowMs).toISOString();
 

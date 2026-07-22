@@ -62,3 +62,13 @@ npx tsx scripts/measure-live-read.ts
 | controller trend | `fetchFarmControllerTrendAllPeriodsAction` | list graph controller trend | list trend refresh bar |
 
 Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
+
+## Follow-ups (M1–M5 / L1–L2)
+
+| Item | Change |
+| --- | --- |
+| M1 | `startTransition` URL only; controller-trend module cache shared map/list |
+| M4 | Admin hub SSR first `ADMIN_HUB_GRID_BATCH_SIZE` farms + client tail hydrate |
+| M5 | Ops `fetchHealthSnapshotAction` patch (no periodic `router.refresh`) |
+| L1 | `staggerMount` only when `readings.length > 8` |
+| L2 | `FarmMapCanvas` / `FarmMapMobileStage` / `FarmMapBulkApply` via `next/dynamic` |

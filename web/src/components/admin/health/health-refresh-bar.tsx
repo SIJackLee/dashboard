@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { HEALTH_REVALIDATE_SEC } from "@/lib/admin/health/constants";
 import { formatHealthTime } from "@/lib/admin/health/format-health-time";
-import { dashboardControl, dashboardTypography, opsControl } from "@/lib/ui/dashboard-page-ui";
+import {
+  dashboardControl,
+  dashboardTypography,
+  opsControl,
+} from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type HealthRefreshBarProps = {
@@ -13,50 +16,65 @@ type HealthRefreshBarProps = {
   className?: string;
   /** 운영 스캔 바 — 갱신 버튼만 (타이머는 title). */
   compact?: boolean;
+  /** 스냅샷 부분 패치 — 없으면 no-op */
+  onRefresh?: () => void | Promise<void>;
 };
 
 export function HealthRefreshBar({
   fetchedAt,
   className,
   compact = false,
+  onRefresh,
 }: HealthRefreshBarProps) {
-  const router = useRouter();
   const [secondsLeft, setSecondsLeft] = useState(HEALTH_REVALIDATE_SEC);
+  const [pending, setPending] = useState(false);
 
   const refresh = useCallback(() => {
-    router.refresh();
-    setSecondsLeft(HEALTH_REVALIDATE_SEC);
-  }, [router]);
+    if (!onRefresh || pending) return;
+    setPending(true);
+    void Promise.resolve(onRefresh())
+      .catch(() => {
+        /* 호출측 처리 */
+      })
+      .finally(() => {
+        setPending(false);
+        setSecondsLeft(HEALTH_REVALIDATE_SEC);
+      });
+  }, [onRefresh, pending]);
 
   useEffect(() => {
+    if (!onRefresh) return;
     const id = window.setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
-          queueMicrotask(() => router.refresh());
+          queueMicrotask(() => {
+            void Promise.resolve(onRefresh()).catch(() => {});
+          });
           return HEALTH_REVALIDATE_SEC;
         }
         return s - 1;
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [router]);
+  }, [onRefresh]);
 
   const fetchedLabel = formatHealthTime(fetchedAt);
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   const countdown = `${mins}:${secs.toString().padStart(2, "0")}`;
-  const title = `스캔·사용자·명령 전체 재검증 · 갱신 ${fetchedLabel} · ${countdown} 후`;
+  const title = `스캔·사용자·명령 스냅샷 갱신 · 갱신 ${fetchedLabel} · ${countdown} 후`;
 
   if (compact) {
     return (
       <button
         type="button"
         onClick={refresh}
+        disabled={pending || !onRefresh}
         title={title}
         aria-label={title}
         className={cn(opsControl.buttonOutline, "border", className)}
       >
-        갱신
+        {pending ? "갱신 중…" : "갱신"}
       </button>
     );
   }
@@ -72,13 +90,14 @@ export function HealthRefreshBar({
       <Button
         type="button"
         variant="outline"
+        disabled={pending || !onRefresh}
         className={cn(
           "h-9 min-h-9 w-full text-sm sm:h-auto sm:min-h-0 sm:w-auto",
           dashboardControl.buttonOutline,
         )}
         onClick={refresh}
       >
-        지금 갱신
+        {pending ? "갱신 중…" : "지금 갱신"}
       </Button>
     </div>
   );

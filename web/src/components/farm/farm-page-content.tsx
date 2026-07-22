@@ -1,13 +1,13 @@
 "use client";
 
 import {
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { flushSync } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
@@ -124,7 +124,7 @@ export function FarmPageContent({
     if (view === "list") setListEverOpened(true);
   }, [view]);
 
-  // 그리드 진입 시 컨트롤러 단위 추이 프리페치 — 히트맵 확대 시 컨트롤러별 미니 히트맵에 사용.
+  // 그리드·목록 공유 프리페치 — map/list 훅이 모듈 캐시를 공유해 이중 fetch 방지.
   // FarmKey는 객체이므로 참조가 아닌 farmKeyId로 단일 농장 여부 판정.
   const gridFarmKey = useMemo<FarmKey | null>(() => {
     const first = readings[0]?.farmKey ?? null;
@@ -137,9 +137,10 @@ export function FarmPageContent({
   }, [readings]);
   // 투어 중에도 유지 — 5/9(detail-panel-chart-first)가 controllerTrend에 의존.
   // 목록 enrich·soft panel fetch만 tourActive로 일시정지.
+  // listEverOpened 후에도 유지해 목록 BarnTable과 캐시를 공유한다.
   const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } = useFarmControllerTrend({
     farmKey: gridFarmKey,
-    enabled: Boolean(gridFarmKey) && view === "map",
+    enabled: Boolean(gridFarmKey) && (view === "map" || listEverOpened),
   });
 
   const shallowParams = useMemo(() => {
@@ -260,37 +261,40 @@ export function FarmPageContent({
         void enrichListIfNeeded();
       }
       setViewState(next);
-      if (hubMode) {
-        const params = new URLSearchParams(currentFarmSearchParams().toString());
-        applyHubScopedViewParams(params, next);
+      // URL·hub epoch는 transition — 탭 페인트는 위 동기 setState로 즉시
+      startTransition(() => {
+        if (hubMode) {
+          const params = new URLSearchParams(
+            currentFarmSearchParams().toString(),
+          );
+          applyHubScopedViewParams(params, next);
+          replaceFarmUrlShallow(params);
+          onHubUrlChange?.();
+          setUrlTick((n) => n + 1);
+          return;
+        }
+        const params = new URLSearchParams(
+          currentFarmSearchParams().toString(),
+        );
+        params.delete("tab");
+        if (next === "list") {
+          params.set("view", "list");
+        } else {
+          params.delete("view");
+          params.delete("listMode");
+        }
         replaceFarmUrlShallow(params);
-        onHubUrlChange?.();
         setUrlTick((n) => n + 1);
-        return;
-      }
-      const params = new URLSearchParams(currentFarmSearchParams().toString());
-      params.delete("tab");
-      if (next === "list") {
-        params.set("view", "list");
-      } else {
-        params.delete("view");
-        params.delete("listMode");
-      }
-      replaceFarmUrlShallow(params);
-      setUrlTick((n) => n + 1);
+      });
     },
-    [hubMode, onHubUrlChange, enrichListIfNeeded]
+    [hubMode, onHubUrlChange, enrichListIfNeeded],
   );
 
   const setView = useCallback(
     (next: "map" | "list") => {
-      queueMicrotask(() => {
-        flushSync(() => {
-          applyViewChange(next);
-        });
-      });
+      applyViewChange(next);
     },
-    [applyViewChange]
+    [applyViewChange],
   );
 
   const tabNavClass =
@@ -401,7 +405,7 @@ export function FarmPageContent({
               hubMode={hubMode}
               onHubUrlChange={onHubUrlChange}
               liveRefreshManaged={liveRefreshManaged}
-              staggerMount
+              staggerMount={readings.length > 8}
               onRequestPanelEnrichment={enrichListIfNeeded}
               trendPeriod={trendPeriod}
               onTrendPeriodChange={onTrendPeriodChange}

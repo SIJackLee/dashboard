@@ -14,6 +14,7 @@ import type {
   HealthDagNodeSelectPayload,
   PeekAnchor,
 } from "@/lib/admin/health/health-node-peek-content";
+import { fetchHealthSnapshotAction } from "@/app/(dashboard)/admin/ops/health-actions";
 import { HealthDagGraph } from "@/components/admin/health/health-dag-graph";
 import { HealthDataPathStrip } from "@/components/admin/health/health-data-path-strip";
 import { HealthFarmModulePanel } from "@/components/admin/health/health-farm-module-panel";
@@ -63,6 +64,7 @@ export function HealthSystemShell({ snapshot }: Props) {
   const queryNodeId = parseHealthNodeId(searchParams.get("node"));
   const queryFarmId = searchParams.get("farm")?.trim() || null;
   const queryModulesOpen = searchParams.get("modules") === "1";
+  const [liveSnapshot, setLiveSnapshot] = useState(snapshot);
   const [peek, setPeek] = useState<PeekState | null>(null);
   const [manualDialog, setManualDialog] = useState<HealthNodeId | null>(null);
   const [urlDialogDismissed, setUrlDialogDismissed] = useState(false);
@@ -75,12 +77,21 @@ export function HealthSystemShell({ snapshot }: Props) {
     setSuppressAutoKey(readSuppressKey());
   }, []);
 
+  useEffect(() => {
+    setLiveSnapshot(snapshot);
+  }, [snapshot]);
+
+  const patchSnapshot = useCallback(async () => {
+    const next = await fetchHealthSnapshotAction();
+    setLiveSnapshot(next);
+  }, []);
+
   const moduleCounts = useMemo(
-    () => countHealthStatuses(snapshot.modules),
-    [snapshot.modules],
+    () => countHealthStatuses(liveSnapshot.modules),
+    [liveSnapshot.modules],
   );
   const overallStatus = worstHealthStatus(moduleCounts);
-  const pipelineBad = snapshot.pipeline.some((n) => needsAttention(n.status));
+  const pipelineBad = liveSnapshot.pipeline.some((n) => needsAttention(n.status));
   const autoDetail =
     queryModulesOpen || Boolean(queryFarmId) || pipelineBad || needsAttention(overallStatus);
   const autoKey = `${queryFarmId ?? ""}|${queryModulesOpen}|${overallStatus}|${pipelineBad}`;
@@ -96,7 +107,7 @@ export function HealthSystemShell({ snapshot }: Props) {
   const dialogNodeId =
     manualDialog ?? (urlDialogDismissed ? null : queryNodeId);
 
-  const capWarn = snapshot.liveRowCount >= snapshot.liveRowLimit * 0.9;
+  const capWarn = liveSnapshot.liveRowCount >= liveSnapshot.liveRowLimit * 0.9;
   const showAlert = needsAttention(overallStatus) || pipelineBad;
   const mobileQuiet = isMobileLayout && !showAlert && !detailOpen;
 
@@ -150,14 +161,14 @@ export function HealthSystemShell({ snapshot }: Props) {
         ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [queryFarmId, detailOpen, snapshot.modules.length]);
+  }, [queryFarmId, detailOpen, liveSnapshot.modules.length]);
 
   const activeDrillId = dialogNodeId ?? peek?.nodeId ?? null;
 
   const detailPanel = detailOpen ? (
     <div className="mt-3 flex flex-col gap-3 border-t pt-3">
       <HealthDagGraph
-        snapshot={snapshot}
+        snapshot={liveSnapshot}
         onNodeSelect={handleNodeSelect}
         activeDrillId={activeDrillId}
       />
@@ -166,14 +177,14 @@ export function HealthSystemShell({ snapshot }: Props) {
           {HEALTH_UI.farmModules}
         </p>
         <HealthFarmModulePanel
-          modules={snapshot.modules}
+          modules={liveSnapshot.modules}
           highlightFarmId={queryFarmId}
         />
       </div>
     </div>
   ) : null;
 
-  const dbWarn = !snapshot.dbOk ? (
+  const dbWarn = !liveSnapshot.dbOk ? (
     <div
       className={cn(
         "rounded-lg border border-amber-300/50 bg-amber-50 px-4 py-2 text-amber-900",
@@ -207,16 +218,17 @@ export function HealthSystemShell({ snapshot }: Props) {
               overallStatus={overallStatus}
               compact
               barOnly={mobileQuiet}
-              liveUsed={snapshot.liveRowCount}
-              liveTotal={snapshot.liveRowLimit}
+              liveUsed={liveSnapshot.liveRowCount}
+              liveTotal={liveSnapshot.liveRowLimit}
               liveWarn={capWarn}
             />
           </div>
           <HealthRefreshBar
-            key={snapshot.fetchedAt}
-            fetchedAt={snapshot.fetchedAt}
+            key={liveSnapshot.fetchedAt}
+            fetchedAt={liveSnapshot.fetchedAt}
             compact
             className="shrink-0"
+            onRefresh={patchSnapshot}
           />
           <button
             type="button"
@@ -229,7 +241,7 @@ export function HealthSystemShell({ snapshot }: Props) {
         {!showAlert && !detailOpen ? null : (
           <div className="px-3 pb-2">
             <HealthDataPathStrip
-              snapshot={snapshot}
+              snapshot={liveSnapshot}
               onNodeSelect={handleNodeSelect}
               activeDrillId={activeDrillId}
               compactCollectors={!detailOpen}
@@ -254,7 +266,7 @@ export function HealthSystemShell({ snapshot }: Props) {
         <HealthNodePeekPopover
           nodeId={peek.nodeId}
           anchor={peek.anchor}
-          snapshot={snapshot}
+          snapshot={liveSnapshot}
           onOpenDetail={openDialogFromPeek}
           onClose={closePeek}
         />
@@ -262,7 +274,7 @@ export function HealthSystemShell({ snapshot }: Props) {
 
       <HealthNodeDetailDialog
         nodeId={dialogNodeId}
-        snapshot={snapshot}
+        snapshot={liveSnapshot}
         onClose={closeDialog}
       />
     </div>

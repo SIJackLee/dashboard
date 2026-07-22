@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, LayoutList } from "lucide-react";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
@@ -11,7 +12,18 @@ import { PageActionButton } from "@/components/common/page-action-button";
 import { BarnListSummary } from "@/components/farm/barn-list-summary";
 import { BarnListModeToolbar } from "@/components/farm/barn-list-mode-toolbar";
 import { BarnListTrendRefreshBar } from "@/components/farm/barn-list-trend-refresh-bar";
-import { FarmMapBulkApply, type ApplyResult, type BulkApplyFeedback } from "@/components/farm/farm-map-bulk-apply";
+import type {
+  ApplyResult,
+  BulkApplyFeedback,
+} from "@/components/farm/farm-map-bulk-apply";
+
+const FarmMapBulkApply = dynamic(
+  () =>
+    import("@/components/farm/farm-map-bulk-apply").then((m) => ({
+      default: m.FarmMapBulkApply,
+    })),
+  { ssr: false },
+);
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";

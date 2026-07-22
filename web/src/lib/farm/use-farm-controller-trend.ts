@@ -3,8 +3,50 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchFarmControllerTrendAllPeriodsAction } from "@/app/(dashboard)/farm/actions";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
-import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import type {
+  TrendControllerPeriodData,
+  TrendPeriodId,
+} from "@/lib/data/farm-trend-types";
 import { useDeferredLoading } from "@/lib/ui/use-deferred-loading";
+
+type TrendBundle = Record<TrendPeriodId, TrendControllerPeriodData>;
+
+/** map/list 훅 인스턴스 간 공유 — 탭 전환 시 이중 fetch 방지 */
+const trendCache = new Map<string, TrendBundle>();
+const trendInflight = new Map<string, Promise<TrendBundle>>();
+
+function readTrendCache(scopeId: string): TrendBundle | null {
+  return trendCache.get(scopeId) ?? null;
+}
+
+function fetchTrendShared(
+  farmKey: FarmKey,
+  scopeId: string,
+  refresh: boolean,
+): Promise<TrendBundle> {
+  if (!refresh) {
+    const cached = trendCache.get(scopeId);
+    if (cached) return Promise.resolve(cached);
+    const pending = trendInflight.get(scopeId);
+    if (pending) return pending;
+  }
+
+  const req = fetchFarmControllerTrendAllPeriodsAction(farmKey, {
+    refresh: refresh || undefined,
+  }).then((result) => {
+    trendCache.set(scopeId, result);
+    return result;
+  });
+
+  if (!refresh) {
+    trendInflight.set(scopeId, req);
+    void req.finally(() => {
+      if (trendInflight.get(scopeId) === req) trendInflight.delete(scopeId);
+    });
+  }
+
+  return req;
+}
 
 export function useFarmControllerTrend(params: {
   farmKey: FarmKey | null;
@@ -14,15 +56,25 @@ export function useFarmControllerTrend(params: {
   const active = params.enabled && Boolean(params.farmKey);
   const [bundle, setBundle] = useState<{
     scopeId: string;
-    data: Record<TrendPeriodId, TrendControllerPeriodData>;
-  } | null>(null);
+    data: TrendBundle;
+  } | null>(() => {
+    if (!scopeId) return null;
+    const cached = readTrendCache(scopeId);
+    return cached ? { scopeId, data: cached } : null;
+  });
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!active || !params.farmKey) return;
+    const cached = readTrendCache(scopeId);
+    if (cached) {
+      setBundle({ scopeId, data: cached });
+      setError(false);
+      return;
+    }
     let cancelled = false;
-    void fetchFarmControllerTrendAllPeriodsAction(params.farmKey)
+    void fetchTrendShared(params.farmKey, scopeId, false)
       .then((result) => {
         if (!cancelled) {
           setBundle({ scopeId, data: result });
@@ -40,9 +92,7 @@ export function useFarmControllerTrend(params: {
   const refresh = useCallback(() => {
     if (!params.farmKey) return Promise.resolve();
     setRefreshing(true);
-    return fetchFarmControllerTrendAllPeriodsAction(params.farmKey, {
-      refresh: true,
-    })
+    return fetchTrendShared(params.farmKey, scopeId, true)
       .then((result) => {
         setBundle({ scopeId, data: result });
         setError(false);

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { SectionCard } from "@/components/common/section-card";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import {
@@ -13,9 +14,31 @@ import type {
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { FarmMapCanvas } from "./farm-map-canvas";
-import { FarmMapMobileStage } from "./farm-map-mobile-stage";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
+
+const FarmMapCanvas = dynamic(
+  () =>
+    import("./farm-map-canvas").then((m) => ({ default: m.FarmMapCanvas })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[24rem] animate-pulse rounded-md bg-muted/30" />
+    ),
+  },
+);
+
+const FarmMapMobileStage = dynamic(
+  () =>
+    import("./farm-map-mobile-stage").then((m) => ({
+      default: m.FarmMapMobileStage,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[24rem] animate-pulse rounded-md bg-muted/30" />
+    ),
+  },
+);
 
 type Props = {
   barns: BarnMapSnapshot[];
@@ -23,7 +46,10 @@ type Props = {
   gridCols?: number;
   gridRows?: number;
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
-  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
+  controllerTrendByPeriod?: Record<
+    TrendPeriodId,
+    TrendControllerPeriodData
+  > | null;
   hubMode?: boolean;
   compactShell?: boolean;
   controller?: ControllerGridData | null;
