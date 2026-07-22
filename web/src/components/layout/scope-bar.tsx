@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState, useTransition } from "react";
+import { Loader2 } from "lucide-react";
 import { RefreshActionButton } from "@/components/common/refresh-action-button";
 import { FarmSwitcher } from "@/components/layout/farm-switcher";
 import type { FarmKey } from "@/lib/data/farm-key";
@@ -35,28 +37,43 @@ export type ScopeBarProps = {
   };
 };
 
+type PendingChip =
+  | { kind: "farm"; value: string }
+  | { kind: "sp"; value: string }
+  | { kind: "stall"; value: string };
+
 function ScopeChip({
   label,
   active,
+  busy,
+  disabled,
   onClick,
 }: {
   label: string;
   active: boolean;
+  busy?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      aria-current={active ? "true" : undefined}
       className={cn(
         dashboardUi.scopeChip,
-        "transition-colors",
+        "inline-flex items-center gap-1.5 transition-colors disabled:cursor-wait disabled:opacity-80",
         active
           ? "border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
-          : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+          : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      {label}
+      {busy ? (
+        <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+      ) : null}
+      {busy ? `${label}…` : label}
     </button>
   );
 }
@@ -99,6 +116,38 @@ export function ScopeBar({
   refreshShowSpinner = false,
   adminFarmSwitcher,
 }: ScopeBarProps) {
+  const [pendingChip, setPendingChip] = useState<PendingChip | null>(null);
+  const [chipPending, startChipTransition] = useTransition();
+
+  useEffect(() => {
+    if (!pendingChip) return;
+    if (pendingChip.kind === "farm" && activeFarm === pendingChip.value) {
+      setPendingChip(null);
+    } else if (pendingChip.kind === "sp" && activeSp === pendingChip.value) {
+      setPendingChip(null);
+    } else if (
+      pendingChip.kind === "stall" &&
+      activeStall === pendingChip.value
+    ) {
+      setPendingChip(null);
+    }
+  }, [activeFarm, activeSp, activeStall, pendingChip]);
+
+  // active prop이 안 바뀌는 경우(동일 값·외부 동기화 지연) busy 고착 방지
+  useEffect(() => {
+    if (!pendingChip) return;
+    const t = window.setTimeout(() => setPendingChip(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [pendingChip]);
+
+  const selectChip = (chip: PendingChip, run: () => void) => {
+    if (chipPending || pendingChip) return;
+    setPendingChip(chip);
+    startChipTransition(() => {
+      run();
+    });
+  };
+
   const multiFarm = farmOptions.length > 1;
   const showSpChips = Boolean(activeFarm) && spOptions.length > 1 && onSpChange;
   const showStallRow =
@@ -132,7 +181,16 @@ export function ScopeBar({
             key={f.value}
             label={f.label}
             active={activeFarm === f.value}
-            onClick={() => onFarmChange(f.value)}
+            busy={
+              pendingChip?.kind === "farm" && pendingChip.value === f.value
+            }
+            disabled={Boolean(pendingChip) && pendingChip?.value !== f.value}
+            onClick={() => {
+              if (activeFarm === f.value) return;
+              selectChip({ kind: "farm", value: f.value }, () =>
+                onFarmChange(f.value),
+              );
+            }}
           />
         ))}
       </div>
@@ -160,7 +218,7 @@ export function ScopeBar({
     <div
       className={cn(
         dashboardUi.scopeBar,
-        sticky && dashboardUi.scopeBarSticky
+        sticky && dashboardUi.scopeBarSticky,
       )}
     >
       <div className={cn("min-w-0 space-y-3", dashboardUi.body)}>
@@ -176,28 +234,55 @@ export function ScopeBar({
         ) : null}
 
         {showSpChips ? (
-          <div className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}>
-            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>축사유형</span>
+          <div
+            className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}
+          >
+            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>
+              축사유형
+            </span>
             {spOptions.map((sp) => (
               <ScopeChip
                 key={sp.value}
                 label={sp.label}
                 active={activeSp === sp.value}
-                onClick={() => onSpChange(sp.value)}
+                busy={pendingChip?.kind === "sp" && pendingChip.value === sp.value}
+                disabled={Boolean(pendingChip) && pendingChip?.value !== sp.value}
+                onClick={() => {
+                  if (activeSp === sp.value) return;
+                  selectChip({ kind: "sp", value: sp.value }, () =>
+                    onSpChange!(sp.value),
+                  );
+                }}
               />
             ))}
           </div>
         ) : null}
 
         {showStallRow ? (
-          <div className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}>
-            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>축사번호</span>
+          <div
+            className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}
+          >
+            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>
+              축사번호
+            </span>
             {stallOptions.map((stall) => (
               <ScopeChip
                 key={stall.value}
                 label={stall.label}
                 active={activeStall === stall.value}
-                onClick={() => onStallChange(stall.value)}
+                busy={
+                  pendingChip?.kind === "stall" &&
+                  pendingChip.value === stall.value
+                }
+                disabled={
+                  Boolean(pendingChip) && pendingChip?.value !== stall.value
+                }
+                onClick={() => {
+                  if (activeStall === stall.value) return;
+                  selectChip({ kind: "stall", value: stall.value }, () =>
+                    onStallChange!(stall.value),
+                  );
+                }}
               />
             ))}
           </div>

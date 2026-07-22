@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, LayoutList } from "lucide-react";
+import { LayoutGrid, LayoutList, Loader2 } from "lucide-react";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
 import { InlineStatusToast, type InlineStatusTone } from "@/components/common/inline-status-toast";
 import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
@@ -177,6 +177,7 @@ export function BarnTable({
   const [listLayout, setListLayout] = useState<ListLayout>(
     () => initialListLayout ?? "flat",
   );
+  const [layoutPending, startLayoutTransition] = useTransition();
 
   const [listMode, setListMode] = useState<BarnListViewMode>(
     () => initialListMode ?? "controller",
@@ -418,11 +419,13 @@ export function BarnTable({
   );
 
   const toggleListLayout = () => {
-    if (bulkMode) return;
+    if (bulkMode || layoutPending) return;
     const next: ListLayout = listLayout === "group" ? "flat" : "group";
-    setListLayout(next);
-    replaceListParams({
-      listLayout: next === "group" ? "group" : null,
+    startLayoutTransition(() => {
+      setListLayout(next);
+      replaceListParams({
+        listLayout: next === "group" ? "group" : null,
+      });
     });
   };
 
@@ -501,20 +504,26 @@ export function BarnTable({
     [hubMode, liveRefresh, liveRefreshManaged, refreshList],
   );
 
+  const layoutToggleLabel =
+    listLayout === "group" ? "일반 보기" : "그룹별 보기";
+  const layoutToggleIcon = layoutPending ? (
+    <Loader2 className={cn(dashboardUi.iconSm, "animate-spin")} aria-hidden />
+  ) : listLayout === "group" ? (
+    <LayoutGrid className={dashboardUi.iconSm} aria-hidden />
+  ) : (
+    <LayoutList className={dashboardUi.iconSm} aria-hidden />
+  );
+
   const listToolbarDesktop = (
     <div className="flex flex-wrap items-center gap-2">
       <PageActionButton
-        icon={
-          listLayout === "group" ? (
-            <LayoutGrid className={dashboardUi.iconSm} aria-hidden />
-          ) : (
-            <LayoutList className={dashboardUi.iconSm} aria-hidden />
-          )
-        }
+        icon={layoutToggleIcon}
         onClick={toggleListLayout}
-        aria-label={listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+        disabled={layoutPending}
+        aria-busy={layoutPending || undefined}
+        aria-label={layoutPending ? "보기 전환 중" : layoutToggleLabel}
       >
-        {listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+        {layoutPending ? `${layoutToggleLabel}…` : layoutToggleLabel}
       </PageActionButton>
       <BarnListModeToolbar
         value={effectiveListMode}
@@ -526,17 +535,13 @@ export function BarnTable({
   /** 모바일 — bottom sheet로 Graph/Set 전환, 모드 탭·SP 필터 생략 */
   const listToolbarMobile = (
     <PageActionButton
-      icon={
-        listLayout === "group" ? (
-          <LayoutGrid className={dashboardUi.iconSm} aria-hidden />
-        ) : (
-          <LayoutList className={dashboardUi.iconSm} aria-hidden />
-        )
-      }
+      icon={layoutToggleIcon}
       onClick={toggleListLayout}
-      aria-label={listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+      disabled={layoutPending}
+      aria-busy={layoutPending || undefined}
+      aria-label={layoutPending ? "보기 전환 중" : layoutToggleLabel}
     >
-      {listLayout === "group" ? "일반 보기" : "그룹별 보기"}
+      {layoutPending ? `${layoutToggleLabel}…` : layoutToggleLabel}
     </PageActionButton>
   );
 

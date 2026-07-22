@@ -89,39 +89,65 @@ export async function applyFromSettingsPanel(page, scope = page) {
   const setpointInput = scope.getByLabel("설정온도", { exact: true }).first();
   await setpointInput.waitFor({ state: "visible", timeout: 15000 });
 
-  const raw = await setpointInput.inputValue();
-  const current = parseFloat(raw.replace(/[^\d.-]/g, ""));
-  // 상한(35) 근처면 -1, 아니면 +1 — dirty 미발생으로 Apply 비활성 고착 방지
-  let next = 25;
-  if (Number.isFinite(current)) {
-    const step = current >= 34.5 ? -1 : 1;
-    next = Math.min(35, Math.max(15, Math.round((current + step) * 2) / 2));
-    if (next === current) {
-      next = Math.min(35, Math.max(15, current + (step > 0 ? -0.5 : 0.5)));
-    }
-  }
-  await setpointInput.click({ force: true });
-  await setpointInput.fill(String(next));
-  await setpointInput.press("Tab");
-  // React commit + hasChanges 반영 대기
-  await page.waitForTimeout(300);
+  const readLiveSetpoint = async () => {
+    const text = await scope.innerText();
+    const m = text.match(/현재\s*([\d.]+)\s*℃/);
+    return m ? parseFloat(m[1]) : null;
+  };
+
+  const pickNext = (draft, live, attempt) => {
+    const base = Number.isFinite(live)
+      ? live
+      : Number.isFinite(draft)
+        ? draft
+        : 25;
+    // 편차가 있으면 설정온도 상한 < 40 — 높은 값부터 고르면 clamp되어 dirty 미발생
+    const deltas =
+      base >= 30
+        ? [-1, -0.5, -2, -3, 1, 0.5, 2]
+        : [1, -1, 0.5, -0.5, 2, -2];
+    const rotated = [
+      ...deltas.slice(attempt - 1),
+      ...deltas.slice(0, attempt - 1),
+    ];
+    const candidates = rotated
+      .map((d) => Math.min(35, Math.max(15, Math.round((base + d) * 2) / 2)))
+      .filter((v) => v !== base);
+    return candidates[0] ?? (base >= 25 ? Math.max(15, base - 1) : Math.min(35, base + 1));
+  };
 
   const applyBtn = scope.getByRole("button", { name: "적용", exact: true }).first();
   await applyBtn.waitFor({ state: "visible", timeout: 15000 });
-  await page.waitForFunction(
-    (panelSel) => {
-      const root = panelSel
-        ? document.querySelector(panelSel)
-        : document;
-      if (!root) return false;
-      const el = [...root.querySelectorAll("button")].find(
-        (b) => b.textContent?.trim() === "적용"
+
+  let next = 25;
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const raw = await setpointInput.inputValue();
+    const draft = parseFloat(raw.replace(/[^\d.-]/g, ""));
+    const live = await readLiveSetpoint();
+    next = pickNext(draft, live, attempt);
+    await setpointInput.click({ force: true });
+    await setpointInput.fill("");
+    await setpointInput.pressSequentially(String(next), { delay: 20 });
+    await setpointInput.press("Tab");
+    await page.waitForTimeout(500);
+
+    const afterRaw = await setpointInput.inputValue();
+    const after = parseFloat(afterRaw.replace(/[^\d.-]/g, ""));
+    const liveAfter = await readLiveSetpoint();
+    const enabled = await applyBtn.isEnabled().catch(() => false);
+    if (
+      enabled &&
+      Number.isFinite(after) &&
+      (liveAfter == null || after !== liveAfter)
+    ) {
+      break;
+    }
+    if (attempt === 5) {
+      throw new Error(
+        `Apply 버튼이 활성화되지 않음 (tried→${next}, after=${after}, live=${liveAfter})`,
       );
-      return Boolean(el && !el.disabled);
-    },
-    '[data-audit-region="barn-list-accordion-panel"]',
-    { timeout: 35000 }
-  );
+    }
+  }
 
   await applyBtn.click({ timeout: 15000 });
   const ack = await waitAck(page);

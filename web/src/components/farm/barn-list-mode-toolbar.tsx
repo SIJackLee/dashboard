@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState, useTransition } from "react";
+import { Loader2 } from "lucide-react";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -24,37 +26,67 @@ export function BarnListModeToolbar({
   disabled = false,
   className,
 }: Props) {
+  const [pendingMode, setPendingMode] = useState<BarnListViewMode | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (pendingMode != null && value === pendingMode) {
+      setPendingMode(null);
+    }
+  }, [value, pendingMode]);
+
+  useEffect(() => {
+    if (!pendingMode) return;
+    const t = window.setTimeout(() => setPendingMode(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [pendingMode]);
+
+  const busy = isPending || pendingMode != null;
+
   return (
     <div
       role="tablist"
       aria-label="목록 보기 모드"
-      aria-disabled={disabled}
+      aria-disabled={disabled || busy}
+      aria-busy={busy || undefined}
       className={cn(
         "inline-flex overflow-hidden rounded-lg border bg-muted/30",
         dashboardUi.body,
-        disabled && "pointer-events-none opacity-50",
-        className
+        (disabled || busy) && "pointer-events-none opacity-50",
+        className,
       )}
     >
       {MODES.map((mode, index) => {
         const selected = value === mode.id;
+        const modeBusy = pendingMode === mode.id;
         return (
           <button
             key={mode.id}
             type="button"
             role="tab"
             aria-selected={selected}
+            aria-busy={modeBusy || undefined}
+            disabled={disabled || busy}
             className={cn(
-              "inline-flex min-h-8 items-center justify-center border-border px-2.5 py-1.5 text-xs font-medium transition-colors sm:min-h-11 sm:px-3 sm:text-sm md:px-4 md:text-[1.75rem]",
+              "inline-flex min-h-8 items-center justify-center gap-1 border-border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-wait sm:min-h-11 sm:px-3 sm:text-sm md:px-4 md:text-[1.75rem]",
               index > 0 && "border-l",
               selected
                 ? "bg-background text-foreground dark:border-primary/40 dark:bg-primary/10 dark:text-primary"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
-            onClick={() => onChange(mode.id)}
+            onClick={() => {
+              if (mode.id === value || busy) return;
+              setPendingMode(mode.id);
+              startTransition(() => onChange(mode.id));
+            }}
           >
-            <span className="sm:hidden">{mode.short}</span>
-            <span className="hidden sm:inline">{mode.label}</span>
+            {modeBusy ? (
+              <Loader2 className="size-3.5 shrink-0 animate-spin sm:size-4" aria-hidden />
+            ) : null}
+            <span className="sm:hidden">{modeBusy ? "…" : mode.short}</span>
+            <span className="hidden sm:inline">
+              {modeBusy ? `${mode.label}…` : mode.label}
+            </span>
           </button>
         );
       })}

@@ -35,7 +35,7 @@ export function PageActionButton({
       aria-label={ariaLabel}
       aria-busy={ariaBusy}
       className={cn(
-        "inline-flex items-center justify-center rounded-lg border font-medium transition-colors disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-lg border font-medium transition-colors disabled:cursor-wait disabled:opacity-50",
         iconOnly ? "size-8 min-w-8 shrink-0 p-0 md:size-11 md:min-w-11" : "gap-2",
         !iconOnly && dashboardControl.buttonOutline,
         iconOnly && "border",
