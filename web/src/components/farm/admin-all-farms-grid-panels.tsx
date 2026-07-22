@@ -8,10 +8,17 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   panels: AdminFarmGridPanel[];
+  /** farmOptions 중 LIVE 축사 없어 숨긴 수 (위치만 등록) */
+  locationOnlyHidden?: number;
 };
 
-export function AdminAllFarmsGridPanels({ panels }: Props) {
-  if (panels.length === 0) {
+export function AdminAllFarmsGridPanels({
+  panels,
+  locationOnlyHidden = 0,
+}: Props) {
+  const livePanels = panels.filter((p) => p.barnSnapshots.length > 0);
+
+  if (livePanels.length === 0) {
     return (
       <div
         className={cn(
@@ -22,6 +29,9 @@ export function AdminAllFarmsGridPanels({ panels }: Props) {
         <p className="font-medium text-foreground">표시할 농장 그리드가 없습니다.</p>
         <p className="text-sm text-muted-foreground md:text-base">
           LIVE 데이터·축사유형이 수신되면 farm별 그리드가 여기에 표시됩니다.
+          {locationOnlyHidden > 0
+            ? ` (위치만 등록된 농장 ${locationOnlyHidden}곳은 숨김)`
+            : ""}
         </p>
       </div>
     );
@@ -29,7 +39,13 @@ export function AdminAllFarmsGridPanels({ panels }: Props) {
 
   return (
     <div className="space-y-6">
-      {panels.map((panel) => (
+      {locationOnlyHidden > 0 ? (
+        <p className={cn("text-sm text-muted-foreground", dashboardUi.body)}>
+          LIVE 축사가 있는 농장 {livePanels.length}곳만 표시 · 위치만{" "}
+          {locationOnlyHidden}곳 숨김
+        </p>
+      ) : null}
+      {livePanels.map((panel) => (
         <section key={panel.farmKey.lsindRegistNo + panel.farmKey.itemCode}>
           <FarmMapView
             barns={panel.barnSnapshots}

@@ -41,7 +41,9 @@ async function loadFarmGridPanel(
   };
 }
 
-/** Admin 전체 농장 — farm별 축사유형 그리드 (trend·명령 제외, overview용) */
+/** Admin 전체 농장 — farm별 축사유형 그리드 (trend·명령 제외, overview용).
+ * LIVE 축사 카드가 없는(위치만) 농장은 제외한다.
+ */
 export async function loadAdminAllFarmsGridPanels(
   farmKeys: FarmKey[],
   layoutPrefs?: BarnLayoutPrefs,
@@ -57,7 +59,9 @@ export async function loadAdminAllFarmsGridPanels(
     const batchPanels = await Promise.all(
       batch.map((farmKey) => loadFarmGridPanel(farmKey, prefs)),
     );
-    panels.push(...batchPanels);
+    for (const panel of batchPanels) {
+      if (panel.barnSnapshots.length > 0) panels.push(panel);
+    }
   }
 
   return panels;

@@ -71,6 +71,24 @@ function FarmSwitcherBody({
     return map;
   }, [farmSummaries]);
 
+  const liveByFarmId = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const row of farmSummaries) {
+      map.set(farmKeyId(row.farmKey), row.controllerCount > 0);
+    }
+    return map;
+  }, [farmSummaries]);
+
+  const orderedFarmOptions = useMemo(() => {
+    if (liveByFarmId.size === 0) return farmOptions;
+    return [...farmOptions].sort((a, b) => {
+      const aLive = liveByFarmId.get(farmKeyId(a)) === true ? 0 : 1;
+      const bLive = liveByFarmId.get(farmKeyId(b)) === true ? 0 : 1;
+      if (aLive !== bLive) return aLive - bLive;
+      return farmKeyId(a).localeCompare(farmKeyId(b));
+    });
+  }, [farmOptions, liveByFarmId]);
+
   const navigate = (farmKey: FarmKey | null) => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("lsind");
@@ -163,9 +181,11 @@ function FarmSwitcherBody({
             전체 {farmOptions.length}개 농장
           </span>
         </DropdownMenuItem>
-        {farmOptions.map((farmKey) => {
+        {orderedFarmOptions.map((farmKey) => {
           const id = farmKeyId(farmKey);
           const alarms = alarmByFarmId.get(id);
+          const hasLiveSummary = liveByFarmId.has(id);
+          const isLive = liveByFarmId.get(id) === true;
           return (
             <DropdownMenuItem
               key={id}
@@ -177,7 +197,20 @@ function FarmSwitcherBody({
                 activeId === id && "bg-emerald-50 dark:bg-emerald-950/30"
               )}
             >
-              <span className="flex-1">{farmShortLabel(farmKey)}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="truncate">{farmShortLabel(farmKey)}</span>
+                {hasLiveSummary ? (
+                  isLive ? (
+                    <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                      LIVE
+                    </span>
+                  ) : (
+                    <span className="shrink-0 rounded border border-amber-500/40 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                      위치만
+                    </span>
+                  )
+                ) : null}
+              </span>
               {alarms !== undefined ? (
                 <span
                   className={cn(

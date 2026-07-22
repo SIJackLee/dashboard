@@ -1,5 +1,6 @@
 import { AdminAllFarmsGridPanels } from "@/components/farm/admin-all-farms-grid-panels";
 import { AdminHubPanelsHydrator } from "@/components/farm/admin-hub-panels-hydrator";
+import { ADMIN_HUB_MAX_FARMS } from "@/lib/data/admin-hub-live";
 import { loadAdminAllFarmsGridPanels } from "@/lib/farm/load-admin-all-farms-grid";
 import type { FarmKey } from "@/lib/data/farm-key";
 
@@ -9,9 +10,14 @@ type Props = {
 
 export async function AdminAllFarmsGridLoader({ farmOptions }: Props) {
   const panels = await loadAdminAllFarmsGridPanels(farmOptions);
+  const considered = Math.min(farmOptions.length, ADMIN_HUB_MAX_FARMS);
+  const locationOnlyHidden = Math.max(0, considered - panels.length);
   return (
     <AdminHubPanelsHydrator panels={panels}>
-      <AdminAllFarmsGridPanels panels={panels} />
+      <AdminAllFarmsGridPanels
+        panels={panels}
+        locationOnlyHidden={locationOnlyHidden}
+      />
     </AdminHubPanelsHydrator>
   );
 }
