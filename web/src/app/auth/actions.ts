@@ -66,7 +66,11 @@ export async function signInWithEmail(formData: FormData): Promise<SignInResult>
   }
 
   const { nextPath, isAdmin } = await resolveNextPathAfterSignIn(supabase);
-  if (nextPath === "/farm" && isAdmin) {
+  if (
+    nextPath === "/farm" &&
+    isAdmin &&
+    process.env.SKIP_ADMIN_HUB_WARM !== "1"
+  ) {
     await warmAdminHubOverviewCache();
   }
   return { ok: true, nextPath };

@@ -11,6 +11,7 @@
     "knip": "knip --include files,dependencies,unlisted,duplicates,unresolved",
     "knip:exports": "knip --exports",
     "measure:live": "tsx scripts/measure-live-read.ts",
+    "measure:hub-ttfb": "node scripts/measure-hub-ttfb.mjs",
     "audit:mobile": "node scripts/mobile-ui-audit.mjs",
     "audit:mobile-tour": "node scripts/mobile-tour-band-audit.mjs",
     "audit:mobile-tour-timing": "node scripts/mobile-tour-timing-audit.mjs",

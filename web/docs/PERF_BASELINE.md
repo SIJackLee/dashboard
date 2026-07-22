@@ -81,3 +81,25 @@ Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
 | `cachedLiveQuery` | broken `shouldCache`(always DB) → real `unstable_cache` hit |
 | Admin login warm | `signInWithEmail`이 overview 캐시를 미리 채움 → 직후 `/farm` cold≈warm |
 | Hub grid SSR | 첫 배치 LIVE SSR 제거 → `TailLoader`가 전부 client hydrate |
+
+### Measured (dev, 2026-07-22)
+
+Playwright `node scripts/measure-hub-ttfb.mjs` — `/farm` navigation, `responseStart` ≈ TTFB. n=3.
+
+| Scenario | wall median | TTFB (`responseStart`) median | Notes |
+| --- | --- | --- | --- |
+| **warm** (login overview warm) | **287 ms** | **106 ms** | Steady after login |
+| **cache-cleared** (`.next/dev/cache` 삭제, 동일 프로세스) | **260 ms** | **98 ms** | Disk만 비움 — in-memory `unstable_cache`는 유지될 수 있음 |
+| **strict-cold** (`SKIP_ADMIN_HUB_WARM=1` + restart 후 login) | **276 ms** (first **1920 ms**) | **107 ms** (first **170 ms**) | Warm 없이 overview를 `/farm`에서 조회. 첫 히트에 compile 포함 |
+| Prior (LIVE SSR hub batch) | ~2.4 s | — | 개선 전 cold 체감 |
+
+재측정:
+
+```bash
+# warm + disk cache clear
+npm run measure:hub-ttfb
+
+# true cold (warm skip): restart with env, then
+# SKIP_ADMIN_HUB_WARM=1 npm run dev
+# TTFB_PHASE=strict-only npm run measure:hub-ttfb
+```
