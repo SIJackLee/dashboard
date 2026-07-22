@@ -34,7 +34,6 @@ import {
   readFarmPanelCache,
   useFarmLiveRefreshOptional,
 } from "@/lib/navigation/farm-live-refresh";
-import { FarmListSkeleton } from "@/components/common/loading-skeletons";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -85,7 +84,6 @@ export function FarmPageContent({
   const liveRefreshRef = useRef(liveRefresh);
   liveRefreshRef.current = liveRefresh;
   const enrichFarmRef = useRef<string | null>(null);
-  const [listEnriching, setListEnriching] = useState(false);
   /** shallow URL(window)은 mount 후에만 — hydration 시 searchParams와 불일치 방지 */
   const [urlHydrated, setUrlHydrated] = useState(false);
   /** SSR·첫 페인트와 동일한 URL 기준 초기 탭 (window 읽지 않음) */
@@ -197,14 +195,11 @@ export function FarmPageContent({
       return;
     }
 
-    setListEnriching(true);
     try {
       const data = await fetchFarmScopedPanelDataAction(lazyListFarmKey);
       liveRefreshRef.current?.hydrateScopedPanel(data);
     } catch {
-      // 목록은 grid readings로 제한 표시
-    } finally {
-      setListEnriching(false);
+      // 목록은 grid readings로 제한 표시 — enrich 실패해도 기존 카드 유지
     }
   }, [lazyListEnrichment, lazyListFarmKey]);
 
@@ -392,28 +387,25 @@ export function FarmPageContent({
             data-farm-view-panel="list"
             data-farm-view-active={!listHidden}
           >
-            {listEnriching ? (
-              <FarmListSkeleton />
-            ) : (
-              <BarnTable
-                rows={readings}
-                controller={controller ?? null}
-                thermoSettings={thermoSettings}
-                alarmSettings={alarmSettings}
-                canCommand={controller?.canCommand ?? false}
-                initialSp={listSp}
-                initialListMode={listMode}
-                initialListLayout={listLayout}
-                focusControllerKey={view === "list" ? urlCtrl : null}
-                hubMode={hubMode}
-                onHubUrlChange={onHubUrlChange}
-                liveRefreshManaged={liveRefreshManaged}
-                staggerMount
-                onRequestPanelEnrichment={enrichListIfNeeded}
-                trendPeriod={trendPeriod}
-                onTrendPeriodChange={onTrendPeriodChange}
-              />
-            )}
+            {/* enrich 중에도 grid readings로 BarnTable 유지 — 전체 skeleton 교체 금지 */}
+            <BarnTable
+              rows={readings}
+              controller={controller ?? null}
+              thermoSettings={thermoSettings}
+              alarmSettings={alarmSettings}
+              canCommand={controller?.canCommand ?? false}
+              initialSp={listSp}
+              initialListMode={listMode}
+              initialListLayout={listLayout}
+              focusControllerKey={view === "list" ? urlCtrl : null}
+              hubMode={hubMode}
+              onHubUrlChange={onHubUrlChange}
+              liveRefreshManaged={liveRefreshManaged}
+              staggerMount
+              onRequestPanelEnrichment={enrichListIfNeeded}
+              trendPeriod={trendPeriod}
+              onTrendPeriodChange={onTrendPeriodChange}
+            />
           </div>
         ) : null}
       </div>

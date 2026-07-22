@@ -122,9 +122,9 @@ export async function sendThermoCommandAction(
 
   const command = mapThermoCommandRow(data as ThermoCommandRow);
 
+  // LIVE/tag 캐시만 무효화. /farm RSC revalidatePath는 클라이언트
+  // patchThermoFromCommand + pipeline 폴링과 겹쳐 패널이 흔들려 생략.
   revalidateLiveCache(farmScopeCacheKey(lsindRegistNo, itemCode));
-  revalidatePath("/farm");
-  revalidatePath("/controllers");
   return { ok: true, id: command.id, command };
 }
 
