@@ -92,6 +92,22 @@ export function AccountMenu({
   const triggerClassName =
     "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60";
 
+  const triggerInner = (
+    <>
+      <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
+      <div className="hidden min-w-0 leading-tight sm:block">
+        <p className={dashboardUi.headerAccountName}>{name}</p>
+        <p className={dashboardUi.headerAccountRole}>
+          {user.role ? roleLabel[user.role] : "권한 없음"}
+        </p>
+      </div>
+      <ChevronDown
+        className="hidden size-4 shrink-0 text-muted-foreground sm:block"
+        aria-hidden
+      />
+    </>
+  );
+
   if (!mounted) {
     return (
       <button
@@ -100,14 +116,7 @@ export function AccountMenu({
         data-tour-id="header-account"
         aria-label="계정 메뉴"
       >
-        <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
-        <div className="hidden min-w-0 leading-tight sm:block">
-          <p className={dashboardUi.headerAccountName}>{name}</p>
-          <p className={dashboardUi.headerAccountRole}>
-            {user.role ? roleLabel[user.role] : "권한 없음"}
-          </p>
-        </div>
-        <ChevronDown className="hidden size-4 shrink-0 text-muted-foreground sm:block" aria-hidden />
+        {triggerInner}
       </button>
     );
   }
@@ -119,14 +128,7 @@ export function AccountMenu({
         data-tour-id="header-account"
         aria-label="계정 메뉴"
       >
-        <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
-        <div className="hidden min-w-0 leading-tight sm:block">
-          <p className={dashboardUi.headerAccountName}>{name}</p>
-          <p className={dashboardUi.headerAccountRole}>
-            {user.role ? roleLabel[user.role] : "권한 없음"}
-          </p>
-        </div>
-        <ChevronDown className="hidden size-4 shrink-0 text-muted-foreground sm:block" aria-hidden />
+        {triggerInner}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"

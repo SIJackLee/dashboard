@@ -86,6 +86,8 @@ export function FarmPageContent({
   liveRefreshRef.current = liveRefresh;
   const enrichFarmRef = useRef<string | null>(null);
   const [listEnriching, setListEnriching] = useState(false);
+  /** shallow URL(window)은 mount 후에만 — hydration 시 searchParams와 불일치 방지 */
+  const [urlHydrated, setUrlHydrated] = useState(false);
   /** SSR·첫 페인트와 동일한 URL 기준 초기 탭 (window 읽지 않음) */
   const bootstrapView: "map" | "list" =
     initialHubView ??
@@ -93,6 +95,10 @@ export function FarmPageContent({
   const [view, setViewState] = useState<"map" | "list">(bootstrapView);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [urlTick, setUrlTick] = useState(0);
+
+  useEffect(() => {
+    setUrlHydrated(true);
+  }, []);
   const tourActiveRef = useRef(tourActive);
   tourActiveRef.current = tourActive;
 
@@ -141,14 +147,13 @@ export function FarmPageContent({
   const shallowParams = useMemo(() => {
     void urlTick;
     void hubUrlEpoch;
-    // SSR은 window가 없어 빈 파라미터가 되므로 useSearchParams 기준으로 렌더
-    // (예: ?trendPeriod=7d 새로고침 시 서버 24h vs 클라 7d hydration 불일치 방지).
-    // hydration 이후에는 shallow replaceState 반영을 위해 window.location 기준.
-    if (typeof window === "undefined") {
+    // SSR·hydration: useSearchParams (서버 HTML과 동일).
+    // mount 이후: shallow replaceState 반영을 위해 window.location.
+    if (!urlHydrated) {
       return new URLSearchParams(searchParams.toString());
     }
     return currentFarmSearchParams();
-  }, [hubMode, hubUrlEpoch, urlTick, searchParams]);
+  }, [urlHydrated, hubMode, hubUrlEpoch, urlTick, searchParams]);
 
   const urlCtrl = shallowParams.get("ctrl");
   const listSp = view === "list" ? shallowParams.get("sp") ?? undefined : undefined;

@@ -68,9 +68,12 @@ export function HealthSystemShell({ snapshot }: Props) {
   const [urlDialogDismissed, setUrlDialogDismissed] = useState(false);
   const [seenQueryNode, setSeenQueryNode] = useState(queryNodeId);
   const [userDetailOpen, setUserDetailOpen] = useState(false);
-  const [suppressAutoKey, setSuppressAutoKey] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : readSuppressKey(),
-  );
+  /** SSR·hydration은 null — sessionStorage는 mount 후 동기화 */
+  const [suppressAutoKey, setSuppressAutoKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSuppressAutoKey(readSuppressKey());
+  }, []);
 
   const moduleCounts = useMemo(
     () => countHealthStatuses(snapshot.modules),
