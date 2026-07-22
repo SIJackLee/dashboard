@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
+  fetchFarmScopedLiveDataAction,
   fetchFarmScopedPanelDataAction,
   revalidateFarmLiveAction,
 } from "@/app/(dashboard)/farm/actions";
@@ -20,6 +21,8 @@ import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import {
+  buildThermoSettingsFromReadings,
+  mergeThermoSettingsMaps,
   settingsFromCommand,
   thermoSettingsKey,
   type ControllerThermoSettings,
@@ -33,10 +36,15 @@ import {
   getFarmPanelCache,
   setFarmPanelCache,
 } from "@/lib/farm/farm-panel-cache";
-import type { FarmScopedPanelData } from "@/lib/farm/load-farm-scoped-panel-data";
+import type {
+  FarmScopedLiveData,
+  FarmScopedPanelData,
+} from "@/lib/farm/load-farm-scoped-panel-data";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+
+export type FarmLiveRevalidateMode = "live" | "full";
 
 export type FarmLiveSlice = {
   readings: BarnReading[];
@@ -54,7 +62,10 @@ type FarmLiveRefreshContextValue = {
   isStale: boolean;
   /** admin defer 등 — farmKey는 있으나 readings 로딩 중 (빈 화면 대신 스켈레톤) */
   isBootstrapping: boolean;
-  revalidateFarmLive: () => Promise<void>;
+  /** 기본 `live` — soft refresh/ACK. `full`은 bootstrap·강제 전체 갱신 */
+  revalidateFarmLive: (opts?: {
+    mode?: FarmLiveRevalidateMode;
+  }) => Promise<void>;
   patchAlarmSettings: (settings: AlarmSettings) => void;
   /** 적용 직후 thermoSettings·commands에 명령값 즉시 반영 (낙관적) */
   patchThermoFromCommand: (cmd: ThermoCommand) => void;
@@ -107,6 +118,44 @@ function applyFreshPanel({
   setSlice(sliceFromPanel(data));
   setAlarmPatch(null);
   setThermoPatch({});
+}
+
+type ApplyLiveArgs = {
+  farmKey: FarmKey;
+  data: FarmScopedLiveData;
+  setSlice: React.Dispatch<React.SetStateAction<FarmLiveSlice>>;
+};
+
+/** LIVE만 패치 — trend·alarm·command history·낙관적 patch 유지 */
+function applyLivePatch({ farmKey, data, setSlice }: ApplyLiveArgs): void {
+  setSlice((prev) => {
+    const readingThermo = buildThermoSettingsFromReadings(data.readings);
+    const nextController = prev.controller
+      ? {
+          ...prev.controller,
+          readings: data.readings,
+          thermoSettings: mergeThermoSettingsMaps(
+            prev.controller.thermoSettings,
+            readingThermo,
+          ),
+        }
+      : {
+          readings: data.readings,
+          thermoSettings: readingThermo,
+          commands: [],
+          canCommand: false,
+        };
+    const next: FarmLiveSlice = {
+      ...prev,
+      readings: data.readings,
+      barnSnapshots: data.barnSnapshots,
+      gridCols: data.gridCols,
+      gridRows: data.gridRows,
+      controller: nextController,
+    };
+    setFarmPanelCache(farmKeyId(farmKey), farmPanelCacheFromSlice(farmKey, next));
+    return next;
+  });
 }
 
 type ProviderProps = {
@@ -281,32 +330,42 @@ export function FarmLiveRefreshProvider({
     return fetchAndApplyPanel(farmKey);
   }, [farmKey, fetchAndApplyPanel, initial.readings.length, tourActive]);
 
-  const revalidateFarmLive = useCallback(async () => {
-    if (!farmKey) {
-      startTransition(() => router.refresh());
-      return;
-    }
-    const farmId = farmKeyId(farmKey);
-    const seq = ++revalidateSeq.current;
-    setRevalidating(true);
-    try {
-      await revalidateFarmLiveAction(farmKey);
-      const fresh = await fetchFarmScopedPanelDataAction(farmKey);
-      if (seq !== revalidateSeq.current) return;
-      applyFreshPanel({
-        farmId,
-        data: fresh,
-        setSlice,
-        setAlarmPatch,
-        setThermoPatch,
-      });
-    } catch {
-      if (seq !== revalidateSeq.current) return;
-      startTransition(() => router.refresh());
-    } finally {
-      if (seq === revalidateSeq.current) setRevalidating(false);
-    }
-  }, [farmKey, router]);
+  const revalidateFarmLive = useCallback(
+    async (opts?: { mode?: FarmLiveRevalidateMode }) => {
+      if (!farmKey) {
+        startTransition(() => router.refresh());
+        return;
+      }
+      const mode = opts?.mode ?? "live";
+      const farmId = farmKeyId(farmKey);
+      const seq = ++revalidateSeq.current;
+      setRevalidating(true);
+      try {
+        await revalidateFarmLiveAction(farmKey);
+        if (mode === "full") {
+          const fresh = await fetchFarmScopedPanelDataAction(farmKey);
+          if (seq !== revalidateSeq.current) return;
+          applyFreshPanel({
+            farmId,
+            data: fresh,
+            setSlice,
+            setAlarmPatch,
+            setThermoPatch,
+          });
+          return;
+        }
+        const live = await fetchFarmScopedLiveDataAction(farmKey);
+        if (seq !== revalidateSeq.current) return;
+        applyLivePatch({ farmKey, data: live, setSlice });
+      } catch {
+        if (seq !== revalidateSeq.current) return;
+        startTransition(() => router.refresh());
+      } finally {
+        if (seq === revalidateSeq.current) setRevalidating(false);
+      }
+    },
+    [farmKey, router],
+  );
 
   const mergedSlice = useMemo(() => {
     if (!slice.controller) return slice;

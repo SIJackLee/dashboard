@@ -22,21 +22,13 @@ import {
   saveBarnLayouts,
 } from "@/lib/data/barn-meta";
 import {
+  loadFarmScopedLiveData,
   loadFarmScopedPanelData,
+  type FarmScopedLiveData,
   type FarmScopedPanelData,
 } from "@/lib/farm/load-farm-scoped-panel-data";
 
-/** Admin hub — 선택 농장 추이 그래프 (클라이언트 fetch용). */
-export async function fetchFarmTrendAllPeriodsAction(
-  farmKey: FarmKey
-): Promise<Record<TrendPeriodId, TrendPeriodData>> {
-  return getFarmTrendAllPeriods({ farmKey });
-}
-
-/** Admin hub / farmer — 단일 farm scoped 그리드·목록 패널 데이터. */
-export async function fetchFarmScopedPanelDataAction(
-  farmKey: FarmKey
-): Promise<FarmScopedPanelData> {
+async function assertFarmReadAccess(farmKey: FarmKey) {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error("Unauthorized");
@@ -47,11 +39,34 @@ export async function fetchFarmScopedPanelDataAction(
       (a) =>
         a.can_read &&
         a.lsind_regist_no === farmKey.lsindRegistNo &&
-        a.item_code === farmKey.itemCode
+        a.item_code === farmKey.itemCode,
     );
   if (!allowed) {
     throw new Error("Forbidden");
   }
+  return user;
+}
+
+/** Admin hub — 선택 농장 추이 그래프 (클라이언트 fetch용). */
+export async function fetchFarmTrendAllPeriodsAction(
+  farmKey: FarmKey
+): Promise<Record<TrendPeriodId, TrendPeriodData>> {
+  return getFarmTrendAllPeriods({ farmKey });
+}
+
+/** soft refresh / ACK — LIVE(+layout)만. settings·trend 제외 */
+export async function fetchFarmScopedLiveDataAction(
+  farmKey: FarmKey,
+): Promise<FarmScopedLiveData> {
+  await assertFarmReadAccess(farmKey);
+  return loadFarmScopedLiveData({ farmKey });
+}
+
+/** Admin hub / farmer — 단일 farm scoped 그리드·목록 패널 데이터(full). */
+export async function fetchFarmScopedPanelDataAction(
+  farmKey: FarmKey
+): Promise<FarmScopedPanelData> {
+  const user = await assertFarmReadAccess(farmKey);
   return loadFarmScopedPanelData({
     farmKey,
     canCommand: canCommand(user),

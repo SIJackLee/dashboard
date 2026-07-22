@@ -52,3 +52,13 @@ npx tsx scripts/measure-live-read.ts
 - Bucket policy: 24h = 15 min (96 pts), 7d = 6 h (28), 30d = 1 d (30) — see [`docs/changes/farm-trend-cache-policy.md`](../../docs/changes/farm-trend-cache-policy.md)
 - Map tab SSR skips controller-trend fetch (P4 lazy load)
 - Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch + SSR trend via server action when `tab=ops` and farm selected
+
+## Soft refresh tiers (H2)
+
+| Mode | Action | Loads | Used by |
+| --- | --- | --- | --- |
+| `live` (default) | `fetchFarmScopedLiveDataAction` | LIVE readings + barn layout/map | ScopeBar / list soft refresh, ACK `onRefreshLive` |
+| `full` | `fetchFarmScopedPanelDataAction` | LIVE + alarm + thermo/history + map trend | cold bootstrap / enrich / `revalidateFarmLive({ mode: "full" })` |
+| controller trend | `fetchFarmControllerTrendAllPeriodsAction` | list graph controller trend | list trend refresh bar |
+
+Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
