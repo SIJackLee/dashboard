@@ -558,6 +558,7 @@ export function BarnTable({
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
           onAfterApply={handleAfterBulkApply}
+          onRefreshLive={onListRefresh}
           trailing={toolbarInBulkBar ? listToolbar : undefined}
           trailingCompact={compact && toolbarInBulkBar}
         />

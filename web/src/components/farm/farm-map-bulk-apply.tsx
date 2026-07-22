@@ -33,6 +33,8 @@ import { EDIT_START_DRAFT } from "@/lib/controllers/controller-panel-map";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import type { InlineStatusTone } from "@/components/common/inline-status-toast";
+import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
+import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
   SectionToggle,
@@ -59,6 +61,8 @@ type Props = {
   onExit: () => void;
   /** 적용 완료 후 — toast·soft refresh 등 부모 처리 */
   onAfterApply?: (result: ApplyResult, feedback: BulkApplyFeedback) => void;
+  /** ACK/LIVE 폴링 중 LIVE·commands 갱신 */
+  onRefreshLive?: () => void;
   /** 일괄적용 off — 툴바 우측 (기간 선택 등) */
   trailing?: ReactNode;
   /** 모바일 목록 — bulk bar 한 줄 배치 (일괄적용 ↔ trailing) */
@@ -199,6 +203,7 @@ export function FarmMapBulkApply({
   onClearSelection,
   onExit,
   onAfterApply,
+  onRefreshLive,
   trailing,
   trailingCompact = false,
 }: Props) {
@@ -217,6 +222,12 @@ export function FarmMapBulkApply({
   const [minVent, setMinVent] = useState(EDIT_START_DRAFT.minVentPct);
   const [maxVent, setMaxVent] = useState(EDIT_START_DRAFT.maxVentPct);
   const [alarm, setAlarm] = useState<AlarmThresholds>(DEFAULT_ALARM_THRESHOLDS);
+
+  const liveTracker = useBulkCommandPipelineTracker({
+    thermoSettings: controller.thermoSettings,
+    readings: controller.readings,
+    onRefreshLive,
+  });
 
   const spSet = useMemo(() => new Set(selectedSps), [selectedSps]);
   const targets = useMemo(
@@ -305,6 +316,9 @@ export function FarmMapBulkApply({
       wantedControl,
       offlineSkipped: offlineCount,
     });
+    if (control?.sentItems?.length) {
+      liveTracker.startSession(control.sentItems);
+    }
     setResult(applied);
     setApplyPhase("idle");
     setRunning(false);
@@ -413,6 +427,37 @@ export function FarmMapBulkApply({
                 <p className={cn("mt-2 text-red-600 dark:text-red-400", bulkModalMeta)}>
                   적용에 실패했습니다. 권한·네트워크·대상 상태를 확인한 뒤 다시 시도하세요.
                 </p>
+              ) : null}
+              {liveTracker.progress.total > 0 ? (
+                <div
+                  className={cn(
+                    "mt-4 rounded-lg border px-3 py-2.5",
+                    liveTracker.progress.allLive
+                      ? "border-emerald-200/80 bg-emerald-50/60 dark:bg-emerald-950/30"
+                      : "border-sky-200/70 bg-sky-50/50 dark:bg-sky-950/20",
+                  )}
+                >
+                  <p className={cn("font-semibold leading-snug", bulkModalSectionTitle)}>
+                    {liveTracker.progress.allLive
+                      ? "현장 반영 완료"
+                      : liveTracker.progress.timedOut
+                        ? "현장 반영 일부 미확인"
+                        : "현장 반영 확인 중"}
+                  </p>
+                  <p className={cn("mt-1 leading-snug", bulkModalMeta)}>
+                    LIVE {liveTracker.progress.liveDone}/{liveTracker.progress.total}
+                    {" · "}
+                    ACK {liveTracker.progress.ackDone}/{liveTracker.progress.total}
+                    {liveTracker.progress.failed > 0
+                      ? ` · 실패 ${liveTracker.progress.failed}`
+                      : ""}
+                  </p>
+                  {!liveTracker.progress.complete ? (
+                    <p className={cn("mt-1 text-xs leading-snug", bulkModalMeta)}>
+                      확인을 눌러도 하단 배너에서 진행 상태를 계속 볼 수 있습니다.
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
               <div className="mt-4 flex justify-end">
                 <button
@@ -751,6 +796,13 @@ export function FarmMapBulkApply({
       </div>
 
       {mounted && modalContent ? createPortal(modalContent, document.body) : null}
+      {mounted ? (
+        <BulkLiveProgressBanner
+          progress={liveTracker.progress}
+          visible={liveTracker.bannerVisible && !open}
+          onDismiss={liveTracker.dismissBanner}
+        />
+      ) : null}
     </>
   );
 }

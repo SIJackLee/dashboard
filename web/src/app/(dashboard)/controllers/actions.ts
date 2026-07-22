@@ -152,10 +152,19 @@ export type BulkThermoCommand = {
   tempDeviation: number;
 };
 
+export type BulkSentCommandItem = {
+  /** reading key — LIVE thermo 매칭용 */
+  key: string;
+  id: string;
+  command: ThermoCommand;
+};
+
 export type SendBulkThermoCommandResult = {
   ok: boolean;
   sent: number;
   failed: { key: string; error: string }[];
+  /** insert 성공 건 — ACK/LIVE 추적에 사용 */
+  sentItems: BulkSentCommandItem[];
   error?: string;
 };
 
@@ -164,18 +173,20 @@ export async function sendBulkThermoCommandAction(
   commands: BulkThermoCommand[]
 ): Promise<SendBulkThermoCommandResult> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, sent: 0, failed: [], error: "unauthorized" };
+  if (!user) {
+    return { ok: false, sent: 0, failed: [], sentItems: [], error: "unauthorized" };
+  }
   if (!canCommand(user)) {
-    return { ok: false, sent: 0, failed: [], error: "forbidden" };
+    return { ok: false, sent: 0, failed: [], sentItems: [], error: "forbidden" };
   }
   if (!Array.isArray(commands) || commands.length === 0) {
-    return { ok: false, sent: 0, failed: [], error: "no_targets" };
+    return { ok: false, sent: 0, failed: [], sentItems: [], error: "no_targets" };
   }
 
   const supabase = await createClient();
   const failed: { key: string; error: string }[] = [];
+  const sentItems: BulkSentCommandItem[] = [];
   const farmScopes = new Set<string>();
-  let sent = 0;
 
   for (const c of commands) {
     const lsindRegistNo = String(c.lsindRegistNo ?? "").trim();
@@ -221,37 +232,47 @@ export async function sendBulkThermoCommandAction(
       continue;
     }
 
-    const { error } = await supabase.from("ctrl_thermo_command").insert({
-      created_by: user.id,
-      lsind_regist_no: lsindRegistNo,
-      item_code: itemCode,
-      module_uid: moduleUid,
-      ctrl_idx: Math.max(0, parseInt(eqpmnNo, 10) - 1),
-      stall_ty_code: stallTyCode,
-      stall_no: stallNo,
-      eqpmn_no: eqpmnNo,
-      channel: null,
-      eqpmn_code: null,
-      min_vent_pct: Math.round(minVentPct),
-      max_vent_pct: Math.round(maxVentPct),
-      setpoint_temp: setpointTemp,
-      temp_deviation: tempDeviation,
-      note: null,
-      action: "SET_CTRL_THERMO",
-      status: "pending",
-    });
+    const { data, error } = await supabase
+      .from("ctrl_thermo_command")
+      .insert({
+        created_by: user.id,
+        lsind_regist_no: lsindRegistNo,
+        item_code: itemCode,
+        module_uid: moduleUid,
+        ctrl_idx: Math.max(0, parseInt(eqpmnNo, 10) - 1),
+        stall_ty_code: stallTyCode,
+        stall_no: stallNo,
+        eqpmn_no: eqpmnNo,
+        channel: null,
+        eqpmn_code: null,
+        min_vent_pct: Math.round(minVentPct),
+        max_vent_pct: Math.round(maxVentPct),
+        setpoint_temp: setpointTemp,
+        temp_deviation: tempDeviation,
+        note: null,
+        action: "SET_CTRL_THERMO",
+        status: "pending",
+      })
+      .select(THERMO_COMMAND_SELECT)
+      .single();
 
-    if (error) {
-      failed.push({ key: c.key, error: error.message });
+    if (error || !data) {
+      failed.push({ key: c.key, error: error?.message ?? "insert_failed" });
     } else {
-      sent += 1;
+      const command = mapThermoCommandRow(data as ThermoCommandRow);
+      sentItems.push({ key: c.key, id: command.id, command });
       farmScopes.add(farmScopeCacheKey(lsindRegistNo, itemCode));
     }
   }
 
   for (const scope of farmScopes) revalidateLiveCache(scope);
 
-  return { ok: failed.length === 0, sent, failed };
+  return {
+    ok: failed.length === 0,
+    sent: sentItems.length,
+    failed,
+    sentItems,
+  };
 }
 
 export async function saveControllerDisplayNameAction(

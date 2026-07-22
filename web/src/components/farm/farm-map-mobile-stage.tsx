@@ -24,6 +24,7 @@ import {
   type InlineStatusTone,
 } from "@/components/common/inline-status-toast";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 
 type Props = {
   barns: BarnMapSnapshot[];
@@ -53,6 +54,7 @@ export function FarmMapMobileStage({
   trendStale = false,
 }: Props) {
   const router = useRouter();
+  const liveRefresh = useFarmLiveRefreshOptional();
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedSps, setSelectedSps] = useState<Set<string>>(new Set());
   const [localGraphPeriod, setLocalGraphPeriod] =
@@ -162,7 +164,18 @@ export function FarmMapMobileStage({
           onExit={exitBulk}
           onAfterApply={(_result, feedback) => {
             setStatusToast({ message: feedback.message, tone: feedback.tone });
-            if (!hubMode) router.refresh();
+            if (liveRefresh) {
+              void liveRefresh.revalidateFarmLive();
+            } else if (!hubMode) {
+              router.refresh();
+            }
+          }}
+          onRefreshLive={() => {
+            if (liveRefresh) {
+              void liveRefresh.revalidateFarmLive();
+            } else if (!hubMode) {
+              router.refresh();
+            }
           }}
           trailing={
             graphMode && barns.length > 0 ? (

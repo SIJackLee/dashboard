@@ -29,6 +29,7 @@ import {
   InlineStatusToast,
   type InlineStatusTone,
 } from "@/components/common/inline-status-toast";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { GridMetricLabel } from "@/lib/farm/grid-metric-label";
 import { cn } from "@/lib/utils";
 
@@ -178,6 +179,7 @@ export function FarmMapCanvas({
   trendStale = false,
 }: Props) {
   const router = useRouter();
+  const liveRefresh = useFarmLiveRefreshOptional();
   const isOverviewFarm = Boolean(navigateFarmKey);
   const [barns, setBarns] = useState(initialBarns);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -408,7 +410,18 @@ export function FarmMapCanvas({
           onExit={exitBulk}
           onAfterApply={(_result, feedback) => {
             setStatusToast({ message: feedback.message, tone: feedback.tone });
-            if (!hubMode) router.refresh();
+            if (liveRefresh) {
+              void liveRefresh.revalidateFarmLive();
+            } else if (!hubMode) {
+              router.refresh();
+            }
+          }}
+          onRefreshLive={() => {
+            if (liveRefresh) {
+              void liveRefresh.revalidateFarmLive();
+            } else if (!hubMode) {
+              router.refresh();
+            }
           }}
           trailing={
             graphMode && barns.length > 0 ? (
