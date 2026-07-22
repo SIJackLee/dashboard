@@ -15,6 +15,7 @@
     "audit:mobile-tour": "node scripts/mobile-tour-band-audit.mjs",
     "audit:mobile-tour-timing": "node scripts/mobile-tour-timing-audit.mjs",
     "audit:operator-apply": "node scripts/operator-apply-audit.mjs",
+    "audit:ship-checklist": "node scripts/ship-checklist-audit.mjs",
     "audit:farm-command": "node scripts/farm-command-audit.mjs",
     "audit:health-drilldown": "node scripts/health-drilldown-audit.mjs",
     "set:test-passwords": "node scripts/set-test-passwords.mjs"

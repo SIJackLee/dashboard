@@ -137,7 +137,10 @@ export function useSettingsApplyOverlay({
       return {
         visible: true,
         phase: "info",
-        title: commandStatusLabel(command.status),
+        title:
+          command.status === "pending"
+            ? "명령 등록 · 전송 대기"
+            : "전송됨 · 장치 ACK 대기",
         detail: pipelineStatusDetail(
           command.status,
           command.errorMsg,
@@ -155,7 +158,7 @@ export function useSettingsApplyOverlay({
       return {
         visible: true,
         phase: "info",
-        title: commandStatusLabel(command.status),
+        title: "장치 ACK · 현장 확인 중",
         detail: pipelineStatusDetail(
           command.status,
           command.errorMsg,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { useAdminHubPanels } from "@/lib/navigation/admin-hub-panels-context";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 import type { FarmKey } from "@/lib/data/farm-key";
@@ -12,7 +12,7 @@ type Props = {
   children: ReactNode;
 };
 
-/** 서버 loader 결과 → AdminHubPanelsContext warm */
+/** 서버 loader 결과 → AdminHubPanelsContext warm (paint 전 seed) */
 export function AdminHubPanelsHydrator({
   panels,
   tailFarmKeys = [],
@@ -20,7 +20,7 @@ export function AdminHubPanelsHydrator({
 }: Props) {
   const { setPanels, setTailFarmKeys } = useAdminHubPanels();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     setPanels(panels);
     setTailFarmKeys(tailFarmKeys);
   }, [panels, tailFarmKeys, setPanels, setTailFarmKeys]);

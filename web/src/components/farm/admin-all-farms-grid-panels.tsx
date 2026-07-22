@@ -32,7 +32,31 @@ export function AdminAllFarmsGridPanels({
       ? Math.max(0, consideredFarmCount - livePanels.length)
       : locationOnlyHidden;
 
+  const awaitingClientHydrate =
+    liveFromContext &&
+    hub != null &&
+    hub.panels.length === 0 &&
+    (hub.tailFarmKeys.length > 0 ||
+      (consideredFarmCount != null && consideredFarmCount > 0));
+
   if (livePanels.length === 0) {
+    if (awaitingClientHydrate) {
+      return (
+        <div
+          className={cn(
+            "flex min-h-[16rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-12 text-center",
+            dashboardUi.body,
+          )}
+          aria-busy
+          data-audit-region="admin-hub-grid-loading"
+        >
+          <p className="font-medium text-foreground">농장 그리드 불러오는 중…</p>
+          <p className="text-sm text-muted-foreground md:text-base">
+            LIVE 축사 현황을 준비합니다.
+          </p>
+        </div>
+      );
+    }
     return (
       <div
         className={cn(

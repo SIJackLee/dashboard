@@ -10,12 +10,12 @@ export type SignInResult =
   | { ok: false; error: SignInErrorCode };
 
 async function resolveNextPathAfterSignIn(
-  supabase: Awaited<ReturnType<typeof createClient>>
-): Promise<"/farm" | "/pending"> {
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<{ nextPath: "/farm" | "/pending"; isAdmin: boolean }> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return "/farm";
+  if (!user) return { nextPath: "/farm", isAdmin: false };
 
   const [{ data: profile }, { data: accesses }] = await Promise.all([
     supabase
@@ -32,7 +32,22 @@ async function resolveNextPathAfterSignIn(
   const isAdmin = profile?.role === "admin";
   const hasAccess =
     isAdmin || (accesses ?? []).some((row) => row.can_read === true);
-  return hasAccess ? "/farm" : "/pending";
+  return {
+    nextPath: hasAccess ? "/farm" : "/pending",
+    isAdmin,
+  };
+}
+
+/** Admin hub cold TTFB — 로그인 직후 overview 캐시를 미리 채운다. */
+async function warmAdminHubOverviewCache(): Promise<void> {
+  try {
+    const { fetchFarmOverviewRows } = await import(
+      "@/lib/data/iot-live-fetch"
+    );
+    await fetchFarmOverviewRows();
+  } catch {
+    /* best-effort — /farm이 다시 조회 */
+  }
 }
 
 export async function signInWithEmail(formData: FormData): Promise<SignInResult> {
@@ -50,7 +65,10 @@ export async function signInWithEmail(formData: FormData): Promise<SignInResult>
     return { ok: false, error: "credentials" };
   }
 
-  const nextPath = await resolveNextPathAfterSignIn(supabase);
+  const { nextPath, isAdmin } = await resolveNextPathAfterSignIn(supabase);
+  if (nextPath === "/farm" && isAdmin) {
+    await warmAdminHubOverviewCache();
+  }
   return { ok: true, nextPath };
 }
 

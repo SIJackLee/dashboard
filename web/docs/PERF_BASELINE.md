@@ -79,3 +79,5 @@ Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
 | --- | --- |
 | `fetchFarmOverviewForFarmKeys` | N per-farm queries → **1 OR batch** + `unstable_cache` 60s |
 | `cachedLiveQuery` | broken `shouldCache`(always DB) → real `unstable_cache` hit |
+| Admin login warm | `signInWithEmail`이 overview 캐시를 미리 채움 → 직후 `/farm` cold≈warm |
+| Hub grid SSR | 첫 배치 LIVE SSR 제거 → `TailLoader`가 전부 client hydrate |

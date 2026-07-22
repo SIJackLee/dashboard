@@ -46,6 +46,15 @@
 - [ ] `/admin/ops` → `/farm` (또는 동등 차단)
 - [ ] 명령이 실제로 나가지 않음
 
+## 자동화
+
+```bash
+# dev 서버 실행 중
+npm run audit:ship-checklist
+```
+
+결과는 `scripts/mobile-audit-output/ship-checklist-report.json`에 저장된다.
+
 ## 결과 기록
 
 | 역할 | 결과 | 비고 |
@@ -54,10 +63,17 @@
 | operator | PASS (2026-07-22) | 일괄적용 스위치 · `/admin/ops`→`/farm` · LIVE 표시 (단건 Apply는 이전 스모크에서 ACK 확인) |
 | viewer | PASS (2026-07-22) | 일괄적용·운영 링크 없음 · 설정 **조회 전용** · 적용 버튼 없음 |
 
-### Hydration 참고
+### Hydration 참고 (Cursor IDE 브라우저)
 
-- 앱 수정: viewport store가 모듈 로드 시 `localStorage`/`matchMedia`를 읽지 않음 → SSR과 첫 hydration 일치.
-- Cursor IDE 브라우저가 주입하는 `data-cursor-ref`는 Next 이슈 배지에 **가짜 hydration**으로 잡힐 수 있음. **하드 네비게이션 직후** 배지 유무로 판정한다.
+출고 판정 시 **일반 Chrome/Edge** 또는 Playwright(`npm run audit:ship-checklist`)를 우선한다.
+
+| 증상 | 원인 | 판정 |
+| --- | --- | --- |
+| Next 이슈 배지 + diff에만 `data-cursor-ref` | Cursor IDE 브라우저가 a11y 스냅샷용 속성을 DOM에 주입 | **앱 버그 아님** — 무시 |
+| 하드 네비게이션 직후(상호작용 전) 배지 + `theme-toggle` / `viewport` / `Label` | 실제 SSR·클라이언트 불일치 가능 | **조사 대상** |
+| 로그인 fill 직후에만 배지 등장 | 스냅샷 주입 타이밍과 겹침 | 대개 노이즈 |
+
+앱 측 예방: viewport store는 모듈 로드 시 `localStorage`/`matchMedia`를 읽지 않음. 테마 토글은 mount 후 DOM 동기화.
 
 FAIL만 후속 수정 후보로 올린다.
 

@@ -210,68 +210,113 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     }
   }, [fromServer, tracked]);
 
+  const commandId = command?.id;
+  const commandStatus = command?.status;
+  const commandSetpoint = command?.setpointTemp;
+  const commandDeviation = command?.tempDeviation;
+  const commandMinVent = command?.minVentPct;
+  const commandMaxVent = command?.maxVentPct;
+  const commandError = command?.errorMsg;
+  const liveSource = knownSettings?.source;
+  const liveSp =
+    liveThermo?.setpointTemp ??
+    (liveSource === "live" ? knownSettings?.setpointTemp : undefined);
+  const liveDev =
+    liveThermo?.tempDeviation ??
+    (liveSource === "live" ? knownSettings?.tempDeviation : undefined);
+  const liveMin =
+    liveThermo?.minVentPct ??
+    (liveSource === "live" ? knownSettings?.minVentPct : undefined);
+  const liveMax =
+    liveThermo?.maxVentPct ??
+    (liveSource === "live" ? knownSettings?.maxVentPct : undefined);
+
   // 상태 전환 토스트
   useEffect(() => {
-    if (!command) return;
+    if (commandId == null || commandStatus == null) return;
     const prev = prevStatusRef.current;
-    if (prev != null && prev !== command.status) {
-      const label = commandStatusLabel(command.status);
-      const detail = pipelineDetailMessage(command.status, command.errorMsg);
+    if (prev != null && prev !== commandStatus) {
+      const label = commandStatusLabel(commandStatus);
+      const detail = pipelineDetailMessage(commandStatus, commandError);
       setFlash({
         tone:
-          command.status === "failed"
+          commandStatus === "failed"
             ? "error"
-            : command.status === "applied"
+            : commandStatus === "applied"
               ? "ok"
               : "info",
         text: detail ? `${label} — ${detail}` : label,
       });
     }
-    prevStatusRef.current = command.status;
-  }, [command]);
+    prevStatusRef.current = commandStatus;
+  }, [commandId, commandStatus, commandError]);
 
   // LIVE 현장 반영 확인
   useEffect(() => {
-    if (!command) {
-      setLiveConfirmed(false);
+    if (commandId == null || commandStatus == null) {
+      setLiveConfirmed((prev) => (prev ? false : prev));
       return;
     }
-    if (command.status === "failed" || command.status === "cancelled") {
-      setLiveConfirmed(false);
+    if (commandStatus === "failed" || commandStatus === "cancelled") {
+      setLiveConfirmed((prev) => (prev ? false : prev));
       return;
     }
-    if (confirmedForIdRef.current === command.id) return;
-    if (hasTimedId(dismissedLiveOverlayCommandIds, command.id)) {
-      confirmedForIdRef.current = command.id;
+    if (confirmedForIdRef.current === commandId) return;
+    if (hasTimedId(dismissedLiveOverlayCommandIds, commandId)) {
+      confirmedForIdRef.current = commandId;
       return;
     }
-    if (!hasTimedId(userInitiatedCommandIds, command.id)) return;
-
-    // 명령/병합 출처 knownSettings는 제외 — LIVE(또는 source===live)만 현장 반영으로 인정
-    const liveCandidates: Pick<
-      ControllerThermoSettings,
-      "setpointTemp" | "tempDeviation" | "minVentPct" | "maxVentPct"
-    >[] = [];
-    if (liveThermo) liveCandidates.push(liveThermo);
-    if (knownSettings?.source === "live") {
-      liveCandidates.push(knownSettings);
+    if (!hasTimedId(userInitiatedCommandIds, commandId)) return;
+    if (commandStatus === "pending") return;
+    if (
+      commandSetpoint == null ||
+      commandDeviation == null ||
+      commandMinVent == null ||
+      commandMaxVent == null ||
+      liveSp == null ||
+      liveDev == null ||
+      liveMin == null ||
+      liveMax == null
+    ) {
+      return;
+    }
+    if (
+      !thermoValuesMatch(
+        {
+          setpointTemp: liveSp,
+          tempDeviation: liveDev,
+          minVentPct: liveMin,
+          maxVentPct: liveMax,
+        },
+        {
+          setpointTemp: commandSetpoint,
+          tempDeviation: commandDeviation,
+          minVentPct: commandMinVent,
+          maxVentPct: commandMaxVent,
+        },
+      )
+    ) {
+      return;
     }
 
-    const matched = liveCandidates.some((values) =>
-      thermoValuesMatch(values, command)
-    );
-    if (!matched) return;
-
-    // pending만 있고 LIVE 이전 설정과 우연히 같으면 오탐 — sent/applied 이후만 인정
-    if (command.status === "pending") return;
-
-    confirmedForIdRef.current = command.id;
+    confirmedForIdRef.current = commandId;
     setLiveConfirmed(true);
     setFlash({
       tone: "ok",
-      text: `LIVE 설정온도 ${command.setpointTemp}℃가 명령과 일치합니다. 패널의 현재값을 확인하세요.`,
+      text: `LIVE 설정온도 ${commandSetpoint}℃가 명령과 일치합니다. 패널의 현재값을 확인하세요.`,
     });
-  }, [command, knownSettings, liveThermo]);
+  }, [
+    commandId,
+    commandStatus,
+    commandSetpoint,
+    commandDeviation,
+    commandMinVent,
+    commandMaxVent,
+    liveSp,
+    liveDev,
+    liveMin,
+    liveMax,
+  ]);
 
   const awaitingLive =
     Boolean(command) &&

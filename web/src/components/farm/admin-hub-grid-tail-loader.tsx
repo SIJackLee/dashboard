@@ -33,7 +33,17 @@ export function AdminHubGridTailLoader() {
           if (cancelled) return;
           appendPanels(panels);
         } catch {
-          /* 배치 실패 시 다음 배치 계속 */
+          /* 실패해도 placeholder로 hydrate 종료 가능하게 */
+          if (cancelled) return;
+          appendPanels(
+            batch.map((farmKey) => ({
+              farmKey,
+              readings: [],
+              barnSnapshots: [],
+              gridCols: 4,
+              gridRows: 4,
+            })),
+          );
         }
       }
       if (!cancelled) setTailFarmKeys([]);

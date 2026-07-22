@@ -2,12 +2,16 @@
 
 export const ACK_PATTERNS = [
   /명령을 등록했습니다/,
+  /명령 등록/,
   /통신모듈/,
   /장치 ACK/,
+  /ACK 대기/,
+  /현장 확인/,
   /현장 반영 확인/,
   /현장 반영 완료/,
   /LIVE 설정값/,
   /LIVE 설정온도/,
+  /전송 대기/,
   /pending|sent|applied/i,
 ];
 
@@ -22,7 +26,7 @@ export async function login(page, { base, email, password }) {
   });
 }
 
-export async function waitAck(page, timeoutMs = 20000) {
+export async function waitAck(page, timeoutMs = 35000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const body = await page.locator("body").innerText();
@@ -66,33 +70,58 @@ export async function waitListSettingsPanel(page) {
   return openListControllerSettings(page);
 }
 
+/** 접힌 제어 섹션을 펼쳐 설정온도 입력이 클릭 가능하게 한다. */
+async function ensureControlSectionExpanded(scope) {
+  const controlToggle = scope
+    .locator('button[aria-expanded="false"]')
+    .filter({ hasText: /^제어/ })
+    .first();
+  if (await controlToggle.isVisible().catch(() => false)) {
+    await controlToggle.click();
+  }
+}
+
 /** 설정 패널 scope 내에서 setpoint 변경 후 적용 */
 export async function applyFromSettingsPanel(page, scope = page) {
-  const setpointInput = scope.getByLabel("설정온도").first();
+  await ensureControlSectionExpanded(scope);
+
+  // exact — range의 "설정온도 25℃"와 텍스트 입력 "설정온도"를 구분
+  const setpointInput = scope.getByLabel("설정온도", { exact: true }).first();
   await setpointInput.waitFor({ state: "visible", timeout: 15000 });
 
   const raw = await setpointInput.inputValue();
   const current = parseFloat(raw.replace(/[^\d.-]/g, ""));
-  const next = Number.isFinite(current)
-    ? Math.min(35, Math.max(15, current + 0.5))
-    : 25;
+  // 상한(35) 근처면 -1, 아니면 +1 — dirty 미발생으로 Apply 비활성 고착 방지
+  let next = 25;
+  if (Number.isFinite(current)) {
+    const step = current >= 34.5 ? -1 : 1;
+    next = Math.min(35, Math.max(15, Math.round((current + step) * 2) / 2));
+    if (next === current) {
+      next = Math.min(35, Math.max(15, current + (step > 0 ? -0.5 : 0.5)));
+    }
+  }
+  await setpointInput.click({ force: true });
   await setpointInput.fill(String(next));
   await setpointInput.press("Tab");
 
   const applyBtn = scope.getByRole("button", { name: "적용", exact: true }).first();
   await applyBtn.waitFor({ state: "visible", timeout: 15000 });
   await page.waitForFunction(
-    () => {
-      const el = [...document.querySelectorAll("button")].find(
+    (panelSel) => {
+      const root = panelSel
+        ? document.querySelector(panelSel)
+        : document;
+      if (!root) return false;
+      const el = [...root.querySelectorAll("button")].find(
         (b) => b.textContent?.trim() === "적용"
       );
-      return el && !el.disabled;
+      return Boolean(el && !el.disabled);
     },
-    null,
-    { timeout: 20000 }
+    '[data-audit-region="barn-list-accordion-panel"]',
+    { timeout: 35000 }
   );
 
-  await applyBtn.click();
+  await applyBtn.click({ timeout: 15000 });
   const ack = await waitAck(page);
   return { ack, setpoint: next };
 }
