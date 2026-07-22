@@ -74,7 +74,7 @@ function AdminScopeBarWithRefresh({
 }) {
   const { revalidateFarmLive, revalidating, isStale } = useFarmLiveRefresh();
   const onScopeRefresh = useCallback(() => {
-    void revalidateFarmLive();
+    return revalidateFarmLive();
   }, [revalidateFarmLive]);
   const {
     run: refreshScope,

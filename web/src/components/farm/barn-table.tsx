@@ -139,8 +139,7 @@ export function BarnTable({
   const onListRefresh = useCallback(() => {
     if (liveRefreshManaged && liveRefresh) {
       if (liveRefresh.revalidating) return;
-      void liveRefresh.revalidateFarmLive();
-      return;
+      return liveRefresh.revalidateFarmLive();
     }
     router.refresh();
   }, [liveRefresh, liveRefreshManaged, router]);
@@ -202,8 +201,9 @@ export function BarnTable({
   });
 
   const onTrendRefresh = useCallback(() => {
-    refreshTrend();
+    const trendDone = Promise.resolve(refreshTrend());
     if (!hubMode) refreshList();
+    return trendDone;
   }, [hubMode, refreshList, refreshTrend]);
 
   const {

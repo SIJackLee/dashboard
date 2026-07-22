@@ -23,8 +23,6 @@ export function BarnListPanelShell({
   const [show, setShow] = useState(open);
   const [latchedChildren, setLatchedChildren] = useState<ReactNode>(children);
   const shellRef = useRef<HTMLDivElement>(null);
-  const openRef = useRef(open);
-  openRef.current = open;
 
   useEffect(() => {
     if (open) {
@@ -37,27 +35,9 @@ export function BarnListPanelShell({
       setShow(false);
       return;
     }
-
+    // 즉시 마운트·표시 — 예전 double-rAF + 320ms fallback은 체감 지연만 키움
     setMounted(true);
-    let outer = 0;
-    let inner = 0;
-    let cancelled = false;
-
-    const reveal = () => {
-      if (!cancelled && openRef.current) setShow(true);
-    };
-
-    outer = requestAnimationFrame(() => {
-      inner = requestAnimationFrame(reveal);
-    });
-    const fallback = window.setTimeout(reveal, 320);
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(outer);
-      cancelAnimationFrame(inner);
-      window.clearTimeout(fallback);
-    };
+    setShow(true);
   }, [open]);
 
   useEffect(() => {

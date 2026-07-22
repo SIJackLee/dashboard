@@ -38,9 +38,11 @@ export function useFarmControllerTrend(params: {
   }, [active, scopeId, params.farmKey]);
 
   const refresh = useCallback(() => {
-    if (!params.farmKey) return;
+    if (!params.farmKey) return Promise.resolve();
     setRefreshing(true);
-    void fetchFarmControllerTrendAllPeriodsAction(params.farmKey, { refresh: true })
+    return fetchFarmControllerTrendAllPeriodsAction(params.farmKey, {
+      refresh: true,
+    })
       .then((result) => {
         setBundle({ scopeId, data: result });
         setError(false);
