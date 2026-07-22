@@ -12,6 +12,7 @@ import {
 } from "@/lib/data/controller-key";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import {
+  compareFarmKey,
   farmKeyId,
   readingKey,
   type FarmKey,
@@ -421,9 +422,6 @@ export async function fetchLiveReadings(
     ["live-readings", liveReadTier(), userId, scopeKey],
     [scopeKey === "global" ? "live" : `live:${scopeKey}`],
     () => fetchLiveRowsWithToken(accessToken, scopedFarms, scope),
-    {
-      shouldCache: (result) => result.length > 0,
-    },
   );
 
   return sortReadings(rows);
@@ -502,7 +500,7 @@ async function fetchFarmOverviewWithToken(
   return data as unknown as FarmOverviewDbRow[];
 }
 
-/** Admin hub — per-farm scoped overview (global GROUP BY timeout 회피) */
+/** Admin hub — farm overview 1회 배치 조회 (N회 per-farm 왕복 제거) */
 export async function fetchFarmOverviewForFarmKeys(
   farmKeys: FarmKey[],
 ): Promise<FarmOverviewDbRow[]> {
@@ -520,18 +518,15 @@ export async function fetchFarmOverviewForFarmKeys(
   }
 
   const userId = user?.id ?? "anon";
-  const batches = await Promise.all(
-    farmKeys.map((farmKey) => {
-      const scopeId = farmKeyId(farmKey);
-      return cachedLiveQuery(
-        ["farm-overview", userId, scopeId],
-        ["live", `farm-overview:${scopeId}`],
-        () => fetchFarmOverviewWithToken(accessToken, [farmKey]),
-        { shouldCache: (rows) => rows.length > 0 },
-      );
-    }),
+  const keys = [...farmKeys].sort(compareFarmKey);
+  const scopeKey = keys.map((fk) => farmKeyId(fk)).join("|");
+
+  return cachedLiveQuery(
+    ["farm-overview-batch", userId, scopeKey],
+    ["live", "farm-overview"],
+    () => fetchFarmOverviewWithToken(accessToken, keys),
+    { revalidate: 60 },
   );
-  return batches.flat();
 }
 
 export const fetchFarmOverviewRows = cache(
@@ -555,9 +550,7 @@ export const fetchFarmOverviewRows = cache(
       ["farm-overview", userId],
       ["live", "farm-overview"],
       () => fetchFarmOverviewWithToken(accessToken, scopedFarms),
-      {
-        shouldCache: (rows) => rows.length > 0,
-      },
+      { revalidate: 60 },
     );
   },
 );

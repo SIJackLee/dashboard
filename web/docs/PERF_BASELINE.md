@@ -72,3 +72,10 @@ Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
 | M5 | Ops `fetchHealthSnapshotAction` patch (no periodic `router.refresh`) |
 | L1 | `staggerMount` only when `readings.length > 8` |
 | L2 | `FarmMapCanvas` / `FarmMapMobileStage` / `FarmMapBulkApply` via `next/dynamic` |
+
+## Admin hub TTFB
+
+| Change | Effect |
+| --- | --- |
+| `fetchFarmOverviewForFarmKeys` | N per-farm queries → **1 OR batch** + `unstable_cache` 60s |
+| `cachedLiveQuery` | broken `shouldCache`(always DB) → real `unstable_cache` hit |

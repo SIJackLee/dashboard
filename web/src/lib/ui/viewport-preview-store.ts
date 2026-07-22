@@ -29,14 +29,14 @@ function resolvePreviewMode(pref: ViewportPreference): ViewportPreviewMode {
   return pref;
 }
 
+/**
+ * SSR·hydration 첫 페인트는 항상 desktop/auto.
+ * localStorage·matchMedia는 beforeInteractive script(html data) +
+ * `initViewportPreviewAutoSync`(useEffect)에서만 반영한다.
+ * 모듈 로드 시 window를 읽으면 useSyncExternalStore 서버 스냅샷과 불일치한다.
+ */
 let preference: ViewportPreference = "auto";
 let previewMode: ViewportPreviewMode = "desktop";
-
-if (typeof window !== "undefined") {
-  preference = readPreference();
-  previewMode = resolvePreviewMode(preference);
-  document.documentElement.dataset.viewportPreview = previewMode;
-}
 
 export function getViewportPreference(): ViewportPreference {
   return preference;

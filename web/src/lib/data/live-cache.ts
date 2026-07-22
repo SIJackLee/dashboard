@@ -15,31 +15,25 @@ export function revalidateLiveCache(farmScopeKey?: string): void {
 }
 
 type CachedLiveQueryOptions<T> = {
-  /** false면 unstable_cache 저장 생략 (empty/error transient 회복) */
+  /**
+   * @deprecated 이전 구현은 매 요청 DB를 쳐 캐시를 무력화함.
+   * 빈 결과 재시도는 짧은 `revalidate`로 대체한다.
+   */
   shouldCache?: (result: T) => boolean;
+  revalidate?: number;
 };
 
+/** Cross-request LIVE/overview 캐시 (unstable_cache). */
 export async function cachedLiveQuery<T>(
   keyParts: string[],
   tags: string[],
   fn: () => Promise<T>,
   options?: CachedLiveQueryOptions<T>,
 ): Promise<T> {
-  const shouldCache = options?.shouldCache ?? (() => true);
-
-  if (options?.shouldCache) {
-    const fresh = await fn();
-    if (!shouldCache(fresh)) {
-      return fresh;
-    }
-    return unstable_cache(() => Promise.resolve(fresh), keyParts, {
-      revalidate: LIVE_CACHE_REVALIDATE_SECONDS,
-      tags: [LIVE_CACHE_TAG, ...tags],
-    })();
-  }
+  const revalidate = options?.revalidate ?? LIVE_CACHE_REVALIDATE_SECONDS;
 
   return unstable_cache(fn, keyParts, {
-    revalidate: LIVE_CACHE_REVALIDATE_SECONDS,
+    revalidate,
     tags: [LIVE_CACHE_TAG, ...tags],
   })();
 }

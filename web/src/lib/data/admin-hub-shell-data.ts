@@ -74,7 +74,10 @@ function emptyHubOverview(farmCount: number): FarmOverview {
   };
 }
 
-/** Admin 전국 허브 — overview·summaries만 (LIVE 병렬 조회 생략) */
+/**
+ * Admin 전국 허브 — overview·summaries.
+ * overview는 farm-overview-batch 캐시(60s) + 1회 OR 조회로 TTFB 단축.
+ */
 export const getAdminHubOverviewContext = cache(
   async (): Promise<AdminHubOverviewContext> => {
     const seedKeys = discoverAdminHubFarmKeys(
