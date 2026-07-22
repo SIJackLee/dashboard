@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
@@ -14,7 +15,6 @@ import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state
 import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { cn } from "@/lib/utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { BarnListToolbarMobileSheet } from "./barn-list-toolbar-mobile-sheet";
@@ -26,6 +26,18 @@ import {
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 
+const FarmMapBulkApply = dynamic(
+  () =>
+    import("./farm-map-bulk-apply").then((m) => ({
+      default: m.FarmMapBulkApply,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-11 shrink-0 animate-pulse rounded-md bg-muted/30" />
+    ),
+  },
+);
 type Props = {
   barns: BarnMapSnapshot[];
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;

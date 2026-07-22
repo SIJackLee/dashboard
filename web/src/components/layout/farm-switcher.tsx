@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { ChevronDown, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/data/farm-summaries";
 import { replaceFarmUrlShallow } from "@/lib/farm/farm-view-url";
 import { useAdminHubPanelsOptional } from "@/lib/navigation/admin-hub-panels-context";
+import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -58,10 +59,12 @@ function FarmSwitcherBody({
   farmSummaries = [],
   compact = false,
 }: FarmSwitcherProps) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const hubPanels = useAdminHubPanelsOptional();
+  const { navigate: appNavigate, isPending: navPending } = useAppNavigate();
+  const [shallowPending, startShallowTransition] = useTransition();
+  const switchPending = navPending || shallowPending;
 
   const alarmByFarmId = useMemo(() => {
     const map = new Map<string, number>();
@@ -90,6 +93,7 @@ function FarmSwitcherBody({
   }, [farmOptions, liveByFarmId]);
 
   const navigate = (farmKey: FarmKey | null) => {
+    if (switchPending) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("lsind");
     params.delete("item");
@@ -105,18 +109,21 @@ function FarmSwitcherBody({
     }
 
     const query = params.toString();
+    const href = query ? `${pathname}?${query}` : pathname;
     const useShallow =
       pathname === "/farm" &&
       hubPanels?.ready === true &&
       hubPanels.panels.length > 0;
 
     if (useShallow) {
-      replaceFarmUrlShallow(params);
-      hubPanels.notifyHubUrlChange();
+      startShallowTransition(() => {
+        replaceFarmUrlShallow(params);
+        hubPanels.notifyHubUrlChange();
+      });
       return;
     }
 
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    appNavigate(href, { message: "농장 전환 중…" });
   };
 
   if (farmOptions.length === 0) return null;
@@ -130,8 +137,10 @@ function FarmSwitcherBody({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        disabled={switchPending}
+        aria-busy={switchPending || undefined}
         className={cn(
-          "inline-flex shrink-0 items-center gap-2 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "inline-flex shrink-0 items-center gap-2 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-80",
           compact
             ? cn(
                 dashboardUi.scopePill,
@@ -146,18 +155,28 @@ function FarmSwitcherBody({
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )
         )}
-        aria-label="농장 선택"
+        aria-label={switchPending ? "농장 전환 중" : "농장 선택"}
       >
         <span className={compact ? "max-w-[18rem] truncate" : undefined}>
-          {triggerLabel}
+          {switchPending ? "전환 중…" : triggerLabel}
         </span>
-        <ChevronDown
-          className={cn(
-            "shrink-0 opacity-70",
-            compact ? "size-6" : "size-8"
-          )}
-          aria-hidden
-        />
+        {switchPending ? (
+          <Loader2
+            className={cn(
+              "shrink-0 animate-spin opacity-70",
+              compact ? "size-6" : "size-8"
+            )}
+            aria-hidden
+          />
+        ) : (
+          <ChevronDown
+            className={cn(
+              "shrink-0 opacity-70",
+              compact ? "size-6" : "size-8"
+            )}
+            aria-hidden
+          />
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"

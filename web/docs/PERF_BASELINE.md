@@ -65,13 +65,13 @@ Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
 
 ## Follow-ups (M1–M5 / L1–L2)
 
-| Item | Change |
-| --- | --- |
-| M1 | `startTransition` URL only; controller-trend module cache shared map/list |
-| M4 | Admin hub SSR first `ADMIN_HUB_GRID_BATCH_SIZE` farms + client tail hydrate |
-| M5 | Ops `fetchHealthSnapshotAction` patch (no periodic `router.refresh`) |
-| L1 | `staggerMount` only when `readings.length > 8` |
-| L2 | `FarmMapCanvas` / `FarmMapMobileStage` / `FarmMapBulkApply` via `next/dynamic` |
+| Item | Change | Status |
+| --- | --- | --- |
+| M1 | `startTransition` URL only; controller-trend module cache shared map/list | done |
+| M4 | Admin hub SSR first batch → client TailLoader hydrate (LIVE SSR 제거) | done |
+| M5 | Ops `fetchHealthSnapshotAction` patch (no periodic `router.refresh`) | **done** (2026-07-22) |
+| L1 | `staggerMount` only when `readings.length > STAGGER_MOUNT_MIN_READINGS` (8) | **done** (2026-07-22) |
+| L2 | `FarmMapCanvas` / `FarmMapMobileStage` / `FarmMapBulkApply` via `next/dynamic` | **done** (2026-07-22) |
 
 ## Admin hub TTFB
 

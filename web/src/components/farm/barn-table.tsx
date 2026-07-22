@@ -22,7 +22,12 @@ const FarmMapBulkApply = dynamic(
     import("@/components/farm/farm-map-bulk-apply").then((m) => ({
       default: m.FarmMapBulkApply,
     })),
-  { ssr: false },
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-11 shrink-0 animate-pulse rounded-md bg-muted/30" />
+    ),
+  },
 );
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";

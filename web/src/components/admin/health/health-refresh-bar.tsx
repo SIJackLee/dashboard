@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { HEALTH_REVALIDATE_SEC } from "@/lib/admin/health/constants";
 import { formatHealthTime } from "@/lib/admin/health/format-health-time";
@@ -28,35 +28,37 @@ export function HealthRefreshBar({
 }: HealthRefreshBarProps) {
   const [secondsLeft, setSecondsLeft] = useState(HEALTH_REVALIDATE_SEC);
   const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
 
   const refresh = useCallback(() => {
-    if (!onRefresh || pending) return;
+    if (!onRefresh || pendingRef.current) return;
+    pendingRef.current = true;
     setPending(true);
     void Promise.resolve(onRefresh())
       .catch(() => {
         /* 호출측 처리 */
       })
       .finally(() => {
+        pendingRef.current = false;
         setPending(false);
         setSecondsLeft(HEALTH_REVALIDATE_SEC);
       });
-  }, [onRefresh, pending]);
+  }, [onRefresh]);
 
   useEffect(() => {
     if (!onRefresh) return;
     const id = window.setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
-          queueMicrotask(() => {
-            void Promise.resolve(onRefresh()).catch(() => {});
-          });
+          // pendingRef 가드가 있는 refresh()로 — 주기 갱신 중첩 방지
+          queueMicrotask(() => refresh());
           return HEALTH_REVALIDATE_SEC;
         }
         return s - 1;
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [onRefresh]);
+  }, [onRefresh, refresh]);
 
   const fetchedLabel = formatHealthTime(fetchedAt);
   const mins = Math.floor(secondsLeft / 60);

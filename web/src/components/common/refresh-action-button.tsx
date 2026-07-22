@@ -19,7 +19,7 @@ type Props = {
 export function RefreshActionButton({
   onClick,
   loading = false,
-  showSpinner = false,
+  showSpinner = true,
   disabled,
   children,
   className,
@@ -33,7 +33,7 @@ export function RefreshActionButton({
       className={className}
       icon={
         <RefreshCw
-          className={cn(dashboardUi.iconSm, showSpinner && "animate-spin")}
+          className={cn(dashboardUi.iconSm, loading && showSpinner && "animate-spin")}
           aria-hidden
         />
       }

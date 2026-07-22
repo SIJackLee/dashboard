@@ -27,6 +27,7 @@ import { EnvChip } from "@/components/common/env-chip";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 
 type Props = {
   readings: BarnReading[];
@@ -49,7 +50,7 @@ type Props = {
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
   onToggleSp?: (stallTyCode: string) => void;
-  /** 안 D — 첫 paint 후 idle 배치 마운트 */
+  /** 안 D — 첫 paint 후 idle 배치 마운트 (readings > STAGGER_MOUNT_MIN 일 때만 실제 동작) */
   staggerMount?: boolean;
   /** 모바일 Graph/Set — 단일 toolbar sheet */
   mobileToolbarSheetMode?: boolean;
@@ -163,11 +164,17 @@ function ControllerCardGrid({
   const tourActive = useFarmTourActive();
   const compact = useHydrationSafeDashboardCompact();
   const panelLayoutVariant = compact ? ("stack" as const) : ("grid" as const);
+  const staggerEnabled =
+    Boolean(staggerMount) &&
+    readings.length > STAGGER_MOUNT_MIN_READINGS &&
+    !tourActive;
   const visibleCount = useStaggeredVisibleCount(
     readings.length,
-    staggerMount && !tourActive,
+    staggerEnabled,
   );
-  const visibleReadings = staggerMount ? readings.slice(0, visibleCount) : readings;
+  const visibleReadings = staggerEnabled
+    ? readings.slice(0, visibleCount)
+    : readings;
 
   return (
     <div className={inSpSection ? CONTROLLER_GRID_IN_SP : CONTROLLER_GRID_FLAT}>

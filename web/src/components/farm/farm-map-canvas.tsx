@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
@@ -23,7 +24,6 @@ import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-actio
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { FarmMapCard } from "./farm-map-card";
-import { FarmMapBulkApply } from "./farm-map-bulk-apply";
 import { TrendPeriodToggle } from "./trend-period-toggle";
 import {
   InlineStatusToast,
@@ -33,6 +33,18 @@ import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { GridMetricLabel } from "@/lib/farm/grid-metric-label";
 import { cn } from "@/lib/utils";
 
+const FarmMapBulkApply = dynamic(
+  () =>
+    import("./farm-map-bulk-apply").then((m) => ({
+      default: m.FarmMapBulkApply,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-11 shrink-0 animate-pulse rounded-md bg-muted/30" />
+    ),
+  },
+);
 const LEGEND_METRICS = [
   { id: "T", label: "온도" },
   { id: "H", label: "습도" },

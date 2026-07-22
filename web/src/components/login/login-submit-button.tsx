@@ -1,7 +1,7 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { BusyButtonLabel } from "@/components/common/busy-button-label";
 import { cn } from "@/lib/utils";
 
 export function LoginSubmitButton() {
@@ -17,8 +17,11 @@ export function LoginSubmitButton() {
         "disabled:cursor-wait disabled:opacity-90"
       )}
     >
-      {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-      {pending ? "로그인 중…" : "로그인"}
+      <BusyButtonLabel
+        busy={pending}
+        idleLabel="로그인"
+        busyLabel="로그인 중…"
+      />
     </button>
   );
 }

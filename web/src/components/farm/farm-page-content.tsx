@@ -1,15 +1,15 @@
 "use client";
 
 import {
-  startTransition,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useTransition,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { Map, List } from "lucide-react";
+import { Map, List, Loader2 } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
@@ -39,6 +39,7 @@ import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 
 type Props = {
   readings: BarnReading[];
@@ -93,6 +94,7 @@ export function FarmPageContent({
   const [view, setViewState] = useState<"map" | "list">(bootstrapView);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [urlTick, setUrlTick] = useState(0);
+  const [viewPending, startTransition] = useTransition();
 
   useEffect(() => {
     setUrlHydrated(true);
@@ -326,8 +328,10 @@ export function FarmPageContent({
             type="button"
             role="tab"
             aria-selected={view === "map"}
+            aria-busy={viewPending && view === "map" ? true : undefined}
+            disabled={viewPending}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
+              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors disabled:cursor-wait",
               tabNavClass,
               view === "map"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
@@ -335,15 +339,21 @@ export function FarmPageContent({
             )}
             onClick={() => setView("map")}
           >
-            <Map className={dashboardUi.iconSm} aria-hidden />
+            {viewPending && view === "map" ? (
+              <Loader2 className={cn(dashboardUi.iconSm, "animate-spin")} aria-hidden />
+            ) : (
+              <Map className={dashboardUi.iconSm} aria-hidden />
+            )}
             그리드
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={view === "list"}
+            aria-busy={viewPending && view === "list" ? true : undefined}
+            disabled={viewPending}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors",
+              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors disabled:cursor-wait",
               tabNavClass,
               view === "list"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
@@ -351,7 +361,11 @@ export function FarmPageContent({
             )}
             onClick={() => setView("list")}
           >
-            <List className={dashboardUi.iconSm} aria-hidden />
+            {viewPending && view === "list" ? (
+              <Loader2 className={cn(dashboardUi.iconSm, "animate-spin")} aria-hidden />
+            ) : (
+              <List className={dashboardUi.iconSm} aria-hidden />
+            )}
             목록
           </button>
         </div>
@@ -405,7 +419,7 @@ export function FarmPageContent({
               hubMode={hubMode}
               onHubUrlChange={onHubUrlChange}
               liveRefreshManaged={liveRefreshManaged}
-              staggerMount={readings.length > 8}
+              staggerMount={readings.length > STAGGER_MOUNT_MIN_READINGS}
               onRequestPanelEnrichment={enrichListIfNeeded}
               trendPeriod={trendPeriod}
               onTrendPeriodChange={onTrendPeriodChange}

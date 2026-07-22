@@ -14,6 +14,7 @@ import { useCommandPipelineTracker } from "@/components/controllers/use-command-
 import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
 import { useSettingsApplyOverlay } from "@/components/farm/use-settings-apply-overlay";
 import { SettingsCollapsibleSection } from "@/components/farm/settings-collapsible-section";
+import { BusyButtonLabel } from "@/components/common/busy-button-label";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import type { BarnReading } from "@/lib/data/iot";
 import type { ThermoCommand } from "@/lib/data/commands";
@@ -443,9 +444,14 @@ export function BarnListAccordionPanel({
               disabled={saveDisabled}
               title={saveDisabledReason ?? undefined}
               onClick={handleSaveAll}
-              className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 sm:text-sm"
+              aria-busy={isSaving || undefined}
+              className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50 sm:text-sm"
             >
-              {isSaving ? "적용 중…" : "적용"}
+              <BusyButtonLabel
+                busy={isSaving}
+                idleLabel="적용"
+                busyLabel="적용 중…"
+              />
             </button>
           </div>
           {saveDisabled && saveDisabledReason ? (

@@ -60,6 +60,28 @@ function setDraftField(
   }
 }
 
+function draftsEqual(a: PanelDraft | null, b: PanelDraft | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.setpointTemp === b.setpointTemp &&
+    a.tempDeviation === b.tempDeviation &&
+    a.minVentPct === b.minVentPct &&
+    a.maxVentPct === b.maxVentPct
+  );
+}
+
+function settingsSyncKey(s: ControllerThermoSettings | null): string {
+  if (!s) return "";
+  return [
+    s.setpointTemp,
+    s.tempDeviation,
+    s.minVentPct,
+    s.maxVentPct,
+    s.source ?? "",
+  ].join(":");
+}
+
 function panelDraftOrNull(
   draft: PanelDraft | null,
   knownSettings: ControllerThermoSettings | null,
@@ -103,34 +125,40 @@ export function useControllerPanel(
 
   const hasEditedRef = useRef(hasEdited);
   hasEditedRef.current = hasEdited;
+  const knownSettingsRef = useRef(knownSettings);
+  knownSettingsRef.current = knownSettings;
 
   const settingsKnown = knownSettings != null;
   const targetKey = target?.key;
   const channelKey = activeChannel ?? "";
+  const settingsKey = settingsSyncKey(knownSettings);
 
   /** 컨트롤러·채널 전환 시 편집 상태 초기화 */
   useEffect(() => {
     setHasEdited(false);
     setMessage(null);
-    setDraft(knownSettings ? draftFromSettings(knownSettings) : null);
+    const s = knownSettingsRef.current;
+    setDraft(s ? draftFromSettings(s) : null);
   }, [targetKey, channelKey]);
 
   /**
    * 폴링·LIVE 갱신 시: 편집 중이면 draft 유지.
    * 편집 중이 아니면 서버 설정값으로 draft 동기화.
-   * 채널 전환은 위 effect가 처리 — channelKey는 deps에 넣지 않음.
+   * settingsKey(값)만 dep — 참조만 바뀌는 knownSettings로 무한 setState/레이스 방지.
    */
   useEffect(() => {
     if (!targetKey) return;
-    if (!knownSettings) {
+    const s = knownSettingsRef.current;
+    if (!s) {
       setDraft((prev) => (hasEditedRef.current ? prev : null));
       return;
     }
+    const next = draftFromSettings(s);
     setDraft((prev) => {
       if (hasEditedRef.current && prev) return prev;
-      return draftFromSettings(knownSettings);
+      return draftsEqual(prev, next) ? prev : next;
     });
-  }, [knownSettings, targetKey]);
+  }, [settingsKey, targetKey]);
 
   const ensureDraft = useCallback((): PanelDraft => {
     if (draft) return draft;

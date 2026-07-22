@@ -103,6 +103,8 @@ export async function applyFromSettingsPanel(page, scope = page) {
   await setpointInput.click({ force: true });
   await setpointInput.fill(String(next));
   await setpointInput.press("Tab");
+  // React commit + hasChanges 반영 대기
+  await page.waitForTimeout(300);
 
   const applyBtn = scope.getByRole("button", { name: "적용", exact: true }).first();
   await applyBtn.waitFor({ state: "visible", timeout: 15000 });

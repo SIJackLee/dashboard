@@ -1,6 +1,8 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { Loader2, LogOut } from "lucide-react";
+import { useFormStatus } from "react-dom";
+import { BusyButtonLabel } from "@/components/common/busy-button-label";
 import { signOut } from "@/app/auth/actions";
 import { AccountMenu } from "@/components/account/account-menu";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
@@ -23,6 +25,35 @@ type Props = {
   canEditLocation?: boolean;
 };
 
+function LogoutSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending || undefined}
+      className={cn(
+        dashboardUi.topLogoutBtn,
+        "whitespace-nowrap disabled:cursor-wait disabled:opacity-90",
+      )}
+      aria-label={pending ? "로그아웃 중" : "로그아웃"}
+    >
+      {pending ? (
+        <Loader2 className={cn(dashboardUi.topLogoutIcon, "animate-spin")} />
+      ) : (
+        <LogOut className={dashboardUi.topLogoutIcon} />
+      )}
+      <span className="hidden md:inline">
+        <BusyButtonLabel
+          busy={pending}
+          idleLabel="로그아웃"
+          busyLabel="로그아웃 중…"
+        />
+      </span>
+    </button>
+  );
+}
+
 export function AppHeaderAccount({
   user,
   receipts = [],
@@ -40,14 +71,7 @@ export function AppHeaderAccount({
         canEditLocation={canEditLocation}
       />
       <form action={signOut} className="hidden shrink-0 md:block">
-        <button
-          type="submit"
-          className={cn(dashboardUi.topLogoutBtn, "whitespace-nowrap")}
-          aria-label="로그아웃"
-        >
-          <LogOut className={dashboardUi.topLogoutIcon} />
-          <span className="hidden md:inline">로그아웃</span>
-        </button>
+        <LogoutSubmitButton />
       </form>
     </div>
   );
