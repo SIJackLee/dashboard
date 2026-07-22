@@ -138,6 +138,7 @@ export function BarnTable({
 
   const onListRefresh = useCallback(() => {
     if (liveRefreshManaged && liveRefresh) {
+      if (liveRefresh.revalidating) return;
       void liveRefresh.revalidateFarmLive();
       return;
     }

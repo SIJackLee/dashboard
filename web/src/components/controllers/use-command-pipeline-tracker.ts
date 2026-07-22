@@ -297,7 +297,10 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
       if (next) {
         setTracked((prev) => pickFresherCommand(prev, next));
       }
-      onRefreshLiveRef.current?.();
+      // pending은 명령 status만 폴링. LIVE 일치 확인 단계에서만 detail/readings 갱신
+      if (awaitingLive) {
+        onRefreshLiveRef.current?.();
+      }
     };
 
     void tick();

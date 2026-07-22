@@ -417,6 +417,7 @@ export function FarmMapCanvas({
             }
           }}
           onRefreshLive={() => {
+            if (liveRefresh?.revalidating) return;
             if (liveRefresh) {
               void liveRefresh.revalidateFarmLive();
             } else if (!hubMode) {

@@ -293,7 +293,10 @@ export function useBulkCommandPipelineTracker({
           return command === row.command ? row : { ...row, command };
         }),
       );
-      onRefreshLiveRef.current?.();
+      // pending-only 구간은 명령 status만. LIVE n/N 확인 중일 때만 farm LIVE 갱신
+      if (awaitingLive) {
+        onRefreshLiveRef.current?.();
+      }
     };
 
     void tick();
