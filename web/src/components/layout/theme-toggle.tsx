@@ -25,8 +25,10 @@ export function ThemeToggle({ className }: { className?: string }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setMode(readThemeFromDom());
-    setReady(true);
+    queueMicrotask(() => {
+      setMode(readThemeFromDom());
+      setReady(true);
+    });
   }, []);
 
   const nextMode = mode === "dark" ? "light" : "dark";

@@ -121,8 +121,14 @@ export function FarmMapControllerDetail({
   const [graphOpen, setGraphOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelPeriod, setPanelPeriod] = useState<TrendPeriodId>(period);
+  const [prevPeriod, setPrevPeriod] = useState(period);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const controllerCardRef = useRef<HTMLDivElement | null>(null);
+
+  if (period !== prevPeriod) {
+    setPrevPeriod(period);
+    setPanelPeriod(period);
+  }
 
   const panelLayoutVariant = viewportCompact
     ? ("stack" as const)
@@ -152,10 +158,6 @@ export function FarmMapControllerDetail({
   const effectiveMetricId = availableMetricIds.includes(metricId)
     ? metricId
     : (availableMetricIds[0] ?? metricId);
-
-  useEffect(() => {
-    setPanelPeriod(period);
-  }, [period]);
 
   useEffect(() => {
     if (isFeatureTourActive()) return;
@@ -201,9 +203,11 @@ export function FarmMapControllerDetail({
   ]);
 
   const sheetOpenRef = useRef(false);
-  sheetOpenRef.current = sheetHosted
-    ? hostedMobileSheetOpen
-    : graphOpen || settingsOpen;
+  useEffect(() => {
+    sheetOpenRef.current = sheetHosted
+      ? hostedMobileSheetOpen
+      : graphOpen || settingsOpen;
+  });
 
   const openMobileSheet = useCallback(
     (page: ControllerMobileSheetPage) => {
@@ -243,11 +247,17 @@ export function FarmMapControllerDetail({
     setSettingsOpen(false);
   }, [sheetHosted, onHostedMobileSheetOpenChange]);
 
+  if (selectedReadingKey) {
+    const ctrlKey = resolveControllerKey(selectedReadingKey);
+    if (ctrlKey && ctrlKey !== selectedKey) {
+      setSelectedKey(ctrlKey);
+    }
+  }
+
   useEffect(() => {
     if (!selectedReadingKey) return;
     const ctrlKey = resolveControllerKey(selectedReadingKey);
     if (!ctrlKey) return;
-    setSelectedKey(ctrlKey);
     // sheet가 이미 열려 있으면 페이지(모터/설정) 유지 — 닫혀 있을 때만 기본 오픈
     if (isMobileStack && !sheetOpenRef.current) {
       openMobileSheet(0);

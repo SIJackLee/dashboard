@@ -22,6 +22,13 @@ const HOUR = 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
 const DAY = 24 * HOUR;
 
+/**
+ * Source buckets are finer than GRAPH_BARS so heatmap can binWorst
+ * (crisis / short excursions). Display stays 24 / 28 / 30 columns.
+ *   24h: 15m × 96  → 24 (worst of 4)
+ *   7d:  1h × 168  → 28 (worst of 6)
+ *   30d: 1h × 720  → 30 (worst of 24 = 1 day)
+ */
 export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
   "24h": {
     id: "24h",
@@ -31,8 +38,22 @@ export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
     bucketCount: 96,
     strideMs: 15 * MINUTE,
   },
-  "7d": { id: "7d", label: "7일", bucket: "6 hours", durationMs: 7 * DAY, bucketCount: 28, strideMs: 6 * HOUR },
-  "30d": { id: "30d", label: "30일", bucket: "1 day", durationMs: 30 * DAY, bucketCount: 30, strideMs: DAY },
+  "7d": {
+    id: "7d",
+    label: "7일",
+    bucket: "1 hour",
+    durationMs: 7 * DAY,
+    bucketCount: 168,
+    strideMs: HOUR,
+  },
+  "30d": {
+    id: "30d",
+    label: "30일",
+    bucket: "1 hour",
+    durationMs: 30 * DAY,
+    bucketCount: 720,
+    strideMs: HOUR,
+  },
 };
 
 export const DEFAULT_TREND_PERIOD: TrendPeriodId = "24h";

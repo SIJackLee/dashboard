@@ -72,14 +72,16 @@ export function HealthSystemShell({ snapshot }: Props) {
   const [userDetailOpen, setUserDetailOpen] = useState(false);
   /** SSR·hydration은 null — sessionStorage는 mount 후 동기화 */
   const [suppressAutoKey, setSuppressAutoKey] = useState<string | null>(null);
+  const [snapshotProp, setSnapshotProp] = useState(snapshot);
 
-  useEffect(() => {
-    setSuppressAutoKey(readSuppressKey());
-  }, []);
-
-  useEffect(() => {
+  if (snapshot !== snapshotProp) {
+    setSnapshotProp(snapshot);
     setLiveSnapshot(snapshot);
-  }, [snapshot]);
+  }
+
+  useEffect(() => {
+    queueMicrotask(() => setSuppressAutoKey(readSuppressKey()));
+  }, []);
 
   const patchSnapshot = useCallback(async () => {
     const next = await fetchHealthSnapshotAction();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Wifi } from "lucide-react";
 import {
   DropdownMenu,
@@ -13,6 +13,8 @@ import type { FarmOverview } from "@/lib/data/iot";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+
+const emptySubscribe = () => () => {};
 
 type Props = {
   overview?: FarmOverview;
@@ -38,7 +40,7 @@ function connectivityMessage(overview?: FarmOverview): string {
 
 /** bordered 헤더 버튼 + 알람 bell형 아이콘·배지 오버레이 */
 export function ConnectivityStatusButton({ overview }: Props) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const viewportCompact = useHydrationSafeDashboardCompact();
   const registered = overview?.controllerCount;
   const offline = overview?.offlineCount ?? 0;
@@ -53,8 +55,6 @@ export function ConnectivityStatusButton({ overview }: Props) {
       ? "컨트롤러 연결 현황"
       : `등록 ${registered}컨트롤러, 오프라인 ${offline}컨트롤러`;
   const message = connectivityMessage(overview);
-
-  useEffect(() => setMounted(true), []);
 
   const triggerClassName = cn(
     dashboardUi.topHeaderActionBtn,

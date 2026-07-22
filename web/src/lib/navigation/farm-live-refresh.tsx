@@ -172,7 +172,13 @@ export function FarmLiveRefreshProvider({
   const router = useRouter();
   const tourActive = useFarmTourActive();
   const [, startTransition] = useTransition();
-  const [slice, setSlice] = useState<FarmLiveSlice>(initial);
+  const [slice, setSlice] = useState<FarmLiveSlice>(() => {
+    if (farmKey && initial.readings.length === 0) {
+      const cached = getFarmPanelCache(farmKeyId(farmKey));
+      if (cached) return sliceFromPanel(cached);
+    }
+    return initial;
+  });
   const [revalidating, setRevalidating] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(() => {
     if (!farmKey || initial.readings.length > 0) return false;
@@ -184,33 +190,58 @@ export function FarmLiveRefreshProvider({
   >({});
   const revalidateSeq = useRef(0);
   const sliceRef = useRef(slice);
-  sliceRef.current = slice;
+  useEffect(() => {
+    sliceRef.current = slice;
+  });
 
   const serverFingerprint = useMemo(() => sliceFingerprint(initial), [initial]);
+  const farmId = farmKey ? farmKeyId(farmKey) : null;
 
-  useEffect(() => {
+  // Prop sync during render — initial/serverFingerprint 변경 시 slice 정렬
+  const [prevSyncKey, setPrevSyncKey] = useState(
+    () => `${farmId ?? ""}|${serverFingerprint}`,
+  );
+  const syncKey = `${farmId ?? ""}|${serverFingerprint}`;
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
     if (
       farmKey &&
       initial.readings.length === 0 &&
-      sliceRef.current.readings.length > 0
+      slice.readings.length > 0
     ) {
-      return;
-    }
-
-    if (farmKey && initial.readings.length === 0) {
+      // keep client-hydrated slice while server still empty
+      setIsBootstrapping(false);
+    } else if (farmKey && initial.readings.length === 0) {
       const cached = getFarmPanelCache(farmKeyId(farmKey));
       if (cached) {
         setSlice(sliceFromPanel(cached));
         setIsBootstrapping(false);
-        return;
+      } else {
+        setSlice(initial);
+        setAlarmPatch(null);
+        setThermoPatch({});
+        setIsBootstrapping(true);
+      }
+    } else {
+      setSlice(initial);
+      setAlarmPatch(null);
+      setThermoPatch({});
+      if (farmKey && initial.readings.length > 0) {
+        setIsBootstrapping(false);
       }
     }
+  } else if (isBootstrapping && slice.readings.length > 0) {
+    setIsBootstrapping(false);
+  } else if (
+    isBootstrapping &&
+    (!farmKey || initial.readings.length > 0)
+  ) {
+    setIsBootstrapping(false);
+  }
 
-    setSlice(initial);
-    setAlarmPatch(null);
-    setThermoPatch({});
+  // Cache write only — no setState (side effect of successful server payload)
+  useEffect(() => {
     if (farmKey && initial.readings.length > 0) {
-      setIsBootstrapping(false);
       setFarmPanelCache(
         farmKeyId(farmKey),
         farmPanelCacheFromSlice(farmKey, initial),
@@ -242,23 +273,11 @@ export function FarmLiveRefreshProvider({
     };
   }, []);
 
-  /** Admin defer — readings 없이 진입 시 cold bootstrap */
+  /** Admin defer — readings 없이 진입 시 cold bootstrap (async only) */
   useEffect(() => {
-    if (!farmKey || initial.readings.length > 0) {
-      setIsBootstrapping(false);
-      return;
-    }
-    if (sliceRef.current.readings.length > 0) {
-      setIsBootstrapping(false);
-      return;
-    }
-    const cached = getFarmPanelCache(farmKeyId(farmKey));
-    if (cached) {
-      setSlice(sliceFromPanel(cached));
-      setIsBootstrapping(false);
-      return;
-    }
-    setIsBootstrapping(true);
+    if (!farmKey || initial.readings.length > 0) return;
+    if (sliceRef.current.readings.length > 0) return;
+    if (getFarmPanelCache(farmKeyId(farmKey))) return;
     return fetchAndApplyPanel(farmKey);
   }, [farmKey, fetchAndApplyPanel, initial.readings.length]);
 

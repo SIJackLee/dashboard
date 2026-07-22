@@ -119,8 +119,7 @@ export function ScopeBar({
   const [pendingChip, setPendingChip] = useState<PendingChip | null>(null);
   const [chipPending, startChipTransition] = useTransition();
 
-  useEffect(() => {
-    if (!pendingChip) return;
+  if (pendingChip != null) {
     if (pendingChip.kind === "farm" && activeFarm === pendingChip.value) {
       setPendingChip(null);
     } else if (pendingChip.kind === "sp" && activeSp === pendingChip.value) {
@@ -131,7 +130,7 @@ export function ScopeBar({
     ) {
       setPendingChip(null);
     }
-  }, [activeFarm, activeSp, activeStall, pendingChip]);
+  }
 
   // active prop이 안 바뀌는 경우(동일 값·외부 동기화 지연) busy 고착 방지
   useEffect(() => {

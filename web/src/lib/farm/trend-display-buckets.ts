@@ -1,7 +1,11 @@
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { computeBinnedMetricValues } from "@/lib/farm/stack-metric";
 
-/** 그리드·sheet 공용 표시 막대 수 — 24h=1시간, 7d=6시간, 30d=1일. */
+/**
+ * 그리드·sheet 공용 표시 막대 수.
+ * 원본은 TREND_PERIODS(더 세밀) → 히트맵 색은 binWorst, 값/라인은 구간 평균.
+ * 24h=1시간(15m×4), 7d=6시간(1h×6), 30d=1일(1h×24).
+ */
 export const GRAPH_BARS: Record<TrendPeriodId, number> = {
   "24h": 24,
   "7d": 28,

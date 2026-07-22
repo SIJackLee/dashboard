@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutDashboard, Loader2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
@@ -30,9 +30,9 @@ export function MobileBottomNav({ role, docked = false }: Props) {
   const monitoringActive = isMonitoringNavPath(pathname);
   const adminOpsActive = isAdminOpsNavPath(pathname);
 
-  useEffect(() => {
-    if (!isPending) setPendingHref(null);
-  }, [isPending]);
+  if (!isPending && pendingHref != null) {
+    setPendingHref(null);
+  }
 
   const goSection = (href: string) => {
     if (isPending) return;

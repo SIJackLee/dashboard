@@ -80,17 +80,26 @@ export function BarnControllerMobileSheet({
     viewPageRef.current = viewPage;
   }, [viewPage]);
 
-  useEffect(() => {
+  const [openSnapshot, setOpenSnapshot] = useState(open);
+  const [initialPageSnapshot, setInitialPageSnapshot] = useState(initialPage);
+  if (open !== openSnapshot || initialPage !== initialPageSnapshot) {
+    setOpenSnapshot(open);
+    setInitialPageSnapshot(initialPage);
     if (!open) {
       setDragOffsetPx(0);
       setDragging(false);
+    } else {
+      setViewPage(initialPage);
+      setDragOffsetPx(0);
+    }
+  }
+
+  useEffect(() => {
+    if (!open) {
       touchStartXRef.current = null;
       lockAxisRef.current = null;
-      return;
     }
-    setViewPage(initialPage);
-    setDragOffsetPx(0);
-  }, [open, initialPage]);
+  }, [open]);
 
   const selectTab = useCallback(
     (page: ControllerMobileSheetPage) => {

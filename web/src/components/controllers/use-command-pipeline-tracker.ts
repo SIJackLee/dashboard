@@ -126,7 +126,9 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
   const prevStatusRef = useRef<ThermoCommandStatus | null>(null);
   const confirmedForIdRef = useRef<string | null>(null);
   const onRefreshLiveRef = useRef(onRefreshLive);
-  onRefreshLiveRef.current = onRefreshLive;
+  useEffect(() => {
+    onRefreshLiveRef.current = onRefreshLive;
+  });
 
   const fromServer = useMemo(
     () =>
@@ -187,28 +189,31 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     []
   );
 
-  // 컨트롤러·채널 전환 시 추적 초기화
-  useEffect(() => {
+  // 컨트롤러·채널 전환 시 추적 초기화 (render-time prop sync)
+  const trackScopeKey = `${controllerKey ?? ""}|${activeChannel ?? ""}|${moduleUid ?? ""}|${farmKey?.lsindRegistNo ?? ""}`;
+  const [prevTrackScopeKey, setPrevTrackScopeKey] = useState(trackScopeKey);
+  if (trackScopeKey !== prevTrackScopeKey) {
+    setPrevTrackScopeKey(trackScopeKey);
     setTracked(null);
     setFlash(null);
     setLiveConfirmed(false);
+  }
+
+  useEffect(() => {
     prevStatusRef.current = null;
     confirmedForIdRef.current = null;
-  }, [controllerKey, activeChannel, moduleUid, farmKey?.lsindRegistNo]);
+  }, [trackScopeKey]);
 
-  // 서버 props가 추적 명령을 따라잡으면 병합
-  useEffect(() => {
-    if (!tracked || !fromServer) return;
+  // 서버 props가 추적 명령을 따라잡으면 병합 (render-time)
+  if (tracked && fromServer) {
     if (fromServer.id !== tracked.id) {
       if (fromServer.createdAt >= tracked.createdAt) {
         setTracked(fromServer);
       }
-      return;
-    }
-    if (STATUS_RANK[fromServer.status] > STATUS_RANK[tracked.status]) {
+    } else if (STATUS_RANK[fromServer.status] > STATUS_RANK[tracked.status]) {
       setTracked(fromServer);
     }
-  }, [fromServer, tracked]);
+  }
 
   const commandId = command?.id;
   const commandStatus = command?.status;
@@ -251,16 +256,21 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     prevStatusRef.current = commandStatus;
   }, [commandId, commandStatus, commandError]);
 
+  // 명령 없음·실패·취소 시 LIVE 확인 해제 (render-time)
+  if (
+    liveConfirmed &&
+    (commandId == null ||
+      commandStatus == null ||
+      commandStatus === "failed" ||
+      commandStatus === "cancelled")
+  ) {
+    setLiveConfirmed(false);
+  }
+
   // LIVE 현장 반영 확인
   useEffect(() => {
-    if (commandId == null || commandStatus == null) {
-      setLiveConfirmed((prev) => (prev ? false : prev));
-      return;
-    }
-    if (commandStatus === "failed" || commandStatus === "cancelled") {
-      setLiveConfirmed((prev) => (prev ? false : prev));
-      return;
-    }
+    if (commandId == null || commandStatus == null) return;
+    if (commandStatus === "failed" || commandStatus === "cancelled") return;
     if (confirmedForIdRef.current === commandId) return;
     if (hasTimedId(dismissedLiveOverlayCommandIds, commandId)) {
       confirmedForIdRef.current = commandId;
@@ -300,10 +310,12 @@ export function useCommandPipelineTracker(opts: TrackerOpts) {
     }
 
     confirmedForIdRef.current = commandId;
-    setLiveConfirmed(true);
-    setFlash({
-      tone: "ok",
-      text: `LIVE 설정온도 ${commandSetpoint}℃가 명령과 일치합니다. 패널의 현재값을 확인하세요.`,
+    queueMicrotask(() => {
+      setLiveConfirmed(true);
+      setFlash({
+        tone: "ok",
+        text: `LIVE 설정온도 ${commandSetpoint}℃가 명령과 일치합니다. 패널의 현재값을 확인하세요.`,
+      });
     });
   }, [
     commandId,

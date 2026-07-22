@@ -210,7 +210,9 @@ export function FarmMapCanvas({
   } | null>(null);
   const draggedIdRef = useRef<string | null>(null);
   const barnsRef = useRef(barns);
-  barnsRef.current = barns;
+  useEffect(() => {
+    barnsRef.current = barns;
+  });
 
   const bulkEnabled = Boolean(controller?.canCommand);
 
@@ -287,23 +289,32 @@ export function FarmMapCanvas({
     () => initialBarns.map((b) => b.meta.id).sort().join("|"),
     [initialBarns]
   );
+  const [barnsProp, setBarnsProp] = useState(initialBarns);
+  const [seenBarnIdsKey, setSeenBarnIdsKey] = useState(barnIdsKey);
   const prevBarnIdsKeyRef = useRef(barnIdsKey);
 
-  useEffect(() => {
+  if (initialBarns !== barnsProp) {
+    setBarnsProp(initialBarns);
     setBarns(initialBarns);
+  }
+
+  if (barnIdsKey !== seenBarnIdsKey) {
+    setSeenBarnIdsKey(barnIdsKey);
     // 축사 구성(농장/스코프)이 바뀐 경우에만 그리드로 리셋.
     // 값만 갱신되는 폴링·명령 후 refresh 시에는 열린 그래프/컨트롤러 뷰 유지.
-    if (prevBarnIdsKeyRef.current !== barnIdsKey) {
-      prevBarnIdsKeyRef.current = barnIdsKey;
-      const params = currentFarmSearchParams();
-      if (params.get("sp") || params.get("stall") || params.get("mapLevel")) {
-        clearMapDrillParams(params);
-        replaceFarmUrlShallow(params);
-      }
-      setExpanded(null);
-      setDetailSelectedReadingKey(null);
+    setExpanded(null);
+    setDetailSelectedReadingKey(null);
+  }
+
+  useEffect(() => {
+    if (prevBarnIdsKeyRef.current === barnIdsKey) return;
+    prevBarnIdsKeyRef.current = barnIdsKey;
+    const params = currentFarmSearchParams();
+    if (params.get("sp") || params.get("stall") || params.get("mapLevel")) {
+      clearMapDrillParams(params);
+      replaceFarmUrlShallow(params);
     }
-  }, [initialBarns, barnIdsKey, setExpanded]);
+  }, [barnIdsKey]);
 
   const persistPatch = useCallback(
     (prev: BarnMapSnapshot[], next: BarnMapSnapshot[]) => {

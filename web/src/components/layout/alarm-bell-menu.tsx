@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { Bell } from "lucide-react";
 import {
@@ -23,19 +23,19 @@ import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
+const emptySubscribe = () => () => {};
+
 type Props = {
   alarms: AlarmRow[];
 };
 
 export function AlarmBellMenu({ alarms }: Props) {
   const { navigate, isPending } = useAppNavigate();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const viewportCompact = useHydrationSafeDashboardCompact();
   const active = alarms.filter((a) => a.status === "active");
   const count = active.length;
   const preview = active.slice(0, 6);
-
-  useEffect(() => setMounted(true), []);
 
   const triggerLabel = count > 0 ? `알림 ${count}건` : "알림";
 

@@ -77,7 +77,7 @@ const STAGGER_BATCH = 8;
 function useStaggeredVisibleCount(total: number, enabled: boolean): number {
   const completedRef = useRef(false);
   const [visible, setVisible] = useState(() => {
-    if (!enabled || completedRef.current) return total;
+    if (!enabled) return total;
     return Math.min(STAGGER_INITIAL, total);
   });
 

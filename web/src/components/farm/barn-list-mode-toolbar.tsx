@@ -29,11 +29,9 @@ export function BarnListModeToolbar({
   const [pendingMode, setPendingMode] = useState<BarnListViewMode | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (pendingMode != null && value === pendingMode) {
-      setPendingMode(null);
-    }
-  }, [value, pendingMode]);
+  if (pendingMode != null && value === pendingMode) {
+    setPendingMode(null);
+  }
 
   useEffect(() => {
     if (!pendingMode) return;

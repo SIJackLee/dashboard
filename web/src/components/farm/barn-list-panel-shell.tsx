@@ -22,23 +22,19 @@ export function BarnListPanelShell({
   const [mounted, setMounted] = useState(open);
   const [show, setShow] = useState(open);
   const [latchedChildren, setLatchedChildren] = useState<ReactNode>(children);
+  const [wasOpen, setWasOpen] = useState(open);
   const shellRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
+      setMounted(true);
+      setShow(true);
+    } else {
       setLatchedChildren(children);
-    }
-  }, [open, children]);
-
-  useEffect(() => {
-    if (!open) {
       setShow(false);
-      return;
     }
-    // 즉시 마운트·표시 — 예전 double-rAF + 320ms fallback은 체감 지연만 키움
-    setMounted(true);
-    setShow(true);
-  }, [open]);
+  }
 
   useEffect(() => {
     const el = shellRef.current;
@@ -76,7 +72,7 @@ export function BarnListPanelShell({
           data-state={show ? "open" : "closed"}
           data-panel={panelKind}
         >
-          {latchedChildren}
+          {open ? children : latchedChildren}
         </div>
       </div>
     </div>

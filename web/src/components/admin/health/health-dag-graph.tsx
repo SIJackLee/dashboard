@@ -60,7 +60,9 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    queueMicrotask(() => setMounted(true));
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;

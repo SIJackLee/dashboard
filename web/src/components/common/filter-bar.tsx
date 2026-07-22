@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import {
@@ -16,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const emptySubscribe = () => () => {};
 
 export function FilterBar({
   className,
@@ -56,8 +58,7 @@ export function SimpleSelect({
   value,
   onValueChange,
 }: SimpleSelectProps) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   const displayLabel = resolveFilterSelectLabel(value, options, placeholder);
 

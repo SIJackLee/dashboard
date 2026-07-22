@@ -49,7 +49,7 @@ npx tsx scripts/measure-live-read.ts
 | `farm_trend_history` | SSR (grid + page + hub scoped Z3) | `live:trend:{scope}` | SP × stall × 96 buckets |
 | `farm_trend_history_by_controller` | Client lazy (list graph) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets |
 
-- Bucket policy: 24h = 15 min (96 pts), 7d = 6 h (28), 30d = 1 d (30) — see [`docs/changes/farm-trend-cache-policy.md`](../../docs/changes/farm-trend-cache-policy.md)
+- Bucket policy (source → display via `binWorst` / avg downsample): 24h = 15 min × 96 → 24, 7d = 1 h × 168 → 28, 30d = 1 h × 720 → 30 (`farm-trend-types.ts` + `GRAPH_BARS`)
 - Map tab SSR skips controller-trend fetch (P4 lazy load)
 - Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch + SSR trend via server action when `tab=ops` and farm selected
 

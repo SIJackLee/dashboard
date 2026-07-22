@@ -184,11 +184,13 @@ export function BarnTable({
   );
 
   useEffect(() => {
-    const params = currentFarmSearchParams();
-    const nextLayout = resolveListLayout(params);
-    setListLayout((prev) => (prev === nextLayout ? prev : nextLayout));
-    const fromUrl = resolveListViewMode(params);
-    setListMode((prev) => (prev === fromUrl ? prev : fromUrl));
+    queueMicrotask(() => {
+      const params = currentFarmSearchParams();
+      const nextLayout = resolveListLayout(params);
+      setListLayout((prev) => (prev === nextLayout ? prev : nextLayout));
+      const fromUrl = resolveListViewMode(params);
+      setListMode((prev) => (prev === fromUrl ? prev : fromUrl));
+    });
   }, [urlTick, hubParamsTick, resolveListLayout]);
 
   const effectiveListMode: BarnListViewMode = bulkMode ? "controller" : listMode;
@@ -338,27 +340,28 @@ export function BarnTable({
     return rows.filter((r) => r.stallTyCode === initialSp);
   }, [rows, initialSp]);
 
-  useEffect(() => {
-    if (!mobileToolbarSheetMode) {
-      setToolbarSheetKey(null);
-      setToolbarSheetOpen(false);
-      return;
+  const toolbarSheetModeKey = `${mobileToolbarSheetMode}|${effectiveListMode}`;
+  const [prevToolbarSheetModeKey, setPrevToolbarSheetModeKey] =
+    useState(toolbarSheetModeKey);
+
+  if (!mobileToolbarSheetMode) {
+    if (toolbarSheetKey !== null) setToolbarSheetKey(null);
+    if (toolbarSheetOpen) setToolbarSheetOpen(false);
+  } else {
+    const nextKey =
+      toolbarSheetKey && filteredRows.some((r) => r.key === toolbarSheetKey)
+        ? toolbarSheetKey
+        : (filteredRows[0]?.key ?? null);
+    if (nextKey !== toolbarSheetKey) setToolbarSheetKey(nextKey);
+    if (nextKey && !toolbarSheetOpen) setToolbarSheetOpen(true);
+  }
+
+  if (toolbarSheetModeKey !== prevToolbarSheetModeKey) {
+    setPrevToolbarSheetModeKey(toolbarSheetModeKey);
+    if (mobileToolbarSheetMode) {
+      setToolbarSheetPage(barnListToolbarSheetInitialPage(effectiveListMode));
     }
-    setToolbarSheetKey((prev) => {
-      if (prev && filteredRows.some((r) => r.key === prev)) return prev;
-      return filteredRows[0]?.key ?? null;
-    });
-  }, [mobileToolbarSheetMode, filteredRows]);
-
-  useEffect(() => {
-    if (!mobileToolbarSheetMode) return;
-    if (toolbarSheetKey) setToolbarSheetOpen(true);
-  }, [mobileToolbarSheetMode, toolbarSheetKey]);
-
-  useEffect(() => {
-    if (!mobileToolbarSheetMode) return;
-    setToolbarSheetPage(barnListToolbarSheetInitialPage(effectiveListMode));
-  }, [mobileToolbarSheetMode, effectiveListMode]);
+  }
 
   const visibleSpCodes = useMemo(
     () => stallTyCodesFromReadings(filteredRows),

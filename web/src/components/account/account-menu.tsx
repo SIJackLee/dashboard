@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, CircleHelp, LogOut } from "lucide-react";
 import {
@@ -25,6 +25,8 @@ import { signOut } from "@/app/auth/actions";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
+
+const emptySubscribe = () => () => {};
 
 type Role = "admin" | "operator" | "viewer";
 
@@ -58,7 +60,7 @@ export function AccountMenu({
   const searchParams = useSearchParams();
   const mobile = useMobileLayout();
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const name = user.displayName?.trim() || user.email || "사용자";
   const initial = name.charAt(0).toUpperCase();
   const primaryFarm = farmLocationOptions[0];
@@ -86,8 +88,6 @@ export function AccountMenu({
     const target = buildFarmTourPath(tourFarmKey);
     window.location.assign(target);
   };
-
-  useEffect(() => setMounted(true), []);
 
   const triggerClassName =
     "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60";

@@ -29,10 +29,11 @@ export async function updateSession(request: NextRequest) {
   );
 
   // 쿠키 신뢰 금지 → 항상 getUser() 로 검증
-  let {
-    data: { user },
+  const {
+    data: { user: authUser },
     error: authError,
   } = await supabase.auth.getUser();
+  let user = authUser;
 
   if (authError?.code === "refresh_token_not_found") {
     await supabase.auth.signOut();

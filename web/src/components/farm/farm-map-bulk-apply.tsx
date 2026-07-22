@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle,
@@ -48,6 +48,8 @@ import {
   bulkModalTrackShell,
 } from "@/components/farm/farm-map-bulk-apply-parts";
 import { cn } from "@/lib/utils";
+
+const emptySubscribe = () => () => {};
 
 type Props = {
   controller: ControllerGridData;
@@ -207,7 +209,7 @@ export function FarmMapBulkApply({
   trailing,
   trailingCompact = false,
 }: Props) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [applyPhase, setApplyPhase] = useState<ApplyPhase>("idle");
@@ -244,10 +246,6 @@ export function FarmMapBulkApply({
   const offlineCount = targets.length - onlineTargets.length;
 
   const nothingSelected = !applyTemp && !applyVent && !applyAlarm;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!open) return;

@@ -19,7 +19,9 @@ export function useFarmTourGridAction({
   setExpanded,
 }: Options): void {
   const barnsRef = useRef(barns);
-  barnsRef.current = barns;
+  useEffect(() => {
+    barnsRef.current = barns;
+  });
 
   useEffect(() => {
     const onTourAction = (e: Event) => {

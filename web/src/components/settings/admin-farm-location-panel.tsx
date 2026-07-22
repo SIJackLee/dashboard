@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   saveFarmLocationInlineAction,
@@ -47,6 +47,12 @@ function downloadText(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
+function filterFromSearchParams(
+  searchParams: ReturnType<typeof useSearchParams>,
+): FarmLocationFilter {
+  return searchParams.get("filter") === "unconfigured" ? "unconfigured" : "live";
+}
+
 export function AdminFarmLocationPanel({ options }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -56,7 +62,9 @@ export function AdminFarmLocationPanel({ options }: Props) {
 
   const summary = useMemo(() => summarizeFarmLocations(options), [options]);
 
-  const [filter, setFilter] = useState<FarmLocationFilter>("live");
+  const [filter, setFilter] = useState<FarmLocationFilter>(() =>
+    filterFromSearchParams(searchParams),
+  );
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState<{ tone: "ok" | "error"; text: string } | null>(
     null
@@ -65,20 +73,26 @@ export function AdminFarmLocationPanel({ options }: Props) {
     buildBulkRowsFromOptions(options)
   );
 
+  // Prop sync during render — options / ?filter=unconfigured
+  const [prevOptions, setPrevOptions] = useState(options);
+  if (options !== prevOptions) {
+    setPrevOptions(options);
+    setBulkRows(buildBulkRowsFromOptions(options));
+  }
+
+  const filterParam = searchParams.get("filter");
+  const [prevFilterParam, setPrevFilterParam] = useState(filterParam);
+  if (filterParam !== prevFilterParam) {
+    setPrevFilterParam(filterParam);
+    if (filterParam === "unconfigured") {
+      setFilter("unconfigured");
+    }
+  }
+
   const filtered = useMemo(
     () => filterFarmOptions(options, filter, query, null),
     [options, filter, query]
   );
-
-  useEffect(() => {
-    setBulkRows(buildBulkRowsFromOptions(options));
-  }, [options]);
-
-  useEffect(() => {
-    if (searchParams.get("filter") === "unconfigured") {
-      setFilter("unconfigured");
-    }
-  }, [searchParams]);
 
   const handleApplyRow = (id: string) => {
     const option = findOptionById(options, id);

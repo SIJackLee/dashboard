@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import {
   geocodeFarmAddressAction,
   saveFarmAddressAction,
@@ -81,9 +81,10 @@ export function FarmAddressInput({
   const [verified, setVerified] = useState(() => Boolean(location?.addressText));
   const [pending, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (!deferFocusUntilTap) setInputActive(false);
-  }, [deferFocusUntilTap]);
+  // Prop sync during render — defer off면 포커스 잠금 해제
+  if (!deferFocusUntilTap && inputActive) {
+    setInputActive(false);
+  }
 
   const inputLocked = deferFocusUntilTap && !inputActive;
 

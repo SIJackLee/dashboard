@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -113,6 +113,11 @@ export function ControllerSummaryGaugeRow({
   showSheetPickerAffiliation = false,
 }: Props) {
   const [expandedChannel, setExpandedChannel] = useState<ChannelSlot | null>(null);
+  const [expandedForKey, setExpandedForKey] = useState(reading.key);
+  if (reading.key !== expandedForKey) {
+    setExpandedForKey(reading.key);
+    setExpandedChannel(null);
+  }
 
   const {
     offline,
@@ -157,10 +162,6 @@ export function ControllerSummaryGaugeRow({
   const toggleChannel = useCallback((slot: ChannelSlot) => {
     setExpandedChannel((prev) => (prev === slot ? null : slot));
   }, []);
-
-  useEffect(() => {
-    setExpandedChannel(null);
-  }, [reading.key]);
 
   const setpoint = thermo?.setpointTemp;
   const setDev = thermo?.tempDeviation;

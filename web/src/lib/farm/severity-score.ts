@@ -57,8 +57,8 @@ export function worstSev(sevs: Sev[]): Sev {
 }
 
 /* ---------- 표시 해상도 집계(다운샘플) ----------
- * 원본 버킷(예: 24h=96)을 히트맵 열 수(bars, 예: 24)로 묶는다.
- * 색 = 구간 내 최악(binWorst) — 짧은 이상 구간 보존.
+ * 원본 버킷(24h=96, 7d=168, 30d=720)을 히트맵 열 수(bars: 24/28/30)로 묶는다.
+ * 색 = 구간 내 최악(binWorst) — 짧은 이상·위기 구간 보존.
  */
 
 export function binWorst(scores: (number | null)[], bars: number): (number | null)[] {

@@ -105,33 +105,44 @@ export function useControllerDetail(
     setRefreshTick((n) => n + 1);
   }, [base]);
 
-  // 컨트롤러 전환 시 폴링 tick 초기화
-  useEffect(() => {
+  const baseKey = base?.key;
+  const [seenBaseKey, setSeenBaseKey] = useState(baseKey);
+  if (baseKey !== seenBaseKey) {
+    setSeenBaseKey(baseKey);
     setRefreshTick(0);
-    silentRefreshRef.current = false;
-  }, [base?.key]);
+  }
 
   useEffect(() => {
-    if (!base) {
-      setDetail(null);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    silentRefreshRef.current = false;
+  }, [baseKey]);
+
+  if (!base) {
+    if (detail !== null) setDetail(null);
+    if (loading) setLoading(false);
+    if (error !== null) setError(null);
+  }
+
+  useEffect(() => {
+    if (!base) return;
 
     const key = detailCacheKey(base);
     const cached = refreshTick === 0 ? getFreshCached(key) : undefined;
     if (cached) {
-      setDetail(cached);
-      setLoading(false);
-      setError(null);
+      queueMicrotask(() => {
+        setDetail(cached);
+        setLoading(false);
+        setError(null);
+      });
       return;
     }
 
     let cancelled = false;
     const silent = silentRefreshRef.current;
-    if (!silent) setLoading(true);
-    setError(null);
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (!silent) setLoading(true);
+      setError(null);
+    });
 
     // refresh 시 캐시 우회
     if (refreshTick > 0) {

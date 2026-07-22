@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useSyncExternalStore, useTransition } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown, Loader2 } from "lucide-react";
 import {
@@ -24,6 +24,8 @@ import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
+const emptySubscribe = () => () => {};
+
 type FarmSwitcherProps = {
   farmOptions: FarmKey[];
   activeFarmKey: FarmKey | null;
@@ -34,8 +36,7 @@ type FarmSwitcherProps = {
 
 /** useSearchParams — 클라이언트 마운트 후 렌더로 hydration 불일치 방지 */
 export function FarmSwitcher(props: FarmSwitcherProps) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   if (!mounted) {
     return (

@@ -124,22 +124,28 @@ export function useControllerPanel(
   } | null>(null);
 
   const hasEditedRef = useRef(hasEdited);
-  hasEditedRef.current = hasEdited;
   const knownSettingsRef = useRef(knownSettings);
-  knownSettingsRef.current = knownSettings;
+  useEffect(() => {
+    hasEditedRef.current = hasEdited;
+  });
+  useEffect(() => {
+    knownSettingsRef.current = knownSettings;
+  });
 
   const settingsKnown = knownSettings != null;
   const targetKey = target?.key;
   const channelKey = activeChannel ?? "";
   const settingsKey = settingsSyncKey(knownSettings);
+  const panelIdentity = `${targetKey ?? ""}|${channelKey}`;
+  const [prevPanelIdentity, setPrevPanelIdentity] = useState(panelIdentity);
 
   /** 컨트롤러·채널 전환 시 편집 상태 초기화 */
-  useEffect(() => {
+  if (panelIdentity !== prevPanelIdentity) {
+    setPrevPanelIdentity(panelIdentity);
     setHasEdited(false);
     setMessage(null);
-    const s = knownSettingsRef.current;
-    setDraft(s ? draftFromSettings(s) : null);
-  }, [targetKey, channelKey]);
+    setDraft(knownSettings ? draftFromSettings(knownSettings) : null);
+  }
 
   /**
    * 폴링·LIVE 갱신 시: 편집 중이면 draft 유지.

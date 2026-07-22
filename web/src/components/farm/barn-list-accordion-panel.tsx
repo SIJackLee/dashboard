@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Eye, Loader2, Thermometer } from "lucide-react";
 import {
   AlarmThresholdForm,
@@ -97,12 +97,9 @@ export function BarnListAccordionPanel({
   );
 
   /** detail 로드·채널 구성 변경 시 가용 슬롯으로 맞춤 */
-  useEffect(() => {
-    if (!hasChannels) return;
-    if (!channelSlots.includes(activeChannel)) {
-      setActiveChannel(channelSlots[0] ?? "A");
-    }
-  }, [hasChannels, channelSlots, activeChannel]);
+  if (hasChannels && !channelSlots.includes(activeChannel)) {
+    setActiveChannel(channelSlots[0] ?? "A");
+  }
 
   const channelEqpmnCode =
     channelBySlot(channels, activeChannel)?.eqpmnCode ??

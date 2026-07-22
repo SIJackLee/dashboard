@@ -108,7 +108,7 @@ export function ControllerTempDualSlider({
         "setpoint",
         snap(clamp(raw, TRACK_MIN, upper), STEP)
       );
-      let newDev = clampMenuValue("deviation", anchoredDev);
+      const newDev = clampMenuValue("deviation", anchoredDev);
       if (newSp + newDev > TRACK_MAX) {
         newSp = clampMenuValue("setpoint", TRACK_MAX - newDev);
       }

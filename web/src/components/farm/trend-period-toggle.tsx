@@ -35,11 +35,9 @@ export function TrendPeriodToggle({
   );
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    if (pendingPeriod != null && value === pendingPeriod) {
-      setPendingPeriod(null);
-    }
-  }, [value, pendingPeriod]);
+  if (pendingPeriod != null && value === pendingPeriod) {
+    setPendingPeriod(null);
+  }
 
   useEffect(() => {
     if (!pendingPeriod) return;

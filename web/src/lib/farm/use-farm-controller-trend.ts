@@ -65,14 +65,18 @@ export function useFarmControllerTrend(params: {
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Cache hit — sync during render (lazy init covers first mount)
+  if (active && scopeId) {
+    const cached = readTrendCache(scopeId);
+    if (cached && bundle?.scopeId !== scopeId) {
+      setBundle({ scopeId, data: cached });
+      if (error) setError(false);
+    }
+  }
+
   useEffect(() => {
     if (!active || !params.farmKey) return;
-    const cached = readTrendCache(scopeId);
-    if (cached) {
-      setBundle({ scopeId, data: cached });
-      setError(false);
-      return;
-    }
+    if (readTrendCache(scopeId)) return;
     let cancelled = false;
     void fetchTrendShared(params.farmKey, scopeId, false)
       .then((result) => {

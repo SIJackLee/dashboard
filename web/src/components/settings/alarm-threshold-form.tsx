@@ -124,31 +124,28 @@ export function AlarmThresholdForm({
 
   const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
 
-  const [farmId, setFarmId] = useState(() => farmOptions[0]?.value ?? "");
-  const [spCode, setSpCode] = useState(SCOPE_ALL);
-  const [stallKey, setStallKey] = useState(SCOPE_ALL);
+  const [farmId, setFarmId] = useState(
+    () => fixedScope?.farmId ?? farmOptions[0]?.value ?? "",
+  );
+  const [spCode, setSpCode] = useState(
+    () => fixedScope?.spCode ?? SCOPE_ALL,
+  );
+  const [stallKey, setStallKey] = useState(
+    () => fixedScope?.stallKey ?? SCOPE_ALL,
+  );
   const [controllerReadingKey, setControllerReadingKey] = useState(
-    () => fixedScope?.readingKey ?? SCOPE_ALL
+    () => fixedScope?.readingKey ?? SCOPE_ALL,
   );
 
-  useEffect(() => {
-    if (!fixedScope) return;
-    // Parent often passes a fresh object each render — depend on primitives
-    // and skip setState when values are unchanged to avoid update loops.
-    setFarmId((prev) => (prev === fixedScope.farmId ? prev : fixedScope.farmId));
-    setSpCode((prev) => (prev === fixedScope.spCode ? prev : fixedScope.spCode));
-    setStallKey((prev) =>
-      prev === fixedScope.stallKey ? prev : fixedScope.stallKey,
-    );
-    setControllerReadingKey((prev) =>
-      prev === fixedScope.readingKey ? prev : fixedScope.readingKey,
-    );
-  }, [
-    fixedScope?.farmId,
-    fixedScope?.spCode,
-    fixedScope?.stallKey,
-    fixedScope?.readingKey,
-  ]);
+  // Prop sync during render — parent often passes a fresh fixedScope object
+  if (fixedScope) {
+    if (farmId !== fixedScope.farmId) setFarmId(fixedScope.farmId);
+    if (spCode !== fixedScope.spCode) setSpCode(fixedScope.spCode);
+    if (stallKey !== fixedScope.stallKey) setStallKey(fixedScope.stallKey);
+    if (controllerReadingKey !== fixedScope.readingKey) {
+      setControllerReadingKey(fixedScope.readingKey);
+    }
+  }
 
   const spOptions = useMemo(() => {
     if (!farmId) return [];
@@ -202,15 +199,18 @@ export function AlarmThresholdForm({
   const scopeReady = Boolean(farmId && spCode !== SCOPE_ALL);
   const fieldsDisabled = disabled || !scopeReady || pending;
 
-  useEffect(() => {
+  // Scope 전환 시에만 draft 상속값 로드 (render-time prop sync)
+  const scopeSyncKey = scopeReady && activeScopeKey ? activeScopeKey : "";
+  const [prevScopeSyncKey, setPrevScopeSyncKey] = useState<string | null>(null);
+  if (scopeSyncKey !== prevScopeSyncKey) {
+    setPrevScopeSyncKey(scopeSyncKey);
     if (!scopeReady || !activeScopeKey) {
       setDraft(settings.global);
-      return;
+    } else {
+      setDraft(resolveThresholdsForScope(settings, activeScopeKey));
+      setValidationError(null);
     }
-    setDraft(resolveThresholdsForScope(settings, activeScopeKey));
-    setValidationError(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- scope 전환 시에만 상속값 로드
-  }, [activeScopeKey, scopeReady]);
+  }
 
   const scopeReadings = useMemo(
     () =>

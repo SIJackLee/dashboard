@@ -131,9 +131,10 @@ export function useBulkCommandPipelineTracker({
   const [bannerVisible, setBannerVisible] = useState(false);
   const startedAtRef = useRef<number | null>(null);
   const rowsRef = useRef(rows);
-  rowsRef.current = rows;
   const onRefreshLiveRef = useRef(onRefreshLive);
-  onRefreshLiveRef.current = onRefreshLive;
+  useEffect(() => {
+    onRefreshLiveRef.current = onRefreshLive;
+  });
 
   const readingByKey = useMemo(() => {
     const map = new Map<string, BarnReading>();
@@ -188,35 +189,37 @@ export function useBulkCommandPipelineTracker({
   }, []);
 
   // LIVE 일치 확인 — reading 디코드 실측 우선 (명령 merge map은 source≠live라 오탐/미탐 방지)
-  useEffect(() => {
-    if (!active) return;
-    setRows((prev) => {
-      if (prev.length === 0) return prev;
-      let changed = false;
-      const next = prev.map((row) => {
-        if (row.liveConfirmed || isTerminalFail(row.command.status)) return row;
-        // pending만 있고 LIVE 이전 설정과 우연히 같으면 오탐 — sent/applied 이후만
-        if (row.command.status === "pending") return row;
-        const reading = readingByKey.get(row.key);
-        if (!reading) return row;
-        const matched = liveCandidatesForReading(reading, thermoSettings).some(
-          (values) => thermoValuesMatch(values, row.command),
-        );
-        if (!matched) return row;
-        changed = true;
-        return { ...row, liveConfirmed: true };
-      });
-      return changed ? next : prev;
+  // effect setState 대신 render-time derive — cascading render 경고 회피
+  const trackedRows = useMemo(() => {
+    if (!active || rows.length === 0) return rows;
+    let changed = false;
+    const next = rows.map((row) => {
+      if (row.liveConfirmed || isTerminalFail(row.command.status)) return row;
+      // pending만 있고 LIVE 이전 설정과 우연히 같으면 오탐 — sent/applied 이후만
+      if (row.command.status === "pending") return row;
+      const reading = readingByKey.get(row.key);
+      if (!reading) return row;
+      const matched = liveCandidatesForReading(reading, thermoSettings).some(
+        (values) => thermoValuesMatch(values, row.command),
+      );
+      if (!matched) return row;
+      changed = true;
+      return { ...row, liveConfirmed: true };
     });
+    return changed ? next : rows;
   }, [active, readingByKey, thermoSettings, rows]);
 
+  useEffect(() => {
+    rowsRef.current = trackedRows;
+  });
+
   const progress = useMemo((): BulkLiveProgress => {
-    const total = rows.length;
+    const total = trackedRows.length;
     let ackDone = 0;
     let liveDone = 0;
     let failed = 0;
     let pending = 0;
-    for (const row of rows) {
+    for (const row of trackedRows) {
       if (row.liveConfirmed) liveDone += 1;
       if (isTerminalFail(row.command.status)) failed += 1;
       else if (isAckDone(row.command.status)) ackDone += 1;
@@ -225,7 +228,7 @@ export function useBulkCommandPipelineTracker({
     const allLive = total > 0 && liveDone === total;
     const settled =
       total > 0 &&
-      rows.every(
+      trackedRows.every(
         (r) => r.liveConfirmed || isTerminalFail(r.command.status),
       );
     return {
@@ -238,21 +241,21 @@ export function useBulkCommandPipelineTracker({
       complete: settled || timedOut,
       allLive,
     };
-  }, [rows, timedOut]);
+  }, [trackedRows, timedOut]);
 
   const pollSignature = useMemo(
     () =>
-      rows
+      trackedRows
         .map((r) => `${r.id}:${r.command.status}:${r.liveConfirmed ? 1 : 0}`)
         .join("|"),
-    [rows],
+    [trackedRows],
   );
 
   // 폴링 — 명령 status + LIVE refresh
   useEffect(() => {
-    if (!active || rows.length === 0) return;
+    if (!active || trackedRows.length === 0) return;
 
-    const openRows = rows.filter(
+    const openRows = trackedRows.filter(
       (r) => !r.liveConfirmed && !isTerminalFail(r.command.status),
     );
     if (openRows.length === 0) return;
@@ -332,7 +335,7 @@ export function useBulkCommandPipelineTracker({
   return {
     active,
     bannerVisible,
-    rows,
+    rows: trackedRows,
     progress,
     startSession,
     dismissBanner,

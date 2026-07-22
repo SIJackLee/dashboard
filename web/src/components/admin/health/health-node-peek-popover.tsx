@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { HealthStatusBadge } from "@/components/admin/health/health-status-badge";
 import { Button } from "@/components/ui/button";
@@ -47,12 +47,8 @@ export function HealthNodePeekPopover({
   onClose,
 }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState(() => computePosition(anchor));
+  const position = computePosition(anchor);
   const content = buildNodePeekContent(nodeId, snapshot);
-
-  useLayoutEffect(() => {
-    setPosition(computePosition(anchor));
-  }, [anchor]);
 
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {

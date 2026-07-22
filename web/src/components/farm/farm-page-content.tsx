@@ -83,7 +83,9 @@ export function FarmPageContent({
   const searchParams = useSearchParams();
   const liveRefresh = useFarmLiveRefreshOptional();
   const liveRefreshRef = useRef(liveRefresh);
-  liveRefreshRef.current = liveRefresh;
+  useEffect(() => {
+    liveRefreshRef.current = liveRefresh;
+  });
   const enrichFarmRef = useRef<string | null>(null);
   /** shallow URL(window)은 mount 후에만 — hydration 시 searchParams와 불일치 방지 */
   const [urlHydrated, setUrlHydrated] = useState(false);
@@ -97,35 +99,39 @@ export function FarmPageContent({
   const [viewPending, startTransition] = useTransition();
 
   useEffect(() => {
-    setUrlHydrated(true);
+    queueMicrotask(() => setUrlHydrated(true));
   }, []);
   const tourActiveRef = useRef(tourActive);
-  tourActiveRef.current = tourActive;
+  useEffect(() => {
+    tourActiveRef.current = tourActive;
+  });
 
   useEffect(() => {
     if (!hubMode) return;
-    const next = currentFarmSearchParams().get("view") === "list" ? "list" : "map";
-    setViewState(next);
-    if (next === "list") setListEverOpened(true);
+    queueMicrotask(() => {
+      const next =
+        currentFarmSearchParams().get("view") === "list" ? "list" : "map";
+      setViewState(next);
+      if (next === "list") setListEverOpened(true);
+    });
   }, [hubMode, hubUrlEpoch]);
 
   // 비허브 — 라우터 네비게이션(view=list, 예: 히트맵 '컨트롤러 이동')에 뷰 상태 동기화.
   // 탭 토글은 shallow replaceState라 useSearchParams가 갱신되지 않아 여기서 재정의되지 않음.
-  const lastViewParamRef = useRef<string | null>(searchParams.get("view"));
-  useEffect(() => {
-    if (hubMode) return;
-    const v = searchParams.get("view");
-    if (v === lastViewParamRef.current) return;
-    lastViewParamRef.current = v;
-    const next = v === "list" ? "list" : "map";
+  const [lastViewParam, setLastViewParam] = useState<string | null>(
+    () => searchParams.get("view"),
+  );
+  const viewParam = searchParams.get("view");
+  if (!hubMode && viewParam !== lastViewParam) {
+    setLastViewParam(viewParam);
+    const next = viewParam === "list" ? "list" : "map";
     setViewState(next);
     if (next === "list") setListEverOpened(true);
-  }, [hubMode, searchParams]);
+  }
 
-  useEffect(() => {
-    if (view === "list") setListEverOpened(true);
-  }, [view]);
-
+  if (view === "list" && !listEverOpened) {
+    setListEverOpened(true);
+  }
   // 그리드·목록 공유 프리페치 — map/list 훅이 모듈 캐시를 공유해 이중 fetch 방지.
   // FarmKey는 객체이므로 참조가 아닌 farmKeyId로 단일 농장 여부 판정.
   const gridFarmKey = useMemo<FarmKey | null>(() => {

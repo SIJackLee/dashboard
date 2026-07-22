@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, useState } from "react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -120,9 +120,11 @@ export function BarnListToolbarMobileSheet({
   );
 
   /** key 전환 중 reading이 잠깐 비어도 Dialog를 언마운트하지 않음 */
-  const lastReadingRef = useRef<BarnReading | null>(null);
-  if (reading) lastReadingRef.current = reading;
-  const displayReading = reading ?? lastReadingRef.current;
+  const [lastReading, setLastReading] = useState<BarnReading | null>(null);
+  if (reading && reading !== lastReading) {
+    setLastReading(reading);
+  }
+  const displayReading = reading ?? lastReading;
 
   const panelPeriod = displayReading
     ? (panelPeriodOverrides[displayReading.key] ?? bulkPeriod)

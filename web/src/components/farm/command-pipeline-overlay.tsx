@@ -57,13 +57,20 @@ export function CommandPipelineOverlay({
     onDismissRef.current?.();
   };
 
+  if (!visible) {
+    if (show) setShow(false);
+  } else if (!mounted) {
+    setMounted(true);
+  }
+
   useEffect(() => {
     if (!visible) {
-      setShow(false);
-      const t = window.setTimeout(() => setMounted(false), motionDuration.normal + 20);
+      const t = window.setTimeout(
+        () => setMounted(false),
+        motionDuration.normal + 20,
+      );
       return () => window.clearTimeout(t);
     }
-    setMounted(true);
     const id = window.requestAnimationFrame(() => setShow(true));
     return () => window.cancelAnimationFrame(id);
   }, [visible]);

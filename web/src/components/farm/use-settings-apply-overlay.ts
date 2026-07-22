@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ThermoCommand } from "@/lib/data/commands";
 import { commandStatusLabel } from "@/lib/controllers/controller-settings";
 import type { CommandPipelineFlash } from "@/components/controllers/use-command-pipeline-tracker";
@@ -33,28 +33,33 @@ export function useSettingsApplyOverlay({
 }: Args) {
   const [dismissed, setDismissed] = useState(false);
   const [alarmSavedFlash, setAlarmSavedFlash] = useState(false);
-  const prevSavingRef = useRef(isSaving);
-  const commandIdRef = useRef<string | null>(null);
+  const [prevSaving, setPrevSaving] = useState(isSaving);
+  const [prevCommandId, setPrevCommandId] = useState<string | null>(
+    () => command?.id ?? null,
+  );
 
-  useEffect(() => {
-    if (command?.id && command.id !== commandIdRef.current) {
-      commandIdRef.current = command.id;
-      if (isUserInitiatedCommand(command.id)) {
-        setDismissed(false);
-      }
+  // Prop/key sync during render — avoid setState-in-effect
+  const commandId = command?.id ?? null;
+  if (commandId !== prevCommandId) {
+    setPrevCommandId(commandId);
+    if (commandId && isUserInitiatedCommand(commandId)) {
+      setDismissed(false);
     }
-  }, [command?.id, isUserInitiatedCommand]);
+  }
 
-  useEffect(() => {
-    const wasSaving = prevSavingRef.current;
-    prevSavingRef.current = isSaving;
-    if (wasSaving && !isSaving && !command) {
+  // isSaving falling edge → flash (render adjust + timeout effect)
+  if (isSaving !== prevSaving) {
+    setPrevSaving(isSaving);
+    if (prevSaving && !isSaving && !command) {
       setAlarmSavedFlash(true);
-      const t = window.setTimeout(() => setAlarmSavedFlash(false), 2800);
-      return () => window.clearTimeout(t);
     }
-    return undefined;
-  }, [isSaving, command]);
+  }
+
+  useEffect(() => {
+    if (!alarmSavedFlash) return;
+    const t = window.setTimeout(() => setAlarmSavedFlash(false), 2800);
+    return () => window.clearTimeout(t);
+  }, [alarmSavedFlash]);
 
   const dismiss = useCallback(() => {
     setDismissed(true);
@@ -62,7 +67,7 @@ export function useSettingsApplyOverlay({
     if (command?.id) {
       onAcknowledgeCommandOverlay?.(command.id);
     }
-  }, [command?.id, onAcknowledgeCommandOverlay]);
+  }, [command, onAcknowledgeCommandOverlay]);
 
   const overlay = useMemo((): CommandPipelineOverlayState => {
     if (isSaving) {
