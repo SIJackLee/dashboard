@@ -341,6 +341,7 @@ export function ControllerSummaryGaugeRow({
           commands={commands}
           alarmSettings={alarmSettings}
           canCommand={canCommand}
+          collapsibleSections
         />
       ) : null}
     </BarnListPanelShell>

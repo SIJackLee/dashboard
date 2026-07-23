@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertCircle,
   AlertTriangle,
   Bell,
   CheckCircle2,
+  Cpu,
+  Layers,
   Loader2,
+  Send,
   SlidersHorizontal,
   Thermometer,
   X,
@@ -35,8 +38,10 @@ import { isReadingOnline } from "@/lib/data/reading-display";
 import type { InlineStatusTone } from "@/components/common/inline-status-toast";
 import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
 import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
+import { SettingsCollapsibleSection } from "@/components/farm/settings-collapsible-section";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
+  BULK_CHANNEL_OPTIONS,
   SectionToggle,
   buildBulkThermoCommands,
   bulkModalShell,
@@ -47,9 +52,14 @@ import {
   bulkModalSection,
   bulkModalTrackShell,
 } from "@/components/farm/farm-map-bulk-apply-parts";
+import type { ChannelSlot } from "@/lib/data/iot-channel";
+import { motionClass } from "@/lib/ui/motion-classes";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 
 const emptySubscribe = () => () => {};
+
+type BulkSettingsSectionId = "temp" | "alarm";
 
 type Props = {
   controller: ControllerGridData;
@@ -151,9 +161,9 @@ export function formatBulkApplyFeedback(
           : `제어 전송 실패 (${result.control.error})`,
       );
     } else {
-      parts.push(`제어 ${result.control.sent}대 전송`);
+      parts.push(`제어 ${result.control.sent}건 전송`);
       if (result.control.failed.length > 0) {
-        parts.push(`실패 ${result.control.failed.length}대`);
+        parts.push(`실패 ${result.control.failed.length}건`);
       }
     }
   } else if (opts?.wantedControl && (opts.offlineSkipped ?? 0) > 0) {
@@ -210,6 +220,7 @@ export function FarmMapBulkApply({
   trailingCompact = false,
 }: Props) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const isMobile = useMobileLayout();
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [applyPhase, setApplyPhase] = useState<ApplyPhase>("idle");
@@ -219,6 +230,14 @@ export function FarmMapBulkApply({
   const [applyTemp, setApplyTemp] = useState(true);
   const [applyVent, setApplyVent] = useState(true);
   const [applyAlarm, setApplyAlarm] = useState(true);
+  const [openSection, setOpenSection] = useState<BulkSettingsSectionId | null>(
+    null,
+  );
+  const [selectedChannels, setSelectedChannels] = useState<ChannelSlot[]>([
+    "A",
+    "B",
+    "C",
+  ]);
   const [setpoint, setSetpoint] = useState(EDIT_START_DRAFT.setpointTemp);
   const [deviation, setDeviation] = useState(EDIT_START_DRAFT.tempDeviation);
   const [minVent, setMinVent] = useState(EDIT_START_DRAFT.minVentPct);
@@ -246,20 +265,88 @@ export function FarmMapBulkApply({
   const offlineCount = targets.length - onlineTargets.length;
 
   const nothingSelected = !applyTemp && !applyVent && !applyAlarm;
+  const wantedControl = applyTemp || applyVent;
+  /** 온라인 대상이 전부 채널형일 때만 채널 선택이 필수 */
+  const allChannelTargets = useMemo(
+    () =>
+      onlineTargets.length > 0 &&
+      onlineTargets.every((r) => (r.channels?.length ?? 0) > 0),
+    [onlineTargets],
+  );
+  const previewCommands = useMemo(
+    () =>
+      wantedControl
+        ? buildBulkThermoCommands(onlineTargets, controller.thermoSettings, {
+            applyTemp,
+            applyVent,
+            setpoint,
+            deviation,
+            minVent,
+            maxVent,
+            selectedChannels,
+          })
+        : [],
+    [
+      wantedControl,
+      onlineTargets,
+      controller.thermoSettings,
+      applyTemp,
+      applyVent,
+      setpoint,
+      deviation,
+      minVent,
+      maxVent,
+      selectedChannels,
+    ],
+  );
+
+  const dismissModal = useCallback(() => {
+    if (running) return;
+    setOpen(false);
+    setResult(null);
+    setError(null);
+    setApplyPhase("idle");
+  }, [running]);
 
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !running) setOpen(false);
+      if (e.key === "Escape") dismissModal();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open, running]);
+  }, [open, dismissModal]);
+
+  /* 모달 닫힘 시 접기 상태 초기화 — effect setState 회피 */
+  if (!open && openSection !== null) {
+    setOpenSection(null);
+  }
+
+  const toggleSection = (id: BulkSettingsSectionId) => {
+    setOpenSection((prev) => (prev === id ? null : id));
+  };
+
+  const toggleChannel = (slot: ChannelSlot, on: boolean) => {
+    setSelectedChannels((prev) => {
+      if (on) return prev.includes(slot) ? prev : [...prev, slot];
+      return prev.filter((s) => s !== slot);
+    });
+  };
 
   const runApply = async () => {
+    if (running) return;
     setError(null);
     if (nothingSelected) {
       setError("적용할 항목을 1개 이상 선택하세요.");
+      return;
+    }
+    if (
+      wantedControl &&
+      selectedChannels.length === 0 &&
+      allChannelTargets &&
+      !applyAlarm
+    ) {
+      setError("적용할 채널(A/B/C)을 1개 이상 선택하세요.");
       return;
     }
     if (applyAlarm) {
@@ -274,60 +361,79 @@ export function FarmMapBulkApply({
     setApplyPhase("idle");
     let control: SendBulkThermoCommandResult | null = null;
     let alarmResult: ApplyResult["alarm"] = null;
-    const wantedControl = applyTemp || applyVent;
 
-    // 1) 제어값(온도/환기) — 온라인 컨트롤러만, 컨트롤러별 값 구성
-    if (wantedControl && onlineTargets.length > 0) {
-      setApplyPhase("control");
-      const commands = buildBulkThermoCommands(
-        onlineTargets,
-        controller.thermoSettings,
-        { applyTemp, applyVent, setpoint, deviation, minVent, maxVent }
+    try {
+      // 1) 제어값(온도/환기) — 온라인 컨트롤러·활성 채널별 명령
+      if (wantedControl && onlineTargets.length > 0) {
+        setApplyPhase("control");
+        const commands = buildBulkThermoCommands(
+          onlineTargets,
+          controller.thermoSettings,
+          {
+            applyTemp,
+            applyVent,
+            setpoint,
+            deviation,
+            minVent,
+            maxVent,
+            selectedChannels,
+          },
+        );
+        if (commands.length === 0) {
+          if (!applyAlarm) {
+            setError(
+              "선택한 채널에 해당하는 제어 대상이 없습니다. 채널 선택을 확인하세요.",
+            );
+            return;
+          }
+          // 제어 0건이어도 알람만 이어서 적용
+        } else {
+          control = await sendBulkThermoCommandAction(commands);
+        }
+      }
+
+      // 2) 알람 임계값 — farm+sp override + 하위 stall·controller override cascade
+      if (applyAlarm) {
+        setApplyPhase("alarm");
+        const base = controller.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
+        const { settings, spScopeKeys, clearedOverrides } =
+          applyBulkSpAlarmThresholds(base, targets, spSet, alarm);
+        const fd = new FormData();
+        fd.set("settings_json", JSON.stringify(settings));
+        const res = await saveAlarmSettingsInlineAction(fd);
+        alarmResult = {
+          ok: res.ok,
+          spCount: spScopeKeys.length,
+          clearedOverrides,
+          error: res.error,
+          settings: res.ok ? settings : undefined,
+        };
+      }
+
+      const applied: ApplyResult = { control, alarm: alarmResult };
+      const feedback = formatBulkApplyFeedback(applied, {
+        wantedControl,
+        offlineSkipped: offlineCount,
+      });
+      if (control?.sentItems?.length) {
+        liveTracker.startSession(control.sentItems);
+      }
+      setResult(applied);
+      onAfterApply?.(applied, feedback);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? `적용 중 오류: ${e.message}`
+          : "적용 중 오류가 발생했습니다. 네트워크를 확인한 뒤 다시 시도하세요.",
       );
-      control = await sendBulkThermoCommandAction(commands);
+    } finally {
+      setApplyPhase("idle");
+      setRunning(false);
     }
-
-    // 2) 알람 임계값 — farm+sp override + 하위 stall·controller override cascade
-    if (applyAlarm) {
-      setApplyPhase("alarm");
-      const base = controller.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
-      const { settings, spScopeKeys, clearedOverrides } = applyBulkSpAlarmThresholds(
-        base,
-        targets,
-        spSet,
-        alarm
-      );
-      const fd = new FormData();
-      fd.set("settings_json", JSON.stringify(settings));
-      const res = await saveAlarmSettingsInlineAction(fd);
-      alarmResult = {
-        ok: res.ok,
-        spCount: spScopeKeys.length,
-        clearedOverrides,
-        error: res.error,
-        settings: res.ok ? settings : undefined,
-      };
-    }
-
-    const applied: ApplyResult = { control, alarm: alarmResult };
-    const feedback = formatBulkApplyFeedback(applied, {
-      wantedControl,
-      offlineSkipped: offlineCount,
-    });
-    if (control?.sentItems?.length) {
-      liveTracker.startSession(control.sentItems);
-    }
-    setResult(applied);
-    setApplyPhase("idle");
-    setRunning(false);
-    onAfterApply?.(applied, feedback);
   };
 
   const closeAll = () => {
-    setOpen(false);
-    setResult(null);
-    setError(null);
-    setApplyPhase("idle");
+    dismissModal();
     onExit();
   };
 
@@ -338,25 +444,320 @@ export function FarmMapBulkApply({
       })
     : null;
 
+  const tempSummary = applyTemp ? `${setpoint}±${deviation}℃` : "온도 미적용";
+  const ventSummary = applyVent ? `환기 ${minVent}–${maxVent}%` : "환기 미적용";
+  const controlSummary =
+    !applyTemp && !applyVent
+      ? "적용 안 함"
+      : [applyTemp ? tempSummary : null, applyVent ? ventSummary : null]
+          .filter(Boolean)
+          .join(" · ");
+  const alarmSummary = applyAlarm
+    ? `${alarm.tempLow}–${alarm.tempHigh}℃ · ${alarm.humidityLow}–${alarm.humidityHigh}%`
+    : "적용 안 함";
+
+  const tempSectionBody = (collapsible: boolean) => (
+    <>
+      <SectionToggle
+        checked={applyTemp}
+        onChange={setApplyTemp}
+        applyOnly={collapsible}
+        icon={
+          <Thermometer
+            className={cn(dashboardUi.iconSm, "text-orange-600")}
+            aria-hidden
+          />
+        }
+        label="설정온도 · 편차"
+      />
+      <div className={cn("min-w-0", collapsible ? "pt-2" : "pt-3 md:pt-4")}>
+        <ControllerTempDualSlider
+          setpoint={setpoint}
+          deviation={deviation}
+          disabled={!applyTemp}
+          compact={false}
+          axisMode="editable"
+          axisInputSize="dashboard"
+          thumbLabelClassName={bulkModalThumbLabel}
+          trackShellClassName={bulkModalTrackShell}
+          onChange={(sp, dev) => {
+            setSetpoint(sp);
+            setDeviation(dev);
+          }}
+        />
+      </div>
+    </>
+  );
+
+  const ventSectionBody = (collapsible: boolean) => (
+    <>
+      <SectionToggle
+        checked={applyVent}
+        onChange={setApplyVent}
+        applyOnly={collapsible}
+        icon={
+          <span
+            className={cn(
+              dashboardUi.iconSm,
+              "inline-flex items-center justify-center font-bold text-sky-600",
+            )}
+            aria-hidden
+          >
+            %
+          </span>
+        }
+        label="환기 (최저·최고)"
+      />
+      <div className={cn("min-w-0", collapsible ? "pt-2" : "pt-3 md:pt-4")}>
+        <ThresholdRangeSlider
+          title="환기"
+          icon={
+            <span
+              className={cn(
+                dashboardUi.iconSm,
+                "inline-flex items-center justify-center font-bold text-sky-600",
+              )}
+              aria-hidden
+            >
+              %
+            </span>
+          }
+          min={0}
+          max={100}
+          step={5}
+          low={minVent}
+          high={maxVent}
+          unit="%"
+          lowLabel="최저환기"
+          highLabel="최고환기"
+          accentClass="bg-sky-500/35"
+          axisMode="editable"
+          axisInputSize="dashboard"
+          bare
+          compact={false}
+          titleClassName={bulkModalSectionTitle}
+          thumbLabelClassName={bulkModalThumbLabel}
+          axisClassName={bulkModalMeta}
+          trackShellClassName="lg:pt-12 lg:pb-4"
+          disabled={!applyVent}
+          onChange={(low, high) => {
+            setMinVent(low);
+            setMaxVent(high);
+          }}
+        />
+      </div>
+    </>
+  );
+
+  const alarmSectionBody = (collapsible: boolean) => (
+    <>
+      <SectionToggle
+        checked={applyAlarm}
+        onChange={setApplyAlarm}
+        applyOnly={collapsible}
+        icon={
+          <Bell
+            className={cn(dashboardUi.iconSm, "text-red-600")}
+            aria-hidden
+          />
+        }
+        label="알람 임계값 (온·습 상하한)"
+      />
+      <div
+        className={cn(
+          "min-w-0 space-y-4",
+          collapsible ? "pt-2" : "pt-3 md:space-y-5 md:pt-4",
+        )}
+      >
+        <ThresholdRangeSlider
+          title="온도 알림"
+          icon={
+            <AlarmDomainIcon domain="temp" sizeClass={dashboardUi.iconSm} />
+          }
+          min={10}
+          max={35}
+          step={0.5}
+          low={alarm.tempLow}
+          high={alarm.tempHigh}
+          unit="℃"
+          accentClass="bg-orange-500/35"
+          axisMode="editable"
+          axisInputSize="dashboard"
+          bare
+          compact={false}
+          titleClassName={bulkModalSectionTitle}
+          thumbLabelClassName={bulkModalThumbLabel}
+          trackShellClassName="lg:pt-12 lg:pb-3"
+          disabled={!applyAlarm}
+          onChange={(low, high) =>
+            setAlarm((a) => ({ ...a, tempLow: low, tempHigh: high }))
+          }
+        />
+        <ThresholdRangeSlider
+          title="습도 알림"
+          icon={
+            <AlarmDomainIcon
+              domain="humidity"
+              sizeClass={dashboardUi.iconSm}
+            />
+          }
+          min={0}
+          max={100}
+          step={1}
+          low={alarm.humidityLow}
+          high={alarm.humidityHigh}
+          unit="%"
+          accentClass="bg-sky-500/35"
+          axisMode="editable"
+          axisInputSize="dashboard"
+          bare
+          compact={false}
+          titleClassName={bulkModalSectionTitle}
+          thumbLabelClassName={bulkModalThumbLabel}
+          trackShellClassName="lg:pt-12 lg:pb-3"
+          disabled={!applyAlarm}
+          onChange={(low, high) =>
+            setAlarm((a) => ({
+              ...a,
+              humidityLow: low,
+              humidityHigh: high,
+            }))
+          }
+        />
+      </div>
+    </>
+  );
+
+  const settingsSections = isMobile ? (
+    <div className="flex flex-col gap-2" data-settings-layout="collapsible">
+      <SettingsCollapsibleSection
+        id="temp"
+        title="설정온도 · 편차"
+        summary={controlSummary}
+        changed={applyTemp || applyVent}
+        open={openSection === "temp"}
+        onToggle={() => toggleSection("temp")}
+      >
+        <div className="space-y-4">
+          {tempSectionBody(false)}
+          {ventSectionBody(false)}
+        </div>
+      </SettingsCollapsibleSection>
+      <SettingsCollapsibleSection
+        id="alarm"
+        title="알람"
+        summary={alarmSummary}
+        changed={applyAlarm}
+        open={openSection === "alarm"}
+        onToggle={() => toggleSection("alarm")}
+      >
+        {alarmSectionBody(true)}
+      </SettingsCollapsibleSection>
+    </div>
+  ) : (
+    <>
+      <section className={bulkModalSection}>{tempSectionBody(false)}</section>
+      <section className={bulkModalSection}>{ventSectionBody(false)}</section>
+      <section className={bulkModalSection}>{alarmSectionBody(false)}</section>
+    </>
+  );
+
   const modalContent =
     open && mounted ? (
-      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-4 ui-motion-modal-backdrop" data-mobile-viewport-fullscreen>
-        <div className={cn(bulkModalShell, "ui-motion-modal-panel")} role="dialog" aria-modal="true" aria-labelledby="bulk-apply-title">
+      <div
+        data-open=""
+        className={cn(
+          "fixed inset-0 z-50 flex bg-black/40",
+          isMobile
+            ? cn(
+                "items-end justify-center overflow-hidden p-0",
+                motionClass.durationNormal,
+                motionClass.portalOverlayEnter,
+              )
+            : "items-center justify-center overflow-y-auto p-3 sm:p-4 ui-motion-modal-backdrop",
+        )}
+        /* fullscreen만 — sheet를 같이 두면 preview CSS가 오버레이 높이를 85%로 줄여 하단 네비가 비침 */
+        data-mobile-viewport-fullscreen
+        onClick={(e) => {
+          if (!isMobile || running || e.target !== e.currentTarget) return;
+          dismissModal();
+        }}
+      >
+        <div
+          data-open=""
+          className={cn(
+            bulkModalShell,
+            isMobile
+              ? cn(
+                  motionClass.durationModerate,
+                  motionClass.portalEnter,
+                  motionClass.sheetEnter,
+                  "max-h-[min(85%,var(--mobile-preview-sheet-h,85dvh))] min-h-0 w-full max-w-none rounded-b-none rounded-t-2xl border-x-0 border-b-0 pb-[env(safe-area-inset-bottom,0px)]",
+                )
+              : "ui-motion-modal-panel",
+          )}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bulk-apply-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isMobile ? (
+            <div className="flex shrink-0 justify-center pt-2.5 pb-0.5" aria-hidden>
+              <div className="h-1 w-10 rounded-full bg-muted-foreground/35" />
+            </div>
+          ) : null}
           <div className="flex shrink-0 items-start justify-between gap-3 border-b px-4 py-3 md:px-6 md:py-4">
             <div className="min-w-0 flex-1">
               <p id="bulk-apply-title" className={cn("font-semibold leading-snug", bulkModalSectionTitle)}>
                 컨트롤러 일괄 설정
               </p>
-              <p className={cn("mt-1 leading-snug", bulkModalMeta)}>
-                대상 유형 {selectedSps.length}개 · 컨트롤러 {targets.length}대
-                {offlineCount > 0
-                  ? ` (제어는 온라인 ${onlineTargets.length}대에만 전송)`
-                  : ""}
-              </p>
+              <div
+                className={cn(
+                  "mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5",
+                  bulkModalMeta,
+                )}
+              >
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  title="대상 유형"
+                >
+                  <Layers className={dashboardUi.iconSm} aria-hidden />
+                  <span className="sr-only">대상 유형</span>
+                  <span aria-label={`대상 유형 ${selectedSps.length}개`}>
+                    {selectedSps.length}
+                  </span>
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  title={
+                    offlineCount > 0
+                      ? `컨트롤러 ${targets.length}대 (온라인 ${onlineTargets.length})`
+                      : "컨트롤러"
+                  }
+                >
+                  <Cpu className={dashboardUi.iconSm} aria-hidden />
+                  <span className="sr-only">컨트롤러</span>
+                  <span aria-label={`컨트롤러 ${targets.length}대`}>
+                    {targets.length}
+                  </span>
+                </span>
+                {wantedControl && previewCommands.length > 0 ? (
+                  <span
+                    className="inline-flex items-center gap-1.5"
+                    title="제어 명령"
+                  >
+                    <Send className={dashboardUi.iconSm} aria-hidden />
+                    <span className="sr-only">제어 명령</span>
+                    <span aria-label={`제어 명령 약 ${previewCommands.length}건`}>
+                      {previewCommands.length}
+                    </span>
+                  </span>
+                ) : null}
+              </div>
             </div>
             <button
               type="button"
-              onClick={() => (running ? undefined : setOpen(false))}
+              onClick={() => dismissModal()}
               disabled={running}
               className="inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-50 md:p-2"
               aria-label="닫기"
@@ -389,9 +790,9 @@ export function FarmMapBulkApply({
               <ul className="mt-3 space-y-1.5 leading-snug">
                 {result.control ? (
                   <li>
-                    제어 명령: 전송 {result.control.sent}대
+                    제어 명령: 전송 {result.control.sent}건
                     {result.control.failed.length > 0
-                      ? ` · 실패 ${result.control.failed.length}대`
+                      ? ` · 실패 ${result.control.failed.length}건`
                       : ""}
                     {result.control.error && result.control.sent === 0
                       ? ` · ${result.control.error}`
@@ -487,7 +888,7 @@ export function FarmMapBulkApply({
                 {applyPhase === "alarm"
                   ? "알람 임계값을 저장하고 있습니다."
                   : applyPhase === "control"
-                    ? `제어 명령을 전송하고 있습니다. (${onlineTargets.length}대)`
+                    ? `제어 명령을 전송하고 있습니다. (${previewCommands.length || onlineTargets.length}건)`
                     : "적용을 준비하고 있습니다."}
               </p>
               <p className={cn("text-xs leading-snug", bulkModalMeta)}>
@@ -496,170 +897,63 @@ export function FarmMapBulkApply({
             </div>
           ) : (
             <>
-              <div className="min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto px-4 py-4 md:space-y-5 md:px-6 md:py-5">
-                {/* 온도 */}
-                <section className={bulkModalSection}>
-                  <SectionToggle
-                    checked={applyTemp}
-                    onChange={setApplyTemp}
-                    icon={
-                      <Thermometer
-                        className={cn(dashboardUi.iconSm, "text-orange-600")}
-                        aria-hidden
-                      />
-                    }
-                    label="설정온도 · 편차"
-                  />
-                  <div className="min-w-0 pt-3 md:pt-4">
-                    <ControllerTempDualSlider
-                      setpoint={setpoint}
-                      deviation={deviation}
-                      disabled={!applyTemp}
-                      compact={false}
-                      axisMode="editable"
-                      axisInputSize="dashboard"
-                      thumbLabelClassName={bulkModalThumbLabel}
-                      trackShellClassName={bulkModalTrackShell}
-                      onChange={(sp, dev) => {
-                        setSetpoint(sp);
-                        setDeviation(dev);
-                      }}
-                    />
-                  </div>
-                </section>
+              <div
+                className={cn(
+                  "min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 md:px-6 md:py-5",
+                  isMobile ? "space-y-2" : "space-y-4 md:space-y-5",
+                )}
+              >
+                {wantedControl ? (
+                  <section className={bulkModalSection}>
+                    <p className={cn("border-b pb-2.5 font-semibold md:pb-3", bulkModalSectionTitle)}>
+                      적용 채널
+                    </p>
+                    <div
+                      className="mt-3 flex flex-wrap gap-2 md:gap-3"
+                      role="group"
+                      aria-label="적용 채널"
+                    >
+                      {BULK_CHANNEL_OPTIONS.map((slot) => {
+                        const checked = selectedChannels.includes(slot);
+                        return (
+                          <label
+                            key={slot}
+                            title={`채널 ${slot}`}
+                            className={cn(
+                              "inline-flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors md:px-3 md:py-2",
+                              checked
+                                ? "border-emerald-600/40 bg-emerald-50 text-foreground dark:bg-emerald-950/40"
+                                : "bg-muted/20 text-muted-foreground hover:bg-muted/40",
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) =>
+                                toggleChannel(slot, e.target.checked)
+                              }
+                              className="size-4 accent-emerald-600 md:size-5"
+                              aria-label={`채널 ${slot}`}
+                            />
+                            <span
+                              className={cn(
+                                "inline-flex size-7 items-center justify-center rounded-md border text-xs font-semibold md:size-8 md:text-sm",
+                                checked
+                                  ? "border-emerald-600/50 bg-background"
+                                  : "border-border bg-background/60",
+                              )}
+                              aria-hidden
+                            >
+                              {slot}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ) : null}
 
-                {/* 환기 */}
-                <section className={bulkModalSection}>
-                  <SectionToggle
-                    checked={applyVent}
-                    onChange={setApplyVent}
-                    icon={
-                      <span
-                        className={cn(
-                          dashboardUi.iconSm,
-                          "inline-flex items-center justify-center font-bold text-sky-600",
-                        )}
-                        aria-hidden
-                      >
-                        %
-                      </span>
-                    }
-                    label="환기 (최저·최고)"
-                  />
-                  <div className="min-w-0 pt-3 md:pt-4">
-                    <ThresholdRangeSlider
-                      title="환기"
-                      icon={
-                        <span
-                          className={cn(
-                            dashboardUi.iconSm,
-                            "inline-flex items-center justify-center font-bold text-sky-600",
-                          )}
-                          aria-hidden
-                        >
-                          %
-                        </span>
-                      }
-                      min={0}
-                      max={100}
-                      step={5}
-                      low={minVent}
-                      high={maxVent}
-                      unit="%"
-                      lowLabel="최저환기"
-                      highLabel="최고환기"
-                      accentClass="bg-sky-500/35"
-                      axisMode="editable"
-                      axisInputSize="dashboard"
-                      bare
-                      compact={false}
-                      titleClassName={bulkModalSectionTitle}
-                      thumbLabelClassName={bulkModalThumbLabel}
-                      axisClassName={bulkModalMeta}
-                      trackShellClassName="lg:pt-12 lg:pb-4"
-                      disabled={!applyVent}
-                      onChange={(low, high) => {
-                        setMinVent(low);
-                        setMaxVent(high);
-                      }}
-                    />
-                  </div>
-                </section>
-
-                {/* 알람 */}
-                <section className={bulkModalSection}>
-                  <SectionToggle
-                    checked={applyAlarm}
-                    onChange={setApplyAlarm}
-                    icon={
-                      <Bell
-                        className={cn(dashboardUi.iconSm, "text-red-600")}
-                        aria-hidden
-                      />
-                    }
-                    label="알람 임계값 (온·습 상하한)"
-                  />
-                  <div className="min-w-0 space-y-4 pt-3 md:space-y-5 md:pt-4">
-                    <ThresholdRangeSlider
-                      title="온도 알림"
-                      icon={
-                        <AlarmDomainIcon
-                          domain="temp"
-                          sizeClass={dashboardUi.iconSm}
-                        />
-                      }
-                      min={10}
-                      max={35}
-                      step={0.5}
-                      low={alarm.tempLow}
-                      high={alarm.tempHigh}
-                      unit="℃"
-                      accentClass="bg-orange-500/35"
-                      axisMode="editable"
-                      axisInputSize="dashboard"
-                      bare
-                      compact={false}
-                      titleClassName={bulkModalSectionTitle}
-                      thumbLabelClassName={bulkModalThumbLabel}
-                      trackShellClassName="lg:pt-12 lg:pb-3"
-                      disabled={!applyAlarm}
-                      onChange={(low, high) =>
-                        setAlarm((a) => ({ ...a, tempLow: low, tempHigh: high }))
-                      }
-                    />
-                    <ThresholdRangeSlider
-                      title="습도 알림"
-                      icon={
-                        <AlarmDomainIcon
-                          domain="humidity"
-                          sizeClass={dashboardUi.iconSm}
-                        />
-                      }
-                      min={0}
-                      max={100}
-                      step={1}
-                      low={alarm.humidityLow}
-                      high={alarm.humidityHigh}
-                      unit="%"
-                      accentClass="bg-sky-500/35"
-                      axisMode="editable"
-                      axisInputSize="dashboard"
-                      bare
-                      compact={false}
-                      titleClassName={bulkModalSectionTitle}
-                      thumbLabelClassName={bulkModalThumbLabel}
-                      trackShellClassName="lg:pt-12 lg:pb-3"
-                      disabled={!applyAlarm}
-                      onChange={(low, high) =>
-                        setAlarm((a) => ({
-                          ...a,
-                          humidityLow: low,
-                          humidityHigh: high,
-                        }))
-                      }
-                    />
-                  </div>
-                </section>
+                {settingsSections}
 
                 {error ? (
                   <p className="leading-snug text-red-600">{error}</p>
@@ -667,15 +961,17 @@ export function FarmMapBulkApply({
               </div>
 
               <div className="flex shrink-0 flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 md:px-6 md:py-4">
-                <p className={cn("min-w-0 leading-snug", bulkModalMeta)}>
-                  {nothingSelected
-                    ? "적용할 항목을 선택하세요."
-                    : "체크한 항목만 적용됩니다."}
-                </p>
+                {nothingSelected ? (
+                  <p className={cn("min-w-0 leading-snug", bulkModalMeta)}>
+                    적용할 항목을 선택하세요.
+                  </p>
+                ) : (
+                  <span className="min-w-0" aria-hidden />
+                )}
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 md:gap-3">
                   <button
                     type="button"
-                    onClick={() => setOpen(false)}
+                    onClick={() => dismissModal()}
                     disabled={running}
                     className={cn(bulkModalBtn, "border hover:bg-muted disabled:opacity-50")}
                   >
@@ -684,7 +980,17 @@ export function FarmMapBulkApply({
                   <button
                     type="button"
                     onClick={runApply}
-                    disabled={running || nothingSelected}
+                    disabled={
+                      running ||
+                      nothingSelected ||
+                      (wantedControl &&
+                        previewCommands.length === 0 &&
+                        !applyAlarm) ||
+                      (wantedControl &&
+                        selectedChannels.length === 0 &&
+                        allChannelTargets &&
+                        !applyAlarm)
+                    }
                     className={cn(
                       bulkModalBtn,
                       "gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
@@ -695,6 +1001,8 @@ export function FarmMapBulkApply({
                         <Loader2 className="size-4 animate-spin lg:size-5" />
                         적용 중…
                       </>
+                    ) : wantedControl ? (
+                      `${targets.length}대 · 명령 ${previewCommands.length}건 적용`
                     ) : (
                       `${targets.length}대에 적용`
                     )}

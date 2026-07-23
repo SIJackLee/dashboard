@@ -138,7 +138,7 @@ export async function fetchThermoCommandAction(
 }
 
 export type BulkThermoCommand = {
-  /** 결과 매핑용 reading key */
+  /** reading key — LIVE thermo 매칭용 (채널 명령도 reading 단위) */
   key: string;
   lsindRegistNo: string;
   itemCode: string;
@@ -150,6 +150,9 @@ export type BulkThermoCommand = {
   maxVentPct: number;
   setpointTemp: number;
   tempDeviation: number;
+  /** 있으면 SET_CHANNEL_THERMO, 없으면 SET_CTRL_THERMO */
+  channel?: "A" | "B" | "C" | null;
+  eqpmnCode?: string | null;
 };
 
 export type BulkSentCommandItem = {
@@ -168,7 +171,7 @@ export type SendBulkThermoCommandResult = {
   error?: string;
 };
 
-/** 일괄 온도·환기 명령 — 컨트롤러별 값(체크 안 한 항목은 현재값 유지)을 담아 N건 insert. */
+/** 일괄 온도·환기 명령 — 컨트롤러·채널별 값을 담아 N건 insert. */
 export async function sendBulkThermoCommandAction(
   commands: BulkThermoCommand[]
 ): Promise<SendBulkThermoCommandResult> {
@@ -199,6 +202,15 @@ export async function sendBulkThermoCommandAction(
     const maxVentPct = Number(c.maxVentPct);
     const setpointTemp = Number(c.setpointTemp);
     const tempDeviation = Number(c.tempDeviation);
+    const channelRaw = String(c.channel ?? "").trim().toUpperCase();
+    const channel =
+      channelRaw === "A" || channelRaw === "B" || channelRaw === "C"
+        ? channelRaw
+        : null;
+    const eqpmnCode = String(c.eqpmnCode ?? "").trim() || null;
+    const action =
+      channel && eqpmnCode ? "SET_CHANNEL_THERMO" : "SET_CTRL_THERMO";
+    const failKey = channel ? `${c.key}:${channel}` : c.key;
 
     if (
       !lsindRegistNo ||
@@ -209,7 +221,7 @@ export async function sendBulkThermoCommandAction(
       !stallNo ||
       !/^(0[1-9]|[12][0-9]|3[0-2])$/.test(stallNo)
     ) {
-      failed.push({ key: c.key, error: "invalid_target" });
+      failed.push({ key: failKey, error: "invalid_target" });
       continue;
     }
 
@@ -228,7 +240,12 @@ export async function sendBulkThermoCommandAction(
       tempDeviation < 0 ||
       tempDeviation > 20
     ) {
-      failed.push({ key: c.key, error: "invalid_values" });
+      failed.push({ key: failKey, error: "invalid_values" });
+      continue;
+    }
+
+    if (channel && !/^EC(0[1-9]|[1-9][0-9])$/.test(eqpmnCode ?? "")) {
+      failed.push({ key: failKey, error: "invalid_eqpmn_code" });
       continue;
     }
 
@@ -243,21 +260,21 @@ export async function sendBulkThermoCommandAction(
         stall_ty_code: stallTyCode,
         stall_no: stallNo,
         eqpmn_no: eqpmnNo,
-        channel: null,
-        eqpmn_code: null,
+        channel,
+        eqpmn_code: eqpmnCode,
         min_vent_pct: Math.round(minVentPct),
         max_vent_pct: Math.round(maxVentPct),
         setpoint_temp: setpointTemp,
         temp_deviation: tempDeviation,
         note: null,
-        action: "SET_CTRL_THERMO",
+        action,
         status: "pending",
       })
       .select(THERMO_COMMAND_SELECT)
       .single();
 
     if (error || !data) {
-      failed.push({ key: c.key, error: error?.message ?? "insert_failed" });
+      failed.push({ key: failKey, error: error?.message ?? "insert_failed" });
     } else {
       const command = mapThermoCommandRow(data as ThermoCommandRow);
       sentItems.push({ key: c.key, id: command.id, command });

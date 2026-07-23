@@ -13,7 +13,10 @@ import {
 } from "@/lib/controllers/controller-settings";
 import type { ThermoCommand, ThermoCommandStatus } from "@/lib/data/commands";
 import type { BarnReading } from "@/lib/data/iot";
-import { channelBySlot } from "@/lib/data/iot-channel";
+import {
+  channelBySlot,
+  type ChannelSlot,
+} from "@/lib/data/iot-channel";
 
 const PENDING_POLL_MS = 2000;
 const SENT_POLL_MS = 4000;
@@ -77,11 +80,20 @@ function isTerminalFail(status: ThermoCommandStatus): boolean {
 }
 
 /**
- * LIVE uplink 실측값 — merge map의 command(source)와 무관하게 reading에서 직접 읽음.
- * 채널 컨트롤러는 A 우선 (단건 패널과 동일).
+ * LIVE uplink 실측값.
+ * - 채널 명령: 해당 슬롯만 (A 폴백 금지 — B 조기 완료 오탐 방지)
+ * - 레거시(CTRL): A 우선 후 다른 채널·루트 thermo
  */
-function liveThermoFromReading(r: BarnReading): ThermoValues | null {
+function liveThermoFromReading(
+  r: BarnReading,
+  channel?: ChannelSlot | null,
+): ThermoValues | null {
   if (r.channels?.length) {
+    if (channel) {
+      return thermoFromDecoded(
+        channelBySlot(r.channels, channel)?.thermo ?? null,
+      );
+    }
     const chA = channelBySlot(r.channels, "A")?.thermo;
     const fromA = thermoFromDecoded(chA ?? null);
     if (fromA) return fromA;
@@ -96,26 +108,38 @@ function liveThermoFromReading(r: BarnReading): ThermoValues | null {
 function liveCandidatesForReading(
   reading: BarnReading,
   thermoSettings: Record<string, ControllerThermoSettings>,
+  channel?: ChannelSlot | null,
 ): ThermoValues[] {
   const candidates: ThermoValues[] = [];
-  const fromReading = liveThermoFromReading(reading);
+  const fromReading = liveThermoFromReading(reading, channel);
   if (fromReading) candidates.push(fromReading);
 
-  const fromMapA =
-    resolveThermoSettings(
+  if (channel) {
+    const fromMap = resolveThermoSettings(
       thermoSettings,
       reading.farmKey,
       reading.moduleUid,
       reading.controllerKey,
-      "A",
-    ) ??
-    resolveThermoSettings(
-      thermoSettings,
-      reading.farmKey,
-      reading.moduleUid,
-      reading.controllerKey,
+      channel,
     );
-  if (fromMapA?.source === "live") candidates.push(fromMapA);
+    if (fromMap?.source === "live") candidates.push(fromMap);
+  } else {
+    const fromMap =
+      resolveThermoSettings(
+        thermoSettings,
+        reading.farmKey,
+        reading.moduleUid,
+        reading.controllerKey,
+        "A",
+      ) ??
+      resolveThermoSettings(
+        thermoSettings,
+        reading.farmKey,
+        reading.moduleUid,
+        reading.controllerKey,
+      );
+    if (fromMap?.source === "live") candidates.push(fromMap);
+  }
 
   return candidates;
 }
@@ -199,9 +223,11 @@ export function useBulkCommandPipelineTracker({
       if (row.command.status === "pending") return row;
       const reading = readingByKey.get(row.key);
       if (!reading) return row;
-      const matched = liveCandidatesForReading(reading, thermoSettings).some(
-        (values) => thermoValuesMatch(values, row.command),
-      );
+      const matched = liveCandidatesForReading(
+        reading,
+        thermoSettings,
+        row.command.channel,
+      ).some((values) => thermoValuesMatch(values, row.command));
       if (!matched) return row;
       changed = true;
       return { ...row, liveConfirmed: true };

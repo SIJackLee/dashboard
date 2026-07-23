@@ -26,7 +26,6 @@ import {
 import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
 import { DEFAULT_ALARM_SETTINGS, type AlarmSettings } from "@/lib/data/alarms";
 import {
-  CHANNEL_SLOT_LABELS,
   channelBySlot,
   DEFAULT_CHANNEL_EQPMN,
   type ChannelSlot,
@@ -52,7 +51,7 @@ type Props = {
   commands?: ThermoCommand[];
   alarmSettings?: AlarmSettings;
   canCommand: boolean;
-  /** 모바일 sheet — 섹션 접이식 (PC 목록·그리드는 false) */
+  /** 섹션 접이식 — 모바일 sheet·PC 목록 설정 공통 */
   collapsibleSections?: boolean;
 };
 
@@ -253,9 +252,7 @@ export function BarnListAccordionPanel({
   const alarmSummary =
     thresholdHeader?.collapsedSummary ?? "온도 · 습도 알람";
   const controlSummary = formatControlCollapsedSummary(panel.sliderValues);
-  const controlTitle = hasChannels
-    ? `제어 · ${CHANNEL_SLOT_LABELS[activeChannel]}`
-    : "제어";
+  const controlTitle = "설정온도 · 편차";
 
   const channelPicker =
     hasChannels && channelSlots.length > 1 ? (
@@ -473,7 +470,7 @@ export function BarnListAccordionPanel({
       <>
         {overlayNode}
         <div
-        className="bg-muted/20"
+        className="border-t bg-muted/20"
         data-audit-region="barn-list-accordion-panel"
         data-settings-layout="collapsible"
         onClick={(e) => e.stopPropagation()}
