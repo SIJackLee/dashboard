@@ -20,31 +20,31 @@
 
 ## 공통
 
-- [ ] 로그인 → `/farm` 진입, FARM01 LIVE(임신/분만/자돈) 표시
-- [ ] 빈 SP·위치만 농장이 제품 화면에 이질감 없이 처리
-- [ ] DevTools / Next 이슈 배지에 **hydration mismatch 없음** (가능하면)
+- [x] 로그인 → `/farm` 진입, FARM01 LIVE(임신/분만/자돈) 표시 — `audit:ship-checklist` · `ship-p0-gate-smoke` (2026-07-24)
+- [x] 빈 SP·위치만 농장이 제품 화면에 이질감 없이 처리 — LIVE SP만 표시·위치만 뱃지 (제품화 반영)
+- [x] DevTools / Next 이슈 배지에 **hydration mismatch 없음** — Playwright Chromium cold load + 테마 토글 (`ship-p0-gate-smoke`, 2026-07-24)
 
 ## admin
 
-- [ ] `/farm` 허브: LIVE 그리드만 (위치만 농장 숨김/안내)
-- [ ] Farm switcher: `LIVE` / `위치만` 뱃지 (해당 시)
-- [ ] 헤더 **운영** → `/admin/ops` 시스템·사용자·농장 탭 로드
-- [ ] 테마·모바일 미리보기 토글 동작, hydration 경고 없음
+- [x] `/farm` 허브: LIVE 그리드만 (위치만 농장 숨김/안내) — `audit:ship-checklist` (2026-07-24)
+- [x] Farm switcher: `LIVE` / `위치만` 뱃지 (해당 시) — 제품화 반영
+- [x] 헤더 **운영** → `/admin/ops` 시스템·사용자·농장 탭 로드 — `audit:ship-checklist` (2026-07-24)
+- [x] 테마·모바일 미리보기 토글 동작, hydration 경고 없음 — `ship-p0-gate-smoke` 테마 (2026-07-24)
 
 ## operator
 
-- [ ] 컨트롤러 설정온도 변경 → **적용** 활성 → 전송
-- [ ] ACK → 현장 반영 완료(또는 동등 피드백) 체감
-- [ ] 일괄 적용 UI 진입(선택·설정) 가능
-- [ ] `/admin/ops` 등 운영 경로 차단 또는 `/farm`으로 복귀
+- [x] 컨트롤러 설정온도 변경 → **적용** 활성 → 전송 — `audit:ship-checklist` / `ship-p0-gate-smoke` (2026-07-24)
+- [x] ACK → 현장 반영 완료(또는 동등 피드백) 체감 — `명령 등록 · 전송 대기` (2026-07-24)
+- [x] 일괄 적용 UI 진입(선택·설정) 가능 — 수동 시나리오 1·5·6 (2026-07-24)
+- [x] `/admin/ops` 등 운영 경로 차단 또는 `/farm`으로 복귀 — `audit:ship-checklist` (2026-07-24)
 
 ## viewer
 
-- [ ] 설정 패널 **조회 전용** 배너
-- [ ] 적용/기본값 없음, 슬라이더·알람 잠금
-- [ ] 일괄적용 없음 · 운영 메뉴 없음
-- [ ] `/admin/ops` → `/farm` (또는 동등 차단)
-- [ ] 명령이 실제로 나가지 않음
+- [x] 설정 패널 **조회 전용** 배너 — `audit:ship-checklist` (2026-07-24)
+- [x] 적용/기본값 없음, 슬라이더·알람 잠금 — `audit:ship-checklist` (2026-07-24)
+- [x] 일괄적용 없음 · 운영 메뉴 없음 — `audit:ship-checklist` (2026-07-24)
+- [x] `/admin/ops` → `/farm` (또는 동등 차단) — `audit:ship-checklist` (2026-07-24)
+- [x] 명령이 실제로 나가지 않음 — `audit:ship-checklist` (2026-07-24)
 
 ## 자동화
 
@@ -147,7 +147,7 @@ npm run audit:ship-checklist
 | 3 | LIVE 중 이탈 | PASS | 배너 중 `/farm` 이탈 후 목록 재진입 · 적용 UI 복구 | 2026-07-24 |
 | 4 | 탭 숨김 | PASS | quiet → hide → 1.5s drain 후 신규 poll 0 (`hiddenAfterDrain:0`). #8 maxInFlight 2 | 2026-07-24 |
 | 5 | 채널 미매칭 | PASS | farm-scoped LIVE가 `decoded_latest`로 channels[] 포함. B-only → toast `채널 미매칭 1대` · DB `SET_CHANNEL_THERMO`×12 (B/EC02) · SP02 0건 · 시뮬 CMD applied | 2026-07-24 |
-| 6 | 알람만 일괄 | PASS | 맵 일괄 알람 적용 · toast `알람 유형` 확인 (슬라이더 수치 DOM은 환경에 따라 미검출) | 2026-07-24 |
+| 6 | 알람만 일괄 | PASS | toast + 맵 detail 설정 `온도 알림 하한` DOM 일치 (`targetLow=shownLow=10.5`, `sliderDomOk`) — `ONLY=6 node scripts/manual-scenarios-13562-smoke.mjs` | 2026-07-24 |
 | 7 | viewer ops | PASS | ship-checklist 자동화 | 2026-07-24 |
 | 8 | 대량 LIVE 폴링 | PASS | `ship-p0-visibility-poll-smoke.mjs` — maxInFlight 3 (≤4) · pollPosts 50 | 2026-07-24 |
 
@@ -156,8 +156,11 @@ npm run audit:ship-checklist
 ```bash
 # dev 서버 실행 중
 node scripts/manual-scenarios-13562-smoke.mjs
+ONLY=6 node scripts/manual-scenarios-13562-smoke.mjs   # #6 슬라이더 DOM만
 node scripts/verify-channel-bulk-commands.mjs
 node scripts/ship-p0-visibility-poll-smoke.mjs   # #4 · #8
+node scripts/ship-p0-gate-smoke.mjs              # P0 hydration·테마·적용·LIVE 축사
+npm run audit:ship-checklist                     # 역할 공통 경로
 ```
 
 결과는 `scripts/mobile-audit-output/` 아래 각 report JSON에 저장된다.
@@ -166,9 +169,9 @@ node scripts/ship-p0-visibility-poll-smoke.mjs   # #4 · #8
 
 | 역할 | 결과 | 비고 |
 | --- | --- | --- |
-| admin | PASS (2026-07-22) | `/farm` LIVE 3축사 · `/admin/ops` 시스템·사용자·농장 · 테마/모바일 토글 OK |
-| operator | PASS (2026-07-22) | 일괄적용 스위치 · `/admin/ops`→`/farm` · LIVE 표시 (단건 Apply는 이전 스모크에서 ACK 확인) |
-| viewer | PASS (2026-07-22) | 일괄적용·운영 링크 없음 · 설정 **조회 전용** · 적용 버튼 없음 |
+| admin | PASS (2026-07-24) | `audit:ship-checklist` — `/farm` LIVE 3축사 · `/admin/ops` · `ship-p0-gate-smoke` 테마 |
+| operator | PASS (2026-07-24) | ACK `명령 등록 · 전송 대기` · 일괄 시나리오 1~6·8 |
+| viewer | PASS (2026-07-24) | `audit:ship-checklist` — 조회 전용 · ops 차단 · 적용 없음 |
 
 ### Hydration 참고 (Cursor IDE 브라우저)
 

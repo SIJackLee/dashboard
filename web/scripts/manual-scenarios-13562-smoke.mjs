@@ -283,39 +283,56 @@ async function scenario6_alarmOnlyMap(page) {
   await setSectionChecked(page, /환기/, false);
   await setSectionChecked(page, /알람/, true);
 
-  // 알람 하한 값을 살짝 변경 — number spinbutton / textbox
+  // 알람 하한 — aria-label 우선 (슬라이더 축 입력)
   const dialog = page.getByRole("dialog");
   const tempLow = dialog
-    .getByRole("spinbutton")
+    .locator('input[aria-label="온도 알림 하한"]')
+    .or(dialog.getByRole("spinbutton"))
     .or(dialog.locator('input[type="number"]'))
     .first();
-  let targetLow = null;
-  if ((await tempLow.count()) > 0) {
-    const cur = parseFloat(await tempLow.inputValue());
-    targetLow = Number.isFinite(cur) ? Math.min(34, cur + 0.5) : 18;
-    await tempLow.fill(String(targetLow));
-    await tempLow.press("Tab");
-  }
+  await tempLow.waitFor({ state: "visible", timeout: 15000 });
+  const cur = parseFloat(await tempLow.inputValue());
+  const targetLow = Number.isFinite(cur) ? Math.min(34, Math.round((cur + 0.5) * 10) / 10) : 18;
+  await tempLow.fill(String(targetLow));
+  await tempLow.press("Tab");
 
   const applyBtn = dialog.getByRole("button", { name: /적용$/ });
   await applyBtn.click();
   await waitToastOrDialogResult(page, /알람 유형|일괄 적용 완료|일부만 적용/);
 
-  // toast 직후 — 가능하면 모달/페이지에서 변경값 존재 확인
-  if (targetLow != null) {
-    const body = await page.locator("body").innerText();
-    // 즉시 patch — 적용한 값이 화면에 남아 있거나 toast에 반영
-    assert(
-      body.includes(String(targetLow)) ||
-        body.includes(String(targetLow).replace(/\.0$/, "")) ||
-        /알람 유형\s*\d+개/.test(body),
-      `시나리오6: 적용값 ${targetLow} 즉시 반영 흔적 없음`,
-    );
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+
+  // 일괄 종료 → 맵 상세 설정 패널을 새로 열어 슬라이더 DOM 즉시 일치 확인
+  const bulkSwitch = page.getByRole("switch", { name: /일괄적용/ });
+  if ((await bulkSwitch.getAttribute("aria-checked")) === "true") {
+    await bulkSwitch.click();
+    await page.waitForTimeout(500);
   }
 
-  await page.keyboard.press("Escape");
-  // 맵 상세에서 알람 UI 재확인 (선택)
-  return { targetLow };
+  await page.locator('[data-tour-id="heatmap"] button').first().click();
+  await page.waitForSelector('[data-tour-id="detail-panel"]', { timeout: 20000 });
+  await page.locator('[data-tour-id="detail-panel-charts"] button').first().click();
+  await page.waitForTimeout(400);
+
+  const settingsBtn = page
+    .locator('[data-tour-id="detail-panel"]')
+    .getByRole("button", { name: /^설정$/ })
+    .first();
+  await settingsBtn.waitFor({ state: "visible", timeout: 15000 });
+  await settingsBtn.click();
+
+  const panel = page.locator('[data-audit-region="barn-list-accordion-panel"]').first();
+  await panel.waitFor({ state: "visible", timeout: 20000 });
+  const panelLow = panel.locator('input[aria-label="온도 알림 하한"]').first();
+  await panelLow.waitFor({ state: "visible", timeout: 15000 });
+  const shown = parseFloat(await panelLow.inputValue());
+  assert(
+    Number.isFinite(shown) && Math.abs(shown - targetLow) < 0.05,
+    `시나리오6: 슬라이더 DOM 불일치 — 기대 ${targetLow}, 표시 ${shown}`,
+  );
+
+  return { targetLow, shownLow: shown, sliderDomOk: true };
 }
 
 async function gotoListReady(page) {
@@ -505,11 +522,21 @@ async function main() {
     });
 
     // 권장 순서: 1 → 5 → 6 → 2 → 3
-    await run(1, "적용 연타", () => scenario1_doubleSubmit(page));
-    await run(5, "채널 미매칭", () => scenario5_channelSkip(page));
-    await run(6, "맵 알람만 일괄", () => scenario6_alarmOnlyMap(page));
-    await run(2, "Offline 적용 재시도", () => scenario2_offlineRetry(page));
-    await run(3, "LIVE 중 화면 이탈", () => scenario3_leaveDuringLive(page));
+    // ONLY=6 등으로 단일 시나리오만 실행 가능
+    const only = process.env.ONLY
+      ? new Set(
+          process.env.ONLY.split(/[,\s]+/)
+            .map((s) => Number(s.trim()))
+            .filter((n) => Number.isFinite(n)),
+        )
+      : null;
+    const want = (id) => !only || only.has(id);
+
+    if (want(1)) await run(1, "적용 연타", () => scenario1_doubleSubmit(page));
+    if (want(5)) await run(5, "채널 미매칭", () => scenario5_channelSkip(page));
+    if (want(6)) await run(6, "맵 알람만 일괄", () => scenario6_alarmOnlyMap(page));
+    if (want(2)) await run(2, "Offline 적용 재시도", () => scenario2_offlineRetry(page));
+    if (want(3)) await run(3, "LIVE 중 화면 이탈", () => scenario3_leaveDuringLive(page));
   } finally {
     await browser.close();
   }

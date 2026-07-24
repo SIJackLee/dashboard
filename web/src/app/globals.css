@@ -640,7 +640,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   }
 }
 
-/* ── 축사 목록 — 그래프 / 설정 / 모터그래프 패널 드롭다운 (hybrid) ── */
+/* ── 축사 목록 — 그래프 / 설정 / 채널 추이 패널 드롭다운 (hybrid) ── */
 
 @keyframes barn-list-panel-in {
   from {
