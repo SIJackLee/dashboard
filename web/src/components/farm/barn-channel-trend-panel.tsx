@@ -128,7 +128,7 @@ function ChannelSlotTrendChart({
 }
 
 /** 그래프(채널) pill — 채널 A/B/C RPC 트렌드 (bar 그래프 대체). */
-export function BarnMotorTrendPanel({
+export function BarnChannelTrendPanel({
   reading,
   controllerTrendByPeriod,
   period,

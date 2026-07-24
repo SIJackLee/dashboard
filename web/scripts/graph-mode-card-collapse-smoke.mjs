@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * 그래프 모드 카드 접기 — 출고 포커스 스모크 (일회성)
- * Usage: node scripts/motor-mode-card-collapse-smoke.mjs  (dev 서버 실행 중)
+ * Usage: node scripts/graph-mode-card-collapse-smoke.mjs  (dev 서버 실행 중)
  */
 import dotenv from "dotenv";
 import { chromium } from "playwright";

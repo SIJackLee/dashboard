@@ -678,7 +678,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   transition-duration: var(--motion-duration-moderate);
 }
 
-.barn-list-panel-shell--motor[data-open="true"] {
+.barn-list-panel-shell--channel-trend[data-open="true"] {
   transition-duration: var(--motion-duration-moderate);
 }
 
@@ -704,20 +704,20 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   animation-delay: 40ms;
 }
 
-.barn-list-panel-stagger--motor > * {
+.barn-list-panel-stagger--channel-trend > * {
   animation: barn-list-stagger-in var(--motion-duration-moderate) var(--motion-ease-enter)
     backwards;
 }
 
-.barn-list-panel-stagger--motor > *:nth-child(1) {
+.barn-list-panel-stagger--channel-trend > *:nth-child(1) {
   animation-delay: 0ms;
 }
 
-.barn-list-panel-stagger--motor > *:nth-child(2) {
+.barn-list-panel-stagger--channel-trend > *:nth-child(2) {
   animation-delay: 50ms;
 }
 
-.barn-list-panel-stagger--motor > *:nth-child(3) {
+.barn-list-panel-stagger--channel-trend > *:nth-child(3) {
   animation-delay: 100ms;
 }
 
@@ -840,7 +840,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
   .barn-list-panel-content[data-panel="graph"][data-state="open"],
   .barn-list-panel-stagger--settings > *,
-  .barn-list-panel-stagger--motor > * {
+  .barn-list-panel-stagger--channel-trend > * {
     animation: none;
   }
 }

@@ -27,7 +27,7 @@ import {
   stallKeyFromReading,
   stallLabelFromKey,
 } from "@/lib/data/reading-hierarchy";
-import { BarnMotorTrendPanel } from "@/components/farm/barn-motor-trend-panel";
+import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
@@ -44,7 +44,7 @@ const headerTogglePillClass =
   "inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3.5 text-sm font-semibold leading-snug transition-colors";
 
 const headerTogglePillActiveClass = {
-  motor: "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300",
+  channelTrend: "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300",
   settings: "border-violet-500 bg-violet-500/10 text-violet-800 dark:text-violet-300",
 } as const;
 
@@ -88,7 +88,7 @@ export function GraphTogglePill(props: HeaderTogglePillProps) {
     <HeaderTogglePill
       {...props}
       label="그래프"
-      activeClass={headerTogglePillActiveClass.motor}
+      activeClass={headerTogglePillActiveClass.channelTrend}
     />
   );
 }
@@ -315,7 +315,7 @@ export function ChannelStrip({
   controllerTrendByPeriod = null,
   period = "24h",
   thermoSettings = {},
-  hideMotorExpand = false,
+  hideChannelTrendExpand = false,
 }: {
   reading: BarnReading;
   thermo?: ControllerThermoSettings | null;
@@ -325,8 +325,8 @@ export function ChannelStrip({
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   period?: TrendPeriodId;
   thermoSettings?: Record<string, ControllerThermoSettings>;
-  /** 모바일 sheet — 채널 탭 시 BarnMotorTrendPanel 펼침 비활성. */
-  hideMotorExpand?: boolean;
+  /** 모바일 sheet — 채널 탭 시 BarnChannelTrendPanel 펼침 비활성. */
+  hideChannelTrendExpand?: boolean;
 }) {
   const channels = channelPercentsFromReading(reading);
   const offline = reading.status === "offline";
@@ -347,14 +347,14 @@ export function ChannelStrip({
           />
         ))}
       </div>
-      {!hideMotorExpand ? (
+      {!hideChannelTrendExpand ? (
       <BarnListPanelShell
         open={Boolean(expandedChannel && interactive)}
-        panelKind="motor"
+        panelKind="channelTrend"
         className="mt-2"
       >
         {expandedChannel && interactive ? (
-          <BarnMotorTrendPanel
+          <BarnChannelTrendPanel
             reading={reading}
             controllerTrendByPeriod={controllerTrendByPeriod}
             period={period}

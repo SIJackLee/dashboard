@@ -7,10 +7,10 @@ import type {
   TrendControllerPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
-import { BarnMotorTrendPanel } from "@/components/farm/barn-motor-trend-panel";
+import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 
 type Props = {
-  /** 게이지·채널 (hideMotorExpand — 하단 split 추이가 기본 표시) */
+  /** 게이지·채널 (hideChannelTrendExpand — 하단 split 추이가 기본 표시) */
   metricsSection: ReactNode;
   reading: BarnReading;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
@@ -31,9 +31,9 @@ export function ControllerMobilePage({
       <div className="pb-2">{metricsSection}</div>
       <div
         className="border-t bg-muted/15 py-2 pb-1"
-        data-audit-region="controller-mobile-sheet-motor-trend"
+        data-audit-region="controller-mobile-sheet-channel-trend"
       >
-        <BarnMotorTrendPanel
+        <BarnChannelTrendPanel
           reading={reading}
           controllerTrendByPeriod={controllerTrendByPeriod}
           period={period}

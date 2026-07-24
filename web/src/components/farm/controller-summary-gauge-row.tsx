@@ -19,7 +19,7 @@ import {
 } from "@/components/farm/barn-controller-mobile-sheet";
 import { ControllerMobilePage } from "@/components/farm/controller-mobile-page";
 import { ControllerMobileSettingsPage } from "@/components/farm/controller-mobile-settings-page";
-import { BarnMotorTrendPanel } from "@/components/farm/barn-motor-trend-panel";
+import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnListGraphPanel } from "@/components/farm/barn-list-graph-panel";
 import { BarnListAccordionPanel } from "@/components/farm/barn-list-accordion-panel";
 import {
@@ -158,10 +158,10 @@ export function ControllerSummaryGaugeRow({
     !mobileSheetOpen &&
     !suppressMobileInlinePanels;
 
-  const motorTrendVisible =
+  const channelTrendVisible =
     panelPlacement === "right" && settingsExpanded;
 
-  const motorTrendCompact =
+  const channelTrendCompact =
     panelPlacement === "right" && resolvedPanelLayout === "stack";
 
   const toggleChannel = useCallback((slot: ChannelSlot) => {
@@ -243,7 +243,7 @@ export function ControllerSummaryGaugeRow({
           }}
         />
       </div>
-      <ChannelStrip reading={reading} thermo={thermo} compact hideMotorExpand />
+      <ChannelStrip reading={reading} thermo={thermo} compact hideChannelTrendExpand />
     </>
   );
 
@@ -366,25 +366,25 @@ export function ControllerSummaryGaugeRow({
     </BarnListPanelShell>
   );
 
-  const motorTrendPanel = motorTrendVisible ? (
+  const channelTrendPanel = channelTrendVisible ? (
     <div
-      className="barn-list-panel-stagger--motor border-t bg-muted/15 px-2.5 pb-2.5 pt-2 sm:px-3"
-      data-audit-region="controller-motor-trend"
+      className="barn-list-panel-stagger--channel-trend border-t bg-muted/15 px-2.5 pb-2.5 pt-2 sm:px-3"
+      data-audit-region="controller-channel-trend"
     >
-      <BarnMotorTrendPanel
+      <BarnChannelTrendPanel
         reading={reading}
         controllerTrendByPeriod={controllerTrendByPeriod}
         period={panelPeriod}
         thermoSettings={thermoSettings}
         layout="split"
         compact={panelPlacement === "right"}
-        dense={motorTrendCompact}
+        dense={channelTrendCompact}
       />
     </div>
   ) : null;
 
   if (panelPlacement === "right") {
-    const motorTrendBottom = motorTrendVisible ? motorTrendPanel : null;
+    const channelTrendBottom = channelTrendVisible ? channelTrendPanel : null;
 
     if (resolvedPanelLayout === "grid" && typeof gridCols === "number" && gridCols >= 2) {
       const cardSpan = Math.min(2, gridCols);
@@ -408,8 +408,8 @@ export function ControllerSummaryGaugeRow({
             data-panel-layout="grid"
           >
             {cardBody}
-            {motorTrendBottom ? (
-              <div className="mt-auto flex min-h-0 flex-1 flex-col">{motorTrendBottom}</div>
+            {channelTrendBottom ? (
+              <div className="mt-auto flex min-h-0 flex-1 flex-col">{channelTrendBottom}</div>
             ) : null}
           </div>
           {settingsExpanded ? (
@@ -436,7 +436,7 @@ export function ControllerSummaryGaugeRow({
           data-panel-layout="stack"
         >
           {cardBody}
-          {motorTrendBottom}
+          {channelTrendBottom}
         </div>
         {mobileSheet}
       </>

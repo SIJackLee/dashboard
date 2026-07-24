@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-export type BarnListPanelKind = "graph" | "settings" | "motor";
+export type BarnListPanelKind = "graph" | "settings" | "channelTrend";
 
 type Props = {
   open: boolean;
@@ -60,7 +60,7 @@ export function BarnListPanelShell({
       className={cn(
         "barn-list-panel-shell",
         panelKind === "settings" && "barn-list-panel-shell--settings",
-        panelKind === "motor" && "barn-list-panel-shell--motor",
+        panelKind === "channelTrend" && "barn-list-panel-shell--channel-trend",
         className
       )}
       data-open={show}

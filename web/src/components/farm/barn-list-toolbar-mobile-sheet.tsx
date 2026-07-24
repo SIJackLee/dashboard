@@ -88,7 +88,7 @@ function SheetMetricsBlock({
           }}
         />
       </div>
-      <ChannelStrip reading={reading} thermo={thermo} compact hideMotorExpand />
+      <ChannelStrip reading={reading} thermo={thermo} compact hideChannelTrendExpand />
     </>
   );
 }
