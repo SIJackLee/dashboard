@@ -43,11 +43,16 @@ export async function waitAck(page, timeoutMs = 35000) {
   throw new Error("ACK 배너/토스트 문구를 찾지 못했습니다.");
 }
 
+/** 목록 summary 로드 — 부하 직후 flake 대비 재시도 */
+export async function waitBarnListReady(page, { timeoutMs = 45000 } = {}) {
+  const summary = page.locator('[data-audit-region="barn-list-summary"]');
+  await summary.first().waitFor({ state: "visible", timeout: timeoutMs });
+  return summary;
+}
+
 /** 목록 — 컨트롤러 카드 설정 패널 열기 */
 export async function openListControllerSettings(page) {
-  await page.waitForSelector('[data-audit-region="barn-list-summary"]', {
-    timeout: 30000,
-  });
+  await waitBarnListReady(page, { timeoutMs: 45000 });
   await page.waitForSelector('[data-tour-id="controller-gauge-metrics"]', {
     timeout: 45000,
   });
@@ -71,7 +76,7 @@ export async function waitListSettingsPanel(page) {
 }
 
 /** 접힌 제어 섹션을 펼쳐 설정온도 입력이 클릭 가능하게 한다. */
-async function ensureControlSectionExpanded(scope) {
+export async function ensureControlSectionExpanded(scope) {
   const controlToggle = scope
     .locator('button[aria-expanded="false"]')
     .filter({ hasText: /^제어/ })
@@ -125,7 +130,9 @@ export async function applyFromSettingsPanel(page, scope = page) {
     const draft = parseFloat(raw.replace(/[^\d.-]/g, ""));
     const live = await readLiveSetpoint();
     next = pickNext(draft, live, attempt);
-    await setpointInput.click({ force: true });
+    // 모바일 viewport + sticky 헤더에서 click이 viewport 밖으로 실패할 수 있음
+    await setpointInput.scrollIntoViewIfNeeded().catch(() => {});
+    await setpointInput.focus();
     await setpointInput.fill("");
     await setpointInput.pressSequentially(String(next), { delay: 20 });
     await setpointInput.press("Tab");

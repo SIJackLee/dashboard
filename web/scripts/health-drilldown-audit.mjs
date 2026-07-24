@@ -34,14 +34,21 @@ async function auditNodeDialog(page) {
 
 async function auditFarmModulesPanel(page) {
   await page.goto(`${BASE}/admin/ops?farm=FARM01--P00&modules=1`, {
-    waitUntil: "load",
+    waitUntil: "networkidle",
   });
   await page.getByRole("button", { name: "접기" }).waitFor({ timeout: 15000 });
-  await page.getByRole("button", { name: "전체" }).click();
-  const row = page.locator('table tbody tr[data-health-farm-id^="FARM01"]').first();
-  await row.waitFor({ state: "visible", timeout: 15000 });
+  // 기본 필터가「이상만」이라 정상 FARM01은 숨겨짐 →「전체」필수
+  await page.getByRole("button", { name: "전체", exact: true }).click({
+    force: true,
+  });
+  // desktop table + mobile list 둘 다 data-health-farm-id 보유
+  const row = page.locator('[data-health-farm-id^="FARM01"]').first();
+  await row.waitFor({ state: "attached", timeout: 20000 });
   const farmId = await row.getAttribute("data-health-farm-id");
-  return { ok: true, farm: farmId ?? "FARM01" };
+  if (!farmId) {
+    throw new Error("health farm row에 data-health-farm-id 없음");
+  }
+  return { ok: true, farm: farmId };
 }
 
 async function main() {

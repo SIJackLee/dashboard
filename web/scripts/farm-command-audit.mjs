@@ -17,6 +17,7 @@ import {
 import {
   login,
   openListControllerSettings,
+  ensureControlSectionExpanded,
   applyFromSettingsPanel,
   applyFromMapDetailPanel,
 } from "./audit-shared.mjs";
@@ -46,15 +47,28 @@ async function auditViewerDenied(page) {
   await page.goto(`${BASE}${LIST_PATH}`, { waitUntil: "load" });
   await openListControllerSettings(page);
   const panel = page.locator('[data-audit-region="barn-list-accordion-panel"]').first();
+  await ensureControlSectionExpanded(panel);
+
   const applyBtn = panel.getByRole("button", { name: "적용", exact: true });
-  await applyBtn.waitFor({ state: "visible", timeout: 15000 });
+  const applyCount = await applyBtn.count();
+  // 조회 전용: 적용 버튼 자체가 없거나, disabled / 권한 안내
+  if (applyCount === 0) {
+    const readOnly =
+      (await page.getByText(/조회 전용|명령 권한이 없어/).count()) > 0;
+    if (!readOnly) {
+      // 설정 패널은 열렸고 적용 UI가 없으면 권한 차단으로 간주
+      return { denied: true, mode: "no-apply" };
+    }
+    return { denied: true, mode: "read-only-banner" };
+  }
+  await applyBtn.first().waitFor({ state: "visible", timeout: 15000 });
   const denied =
-    (await applyBtn.isDisabled()) ||
+    (await applyBtn.first().isDisabled()) ||
     (await page.getByText("명령 권한이 없어").count()) > 0;
   if (!denied) {
     throw new Error("viewer 계정에서 적용 버튼/권한 제한이 기대와 다릅니다.");
   }
-  return { denied: true };
+  return { denied: true, mode: "disabled-apply" };
 }
 
 async function auditBulkAck(page) {

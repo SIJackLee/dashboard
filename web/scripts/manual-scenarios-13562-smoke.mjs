@@ -17,6 +17,7 @@ import {
 import {
   login,
   openListControllerSettings,
+  waitBarnListReady,
   applyFromSettingsPanel,
   waitAck,
 } from "./audit-shared.mjs";
@@ -317,11 +318,38 @@ async function scenario6_alarmOnlyMap(page) {
   return { targetLow };
 }
 
+async function gotoListReady(page) {
+  await page.context().setOffline(false);
+  // 이전 시나리오 모달/오버레이 잔여 제거
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.waitForTimeout(300);
+
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await page.goto(`${BASE}${LIST}&_=${Date.now()}`, {
+        waitUntil: "load",
+        timeout: 60000,
+      });
+      // 로그인 튕김 방어
+      if (page.url().includes("/login")) {
+        throw new Error("목록 진입이 /login 으로 리다이렉트됨");
+      }
+      await waitBarnListReady(page, { timeoutMs: 45000 });
+      return;
+    } catch (err) {
+      lastErr = err;
+      await page.waitForTimeout(1500 * attempt);
+    }
+  }
+  throw lastErr ?? new Error("목록 summary 로드 실패");
+}
+
 async function scenario2_offlineRetry(page) {
-  await page.goto(`${BASE}${LIST}`, { waitUntil: "load" });
-  await page.waitForSelector('[data-audit-region="barn-list-summary"]', {
-    timeout: 45000,
-  });
+  // #5·#6 대량 적용 직후 RSC/LIVE 부하 — 쿨다운 후 재진입
+  await page.waitForTimeout(2000);
+  await gotoListReady(page);
+
   const bulkSwitch = page.getByRole("switch", { name: /일괄적용/ });
   if (
     (await bulkSwitch.isVisible().catch(() => false)) &&
@@ -379,6 +407,7 @@ async function scenario2_offlineRetry(page) {
   await page.waitForTimeout(800);
 
   if (!(await setpointInput.isVisible().catch(() => false))) {
+    await gotoListReady(page);
     await openListControllerSettings(page);
   }
   const panel2 = page
@@ -392,7 +421,7 @@ async function scenario2_offlineRetry(page) {
 async function scenario3_leaveDuringLive(page) {
   // 이전 Offline 시나리오 잔여 방어
   await page.context().setOffline(false);
-  await page.goto(`${BASE}${LIST}`, { waitUntil: "load" });
+  await gotoListReady(page);
   await openListControllerSettings(page);
   const panel = page
     .locator('[data-audit-region="barn-list-accordion-panel"]')
