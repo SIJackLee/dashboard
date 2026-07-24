@@ -87,7 +87,7 @@ export function GraphTogglePill(props: HeaderTogglePillProps) {
   return (
     <HeaderTogglePill
       {...props}
-      label="모터"
+      label="그래프"
       activeClass={headerTogglePillActiveClass.motor}
     />
   );

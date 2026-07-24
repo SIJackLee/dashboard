@@ -111,7 +111,7 @@ export function GaugeAnatomy({ compact = false }: GuideProps) {
 
 const PILL_ITEMS = [
   {
-    name: "모터",
+    name: "그래프",
     desc: "온도·습도·채널 추이. 카드 하단 패널에서 확인. 채널 셀 탭으로 해당 채널 출력 추이.",
   },
   {
