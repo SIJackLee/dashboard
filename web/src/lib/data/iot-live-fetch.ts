@@ -329,7 +329,15 @@ async function fetchLiveRowsWithToken(
 ): Promise<BarnReading[]> {
   const supabase = createRlsClient(accessToken);
   const tier = liveReadTier();
-  const source = tier === "list" ? LIST_SOURCE : LEGACY_SOURCE;
+  /**
+   * list tier (`v_iot_dashboard_list`) omits channels[] for payload size.
+   * Farm-scoped panel/bulk need channels for SET_CHANNEL_THERMO — use decoded_latest.
+   */
+  const farmScoped =
+    Boolean(scope.farmKey) ||
+    (scopedFarms != null && scopedFarms.length > 0);
+  const useListTier = tier === "list" && !farmScoped;
+  const source = useListTier ? LIST_SOURCE : LEGACY_SOURCE;
 
   const runQuery = async (cols: string) => {
     let query = supabase
@@ -345,7 +353,7 @@ async function fetchLiveRowsWithToken(
 
     if (isFarmScoped) {
       query = query.limit(LIVE_FARM_ROW_LIMIT);
-    } else if (tier === "list") {
+    } else if (useListTier) {
       query = query.limit(LIVE_FARM_ROW_LIMIT);
     } else {
       query = query.limit(GLOBAL_LIVE_ROW_LIMIT);
@@ -354,10 +362,10 @@ async function fetchLiveRowsWithToken(
     return query;
   };
 
-  let cols = tier === "list" ? LIST_COLS : LEGACY_COLS;
+  let cols = useListTier ? LIST_COLS : LEGACY_COLS;
   let { data, error } = await runQuery(cols);
 
-  if (error && tier === "list" && isListThermoColumnError(error.message)) {
+  if (error && useListTier && isListThermoColumnError(error.message)) {
     if (process.env.NODE_ENV === "development") {
       console.warn(
         "[live-readings] thermo columns missing on list view — retry without setpoint fields:",
@@ -376,7 +384,7 @@ async function fetchLiveRowsWithToken(
   }
   if (!data) return [];
 
-  if (tier === "list") {
+  if (useListTier) {
     return (data as unknown as ListDbRow[])
       .map(listRowToReading)
       .filter((r): r is BarnReading => r != null);
@@ -417,9 +425,15 @@ export async function fetchLiveReadings(
         : "global";
 
   const userId = user?.id ?? "anon";
+  // farm-scoped uses decoded_latest (channels); hub list uses flat list view
+  const farmScoped =
+    Boolean(scope.farmKey) ||
+    (scopedFarms != null && scopedFarms.length > 0);
+  const sourceTag =
+    liveReadTier() === "list" && !farmScoped ? "list" : "decoded";
 
   const rows = await cachedLiveQuery(
-    ["live-readings", liveReadTier(), userId, scopeKey],
+    ["live-readings", sourceTag, userId, scopeKey],
     [scopeKey === "global" ? "live" : `live:${scopeKey}`],
     () => fetchLiveRowsWithToken(accessToken, scopedFarms, scope),
   );

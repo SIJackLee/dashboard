@@ -2,7 +2,9 @@
 
 export type LiveReadTier = "list" | "legacy";
 
-/** `legacy` rolls back to v_iot_decoded_latest + decoded_json */
+/** `legacy` rolls back to v_iot_decoded_latest + decoded_json.
+ *  Note: farm-scoped fetches always use decoded_latest (need channels[] for bulk).
+ */
 export function liveReadTier(): LiveReadTier {
   const raw = process.env.NEXT_PUBLIC_LIVE_READ_TIER?.trim().toLowerCase();
   return raw === "legacy" ? "legacy" : "list";

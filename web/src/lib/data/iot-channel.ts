@@ -59,6 +59,12 @@ export function normalizeChannelSlot(raw: unknown): ChannelSlot | null {
   return null;
 }
 
+export const DEFAULT_CHANNEL_EQPMN: Record<ChannelSlot, string> = {
+  A: "EC03",
+  B: "EC02",
+  C: "EC01",
+};
+
 export function mapDecodedChannels(raw: unknown): ChannelReading[] {
   if (!Array.isArray(raw)) return [];
   const out: ChannelReading[] = [];
@@ -66,8 +72,9 @@ export function mapDecodedChannels(raw: unknown): ChannelReading[] {
     if (!item || typeof item !== "object") continue;
     const ch = item as DecodedChannel;
     const slot = normalizeChannelSlot(ch.channel);
-    const eqpmnCode = String(ch.eqpmnCode ?? "").trim();
-    if (!slot || !eqpmnCode) continue;
+    if (!slot) continue;
+    const eqpmnRaw = String(ch.eqpmnCode ?? "").trim();
+    const eqpmnCode = eqpmnRaw || DEFAULT_CHANNEL_EQPMN[slot];
     out.push({
       channel: slot,
       eqpmnCode,
@@ -125,12 +132,6 @@ export const CHANNEL_SLOT_LABELS: Record<ChannelSlot, string> = {
   A: "채널 A",
   B: "채널 B",
   C: "채널 C",
-};
-
-export const DEFAULT_CHANNEL_EQPMN: Record<ChannelSlot, string> = {
-  A: "EC03",
-  B: "EC02",
-  C: "EC01",
 };
 
 export {
