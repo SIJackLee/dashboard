@@ -127,10 +127,15 @@ function controlPartial(result: ApplyResult): boolean {
 /** 일괄 적용 결과 — 성공 / 부분 / 실패 분류 */
 export function classifyBulkApplyResult(
   result: ApplyResult,
-  opts?: { wantedControl?: boolean; offlineSkipped?: number },
+  opts?: {
+    wantedControl?: boolean;
+    offlineSkipped?: number;
+    channelSkipped?: number;
+  },
 ): BulkApplyOutcome {
   const wantedControl = opts?.wantedControl ?? controlHadWork(result);
   const offlineSkipped = opts?.offlineSkipped ?? 0;
+  const channelSkipped = opts?.channelSkipped ?? 0;
 
   if (controlHardFailed(result) && alarmFailed(result)) return "error";
   if (controlHardFailed(result) && !result.alarm) return "error";
@@ -138,6 +143,21 @@ export function classifyBulkApplyResult(
   if (controlPartial(result) || alarmFailed(result)) return "partial";
   if (wantedControl && !controlHadWork(result) && offlineSkipped > 0) {
     return result.alarm?.ok ? "partial" : "error";
+  }
+  if (
+    wantedControl &&
+    channelSkipped > 0 &&
+    (result.control?.sent ?? 0) > 0
+  ) {
+    return "partial";
+  }
+  if (
+    wantedControl &&
+    channelSkipped > 0 &&
+    !controlHadWork(result) &&
+    result.alarm?.ok
+  ) {
+    return "partial";
   }
   if (result.control && !result.control.ok && result.control.failed.length > 0) {
     return "partial";
@@ -147,10 +167,15 @@ export function classifyBulkApplyResult(
 
 export function formatBulkApplyFeedback(
   result: ApplyResult,
-  opts?: { wantedControl?: boolean; offlineSkipped?: number },
+  opts?: {
+    wantedControl?: boolean;
+    offlineSkipped?: number;
+    channelSkipped?: number;
+  },
 ): BulkApplyFeedback {
   const outcome = classifyBulkApplyResult(result, opts);
   const parts: string[] = [];
+  const channelSkipped = opts?.channelSkipped ?? 0;
 
   if (result.control) {
     if (result.control.error && result.control.sent === 0) {
@@ -168,6 +193,12 @@ export function formatBulkApplyFeedback(
     }
   } else if (opts?.wantedControl && (opts.offlineSkipped ?? 0) > 0) {
     parts.push("온라인 컨트롤러 없음 · 제어 미전송");
+  }
+
+  if (opts?.wantedControl && channelSkipped > 0) {
+    parts.push(
+      `채널 미매칭 ${channelSkipped}대 제어 제외 (적용 채널 확인)`,
+    );
   }
 
   if (result.alarm) {
@@ -226,6 +257,11 @@ export function FarmMapBulkApply({
   const [applyPhase, setApplyPhase] = useState<ApplyPhase>("idle");
   const [result, setResult] = useState<ApplyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastApplyOpts, setLastApplyOpts] = useState<{
+    wantedControl: boolean;
+    offlineSkipped: number;
+    channelSkipped: number;
+  } | null>(null);
 
   const [applyTemp, setApplyTemp] = useState(true);
   const [applyVent, setApplyVent] = useState(true);
@@ -304,6 +340,7 @@ export function FarmMapBulkApply({
     if (running) return;
     setOpen(false);
     setResult(null);
+    setLastApplyOpts(null);
     setError(null);
     setApplyPhase("idle");
   }, [running]);
@@ -361,6 +398,7 @@ export function FarmMapBulkApply({
     setApplyPhase("idle");
     let control: SendBulkThermoCommandResult | null = null;
     let alarmResult: ApplyResult["alarm"] = null;
+    let channelSkipped = 0;
 
     try {
       // 1) 제어값(온도/환기) — 온라인 컨트롤러·활성 채널별 명령
@@ -379,6 +417,10 @@ export function FarmMapBulkApply({
             selectedChannels,
           },
         );
+        const commandedKeys = new Set(commands.map((c) => c.key));
+        channelSkipped = onlineTargets.filter(
+          (r) => (r.channels?.length ?? 0) > 0 && !commandedKeys.has(r.key),
+        ).length;
         if (commands.length === 0) {
           if (!applyAlarm) {
             setError(
@@ -411,13 +453,16 @@ export function FarmMapBulkApply({
       }
 
       const applied: ApplyResult = { control, alarm: alarmResult };
-      const feedback = formatBulkApplyFeedback(applied, {
+      const applyOpts = {
         wantedControl,
         offlineSkipped: offlineCount,
-      });
+        channelSkipped,
+      };
+      const feedback = formatBulkApplyFeedback(applied, applyOpts);
       if (control?.sentItems?.length) {
         liveTracker.startSession(control.sentItems);
       }
+      setLastApplyOpts(applyOpts);
       setResult(applied);
       onAfterApply?.(applied, feedback);
     } catch (e) {
@@ -438,10 +483,14 @@ export function FarmMapBulkApply({
   };
 
   const resultFeedback = result
-    ? formatBulkApplyFeedback(result, {
-        wantedControl: applyTemp || applyVent,
-        offlineSkipped: offlineCount,
-      })
+    ? formatBulkApplyFeedback(
+        result,
+        lastApplyOpts ?? {
+          wantedControl: applyTemp || applyVent,
+          offlineSkipped: offlineCount,
+          channelSkipped: 0,
+        },
+      )
     : null;
 
   const tempSummary = applyTemp ? `${setpoint}±${deviation}℃` : "온도 미적용";
@@ -950,6 +999,17 @@ export function FarmMapBulkApply({
                         );
                       })}
                     </div>
+                    {selectedChannels.length === 0 ? (
+                      <p className={cn("mt-2 text-xs leading-snug", bulkModalMeta)}>
+                        {allChannelTargets
+                          ? "채널을 1개 이상 선택해야 제어 명령을 보낼 수 있습니다."
+                          : "채널을 선택하지 않으면 채널형 컨트롤러는 제어에서 제외되고, 레거시(CTRL)만 전송됩니다."}
+                      </p>
+                    ) : previewCommands.length === 0 && onlineTargets.length > 0 ? (
+                      <p className={cn("mt-2 text-xs leading-snug", bulkModalMeta)}>
+                        선택한 채널에 맞는 온라인 컨트롤러가 없습니다. 채널 선택을 확인하세요.
+                      </p>
+                    ) : null}
                   </section>
                 ) : null}
 

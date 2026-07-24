@@ -174,8 +174,11 @@ export function FarmMapMobileStage({
           onEnter={() => setBulkMode(true)}
           onClearSelection={() => setSelectedSps(new Set())}
           onExit={exitBulk}
-          onAfterApply={(_result, feedback) => {
+          onAfterApply={(result, feedback) => {
             setStatusToast({ message: feedback.message, tone: feedback.tone });
+            if (result.alarm?.ok && result.alarm.settings && liveRefresh) {
+              liveRefresh.patchAlarmSettings(result.alarm.settings);
+            }
             if (liveRefresh) {
               void liveRefresh.revalidateFarmLive();
             } else if (!hubMode) {

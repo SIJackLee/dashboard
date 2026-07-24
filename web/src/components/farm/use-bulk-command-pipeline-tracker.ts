@@ -301,30 +301,36 @@ export function useBulkCommandPipelineTracker({
     if (!intervalMs) return;
 
     let cancelled = false;
+    let inFlight = false;
     const ids = openRows.map((r) => r.id);
 
     const tick = async () => {
-      if (cancelled) return;
+      if (cancelled || inFlight) return;
       if (typeof document !== "undefined" && document.hidden) return;
       const started = startedAtRef.current;
       if (started != null && Date.now() - started >= MAX_POLL_MS) {
         setTimedOut(true);
         return;
       }
-      const updates = await Promise.all(
-        ids.map((id) => fetchThermoCommandAction(id)),
-      );
-      if (cancelled) return;
-      setRows((prev) =>
-        prev.map((row) => {
-          const fetched = updates.find((u) => u?.id === row.id) ?? null;
-          const command = mergeCommand(row.command, fetched);
-          return command === row.command ? row : { ...row, command };
-        }),
-      );
-      // pending-only 구간은 명령 status만. LIVE n/N 확인 중일 때만 farm LIVE 갱신
-      if (awaitingLive) {
-        onRefreshLiveRef.current?.();
+      inFlight = true;
+      try {
+        const updates = await Promise.all(
+          ids.map((id) => fetchThermoCommandAction(id)),
+        );
+        if (cancelled) return;
+        setRows((prev) =>
+          prev.map((row) => {
+            const fetched = updates.find((u) => u?.id === row.id) ?? null;
+            const command = mergeCommand(row.command, fetched);
+            return command === row.command ? row : { ...row, command };
+          }),
+        );
+        // pending-only 구간은 명령 status만. LIVE n/N 확인 중일 때만 farm LIVE 갱신
+        if (awaitingLive) {
+          onRefreshLiveRef.current?.();
+        }
+      } finally {
+        inFlight = false;
       }
     };
 

@@ -48,6 +48,7 @@ export function HealthRefreshBar({
   useEffect(() => {
     if (!onRefresh) return;
     const id = window.setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       setSecondsLeft((s) => {
         if (s <= 1) {
           // pendingRef 가드가 있는 refresh()로 — 주기 갱신 중첩 방지
