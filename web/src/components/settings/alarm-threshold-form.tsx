@@ -244,6 +244,27 @@ export function AlarmThresholdForm({
     );
   }, [draft, savedThresholds]);
 
+  /** 부모 patchAlarmSettings — 편집 중이 아니면 settings·draft를 새 initialSettings에 맞춤 */
+  const incomingSettingsKey = useMemo(
+    () => JSON.stringify(initialSettings),
+    [initialSettings],
+  );
+  const [prevIncomingSettingsKey, setPrevIncomingSettingsKey] =
+    useState(incomingSettingsKey);
+  if (incomingSettingsKey !== prevIncomingSettingsKey) {
+    setPrevIncomingSettingsKey(incomingSettingsKey);
+    const dirty = hasChanges;
+    setSettings(initialSettings);
+    if (!dirty) {
+      if (scopeReady && activeScopeKey) {
+        setDraft(resolveThresholdsForScope(initialSettings, activeScopeKey));
+      } else {
+        setDraft(initialSettings.global);
+      }
+      setValidationError(null);
+    }
+  }
+
   const scopeDescription = describeAlarmScope(
     farmId,
     spCode === SCOPE_ALL ? "" : spCode,

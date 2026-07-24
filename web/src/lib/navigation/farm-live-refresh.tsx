@@ -33,6 +33,10 @@ import {
   shouldSkipScopedPanelHydrate,
 } from "@/lib/farm/farm-scoped-panel-utils";
 import {
+  mergeLiveBarnSnapshots,
+  mergeLiveReadings,
+} from "@/lib/farm/merge-live-slice";
+import {
   getFarmPanelCache,
   setFarmPanelCache,
 } from "@/lib/farm/farm-panel-cache";
@@ -126,29 +130,52 @@ type ApplyLiveArgs = {
   setSlice: React.Dispatch<React.SetStateAction<FarmLiveSlice>>;
 };
 
-/** LIVE만 패치 — trend·alarm·command history·낙관적 patch 유지 */
+/** LIVE만 패치 — trend·alarm·command history·낙관적 patch 유지.
+ *  readings/barnSnapshots는 측정값이 같으면 이전 참조 재사용. */
 function applyLivePatch({ farmKey, data, setSlice }: ApplyLiveArgs): void {
   setSlice((prev) => {
+    const readings = mergeLiveReadings(prev.readings, data.readings);
+    const barnSnapshots = mergeLiveBarnSnapshots(
+      prev.barnSnapshots,
+      data.barnSnapshots,
+    );
+    const gridUnchanged =
+      prev.gridCols === data.gridCols && prev.gridRows === data.gridRows;
+    const readingsUnchanged = readings === prev.readings;
+    const barnsUnchanged = barnSnapshots === prev.barnSnapshots;
+
     const readingThermo = buildThermoSettingsFromReadings(data.readings);
     const nextController = prev.controller
       ? {
           ...prev.controller,
-          readings: data.readings,
+          readings: mergeLiveReadings(prev.controller.readings, data.readings),
           thermoSettings: mergeThermoSettingsMaps(
             prev.controller.thermoSettings,
             readingThermo,
           ),
         }
       : {
-          readings: data.readings,
+          readings,
           thermoSettings: readingThermo,
           commands: [],
           canCommand: false,
         };
+
+    if (
+      readingsUnchanged &&
+      barnsUnchanged &&
+      gridUnchanged &&
+      prev.controller &&
+      nextController.readings === prev.controller.readings &&
+      nextController.thermoSettings === prev.controller.thermoSettings
+    ) {
+      return prev;
+    }
+
     const next: FarmLiveSlice = {
       ...prev,
-      readings: data.readings,
-      barnSnapshots: data.barnSnapshots,
+      readings,
+      barnSnapshots,
       gridCols: data.gridCols,
       gridRows: data.gridRows,
       controller: nextController,
