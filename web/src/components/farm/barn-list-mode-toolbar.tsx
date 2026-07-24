@@ -39,23 +39,25 @@ export function BarnListModeToolbar({
     return () => window.clearTimeout(t);
   }, [pendingMode]);
 
-  const busy = isPending || pendingMode != null;
+  /** 클릭 즉시 선택 표시 — URL/부모 value 동기화 전 */
+  const displayMode = pendingMode ?? value;
+  const switching = isPending || pendingMode != null;
 
   return (
     <div
       role="tablist"
       aria-label="목록 보기 모드"
-      aria-disabled={disabled || busy}
-      aria-busy={busy || undefined}
+      aria-disabled={disabled || undefined}
+      aria-busy={switching || undefined}
       className={cn(
         "inline-flex overflow-hidden rounded-lg border bg-muted/30",
         dashboardUi.body,
-        (disabled || busy) && "pointer-events-none opacity-50",
+        disabled && "pointer-events-none opacity-50",
         className,
       )}
     >
       {MODES.map((mode, index) => {
-        const selected = value === mode.id;
+        const selected = displayMode === mode.id;
         const modeBusy = pendingMode === mode.id;
         return (
           <button
@@ -64,7 +66,7 @@ export function BarnListModeToolbar({
             role="tab"
             aria-selected={selected}
             aria-busy={modeBusy || undefined}
-            disabled={disabled || busy}
+            disabled={disabled}
             className={cn(
               "inline-flex min-h-8 items-center justify-center gap-1 border-border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-wait sm:min-h-11 sm:px-3 sm:text-sm md:px-4 md:text-[1.75rem]",
               index > 0 && "border-l",
@@ -73,18 +75,21 @@ export function BarnListModeToolbar({
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
             )}
             onClick={() => {
-              if (mode.id === value || busy) return;
+              if (disabled) return;
+              if (mode.id === displayMode && !switching) return;
+              if (mode.id === pendingMode) return;
               setPendingMode(mode.id);
               startTransition(() => onChange(mode.id));
             }}
           >
             {modeBusy ? (
-              <Loader2 className="size-3.5 shrink-0 animate-spin sm:size-4" aria-hidden />
+              <Loader2
+                className="size-3.5 shrink-0 animate-spin sm:size-4"
+                aria-hidden
+              />
             ) : null}
-            <span className="sm:hidden">{modeBusy ? "…" : mode.short}</span>
-            <span className="hidden sm:inline">
-              {modeBusy ? `${mode.label}…` : mode.label}
-            </span>
+            <span className="sm:hidden">{mode.short}</span>
+            <span className="hidden sm:inline">{mode.label}</span>
           </button>
         );
       })}

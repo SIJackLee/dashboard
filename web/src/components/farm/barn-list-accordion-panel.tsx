@@ -473,6 +473,7 @@ export function BarnListAccordionPanel({
         className="border-t bg-muted/20"
         data-audit-region="barn-list-accordion-panel"
         data-settings-layout="collapsible"
+        aria-busy={isSaving || undefined}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
@@ -505,6 +506,7 @@ export function BarnListAccordionPanel({
       <div
       className="border-t bg-muted/20 px-3 py-3 sm:px-4"
       data-audit-region="barn-list-accordion-panel"
+      aria-busy={isSaving || undefined}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionCard } from "@/components/common/section-card";
 import { SimpleSelect } from "@/components/common/filter-bar";
 import { Label } from "@/components/ui/label";
@@ -119,7 +119,7 @@ export function AlarmThresholdForm({
   const [settings, setSettings] = useState<AlarmSettings>(initialSettings);
   const [draft, setDraft] = useState<AlarmThresholds>(initialSettings.global);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const liveRefresh = useFarmLiveRefreshOptional();
 
   const farmOptions = useMemo(() => uniqueFarmOptions(readings), [readings]);
@@ -283,26 +283,37 @@ export function AlarmThresholdForm({
     nextSettings: AlarmSettings,
     rollbackSettings?: AlarmSettings,
   ) => {
+    if (pending) return;
     const formData = new FormData();
     formData.set("settings_json", JSON.stringify(nextSettings));
 
     if (embedded) {
-      startTransition(async () => {
-        const result = await saveAlarmSettingsInlineAction(formData);
-        if (!result.ok) {
-          setValidationError(result.error ?? "저장 실패");
-          if (rollbackSettings) setSettings(rollbackSettings);
-          return;
+      setPending(true);
+      void (async () => {
+        try {
+          const result = await saveAlarmSettingsInlineAction(formData);
+          if (!result.ok) {
+            setValidationError(result.error ?? "저장 실패");
+            if (rollbackSettings) setSettings(rollbackSettings);
+            return;
+          }
+          setValidationError(null);
+          liveRefresh?.patchAlarmSettings(nextSettings);
+        } finally {
+          setPending(false);
         }
-        setValidationError(null);
-        liveRefresh?.patchAlarmSettings(nextSettings);
-      });
+      })();
       return;
     }
 
-    startTransition(() => {
-      void saveAlarmSettingsAction(formData);
-    });
+    setPending(true);
+    void (async () => {
+      try {
+        await saveAlarmSettingsAction(formData);
+      } finally {
+        setPending(false);
+      }
+    })();
   };
 
   const handleSaveScope = () => {

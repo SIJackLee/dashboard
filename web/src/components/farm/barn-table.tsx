@@ -185,6 +185,7 @@ export function BarnTable({
     () => initialListLayout ?? "flat",
   );
   const [layoutPending, startLayoutTransition] = useTransition();
+  const [, startListParamsTransition] = useTransition();
 
   const [listMode, setListMode] = useState<BarnListViewMode>(
     () => initialListMode ?? "controller",
@@ -448,8 +449,9 @@ export function BarnTable({
   const toggleListLayout = () => {
     if (bulkMode || layoutPending) return;
     const next: ListLayout = listLayout === "group" ? "flat" : "group";
+    // 라벨·레이아웃은 즉시 — URL만 transition (맵↔목록과 동일 패턴)
+    setListLayout(next);
     startLayoutTransition(() => {
-      setListLayout(next);
       replaceListParams({
         listLayout: next === "group" ? "group" : null,
       });
@@ -462,8 +464,10 @@ export function BarnTable({
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
     setCardBodyExpandedKeys(new Set());
     setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
-    replaceListParams({
-      listMode: mode === "controller" ? null : mode,
+    startListParamsTransition(() => {
+      replaceListParams({
+        listMode: mode === "controller" ? null : mode,
+      });
     });
   };
 

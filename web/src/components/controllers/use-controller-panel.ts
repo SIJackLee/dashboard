@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { sendThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
 import type { ControllerReading } from "@/lib/data/iot";
 import {
@@ -114,7 +114,7 @@ export function useControllerPanel(
   channelEqpmnCode?: string,
   onCommandRegistered?: (command: import("@/lib/data/commands").ThermoCommand) => void,
 ) {
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const [activeMenu, setActiveMenu] = useState<PanelMenuId>("setpoint");
   const [draft, setDraft] = useState<PanelDraft | null>(null);
   const [hasEdited, setHasEdited] = useState(false);
@@ -243,6 +243,7 @@ export function useControllerPanel(
   }, []);
 
   const save = useCallback(() => {
+    if (pending) return;
     if (!target) {
       setMessage({ tone: "error", text: "대상 컨트롤러를 선택하세요." });
       return;
@@ -286,7 +287,8 @@ export function useControllerPanel(
       "네트워크 오류입니다. 연결을 확인한 뒤 다시 시도하세요.";
     const SAVE_TIMEOUT_MS = 8_000;
 
-    startTransition(async () => {
+    setPending(true);
+    void (async () => {
       try {
         if (typeof navigator !== "undefined" && navigator.onLine === false) {
           setMessage({ tone: "error", text: NETWORK_ERROR_TEXT });
@@ -318,8 +320,10 @@ export function useControllerPanel(
           tone: "error",
           text: networkLike ? NETWORK_ERROR_TEXT : formatUserError(raw || "unknown"),
         });
+      } finally {
+        setPending(false);
       }
-    });
+    })();
   }, [
     activeChannel,
     canCommand,
@@ -327,6 +331,7 @@ export function useControllerPanel(
     draft,
     knownSettings,
     onCommandRegistered,
+    pending,
     target,
   ]);
 
