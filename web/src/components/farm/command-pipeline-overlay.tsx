@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AlertCircle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motionDuration } from "@/lib/ui/motion-tokens";
+import { FEEDBACK_Z } from "@/lib/ui/feedback-layers";
 
 export type CommandPipelineOverlayPhase = "loading" | "success" | "info" | "error";
 
@@ -95,10 +96,12 @@ export function CommandPipelineOverlay({
   return createPortal(
     <div
       className={cn(
-        "ui-motion-command-overlay fixed inset-0 z-[70] flex items-center justify-center p-4",
+        "ui-motion-command-overlay fixed inset-0 flex items-center justify-center p-4",
         show ? "opacity-100" : "opacity-0",
         dismissible ? "pointer-events-auto cursor-pointer" : "pointer-events-none",
       )}
+      style={{ zIndex: FEEDBACK_Z.overlay }}
+      data-feedback-layer="overlay"
       data-mobile-viewport-overlay
       aria-live="polite"
       role={dismissible ? "button" : "status"}

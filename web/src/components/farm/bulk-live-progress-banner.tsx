@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, X } from "lucide-react";
 import type { BulkLiveProgress } from "@/components/farm/use-bulk-command-pipeline-tracker";
 import { cn } from "@/lib/utils";
+import { FEEDBACK_Z } from "@/lib/ui/feedback-layers";
 
 type Props = {
   progress: BulkLiveProgress;
@@ -42,13 +43,15 @@ export function BulkLiveProgressBanner({
       role="status"
       aria-live="polite"
       className={cn(
-        "ui-motion-toast fixed bottom-4 left-1/2 z-[58] flex max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 items-start gap-2.5 rounded-lg border bg-background px-3.5 py-2.5 text-sm shadow-lg",
+        "ui-motion-toast fixed bottom-4 left-1/2 flex max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 items-start gap-2.5 rounded-lg border bg-background px-3.5 py-2.5 text-sm shadow-lg",
         allLive && "border-emerald-200/80",
         timedOut && !allLive && "border-amber-200/80",
         !complete && "border-sky-200/70",
       )}
+      style={{ zIndex: FEEDBACK_Z.liveBanner }}
       data-mobile-viewport-toast
       data-bulk-live-banner
+      data-feedback-layer="live-banner"
     >
       {allLive ? (
         <CheckCircle2

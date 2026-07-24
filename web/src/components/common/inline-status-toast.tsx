@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { FEEDBACK_Z } from "@/lib/ui/feedback-layers";
 
 export type InlineStatusTone = "ok" | "warn" | "error" | "info";
 
@@ -43,11 +44,13 @@ export function InlineStatusToast({
     <div
       role="status"
       aria-live="polite"
+      data-feedback-layer="toast"
       className={cn(
-        "ui-motion-toast fixed bottom-4 left-1/2 z-[60] max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 rounded-lg border bg-background px-4 py-2.5 text-sm shadow-lg",
+        "ui-motion-toast fixed bottom-4 left-1/2 max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 rounded-lg border bg-background px-4 py-2.5 text-sm shadow-lg",
         TONE_CLASS[tone],
         className,
       )}
+      style={{ zIndex: FEEDBACK_Z.toast }}
       data-mobile-viewport-toast
     >
       {message}

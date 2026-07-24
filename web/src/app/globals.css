@@ -674,6 +674,22 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   grid-template-rows: 1fr;
 }
 
+/* 열림 시 최소 높이 — 콘텐츠 로드 전·후 카드 점프 완화 */
+.barn-list-panel-shell[data-open="true"]
+  .barn-list-panel-content[data-panel="graph"] {
+  min-height: 11rem;
+}
+
+.barn-list-panel-shell[data-open="true"]
+  .barn-list-panel-content[data-panel="settings"] {
+  min-height: 14rem;
+}
+
+.barn-list-panel-shell--channel-trend[data-open="true"]
+  .barn-list-panel-content {
+  min-height: 8.5rem;
+}
+
 .barn-list-panel-shell--settings[data-open="true"] {
   transition-duration: var(--motion-duration-moderate);
 }

@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type TouchEvent as ReactTouchEvent,
+} from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +17,8 @@ import {
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
+
+const DISMISS_DRAG_PX = 88;
 
 type Props = {
   open: boolean;
@@ -43,6 +52,9 @@ export function BarnPanelBottomSheet({
   suppressFocusOutClose = false,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const startYRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!open || typeof document === "undefined") return;
@@ -52,6 +64,41 @@ export function BarnPanelBottomSheet({
       document.body.style.overflow = prev;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      setDragY(0);
+      setDragging(false);
+      startYRef.current = null;
+    }
+  }, [open]);
+
+  const onHandleTouchStart = useCallback((e: ReactTouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    startYRef.current = t.clientY;
+    setDragging(true);
+  }, []);
+
+  const onHandleTouchMove = useCallback((e: ReactTouchEvent) => {
+    const start = startYRef.current;
+    const t = e.touches[0];
+    if (start == null || !t) return;
+    const dy = Math.max(0, t.clientY - start);
+    setDragY(dy);
+  }, []);
+
+  const onHandleTouchEnd = useCallback(() => {
+    const dy = dragY;
+    startYRef.current = null;
+    setDragging(false);
+    if (dy >= DISMISS_DRAG_PX) {
+      setDragY(0);
+      onClose();
+      return;
+    }
+    setDragY(0);
+  }, [dragY, onClose]);
 
   if (!open) return null;
 
@@ -78,9 +125,29 @@ export function BarnPanelBottomSheet({
             : "bottom-0 h-[85dvh] max-h-[85dvh] left-0 w-full max-w-none translate-x-0 translate-y-0 sm:max-w-none md:h-[min(85dvh,36rem)] md:max-h-[min(85dvh,36rem)]",
           className,
         )}
+        style={
+          dragY > 0
+            ? {
+                transform: `translateY(${dragY}px)`,
+                transition: dragging ? "none" : undefined,
+              }
+            : undefined
+        }
         data-mobile-viewport-sheet={viewportCompact || undefined}
         data-audit-region={auditRegion}
       >
+        {/* 핸들 — 아래로 끌어 닫기 (가로 페이지 스와이프와 축 분리) */}
+        <div
+          className="flex shrink-0 cursor-grab touch-none justify-center pt-2 active:cursor-grabbing"
+          data-sheet-drag-handle
+          aria-label="시트를 아래로 끌어 닫기"
+          onTouchStart={onHandleTouchStart}
+          onTouchMove={onHandleTouchMove}
+          onTouchEnd={onHandleTouchEnd}
+          onTouchCancel={onHandleTouchEnd}
+        >
+          <span className="h-1 w-10 rounded-full bg-muted-foreground/35" aria-hidden />
+        </div>
         <DialogHeader className="shrink-0 border-b px-4 py-3">
           <div className="flex items-center gap-2 pr-8">
             {onBack ? (

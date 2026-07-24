@@ -294,7 +294,8 @@ export function FarmMapControllerDetail({
     if (isMobileStack) {
       if (!sheetOpenRef.current) openMobileSheet(0);
     } else {
-      setGraphOpen(false);
+      // 컨트롤러 선택 시 그래프 패널을 바로 열어 heatmap → 상세 클릭 수를 줄인다
+      setGraphOpen(true);
       setSettingsOpen(false);
     }
   };
