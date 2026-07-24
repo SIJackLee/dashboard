@@ -44,8 +44,37 @@ export function downsampleTrendAxis(
   };
 }
 
-/** compact line chart — 약 6개 tick. */
+/** compact/TrendChart — 약 5개 tick (7d·30d 라벨 겹침 방지). */
 export function tickEveryForDisplayBars(count: number): number {
-  if (count <= 6) return 1;
-  return Math.max(1, Math.ceil(count / 6));
+  if (count <= 5) return 1;
+  return Math.max(1, Math.ceil(count / 5));
 }
+
+/**
+ * X축 tick 표시용 축약.
+ * categories는 풀 라벨(호버/툴팁용)을 유지하고, tick만 양끝=풀 · 중간=축약.
+ *
+ * - 24h 풀 `HH:mm` → 중간 `HH`
+ * - 7d 풀 `M/D HH` → 중간 `M/D`
+ * - 30d 풀 `M/D` → 중간 `D`
+ */
+export function abbreviateTrendAxisLabel(
+  period: TrendPeriodId,
+  fullLabel: string,
+  opts: { endpoint: boolean },
+): string {
+  if (opts.endpoint || !fullLabel) return fullLabel;
+
+  if (period === "24h") {
+    const m = fullLabel.match(/^(\d{1,2}):\d{2}$/);
+    return m ? m[1]! : fullLabel;
+  }
+  if (period === "7d") {
+    const m = fullLabel.match(/^(\d{1,2}\/\d{1,2})\s+\d{1,2}$/);
+    return m ? m[1]! : fullLabel;
+  }
+  // 30d — `M/D` → 일만
+  const m = fullLabel.match(/^\d{1,2}\/(\d{1,2})$/);
+  return m ? m[1]! : fullLabel;
+}
+

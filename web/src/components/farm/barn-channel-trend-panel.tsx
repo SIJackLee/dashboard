@@ -45,15 +45,11 @@ function tickEveryForPeriod(
   dense = false
 ): number {
   if (dense) {
-    if (count <= 6) return 1;
-    if (period === "24h") return 12;
-    if (period === "7d") return 10;
-    return 8;
+    if (count <= 4) return 1;
+    return Math.max(1, Math.ceil(count / 4));
   }
-  if (count <= 12) return 1;
-  if (period === "24h") return 8;
-  if (period === "7d") return 7;
-  return 5;
+  if (count <= 5) return 1;
+  return Math.max(1, Math.ceil(count / 5));
 }
 
 function ChannelSlotTrendChart({
@@ -63,6 +59,7 @@ function ChannelSlotTrendChart({
   categories,
   thermo,
   tickEvery,
+  period,
   compact,
   dense,
 }: {
@@ -72,6 +69,7 @@ function ChannelSlotTrendChart({
   categories: string[];
   thermo: ReturnType<typeof resolveReadingChannelThermo>;
   tickEvery: number;
+  period: TrendPeriodId;
   compact?: boolean;
   dense?: boolean;
 }) {
@@ -122,6 +120,7 @@ function ChannelSlotTrendChart({
         leftDomain={[0, 100]}
         referenceLines={fanRefs}
         tickEvery={tickEvery}
+        period={period}
       />
     </div>
   );
@@ -167,16 +166,10 @@ export function BarnChannelTrendPanel({
       return {
         categories: categoriesRaw,
         series: controllerSeries,
-        tickEvery: tickEveryForPeriod(period, categoriesRaw.length),
+        tickEvery: tickEveryForPeriod(period, categoriesRaw.length, dense),
       };
     }
-    if (!dense) {
-      return {
-        categories: categoriesRaw,
-        series: controllerSeries,
-        tickEvery: tickEveryForPeriod(period, categoriesRaw.length, false),
-      };
-    }
+    // dense/비dense 모두 GRAPH_BARS 다운샘플 — 7d·30d X축 겹침 방지
     const { categories, columns } = downsampleTrendAxis(
       categoriesRaw,
       [
@@ -194,9 +187,11 @@ export function BarnChannelTrendPanel({
         fanExhaust: columns[1] ?? controllerSeries.fanExhaust,
         fanSupply: columns[2] ?? controllerSeries.fanSupply,
       },
-      tickEvery: tickEveryForDisplayBars(categories.length),
+      tickEvery: dense
+        ? Math.max(1, Math.ceil(categories.length / 4))
+        : tickEveryForDisplayBars(categories.length),
     };
-  }, [hasDataRaw, controllerSeries, periodData, period, dense]);
+  }, [hasDataRaw, controllerSeries, categoriesRaw, period, dense]);
 
   const categories = display.categories;
   const chartSeries = display.series;
@@ -241,6 +236,7 @@ export function BarnChannelTrendPanel({
           categories={categories}
           thermo={resolveReadingChannelThermo(reading, thermoSettings, s)}
           tickEvery={tickEvery}
+          period={period}
           compact={compact}
           dense={dense}
         />

@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
+import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
+import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
 import {
   type Band,
   SEV_COLOR,
@@ -42,6 +44,8 @@ type TrendChartProps = {
   emptyLabel?: string;
   /** Show every Nth category tick (auto if omitted). */
   tickEvery?: number;
+  /** 있으면 X축 tick을 양끝=풀·중간=축약 (categories·툴팁은 풀 라벨 유지). */
+  period?: TrendPeriodId;
   /** false면 시리즈 범례 행 숨김 (sheet compact 등). */
   showLegend?: boolean;
   /**
@@ -95,6 +99,7 @@ export function TrendChart({
   referenceLines = [],
   emptyLabel = "데이터 없음",
   tickEvery,
+  period,
   barWidthCapPct,
   showLegend = true,
 }: TrendChartProps) {
@@ -173,8 +178,33 @@ export function TrendChart({
     setHover({ idx: hoverIndexAtRatio(ratio), xPx, w: rect.width });
   };
 
-  const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / 6));
-  const showTick = (i: number) => i === 0 || i === n - 1 || i % autoTick === 0;
+  const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / 5));
+  const tickIndices = useMemo(() => {
+    if (n <= 0) return [] as number[];
+    if (n === 1) return [0];
+
+    const every = Math.max(1, autoTick);
+    const candidates: number[] = [];
+    for (let i = 0; i < n; i += every) candidates.push(i);
+    if (candidates[candidates.length - 1] !== n - 1) {
+      candidates.push(n - 1);
+    }
+
+    // 라벨 폭을 고려한 최소 간격 — 끝점과 직전이 붙으면 끝점을 남기고 직전 제거
+    const minGap = Math.max(every, Math.ceil(n / 5));
+    const out: number[] = [candidates[0]!];
+    for (let k = 1; k < candidates.length; k++) {
+      const idx = candidates[k]!;
+      const prev = out[out.length - 1]!;
+      const isLast = k === candidates.length - 1;
+      if (idx - prev >= minGap) {
+        out.push(idx);
+      } else if (isLast) {
+        out[out.length - 1] = idx;
+      }
+    }
+    return out;
+  }, [autoTick, n]);
 
   /** 동일 axis·밴드는 한 번만 fill (채널 A/B/C 중복 방지). */
   const uniqueBands = useMemo(() => {
@@ -418,33 +448,38 @@ export function TrendChart({
       ) : null}
       </div>
 
-      {mode === "bar" && barCenterCluster ? (
-        <div className="relative h-3.5 border-t pt-1">
-          {categories.map((label, i) => (
+      <div className="relative h-4 overflow-hidden border-t pt-1">
+        {tickIndices.map((i) => {
+          const fullLabel = categories[i] ?? "";
+          if (!fullLabel) return null;
+          const endpoint = i === 0 || i === n - 1;
+          const label = period
+            ? abbreviateTrendAxisLabel(period, fullLabel, { endpoint })
+            : fullLabel;
+          const align =
+            i === 0 ? "left" : i === n - 1 ? "right" : "center";
+          return (
             <span
-              key={`${label}-${i}`}
-              className="absolute -translate-x-1/2 whitespace-nowrap text-[9px] leading-none text-muted-foreground"
-              style={{ left: `${(xForBar(i) / VIEW_W) * 100}%` }}
-            >
-              {showTick(i) ? label : ""}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <div className={cn("flex w-full gap-px border-t pt-1")}>
-          {categories.map((label, i) => (
-            <div
-              key={`${label}-${i}`}
+              key={`tick-${i}-${fullLabel}`}
               className={cn(
-                "min-w-0 flex-1 overflow-visible whitespace-nowrap text-[9px] leading-none text-muted-foreground",
-                i === 0 ? "text-left" : i === n - 1 ? "text-right" : "text-center",
+                "pointer-events-none absolute top-1 text-[9px] leading-none text-muted-foreground",
+                align === "left" && "left-0 max-w-[30%] truncate text-left",
+                align === "right" && "right-0 max-w-[30%] truncate text-right",
+                align === "center" &&
+                  "max-w-[22%] -translate-x-1/2 truncate text-center",
               )}
+              style={
+                align === "center"
+                  ? { left: `${(xAtIndex(i) / VIEW_W) * 100}%` }
+                  : undefined
+              }
+              title={fullLabel}
             >
-              {showTick(i) ? label : ""}
-            </div>
-          ))}
-        </div>
-      )}
+              {label}
+            </span>
+          );
+        })}
+      </div>
     </div>
   );
 }

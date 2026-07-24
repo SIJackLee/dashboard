@@ -52,10 +52,10 @@ type Props = {
 };
 
 function tickEveryForPeriod(period: TrendPeriodId, count: number): number {
-  if (count <= 12) return 1;
-  if (period === "24h") return 8;
-  if (period === "7d") return 7;
-  return 5;
+  if (count <= 5) return 1;
+  if (period === "24h") return Math.max(1, Math.ceil(count / 5));
+  if (period === "7d") return Math.max(1, Math.ceil(count / 5));
+  return Math.max(1, Math.ceil(count / 5));
 }
 
 export function BarnListGraphPanel({
@@ -111,16 +111,16 @@ export function BarnListGraphPanel({
         tickEvery: tickEveryForPeriod(period, categoriesRaw.length),
       };
     }
-    if (!sheetCompact) {
-      return {
-        categories: categoriesRaw,
-        series: controllerSeries,
-        tickEvery: tickEveryForPeriod(period, categoriesRaw.length),
-      };
-    }
+    // sheetCompact뿐 아니라 데스크톱도 다운샘플 — 7d·30d X축·채널과 동일 해상도
     const { categories, columns } = downsampleTrendAxis(
       categoriesRaw,
-      [controllerSeries.temp, controllerSeries.humidity],
+      [
+        controllerSeries.temp,
+        controllerSeries.humidity,
+        controllerSeries.fanIntake,
+        controllerSeries.fanExhaust,
+        controllerSeries.fanSupply,
+      ],
       period,
     );
     return {
@@ -129,10 +129,13 @@ export function BarnListGraphPanel({
         ...controllerSeries,
         temp: columns[0] ?? controllerSeries.temp,
         humidity: columns[1] ?? controllerSeries.humidity,
+        fanIntake: columns[2] ?? controllerSeries.fanIntake,
+        fanExhaust: columns[3] ?? controllerSeries.fanExhaust,
+        fanSupply: columns[4] ?? controllerSeries.fanSupply,
       },
       tickEvery: tickEveryForDisplayBars(categories.length),
     };
-  }, [hasDataRaw, controllerSeries, periodData, period, sheetCompact]);
+  }, [hasDataRaw, controllerSeries, categoriesRaw, period]);
 
   const categories = display.categories;
   const chartSeries = display.series;
@@ -210,6 +213,7 @@ export function BarnListGraphPanel({
               leftDomain={tempDomain}
               referenceLines={tempRefs}
               tickEvery={tickEvery}
+              period={period}
               showLegend={!sheetCompact}
             />
             <p
@@ -229,6 +233,7 @@ export function BarnListGraphPanel({
               leftDomain={humidityDomain}
               referenceLines={humidityRefs}
               tickEvery={tickEvery}
+              period={period}
               showLegend={!sheetCompact}
             />
           </div>

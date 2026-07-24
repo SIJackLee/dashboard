@@ -134,7 +134,8 @@ function formatBucketLabel(date: Date, period: TrendPeriodId): string {
   const hh = String(date.getHours()).padStart(2, "0");
   const min = String(date.getMinutes()).padStart(2, "0");
   if (period === "24h") return `${hh}:${min}`;
-  if (period === "7d") return `${mm}/${dd} ${hh}시`;
+  // 7d — 짧은 라벨(M/D HH). 「시」접미·공백 과다로 X축 겹침 방지
+  if (period === "7d") return `${mm}/${dd} ${hh}`;
   return `${mm}/${dd}`;
 }
 

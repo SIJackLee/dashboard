@@ -15,6 +15,10 @@ import {
   resolveReadingChannelThermo,
 } from "@/lib/farm/controller-summary-display";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
+import {
+  downsampleTrendAxis,
+  tickEveryForDisplayBars,
+} from "@/lib/farm/trend-display-buckets";
 import { cn } from "@/lib/utils";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 
@@ -27,17 +31,6 @@ type Props = {
   compact?: boolean;
   className?: string;
 };
-
-function tickEveryForPeriod(period: TrendPeriodId, count: number): number {
-  if (count <= 12) return 1;
-  if (period === "24h") return compactTickEvery(count, 8);
-  if (period === "7d") return compactTickEvery(count, 7);
-  return compactTickEvery(count, 5);
-}
-
-function compactTickEvery(count: number, base: number): number {
-  return count <= 12 ? 1 : base;
-}
 
 /** 컨트롤러 채널 A/B/C 추이 — 목록·그리드 인라인 공용. */
 export function BarnChannelGraphSection({
@@ -78,12 +71,46 @@ export function BarnChannelGraphSection({
     ]
   );
 
+  const categoriesRaw = periodData?.categories ?? [];
+  const hasDataRaw =
+    stallTrendHasData(controllerSeries) && categoriesRaw.length > 0;
+
+  const display = useMemo(() => {
+    if (!hasDataRaw || !controllerSeries) {
+      return {
+        categories: categoriesRaw,
+        series: controllerSeries,
+        tickEvery: 1,
+      };
+    }
+    // 7d/30d 원본 버킷(수 백)을 그대로 그리면 X축이 겹침 — GRAPH_BARS로 다운샘플
+    const { categories, columns } = downsampleTrendAxis(
+      categoriesRaw,
+      [
+        controllerSeries.fanIntake,
+        controllerSeries.fanExhaust,
+        controllerSeries.fanSupply,
+      ],
+      period,
+    );
+    return {
+      categories,
+      series: {
+        ...controllerSeries,
+        fanIntake: columns[0] ?? controllerSeries.fanIntake,
+        fanExhaust: columns[1] ?? controllerSeries.fanExhaust,
+        fanSupply: columns[2] ?? controllerSeries.fanSupply,
+      },
+      tickEvery: tickEveryForDisplayBars(categories.length),
+    };
+  }, [hasDataRaw, controllerSeries, categoriesRaw, period]);
+
   const fanSeries = useMemo(
     () =>
-      controllerSeries
-        ? channelFanTrendSeries(controllerSeries, thermoByChannel)
+      display.series
+        ? channelFanTrendSeries(display.series, thermoByChannel)
         : [],
-    [controllerSeries, thermoByChannel]
+    [display.series, thermoByChannel]
   );
   const fanRefs = useMemo(() => {
     const seen = new Set<string>();
@@ -96,12 +123,9 @@ export function BarnChannelGraphSection({
     });
   }, [fanSeries]);
 
-  const categories = periodData?.categories ?? [];
-  const hasData = stallTrendHasData(controllerSeries) && categories.length > 0;
-  const tickEvery = tickEveryForPeriod(period, categories.length);
   const chartHeight = compact ? 72 : 80;
 
-  if (!hasData) {
+  if (!hasDataRaw || !display.series) {
     return (
       <div
         className={cn(
@@ -132,13 +156,14 @@ export function BarnChannelGraphSection({
       </p>
       <TrendChart
         mode="line"
-        categories={categories}
+        categories={display.categories}
         series={fanSeries}
         height={chartHeight}
         leftUnit="%"
         leftDomain={[0, 100]}
         referenceLines={fanRefs}
-        tickEvery={tickEvery}
+        tickEvery={display.tickEvery}
+        period={period}
       />
     </div>
   );
