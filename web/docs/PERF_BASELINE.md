@@ -6,10 +6,11 @@ Phase 0 측정 기록. local dev · Supabase remote DB 기준.
 
 ```bash
 cd dashboard/web
-npx tsx scripts/measure-live-read.ts
+npm run measure:live
+# 동일: npx tsx scripts/measure-live-read.ts
 ```
 
-페이지 TTFB는 브라우저 DevTools Network 탭에서 `/farm`, `/controllers`, `/alarms`, `/settings`, `/admin/ops` 각 10회 샘플.
+페이지 TTFB는 브라우저 DevTools Network 탭에서 `/farm`, `/controllers`, `/alarms`, `/settings`, `/admin/ops` 각 10회 샘플. Admin hub는 아래 **Admin hub TTFB** 절 · `npm run measure:hub-ttfb`.
 
 ## 목표 (local dev, post-optimization)
 
@@ -18,22 +19,42 @@ npx tsx scripts/measure-live-read.ts
 | LIVE SELECT p95 | &lt; 300 ms |
 | 페이지 TTFB p95 | &lt; 1.5 s |
 
-## Baseline (pre-optimization)
+## Measured LIVE SELECT (2026-07-24)
+
+`npm run measure:live` · n=10 · FARM01/P00 · remote Supabase.
+
+| Query | p50 (ms) | p95 (ms) | vs 목표 | Notes |
+| --- | --- | --- | --- | --- |
+| `v_iot_dashboard_list` limit 500 | 77 | 446 | p95 spike | global list — remote cold outlier (min 43) |
+| `v_iot_decoded_latest` limit 1500 | 61 | 134 | OK | legacy path |
+| `v_iot_farm_overview` limit 100 | 106 | 2206 | p95 spike | aggregate — 1회 cold 2s급 (min 85) |
+| **List farm-scoped 500** (`decoded_latest` FARM01/P00) | **84** | **115** | **OK** | 출고 단일농장 경로 (1-A) |
+| **Detail 1 row** | **51** | **76** | **OK** | 1-B |
+
+판정: **출고 경로(farm-scoped / detail) p95 &lt; 300 ms 충족.** global list·overview p95는 remote RTT/cold에 민감 — 참고용.
+
+동일 세션 직전 1회 샘플(참고): list 116/1348 · legacy 60/85 · overview 57/82 · farm-scoped 56/75 · detail 44/53.
+
+## Baseline (pre-optimization placeholder)
+
+초기 문서의 `_run script_` 자리 — 최적화 전 수치는 미보존. 현재 remote 측정은 위 **Measured** 표 사용.
 
 | Query | p50 (ms) | p95 (ms) | Notes |
 | --- | --- | --- | --- |
-| `v_iot_decoded_latest` limit 1500 + `decoded_json` | _run script_ | _run script_ | legacy path |
-| `v_iot_dashboard_list` limit 500 | _run script_ | _run script_ | list tier |
-| `v_iot_farm_overview` | _run script_ | _run script_ | admin /farm |
+| `v_iot_decoded_latest` limit 1500 + `decoded_json` | 61 | 134 | 2026-07-24 |
+| `v_iot_dashboard_list` limit 500 | 77 | 446 | 2026-07-24 · p95 outlier |
+| `v_iot_farm_overview` | 106 | 2206 | 2026-07-24 · p95 outlier |
 
 ## Post-optimization
 
 | Query | p50 (ms) | p95 (ms) | Phase |
 | --- | --- | --- | --- |
-| List farm-scoped 500 | | | 1-A |
-| Detail 1 row | | | 1-B |
-| Farm overview | | | 1-C |
-| Cached repeat navigation | | | 1-D |
+| List farm-scoped 500 | 84 | 115 | 1-A |
+| Detail 1 row | 51 | 76 | 1-B |
+| Farm overview | 106 | 2206† | 1-C |
+| Cached repeat navigation | — | — | 1-D → Admin hub TTFB warm (아래) |
+
+† overview p95는 cold spike; p50·min은 ~85–106 ms대.
 
 ## 정책
 
