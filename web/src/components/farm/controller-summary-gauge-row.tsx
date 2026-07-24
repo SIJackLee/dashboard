@@ -48,6 +48,9 @@ type Props = {
   mobileSheetOpen?: boolean;
   onToggleGraph?: () => void;
   onToggleSettings?: () => void;
+  /** 모터 모드 — 게이지/채널 본문 접기·펼치기 */
+  cardBodyCollapsed?: boolean;
+  onToggleCardBody?: () => void;
   /** 모바일 sheet carousel — 스와이프·segment 시 pill 상태 동기화 */
   onSheetPageChange?: (page: ControllerMobileSheetPage) => void;
   /** 그리드 stack — 그래프 pill 숨김(차트 tap으로 sheet 진입). 목록 stack에서는 false. */
@@ -91,6 +94,8 @@ export function ControllerSummaryGaugeRow({
   mobileSheetOpen: mobileSheetOpenProp,
   onToggleGraph,
   onToggleSettings,
+  cardBodyCollapsed = false,
+  onToggleCardBody,
   onSheetPageChange,
   hideGraphToggle = false,
   panelPlacement = "bottom",
@@ -244,21 +249,32 @@ export function ControllerSummaryGaugeRow({
 
   const cardBody = (
     <>
-      <div className="px-2.5 pt-2.5 sm:px-3 sm:pt-3">
+      <div
+        className={cn(
+          "px-2.5 pt-2.5 sm:px-3 sm:pt-3",
+          cardBodyCollapsed && "pb-2.5 sm:pb-3",
+        )}
+      >
         <ControllerSummaryHeader
           reading={reading}
           graphActive={graphExpanded}
           settingsActive={settingsExpanded}
-          showGraphPill={!hideGraphToggle}
+          showGraphPill={!hideGraphToggle && listMode !== "graph"}
           showAffiliation={showAffiliation}
+          cardBodyCollapsed={cardBodyCollapsed}
           onToggleGraph={onToggleGraph}
           onToggleSettings={onToggleSettings}
+          onToggleCardBody={
+            listMode === "graph" ? onToggleCardBody : undefined
+          }
           className="mb-2 w-full"
         />
       </div>
-      <div className="shrink-0 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
-        {metricsBlock}
-      </div>
+      {!cardBodyCollapsed ? (
+        <div className="shrink-0 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
+          {metricsBlock}
+        </div>
+      ) : null}
     </>
   );
 
@@ -332,8 +348,11 @@ export function ControllerSummaryGaugeRow({
   );
 
   const settingsPanel = (
-    <BarnListPanelShell open={settingsExpanded} panelKind="settings">
-      {settingsExpanded ? (
+    <BarnListPanelShell
+      open={settingsExpanded && !cardBodyCollapsed}
+      panelKind="settings"
+    >
+      {settingsExpanded && !cardBodyCollapsed ? (
         <BarnListAccordionPanel
           reading={reading}
           readings={readings}
@@ -385,6 +404,7 @@ export function ControllerSummaryGaugeRow({
             data-controller-card-key={reading.key}
             data-controller-key={reading.controllerKey}
             data-list-mode={listMode}
+            data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
             data-panel-layout="grid"
           >
             {cardBody}
@@ -412,6 +432,7 @@ export function ControllerSummaryGaugeRow({
           data-controller-card-key={reading.key}
           data-controller-key={reading.controllerKey}
           data-list-mode={listMode}
+          data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
           data-panel-layout="stack"
         >
           {cardBody}
@@ -431,6 +452,7 @@ export function ControllerSummaryGaugeRow({
           data-controller-card-key={reading.key}
           data-controller-key={reading.controllerKey}
           data-list-mode={listMode}
+          data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
           data-panel-layout="stack"
           onClick={onCardActivate}
           onKeyDown={
@@ -462,6 +484,7 @@ export function ControllerSummaryGaugeRow({
       data-controller-card-key={reading.key}
       data-controller-key={reading.controllerKey}
       data-list-mode={listMode}
+      data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
     >
       {cardBody}
       {graphPanel}

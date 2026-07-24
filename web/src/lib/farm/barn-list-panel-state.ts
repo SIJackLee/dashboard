@@ -83,9 +83,48 @@ export function isBarnListGraphExpanded(
   listMode: BarnListViewMode,
   panelSets: BarnListPanelSets
 ): boolean {
-  if (panelSets.settingsKeys.has(key)) return false;
+  // 모터(graph) 모드 — 설정이 열려도 그래프 유지 (스캔 후 즉시 조정)
   if (listMode === "graph") return true;
+  if (panelSets.settingsKeys.has(key)) return false;
   return panelSets.graphKeys.has(key);
+}
+
+/** 모터 모드 — 게이지/채널 본문 기본 접힘. 다른 모드에서는 항상 펼침. */
+export function isBarnListCardBodyCollapsed(
+  key: string,
+  listMode: BarnListViewMode,
+  expandedKeys: ReadonlySet<string>,
+): boolean {
+  if (listMode !== "graph") return false;
+  return !expandedKeys.has(key);
+}
+
+export function toggleBarnListCardBody(
+  prev: ReadonlySet<string>,
+  key: string,
+): Set<string> {
+  return toggleInSet(prev, key);
+}
+
+export function expandBarnListCardBody(
+  prev: ReadonlySet<string>,
+  key: string,
+): Set<string> {
+  if (prev.has(key)) return new Set(prev);
+  const next = new Set(prev);
+  next.add(key);
+  return next;
+}
+
+/** 카드 본문 접을 때 해당 키의 설정 패널만 닫음 (그래프 keys 유지) */
+export function closeBarnListSettingsForKey(
+  prev: BarnListPanelSets,
+  key: string,
+): BarnListPanelSets {
+  return {
+    graphKeys: prev.graphKeys,
+    settingsKeys: removeFromSet(prev.settingsKeys, key),
+  };
 }
 
 /** 모바일 sheet — panelSets에 명시된 카드만 열림 (툴바 graph/settings 일괄 확장과 분리) */

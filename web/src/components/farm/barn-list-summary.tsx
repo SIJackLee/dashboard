@@ -12,6 +12,7 @@ import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-t
 import { groupReadingsByHierarchy } from "@/lib/data/reading-hierarchy";
 import { summarizeReadings } from "@/lib/data/hierarchy-summary";
 import {
+  isBarnListCardBodyCollapsed,
   isBarnListGraphExpanded,
   isBarnListMobileSheetOpen,
   isBarnListSettingsExpanded,
@@ -44,8 +45,10 @@ type Props = {
   panelPeriodOverrides?: Record<string, TrendPeriodId>;
   onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   panelSets: BarnListPanelSets;
+  cardBodyExpandedKeys?: ReadonlySet<string>;
   onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
+  onToggleCardBody?: (key: string) => void;
   onSheetPageChange?: (key: string, page: ControllerMobileSheetPage) => void;
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
@@ -125,6 +128,7 @@ function ControllerCardGrid({
   listMode,
   onToggleGraph,
   onToggleSettings,
+  onToggleCardBody,
   onSheetPageChange,
   inSpSection = false,
   bulkMode = false,
@@ -134,6 +138,7 @@ function ControllerCardGrid({
   mobileToolbarSheetMode = false,
   toolbarSheetKey = null,
   onToolbarSheetKeyChange,
+  cardBodyExpandedKeys,
 }: {
   readings: BarnReading[];
   allReadings: BarnReading[];
@@ -151,6 +156,7 @@ function ControllerCardGrid({
   listMode: BarnListViewMode;
   onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
+  onToggleCardBody?: (key: string) => void;
   onSheetPageChange?: (key: string, page: ControllerMobileSheetPage) => void;
   inSpSection?: boolean;
   bulkMode?: boolean;
@@ -160,6 +166,7 @@ function ControllerCardGrid({
   mobileToolbarSheetMode?: boolean;
   toolbarSheetKey?: string | null;
   onToolbarSheetKeyChange?: (key: string, page?: ControllerMobileSheetPage) => void;
+  cardBodyExpandedKeys?: ReadonlySet<string>;
 }) {
   const tourActive = useFarmTourActive();
   const compact = useHydrationSafeDashboardCompact();
@@ -213,9 +220,19 @@ function ControllerCardGrid({
           toolbarSheetSelected={
             mobileToolbarSheetMode && toolbarSheetKey === r.key
           }
+          cardBodyCollapsed={isBarnListCardBodyCollapsed(
+            r.key,
+            listMode,
+            cardBodyExpandedKeys ?? new Set(),
+          )}
           onToggleGraph={!bulkMode ? () => onToggleGraph(r.key) : undefined}
           onToggleSettings={
             !bulkMode ? () => onToggleSettings(r.key) : undefined
+          }
+          onToggleCardBody={
+            !bulkMode && onToggleCardBody
+              ? () => onToggleCardBody(r.key)
+              : undefined
           }
           onSheetPageChange={
             !bulkMode && onSheetPageChange && !mobileToolbarSheetMode
@@ -302,8 +319,10 @@ export function BarnListSummary({
   panelPeriodOverrides = {},
   onPanelPeriodChange,
   panelSets,
+  cardBodyExpandedKeys,
   onToggleGraph,
   onToggleSettings,
+  onToggleCardBody,
   onSheetPageChange,
   bulkMode = false,
   selectedSps = new Set(),
@@ -345,6 +364,7 @@ export function BarnListSummary({
     listMode,
     onToggleGraph,
     onToggleSettings,
+    onToggleCardBody,
     onSheetPageChange,
     bulkMode,
     selectedSps,
@@ -352,6 +372,7 @@ export function BarnListSummary({
     mobileToolbarSheetMode,
     toolbarSheetKey,
     onToolbarSheetKeyChange,
+    cardBodyExpandedKeys,
   };
 
   const toolbarSheet = mobileToolbarSheetMode && onToolbarSheetClose ? (

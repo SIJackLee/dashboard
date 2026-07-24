@@ -32,6 +32,7 @@ import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 export function statusRingClass(status: ControllerStatus): string {
   if (status === "normal") return "outline outline-2 outline-emerald-500/70 -outline-offset-1";
@@ -113,8 +114,10 @@ export function ControllerSummaryHeader({
   showGraphPill = true,
   showSettingsPill = true,
   showAffiliation = false,
+  cardBodyCollapsed = false,
   onToggleGraph,
   onToggleSettings,
+  onToggleCardBody,
   className,
 }: {
   reading: BarnReading;
@@ -123,14 +126,20 @@ export function ControllerSummaryHeader({
   showGraphPill?: boolean;
   showSettingsPill?: boolean;
   showAffiliation?: boolean;
+  /** 모터 모드 — 본문 접힘 시 chevron·상태 힌트 */
+  cardBodyCollapsed?: boolean;
   onToggleGraph?: () => void;
   onToggleSettings?: () => void;
+  onToggleCardBody?: () => void;
   className?: string;
 }) {
-  const showPills = showGraphPill || showSettingsPill;
+  const showCardBodyToggle = onToggleCardBody != null;
+  const showPills = showGraphPill || showSettingsPill || showCardBodyToggle;
   const affiliationLabel = showAffiliation
     ? `${formatStallTypeLabel(reading.stallTyCode)} · ${stallLabelFromKey(stallKeyFromReading(reading))}`
     : null;
+  const offline = reading.status === "offline";
+  const caution = reading.status === "caution";
 
   return (
     <div className={cn("flex min-w-0 items-center gap-2", className)}>
@@ -157,12 +166,53 @@ export function ControllerSummaryHeader({
             {affiliationLabel}
           </span>
         ) : null}
+        {cardBodyCollapsed && (offline || caution) ? (
+          <span
+            className={cn(
+              "block truncate",
+              offline
+                ? "text-muted-foreground"
+                : "text-amber-700 dark:text-amber-400",
+              dashboardTypography.meta,
+            )}
+          >
+            {offline ? "오프라인" : "알람"}
+          </span>
+        ) : null}
       </div>
       {showPills ? (
         <div
           className="ml-auto flex shrink-0 items-center gap-1.5"
           data-tour-id="panel-pills"
         >
+          {showCardBodyToggle ? (
+            <button
+              type="button"
+              aria-expanded={!cardBodyCollapsed}
+              aria-label={
+                cardBodyCollapsed
+                  ? "컨트롤러 본문 펼치기"
+                  : "컨트롤러 본문 접기"
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleCardBody?.();
+              }}
+              className={cn(
+                headerTogglePillClass,
+                "px-2.5",
+                !cardBodyCollapsed
+                  ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted",
+              )}
+            >
+              {cardBodyCollapsed ? (
+                <ChevronDown className="size-4" aria-hidden />
+              ) : (
+                <ChevronUp className="size-4" aria-hidden />
+              )}
+            </button>
+          ) : null}
           {showGraphPill ? (
             <GraphTogglePill
               active={graphActive}

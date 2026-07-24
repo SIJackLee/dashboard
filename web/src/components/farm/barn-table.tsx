@@ -51,6 +51,9 @@ import {
   setBarnListSheetPage,
   isBarnListMobileToolbarSheetMode,
   barnListToolbarSheetInitialPage,
+  toggleBarnListCardBody,
+  expandBarnListCardBody,
+  closeBarnListSettingsForKey,
   type BarnListPanelSets,
   type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
@@ -144,6 +147,10 @@ export function BarnTable({
   const [panelSets, setPanelSets] = useState<BarnListPanelSets>(
     EMPTY_BARN_LIST_PANEL_SETS
   );
+  /** 모터(graph) 모드 — 본문이 펼쳐진 컨트롤러 키 */
+  const [cardBodyExpandedKeys, setCardBodyExpandedKeys] = useState<
+    ReadonlySet<string>
+  >(() => new Set());
   const [toolbarSheetKey, setToolbarSheetKey] = useState<string | null>(null);
   const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
   const [toolbarSheetPage, setToolbarSheetPage] =
@@ -189,7 +196,11 @@ export function BarnTable({
       const nextLayout = resolveListLayout(params);
       setListLayout((prev) => (prev === nextLayout ? prev : nextLayout));
       const fromUrl = resolveListViewMode(params);
-      setListMode((prev) => (prev === fromUrl ? prev : fromUrl));
+      setListMode((prev) => {
+        if (prev === fromUrl) return prev;
+        setCardBodyExpandedKeys(new Set());
+        return fromUrl;
+      });
     });
   }, [urlTick, hubParamsTick, resolveListLayout]);
 
@@ -308,8 +319,14 @@ export function BarnTable({
     setPanelSets((prev) => toggleBarnListGraph(prev, key));
   }, []);
 
-  const toggleSettingsPanel = useCallback((key: string) => {
-    setPanelSets((prev) => toggleBarnListSettings(prev, key));
+  const handleToggleCardBody = useCallback((key: string) => {
+    setCardBodyExpandedKeys((prev) => {
+      const collapsing = prev.has(key);
+      if (collapsing) {
+        setPanelSets((ps) => closeBarnListSettingsForKey(ps, key));
+      }
+      return toggleBarnListCardBody(prev, key);
+    });
   }, []);
 
   const handleSheetPageChange = useCallback(
@@ -391,6 +408,7 @@ export function BarnTable({
       const mode: BarnListViewMode = page === 1 ? "settings" : "graph";
       setListMode(mode);
       setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+      setCardBodyExpandedKeys(new Set());
       setToolbarSheetKey(key);
       setToolbarSheetPage(page);
       setToolbarSheetOpen(true);
@@ -416,9 +434,15 @@ export function BarnTable({
         openMobileToolbarSheet(key, 1);
         return;
       }
-      toggleSettingsPanel(key);
+      setPanelSets((prev) => {
+        const opening = !prev.settingsKeys.has(key);
+        if (opening && listMode === "graph") {
+          setCardBodyExpandedKeys((keys) => expandBarnListCardBody(keys, key));
+        }
+        return toggleBarnListSettings(prev, key);
+      });
     },
-    [bulkMode, compact, openMobileToolbarSheet, toggleSettingsPanel],
+    [bulkMode, compact, listMode, openMobileToolbarSheet],
   );
 
   const toggleListLayout = () => {
@@ -436,6 +460,7 @@ export function BarnTable({
     if (bulkMode) return;
     setListMode(mode);
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+    setCardBodyExpandedKeys(new Set());
     setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
     replaceListParams({
       listMode: mode === "controller" ? null : mode,
@@ -462,6 +487,7 @@ export function BarnTable({
     setToolbarSheetOpen(false);
     setListMode("controller");
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+    setCardBodyExpandedKeys(new Set());
     setToolbarSheetKey(null);
     replaceListParams({ listMode: null });
   }, [bulkMode, replaceListParams]);
@@ -623,8 +649,10 @@ export function BarnTable({
           panelPeriodOverrides={panelPeriodOverrides}
           onPanelPeriodChange={onPanelPeriodChange}
           panelSets={panelSets}
+          cardBodyExpandedKeys={cardBodyExpandedKeys}
           onToggleGraph={handleToggleGraph}
           onToggleSettings={handleToggleSettings}
+          onToggleCardBody={handleToggleCardBody}
           onSheetPageChange={handleSheetPageChange}
           bulkMode={bulkMode}
           selectedSps={selectedSps}
