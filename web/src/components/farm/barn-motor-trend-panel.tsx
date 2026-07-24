@@ -127,7 +127,7 @@ function ChannelSlotTrendChart({
   );
 }
 
-/** 모터 pill — 채널 A/B/C RPC 트렌드 (bar 그래프 대체). */
+/** 그래프(채널) pill — 채널 A/B/C RPC 트렌드 (bar 그래프 대체). */
 export function BarnMotorTrendPanel({
   reading,
   controllerTrendByPeriod,
@@ -229,7 +229,7 @@ export function BarnMotorTrendPanel({
             compact ? "text-[0.65rem]" : "text-xs"
           )}
         >
-          모터 · 채널 추이 · {trendPeriodLabel(period)}
+          그래프 · 채널 추이 · {trendPeriodLabel(period)}
         </p>
       ) : null}
       {slots.map((s) => (

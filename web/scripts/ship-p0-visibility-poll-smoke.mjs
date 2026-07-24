@@ -59,15 +59,50 @@ async function setDocumentHidden(page, hidden) {
   }, hidden);
 }
 
-async function countPollsDuring(page, ms) {
+async function countPollStartsDuring(page, ms, { afterTs = null, graceMs = 0 } = {}) {
   let n = 0;
+  let nAfterGrace = 0;
   const handler = (req) => {
-    if (isLiveOrCommandPoll(req)) n += 1;
+    if (!isLiveOrCommandPoll(req)) return;
+    n += 1;
+    if (afterTs != null && Date.now() - afterTs >= graceMs) {
+      nAfterGrace += 1;
+    }
   };
   page.on("request", handler);
   await page.waitForTimeout(ms);
   page.off("request", handler);
-  return n;
+  return { total: n, afterGrace: afterTs == null ? n : nAfterGrace };
+}
+
+/** 폴링 in-flight가 quietMs 동안 0일 때까지 대기 */
+async function waitForPollQuiet(page, { quietMs = 900, timeoutMs = 25000 } = {}) {
+  let inFlight = 0;
+  const onReq = (req) => {
+    if (isLiveOrCommandPoll(req)) inFlight += 1;
+  };
+  const onDone = (req) => {
+    if (isLiveOrCommandPoll(req)) inFlight = Math.max(0, inFlight - 1);
+  };
+  page.on("request", onReq);
+  page.on("requestfinished", onDone);
+  page.on("requestfailed", onDone);
+
+  const deadline = Date.now() + timeoutMs;
+  let quietSince = inFlight === 0 ? Date.now() : null;
+  while (Date.now() < deadline) {
+    if (inFlight === 0) {
+      if (quietSince == null) quietSince = Date.now();
+      if (Date.now() - quietSince >= quietMs) break;
+    } else {
+      quietSince = null;
+    }
+    await page.waitForTimeout(50);
+  }
+  page.off("request", onReq);
+  page.off("requestfinished", onDone);
+  page.off("requestfailed", onDone);
+  return inFlight === 0;
 }
 
 /** 목록 일괄 ON — enterBulk가 visible SP 전부 선택. chip 재클릭은 해제되므로 금지. */
@@ -146,21 +181,36 @@ async function scenario4_tabHidden(page) {
   await applyBulkSetpoint(page);
   await page.waitForTimeout(1000);
 
-  const baseline = await countPollsDuring(page, 10000);
+  const baseline = await countPollStartsDuring(page, 10000);
   assert(
-    baseline >= 1,
-    `시나리오4 FAIL: 숨김 전 폴링 기준선 없음 (baseline=${baseline})`,
+    baseline.total >= 1,
+    `시나리오4 FAIL: 숨김 전 폴링 기준선 없음 (baseline=${baseline.total})`,
   );
 
+  // in-flight Promise.all / 레이스가 숨김 구간 POST로 잡히지 않도록 quiet 후 hide
+  const quiet = await waitForPollQuiet(page, { quietMs: 900, timeoutMs: 25000 });
+  assert(quiet, "시나리오4 FAIL: 숨김 전 폴링 quiet 미도달");
+
+  const tHide = Date.now();
   await setDocumentHidden(page, true);
-  const hiddenPolls = await countPollsDuring(page, 16000);
+  const hiddenRead = await page.evaluate(() => ({
+    hidden: document.hidden,
+    visibilityState: document.visibilityState,
+  }));
+  assert(hiddenRead.hidden === true, "시나리오4 FAIL: document.hidden 시뮬레이션 실패");
+
+  // grace 300ms: 숨김 직전 배선에 걸린 요청 start 제외. 이후 새 tick만 집계
+  const hidden = await countPollStartsDuring(page, 16000, {
+    afterTs: tHide,
+    graceMs: 300,
+  });
 
   await setDocumentHidden(page, false);
-  const visiblePolls = await countPollsDuring(page, 12000);
+  const visible = await countPollStartsDuring(page, 12000);
 
   assert(
-    hiddenPolls <= 1,
-    `시나리오4 FAIL: 숨김 중 폴링 ${hiddenPolls}회 (기대 ≤1, baseline=${baseline})`,
+    hidden.afterGrace <= 1,
+    `시나리오4 FAIL: 숨김 중 신규 폴링 ${hidden.afterGrace}회 (기대 ≤1, total=${hidden.total}, baseline=${baseline.total})`,
   );
 
   const stillWaiting = await page
@@ -171,15 +221,21 @@ async function scenario4_tabHidden(page) {
 
   if (stillWaiting) {
     assert(
-      visiblePolls >= 1,
-      `시나리오4 FAIL: 복귀 후 폴링 재개 없음 (visible=${visiblePolls})`,
+      visible.total >= 1,
+      `시나리오4 FAIL: 복귀 후 폴링 재개 없음 (visible=${visible.total})`,
     );
-  } else if (visiblePolls === 0) {
-    // 대기 배너가 이미 종료됐으면 재개 검증 스킵 — 숨김 정지(핵심 Pass)는 통과
+  } else if (visible.total === 0) {
     console.log("  (resume skip: LIVE 대기 종료됨)");
   }
 
-  return { baseline, hiddenPolls, visiblePolls, stillWaiting };
+  return {
+    baseline: baseline.total,
+    hiddenTotal: hidden.total,
+    hiddenAfterGrace: hidden.afterGrace,
+    visiblePolls: visible.total,
+    stillWaiting,
+    quiet: true,
+  };
 }
 
 async function scenario8_bulkLiveInflight(page) {

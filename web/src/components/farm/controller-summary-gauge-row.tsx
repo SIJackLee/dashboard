@@ -48,7 +48,7 @@ type Props = {
   mobileSheetOpen?: boolean;
   onToggleGraph?: () => void;
   onToggleSettings?: () => void;
-  /** 모터 모드 — 게이지/채널 본문 접기·펼치기 */
+  /** 그래프 모드 — 게이지/채널 본문 접기·펼치기 */
   cardBodyCollapsed?: boolean;
   onToggleCardBody?: () => void;
   /** 모바일 sheet carousel — 스와이프·segment 시 pill 상태 동기화 */

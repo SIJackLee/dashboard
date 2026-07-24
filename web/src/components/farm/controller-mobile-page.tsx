@@ -18,7 +18,7 @@ type Props = {
   thermoSettings?: Record<string, ControllerThermoSettings>;
 };
 
-/** 모바일 sheet page[0] — 상단 컨트롤러 요약 + 하단 채널 A/B/C 모터 추이(기본 표시). */
+/** 모바일 sheet page[0] — 상단 컨트롤러 요약 + 하단 채널 A/B/C 그래프 추이(기본 표시). */
 export function ControllerMobilePage({
   metricsSection,
   reading,

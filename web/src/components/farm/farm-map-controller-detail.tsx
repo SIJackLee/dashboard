@@ -258,7 +258,7 @@ export function FarmMapControllerDetail({
     if (!selectedReadingKey) return;
     const ctrlKey = resolveControllerKey(selectedReadingKey);
     if (!ctrlKey) return;
-    // sheet가 이미 열려 있으면 페이지(모터/설정) 유지 — 닫혀 있을 때만 기본 오픈
+    // sheet가 이미 열려 있으면 페이지(그래프/설정) 유지 — 닫혀 있을 때만 기본 오픈
     if (isMobileStack && !sheetOpenRef.current) {
       openMobileSheet(0);
     }

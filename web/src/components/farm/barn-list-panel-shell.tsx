@@ -12,7 +12,7 @@ type Props = {
   className?: string;
 };
 
-/** 축사 목록 — 그래프 / 설정 / 모터그래프 패널 expand·collapse (hybrid motion) */
+/** 축사 목록 — 그래프 / 설정 패널 expand·collapse (hybrid motion) */
 export function BarnListPanelShell({
   open,
   panelKind,

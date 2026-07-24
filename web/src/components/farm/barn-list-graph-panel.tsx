@@ -45,7 +45,7 @@ type Props = {
   thermoSettings?: Record<string, ControllerThermoSettings>;
   loading?: boolean;
   stale?: boolean;
-  /** false면 채널 차트 숨김(그리드 설정/모터 열림 시 카드 인라인과 중복 방지). */
+  /** false면 채널 차트 숨김(그리드 설정/그래프 열림 시 카드 인라인과 중복 방지). */
   showChannelSection?: boolean;
   /** 모바일 sheet 컨트롤러 탭 / 설정 탭 — compact 차트·헤더 축소. */
   layout?: "default" | "sheetCompact";

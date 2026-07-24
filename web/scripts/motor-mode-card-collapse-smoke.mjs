@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 모터 모드 카드 접기 — 출고 포커스 스모크 (일회성)
+ * 그래프 모드 카드 접기 — 출고 포커스 스모크 (일회성)
  * Usage: node scripts/motor-mode-card-collapse-smoke.mjs  (dev 서버 실행 중)
  */
 import dotenv from "dotenv";
@@ -63,7 +63,7 @@ async function main() {
       '[data-audit-region="barn-list-summary"] [data-tour-id="controller-card"]',
     );
     const cardCount = await cards.count();
-    assert(cardCount > 0, "모터 모드: 컨트롤러 카드 없음");
+    assert(cardCount > 0, "그래프 모드: 컨트롤러 카드 없음");
 
     const collapsed = page.locator(
       '[data-audit-region="barn-list-summary"] [data-tour-id="controller-card"][data-card-body="collapsed"]',
@@ -71,7 +71,7 @@ async function main() {
     const collapsedCount = await collapsed.count();
     assert(
       collapsedCount === cardCount,
-      `모터 모드: 전체 접힘 기대 ${cardCount}, 실제 collapsed=${collapsedCount}`,
+      `그래프 모드: 전체 접힘 기대 ${cardCount}, 실제 collapsed=${collapsedCount}`,
     );
 
     const first = cards.first();
@@ -155,7 +155,7 @@ async function main() {
     );
 
     console.log(
-      `PASS motor-mode card collapse — cards=${cardCount}, collapsed→expand→settings→controller ok`,
+      `PASS graph-mode card collapse — cards=${cardCount}, collapsed→expand→settings→controller ok`,
     );
   } finally {
     await browser.close();

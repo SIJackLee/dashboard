@@ -126,7 +126,7 @@ export function ControllerSummaryHeader({
   showGraphPill?: boolean;
   showSettingsPill?: boolean;
   showAffiliation?: boolean;
-  /** 모터 모드 — 본문 접힘 시 chevron·상태 힌트 */
+  /** 그래프 모드 — 본문 접힘 시 chevron·상태 힌트 */
   cardBodyCollapsed?: boolean;
   onToggleGraph?: () => void;
   onToggleSettings?: () => void;

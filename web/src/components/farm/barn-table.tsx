@@ -147,7 +147,7 @@ export function BarnTable({
   const [panelSets, setPanelSets] = useState<BarnListPanelSets>(
     EMPTY_BARN_LIST_PANEL_SETS
   );
-  /** 모터(graph) 모드 — 본문이 펼쳐진 컨트롤러 키 */
+  /** 그래프(graph) 모드 — 본문이 펼쳐진 컨트롤러 키 */
   const [cardBodyExpandedKeys, setCardBodyExpandedKeys] = useState<
     ReadonlySet<string>
   >(() => new Set());

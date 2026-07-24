@@ -192,7 +192,7 @@ export function channelFanTrendSeries(
   });
 }
 
-/** 모터 pill / 채널 스트rip — 단일 채널 line trend. */
+/** 그래프 pill / 채널 스트립 — 단일 채널 line trend. */
 export function channelSlotTrendSeries(
   m: StallMetrics,
   slot: ChannelSlot,
