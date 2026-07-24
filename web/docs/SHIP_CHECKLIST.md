@@ -143,9 +143,9 @@ npm run audit:ship-checklist
 | # | 시나리오 | 결과 | 증거/비고 | 일시 |
 | --- | --- | --- | --- | --- |
 | 1 | 적용 연타 | PASS | Playwright `manual-scenarios-13562-smoke.mjs` — 연타 후 결과 1회 | 2026-07-24 |
-| 2 | Offline 적용 | PASS | Offline 중 성공 ACK 없음 → Online 재시도 ACK `명령 등록 · 전송 대기` | 2026-07-24 |
+| 2 | Offline 적용 | PASS | Offline 즉시 `적용 실패`·네트워크 문구 → Online 재시도 ACK `명령 등록 · 전송 대기` (오버레이 autoDismiss 전에 검출) | 2026-07-24 |
 | 3 | LIVE 중 이탈 | PASS | 배너 중 `/farm` 이탈 후 목록 재진입 · 적용 UI 복구 | 2026-07-24 |
-| 4 | 탭 숨김 | PASS | `ship-p0-visibility-poll-smoke.mjs` — quiet 후 hide · grace 300ms 이후 신규 poll 0 (가드 동작; 즉시 hide는 in-flight 레이스로 오탐). `diag-tab-hidden-poll.mjs` 실측 | 2026-07-24 |
+| 4 | 탭 숨김 | PASS | quiet → hide → 1.5s drain 후 신규 poll 0 (`hiddenAfterDrain:0`). #8 maxInFlight 2 | 2026-07-24 |
 | 5 | 채널 미매칭 | PASS | farm-scoped LIVE가 `decoded_latest`로 channels[] 포함. B-only → toast `채널 미매칭 1대` · DB `SET_CHANNEL_THERMO`×12 (B/EC02) · SP02 0건 · 시뮬 CMD applied | 2026-07-24 |
 | 6 | 알람만 일괄 | PASS | 맵 일괄 알람 적용 · toast `알람 유형` 확인 (슬라이더 수치 DOM은 환경에 따라 미검출) | 2026-07-24 |
 | 7 | viewer ops | PASS | ship-checklist 자동화 | 2026-07-24 |

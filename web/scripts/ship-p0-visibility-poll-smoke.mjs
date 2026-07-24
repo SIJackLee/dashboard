@@ -187,11 +187,10 @@ async function scenario4_tabHidden(page) {
     `시나리오4 FAIL: 숨김 전 폴링 기준선 없음 (baseline=${baseline.total})`,
   );
 
-  // in-flight Promise.all / 레이스가 숨김 구간 POST로 잡히지 않도록 quiet 후 hide
+  // in-flight / interval 갭 오탐 방지: quiet → hide → drain 후 신규 start만 집계
   const quiet = await waitForPollQuiet(page, { quietMs: 900, timeoutMs: 25000 });
   assert(quiet, "시나리오4 FAIL: 숨김 전 폴링 quiet 미도달");
 
-  const tHide = Date.now();
   await setDocumentHidden(page, true);
   const hiddenRead = await page.evaluate(() => ({
     hidden: document.hidden,
@@ -199,18 +198,17 @@ async function scenario4_tabHidden(page) {
   }));
   assert(hiddenRead.hidden === true, "시나리오4 FAIL: document.hidden 시뮬레이션 실패");
 
-  // grace 300ms: 숨김 직전 배선에 걸린 요청 start 제외. 이후 새 tick만 집계
-  const hidden = await countPollStartsDuring(page, 16000, {
-    afterTs: tHide,
-    graceMs: 300,
-  });
+  // hide 직후 배선·잔여 tick drain (이 구간 POST는 집계 제외)
+  await page.waitForTimeout(1500);
+
+  const hidden = await countPollStartsDuring(page, 16000);
 
   await setDocumentHidden(page, false);
   const visible = await countPollStartsDuring(page, 12000);
 
   assert(
-    hidden.afterGrace <= 1,
-    `시나리오4 FAIL: 숨김 중 신규 폴링 ${hidden.afterGrace}회 (기대 ≤1, total=${hidden.total}, baseline=${baseline.total})`,
+    hidden.total <= 1,
+    `시나리오4 FAIL: 숨김 drain 후 신규 폴링 ${hidden.total}회 (기대 ≤1, baseline=${baseline.total})`,
   );
 
   const stillWaiting = await page
@@ -230,8 +228,7 @@ async function scenario4_tabHidden(page) {
 
   return {
     baseline: baseline.total,
-    hiddenTotal: hidden.total,
-    hiddenAfterGrace: hidden.afterGrace,
+    hiddenAfterDrain: hidden.total,
     visiblePolls: visible.total,
     stillWaiting,
     quiet: true,

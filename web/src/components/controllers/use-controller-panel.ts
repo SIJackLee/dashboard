@@ -282,13 +282,42 @@ export function useControllerPanel(
       formData.set("eqpmn_code", channelEqpmnCode);
     }
 
+    const NETWORK_ERROR_TEXT =
+      "네트워크 오류입니다. 연결을 확인한 뒤 다시 시도하세요.";
+    const SAVE_TIMEOUT_MS = 8_000;
+
     startTransition(async () => {
-      const result = await sendThermoCommandAction(formData);
-      if (result.ok) {
-        onCommandRegistered?.(result.command);
-        setHasEdited(false);
-      } else {
-        setMessage({ tone: "error", text: formatUserError(result.error) });
+      try {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          setMessage({ tone: "error", text: NETWORK_ERROR_TEXT });
+          return;
+        }
+        const result = await Promise.race([
+          sendThermoCommandAction(formData),
+          new Promise<never>((_, reject) => {
+            window.setTimeout(
+              () => reject(new Error("network_timeout")),
+              SAVE_TIMEOUT_MS,
+            );
+          }),
+        ]);
+        if (result.ok) {
+          onCommandRegistered?.(result.command);
+          setHasEdited(false);
+        } else {
+          setMessage({ tone: "error", text: formatUserError(result.error) });
+        }
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : String(err ?? "");
+        const networkLike =
+          /network_timeout|Failed to fetch|NetworkError|Load failed|fetch/i.test(
+            raw,
+          ) ||
+          (typeof navigator !== "undefined" && navigator.onLine === false);
+        setMessage({
+          tone: "error",
+          text: networkLike ? NETWORK_ERROR_TEXT : formatUserError(raw || "unknown"),
+        });
       }
     });
   }, [

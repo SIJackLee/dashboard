@@ -385,21 +385,23 @@ async function scenario2_offlineRetry(page) {
 
     const applyBtn = panel.getByRole("button", { name: "적용", exact: true });
     await applyBtn.click({ timeout: 10000 }).catch(() => {});
-    await page.waitForTimeout(8000);
 
+    // 네트워크 오류 오버레이는 autoDismiss — 오래 기다리면 문구가 사라짐
+    const failToast = page.getByText(/네트워크|적용 실패|다시 시도/);
+    await failToast.first().waitFor({ state: "visible", timeout: 12000 });
     const bodyOffline = await page.locator("body").innerText();
     const failedVisibly =
-      /오류|실패|네트워크|offline|Failed|다시 시도|fetch/i.test(bodyOffline);
-    const notStuck = !(await panel
+      /오류|실패|네트워크|offline|Failed|다시 시도|fetch|적용 실패/i.test(
+        bodyOffline,
+      );
+    const busyStuck = await page
       .getByText(/적용 중/)
       .isVisible()
-      .catch(() => false));
+      .catch(() => false);
     const falseSuccess = /명령을 등록했습니다|현장 반영 완료/.test(bodyOffline);
     assert(!falseSuccess, "시나리오2: Offline인데 성공 ACK가 표시됨");
-    assert(
-      failedVisibly || notStuck,
-      "시나리오2: Offline 후 실패 피드백 없고 busy 고착 의심",
-    );
+    assert(failedVisibly, "시나리오2: Offline 후 실패 피드백 없음");
+    assert(!busyStuck, "시나리오2: Offline 후 적용 busy 고착");
   } finally {
     await page.context().setOffline(false);
   }
