@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useState, useSyncExternalStore, useTransition } from "react";
 import { FileText, Loader2 } from "lucide-react";
 import { fetchDailyReportPayloadAction } from "@/app/(dashboard)/farm/actions";
 import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
@@ -8,12 +8,19 @@ import {
   InlineStatusToast,
   type InlineStatusTone,
 } from "@/components/common/inline-status-toast";
-import type { FarmKey } from "@/lib/data/farm-key";
+import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
+import {
+  currentFarmSearchParams,
+  getFarmUrlEpoch,
+  getFarmUrlEpochServer,
+  subscribeFarmUrlEpoch,
+} from "@/lib/farm/farm-view-url";
 import { buildAndDownloadDailyReportPdf } from "@/lib/report/build-daily-report-pdf";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Props = {
+  /** SSR PageShell 값 — shallow 농장 전환 시 stale 할 수 있음 */
   farmKey: FarmKey | null;
   alarmCount?: number;
 };
@@ -21,7 +28,13 @@ type Props = {
 const NO_FARM_TOAST =
   "농장을 선택한 뒤 오늘의 리포트를 받을 수 있습니다.";
 
-export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
+function resolveReportFarmKey(serverFarmKey: FarmKey | null): FarmKey | null {
+  const params = currentFarmSearchParams();
+  const fromUrl = parseFarmKeyFromQuery(params.get("lsind"), params.get("item"));
+  return fromUrl ?? serverFarmKey;
+}
+
+export function DailyReportButton({ farmKey: serverFarmKey, alarmCount = 0 }: Props) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{
@@ -35,6 +48,15 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
     detail: undefined as string | undefined,
   });
 
+  /** shallow hub 농장 전환은 TopBar(SSR)를 갱신하지 않음 → URL epoch로 동기화 */
+  const urlEpoch = useSyncExternalStore(
+    subscribeFarmUrlEpoch,
+    getFarmUrlEpoch,
+    getFarmUrlEpochServer,
+  );
+  const farmKey = resolveReportFarmKey(serverFarmKey);
+  void urlEpoch;
+
   const needsFarm = !farmKey;
   const busyLocked = busy || pending;
   /** 네이티브 disabled면 클릭이 막혀 토스트를 못 띄움 — 농장 미선택만 aria-disabled. */
@@ -44,7 +66,8 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
 
   const run = () => {
     if (busyLocked) return;
-    if (!farmKey) {
+    const key = resolveReportFarmKey(serverFarmKey);
+    if (!key) {
       setToast({ message: NO_FARM_TOAST, tone: "warn" });
       return;
     }
@@ -60,7 +83,7 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
     startTransition(() => {
       void (async () => {
         try {
-          const payload = await fetchDailyReportPayloadAction(farmKey, {
+          const payload = await fetchDailyReportPayloadAction(key, {
             alarmCount,
           });
           if (!payload.barns.length) {
@@ -82,7 +105,7 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
             visible: true,
             phase: "success",
             title: "PDF 다운로드 완료",
-            detail: `${farmKey.lsindRegistNo}_${farmKey.itemCode}_일보_${payload.reportDate}.pdf`,
+            detail: `${key.lsindRegistNo}_${key.itemCode}_일보_${payload.reportDate}.pdf`,
           });
         } catch (err) {
           const message =

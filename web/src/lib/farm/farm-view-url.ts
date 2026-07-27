@@ -148,12 +148,46 @@ export function replaceFarmUrlShallow(params: URLSearchParams): void {
   if (typeof window === "undefined") return;
   const path = buildFarmPath(params);
   window.history.replaceState(window.history.state, "", path);
+  notifyFarmUrlEpoch();
 }
 
 /** shallow drill 후 useSearchParams와 동기화되지 않을 때 현재 URL 기준 */
 export function currentFarmSearchParams(): URLSearchParams {
   if (typeof window === "undefined") return new URLSearchParams();
   return new URLSearchParams(window.location.search);
+}
+
+/**
+ * TopBar 등 PageShell 밖 컴포넌트가 shallow URL(lsind/item)을 따라가도록.
+ * replaceFarmUrlShallow · popstate에서 bump.
+ */
+let farmUrlEpoch = 0;
+const farmUrlListeners = new Set<() => void>();
+
+function notifyFarmUrlEpoch() {
+  farmUrlEpoch += 1;
+  farmUrlListeners.forEach((l) => l());
+}
+
+export function subscribeFarmUrlEpoch(onStoreChange: () => void): () => void {
+  farmUrlListeners.add(onStoreChange);
+  if (typeof window !== "undefined" && farmUrlListeners.size === 1) {
+    window.addEventListener("popstate", notifyFarmUrlEpoch);
+  }
+  return () => {
+    farmUrlListeners.delete(onStoreChange);
+    if (typeof window !== "undefined" && farmUrlListeners.size === 0) {
+      window.removeEventListener("popstate", notifyFarmUrlEpoch);
+    }
+  };
+}
+
+export function getFarmUrlEpoch(): number {
+  return farmUrlEpoch;
+}
+
+export function getFarmUrlEpochServer(): number {
+  return 0;
 }
 
 export function parseMapDrillLevel(
