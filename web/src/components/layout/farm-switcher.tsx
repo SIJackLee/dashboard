@@ -94,7 +94,6 @@ function FarmSwitcherBody({
   }, [farmOptions, liveByFarmId]);
 
   const navigate = (farmKey: FarmKey | null) => {
-    if (switchPending) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("lsind");
     params.delete("item");
@@ -138,10 +137,9 @@ function FarmSwitcherBody({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        disabled={switchPending}
         aria-busy={switchPending || undefined}
         className={cn(
-          "inline-flex shrink-0 items-center gap-2 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-80",
+          "inline-flex shrink-0 items-center gap-2 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
           compact
             ? cn(
                 dashboardUi.scopePill,

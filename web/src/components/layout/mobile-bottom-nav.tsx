@@ -35,7 +35,6 @@ export function MobileBottomNav({ role, docked = false }: Props) {
   }
 
   const goSection = (href: string) => {
-    if (isPending) return;
     setPendingHref(href);
     startTransition(() => {
       router.push(href);
@@ -69,7 +68,7 @@ export function MobileBottomNav({ role, docked = false }: Props) {
         className={cn(
           dashboardUi.mobileBottomNavItem,
           monitoringActive ? "text-emerald-700" : "text-muted-foreground",
-          isPending && "pointer-events-none opacity-70",
+          monitoringBusy && "opacity-70",
         )}
       >
         {monitoringBusy ? (
@@ -95,7 +94,7 @@ export function MobileBottomNav({ role, docked = false }: Props) {
           className={cn(
             dashboardUi.mobileBottomNavItem,
             adminOpsActive ? "text-emerald-700" : "text-muted-foreground",
-            isPending && "pointer-events-none opacity-70",
+            opsBusy && "opacity-70",
           )}
         >
           {opsBusy ? (

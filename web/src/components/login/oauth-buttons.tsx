@@ -1,6 +1,53 @@
-import { signInWithGoogle, signInWithKakao } from "@/app/auth/actions";
+"use client";
+
+import { useState, useSyncExternalStore } from "react";
+import { Loader2 } from "lucide-react";
+import {
+  getOAuthSignInUrl,
+  type OAuthProvider,
+} from "@/app/auth/actions";
+import { isRestrictedOAuthBrowser } from "@/lib/auth/oauth-browser";
+
+const emptySubscribe = () => () => {};
+
+function loginPageHref(): string {
+  const site = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
+  if (site) return `${site}/login`;
+  if (typeof window !== "undefined") return `${window.location.origin}/login`;
+  return "/login";
+}
 
 export function OAuthButtons() {
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const restricted = mounted && isRestrictedOAuthBrowser();
+  const [busy, setBusy] = useState<OAuthProvider | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const startOAuth = async (provider: OAuthProvider) => {
+    if (busy) return;
+    if (isRestrictedOAuthBrowser()) {
+      setError(
+        "이 창에서는 Google/카카오 로그인이 차단됩니다. Chrome 또는 Edge에서 로그인 페이지를 열어 주세요.",
+      );
+      return;
+    }
+    setError(null);
+    setBusy(provider);
+    try {
+      const result = await getOAuthSignInUrl(provider);
+      if (!result.ok) {
+        setError("로그인 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+        setBusy(null);
+        return;
+      }
+      /* 사용자 제스처 직후 top-level 이동 — 서버 redirect보다 임베드/프리뷰에 안전 */
+      window.location.assign(result.url);
+    } catch {
+      setError("로그인 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+      setBusy(null);
+    }
+  };
+
   return (
     <div className="space-y-3">
       <div className="relative py-1">
@@ -12,26 +59,55 @@ export function OAuthButtons() {
         </div>
       </div>
 
-      <form action={signInWithGoogle}>
-        <button
-          type="submit"
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-input bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          <GoogleMark />
-          Google로 계속하기
-        </button>
-      </form>
+      {restricted ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+          Cursor·IDE 내장 브라우저에서는 Google 로그인이 지원되지 않습니다.
+          Chrome/Edge에서{" "}
+          <a
+            className="font-medium underline underline-offset-2"
+            href={loginPageHref()}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            로그인 페이지를 새 창으로 열기
+          </a>
+        </p>
+      ) : null}
 
-      <form action={signInWithKakao}>
-        <button
-          type="submit"
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors"
-          style={{ backgroundColor: "#FEE500", color: "#191919" }}
-        >
+      {error ? (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-center text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          {error}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        disabled={busy != null || restricted}
+        onClick={() => void startOAuth("google")}
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-input bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+      >
+        {busy === "google" ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+        ) : (
+          <GoogleMark />
+        )}
+        Google로 계속하기
+      </button>
+
+      <button
+        type="button"
+        disabled={busy != null || restricted}
+        onClick={() => void startOAuth("kakao")}
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-60"
+        style={{ backgroundColor: "#FEE500", color: "#191919" }}
+      >
+        {busy === "kakao" ? (
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+        ) : (
           <KakaoMark />
-          카카오로 계속하기
-        </button>
-      </form>
+        )}
+        카카오로 계속하기
+      </button>
     </div>
   );
 }

@@ -228,8 +228,7 @@ function ControllerMiniHeat({
             <button
               type="button"
               onClick={onMove}
-              disabled={moving}
-              className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[0.6rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-400"
+              className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[0.6rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-400"
             >
               이동
             </button>
@@ -391,7 +390,7 @@ export function SeverityHeatmap({
   const selCur = selMetric ? currentStackMetricValue(selMetric.values) : null;
 
   const move = (href: string | null) => {
-    if (!href || isPending) return;
+    if (!href) return;
     navigate(href, { message: "컨트롤러 페이지로 이동 중…" });
   };
 
@@ -442,8 +441,7 @@ export function SeverityHeatmap({
                       <button
                         type="button"
                         onClick={() => move(controllerHref)}
-                        disabled={isPending}
-                        className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[0.6rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 disabled:opacity-50 dark:text-emerald-400"
+                        className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[0.6rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-400"
                       >
                         컨트롤러 이동
                       </button>

@@ -53,7 +53,6 @@ export function TrendPeriodToggle({
       className={cn(
         "inline-flex rounded-md border bg-background",
         isMap ? "overflow-hidden text-xs" : "shrink-0 overflow-x-auto",
-        busy && "pointer-events-none opacity-80",
         className,
       )}
       role="group"
@@ -67,20 +66,20 @@ export function TrendPeriodToggle({
           <button
             key={p}
             type="button"
-            disabled={busy}
             aria-busy={periodBusy || undefined}
             onClick={() => {
-              if (p === value || busy) return;
+              if (p === value && !busy) return;
+              if (p === pendingPeriod) return;
               setPendingPeriod(p);
               startTransition(() => onChange(p));
             }}
             className={cn(
-              "inline-flex items-center gap-1 font-medium disabled:cursor-wait",
+              "inline-flex items-center gap-1 font-medium",
               motionClass.microInteractive,
               isMap
                 ? "px-2.5 py-1"
                 : "shrink-0 px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm",
-              value === p
+              value === p || periodBusy
                 ? "bg-sky-50 text-sky-700"
                 : "text-muted-foreground hover:bg-muted",
             )}

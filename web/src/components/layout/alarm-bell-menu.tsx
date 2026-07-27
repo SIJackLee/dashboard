@@ -30,7 +30,7 @@ type Props = {
 };
 
 export function AlarmBellMenu({ alarms }: Props) {
-  const { navigate, isPending } = useAppNavigate();
+  const { navigate } = useAppNavigate();
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const viewportCompact = useHydrationSafeDashboardCompact();
   const active = alarms.filter((a) => a.status === "active");
@@ -119,7 +119,6 @@ export function AlarmBellMenu({ alarms }: Props) {
                 dashboardUi.alarmMenuItem,
                 "max-md:mb-1.5 max-md:rounded-xl max-md:border max-md:border-border/50 max-md:bg-muted/20 max-md:px-3 max-md:py-2.5 max-md:text-sm last:max-md:mb-0"
               )}
-              disabled={isPending}
               onClick={() =>
                 navigate(alarmControlHref(a), {
                   message: "컨트롤러 제어로 이동 중…",
@@ -161,7 +160,6 @@ export function AlarmBellMenu({ alarms }: Props) {
                 dashboardUi.alarmMenuFooter,
                 "max-md:rounded-xl max-md:bg-emerald-50/80 max-md:py-2.5 max-md:text-sm"
               )}
-              disabled={isPending}
               onClick={() =>
                 navigate(monitoringHref("ops"), {
                   message: "이상 탭으로 이동 중…",

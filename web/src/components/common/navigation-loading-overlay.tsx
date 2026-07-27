@@ -23,7 +23,7 @@ export function NavigationLoadingOverlay({
     return (
       <div
         className={cn(
-          "fixed inset-0 z-[9999] flex items-center justify-center bg-background",
+          "pointer-events-none fixed inset-0 z-[9999] flex items-center justify-center bg-background",
           exiting && "login-splash--exit"
         )}
         data-mobile-viewport-fullscreen
@@ -53,7 +53,7 @@ export function NavigationLoadingOverlay({
 
   return (
     <div
-      className="ui-motion-nav-overlay fixed inset-0 z-[9999] flex items-center justify-center bg-background/55 backdrop-blur-[2px]"
+      className="ui-motion-nav-overlay pointer-events-none fixed inset-0 z-[9999] flex items-center justify-center bg-background/55 backdrop-blur-[2px]"
       data-mobile-viewport-fullscreen
       role="status"
       aria-live="polite"

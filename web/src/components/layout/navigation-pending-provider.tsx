@@ -167,9 +167,14 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
           variant: variantRef.current,
         });
       } else {
+        /* 로딩 중 다른 네비 — 목적지만 교체(기존 클릭 무시하지 않음) */
         targetPathRef.current = href;
         waitForReadyRef.current = options?.waitForContentReady ?? false;
         navigateStartedAtRef.current = Date.now();
+        setPending({
+          ...resolveNavMessage(href, options),
+          variant: variantRef.current,
+        });
       }
 
       router.push(href);

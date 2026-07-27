@@ -139,7 +139,7 @@ export function HeaderToolsMenu({
 }: Props) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const viewportCompact = useHydrationSafeDashboardCompact();
-  const { navigate, isPending } = useAppNavigate();
+  const { navigate } = useAppNavigate();
   const pathname = usePathname();
 
   const registered = overview?.controllerCount;
@@ -318,7 +318,6 @@ export function HeaderToolsMenu({
                     <li key={a.id}>
                       <button
                         type="button"
-                        disabled={isPending}
                         className={cn(
                           "w-full rounded-md border border-transparent px-1.5 py-1.5 text-left hover:border-border hover:bg-muted/80",
                           motionClass.microInteractive,
@@ -357,7 +356,6 @@ export function HeaderToolsMenu({
               {alarmCount > 0 ? (
                 <DropdownMenuItem
                   className="mt-1.5 justify-center rounded-lg border text-xs font-medium text-emerald-700"
-                  disabled={isPending}
                   onClick={() =>
                     navigate(monitoringHref("ops"), {
                       message: "이상 탭으로 이동 중…",

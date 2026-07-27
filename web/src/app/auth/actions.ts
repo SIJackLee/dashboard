@@ -72,6 +72,17 @@ export async function signInWithEmail(formData: FormData): Promise<SignInResult>
 }
 
 export async function signInWithOAuthProvider(provider: OAuthProvider) {
+  const result = await getOAuthSignInUrl(provider);
+  if (!result.ok) {
+    redirect("/login?error=auth");
+  }
+  redirect(result.url);
+}
+
+/** 클라이언트 top-level 이동용 — skipBrowserRedirect로 URL만 반환 */
+export async function getOAuthSignInUrl(
+  provider: OAuthProvider,
+): Promise<{ ok: true; url: string } | { ok: false }> {
   const supabase = await createClient();
   const headerStore = await headers();
   const origin = appOriginFromHeaders(headerStore);
@@ -80,14 +91,14 @@ export async function signInWithOAuthProvider(provider: OAuthProvider) {
     provider,
     options: {
       redirectTo: `${origin}/auth/callback`,
+      skipBrowserRedirect: true,
     },
   });
 
   if (error || !data.url) {
-    redirect("/login?error=auth");
+    return { ok: false };
   }
-
-  redirect(data.url);
+  return { ok: true, url: data.url };
 }
 
 export async function signInWithGoogle() {

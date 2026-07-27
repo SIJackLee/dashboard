@@ -38,21 +38,18 @@ export function AppNavLink({
     (e: MouseEvent<HTMLAnchorElement>) => {
       onClick?.(e);
       if (e.defaultPrevented) return;
-      if (isPending) {
-        e.preventDefault();
-        return;
-      }
       if (!useGlobal) return;
       e.preventDefault();
+      /* pending 중이어도 navigate가 목적지를 교체 */
       navigate(hrefStr, { message, sublabel });
     },
-    [onClick, useGlobal, isPending, navigate, hrefStr, message, sublabel],
+    [onClick, useGlobal, navigate, hrefStr, message, sublabel],
   );
 
   return (
     <Link
       href={href}
-      className={cn(pendingVisual && "pointer-events-none opacity-70", className)}
+      className={cn(pendingVisual && "opacity-70", className)}
       onClick={handleClick}
       aria-busy={pendingVisual ? true : undefined}
       {...rest}
