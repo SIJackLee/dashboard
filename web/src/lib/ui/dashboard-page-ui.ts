@@ -142,6 +142,9 @@ export const dashboardUi = {
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:size-11",
   topHeaderActionBtnAlert:
     "border-red-300/60 bg-red-50/80 text-red-600 hover:text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400 dark:hover:text-red-400",
+  /** 오늘의 리포트 — PDF 강조(문서 아이콘) */
+  topHeaderActionBtnReport:
+    "border-red-300/70 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 disabled:opacity-40 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60 dark:hover:text-red-300",
   topBellIcon: "size-7",
   /** WiFi · 알람 bell 아이콘 (배지 오버레이용) */
   topHeaderOverlayIcon: "size-7",

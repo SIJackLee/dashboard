@@ -2,6 +2,7 @@ import { AdminOpsHeaderButton } from "@/components/layout/admin-ops-header-butto
 import { AppHeaderAccount } from "@/components/layout/app-header-account";
 import { AppHeaderBrand } from "@/components/layout/app-header-brand";
 import { ConnectivityStatusButton } from "@/components/layout/connectivity-status-button";
+import { DailyReportButton } from "@/components/layout/daily-report-button";
 import { MobileViewPreviewToggle } from "@/components/layout/mobile-view-preview-toggle";
 import { TopBarAlarmSlot } from "@/components/layout/top-bar-alarm-slot";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
@@ -19,6 +20,7 @@ type TopBarProps = {
   isAdmin?: boolean;
   farmLocationOptions?: EditableFarmOption[];
   farmOptions?: FarmKey[];
+  activeFarmKey?: FarmKey | null;
   canEditLocation?: boolean;
   user: {
     displayName: string | null;
@@ -32,6 +34,7 @@ export function TopBar({
   alarms = [],
   farmLocationOptions = [],
   farmOptions = [],
+  activeFarmKey = null,
   canEditLocation = false,
   user,
 }: TopBarProps) {
@@ -53,6 +56,10 @@ export function TopBar({
           >
             {isAdmin ? <AdminOpsHeaderButton /> : null}
             <ThemeToggle />
+            <DailyReportButton
+              farmKey={activeFarmKey}
+              alarmCount={alarms.length}
+            />
             {showConnectivity ? (
               <ConnectivityStatusButton overview={overview} />
             ) : null}

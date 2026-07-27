@@ -192,6 +192,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - 집계: `aggregateByBarn(readings, barnMetas)` — `(farmUid, moduleUid, stallNo)` 매칭, 평균값·최악 상태
 - 지도: `FarmMapView` — 4×4 CSS Grid, 게이트웨이 placeholder(중앙 상단), 축사 카드, 범례
 - **그래프 기간:** `?trendPeriod=24h|7d|30d` (기본 24h) — 그리드·목록 탭 공유. 그리드 히트맵=축사 평균(`farm_trend_history`), 목록/상세=TrendChart 컨트롤러 단위(`farm_trend_history_by_controller`).
+- **오늘의 리포트 PDF:** 헤더 `DailyReportButton` (`data-tour-id="header-daily-report"`) — 활성 농장 기준 브라우저 생성. 축사(stall) 단위로 KPI → 24h/7d/30d 온도·습도·모터 그래프 → 상세표. 시계열은 `farm_trend_history_by_controller`를 축사 평균으로 집계 (`buildDailyReportPayload`). 렌더 `buildAndDownloadDailyReportPdf` (jspdf + canvas).
 - 클릭: `/farm?tab=ops&…` 딥링크 (레거시 `/controllers`는 redirect)
 - 빈 상태: 축사 미설정 시 설정 탭 CTA
 - 모바일: `FarmMapList` 세로 카드 폴백

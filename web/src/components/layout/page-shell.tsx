@@ -29,6 +29,7 @@ export async function PageShell({
         alarms={ctx.alarms}
         farmLocationOptions={ctx.farmLocationOptions}
         farmOptions={ctx.farmOptions}
+        activeFarmKey={ctx.activeFarmKey}
         canEditLocation={ctx.canEditLocation}
         user={{
           displayName: user?.displayName ?? null,

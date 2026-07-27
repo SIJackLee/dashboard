@@ -12,6 +12,8 @@ import type {
   TrendPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import { buildDailyReportPayload } from "@/lib/report/build-daily-report-payload";
+import type { DailyReportPayload } from "@/lib/report/daily-report-payload";
 import { farmScopeCacheKey } from "@/lib/data/live-config";
 import { revalidateLiveCache } from "@/lib/data/live-cache";
 import {
@@ -54,6 +56,17 @@ export async function fetchFarmTrendAllPeriodsAction(
   farmKey: FarmKey
 ): Promise<Record<TrendPeriodId, TrendPeriodData>> {
   return getFarmTrendAllPeriods({ farmKey });
+}
+
+/** 오늘의 리포트 PDF — 축사 단위 페이로드 (브라우저 생성용). */
+export async function fetchDailyReportPayloadAction(
+  farmKey: FarmKey,
+  options?: { alarmCount?: number },
+): Promise<DailyReportPayload> {
+  await assertFarmReadAccess(farmKey);
+  return buildDailyReportPayload(farmKey, {
+    alarmCount: options?.alarmCount,
+  });
 }
 
 /** Admin hub — progressive grid hydrate (클라이언트 batch). */
