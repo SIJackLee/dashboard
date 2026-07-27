@@ -33,7 +33,7 @@ export function useContainerCompact(
       ro.disconnect();
       window.removeEventListener("resize", sync);
     };
-  }, [maxWidth]);
+  }, [ref, maxWidth]);
 
   return compact;
 }

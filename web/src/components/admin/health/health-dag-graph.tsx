@@ -132,7 +132,7 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
       spreadZones: DAG_ZONE_COUNT,
       rankColumns,
     });
-  }, [graph, fieldExpanded, nodeWidthById, containerWidth, rankColumns]);
+  }, [graph, fieldExpanded, nodeWidthById, rankColumns, spreadWidth]);
 
   if (!mounted) {
     return (

@@ -135,7 +135,7 @@ export type SaveFarmLocationInput = {
 export function buildLocationFromRegion(
   input: SaveFarmLocationInput,
   region: KoreaRegion,
-  farmNoForJitter = 0
+  _farmNoForJitter = 0
 ): Omit<DbRow, "updated_at" | "updated_by"> & {
   updated_at?: string;
   updated_by?: string | null;

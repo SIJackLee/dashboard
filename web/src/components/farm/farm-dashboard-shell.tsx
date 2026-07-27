@@ -183,6 +183,8 @@ function AdminHubBody({
       currentFarmSearchParams().get("lsind"),
       currentFarmSearchParams().get("item"),
     );
+  // hubUrlEpoch/ctxEpoch: URL shallow 변경 시 재파싱 트리거
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 포함
   }, [hubClientNav, serverActiveFarmKey, hubUrlEpoch, ctxEpoch]);
 
   const cachedPanel = clientActiveFarmKey
@@ -257,7 +259,7 @@ export function FarmDashboardShell({
   farmOptions = [],
   activeFarmKey: serverActiveFarmKey = null,
   farmSummaries = [],
-  sp,
+  sp: _sp,
   view,
   trendByPeriod,
   controller,
@@ -290,6 +292,8 @@ export function FarmDashboardShell({
       currentFarmSearchParams().get("lsind"),
       currentFarmSearchParams().get("item"),
     );
+  // hubUrlEpoch: shallow URL 변경 시 재파싱 트리거
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 포함
   }, [hubClientNav, serverActiveFarmKey, hubUrlEpoch]);
 
   const scopeActiveFarmKey = hubClientNav

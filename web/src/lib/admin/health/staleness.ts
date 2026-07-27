@@ -2,20 +2,10 @@ import type { HealthStatus } from "@/lib/admin/health/types";
 import {
   CONTROLLER_STALE_CRITICAL_MIN,
   CONTROLLER_STALE_WARN_MIN,
-  UPLINK_ROUND_SEC,
 } from "@/lib/admin/health/constants";
 
 const WARN_SEC = CONTROLLER_STALE_WARN_MIN * 60;
 const CRITICAL_SEC = CONTROLLER_STALE_CRITICAL_MIN * 60;
-
-function controllerCountClamped(n: number): number {
-  return Math.max(1, Math.min(50, n));
-}
-
-/** 모듈 내 컨트롤러 순환 슬롯 간격(초) — 48C 가정 시 ≈6.25s. 헬스 판정과 별개. */
-function gapSec(controllerCount: number): number {
-  return UPLINK_ROUND_SEC / controllerCountClamped(controllerCount);
-}
 
 /**
  * 동일 컨트롤러 last seen 경과(초) → 상태.

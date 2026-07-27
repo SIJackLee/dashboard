@@ -463,7 +463,6 @@ async function scenario3_leaveDuringLive(page) {
   });
   await page.waitForTimeout(1500);
 
-  const body = await page.locator("body").innerText();
   // 유령 전역 busy / 적용 불가 아님 — 설정 다시 열리고 적용 버튼 존재
   await openListControllerSettings(page);
   const panel2 = page

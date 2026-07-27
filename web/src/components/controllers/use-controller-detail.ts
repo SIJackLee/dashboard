@@ -170,6 +170,8 @@ export function useControllerDetail(
     return () => {
       cancelled = true;
     };
+  // base 객체 참조 대신 식별 필드만 — base 포함 시 불필요 재fetch
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
   }, [
     base?.key,
     base?.farmKey.lsindRegistNo,

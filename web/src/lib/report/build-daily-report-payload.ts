@@ -209,7 +209,7 @@ function countFinite(values: (number | null)[]): number {
 
 export async function buildDailyReportPayload(
   farmKey: FarmKey,
-  options?: { alarmCount?: number },
+  _options?: { alarmCount?: number },
 ): Promise<DailyReportPayload> {
   const [trends, readings, alarmSettings] = await Promise.all([
     getFarmControllerTrendAllPeriods({ farmKey }),

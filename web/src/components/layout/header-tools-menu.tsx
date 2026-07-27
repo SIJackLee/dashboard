@@ -305,6 +305,120 @@ export function HeaderToolsMenu({
         )}
       >
         <div className="flex flex-col items-end gap-2">
+          <div
+            className="flex flex-row flex-nowrap items-center justify-end gap-1.5"
+            role="toolbar"
+            aria-label="헤더 도구"
+          >
+            <ToolsIconWrap toolsI={iCpu}>
+              <ToolsIconBtn
+                Icon={Cpu}
+                alert={offline > 0}
+                active={detail === "connectivity"}
+                badge={offline > 0 ? offline : undefined}
+                data-tour-id="header-connectivity"
+                aria-label="컨트롤러 연결"
+                aria-pressed={detail === "connectivity"}
+                title="컨트롤러 연결"
+                onClick={() => toggleDetail("connectivity")}
+              />
+            </ToolsIconWrap>
+            <ToolsIconWrap toolsI={iBell}>
+              <ToolsIconBtn
+                Icon={Bell}
+                alert={alarmCount > 0}
+                active={detail === "alarms"}
+                badge={alarmCount > 0 ? alarmCount : undefined}
+                data-tour-id="header-alarms"
+                aria-label={
+                  alarmCount > 0
+                    ? `센서 알림 ${alarmCount}건`
+                    : "센서 알림"
+                }
+                aria-pressed={detail === "alarms"}
+                title="센서 알림"
+                onClick={() => toggleDetail("alarms")}
+              />
+            </ToolsIconWrap>
+            {isAdmin ? (
+              <ToolsIconWrap toolsI={iOps}>
+                <AppNavLink
+                  href={opsHref}
+                  message={
+                    onOps ? "모니터링으로 이동 중…" : "운영으로 이동 중…"
+                  }
+                  className={cn(
+                    dashboardUi.topHeaderActionBtn,
+                    "no-underline",
+                    onOps &&
+                      "border-emerald-600/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300",
+                  )}
+                  aria-label={onOps ? "운영 종료 — 모니터링으로" : "운영"}
+                  title={onOps ? "운영 → 모니터링" : "모니터링 → 운영"}
+                  data-tour-id="header-ops"
+                >
+                  <ShieldCheck className="size-4 md:size-5" aria-hidden />
+                </AppNavLink>
+              </ToolsIconWrap>
+            ) : null}
+            <ToolsIconWrap toolsI={iReport}>
+              <ToolsIconBtn
+                Icon={FileText}
+                active={detail === "report"}
+                data-tour-id="header-daily-report"
+                aria-label="오늘의 리포트"
+                aria-pressed={detail === "report"}
+                title="오늘의 리포트"
+                onClick={() => toggleDetail("report")}
+              />
+            </ToolsIconWrap>
+            <ToolsIconWrap toolsI={iViewport}>
+              <DropdownMenuItem
+                closeOnClick={false}
+                className={cn(
+                  dashboardUi.topHeaderActionBtn,
+                  "cursor-pointer p-0 data-highlighted:bg-muted",
+                  viewportIsMobile &&
+                    "border-primary/60 bg-primary/5 text-primary",
+                )}
+                data-tour-id="viewport-preview-toggle"
+                aria-label={viewportTitle}
+                title={viewportTitle}
+                onClick={() => setViewportPreviewMode(nextViewport)}
+              >
+                <ViewportIcon className="size-4 md:size-5" aria-hidden />
+              </DropdownMenuItem>
+            </ToolsIconWrap>
+            <ToolsIconWrap toolsI={iTheme}>
+              <DropdownMenuItem
+                closeOnClick={false}
+                className={cn(
+                  dashboardUi.topHeaderActionBtn,
+                  "cursor-pointer p-0 data-highlighted:bg-muted",
+                )}
+                data-tour-id="header-theme"
+                data-theme-ready={themeReady || undefined}
+                aria-label={themeIsDark ? "라이트 모드" : "다크 모드"}
+                title={themeIsDark ? "라이트 모드" : "다크 모드"}
+                onClick={() => {
+                  const next = themeIsDark ? "light" : "dark";
+                  document.documentElement.classList.toggle(
+                    "dark",
+                    next === "dark",
+                  );
+                  localStorage.setItem("dashboard-theme", next);
+                  setTheme(next);
+                }}
+              >
+                {themeIsDark ? (
+                  <Sun className="size-4 md:size-5" aria-hidden />
+                ) : (
+                  <Moon className="size-4 md:size-5" aria-hidden />
+                )}
+              </DropdownMenuItem>
+            </ToolsIconWrap>
+          </div>
+
           {detail ? (
             <div
               className={cn(
@@ -457,120 +571,6 @@ export function HeaderToolsMenu({
               ) : null}
             </div>
           ) : null}
-
-          <div
-            className="flex flex-row flex-nowrap items-center justify-end gap-1.5"
-            role="toolbar"
-            aria-label="헤더 도구"
-          >
-            <ToolsIconWrap toolsI={iCpu}>
-              <ToolsIconBtn
-                Icon={Cpu}
-                alert={offline > 0}
-                active={detail === "connectivity"}
-                badge={offline > 0 ? offline : undefined}
-                data-tour-id="header-connectivity"
-                aria-label="컨트롤러 연결"
-                aria-pressed={detail === "connectivity"}
-                title="컨트롤러 연결"
-                onClick={() => toggleDetail("connectivity")}
-              />
-            </ToolsIconWrap>
-            <ToolsIconWrap toolsI={iBell}>
-              <ToolsIconBtn
-                Icon={Bell}
-                alert={alarmCount > 0}
-                active={detail === "alarms"}
-                badge={alarmCount > 0 ? alarmCount : undefined}
-                data-tour-id="header-alarms"
-                aria-label={
-                  alarmCount > 0
-                    ? `센서 알림 ${alarmCount}건`
-                    : "센서 알림"
-                }
-                aria-pressed={detail === "alarms"}
-                title="센서 알림"
-                onClick={() => toggleDetail("alarms")}
-              />
-            </ToolsIconWrap>
-            {isAdmin ? (
-              <ToolsIconWrap toolsI={iOps}>
-                <AppNavLink
-                  href={opsHref}
-                  message={
-                    onOps ? "모니터링으로 이동 중…" : "운영으로 이동 중…"
-                  }
-                  className={cn(
-                    dashboardUi.topHeaderActionBtn,
-                    "no-underline",
-                    onOps &&
-                      "border-emerald-600/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300",
-                  )}
-                  aria-label={onOps ? "운영 종료 — 모니터링으로" : "운영"}
-                  title={onOps ? "운영 → 모니터링" : "모니터링 → 운영"}
-                  data-tour-id="header-ops"
-                >
-                  <ShieldCheck className="size-4 md:size-5" aria-hidden />
-                </AppNavLink>
-              </ToolsIconWrap>
-            ) : null}
-            <ToolsIconWrap toolsI={iReport}>
-              <ToolsIconBtn
-                Icon={FileText}
-                active={detail === "report"}
-                data-tour-id="header-daily-report"
-                aria-label="오늘의 리포트"
-                aria-pressed={detail === "report"}
-                title="오늘의 리포트"
-                onClick={() => toggleDetail("report")}
-              />
-            </ToolsIconWrap>
-            <ToolsIconWrap toolsI={iViewport}>
-              <DropdownMenuItem
-                closeOnClick={false}
-                className={cn(
-                  dashboardUi.topHeaderActionBtn,
-                  "cursor-pointer p-0 data-highlighted:bg-muted",
-                  viewportIsMobile &&
-                    "border-primary/60 bg-primary/5 text-primary",
-                )}
-                data-tour-id="viewport-preview-toggle"
-                aria-label={viewportTitle}
-                title={viewportTitle}
-                onClick={() => setViewportPreviewMode(nextViewport)}
-              >
-                <ViewportIcon className="size-4 md:size-5" aria-hidden />
-              </DropdownMenuItem>
-            </ToolsIconWrap>
-            <ToolsIconWrap toolsI={iTheme}>
-              <DropdownMenuItem
-                closeOnClick={false}
-                className={cn(
-                  dashboardUi.topHeaderActionBtn,
-                  "cursor-pointer p-0 data-highlighted:bg-muted",
-                )}
-                data-tour-id="header-theme"
-                data-theme-ready={themeReady || undefined}
-                aria-label={themeIsDark ? "라이트 모드" : "다크 모드"}
-                title={themeIsDark ? "라이트 모드" : "다크 모드"}
-                onClick={() => {
-                  const next = themeIsDark ? "light" : "dark";
-                  document.documentElement.classList.toggle(
-                    "dark",
-                    next === "dark",
-                  );
-                  localStorage.setItem("dashboard-theme", next);
-                  setTheme(next);
-                }}
-              >
-                {themeIsDark ? (
-                  <Sun className="size-4 md:size-5" aria-hidden />
-                ) : (
-                  <Moon className="size-4 md:size-5" aria-hidden />
-                )}
-              </DropdownMenuItem>
-            </ToolsIconWrap>
-          </div>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

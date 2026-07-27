@@ -10,25 +10,13 @@ import {
 import type { BarnMeta } from "@/lib/data/barn-meta";
 import { compareReadings } from "@/lib/data/reading-hierarchy";
 import {
-  normalizeEqpmnNo,
-  resolveControllerKey,
-} from "@/lib/data/controller-key";
-import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
-import {
-  compareFarmKey,
   farmKeyEq,
-  farmKeyId,
-  moduleKey,
-  readingKey,
   stallCatalogKey,
   type FarmKey,
 } from "@/lib/data/farm-key";
 import {
-  legacyFieldsFromChannels,
-  mapDecodedChannels,
   type ChannelReading,
 } from "@/lib/data/iot-channel";
-import { isLivePacketMode } from "@/lib/data/iot-live-merge";
 import {
   fetchLiveReadings,
   type LiveReadingsScope,
@@ -37,10 +25,6 @@ import {
 export type { StallCatalogEntry } from "@/lib/data/stall-catalog";
 export type { LiveReadingsScope };
 export { buildStallCatalog } from "@/lib/data/stall-catalog";
-
-const READING_AT: "last" | "first" = "last";
-
-
 
 export type ControllerStatus = "normal" | "caution" | "offline";
 
@@ -169,201 +153,6 @@ type DecodedController = {
   } | null;
 
 };
-
-
-
-function pickStallField(v: unknown): string | null {
-
-  if (v == null) return null;
-
-  const s = String(v).trim();
-
-  return s.length > 0 ? s : null;
-
-}
-
-
-
-type DecodedJson = {
-
-  controllers?: DecodedController[];
-
-};
-
-
-
-type DecodedRow = {
-
-  id?: number;
-
-  lsind_regist_no: string;
-
-  item_code: string;
-
-  module_uid: number;
-
-  wire_ver?: number | null;
-
-  mode?: string | null;
-
-  mesure_dt: string | null;
-
-  received_at: string;
-
-  decoded_json: DecodedJson | null;
-
-};
-
-
-
-function rowFarmKey(row: DecodedRow): FarmKey {
-
-  return { lsindRegistNo: row.lsind_regist_no, itemCode: row.item_code };
-
-}
-
-
-
-function toNum(v: unknown): number | null {
-
-  if (v == null) return null;
-
-  const n = Number(v);
-
-  return Number.isFinite(n) ? n : null;
-
-}
-
-
-
-function pick(arr: unknown): number | null {
-
-  if (!Array.isArray(arr) || arr.length === 0) return null;
-
-  return toNum(READING_AT === "last" ? arr[arr.length - 1] : arr[0]);
-
-}
-
-
-
-function pickSeries(arr: unknown): number[] {
-
-  if (!Array.isArray(arr)) return [];
-
-  return arr.map(toNum).filter((n): n is number => n !== null);
-
-}
-
-
-
-function statusFromAge(receivedAt: string): ControllerStatus {
-
-  const ageMin = (Date.now() - new Date(receivedAt).getTime()) / 60000;
-
-  if (ageMin <= 15) return "normal";
-
-  if (ageMin <= 60) return "caution";
-
-  return "offline";
-
-}
-
-
-
-function expandDecodedRowToReadings(row: DecodedRow): BarnReading[] {
-
-  const farmKey = rowFarmKey(row);
-
-  const packetMode = (
-
-    isLivePacketMode(row.mode ?? (row.decoded_json as { mode?: string })?.mode)
-
-      ? "live"
-
-      : "replay"
-
-  ) as PacketMode;
-
-  const status = statusFromAge(row.received_at);
-
-  const controllers = row.decoded_json?.controllers ?? [];
-
-  const wireVer = row.wire_ver != null ? Number(row.wire_ver) : null;
-
-
-
-  return controllers.map((c) => {
-
-    const controllerKey = resolveControllerKey(c);
-    const idxRaw = c.idx;
-    const idx =
-      typeof idxRaw === "number" && Number.isInteger(idxRaw) ? idxRaw : undefined;
-    const eqpmnNo = normalizeEqpmnNo(
-      c.eqpmnNo ?? (idx != null ? idx + 1 : 1)
-    );
-    const stallNo = pickStallField(c.stallNo);
-    const stallTyCode = pickStallField(c.stallTyCode);
-    const channels = mapDecodedChannels(c.channels);
-    const fromChannels =
-      channels.length > 0 ? legacyFieldsFromChannels(channels) : null;
-
-    return {
-
-      key: readingKey(farmKey, row.module_uid, controllerKey),
-
-      farmKey,
-
-      moduleUid: row.module_uid,
-
-      controllerKey,
-
-      idx,
-
-      eqpmnNo,
-
-      stallNo,
-
-      stallTyCode,
-
-      label: formatControllerSlotLabel({ stallNo, eqpmnNo, idx }),
-
-      tempC: fromChannels?.tempC ?? pick(c.ES01),
-
-      humidityPct: fromChannels?.humidityPct ?? pick(c.ES02),
-
-      fanSupply: fromChannels?.fanSupply ?? pick(c.EC01),
-
-      fanExhaust: fromChannels?.fanExhaust ?? pick(c.EC02),
-
-      fanIntake: fromChannels?.fanIntake ?? pick(c.EC03),
-
-      fanSupplySeries: fromChannels?.fanSupplySeries ?? pickSeries(c.EC01),
-
-      fanExhaustSeries: fromChannels?.fanExhaustSeries ?? pickSeries(c.EC02),
-
-      fanIntakeSeries: fromChannels?.fanIntakeSeries ?? pickSeries(c.EC03),
-
-      mesureDt: c.mesureDt ?? row.mesure_dt,
-
-      receivedAt: row.received_at,
-
-      status,
-
-      packetMode,
-
-      wireVer,
-
-      decodedId: row.id,
-
-      thermo: fromChannels?.thermo ?? c.thermo ?? null,
-
-      channels: channels.length > 0 ? channels : undefined,
-
-    };
-
-  });
-
-}
 
 
 

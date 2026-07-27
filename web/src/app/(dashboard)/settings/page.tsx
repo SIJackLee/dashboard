@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
-import { parseFarmKeyFromQuery } from "@/lib/data/farm-key";
 import {
   devicesAlarmSettingsHref,
 } from "@/lib/monitoring/devices-panel";
@@ -21,7 +20,6 @@ export default async function SettingsLegacyRedirectPage({
   const params = await searchParams;
   const user = await getCurrentUser();
   const isAdmin = Boolean(user?.isAdmin);
-  const farmKey = parseFarmKeyFromQuery(params.lsind, params.item) ?? undefined;
   const passthrough = {
     lsind: params.lsind,
     item: params.item,

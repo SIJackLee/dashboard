@@ -117,12 +117,15 @@ export function ComboSearchBar({
               <input
                 ref={inputRef}
                 type="text"
+                role="combobox"
                 className="w-full min-w-0 bg-transparent text-[1.75rem] leading-snug outline-none placeholder:text-muted-foreground"
                 value={searchQuery}
                 placeholder={searchPlaceholder}
                 aria-label={label ? `${label} 검색` : "검색"}
                 aria-expanded={showSuggestions ? true : false}
+                aria-controls="combo-search-suggestions"
                 aria-autocomplete="list"
+                aria-haspopup="listbox"
                 onChange={(e) => {
                   onSearchQueryChange(e.target.value);
                   setHighlightIndex(-1);
@@ -166,6 +169,7 @@ export function ComboSearchBar({
 
         {showSuggestions ? (
           <ul
+            id="combo-search-suggestions"
             role="listbox"
             className="absolute z-50 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border bg-popover py-1 shadow-md"
           >

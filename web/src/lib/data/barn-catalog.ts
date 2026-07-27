@@ -1,5 +1,4 @@
 import {
-  farmKeyEq,
   farmKeyId,
   parseFarmKeyFromQuery,
   type FarmKey,

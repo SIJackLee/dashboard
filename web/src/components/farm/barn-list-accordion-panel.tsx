@@ -89,7 +89,10 @@ export function BarnListAccordionPanel({
 
   const { reading: detail, showLoading, refresh: refreshDetail } =
     useControllerDetail(reading);
-  const channels = detail?.channels ?? reading.channels ?? [];
+  const channels = useMemo(
+    () => detail?.channels ?? reading.channels ?? [],
+    [detail?.channels, reading.channels],
+  );
   const hasChannels = channels.length > 0;
   const channelSlots = useMemo(
     () => channels.map((c) => c.channel),
@@ -119,9 +122,6 @@ export function BarnListAccordionPanel({
     thermoSettings,
     detail,
     reading,
-    detail?.farmKey,
-    detail?.moduleUid,
-    detail?.controllerKey,
     hasChannels,
     activeChannel,
   ]);
@@ -156,6 +156,8 @@ export function BarnListAccordionPanel({
       liveRefresh?.patchThermoFromCommand(cmd);
       pipeline.registerCommand(cmd);
     },
+    // pipeline 전체 포함 시 tracker 재생성 루프 — 메서드만 의존
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
     [liveRefresh, pipeline.registerCommand],
   );
 
@@ -245,6 +247,8 @@ export function BarnListAccordionPanel({
   const handleOverlayDismiss = useCallback(() => {
     dismissOverlay();
     pipeline.clearFlash();
+  // pipeline 전체 포함 시 tracker 재생성 루프 — clearFlash만 의존
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
   }, [dismissOverlay, pipeline.clearFlash]);
 
   const toggleSection = (id: SettingsSectionId) => {

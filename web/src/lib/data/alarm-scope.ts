@@ -1,5 +1,4 @@
 import type { BarnReading } from "@/lib/data/iot";
-import type { FarmKey } from "@/lib/data/farm-key";
 import { farmKeyId } from "@/lib/data/farm-key";
 import { farmShortLabelFromId } from "@/lib/data/farm-summaries";
 import {
@@ -7,7 +6,6 @@ import {
 } from "@/lib/data/reading-hierarchy";
 import { normalizeStallTyCode, formatStallTypeLabel } from "@/lib/data/stall-type";
 import {
-  DEFAULT_ALARM_THRESHOLDS,
   type AlarmSettings,
   type AlarmThresholds,
 } from "@/lib/data/alarms";

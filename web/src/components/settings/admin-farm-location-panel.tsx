@@ -23,7 +23,6 @@ import {
 } from "@/lib/data/farm-location-csv";
 import type { FarmKey } from "@/lib/data/farm-key";
 import {
-  farmOptionId,
   filterFarmOptions,
   findOptionById,
   summarizeFarmLocations,

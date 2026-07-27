@@ -190,7 +190,7 @@ function ControllerMiniHeat({
   bars,
   selected,
   onMove,
-  moving,
+  moving: _moving,
   canMove,
   labelMode = "icon",
 }: {

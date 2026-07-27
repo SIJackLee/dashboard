@@ -549,6 +549,9 @@ function TourOverlay({
       unsubCss();
       unsubResize();
     };
+  // settling: 포함 시 settle 타이머와 재구독 루프
+  // step.mobileScrollSelector: measureTargets/scrollPolicy로 간접 반영
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
   }, [stepIdx, holeReady, measureTargets, runTargetScrollOnce, getTooltipHeight, scrollEnabled, scrollPolicy]);
 
   // Esc — 건너뛰기(완료 저장).

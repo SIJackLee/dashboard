@@ -163,7 +163,7 @@ export function FarmPageContent({
       return new URLSearchParams(searchParams.toString());
     }
     return currentFarmSearchParams();
-  }, [urlHydrated, hubMode, hubUrlEpoch, urlTick, searchParams]);
+  }, [urlHydrated, hubUrlEpoch, urlTick, searchParams]);
 
   const urlCtrl = shallowParams.get("ctrl");
   const listSp = view === "list" ? shallowParams.get("sp") ?? undefined : undefined;
@@ -272,6 +272,8 @@ export function FarmPageContent({
 
     enrichFarmRef.current = farmId;
     void enrichListIfNeeded();
+  // controller 전체 포함 시 enrich 루프 — 설정 필드만 감시
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
   }, [
     lazyListEnrichment,
     lazyListFarmKey,

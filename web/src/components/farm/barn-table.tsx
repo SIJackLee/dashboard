@@ -122,7 +122,7 @@ export function BarnTable({
   initialListLayout,
   compactHeader: _compactHeader = false,
   hubMode = false,
-  onHubUrlChange,
+  onHubUrlChange: _onHubUrlChange,
   liveRefreshManaged = false,
   staggerMount = false,
   onRequestPanelEnrichment,
@@ -140,6 +140,8 @@ export function BarnTable({
     void hubParamsTick;
     void urlTick;
     return currentFarmSearchParams();
+  // searchParams: Next 네비게이션 시 epoch와 별도로 재계산
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 포함
   }, [hubParamsTick, urlTick, searchParams]);
 
   useEffect(() => {

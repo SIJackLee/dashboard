@@ -34,9 +34,6 @@ export type BuildHealthDagOptions = {
   fieldExpanded?: boolean;
 };
 
-/** 농장당 환경 컨트롤러 슬롯 (sim_fleet 48C/farm) */
-const CONTROLLERS_PER_FARM = 48;
-
 /** MQTT 브로커 통신모듈 수용 한도 */
 export const MQTT_BROKER_MOD_CAPACITY = 20;
 

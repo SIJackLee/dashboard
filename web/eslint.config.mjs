@@ -38,6 +38,14 @@ const eslintConfig = defineConfig([
     ignores: [".next/**", "out/**", "build/**", "node_modules/**", "scripts/**"],
     rules: {
       "no-restricted-syntax": ["error", ...motionRestrictedSyntax],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   // Override default ignores of eslint-config-next.

@@ -205,9 +205,12 @@ export function FarmMapControllerDetail({
     controllerCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [mobileSettingsOpen, isMobileStack]);
 
-  const syncSelectedReadingKey = (readingKey: string | null) => {
-    onSelectedReadingKeyChange?.(readingKey);
-  };
+  const syncSelectedReadingKey = useCallback(
+    (readingKey: string | null) => {
+      onSelectedReadingKeyChange?.(readingKey);
+    },
+    [onSelectedReadingKeyChange],
+  );
 
   const resolveControllerKey = useCallback(
     (readingKey: string): string | null => {
@@ -270,6 +273,7 @@ export function FarmMapControllerDetail({
       sheetHosted,
       onHostedMobileSheetOpenChange,
       onHostedMobileSheetPageChange,
+      syncSelectedReadingKey,
     ],
   );
 

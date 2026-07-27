@@ -163,7 +163,10 @@ export function BarnChannelTrendPanel({
     ]
   );
 
-  const categoriesRaw = periodData?.categories ?? [];
+  const categoriesRaw = useMemo(
+    () => periodData?.categories ?? [],
+    [periodData?.categories],
+  );
   const hasDataRaw =
     stallTrendHasData(controllerSeries) && categoriesRaw.length > 0;
 
