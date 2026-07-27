@@ -42,6 +42,7 @@ export function ControllerMobileSettingsPage({
     <div
       className="min-h-min w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
       data-audit-region="controller-mobile-sheet-settings"
+      data-tour-id="list-settings-host"
     >
       <BarnListGraphPanel
         reading={reading}

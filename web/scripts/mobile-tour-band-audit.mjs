@@ -45,7 +45,7 @@ const BAND_TARGETS = {
   3: "farm-command-bar",
   4: "barn-card",
   5: "detail-panel-header",
-  6: "detail-panel-chart-first",
+  6: "detail-panel-charts",
   7: "view-toggle",
   8: "farm-command-bar",
   9: "controller-gauge-metrics",

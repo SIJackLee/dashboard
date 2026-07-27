@@ -62,7 +62,11 @@ export type TourTargetBandDrift = {
 
 export function resolveTourScrollPolicy(step: {
   scrollPolicy?: TourScrollPolicy;
+  mobileScrollPolicy?: TourScrollPolicy;
 }): TourScrollPolicy {
+  if (isMobileLayoutActive() && step.mobileScrollPolicy) {
+    return step.mobileScrollPolicy;
+  }
   return step.scrollPolicy ?? "fit-between";
 }
 
@@ -233,10 +237,26 @@ export function subscribeTourViewportResize(
   };
 }
 
+/** 모바일 안내 카드 — 타깃 가시 대역을 위해 58dvh → 약 40dvh. */
 export function estimateMobileTooltipHeight(
   viewport = getTourViewport(),
 ): number {
-  return Math.min(viewport.height * 0.58, 360);
+  return Math.min(viewport.height * 0.4, 300);
+}
+
+export type TourTooltipDock = "top" | "bottom";
+
+/**
+ * 스포트라이트 중심에 따라 안내 카드 도킹.
+ * 하단 타깃(시트·목록 패널)은 상단 도킹 — 카드가 hole을 덮지 않게.
+ */
+export function resolveTourTooltipDock(
+  hole: { top: number; height: number } | null,
+  vh: number,
+): TourTooltipDock {
+  if (!hole || hole.height <= 0) return "bottom";
+  const mid = hole.top + hole.height / 2;
+  return mid > vh * 0.42 ? "top" : "bottom";
 }
 
 export function resolveTooltipHeight(
@@ -264,14 +284,26 @@ export function measureHeaderClearance(viewport = getTourViewport()): number {
   return Math.max(TOUR_SCROLL_MARGIN_TOP, viewport.top + TOUR_HEADER_BOTTOM_GAP);
 }
 
-export function computeTourScrollBounds(tooltipHeight: number) {
+export function computeTourScrollBounds(
+  tooltipHeight: number,
+  tooltipDock: TourTooltipDock = "bottom",
+) {
   const viewport = getTourViewport();
+  const chromeBottom =
+    getTourBottomChrome(viewport) + TOUR_MOBILE_SHEET_GAP + 16;
+
+  if (tooltipDock === "top") {
+    const headerClearance = Math.max(
+      measureHeaderClearance(viewport),
+      viewport.top + tooltipHeight + TOUR_MOBILE_SHEET_GAP + 12,
+    );
+    const maxBottom =
+      viewport.top + viewport.height - chromeBottom;
+    return { headerClearance, maxBottom, viewport };
+  }
+
   const headerClearance = measureHeaderClearance(viewport);
-  const bottomReserve =
-    tooltipHeight +
-    getTourBottomChrome(viewport) +
-    TOUR_MOBILE_SHEET_GAP +
-    16;
+  const bottomReserve = tooltipHeight + chromeBottom;
   const maxBottom = viewport.top + viewport.height - bottomReserve;
   return { headerClearance, maxBottom, viewport };
 }
@@ -352,6 +384,7 @@ export function scrollTourContainerToAnchorTop(
 export type ScrollTourTargetOptions = {
   scrollPolicy?: TourScrollPolicy;
   tooltipHeight?: number | null;
+  tooltipDock?: TourTooltipDock;
 };
 
 /** 모바일 — instant(auto) 1회만. PC — center smooth. */
@@ -369,7 +402,11 @@ export function scrollTourTargetIntoView(
   if (policy === "none") return;
 
   const tooltipHeight = resolveTooltipHeight(options?.tooltipHeight);
-  const { headerClearance, maxBottom } = computeTourScrollBounds(tooltipHeight);
+  const dock = options?.tooltipDock ?? "bottom";
+  const { headerClearance, maxBottom } = computeTourScrollBounds(
+    tooltipHeight,
+    dock,
+  );
   const behavior: ScrollBehavior = "auto";
 
   if (policy === "anchor-top" || policy === "anchor-card-top") {
@@ -402,9 +439,13 @@ export function measureTourTargetBandDrift(
   el: HTMLElement,
   tooltipHeight?: number | null,
   scrollPolicy?: TourScrollPolicy,
+  tooltipDock: TourTooltipDock = "bottom",
 ): TourTargetBandDrift {
   const tipH = resolveTooltipHeight(tooltipHeight);
-  const { headerClearance, maxBottom } = computeTourScrollBounds(tipH);
+  const { headerClearance, maxBottom } = computeTourScrollBounds(
+    tipH,
+    tooltipDock,
+  );
   const rect = el.getBoundingClientRect();
 
   if (scrollPolicy === "anchor-top" || scrollPolicy === "anchor-card-top") {
@@ -428,10 +469,24 @@ export function isTourTargetBandAligned(
   tooltipHeight?: number | null,
   scrollPolicy?: TourScrollPolicy,
   threshold = TOUR_REALIGN_DRIFT_THRESHOLD,
+  tooltipDock: TourTooltipDock = "bottom",
 ): boolean {
   return (
-    measureTourTargetBandDrift(el, tooltipHeight, scrollPolicy).drift < threshold
+    measureTourTargetBandDrift(el, tooltipHeight, scrollPolicy, tooltipDock)
+      .drift < threshold
   );
+}
+
+/** hole과 안내 카드 rect 교차 면적(px²) — 가림 검수. */
+export function measureTourHoleTooltipOverlap(
+  hole: { top: number; left: number; width: number; height: number },
+  tip: { top: number; left: number; width: number; height: number },
+): number {
+  const x1 = Math.max(hole.left, tip.left);
+  const y1 = Math.max(hole.top, tip.top);
+  const x2 = Math.min(hole.left + hole.width, tip.left + tip.width);
+  const y2 = Math.min(hole.top + hole.height, tip.top + tip.height);
+  return Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
 }
 
 /** fit-between·anchor-top — band drift가 임계 이하가 될 때까지 반복 정렬. */
@@ -442,13 +497,25 @@ export function scrollTourTargetUntilBandAligned(
 ): void {
   const policy = options?.scrollPolicy ?? "fit-between";
   if (policy === "none") return;
+  const dock = options?.tooltipDock ?? "bottom";
 
   for (let i = 0; i < maxAttempts; i += 1) {
-    if (isTourTargetBandAligned(el, options?.tooltipHeight, policy)) return;
+    if (
+      isTourTargetBandAligned(
+        el,
+        options?.tooltipHeight,
+        policy,
+        TOUR_REALIGN_DRIFT_THRESHOLD,
+        dock,
+      )
+    ) {
+      return;
+    }
 
     if (policy === "anchor-top" || policy === "anchor-card-top") {
       const { headerClearance } = computeTourScrollBounds(
         resolveTooltipHeight(options?.tooltipHeight),
+        dock,
       );
       scrollTourContainerToAnchorTop(el, headerClearance);
     } else {
@@ -602,11 +669,14 @@ export type TourTooltipPlacement = {
   };
   /** 하단 도킹 — 큰 타깃·공간 부족 시 */
   docked: boolean;
+  /** 모바일 상·하 도킹 (스크롤 band 계산용) */
+  dock: TourTooltipDock;
 };
 
 /**
  * 설명 카드가 뷰포트 밖으로 잘리지 않게 배치.
- * hole이 크거나 상·하 여백이 부족하면 하단 도킹.
+ * 모바일: 스포트라이트 반대편 도킹 — 카드가 hole을 덮지 않음.
+ * PC: hole이 크거나 상·하 여백이 부족하면 하단 도킹.
  */
 export function placeTourTooltip(opts: {
   hole: { top: number; left: number; width: number; height: number } | null;
@@ -615,18 +685,44 @@ export function placeTourTooltip(opts: {
   tooltipW: number;
   mobileSheet: boolean;
   mobileSheetBottom: string;
+  /** visualViewport top inset (브라우저 크롬) */
+  viewportTop?: number;
 }): TourTooltipPlacement {
-  const { hole, vw, vh, tooltipW, mobileSheet, mobileSheetBottom } = opts;
+  const {
+    hole,
+    vw,
+    vh,
+    tooltipW,
+    mobileSheet,
+    mobileSheetBottom,
+    viewportTop = 0,
+  } = opts;
 
   if (mobileSheet) {
+    const dock = resolveTourTooltipDock(hole, vh);
+    const maxHeight =
+      "min(40dvh, calc(var(--vvh, 40dvh) * 0.4))";
+    if (dock === "top") {
+      return {
+        style: {
+          left: 8,
+          right: 8,
+          top: Math.max(8, viewportTop + 8),
+          maxHeight,
+        },
+        docked: true,
+        dock: "top",
+      };
+    }
     return {
       style: {
         left: 8,
         right: 8,
         bottom: mobileSheetBottom,
-        maxHeight: "min(58dvh, calc(var(--vvh, 58dvh) * 0.58))",
+        maxHeight,
       },
       docked: true,
+      dock: "bottom",
     };
   }
 
@@ -646,6 +742,7 @@ export function placeTourTooltip(opts: {
         maxHeight: maxH,
       },
       docked: true,
+      dock: "bottom",
     };
   }
 
@@ -663,6 +760,7 @@ export function placeTourTooltip(opts: {
         maxHeight: maxH,
       },
       docked: true,
+      dock: "bottom",
     };
   }
 
@@ -676,6 +774,7 @@ export function placeTourTooltip(opts: {
         maxHeight: Math.min(maxH, Math.max(160, vh - Math.max(edge, top) - edge)),
       },
       docked: false,
+      dock: "bottom",
     };
   }
 
@@ -688,5 +787,6 @@ export function placeTourTooltip(opts: {
       maxHeight: Math.min(maxH, Math.max(160, vh - bottom - edge)),
     },
     docked: false,
+    dock: "top",
   };
 }

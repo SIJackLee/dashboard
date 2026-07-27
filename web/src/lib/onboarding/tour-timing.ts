@@ -197,6 +197,7 @@ export function settleSelectorsForGridAction(
     case "list-mode-settings":
       return [
         '[data-tour-id="list-settings-panel"]',
+        '[data-audit-region="controller-mobile-sheet-settings"]',
         '[data-tour-id="controller-card"]',
       ];
     default:

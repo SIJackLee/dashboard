@@ -40,9 +40,11 @@ import {
   findBestTourTarget,
   countPresentTourTargets,
   placeTourTooltip,
+  resolveTourTooltipDock,
   TOUR_MOBILE_SETTLE_MS,
   TOUR_REALIGN_DRIFT_THRESHOLD,
   type TourScrollPolicy,
+  type TourTooltipDock,
 } from "@/lib/onboarding/tour-viewport";
 import { subscribeViewportPreview } from "@/lib/ui/viewport-preview-store";
 import {
@@ -164,11 +166,18 @@ function TourOverlay({
       spotlight,
       step.mobileScrollSelector,
     );
+    const tipH = getTooltipHeight();
+    const r = scrollEl.getBoundingClientRect();
+    const dock: TourTooltipDock = resolveTourTooltipDock(
+      { top: r.top, height: r.height },
+      getTourViewport().height,
+    );
     scrollTourTargetUntilBandAligned(
       scrollEl,
       {
         scrollPolicy,
-        tooltipHeight: getTooltipHeight(),
+        tooltipHeight: tipH,
+        tooltipDock: dock,
       },
       3,
     );
@@ -255,11 +264,17 @@ function TourOverlay({
 
     const scrollTargetOnce = (scrollEl: HTMLElement) => {
       if (!stepScrollEnabled || !isMobileTourSheet()) return;
+      const r = scrollEl.getBoundingClientRect();
+      const dock = resolveTourTooltipDock(
+        { top: r.top, height: r.height },
+        getTourViewport().height,
+      );
       scrollTourTargetUntilBandAligned(
         scrollEl,
         {
           scrollPolicy: stepScrollPolicy,
           tooltipHeight: getTooltipHeight(),
+          tooltipDock: dock,
         },
         3,
       );
@@ -290,10 +305,16 @@ function TourOverlay({
         }
         if (stepScrollEnabled) scrollTargetOnce(scrollEl);
         await afterFrames(1);
+        const r = scrollEl.getBoundingClientRect();
+        const dock = resolveTourTooltipDock(
+          { top: r.top, height: r.height },
+          getTourViewport().height,
+        );
         const band = measureTourTargetBandDrift(
           scrollEl,
           getTooltipHeight(),
           stepScrollPolicy,
+          dock,
         );
         if (band.drift < TOUR_REALIGN_DRIFT_THRESHOLD) {
           completeStep(spotlightEl);
@@ -447,10 +468,16 @@ function TourOverlay({
         spotlight,
         step.mobileScrollSelector,
       );
+      const r = scrollEl.getBoundingClientRect();
+      const dock = resolveTourTooltipDock(
+        { top: r.top, height: r.height },
+        getTourViewport().height,
+      );
       const drift = measureTourTargetBandDrift(
         scrollEl,
         getTooltipHeight(),
         scrollPolicy,
+        dock,
       ).drift;
       if (!force && drift < TOUR_REALIGN_DRIFT_THRESHOLD) return false;
       setSettling(true);
@@ -555,8 +582,13 @@ function TourOverlay({
     tooltipW,
     mobileSheet,
     mobileSheetBottom,
+    viewportTop: tourVp?.top ?? 0,
   });
   const tooltipStyle: React.CSSProperties = tooltipPlacement.style;
+  const stepBody =
+    mobileSheet && step.mobileBody ? step.mobileBody : step.body;
+  const stepBullets =
+    mobileSheet && step.mobileBullets ? step.mobileBullets : step.bullets;
 
   return createPortal(
     <div
@@ -626,6 +658,7 @@ function TourOverlay({
         )}
         style={tooltipStyle}
         data-mobile={mobileSheet ? "true" : undefined}
+        data-tour-dock={tooltipPlacement.dock}
       >
         <div className={cn("flex shrink-0 items-center gap-2", mobileSheet ? "mb-1.5" : "mb-2")}>
           <span
@@ -664,16 +697,16 @@ function TourOverlay({
               mobileSheet ? "mt-1 text-sm" : "mt-1.5 text-[0.9375rem]",
             )}
           >
-            {step.body}
+            {stepBody}
           </p>
-          {step.bullets && step.bullets.length > 0 ? (
+          {stepBullets && stepBullets.length > 0 ? (
             <ul
               className={cn(
                 "list-disc space-y-1 pl-4 text-muted-foreground",
                 mobileSheet ? "mt-1.5 text-sm leading-snug" : "mt-2 text-[0.9375rem] leading-snug",
               )}
             >
-              {step.bullets.map((line) => (
+              {stepBullets.map((line) => (
                 <li key={line}>{line}</li>
               ))}
             </ul>

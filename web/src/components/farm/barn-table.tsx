@@ -516,6 +516,7 @@ export function BarnTable({
             : mode === "settings"
               ? [
                   '[data-tour-id="list-settings-panel"]',
+                  '[data-audit-region="controller-mobile-sheet-settings"]',
                   '[data-tour-id="controller-card"]',
                 ]
               : [
@@ -653,7 +654,11 @@ export function BarnTable({
           listRefreshRing &&
             "ring-2 ring-emerald-500/25 transition-shadow duration-300",
         )}
-        action={showHeaderToolbar ? listToolbar : undefined}
+        action={
+          showHeaderToolbar ? (
+            <div data-tour-id="farm-command-bar">{listToolbar}</div>
+          ) : undefined
+        }
         contentClassName={bulkEnabled ? "flex flex-col gap-0 p-0" : undefined}
       >
       {bulkEnabled && controller ? (
