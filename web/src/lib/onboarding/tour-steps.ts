@@ -21,7 +21,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 10;
+export const TOUR_VERSION = 11;
 
 export type TourScrollPolicy =
   | "none"
@@ -187,7 +187,8 @@ export const TOUR_STEPS: TourStepDef[] = [
     /** 맵에 남긴 채 탭만 강조 — list 전환은 다음 스텝에서(동시 collapse+list 방지). */
     view: "map",
     gridAction: "collapse",
-    scrollPolicy: "none",
+    /** 5·6에서 상세로 내려간 뒤 탭이 화면 밖으로 남지 않게 상단 정렬. */
+    scrollPolicy: "anchor-top",
     title: "그리드 · 목록",
     body: "목록으로 전환하면 컨트롤러 중심으로 조회·설정합니다.",
     bullets: [

@@ -32,9 +32,15 @@ export function useFarmTourGridAction({
       const action = (e as CustomEvent).detail?.action as string | undefined;
       if (action === "collapse") {
         setExpanded(null);
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => dispatchTourGridActionDone("collapse"));
-        });
+        // 상세 unmount·레이아웃 안정 후 done — 2 rAF만으로는 7번 탭 포착이 빗나감.
+        void (async () => {
+          await afterFrames(2);
+          await waitForTourTarget([
+            '[data-tour-id="barn-card"]',
+            '[data-tour-id="view-toggle"]',
+          ]);
+          dispatchTourGridActionDone("collapse");
+        })();
         return;
       }
       if (action === "expand-first") {

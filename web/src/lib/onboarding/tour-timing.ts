@@ -183,7 +183,11 @@ export function settleSelectorsForGridAction(
         '[data-tour-id="detail-panel"]',
       ];
     case "collapse":
-      return ['[data-tour-id="view-toggle"]'];
+      // 상세 접힘 후 그리드 카드·탭이 다시 present될 때까지.
+      return [
+        '[data-tour-id="view-toggle"]',
+        '[data-tour-id="barn-card"]',
+      ];
     case "list-mode-controller":
       return [
         '[data-tour-id="controller-card"]',
