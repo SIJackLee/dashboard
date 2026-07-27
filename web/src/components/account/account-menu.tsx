@@ -76,6 +76,7 @@ export function AccountMenu({
     pathname?.startsWith("/farm") && farmScopedOnPage;
 
   const restartTour = () => {
+    setOpen(false);
     if (canRestartTourInPlace) {
       window.dispatchEvent(new Event(FARM_TOUR_RESTART_EVENT));
       return;

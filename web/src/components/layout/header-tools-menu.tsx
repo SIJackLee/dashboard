@@ -87,12 +87,17 @@ function toolsIconStyle(toolsI: number): CSSProperties {
 function ToolsIconWrap({
   toolsI,
   children,
+  ...rest
 }: {
   toolsI: number;
   children: ReactNode;
-}) {
+} & ComponentProps<"span">) {
   return (
-    <span className="header-tools-icon inline-flex" style={toolsIconStyle(toolsI)}>
+    <span
+      className="header-tools-icon inline-flex"
+      style={toolsIconStyle(toolsI)}
+      {...rest}
+    >
       {children}
     </span>
   );
@@ -188,25 +193,26 @@ export function HeaderToolsMenu({
   useEffect(() => {
     const onTourAction = (e: Event) => {
       const action = (e as CustomEvent<{ action?: string }>).detail?.action;
-      if (action === "open-header-tools") setMenuOpen(true);
+      if (action === "open-header-tools") {
+        // 이미 열린 경우에도 done을 보내야 투어가 타임아웃(2s)에 안 걸림.
+        setMenuOpen(true);
+        void (async () => {
+          await afterFrames(2);
+          await waitForTourTarget('[data-tour-id="header-tools-panel"]');
+          dispatchTourGridActionDone("open-header-tools");
+        })();
+        return;
+      }
       if (action === "close-header-tools") {
         setMenuOpen(false);
         setDetail(null);
+        dispatchTourGridActionDone("close-header-tools");
       }
     };
     window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
     return () =>
       window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
   }, []);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    void (async () => {
-      await afterFrames(2);
-      await waitForTourTarget('[data-tour-id="header-tools-panel"]');
-      dispatchTourGridActionDone("open-header-tools");
-    })();
-  }, [menuOpen]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -253,6 +259,322 @@ export function HeaderToolsMenu({
     </>
   );
 
+  const toggleTheme = () => {
+    const next = themeIsDark ? "light" : "dark";
+    document.documentElement.classList.toggle("dark", next === "dark");
+    localStorage.setItem("dashboard-theme", next);
+    setTheme(next);
+  };
+
+  const toolbarIcons = (opts: { vertical: boolean; asMenuItems: boolean }) => {
+    const { vertical, asMenuItems } = opts;
+    const themeBtn = asMenuItems ? (
+      <DropdownMenuItem
+        closeOnClick={false}
+        className={cn(
+          dashboardUi.topHeaderActionBtn,
+          "cursor-pointer p-0 data-highlighted:bg-muted",
+        )}
+        data-tour-id="header-theme"
+        data-theme-ready={themeReady || undefined}
+        aria-label={themeIsDark ? "라이트 모드" : "다크 모드"}
+        title={themeIsDark ? "라이트 모드" : "다크 모드"}
+        onClick={toggleTheme}
+      >
+        {themeIsDark ? (
+          <Sun className="size-4 md:size-5" aria-hidden />
+        ) : (
+          <Moon className="size-4 md:size-5" aria-hidden />
+        )}
+      </DropdownMenuItem>
+    ) : (
+      <ToolsIconBtn
+        Icon={themeIsDark ? Sun : Moon}
+        data-tour-id="header-theme"
+        data-theme-ready={themeReady || undefined}
+        aria-label={themeIsDark ? "라이트 모드" : "다크 모드"}
+        title={themeIsDark ? "라이트 모드" : "다크 모드"}
+        onClick={toggleTheme}
+      />
+    );
+
+    const viewportBtn = asMenuItems ? (
+      <DropdownMenuItem
+        closeOnClick={false}
+        className={cn(
+          dashboardUi.topHeaderActionBtn,
+          "cursor-pointer p-0 data-highlighted:bg-muted",
+          viewportIsMobile && "border-primary/60 bg-primary/5 text-primary",
+        )}
+        data-tour-id="viewport-preview-toggle"
+        aria-label={viewportTitle}
+        title={viewportTitle}
+        onClick={() => setViewportPreviewMode(nextViewport)}
+      >
+        <ViewportIcon className="size-4 md:size-5" aria-hidden />
+      </DropdownMenuItem>
+    ) : (
+      <ToolsIconBtn
+        Icon={ViewportIcon}
+        active={viewportIsMobile}
+        data-tour-id="viewport-preview-toggle"
+        aria-label={viewportTitle}
+        title={viewportTitle}
+        onClick={() => setViewportPreviewMode(nextViewport)}
+      />
+    );
+
+    const cpu = (
+      <ToolsIconWrap key="cpu" toolsI={iCpu}>
+        <ToolsIconBtn
+          Icon={Cpu}
+          alert={offline > 0}
+          active={detail === "connectivity"}
+          badge={offline > 0 ? offline : undefined}
+          data-tour-id="header-connectivity"
+          aria-label="컨트롤러 연결"
+          aria-pressed={detail === "connectivity"}
+          title="컨트롤러 연결"
+          onClick={() => toggleDetail("connectivity")}
+        />
+      </ToolsIconWrap>
+    );
+    const bell = (
+      <ToolsIconWrap key="bell" toolsI={iBell}>
+        <ToolsIconBtn
+          Icon={Bell}
+          alert={alarmCount > 0}
+          active={detail === "alarms"}
+          badge={alarmCount > 0 ? alarmCount : undefined}
+          data-tour-id="header-alarms"
+          aria-label={
+            alarmCount > 0 ? `센서 알림 ${alarmCount}건` : "센서 알림"
+          }
+          aria-pressed={detail === "alarms"}
+          title="센서 알림"
+          onClick={() => toggleDetail("alarms")}
+        />
+      </ToolsIconWrap>
+    );
+    const ops = isAdmin ? (
+      <ToolsIconWrap key="ops" toolsI={iOps}>
+        <AppNavLink
+          href={opsHref}
+          message={onOps ? "모니터링으로 이동 중…" : "운영으로 이동 중…"}
+          className={cn(
+            dashboardUi.topHeaderActionBtn,
+            "no-underline",
+            onOps &&
+              "border-emerald-600/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300",
+          )}
+          aria-label={onOps ? "운영 종료 — 모니터링으로" : "운영"}
+          title={onOps ? "운영 → 모니터링" : "모니터링 → 운영"}
+          data-tour-id="header-ops"
+        >
+          <ShieldCheck className="size-4 md:size-5" aria-hidden />
+        </AppNavLink>
+      </ToolsIconWrap>
+    ) : null;
+    const report = (
+      <ToolsIconWrap key="report" toolsI={iReport}>
+        <ToolsIconBtn
+          Icon={FileText}
+          active={detail === "report"}
+          data-tour-id="header-daily-report"
+          aria-label="오늘의 리포트"
+          aria-pressed={detail === "report"}
+          title="오늘의 리포트"
+          onClick={() => toggleDetail("report")}
+        />
+      </ToolsIconWrap>
+    );
+    const viewport = (
+      <ToolsIconWrap key="viewport" toolsI={iViewport}>
+        {viewportBtn}
+      </ToolsIconWrap>
+    );
+    const themeEl = (
+      <ToolsIconWrap key="theme" toolsI={iTheme}>
+        {themeBtn}
+      </ToolsIconWrap>
+    );
+
+    /* 세로: 트리거 바로 아래 테마 → … → 연결 / 가로: 연결 … 테마(트리거 쪽) */
+    const items = (
+      vertical
+        ? [themeEl, viewport, report, ops, bell, cpu]
+        : [cpu, bell, ops, report, viewport, themeEl]
+    ).filter(Boolean);
+
+    return (
+      <div
+        className={cn(
+          "flex flex-nowrap items-center justify-end gap-1.5",
+          vertical ? "flex-col" : "flex-row",
+        )}
+        role="toolbar"
+        aria-label="헤더 도구"
+        aria-orientation={vertical ? "vertical" : "horizontal"}
+      >
+        {items}
+      </div>
+    );
+  };
+
+  const detailPanel = detail ? (
+    <div
+      className={cn(
+        "w-[min(100vw-2rem,20rem)] overflow-hidden",
+        viewportCompact
+          ? "rounded-lg border border-border/80 bg-background"
+          : "rounded-lg border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
+        motionClass.enterFade,
+      )}
+      data-tour-id={`header-tools-detail-${detail}`}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      {detail === "connectivity" ? (
+        <div
+          className={cn(
+            dashboardUi.headerToolsCard,
+            "mx-0 mb-0 w-full",
+            offline > 0 && dashboardUi.headerToolsCardAlert,
+          )}
+        >
+          <span
+            className={cn(
+              dashboardUi.headerToolsCardIcon,
+              offline > 0 && dashboardUi.headerToolsCardIconAlert,
+            )}
+            aria-hidden
+          >
+            <Cpu className="size-4 md:size-5" />
+          </span>
+          <div className={dashboardUi.headerToolsCardBody}>
+            <div className={dashboardUi.headerToolsCardTitle}>
+              <span>컨트롤러 연결</span>
+              {registered !== undefined ? (
+                <span className="ml-auto tabular-nums text-muted-foreground">
+                  {registered}
+                </span>
+              ) : null}
+            </div>
+            <p className={dashboardUi.headerToolsCardMeta}>{connTitle}</p>
+            {offline > 0 ? (
+              <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+                오프라인 {offline}개
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {detail === "alarms" ? (
+        <div
+          className={cn(
+            dashboardUi.headerToolsCard,
+            "mx-0 mb-0 w-full",
+            alarmCount > 0 && dashboardUi.headerToolsCardAlert,
+          )}
+        >
+          <span
+            className={cn(
+              dashboardUi.headerToolsCardIcon,
+              alarmCount > 0 && dashboardUi.headerToolsCardIconAlert,
+            )}
+            aria-hidden
+          >
+            <Bell className="size-4 md:size-5" />
+          </span>
+          <div className={dashboardUi.headerToolsCardBody}>
+            <div className={dashboardUi.headerToolsCardTitle}>
+              <span>센서 알림</span>
+              {alarmCount > 0 ? (
+                <Badge
+                  variant="destructive"
+                  className="ml-auto h-5 min-h-0 px-1.5 text-[0.65rem]"
+                >
+                  {alarmCount}건
+                </Badge>
+              ) : null}
+            </div>
+            {alarmPreview.length === 0 ? (
+              <p className={dashboardUi.headerToolsCardMeta}>센서 알림 없음</p>
+            ) : (
+              <ul className="mt-1.5 space-y-1">
+                {alarmPreview.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "w-full rounded-md border border-transparent px-1.5 py-1.5 text-left hover:border-border hover:bg-muted/80",
+                        motionClass.microInteractive,
+                      )}
+                      onClick={() =>
+                        navigate(alarmControlHref(a), {
+                          message: "컨트롤러 제어로 이동 중…",
+                        })
+                      }
+                    >
+                      <span className="flex items-center justify-between gap-2 text-xs font-medium">
+                        <span className="truncate">{a.alarmType}</span>
+                        <span className="shrink-0 text-[0.65rem] text-muted-foreground">
+                          {a.severity === "critical" ? "심각" : "주의"}
+                        </span>
+                      </span>
+                      <span className="block truncate text-[0.65rem] text-muted-foreground">
+                        {a.stallTyCode
+                          ? formatStallTypeLabel(a.stallTyCode)
+                          : "—"}{" "}
+                        ·{" "}
+                        {formatControllerSlotLabel({
+                          stallNo: a.stallNo,
+                          eqpmnNo: a.eqpmnNo,
+                          idx: a.idx,
+                        })}
+                      </span>
+                      <span className="block text-[0.65rem] text-muted-foreground">
+                        {formatKst(a.occurredAt, "short")}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {alarmCount > 0 ? (
+              <button
+                type="button"
+                className="mt-1.5 flex w-full justify-center rounded-lg border px-2 py-1.5 text-xs font-medium text-emerald-700"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setDetail(null);
+                  navigate(monitoringHref("ops"), {
+                    message: "이상 탭으로 이동 중…",
+                  });
+                }}
+              >
+                {alarmCount > alarmPreview.length
+                  ? `센서 알림 ${alarmCount}건 보기`
+                  : "이상 탭으로 이동"}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {detail === "report" ? (
+        <div className="p-1">
+          <DailyReportButton
+            farmKey={farmKey}
+            alarmCount={alarms.length}
+            presentation="tools-card"
+          />
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
   if (!mounted) {
     return (
       <button
@@ -270,14 +592,67 @@ export function HeaderToolsMenu({
     );
   }
 
+  const setOpen = (open: boolean) => {
+    setMenuOpen(open);
+    if (!open) setDetail(null);
+  };
+
+  /* 모바일: ⋯는 고정, 배경 카드만 트리거를 감싸며 아래로 펼침 */
+  if (viewportCompact) {
+    return (
+      <div className="relative size-9 shrink-0 md:size-11">
+        {menuOpen ? (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 cursor-default bg-transparent"
+            aria-label="도구 메뉴 닫기"
+            onClick={() => setOpen(false)}
+          />
+        ) : null}
+        {menuOpen ? (
+          <div
+            className={cn(
+              motionClass.headerToolsPanel,
+              "header-tools-cascade-card absolute right-0 top-0 z-[45] flex flex-col items-end gap-1.5",
+              "rounded-xl border !bg-popover p-2 -m-2 text-popover-foreground !shadow-md ring-1 ring-foreground/10",
+            )}
+            data-cascade="vertical"
+            data-open=""
+            data-header-tools-cascade=""
+            data-tour-id="header-tools-panel"
+            style={{ ["--tools-max" as string]: toolsMax } as CSSProperties}
+          >
+            {/* 트리거 자리만 확보 — 실제 ⋯는 형제(z-50)로 고정 */}
+            <div
+              className="pointer-events-none size-9 shrink-0 opacity-0 md:size-11"
+              aria-hidden
+            />
+            {toolbarIcons({ vertical: true, asMenuItems: false })}
+            {detailPanel}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className={cn(
+            "relative z-50",
+            dashboardUi.topHeaderActionBtn,
+            alert && dashboardUi.topHeaderActionBtnAlert,
+          )}
+          data-tour-id="header-tools"
+          aria-label="헤더 도구"
+          title="헤더 도구"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          onClick={() => setOpen(!menuOpen)}
+        >
+          {trigger}
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <DropdownMenu
-      open={menuOpen}
-      onOpenChange={(open) => {
-        setMenuOpen(open);
-        if (!open) setDetail(null);
-      }}
-    >
+    <DropdownMenu open={menuOpen} onOpenChange={setOpen}>
       <DropdownMenuTrigger
         className={cn(
           dashboardUi.topHeaderActionBtn,
@@ -294,283 +669,20 @@ export function HeaderToolsMenu({
         side="left"
         sideOffset={8}
         alignOffset={0}
-        data-mobile-viewport-dropdown={viewportCompact || undefined}
         data-tour-id="header-tools-panel"
+        data-header-tools-cascade=""
+        data-cascade="horizontal"
         style={{ ["--tools-max" as string]: toolsMax } as CSSProperties}
         className={cn(
           motionClass.headerToolsPanel,
-          "min-w-0 w-auto border-0 bg-transparent p-0 shadow-none ring-0",
+          "h-auto max-h-none min-w-0 w-auto overflow-visible border-0 bg-transparent p-0 shadow-none ring-0",
           "animate-none data-open:animate-none data-closed:animate-none",
           "data-open:zoom-in-100 data-closed:zoom-out-100",
         )}
       >
         <div className="flex flex-col items-end gap-2">
-          <div
-            className="flex flex-row flex-nowrap items-center justify-end gap-1.5"
-            role="toolbar"
-            aria-label="헤더 도구"
-          >
-            <ToolsIconWrap toolsI={iCpu}>
-              <ToolsIconBtn
-                Icon={Cpu}
-                alert={offline > 0}
-                active={detail === "connectivity"}
-                badge={offline > 0 ? offline : undefined}
-                data-tour-id="header-connectivity"
-                aria-label="컨트롤러 연결"
-                aria-pressed={detail === "connectivity"}
-                title="컨트롤러 연결"
-                onClick={() => toggleDetail("connectivity")}
-              />
-            </ToolsIconWrap>
-            <ToolsIconWrap toolsI={iBell}>
-              <ToolsIconBtn
-                Icon={Bell}
-                alert={alarmCount > 0}
-                active={detail === "alarms"}
-                badge={alarmCount > 0 ? alarmCount : undefined}
-                data-tour-id="header-alarms"
-                aria-label={
-                  alarmCount > 0
-                    ? `센서 알림 ${alarmCount}건`
-                    : "센서 알림"
-                }
-                aria-pressed={detail === "alarms"}
-                title="센서 알림"
-                onClick={() => toggleDetail("alarms")}
-              />
-            </ToolsIconWrap>
-            {isAdmin ? (
-              <ToolsIconWrap toolsI={iOps}>
-                <AppNavLink
-                  href={opsHref}
-                  message={
-                    onOps ? "모니터링으로 이동 중…" : "운영으로 이동 중…"
-                  }
-                  className={cn(
-                    dashboardUi.topHeaderActionBtn,
-                    "no-underline",
-                    onOps &&
-                      "border-emerald-600/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300",
-                  )}
-                  aria-label={onOps ? "운영 종료 — 모니터링으로" : "운영"}
-                  title={onOps ? "운영 → 모니터링" : "모니터링 → 운영"}
-                  data-tour-id="header-ops"
-                >
-                  <ShieldCheck className="size-4 md:size-5" aria-hidden />
-                </AppNavLink>
-              </ToolsIconWrap>
-            ) : null}
-            <ToolsIconWrap toolsI={iReport}>
-              <ToolsIconBtn
-                Icon={FileText}
-                active={detail === "report"}
-                data-tour-id="header-daily-report"
-                aria-label="오늘의 리포트"
-                aria-pressed={detail === "report"}
-                title="오늘의 리포트"
-                onClick={() => toggleDetail("report")}
-              />
-            </ToolsIconWrap>
-            <ToolsIconWrap toolsI={iViewport}>
-              <DropdownMenuItem
-                closeOnClick={false}
-                className={cn(
-                  dashboardUi.topHeaderActionBtn,
-                  "cursor-pointer p-0 data-highlighted:bg-muted",
-                  viewportIsMobile &&
-                    "border-primary/60 bg-primary/5 text-primary",
-                )}
-                data-tour-id="viewport-preview-toggle"
-                aria-label={viewportTitle}
-                title={viewportTitle}
-                onClick={() => setViewportPreviewMode(nextViewport)}
-              >
-                <ViewportIcon className="size-4 md:size-5" aria-hidden />
-              </DropdownMenuItem>
-            </ToolsIconWrap>
-            <ToolsIconWrap toolsI={iTheme}>
-              <DropdownMenuItem
-                closeOnClick={false}
-                className={cn(
-                  dashboardUi.topHeaderActionBtn,
-                  "cursor-pointer p-0 data-highlighted:bg-muted",
-                )}
-                data-tour-id="header-theme"
-                data-theme-ready={themeReady || undefined}
-                aria-label={themeIsDark ? "라이트 모드" : "다크 모드"}
-                title={themeIsDark ? "라이트 모드" : "다크 모드"}
-                onClick={() => {
-                  const next = themeIsDark ? "light" : "dark";
-                  document.documentElement.classList.toggle(
-                    "dark",
-                    next === "dark",
-                  );
-                  localStorage.setItem("dashboard-theme", next);
-                  setTheme(next);
-                }}
-              >
-                {themeIsDark ? (
-                  <Sun className="size-4 md:size-5" aria-hidden />
-                ) : (
-                  <Moon className="size-4 md:size-5" aria-hidden />
-                )}
-              </DropdownMenuItem>
-            </ToolsIconWrap>
-          </div>
-
-          {detail ? (
-            <div
-              className={cn(
-                "w-[min(100vw-2rem,20rem)] overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
-                motionClass.enterFade,
-              )}
-              data-tour-id={`header-tools-detail-${detail}`}
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              {detail === "connectivity" ? (
-                <div
-                  className={cn(
-                    dashboardUi.headerToolsCard,
-                    "mx-0 mb-0 w-full",
-                    offline > 0 && dashboardUi.headerToolsCardAlert,
-                  )}
-                >
-                  <span
-                    className={cn(
-                      dashboardUi.headerToolsCardIcon,
-                      offline > 0 && dashboardUi.headerToolsCardIconAlert,
-                    )}
-                    aria-hidden
-                  >
-                    <Cpu className="size-4 md:size-5" />
-                  </span>
-                  <div className={dashboardUi.headerToolsCardBody}>
-                    <div className={dashboardUi.headerToolsCardTitle}>
-                      <span>컨트롤러 연결</span>
-                      {registered !== undefined ? (
-                        <span className="ml-auto tabular-nums text-muted-foreground">
-                          {registered}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className={dashboardUi.headerToolsCardMeta}>
-                      {connTitle}
-                    </p>
-                    {offline > 0 ? (
-                      <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">
-                        오프라인 {offline}개
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {detail === "alarms" ? (
-                <div
-                  className={cn(
-                    dashboardUi.headerToolsCard,
-                    "mx-0 mb-0 w-full",
-                    alarmCount > 0 && dashboardUi.headerToolsCardAlert,
-                  )}
-                >
-                  <span
-                    className={cn(
-                      dashboardUi.headerToolsCardIcon,
-                      alarmCount > 0 && dashboardUi.headerToolsCardIconAlert,
-                    )}
-                    aria-hidden
-                  >
-                    <Bell className="size-4 md:size-5" />
-                  </span>
-                  <div className={dashboardUi.headerToolsCardBody}>
-                    <div className={dashboardUi.headerToolsCardTitle}>
-                      <span>센서 알림</span>
-                      {alarmCount > 0 ? (
-                        <Badge
-                          variant="destructive"
-                          className="ml-auto h-5 min-h-0 px-1.5 text-[0.65rem]"
-                        >
-                          {alarmCount}건
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {alarmPreview.length === 0 ? (
-                      <p className={dashboardUi.headerToolsCardMeta}>
-                        센서 알림 없음
-                      </p>
-                    ) : (
-                      <ul className="mt-1.5 space-y-1">
-                        {alarmPreview.map((a) => (
-                          <li key={a.id}>
-                            <button
-                              type="button"
-                              className={cn(
-                                "w-full rounded-md border border-transparent px-1.5 py-1.5 text-left hover:border-border hover:bg-muted/80",
-                                motionClass.microInteractive,
-                              )}
-                              onClick={() =>
-                                navigate(alarmControlHref(a), {
-                                  message: "컨트롤러 제어로 이동 중…",
-                                })
-                              }
-                            >
-                              <span className="flex items-center justify-between gap-2 text-xs font-medium">
-                                <span className="truncate">{a.alarmType}</span>
-                                <span className="shrink-0 text-[0.65rem] text-muted-foreground">
-                                  {a.severity === "critical" ? "심각" : "주의"}
-                                </span>
-                              </span>
-                              <span className="block truncate text-[0.65rem] text-muted-foreground">
-                                {a.stallTyCode
-                                  ? formatStallTypeLabel(a.stallTyCode)
-                                  : "—"}{" "}
-                                ·{" "}
-                                {formatControllerSlotLabel({
-                                  stallNo: a.stallNo,
-                                  eqpmnNo: a.eqpmnNo,
-                                  idx: a.idx,
-                                })}
-                              </span>
-                              <span className="block text-[0.65rem] text-muted-foreground">
-                                {formatKst(a.occurredAt, "short")}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {alarmCount > 0 ? (
-                      <DropdownMenuItem
-                        closeOnClick
-                        className="mt-1.5 justify-center rounded-lg border text-xs font-medium text-emerald-700"
-                        onClick={() =>
-                          navigate(monitoringHref("ops"), {
-                            message: "이상 탭으로 이동 중…",
-                          })
-                        }
-                      >
-                        {alarmCount > alarmPreview.length
-                          ? `센서 알림 ${alarmCount}건 보기`
-                          : "이상 탭으로 이동"}
-                      </DropdownMenuItem>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-
-              {detail === "report" ? (
-                <div className="p-1">
-                  <DailyReportButton
-                    farmKey={farmKey}
-                    alarmCount={alarms.length}
-                    presentation="tools-card"
-                  />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          {toolbarIcons({ vertical: false, asMenuItems: true })}
+          {detailPanel}
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

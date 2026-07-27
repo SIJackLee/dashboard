@@ -829,9 +829,11 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-sheet] {
   translate: -50% 0 !important;
 }
 
-/* 헤더 WiFi·알람 dropdown — 모바일 프레임 너비·높이 */
-html[data-viewport-preview="mobile"] [data-mobile-viewport-dropdown],
-html[data-viewport-preview="mobile"] [data-slot="dropdown-menu-content"],
+/* 헤더 WiFi·알람 dropdown — 모바일 프레임 너비·높이
+ * 헤더 도구 아이콘 캐스케이드(data-header-tools-cascade)는 제외 — 전체 너비 강제 시 위치 깨짐 */
+html[data-viewport-preview="mobile"] [data-mobile-viewport-dropdown]:not([data-header-tools-cascade]),
+html[data-viewport-preview="mobile"]
+  [data-slot="dropdown-menu-content"]:not([data-header-tools-cascade]),
 html[data-viewport-preview="mobile"] [data-slot="dropdown-menu-sub-content"],
 html[data-viewport-preview="mobile"] [data-slot="select-content"] {
   width: calc(min(100vw, var(--mobile-preview-max-w)) - 1rem) !important;
@@ -839,6 +841,16 @@ html[data-viewport-preview="mobile"] [data-slot="select-content"] {
   min-width: min(14rem, calc(var(--mobile-preview-max-w) - 1rem)) !important;
   max-height: var(--mobile-preview-dropdown-max-h) !important;
   overflow-y: auto !important;
+}
+
+html[data-viewport-preview="mobile"] [data-header-tools-cascade] {
+  /* 콘텐츠 높이만 사용 — available-height로 늘어나면 flex-col-reverse가 아래로 밀림 */
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: calc(var(--mobile-preview-max-w) - 1rem) !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 /* Dialog — 모바일 프레임 오버레이·콘텐츠 */
@@ -1076,7 +1088,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 헤더 도구 — 카드 없이 아이콘이 트리거 왼쪽으로 또르륵 (열림·접힘) ── */
+/* ── 헤더 도구 — 아이콘 캐스케이드 (데스크톱: 좌측 가로 / 모바일: 하단 세로) ── */
 
 @keyframes header-tools-icon-in {
   0% {
@@ -1100,6 +1112,50 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
+@keyframes header-tools-icon-in-y {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance-md) * -1)) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes header-tools-icon-out-y {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance-md) * -1)) scale(0.92);
+  }
+}
+
+/*
+ * 모바일 카드 — ⋯ 높이만 보이다가 아래로 펼침 (opacity/translate 없음 → 트리거 재등장 느낌 방지)
+ * 2.75rem ≈ size-9 + p-2 상단 여백
+ */
+@keyframes header-tools-card-in {
+  0% {
+    clip-path: inset(0 0 calc(100% - 2.75rem) 0);
+  }
+  100% {
+    clip-path: inset(0);
+  }
+}
+
+@keyframes header-tools-card-out {
+  0% {
+    clip-path: inset(0);
+  }
+  100% {
+    clip-path: inset(0 0 calc(100% - 2.75rem) 0);
+  }
+}
+
 /* Base UI getAnimations()는 패널 자신만 봄 — 자식 stagger 동안 유지 */
 @keyframes header-tools-panel-exit-hold {
   0%,
@@ -1111,9 +1167,54 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .header-tools-panel {
   --tools-stagger: 45ms;
   --tools-max: 5;
+  --tools-cascade-ms: calc(
+    var(--motion-duration-moderate) + var(--tools-max) * var(--tools-stagger)
+  );
   transform-origin: right center;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+/* 데스크톱 portal — 투명 패널 */
+.header-tools-panel:not(.header-tools-cascade-card) {
   background: transparent !important;
   box-shadow: none !important;
+}
+
+.header-tools-panel[data-cascade="vertical"].header-tools-cascade-card[data-open] {
+  background: var(--popover) !important;
+}
+
+.header-tools-panel[data-cascade="vertical"] {
+  transform-origin: top right;
+  overflow: visible;
+}
+
+/* 모바일: 카드만 아래로 펼침 — 트리거는 DOM 밖(형제)에서 고정 */
+.header-tools-panel[data-cascade="vertical"].header-tools-cascade-card[data-open]:not(
+    [data-ending-style]
+  ) {
+  transform-origin: top right;
+  animation: header-tools-card-in var(--tools-cascade-ms) var(--motion-ease-enter)
+    both;
+}
+
+.header-tools-panel[data-cascade="vertical"].header-tools-cascade-card[data-ending-style]:not(
+    [data-instant]
+  ) {
+  transform-origin: top right;
+  animation: header-tools-card-out var(--tools-cascade-ms) var(--motion-ease-exit)
+    both;
+}
+
+/* 데스크톱 portal: 중첩 카드(레거시) */
+.header-tools-panel[data-cascade="vertical"][data-open]:not([data-ending-style])
+  .header-tools-cascade-card:not(.header-tools-panel) {
+  transform-origin: top right;
+  animation: header-tools-card-in var(--tools-cascade-ms) var(--motion-ease-enter)
+    both;
 }
 
 .header-tools-panel[data-open]:not([data-ending-style]) .header-tools-icon {
@@ -1122,12 +1223,13 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   animation-delay: calc(var(--tools-i, 0) * var(--tools-stagger));
 }
 
+.header-tools-panel[data-cascade="vertical"][data-open]:not([data-ending-style])
+  .header-tools-icon {
+  animation-name: header-tools-icon-in-y;
+}
+
 .header-tools-panel[data-ending-style]:not([data-instant]) {
-  animation: header-tools-panel-exit-hold
-    calc(
-      var(--motion-duration-moderate) + var(--tools-max) * var(--tools-stagger)
-    )
-    linear both;
+  animation: header-tools-panel-exit-hold var(--tools-cascade-ms) linear both;
 }
 
 .header-tools-panel[data-ending-style]:not([data-instant]) .header-tools-icon {
@@ -1139,10 +1241,19 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   );
 }
 
+.header-tools-panel[data-cascade="vertical"][data-ending-style]:not(
+    [data-instant]
+  )
+  .header-tools-icon {
+  animation-name: header-tools-icon-out-y;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .header-tools-panel[data-open] .header-tools-icon,
   .header-tools-panel[data-ending-style] .header-tools-icon,
-  .header-tools-panel[data-ending-style] {
+  .header-tools-panel[data-ending-style],
+  .header-tools-panel[data-open] .header-tools-cascade-card,
+  .header-tools-panel[data-ending-style] .header-tools-cascade-card {
     animation: none;
   }
 }

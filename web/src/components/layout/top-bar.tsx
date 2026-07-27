@@ -38,11 +38,11 @@ export function TopBar({
   return (
     <header className={dashboardUi.topBar} data-app-header data-tour-id="app-header">
       <div className="flex w-full min-w-0 items-center gap-1.5 md:gap-2">
-        <div className="flex min-w-0 max-w-[42%] flex-1 items-center gap-2 sm:max-w-none md:flex-wrap md:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
           <AppHeaderBrand />
         </div>
 
-        <div className="flex min-w-0 shrink-0 items-center justify-end gap-1 md:gap-3">
+        <div className="ml-auto flex shrink-0 items-center justify-end gap-1 md:gap-3">
           <div
             data-tour-id="header-actions"
             className="flex shrink-0 items-center gap-1 md:gap-3"

@@ -185,6 +185,7 @@ function TourOverlay({
 
   const finish = useCallback(
     (completed: boolean) => {
+      dispatchGridAction("close-header-tools");
       dispatchGridAction("collapse");
       setView(initialView);
       onFinish(completed);
@@ -815,6 +816,8 @@ export function FarmFeatureTour({
   enabled?: boolean;
 }) {
   const [active, setActive] = useState(false);
+  /** 다시 보기 시 TourOverlay remount — 이미 활성일 때 step 유지 방지. */
+  const [tourSession, setTourSession] = useState(0);
   const [startView, setStartView] = useState<TourView>("map");
   const checkedRef = useRef(false);
   const viewRef = useRef(view);
@@ -826,8 +829,10 @@ export function FarmFeatureTour({
     const manual = Boolean(opts?.manual);
     // tourActive는 오버레이 표시 직전에만 true — 대기 중 soft fetch/enrich 유지(3).
     const activate = () => {
+      dispatchGridAction("close-header-tools");
       setFarmTourActive(true);
       setStartView(viewRef.current);
+      setTourSession((n) => n + 1);
       setActive(true);
     };
     const abort = () => {
@@ -915,6 +920,7 @@ export function FarmFeatureTour({
   if (!active) return null;
   return (
     <TourOverlay
+      key={tourSession}
       initialView={startView}
       setView={setView}
       onFinish={handleFinish}

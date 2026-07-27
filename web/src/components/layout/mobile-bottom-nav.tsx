@@ -2,33 +2,30 @@
 
 import { useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutDashboard, Loader2, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Loader2 } from "lucide-react";
 import Link from "next/link";
-import {
-  isAdminOpsNavPath,
-  isMonitoringNavPath,
-} from "@/lib/dashboard-sections";
+import { isMonitoringNavPath } from "@/lib/dashboard-sections";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "operator" | "viewer";
 
 type Props = {
-  role: Role | null;
+  /** @deprecated 운영 탭 제거 — 호환용으로 유지 */
+  role?: Role | null;
   /** 폰 너비 컬럼 안에 고정 (뷰포트 전체 fixed 아님) */
   docked?: boolean;
 };
 
-export function MobileBottomNav({ role, docked = false }: Props) {
+/** 운영은 헤더 도구(Shield)로 진입 — 하단 탭에서는 모니터링만 */
+export function MobileBottomNav({ docked = false }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [pendingHref, setPendingHref] = useState<string | null>(null);
 
-  const isAdmin = role === "admin";
   const monitoringActive = isMonitoringNavPath(pathname);
-  const adminOpsActive = isAdminOpsNavPath(pathname);
 
   if (!isPending && pendingHref != null) {
     setPendingHref(null);
@@ -42,7 +39,6 @@ export function MobileBottomNav({ role, docked = false }: Props) {
   };
 
   const monitoringBusy = isPending && pendingHref === "/farm";
-  const opsBusy = isPending && pendingHref === "/admin/ops";
 
   return (
     <nav
@@ -78,33 +74,6 @@ export function MobileBottomNav({ role, docked = false }: Props) {
         )}
         <span>{monitoringBusy ? "이동 중…" : "모니터링"}</span>
       </Link>
-
-      {isAdmin ? (
-        <Link
-          href="/admin/ops"
-          scroll={false}
-          aria-current={adminOpsActive ? "page" : undefined}
-          aria-busy={opsBusy || undefined}
-          onClick={(e) => {
-            const onOpsHome = pathname === "/admin/ops";
-            if (onOpsHome) return;
-            e.preventDefault();
-            goSection("/admin/ops");
-          }}
-          className={cn(
-            dashboardUi.mobileBottomNavItem,
-            adminOpsActive ? "text-emerald-700" : "text-muted-foreground",
-            opsBusy && "opacity-70",
-          )}
-        >
-          {opsBusy ? (
-            <Loader2 className="size-5 shrink-0 animate-spin" aria-hidden />
-          ) : (
-            <ShieldCheck className="size-5 shrink-0" aria-hidden />
-          )}
-          <span>{opsBusy ? "이동 중…" : "운영"}</span>
-        </Link>
-      ) : null}
     </nav>
   );
 }

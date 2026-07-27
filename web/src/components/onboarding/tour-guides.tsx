@@ -4,7 +4,7 @@
  * 스포트라이트 투어 — 툴팁 내부 확장 가이드.
  * - GaugeAnatomy: 컨트롤러 카드 게이지 바 읽는 법(확대 모식도).
  * - PanelPillsGuide: 그래프·설정 버튼 역할 설명.
- * - HeaderIconsGuide: 상단 헤더 아이콘(테마·연결·알림·계정).
+ * - HeaderIconsGuide: 상단 헤더 도구(⋮)·연결·알림·계정.
  */
 
 import { Bell, Cpu, EllipsisVertical, FileText, Moon, UserRound } from "lucide-react";
@@ -160,31 +160,31 @@ const HEADER_ICON_ITEMS = [
   {
     key: "tools",
     label: "헤더 도구",
-    desc: "⋮ 버튼을 누르면 왼쪽으로 알림 → 기능 → 스타일 패널이 펼쳐집니다.",
+    desc: "⋮ 을 누르면 PC는 왼쪽, 모바일은 아래로 아이콘이 펼쳐집니다.",
     Icon: EllipsisVertical,
   },
   {
     key: "connectivity",
     label: "컨트롤러 연결",
-    desc: "도구 메뉴 알림 구역. 컨트롤러 아이콘과 등록 대수·오프라인 현황을 확인합니다.",
+    desc: "등록·연결·오프라인 대수를 아이콘과 배지로 확인합니다.",
     Icon: Cpu,
   },
   {
     key: "alarms",
     label: "센서 알림",
-    desc: "도구 메뉴 알림 구역. 미확인 건수 배지와 최근 알림 목록을 봅니다.",
+    desc: "미확인 건수 배지. 누르면 이상 목록으로 이동합니다.",
     Icon: Bell,
   },
   {
     key: "ops-report",
     label: "운영 · 일보",
-    desc: "도구 메뉴 기능 구역. 관리자는 운영 화면으로, 오늘의 리포트 PDF를 받을 수 있습니다.",
+    desc: "관리자는 운영 화면으로, 오늘의 리포트 PDF를 받을 수 있습니다.",
     Icon: FileText,
   },
   {
     key: "style",
     label: "레이아웃 · 테마",
-    desc: "도구 메뉴 스타일 구역. PC/모바일 미리보기와 라이트/다크를 전환합니다.",
+    desc: "PC/모바일 미리보기와 라이트/다크를 전환합니다.",
     Icon: Moon,
   },
   {
