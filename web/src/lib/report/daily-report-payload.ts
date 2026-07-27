@@ -43,7 +43,7 @@ export type DailyReportBarn = {
   };
   controllers: DailyReportControllerRow[];
   periods: Record<TrendPeriodId, DailyReportSeries>;
-  /** 24h 발췌 표 (표시용 라벨) */
+  /** 24h 발췌 표 — RPC 15분 버킷 시리즈에서 약 8포인트 샘플 */
   detailRows: {
     label: string;
     temp: number | null;

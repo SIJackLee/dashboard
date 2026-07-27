@@ -9,11 +9,6 @@ import type {
 } from "@/lib/data/farm-trend-types";
 import { fetchLiveReadings } from "@/lib/data/iot-live-fetch";
 import { getStallTypeName } from "@/lib/data/stall-type";
-import {
-  binTrendCategories,
-  downsampleTrendValues,
-  GRAPH_BARS,
-} from "@/lib/farm/trend-display-buckets";
 import type {
   DailyReportBarn,
   DailyReportControllerRow,
@@ -70,8 +65,12 @@ function avgColumns(
   return out;
 }
 
+/**
+ * PDF용 시리즈 — UI GRAPH_BARS(24/28/30) 다운샘플 없이
+ * RPC 정렬 버킷 그대로 (24h×96 / 7d×168 / 30d×720).
+ * 축사 내 컨트롤러는 슬롯 평균만 적용.
+ */
 function seriesFromControllers(
-  period: TrendPeriodId,
   categories: string[],
   controllers: TrendControllerSeries[],
 ): DailyReportSeries {
@@ -86,19 +85,13 @@ function seriesFromControllers(
       motorC: [],
     };
   }
-  const bars = GRAPH_BARS[period];
-  const temp = avgColumns(controllers, (c) => c.temp, len);
-  const humidity = avgColumns(controllers, (c) => c.humidity, len);
-  const motorA = avgColumns(controllers, (c) => c.fanIntake, len);
-  const motorB = avgColumns(controllers, (c) => c.fanExhaust, len);
-  const motorC = avgColumns(controllers, (c) => c.fanSupply, len);
   return {
-    categories: binTrendCategories(categories, bars),
-    temp: downsampleTrendValues(temp, bars),
-    humidity: downsampleTrendValues(humidity, bars),
-    motorA: downsampleTrendValues(motorA, bars),
-    motorB: downsampleTrendValues(motorB, bars),
-    motorC: downsampleTrendValues(motorC, bars),
+    categories: categories.slice(),
+    temp: avgColumns(controllers, (c) => c.temp, len),
+    humidity: avgColumns(controllers, (c) => c.humidity, len),
+    motorA: avgColumns(controllers, (c) => c.fanIntake, len),
+    motorB: avgColumns(controllers, (c) => c.fanExhaust, len),
+    motorC: avgColumns(controllers, (c) => c.fanSupply, len),
   };
 }
 
@@ -216,7 +209,6 @@ export async function buildDailyReportPayload(
       for (const period of PERIODS) {
         const ctrls = findStallControllers(trends[period], stallTyCode, stallNo);
         periods[period] = seriesFromControllers(
-          period,
           trends[period].categories,
           ctrls,
         );
