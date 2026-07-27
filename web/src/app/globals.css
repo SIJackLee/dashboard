@@ -989,8 +989,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
 html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[data-mobile="true"] {
   max-height: min(
-    calc(var(--mobile-preview-frame-h) * 0.52),
-    calc(var(--vvh, 52dvh) * 0.52)
+    calc(var(--mobile-preview-frame-h) * 0.58),
+    calc(var(--vvh, 58dvh) * 0.58)
   ) !important;
 }
 

@@ -22,11 +22,37 @@ import {
   type TourView,
 } from "@/lib/onboarding/tour-steps";
 import {
+  getTourViewport,
+  getTourPortalBounds,
+  toTourLocalRect,
+  mobileTourSheetBottomCss,
+  measureTourTargetBandDrift,
+  resetTourScrollContainers,
+  resolveTourScrollPolicy,
+  resolveTourScrollTarget,
+  resolveTourStepSelector,
+  scrollTourTargetIntoView,
+  scrollTourTargetUntilBandAligned,
+  stabilizeMobileBrowserViewport,
+  isMobileTourSheet,
+  subscribeTourViewportCssSync,
+  subscribeTourViewportResize,
+  findBestTourTarget,
+  countPresentTourTargets,
+  placeTourTooltip,
+  TOUR_MOBILE_SETTLE_MS,
+  TOUR_REALIGN_DRIFT_THRESHOLD,
+  type TourScrollPolicy,
+} from "@/lib/onboarding/tour-viewport";
+import { subscribeViewportPreview } from "@/lib/ui/viewport-preview-store";
+import {
   afterFrames,
   markTourStepReady,
   markTourStepSettling,
   TOUR_AUTO_READY_GIVE_UP_MS,
   TOUR_FIND_INTERVAL_MS,
+  TOUR_FIND_RETRIES,
+  TOUR_FIND_RETRIES_AFTER_VIEW_CHANGE,
   TOUR_MANUAL_READY_FORCE_MS,
   TOUR_READY_INTERVAL_MS,
   TOUR_REVEAL_MAX_ATTEMPTS,
@@ -39,69 +65,25 @@ import {
   shouldShowOnboardingTourAction,
 } from "@/app/(dashboard)/farm/onboarding-actions";
 import { GaugeAnatomy, HeaderIconsGuide, PanelPillsGuide } from "@/components/onboarding/tour-guides";
-import {
-  getTourViewport,
-  getTourPortalBounds,
-  toTourLocalRect,
-  mobileTourSheetBottomCss,
-  isTourTargetBandAligned,
-  measureTourTargetBandDrift,
-  resetTourScrollContainers,
-  resolveTourScrollPolicy,
-  resolveTourScrollTarget,
-  resolveTourStepSelector,
-  scrollTourTargetIntoView,
-  scrollTourTargetUntilBandAligned,
-  stabilizeMobileBrowserViewport,
-  isMobileTourSheet,
-  subscribeTourViewportCssSync,
-  subscribeTourViewportResize,
-  TOUR_MOBILE_SETTLE_MS,
-  TOUR_REALIGN_DRIFT_THRESHOLD,
-  type TourScrollPolicy,
-} from "@/lib/onboarding/tour-viewport";
-import { subscribeViewportPreview } from "@/lib/ui/viewport-preview-store";
+import { cn } from "@/lib/utils";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
 const HOLE_PAD = 6;
 const TOOLTIP_W = 440;
 const TOOLTIP_W_MOBILE = 400;
-const FIND_RETRIES = 24;
-
-function isTourTargetVisible(selector: string): boolean {
-  return findVisibleTourTarget(selector) !== null;
-}
-
-function countVisibleTourTargets(selector: string): number {
-  let n = 0;
-  for (const el of document.querySelectorAll(selector)) {
-    if ((el as HTMLElement).offsetParent !== null) n += 1;
-  }
-  return n;
-}
 
 /**
  * 보기 탭 + 축사 카드 + 히트맵 — 스켈레톤/빈 그리드·trend 미도착 위 투어 시작 방지.
  * (히트맵 없는 농장은 manual force / auto give-up으로만 진입)
  */
 function isTourContentReady(): boolean {
-  if (!isTourTargetVisible(TOUR_READY_VIEW_TOGGLE_SELECTOR)) return false;
-  if (countVisibleTourTargets(TOUR_READY_SELECTOR) < TOUR_READY_MIN_CARDS) {
+  if (countPresentTourTargets(TOUR_READY_VIEW_TOGGLE_SELECTOR) < 1) return false;
+  if (countPresentTourTargets(TOUR_READY_SELECTOR) < TOUR_READY_MIN_CARDS) {
     return false;
   }
-  return isTourTargetVisible(TOUR_READY_HEATMAP_SELECTOR);
+  return countPresentTourTargets(TOUR_READY_HEATMAP_SELECTOR) >= 1;
 }
-
-/** display:none·lg:hidden 등으로 숨긴 첫 매치를 건너뛰고 실제 보이는 대상을 반환. */
-function findVisibleTourTarget(selector: string): Element | null {
-  for (const el of document.querySelectorAll(selector)) {
-    if ((el as HTMLElement).offsetParent !== null) return el;
-  }
-  return null;
-}
-
-import { cn } from "@/lib/utils";
 
 function measure(el: Element): Rect {
   const r = el.getBoundingClientRect();
@@ -356,21 +338,23 @@ function TourOverlay({
     const locate = () => {
       if (cancelled || stepGenRef.current !== stepGen) return;
       const isMobileSheet = isMobileTourSheet();
-      // 모바일 전용 셀렉터 미존재 시 데스크톱 셀렉터로 폴백(5/9 chart-first 등).
+      const viewChanged = prevStep != null && prevStep.view !== step.view;
+      const findRetries = viewChanged
+        ? TOUR_FIND_RETRIES_AFTER_VIEW_CHANGE
+        : TOUR_FIND_RETRIES;
+      // 모바일 전용 셀렉터 미존재 시 데스크톱 셀렉터로 폴백.
       const el =
-        findVisibleTourTarget(spotlightSelector) ??
-        (step.mobileSelector
-          ? findVisibleTourTarget(step.selector)
-          : null);
-      if (el && (el as HTMLElement).offsetParent !== null) {
+        findBestTourTarget(spotlightSelector) ??
+        (step.mobileSelector ? findBestTourTarget(step.selector) : null);
+      if (el) {
         targetRef.current = el;
         if (step.accentSelector) {
           const useMobileAlt =
             isMobileSheet && Boolean(step.mobileSelector);
           if (!useMobileAlt) {
             accentRef.current =
-              el.querySelector(step.accentSelector) ??
-              document.querySelector(step.accentSelector);
+              (el.querySelector(step.accentSelector) as Element | null) ??
+              findBestTourTarget(step.accentSelector);
           } else {
             accentRef.current = null;
           }
@@ -379,8 +363,8 @@ function TourOverlay({
         }
 
         void (isMobileSheet
-          ? finalizeMobileStep(el as HTMLElement)
-          : finalizeDesktopStep(el as HTMLElement));
+          ? finalizeMobileStep(el)
+          : finalizeDesktopStep(el));
         return;
       }
       if (step.skipIfMissing) {
@@ -390,7 +374,7 @@ function TourOverlay({
         return;
       }
       attempts += 1;
-      if (attempts >= FIND_RETRIES) {
+      if (attempts >= findRetries) {
         const next = stepIdx + dirRef.current;
         if (next < 0 || next >= TOUR_STEPS.length) finish(true);
         else setStepIdx(next);
@@ -549,26 +533,20 @@ function TourOverlay({
       }
     : null;
 
-  // 툴팁 배치 — 대상 아래 우선, 공간 부족 시 위. 가로는 뷰포트 안으로 클램프.
-  let tooltipStyle: React.CSSProperties;
-  if (mobileSheet) {
-    tooltipStyle = { left: 8, right: 8, bottom: mobileSheetBottom };
-  } else if (hole) {
-    const left = Math.min(Math.max(hole.left, 12), Math.max(12, vw - tooltipW - 12));
-    const spaceBelow = vh - (hole.top + hole.height);
-    if (spaceBelow >= 260 || hole.top < 220) {
-      tooltipStyle = { left, top: Math.min(hole.top + hole.height + 12, vh - 120), width: tooltipW };
-    } else {
-      tooltipStyle = { left, bottom: vh - hole.top + 12, width: tooltipW };
-    }
-  } else {
-    tooltipStyle = { left: "50%", top: "40%", transform: "translate(-50%,-50%)", width: tooltipW };
-  }
+  const tooltipPlacement = placeTourTooltip({
+    hole,
+    vw,
+    vh,
+    tooltipW,
+    mobileSheet,
+    mobileSheetBottom,
+  });
+  const tooltipStyle: React.CSSProperties = tooltipPlacement.style;
 
   return createPortal(
     <div
       className={cn(
-        "fixed z-[9990] overflow-hidden",
+        "fixed z-[9990]",
         portalBounds ? "" : "inset-0",
       )}
       style={
@@ -586,26 +564,27 @@ function TourOverlay({
       aria-modal="true"
       aria-label="기능 안내 투어"
     >
-      {/* 딤 + 스포트라이트 홀 */}
-      {hole ? (
-        <div
-          className={cn(
-            "farm-tour-hole pointer-events-none absolute rounded-xl",
-            mobileSheet && "farm-tour-hole--mobile",
-          )}
-          data-settling={settling ? "true" : undefined}
-          style={{
-            top: hole.top,
-            left: hole.left,
-            width: hole.width,
-            height: hole.height,
-            boxShadow: "0 0 0 200vmax rgba(9, 12, 20, 0.62)",
-          }}
-          aria-hidden
-        />
-      ) : (
-        <div className="absolute inset-0 bg-[rgba(9,12,20,0.62)]" aria-hidden />
-      )}
+      {/* 딤 + 스포트라이트 홀 — overflow는 딤 레이어만(툴팁 잘림 방지) */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        {hole ? (
+          <div
+            className={cn(
+              "farm-tour-hole absolute rounded-xl",
+              mobileSheet && "farm-tour-hole--mobile",
+            )}
+            data-settling={settling ? "true" : undefined}
+            style={{
+              top: hole.top,
+              left: hole.left,
+              width: hole.width,
+              height: hole.height,
+              boxShadow: "0 0 0 200vmax rgba(9, 12, 20, 0.62)",
+            }}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-[rgba(9,12,20,0.62)]" />
+        )}
+      </div>
       {/* 클릭 차단 레이어(홀 포함 전체) */}
       <div className="absolute inset-0" aria-hidden />
 
@@ -623,19 +602,17 @@ function TourOverlay({
         />
       ) : null}
 
-      {/* 툴팁 */}
+      {/* 툴팁 — 헤더/본문 스크롤/푸터 분리로 버튼 잘림 방지 */}
       <div
         ref={tooltipRef}
         className={cn(
-          "farm-tour-tooltip absolute overflow-y-auto rounded-xl border bg-card text-card-foreground shadow-2xl",
-          mobileSheet
-            ? "max-h-[min(52dvh,calc(var(--vvh,52dvh)*0.52))] p-5"
-            : "max-h-[75vh] p-6",
+          "farm-tour-tooltip absolute flex flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-2xl",
+          mobileSheet ? "p-5" : "p-6",
         )}
         style={tooltipStyle}
         data-mobile={mobileSheet ? "true" : undefined}
       >
-        <div className={cn("flex items-center gap-2", mobileSheet ? "mb-1.5" : "mb-2")}>
+        <div className={cn("flex shrink-0 items-center gap-2", mobileSheet ? "mb-1.5" : "mb-2")}>
           <span
             className={cn(
               "font-semibold tabular-nums text-muted-foreground",
@@ -657,52 +634,55 @@ function TourOverlay({
             <X className={mobileSheet ? "size-3.5" : "size-4"} aria-hidden />
           </button>
         </div>
-        <p
-          className={cn(
-            "font-bold leading-snug",
-            mobileSheet ? "text-base" : "text-lg",
-          )}
-        >
-          {step.title}
-        </p>
-        <p
-          className={cn(
-            "leading-relaxed text-muted-foreground",
-            mobileSheet ? "mt-1 text-sm" : "mt-1.5 text-[0.9375rem]",
-          )}
-        >
-          {step.body}
-        </p>
-        {step.bullets && step.bullets.length > 0 ? (
-          <ul
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <p
             className={cn(
-              "list-disc space-y-1 pl-4 text-muted-foreground",
-              mobileSheet ? "mt-1.5 text-sm leading-snug" : "mt-2 text-[0.9375rem] leading-snug",
+              "font-bold leading-snug",
+              mobileSheet ? "text-base" : "text-lg",
             )}
           >
-            {step.bullets.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        ) : null}
-        {step.extra === "anatomy" ? (
-          <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="anatomy">
-            <GaugeAnatomy compact={mobileSheet} />
-          </div>
-        ) : null}
-        {step.extra === "pills" ? (
-          <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="pills">
-            <PanelPillsGuide compact={mobileSheet} />
-          </div>
-        ) : null}
-        {step.extra === "header-icons" ? (
-          <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="header-icons">
-            <HeaderIconsGuide compact={mobileSheet} />
-          </div>
-        ) : null}
+            {step.title}
+          </p>
+          <p
+            className={cn(
+              "leading-relaxed text-muted-foreground",
+              mobileSheet ? "mt-1 text-sm" : "mt-1.5 text-[0.9375rem]",
+            )}
+          >
+            {step.body}
+          </p>
+          {step.bullets && step.bullets.length > 0 ? (
+            <ul
+              className={cn(
+                "list-disc space-y-1 pl-4 text-muted-foreground",
+                mobileSheet ? "mt-1.5 text-sm leading-snug" : "mt-2 text-[0.9375rem] leading-snug",
+              )}
+            >
+              {step.bullets.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+          {step.extra === "anatomy" ? (
+            <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="anatomy">
+              <GaugeAnatomy compact={mobileSheet} />
+            </div>
+          ) : null}
+          {step.extra === "pills" ? (
+            <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="pills">
+              <PanelPillsGuide compact={mobileSheet} />
+            </div>
+          ) : null}
+          {step.extra === "header-icons" ? (
+            <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="header-icons">
+              <HeaderIconsGuide compact={mobileSheet} />
+            </div>
+          ) : null}
+        </div>
 
         <div
           className={cn(
+            "shrink-0",
             mobileSheet ? "mt-3 flex flex-col gap-2.5" : "mt-4 flex items-center gap-1.5",
           )}
         >

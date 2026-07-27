@@ -236,7 +236,7 @@ export function subscribeTourViewportResize(
 export function estimateMobileTooltipHeight(
   viewport = getTourViewport(),
 ): number {
-  return Math.min(viewport.height * 0.52, 340);
+  return Math.min(viewport.height * 0.58, 360);
 }
 
 export function resolveTooltipHeight(
@@ -503,16 +503,190 @@ export function resolveTourStepSelector(
   return selector;
 }
 
+/**
+ * offsetParent===null(fixed 등)을 가시로 오인하지 않도록 getBoundingClientRect 기준.
+ * 스크롤로 아직 안 보이는 타깃도 "존재"로 인정(크기만 확인).
+ */
+export function isTourElementPresent(el: Element): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (typeof el.checkVisibility === "function") {
+    try {
+      if (
+        !el.checkVisibility({
+          checkOpacity: true,
+          checkVisibilityCSS: true,
+        })
+      ) {
+        return false;
+      }
+    } catch {
+      /* Safari 구버전 옵션 미지원 */
+    }
+  }
+  const style = getComputedStyle(el);
+  if (
+    style.display === "none" ||
+    style.visibility === "hidden" ||
+    Number(style.opacity) === 0
+  ) {
+    return false;
+  }
+  const r = el.getBoundingClientRect();
+  return r.width >= 2 && r.height >= 2;
+}
+
+/** 셀렉터 매치 중 뷰포트 교차 면적이 가장 큰 요소(없으면 첫 present). */
+export function findBestTourTarget(selector: string): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  const candidates: HTMLElement[] = [];
+  for (const node of document.querySelectorAll(selector)) {
+    if (isTourElementPresent(node)) candidates.push(node as HTMLElement);
+  }
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  const vv = getTourViewport();
+  const viewTop = vv.top;
+  const viewBottom = vv.top + vv.height;
+  const viewLeft = vv.left;
+  const viewRight = vv.left + vv.width;
+
+  let best = candidates[0];
+  let bestScore = -1;
+  for (const el of candidates) {
+    const r = el.getBoundingClientRect();
+    const ih = Math.max(
+      0,
+      Math.min(r.bottom, viewBottom) - Math.max(r.top, viewTop),
+    );
+    const iw = Math.max(
+      0,
+      Math.min(r.right, viewRight) - Math.max(r.left, viewLeft),
+    );
+    const score = ih * iw > 0 ? ih * iw : r.width * r.height * 0.01;
+    if (score > bestScore) {
+      bestScore = score;
+      best = el;
+    }
+  }
+  return best;
+}
+
+export function countPresentTourTargets(selector: string): number {
+  if (typeof document === "undefined") return 0;
+  let n = 0;
+  for (const node of document.querySelectorAll(selector)) {
+    if (isTourElementPresent(node)) n += 1;
+  }
+  return n;
+}
+
 /** 스크롤 anchor — mobileScrollSelector가 있으면 스포트라이트와 분리. */
 export function resolveTourScrollTarget(
   spotlightEl: HTMLElement,
   mobileScrollSelector?: string,
 ): HTMLElement {
   if (!isMobileTourSheet() || !mobileScrollSelector) return spotlightEl;
-  for (const node of document.querySelectorAll(mobileScrollSelector)) {
-    if ((node as HTMLElement).offsetParent !== null) {
-      return node as HTMLElement;
-    }
+  return findBestTourTarget(mobileScrollSelector) ?? spotlightEl;
+}
+
+export type TourTooltipPlacement = {
+  style: {
+    left?: number | string;
+    right?: number | string;
+    top?: number | string;
+    bottom?: number | string;
+    width?: number | string;
+    maxHeight?: number | string;
+    transform?: string;
+  };
+  /** 하단 도킹 — 큰 타깃·공간 부족 시 */
+  docked: boolean;
+};
+
+/**
+ * 설명 카드가 뷰포트 밖으로 잘리지 않게 배치.
+ * hole이 크거나 상·하 여백이 부족하면 하단 도킹.
+ */
+export function placeTourTooltip(opts: {
+  hole: { top: number; left: number; width: number; height: number } | null;
+  vw: number;
+  vh: number;
+  tooltipW: number;
+  mobileSheet: boolean;
+  mobileSheetBottom: string;
+}): TourTooltipPlacement {
+  const { hole, vw, vh, tooltipW, mobileSheet, mobileSheetBottom } = opts;
+
+  if (mobileSheet) {
+    return {
+      style: {
+        left: 8,
+        right: 8,
+        bottom: mobileSheetBottom,
+        maxHeight: "min(58dvh, calc(var(--vvh, 58dvh) * 0.58))",
+      },
+      docked: true,
+    };
   }
-  return spotlightEl;
+
+  const gap = 12;
+  const edge = 12;
+  const maxH = Math.min(Math.round(vh * 0.42), 400);
+  const clampLeft = (raw: number) =>
+    Math.min(Math.max(raw, edge), Math.max(edge, vw - tooltipW - edge));
+
+  if (!hole) {
+    return {
+      style: {
+        left: "50%",
+        top: "42%",
+        transform: "translate(-50%, -50%)",
+        width: tooltipW,
+        maxHeight: maxH,
+      },
+      docked: true,
+    };
+  }
+
+  const spaceBelow = vh - (hole.top + hole.height) - gap;
+  const spaceAbove = hole.top - gap;
+  const holeLarge = hole.height > vh * 0.42;
+  const preferDock = holeLarge || (spaceBelow < 200 && spaceAbove < 200);
+
+  if (preferDock) {
+    return {
+      style: {
+        left: clampLeft((vw - tooltipW) / 2),
+        bottom: edge,
+        width: tooltipW,
+        maxHeight: maxH,
+      },
+      docked: true,
+    };
+  }
+
+  if (spaceBelow >= Math.min(220, maxH) || spaceBelow >= spaceAbove) {
+    const top = Math.min(hole.top + hole.height + gap, vh - maxH - edge);
+    return {
+      style: {
+        left: clampLeft(hole.left),
+        top: Math.max(edge, top),
+        width: tooltipW,
+        maxHeight: Math.min(maxH, Math.max(160, vh - Math.max(edge, top) - edge)),
+      },
+      docked: false,
+    };
+  }
+
+  const bottom = Math.max(edge, vh - hole.top + gap);
+  return {
+    style: {
+      left: clampLeft(hole.left),
+      bottom,
+      width: tooltipW,
+      maxHeight: Math.min(maxH, Math.max(160, vh - bottom - edge)),
+    },
+    docked: false,
+  };
 }

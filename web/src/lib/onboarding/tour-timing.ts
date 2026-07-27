@@ -11,6 +11,10 @@ export const TOUR_GRID_ACTION_TIMEOUT_MS = 620;
 export const TOUR_EXTRA_MIN_HEIGHT = 120;
 export const TOUR_REVEAL_MAX_ATTEMPTS = 4;
 export const TOUR_FIND_INTERVAL_MS = 50;
+/** 동일 뷰 내 타깃 탐색 재시도(× FIND_INTERVAL). */
+export const TOUR_FIND_RETRIES = 40;
+/** 맵↔목록 전환 직후 — 목록 카드 마운트 대기. */
+export const TOUR_FIND_RETRIES_AFTER_VIEW_CHANGE = 80;
 export const TOUR_READY_INTERVAL_MS = 50;
 /** 자동 투어 — 콘텐츠 ready 최대 대기(ms). 초과 시 시작하지 않음. */
 export const TOUR_AUTO_READY_GIVE_UP_MS = 45_000;
