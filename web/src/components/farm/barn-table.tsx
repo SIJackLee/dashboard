@@ -68,6 +68,7 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { isFilterAll } from "@/lib/ui/filter-all";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
 import {
   afterFrames,
@@ -652,7 +653,7 @@ export function BarnTable({
       <SectionCard
         className={cn(
           listRefreshRing &&
-            "ring-2 ring-emerald-500/25 transition-shadow duration-300",
+            cn("ring-2 ring-emerald-500/25", motionClass.surfaceRing),
         )}
         action={
           showHeaderToolbar ? (

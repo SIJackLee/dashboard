@@ -14,6 +14,7 @@ import {
 import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state";
 import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
@@ -228,7 +229,8 @@ export function FarmMapMobileStage({
             <div
               key={b.meta.id}
               className={cn(
-                "flex min-w-0 flex-col transition-all duration-200",
+                "flex min-w-0 flex-col",
+                motionClass.surfaceRing,
                 isExpanded && "rounded-lg ring-2 ring-sky-500/50 ring-offset-1",
               )}
             >

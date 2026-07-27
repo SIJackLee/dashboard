@@ -31,6 +31,7 @@ import {
 } from "@/components/common/inline-status-toast";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { GridMetricLabel } from "@/lib/farm/grid-metric-label";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 const FarmMapBulkApply = dynamic(
@@ -515,7 +516,8 @@ export function FarmMapCanvas({
               data-col={col}
               data-row={row}
               className={cn(
-                "z-0 min-h-[3.25rem] rounded-md border border-transparent transition-colors",
+                "z-0 min-h-[3.25rem] rounded-md border border-transparent",
+                motionClass.microHover,
                 isTarget && "border-emerald-400 bg-emerald-50/60"
               )}
               style={{ gridColumn: col, gridRow: row }}
@@ -536,7 +538,9 @@ export function FarmMapCanvas({
               data-col={col}
               data-row={row}
               className={cn(
-                "relative z-20 flex min-h-0 min-w-0 flex-col self-start transition-all duration-300 ease-out",
+                "relative z-20 flex min-h-0 min-w-0 flex-col self-start",
+                motionClass.transitionLayout,
+                motionClass.easeEnter,
                 isTarget && "rounded-lg ring-2 ring-emerald-400 ring-offset-1",
                 expanded?.barnId === b.meta.id &&
                   "rounded-lg ring-2 ring-sky-500/50 ring-offset-1",

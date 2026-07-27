@@ -6,6 +6,7 @@ import {
   TREND_PERIODS,
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 export const TREND_PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
@@ -74,7 +75,8 @@ export function TrendPeriodToggle({
               startTransition(() => onChange(p));
             }}
             className={cn(
-              "inline-flex items-center gap-1 font-medium transition-colors disabled:cursor-wait",
+              "inline-flex items-center gap-1 font-medium disabled:cursor-wait",
+              motionClass.microInteractive,
               isMap
                 ? "px-2.5 py-1"
                 : "shrink-0 px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm",

@@ -27,6 +27,7 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { EnvChip } from "@/components/common/env-chip";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 
@@ -279,7 +280,8 @@ function SpBulkChipRow({
             type="button"
             onClick={() => onToggleSp(sp.stallTyCode)}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium",
+              motionClass.microHover,
               selected
                 ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
                 : "border-border bg-background text-muted-foreground hover:bg-muted/50"
@@ -450,7 +452,9 @@ export function BarnListSummary({
           <section
             key={sp.stallTyCode}
             className={cn(
-              "min-w-0 overflow-hidden rounded-xl border bg-muted/20 transition-opacity",
+              "min-w-0 overflow-hidden rounded-xl border bg-muted/20",
+              motionClass.transitionOpacity,
+              motionClass.durationNormal,
               bulkMode && !spSelected && "opacity-50"
             )}
           >

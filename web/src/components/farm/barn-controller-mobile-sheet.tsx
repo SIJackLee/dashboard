@@ -226,7 +226,8 @@ export function BarnControllerMobileSheet({
               aria-selected={viewPage === p.id}
               onClick={() => selectTab(p.id)}
               className={cn(
-                "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold transition-colors",
+                "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold",
+                motionClass.microInteractive,
                 viewPage === p.id
                   ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
                   : "border-border bg-background text-muted-foreground hover:bg-muted",
@@ -251,7 +252,8 @@ export function BarnControllerMobileSheet({
             className={cn(
               "barn-controller-mobile-sheet-track flex w-[200%] items-start will-change-transform",
               !dragging && motionClass.durationModerate,
-              !dragging && "transition-transform ease-out",
+              !dragging && motionClass.transitionTransform,
+              !dragging && motionClass.easeEnter,
             )}
             style={{ transform: trackTransform }}
           >

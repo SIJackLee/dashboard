@@ -32,6 +32,7 @@ import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 export function statusRingClass(status: ControllerStatus): string {
@@ -41,7 +42,10 @@ export function statusRingClass(status: ControllerStatus): string {
 }
 
 const headerTogglePillClass =
-  "inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3.5 text-sm font-semibold leading-snug transition-colors";
+  cn(
+    "inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border px-3.5 text-sm font-semibold leading-snug",
+    motionClass.microHover,
+  );
 
 const headerTogglePillActiveClass = {
   channelTrend: "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300",
@@ -400,7 +404,10 @@ function ChannelCell({
     expanded &&
       "border-sky-500/60 bg-sky-500/5 ring-1 ring-sky-500/30",
     interactive &&
-      "cursor-pointer transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      cn(
+        "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        motionClass.microHover,
+      )
   );
 
   const inner = (

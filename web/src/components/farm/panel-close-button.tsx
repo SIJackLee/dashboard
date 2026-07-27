@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -15,7 +16,8 @@ export function PanelCloseButton({ onClick, className, size = "md" }: Props) {
       onClick={onClick}
       aria-label="닫기"
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        "inline-flex shrink-0 items-center justify-center rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground",
+        motionClass.microInteractive,
         size === "sm" ? "size-7" : "size-8",
         className,
       )}

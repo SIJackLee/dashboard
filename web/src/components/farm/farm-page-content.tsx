@@ -337,7 +337,8 @@ export function FarmPageContent({
             aria-busy={viewPending && view === "map" ? true : undefined}
             disabled={viewPending}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors disabled:cursor-wait",
+              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium disabled:cursor-wait",
+              motionClass.microInteractive,
               tabNavClass,
               view === "map"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
@@ -359,7 +360,8 @@ export function FarmPageContent({
             aria-busy={viewPending && view === "list" ? true : undefined}
             disabled={viewPending}
             className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium transition-colors disabled:cursor-wait",
+              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium disabled:cursor-wait",
+              motionClass.microInteractive,
               tabNavClass,
               view === "list"
                 ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"

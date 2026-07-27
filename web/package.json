@@ -19,6 +19,7 @@
     "audit:ship-checklist": "node scripts/ship-checklist-audit.mjs",
     "audit:farm-command": "node scripts/farm-command-audit.mjs",
     "audit:health-drilldown": "node scripts/health-drilldown-audit.mjs",
+    "verify:motion-tokens": "node scripts/verify-motion-tokens.mjs",
     "set:test-passwords": "node scripts/set-test-passwords.mjs"
   },
   "dependencies": {

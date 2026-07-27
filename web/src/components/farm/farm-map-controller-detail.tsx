@@ -26,6 +26,7 @@ import { GridMetricLabel, gridMetricAriaLabel } from "@/lib/farm/grid-metric-lab
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { controllerKeyForReadingKey } from "@/lib/farm/use-barn-graphs";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 /** 지표(행) 탭 — 히트맵 행과 동일한 순서/라벨. */
@@ -363,7 +364,8 @@ export function FarmMapControllerDetail({
                 onClick={() => onChangeMetric(t.id)}
                 aria-label={gridMetricAriaLabel(t.id, t.label)}
                 className={cn(
-                  "flex min-w-[2rem] items-center justify-center px-2 py-1 font-medium transition-colors",
+                  "flex min-w-[2rem] items-center justify-center px-2 py-1 font-medium",
+                  motionClass.microHover,
                   effectiveMetricId === t.id
                     ? "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
                     : "text-muted-foreground hover:bg-muted",
@@ -419,7 +421,8 @@ export function FarmMapControllerDetail({
                   onClick={() => selectController(c.key)}
                   aria-pressed={isSel}
                   className={cn(
-                    "flex flex-col rounded-md border bg-background p-2 text-left transition-colors hover:border-sky-400",
+                    "flex flex-col rounded-md border bg-background p-2 text-left hover:border-sky-400",
+                    motionClass.microHover,
                     isSel && "border-sky-500 ring-2 ring-sky-500/30",
                     !isSel && worst === "warning" && "border-red-500/50",
                     !isSel && worst === "caution" && "border-amber-500/50",

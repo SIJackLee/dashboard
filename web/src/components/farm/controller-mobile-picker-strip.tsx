@@ -9,6 +9,7 @@ import {
   stallLabelFromKey,
 } from "@/lib/data/reading-hierarchy";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -121,7 +122,8 @@ export function ControllerMobilePickerStrip({
               aria-current={selected ? "true" : undefined}
               onClick={() => onSelect(r.key)}
               className={cn(
-                "controller-mobile-picker-item inline-flex min-w-[5.5rem] shrink-0 snap-center flex-col items-start rounded-lg border px-2.5 py-1.5 text-left transition-colors",
+                "controller-mobile-picker-item inline-flex min-w-[5.5rem] shrink-0 snap-center flex-col items-start rounded-lg border px-2.5 py-1.5 text-left",
+                motionClass.microHover,
                 selected
                   ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200"
                   : "border-border bg-background text-muted-foreground hover:bg-muted/50",

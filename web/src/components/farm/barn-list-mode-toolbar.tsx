@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 const MODES: { id: BarnListViewMode; label: string; short: string }[] = [
@@ -68,7 +69,8 @@ export function BarnListModeToolbar({
             aria-busy={modeBusy || undefined}
             disabled={disabled}
             className={cn(
-              "inline-flex min-h-8 items-center justify-center gap-1 border-border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-wait sm:min-h-11 sm:px-3 sm:text-sm md:px-4 md:text-[1.75rem]",
+              "inline-flex min-h-8 items-center justify-center gap-1 border-border px-2.5 py-1.5 text-xs font-medium disabled:cursor-wait sm:min-h-11 sm:px-3 sm:text-sm md:px-4 md:text-[1.75rem]",
+              motionClass.microInteractive,
               index > 0 && "border-l",
               selected
                 ? "bg-background text-foreground dark:border-primary/40 dark:bg-primary/10 dark:text-primary"

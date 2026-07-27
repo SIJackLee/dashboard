@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -31,7 +32,8 @@ export function SettingsCollapsibleSection({
       <button
         type="button"
         className={cn(
-          "flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors",
+          "flex w-full items-center gap-2 px-3 py-2.5 text-left",
+          motionClass.microHover,
           open ? "bg-muted/40" : "hover:bg-muted/30",
         )}
         aria-expanded={open}

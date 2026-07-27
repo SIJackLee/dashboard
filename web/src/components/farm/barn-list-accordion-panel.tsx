@@ -35,6 +35,7 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 
 /** 목록 카드 설정 패널 — 그래프 패널 차트 라벨과 동일 스케일 */
 const LIST_PANEL_META = "text-xs tabular-nums text-muted-foreground";
@@ -271,7 +272,8 @@ export function BarnListAccordionPanel({
               aria-selected={selected}
               disabled={isSaving}
               className={cn(
-                "inline-flex min-h-8 items-center justify-center px-3 py-1.5 text-xs font-medium transition-colors",
+                "inline-flex min-h-8 items-center justify-center px-3 py-1.5 text-xs font-medium",
+                motionClass.microHover,
                 index > 0 && "border-l border-border",
                 selected
                   ? "bg-background text-foreground"

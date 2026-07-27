@@ -969,7 +969,8 @@ export function FarmMapBulkApply({
                             key={slot}
                             title={`채널 ${slot}`}
                             className={cn(
-                              "inline-flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors md:px-3 md:py-2",
+                              "inline-flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 md:px-3 md:py-2",
+                              motionClass.microHover,
                               checked
                                 ? "border-emerald-600/40 bg-emerald-50 text-foreground dark:bg-emerald-950/40"
                                 : "bg-muted/20 text-muted-foreground hover:bg-muted/40",
@@ -1112,13 +1113,15 @@ export function FarmMapBulkApply({
             aria-label={bulkMode ? "일괄적용 종료" : "일괄적용 시작"}
             onClick={() => (bulkMode ? onExit() : onEnter())}
             className={cn(
-              "relative h-5 w-9 shrink-0 rounded-full transition-colors md:h-6 md:w-11",
+              "relative h-5 w-9 shrink-0 rounded-full md:h-6 md:w-11",
+              motionClass.microHover,
               bulkMode ? "bg-emerald-600" : "bg-muted-foreground/30"
             )}
           >
             <span
               className={cn(
-                "absolute top-0.5 size-4 rounded-full bg-white transition-all md:top-0.5 md:size-5",
+                "absolute top-0.5 size-4 rounded-full bg-white md:top-0.5 md:size-5",
+                "transition-[left] duration-motion-normal ease-[var(--motion-ease-standard)]",
                 bulkMode ? "left-[1.125rem] md:left-[1.375rem]" : "left-0.5"
               )}
             />

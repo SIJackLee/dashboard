@@ -563,6 +563,73 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   animation: ui-motion-modal-in var(--motion-duration-normal) var(--motion-ease-enter) both;
 }
 
+/** L2 — fade enter (surface·inline panel) */
+.ui-motion-enter-fade {
+  animation: ui-motion-fade-in var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+/** L2 — fade exit */
+@keyframes ui-motion-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.ui-motion-exit-fade {
+  animation: ui-motion-fade-out var(--motion-duration-exit) var(--motion-ease-exit) both;
+}
+
+/** L2 — slide up enter (toast·list item) */
+@keyframes ui-motion-slide-up-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance-md));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ui-motion-enter-slide-up {
+  animation: ui-motion-slide-up-in var(--motion-duration-normal) var(--motion-ease-enter) both;
+}
+
+/** L2 — grid-rows panel expand (shell + data-open) */
+.ui-motion-panel-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-duration-moderate) var(--motion-ease-standard);
+}
+
+.ui-motion-panel-expand[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.ui-motion-panel-expand-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/** L2 — stagger item (style.animationDelay 로 offset) */
+@keyframes ui-motion-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance-md));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ui-motion-stagger-in {
+  animation: ui-motion-stagger-in var(--motion-duration-moderate) var(--motion-ease-enter) both;
+}
+
 .ui-motion-command-overlay {
   transition: opacity var(--motion-duration-normal) var(--motion-ease-standard);
 }
@@ -624,11 +691,19 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   .ui-motion-nav-overlay,
   .ui-motion-modal-backdrop,
   .ui-motion-modal-panel,
+  .ui-motion-enter-fade,
+  .ui-motion-exit-fade,
+  .ui-motion-enter-slide-up,
+  .ui-motion-stagger-in,
   .ui-motion-command-overlay,
   .ui-motion-command-card,
   .ui-motion-soft-refresh-bar {
     animation: none !important;
     transition: none !important;
+  }
+
+  .ui-motion-panel-expand {
+    transition: none;
   }
 
   .settings-collapsible-body {
