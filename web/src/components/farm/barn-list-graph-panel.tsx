@@ -26,7 +26,7 @@ import {
   resolveReadingAlarmThresholds,
 } from "@/lib/farm/controller-summary-display";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
-import { BarnChannelGraphSection } from "@/components/farm/barn-channel-graph-section";
+import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import {
   downsampleTrendAxis,
@@ -239,11 +239,12 @@ export function BarnListGraphPanel({
             />
           </div>
           {showChannels ? (
-            <BarnChannelGraphSection
+            <BarnChannelTrendPanel
               reading={reading}
               controllerTrendByPeriod={controllerTrendByPeriod}
               period={period}
               thermoSettings={thermoSettings}
+              layout="split"
             />
           ) : null}
         </div>
