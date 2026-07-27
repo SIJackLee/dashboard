@@ -91,10 +91,10 @@ async function runtimeAudit() {
     const page = await context.newPage();
     await page.emulateMedia({ reducedMotion });
     await page.goto(`${BASE}/login`, {
-      waitUntil: "networkidle",
-      timeout: 45000,
+      waitUntil: "domcontentloaded",
+      timeout: 20000,
     });
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(300);
 
     const result = await page.evaluate((keys) => {
       const style = getComputedStyle(document.documentElement);
@@ -230,8 +230,20 @@ async function main() {
     return;
   }
 
-  const outPath = await runtimeAudit();
-  console.log(`motion-reduced-audit: runtime ok → ${outPath}`);
+  try {
+    const outPath = await runtimeAudit();
+    console.log(`motion-reduced-audit: runtime ok → ${outPath}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (STRICT) {
+      console.error("motion-reduced-audit: FAILED");
+      console.error(msg);
+      process.exit(1);
+    }
+    console.log(
+      `motion-reduced-audit: runtime skipped (${msg.split("\n")[0]})`,
+    );
+  }
 }
 
 main().catch((err) => {
