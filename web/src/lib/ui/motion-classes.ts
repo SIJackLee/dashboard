@@ -76,6 +76,10 @@ export const motionClass = {
   /** Emphasis — 확대 상세 morph */
   emphasisMorph: "farm-heat-morph",
 
+  /** 그리드 상세 — 컨트롤러 좌/우 전환 */
+  detailSlideNext: "farm-detail-slide-next",
+  detailSlidePrev: "farm-detail-slide-prev",
+
   /** Command pipeline / soft refresh (기존 surfaces) */
   commandOverlay: "ui-motion-command-overlay",
   commandCard: "ui-motion-command-card",

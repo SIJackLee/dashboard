@@ -124,6 +124,8 @@ export function FarmMapControllerDetail({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelPeriod, setPanelPeriod] = useState<TrendPeriodId>(period);
   const [prevPeriod, setPrevPeriod] = useState(period);
+  /** null = 첫 진입 morph · -1/1 = 좌우 전환 슬라이드 */
+  const [navDir, setNavDir] = useState<-1 | 1 | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const controllerCardRef = useRef<HTMLDivElement | null>(null);
 
@@ -286,10 +288,12 @@ export function FarmMapControllerDetail({
   const selectController = (key: string) => {
     if (selectedKey === key) {
       setSelectedKey(null);
+      setNavDir(null);
       closeMobileSheet();
       syncSelectedReadingKey(null);
       return;
     }
+    setNavDir(null);
     setSelectedKey(key);
     const reading = controllers.find((c) => c.key === key)?.reading;
     syncSelectedReadingKey(reading?.key ?? null);
@@ -312,6 +316,7 @@ export function FarmMapControllerDetail({
       if (selectedIndex < 0) return;
       const next = controllers[selectedIndex + delta];
       if (!next) return;
+      setNavDir(delta);
       setSelectedKey(next.key);
       onSelectedReadingKeyChange?.(next.reading?.key ?? null);
       if (isMobileStack && !sheetOpenRef.current) {
@@ -502,7 +507,17 @@ export function FarmMapControllerDetail({
 
           {selected ? (
             selected.reading ? (
-              <div ref={controllerCardRef} className="farm-heat-morph mt-3 space-y-3">
+              <div
+                key={selected.key}
+                ref={controllerCardRef}
+                className={cn(
+                  "mt-3 space-y-3",
+                  navDir === 1 && motionClass.detailSlideNext,
+                  navDir === -1 && motionClass.detailSlidePrev,
+                  navDir == null && motionClass.emphasisMorph,
+                )}
+                data-nav-dir={navDir ?? "enter"}
+              >
                 {controllers.length > 1 ? (
                   <div
                     className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5"

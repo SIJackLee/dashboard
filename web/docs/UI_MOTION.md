@@ -115,6 +115,7 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | `ui-motion-command-overlay` / `ui-motion-command-card` | command pipeline |
 | `settings-collapsible-*` | 설정 collapsible |
 | `farm-heat-morph` | 그리드 확대 morph |
+| `farm-detail-slide-next` / `farm-detail-slide-prev` | 그리드 상세 컨트롤러 좌우 전환 |
 | `barn-list-panel-shell` | 목록 패널 (domain, Phase 2) |
 
 ---

@@ -967,6 +967,47 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
+/* ── 그리드 상세 — 컨트롤러 좌우 전환 ── */
+
+@keyframes farm-detail-slide-next {
+  0% {
+    opacity: 0;
+    transform: translateX(var(--motion-distance-md));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes farm-detail-slide-prev {
+  0% {
+    opacity: 0;
+    transform: translateX(calc(var(--motion-distance-md) * -1));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.farm-detail-slide-next {
+  animation: farm-detail-slide-next var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+.farm-detail-slide-prev {
+  animation: farm-detail-slide-prev var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farm-detail-slide-next,
+  .farm-detail-slide-prev {
+    animation: none;
+  }
+}
+
 /* ── 로그인 스플래시 (F4: 로고 페이드 + 점 3개) ── */
 
 @keyframes login-splash-logo-in {
