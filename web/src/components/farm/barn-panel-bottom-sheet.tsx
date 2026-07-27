@@ -65,13 +65,16 @@ export function BarnPanelBottomSheet({
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) {
-      setDragY(0);
-      setDragging(false);
-      startYRef.current = null;
-    }
-  }, [open]);
+  const resetDrag = useCallback(() => {
+    setDragY(0);
+    setDragging(false);
+    startYRef.current = null;
+  }, []);
+
+  const handleClose = useCallback(() => {
+    resetDrag();
+    onClose();
+  }, [onClose, resetDrag]);
 
   const onHandleTouchStart = useCallback((e: ReactTouchEvent) => {
     const t = e.touches[0];
@@ -93,12 +96,11 @@ export function BarnPanelBottomSheet({
     startYRef.current = null;
     setDragging(false);
     if (dy >= DISMISS_DRAG_PX) {
-      setDragY(0);
-      onClose();
+      handleClose();
       return;
     }
     setDragY(0);
-  }, [dragY, onClose]);
+  }, [dragY, handleClose]);
 
   if (!open) return null;
 
@@ -111,7 +113,7 @@ export function BarnPanelBottomSheet({
           eventDetails.cancel();
           return;
         }
-        onClose();
+        handleClose();
       }}
     >
       <DialogContent
