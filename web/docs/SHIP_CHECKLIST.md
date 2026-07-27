@@ -20,7 +20,7 @@
 
 ## 공통
 
-- [x] 로그인 → `/farm` 진입, FARM01 LIVE(임신/분만/자돈) 표시 — `audit:ship-checklist` · `ship-p0-gate-smoke` (2026-07-24)
+- [x] 로그인 → `/farm` 진입, FARM01 LIVE(임신/분만/자돈) 표시 — `audit:ship-checklist` · `ship-p0-gate-smoke` (2026-07-28)
 - [x] 빈 SP·위치만 농장이 제품 화면에 이질감 없이 처리 — LIVE SP만 표시·위치만 뱃지 (제품화 반영)
 - [x] DevTools / Next 이슈 배지에 **hydration mismatch 없음** — Playwright Chromium cold load + 테마 토글 (`ship-p0-gate-smoke`, 2026-07-24)
 

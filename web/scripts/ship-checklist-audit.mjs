@@ -51,8 +51,16 @@ async function smokeAdmin(page) {
   await page.waitForTimeout(2500);
   assert(await hasLiveBarns(page), "admin /farm: LIVE 축사(임신/분만/자돈) 없음");
 
-  const opsLink = page.getByRole("link", { name: /^운영$/ }).first();
-  assert(await opsLink.isVisible().catch(() => false), "admin: 운영 링크 없음");
+  // 헤더 tools — 운영은 AppNavLink 버튼 (레거시 단독 링크 제거)
+  const tools = page.locator('[data-tour-id="header-tools"]').first();
+  assert(await tools.isVisible().catch(() => false), "admin: 헤더 도구 없음");
+  await tools.click();
+  await page.waitForTimeout(400);
+  const opsBtn = page.locator('[data-tour-id="header-ops"]').first();
+  assert(
+    await opsBtn.isVisible().catch(() => false),
+    "admin: 헤더 도구 내 운영 진입점 없음",
+  );
 
   await page.goto(`${BASE}/admin/ops`, { waitUntil: "load" });
   await page.waitForTimeout(1500);
@@ -124,6 +132,10 @@ async function smokeViewer(page) {
   assert(
     !(await opsNav.isVisible().catch(() => false)),
     "viewer: 운영 링크가 보이면 안 됨",
+  );
+  assert(
+    !(await page.locator('[data-tour-id="header-ops"]').isVisible().catch(() => false)),
+    "viewer: 헤더 운영 진입점이 보이면 안 됨",
   );
 
   await openListControllerSettings(page);
