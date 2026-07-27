@@ -195,6 +195,8 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --motion-distance-sm: 4px;
   --motion-distance-md: 8px;
   --motion-distance-lg: 16px;
+  /* 그리드 상세 컨트롤러 캐러셀 슬라이드 거리 */
+  --motion-distance-slide: 28%;
 }
 
 .dark {
@@ -967,12 +969,37 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 그리드 상세 — 컨트롤러 좌우 전환 ── */
+/* ── 그리드 상세 — 컨트롤러 캐러셀 (enter + exit 겹침) ── */
 
-@keyframes farm-detail-slide-next {
+.farm-detail-carousel {
+  position: relative;
+  overflow: hidden;
+}
+
+.farm-detail-carousel-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem; /* space-y-3 */
+}
+
+.farm-detail-carousel-layer[data-role="exit"] {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 1;
+  width: 100%;
+  pointer-events: none;
+}
+
+.farm-detail-carousel-layer[data-role="enter"] {
+  position: relative;
+  z-index: 2;
+}
+
+@keyframes farm-detail-slide-enter-next {
   0% {
-    opacity: 0;
-    transform: translateX(var(--motion-distance-md));
+    opacity: 0.35;
+    transform: translateX(var(--motion-distance-slide));
   }
   100% {
     opacity: 1;
@@ -980,10 +1007,10 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-@keyframes farm-detail-slide-prev {
+@keyframes farm-detail-slide-enter-prev {
   0% {
-    opacity: 0;
-    transform: translateX(calc(var(--motion-distance-md) * -1));
+    opacity: 0.35;
+    transform: translateX(calc(var(--motion-distance-slide) * -1));
   }
   100% {
     opacity: 1;
@@ -991,17 +1018,64 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
+@keyframes farm-detail-slide-exit-next {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(calc(var(--motion-distance-slide) * -1));
+  }
+}
+
+@keyframes farm-detail-slide-exit-prev {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--motion-distance-slide));
+  }
+}
+
+.farm-detail-slide-enter-next {
+  animation: farm-detail-slide-enter-next var(--motion-duration-emphasis)
+    var(--motion-ease-enter) both;
+}
+
+.farm-detail-slide-enter-prev {
+  animation: farm-detail-slide-enter-prev var(--motion-duration-emphasis)
+    var(--motion-ease-enter) both;
+}
+
+.farm-detail-slide-exit-next {
+  animation: farm-detail-slide-exit-next var(--motion-duration-emphasis)
+    var(--motion-ease-exit) both;
+}
+
+.farm-detail-slide-exit-prev {
+  animation: farm-detail-slide-exit-prev var(--motion-duration-emphasis)
+    var(--motion-ease-exit) both;
+}
+
+/* 하위 호환 alias (단일 enter만 쓰던 경로) */
 .farm-detail-slide-next {
-  animation: farm-detail-slide-next var(--motion-duration-moderate)
+  animation: farm-detail-slide-enter-next var(--motion-duration-emphasis)
     var(--motion-ease-enter) both;
 }
 
 .farm-detail-slide-prev {
-  animation: farm-detail-slide-prev var(--motion-duration-moderate)
+  animation: farm-detail-slide-enter-prev var(--motion-duration-emphasis)
     var(--motion-ease-enter) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .farm-detail-slide-enter-next,
+  .farm-detail-slide-enter-prev,
+  .farm-detail-slide-exit-next,
+  .farm-detail-slide-exit-prev,
   .farm-detail-slide-next,
   .farm-detail-slide-prev {
     animation: none;

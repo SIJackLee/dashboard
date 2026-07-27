@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  type AnimationEvent,
+} from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
@@ -46,12 +53,27 @@ function isFeatureTourActive(): boolean {
   );
 }
 
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
 export type FarmMapControllerDetailController = {
   key: string;
   eqpmnNo: string;
   label: string;
   reading: BarnReading | null;
   metricsById: Record<string, StackMetric>;
+};
+
+type ExitingSlide = {
+  controller: FarmMapControllerDetailController;
+  dir: -1 | 1;
+  token: number;
+  index: number;
+  total: number;
 };
 
 export type FarmMapControllerDetailData = {
@@ -124,14 +146,23 @@ export function FarmMapControllerDetail({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [panelPeriod, setPanelPeriod] = useState<TrendPeriodId>(period);
   const [prevPeriod, setPrevPeriod] = useState(period);
+  const [prevLabel, setPrevLabel] = useState(label);
   /** null = 첫 진입 morph · -1/1 = 좌우 전환 슬라이드 */
   const [navDir, setNavDir] = useState<-1 | 1 | null>(null);
+  const [exiting, setExiting] = useState<ExitingSlide | null>(null);
+  const exitTokenRef = useRef(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const controllerCardRef = useRef<HTMLDivElement | null>(null);
 
   if (period !== prevPeriod) {
     setPrevPeriod(period);
     setPanelPeriod(period);
+  }
+
+  if (label !== prevLabel) {
+    setPrevLabel(label);
+    setExiting(null);
+    setNavDir(null);
   }
 
   const panelLayoutVariant = viewportCompact
@@ -276,6 +307,8 @@ export function FarmMapControllerDetail({
   const selectControllerFromPicker = (readingKey: string) => {
     const ctrlKey = resolveControllerKey(readingKey);
     if (ctrlKey) {
+      setExiting(null);
+      setNavDir(null);
       setSelectedKey(ctrlKey);
       syncSelectedReadingKey(readingKey);
       // picker 전환 — sheet 유지, 표시 컨트롤러만 변경
@@ -289,11 +322,13 @@ export function FarmMapControllerDetail({
     if (selectedKey === key) {
       setSelectedKey(null);
       setNavDir(null);
+      setExiting(null);
       closeMobileSheet();
       syncSelectedReadingKey(null);
       return;
     }
     setNavDir(null);
+    setExiting(null);
     setSelectedKey(key);
     const reading = controllers.find((c) => c.key === key)?.reading;
     syncSelectedReadingKey(reading?.key ?? null);
@@ -314,9 +349,23 @@ export function FarmMapControllerDetail({
   const navigateAdjacent = useCallback(
     (delta: -1 | 1) => {
       if (selectedIndex < 0) return;
+      const outgoing = controllers[selectedIndex];
       const next = controllers[selectedIndex + delta];
-      if (!next) return;
-      setNavDir(delta);
+      if (!outgoing || !next) return;
+      if (!prefersReducedMotion()) {
+        const token = ++exitTokenRef.current;
+        setExiting({
+          controller: outgoing,
+          dir: delta,
+          token,
+          index: selectedIndex,
+          total: controllers.length,
+        });
+        setNavDir(delta);
+      } else {
+        setExiting(null);
+        setNavDir(null);
+      }
       setSelectedKey(next.key);
       onSelectedReadingKeyChange?.(next.reading?.key ?? null);
       if (isMobileStack && !sheetOpenRef.current) {
@@ -330,6 +379,15 @@ export function FarmMapControllerDetail({
       openMobileSheet,
       onSelectedReadingKeyChange,
     ],
+  );
+
+  const handleExitAnimationEnd = useCallback(
+    (event: AnimationEvent<HTMLDivElement>, token: number) => {
+      if (event.target !== event.currentTarget) return;
+      if (token !== exitTokenRef.current) return;
+      setExiting(null);
+    },
+    [],
   );
 
   const canGoPrev = selectedIndex > 0;
@@ -508,132 +566,132 @@ export function FarmMapControllerDetail({
           {selected ? (
             selected.reading ? (
               <div
-                key={selected.key}
                 ref={controllerCardRef}
-                className={cn(
-                  "mt-3 space-y-3",
-                  navDir === 1 && motionClass.detailSlideNext,
-                  navDir === -1 && motionClass.detailSlidePrev,
-                  navDir == null && motionClass.emphasisMorph,
-                )}
+                className={cn("mt-3", motionClass.detailCarousel)}
                 data-nav-dir={navDir ?? "enter"}
               >
-                {controllers.length > 1 ? (
+                {exiting?.controller.reading ? (
                   <div
-                    className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5"
-                    data-tour-id="detail-controller-nav"
+                    key={`exit-${exiting.controller.key}-${exiting.token}`}
+                    className={cn(
+                      motionClass.detailCarouselLayer,
+                      exiting.dir === 1
+                        ? motionClass.detailSlideExitNext
+                        : motionClass.detailSlideExitPrev,
+                    )}
+                    data-role="exit"
+                    aria-hidden
+                    onAnimationEnd={(event) =>
+                      handleExitAnimationEnd(event, exiting.token)
+                    }
                   >
-                    <button
-                      type="button"
-                      disabled={!canGoPrev}
-                      aria-label="이전 컨트롤러"
-                      onClick={() => navigateAdjacent(-1)}
-                      className={cn(
-                        "inline-flex size-8 shrink-0 items-center justify-center rounded-md border",
-                        motionClass.microInteractive,
-                        canGoPrev
-                          ? "hover:bg-muted"
-                          : "cursor-not-allowed opacity-40",
-                      )}
-                    >
-                      <ChevronLeft className="size-4" aria-hidden />
-                    </button>
-                    <div className="min-w-0 flex-1 text-center">
-                      <p className="truncate text-sm font-semibold">
-                        {selected.label}
-                      </p>
-                      <p className="text-[0.65rem] text-muted-foreground">
-                        {selectedIndex + 1} / {controllers.length}
-                        {selected.eqpmnNo
-                          ? ` · ${selected.eqpmnNo}번`
-                          : ""}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={!canGoNext}
-                      aria-label="다음 컨트롤러"
-                      onClick={() => navigateAdjacent(1)}
-                      className={cn(
-                        "inline-flex size-8 shrink-0 items-center justify-center rounded-md border",
-                        motionClass.microInteractive,
-                        canGoNext
-                          ? "hover:bg-muted"
-                          : "cursor-not-allowed opacity-40",
-                      )}
-                    >
-                      <ChevronRight className="size-4" aria-hidden />
-                    </button>
+                    <ControllerDetailSlideBody
+                      controller={exiting.controller}
+                      index={exiting.index}
+                      total={exiting.total}
+                      showNav={exiting.total > 1}
+                      interactive={false}
+                      readings={readings}
+                      thermoSettings={thermoSettings}
+                      commands={commands}
+                      canCommand={canCommand}
+                      alarmSettings={alarmSettings}
+                      controllerTrendByPeriod={controllerTrendByPeriod}
+                      period={period}
+                      panelPeriod={panelPeriod}
+                      onPanelPeriodChange={setPanelPeriod}
+                      onPeriodChange={onPeriodChange}
+                      trendLoading={trendLoading}
+                      trendStale={trendStale}
+                      gridCols={gridCols}
+                      panelLayoutVariant={panelLayoutVariant}
+                      graphExpanded={false}
+                      settingsExpanded={false}
+                      showDesktopGraph={!isMobileStack}
+                    />
                   </div>
                 ) : null}
-                <ControllerSummaryGaugeRow
-                  reading={selected.reading}
-                  readings={readings}
-                  thermoSettings={thermoSettings}
-                  commands={commands}
-                  canCommand={canCommand}
-                  alarmSettings={alarmSettings}
-                  controllerTrendByPeriod={controllerTrendByPeriod}
-                  bulkPeriod={period}
-                  panelPeriodOverrides={{ [selected.reading.key]: panelPeriod }}
-                  onPanelPeriodChange={(_, p) => setPanelPeriod(p)}
-                  hideGraphToggle={!isMobileStack}
-                  panelPlacement="right"
-                  gridCols={gridCols}
-                  panelLayoutVariant={panelLayoutVariant}
-                  graphExpanded={isMobileStack ? mobileGraphOpen : false}
-                  settingsExpanded={
-                    isMobileStack ? mobileSettingsOpen : settingsOpen
-                  }
-                  onToggleGraph={() => {
-                    if (sheetHosted && isMobileStack) {
-                      if (hostedMobileSheetOpen && hostedMobileSheetPage === 0) {
-                        onHostedMobileSheetOpenChange?.(false);
-                      } else {
-                        openMobileSheet(0);
-                      }
-                      return;
-                    }
-                    setSettingsOpen(false);
-                    setGraphOpen((v) => !v);
-                  }}
-                  onToggleSettings={() => {
-                    if (sheetHosted && isMobileStack) {
-                      if (hostedMobileSheetOpen && hostedMobileSheetPage === 1) {
-                        onHostedMobileSheetOpenChange?.(false);
-                      } else {
-                        openMobileSheet(1);
-                      }
-                      return;
-                    }
-                    setGraphOpen(false);
-                    setSettingsOpen((v) => !v);
-                  }}
-                  onSheetPageChange={
-                    isMobileStack ? handleSheetPageChange : undefined
-                  }
-                  sheetPickerReadings={
-                    isMobileStack ? readings : undefined
-                  }
-                  onSheetPickerSelect={
-                    isMobileStack ? selectControllerFromPicker : undefined
-                  }
-                  showSheetPickerAffiliation={isMobileStack}
-                  suppressPerCardMobileSheet={sheetHosted && isMobileStack}
-                />
-                {!isMobileStack ? (
-                  <BarnListGraphPanel
-                    reading={selected.reading}
-                    controllerTrendByPeriod={controllerTrendByPeriod ?? null}
-                    period={period}
-                    onPeriodChange={onPeriodChange ?? (() => {})}
-                    alarmSettings={alarmSettings}
+                <div
+                  key={selected.key}
+                  className={cn(
+                    motionClass.detailCarouselLayer,
+                    navDir === 1 && motionClass.detailSlideEnterNext,
+                    navDir === -1 && motionClass.detailSlideEnterPrev,
+                    navDir == null && !exiting && motionClass.emphasisMorph,
+                  )}
+                  data-role="enter"
+                >
+                  <ControllerDetailSlideBody
+                    controller={selected}
+                    index={selectedIndex}
+                    total={controllers.length}
+                    showNav={controllers.length > 1}
+                    interactive
+                    canGoPrev={canGoPrev}
+                    canGoNext={canGoNext}
+                    onNavigate={navigateAdjacent}
+                    readings={readings}
                     thermoSettings={thermoSettings}
-                    loading={trendLoading}
-                    stale={trendStale}
+                    commands={commands}
+                    canCommand={canCommand}
+                    alarmSettings={alarmSettings}
+                    controllerTrendByPeriod={controllerTrendByPeriod}
+                    period={period}
+                    panelPeriod={panelPeriod}
+                    onPanelPeriodChange={setPanelPeriod}
+                    onPeriodChange={onPeriodChange}
+                    trendLoading={trendLoading}
+                    trendStale={trendStale}
+                    gridCols={gridCols}
+                    panelLayoutVariant={panelLayoutVariant}
+                    hideGraphToggle={!isMobileStack}
+                    graphExpanded={isMobileStack ? mobileGraphOpen : false}
+                    settingsExpanded={
+                      isMobileStack ? mobileSettingsOpen : settingsOpen
+                    }
+                    onToggleGraph={() => {
+                      if (sheetHosted && isMobileStack) {
+                        if (
+                          hostedMobileSheetOpen &&
+                          hostedMobileSheetPage === 0
+                        ) {
+                          onHostedMobileSheetOpenChange?.(false);
+                        } else {
+                          openMobileSheet(0);
+                        }
+                        return;
+                      }
+                      setSettingsOpen(false);
+                      setGraphOpen((v) => !v);
+                    }}
+                    onToggleSettings={() => {
+                      if (sheetHosted && isMobileStack) {
+                        if (
+                          hostedMobileSheetOpen &&
+                          hostedMobileSheetPage === 1
+                        ) {
+                          onHostedMobileSheetOpenChange?.(false);
+                        } else {
+                          openMobileSheet(1);
+                        }
+                        return;
+                      }
+                      setGraphOpen(false);
+                      setSettingsOpen((v) => !v);
+                    }}
+                    onSheetPageChange={
+                      isMobileStack ? handleSheetPageChange : undefined
+                    }
+                    sheetPickerReadings={isMobileStack ? readings : undefined}
+                    onSheetPickerSelect={
+                      isMobileStack ? selectControllerFromPicker : undefined
+                    }
+                    showSheetPickerAffiliation={isMobileStack}
+                    suppressPerCardMobileSheet={sheetHosted && isMobileStack}
+                    showDesktopGraph={!isMobileStack}
                     showChannelSection={!settingsOpen}
                   />
-                ) : null}
+                </div>
               </div>
             ) : (
               <div className="mt-3 rounded-md border bg-background px-3 py-4 text-center text-xs text-muted-foreground">
@@ -644,5 +702,177 @@ export function FarmMapControllerDetail({
         </>
       )}
     </div>
+  );
+}
+
+type ControllerDetailSlideBodyProps = {
+  controller: FarmMapControllerDetailController;
+  index: number;
+  total: number;
+  showNav: boolean;
+  interactive: boolean;
+  canGoPrev?: boolean;
+  canGoNext?: boolean;
+  onNavigate?: (delta: -1 | 1) => void;
+  readings: BarnReading[];
+  thermoSettings: Record<string, ControllerThermoSettings>;
+  commands: ThermoCommand[];
+  canCommand: boolean;
+  alarmSettings?: AlarmSettings;
+  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
+  period: TrendPeriodId;
+  panelPeriod: TrendPeriodId;
+  onPanelPeriodChange: (period: TrendPeriodId) => void;
+  onPeriodChange?: (period: TrendPeriodId) => void;
+  trendLoading: boolean;
+  trendStale: boolean;
+  gridCols?: number;
+  panelLayoutVariant: "stack" | "grid";
+  hideGraphToggle?: boolean;
+  graphExpanded: boolean;
+  settingsExpanded: boolean;
+  onToggleGraph?: () => void;
+  onToggleSettings?: () => void;
+  onSheetPageChange?: (page: ControllerMobileSheetPage) => void;
+  sheetPickerReadings?: BarnReading[];
+  onSheetPickerSelect?: (readingKey: string) => void;
+  showSheetPickerAffiliation?: boolean;
+  suppressPerCardMobileSheet?: boolean;
+  showDesktopGraph: boolean;
+  showChannelSection?: boolean;
+};
+
+function ControllerDetailSlideBody({
+  controller,
+  index,
+  total,
+  showNav,
+  interactive,
+  canGoPrev = false,
+  canGoNext = false,
+  onNavigate,
+  readings,
+  thermoSettings,
+  commands,
+  canCommand,
+  alarmSettings,
+  controllerTrendByPeriod,
+  period,
+  panelPeriod,
+  onPanelPeriodChange,
+  onPeriodChange,
+  trendLoading,
+  trendStale,
+  gridCols,
+  panelLayoutVariant,
+  hideGraphToggle = false,
+  graphExpanded,
+  settingsExpanded,
+  onToggleGraph,
+  onToggleSettings,
+  onSheetPageChange,
+  sheetPickerReadings,
+  onSheetPickerSelect,
+  showSheetPickerAffiliation,
+  suppressPerCardMobileSheet,
+  showDesktopGraph,
+  showChannelSection = true,
+}: ControllerDetailSlideBodyProps) {
+  const reading = controller.reading;
+  if (!reading) return null;
+
+  return (
+    <>
+      {showNav ? (
+        <div
+          className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5"
+          data-tour-id={interactive ? "detail-controller-nav" : undefined}
+        >
+          <button
+            type="button"
+            disabled={!interactive || !canGoPrev}
+            aria-label="이전 컨트롤러"
+            tabIndex={interactive ? undefined : -1}
+            onClick={() => onNavigate?.(-1)}
+            className={cn(
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-md border",
+              motionClass.microInteractive,
+              interactive && canGoPrev
+                ? "hover:bg-muted"
+                : "cursor-not-allowed opacity-40",
+            )}
+          >
+            <ChevronLeft className="size-4" aria-hidden />
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <p className="truncate text-sm font-semibold">{controller.label}</p>
+            <p className="text-[0.65rem] text-muted-foreground">
+              {index + 1} / {total}
+              {controller.eqpmnNo ? ` · ${controller.eqpmnNo}번` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={!interactive || !canGoNext}
+            aria-label="다음 컨트롤러"
+            tabIndex={interactive ? undefined : -1}
+            onClick={() => onNavigate?.(1)}
+            className={cn(
+              "inline-flex size-8 shrink-0 items-center justify-center rounded-md border",
+              motionClass.microInteractive,
+              interactive && canGoNext
+                ? "hover:bg-muted"
+                : "cursor-not-allowed opacity-40",
+            )}
+          >
+            <ChevronRight className="size-4" aria-hidden />
+          </button>
+        </div>
+      ) : null}
+      <ControllerSummaryGaugeRow
+        reading={reading}
+        readings={readings}
+        thermoSettings={thermoSettings}
+        commands={commands}
+        canCommand={interactive && canCommand}
+        alarmSettings={alarmSettings}
+        controllerTrendByPeriod={controllerTrendByPeriod}
+        bulkPeriod={period}
+        panelPeriodOverrides={{ [reading.key]: panelPeriod }}
+        onPanelPeriodChange={
+          interactive ? (_, p) => onPanelPeriodChange(p) : undefined
+        }
+        hideGraphToggle={hideGraphToggle}
+        panelPlacement="right"
+        gridCols={gridCols}
+        panelLayoutVariant={panelLayoutVariant}
+        graphExpanded={graphExpanded}
+        settingsExpanded={settingsExpanded}
+        onToggleGraph={interactive ? onToggleGraph : undefined}
+        onToggleSettings={interactive ? onToggleSettings : undefined}
+        onSheetPageChange={interactive ? onSheetPageChange : undefined}
+        sheetPickerReadings={interactive ? sheetPickerReadings : undefined}
+        onSheetPickerSelect={interactive ? onSheetPickerSelect : undefined}
+        showSheetPickerAffiliation={showSheetPickerAffiliation}
+        suppressPerCardMobileSheet={suppressPerCardMobileSheet}
+      />
+      {showDesktopGraph ? (
+        <BarnListGraphPanel
+          reading={reading}
+          controllerTrendByPeriod={controllerTrendByPeriod ?? null}
+          period={period}
+          onPeriodChange={
+            interactive
+              ? (onPeriodChange ?? (() => {}))
+              : () => {}
+          }
+          alarmSettings={alarmSettings}
+          thermoSettings={thermoSettings}
+          loading={trendLoading}
+          stale={trendStale}
+          showChannelSection={showChannelSection}
+        />
+      ) : null}
+    </>
   );
 }

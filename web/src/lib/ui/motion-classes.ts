@@ -76,7 +76,14 @@ export const motionClass = {
   /** Emphasis — 확대 상세 morph */
   emphasisMorph: "farm-heat-morph",
 
-  /** 그리드 상세 — 컨트롤러 좌/우 전환 */
+  /** 그리드 상세 — 컨트롤러 캐러셀 enter/exit */
+  detailCarousel: "farm-detail-carousel",
+  detailCarouselLayer: "farm-detail-carousel-layer",
+  detailSlideEnterNext: "farm-detail-slide-enter-next",
+  detailSlideEnterPrev: "farm-detail-slide-enter-prev",
+  detailSlideExitNext: "farm-detail-slide-exit-next",
+  detailSlideExitPrev: "farm-detail-slide-exit-prev",
+  /** @deprecated enter-next/prev 별칭 — 캐러셀 전환 권장 */
   detailSlideNext: "farm-detail-slide-next",
   detailSlidePrev: "farm-detail-slide-prev",
 

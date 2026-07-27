@@ -25,6 +25,8 @@ export const motionDistance = {
   sm: 4,
   md: 8,
   lg: 16,
+  /** 캐러셀 슬라이드 — CSS `%` (`--motion-distance-slide`), px 아님 */
+  slidePercent: 28,
 } as const;
 
 /** 목록·카드 stagger 간격(ms) — PC·모바일 동일 리듬 */

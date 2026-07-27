@@ -54,6 +54,7 @@ L3  컴포넌트 (button, dialog, farm/* …)
 | `sm` | 4 |
 | `md` | 8 |
 | `lg` | 16 |
+| `slidePercent` | 28 (`--motion-distance-slide: 28%`, 캐러셀 전용) |
 
 Stagger step: **40ms** (`motionStaggerStepMs`) — PC·모바일 동일.
 
@@ -115,7 +116,10 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | `ui-motion-command-overlay` / `ui-motion-command-card` | command pipeline |
 | `settings-collapsible-*` | 설정 collapsible |
 | `farm-heat-morph` | 그리드 확대 morph |
-| `farm-detail-slide-next` / `farm-detail-slide-prev` | 그리드 상세 컨트롤러 좌우 전환 |
+| `farm-detail-carousel` | 컨트롤러 상세 캐러셀 클립 컨테이너 |
+| `farm-detail-slide-enter-next` / `enter-prev` | 캐러셀 enter (버튼 방향에서 진입) |
+| `farm-detail-slide-exit-next` / `exit-prev` | 캐러셀 exit (반대쪽으로 퇴장, enter와 겹침) |
+| `farm-detail-slide-next` / `farm-detail-slide-prev` | enter 별칭 (하위 호환) |
 | `barn-list-panel-shell` | 목록 패널 (domain, Phase 2) |
 
 ---
