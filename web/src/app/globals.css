@@ -1082,17 +1082,37 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 헤더 도구 패널 — 섹션 세로 stagger ── */
+/* ── 헤더 도구 패널 — 버튼 왼쪽 슬라이드 + 섹션 stagger ── */
+
+@keyframes header-tools-panel-in {
+  0% {
+    opacity: 0;
+    transform: translateX(var(--motion-distance-lg)) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
 
 @keyframes header-tools-section-in {
   0% {
     opacity: 0;
-    transform: translateY(calc(var(--motion-distance-md) * -1));
+    transform: translateX(var(--motion-distance-md));
   }
   100% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
   }
+}
+
+.header-tools-panel {
+  transform-origin: right center;
+}
+
+.header-tools-panel[data-open] {
+  animation: header-tools-panel-in var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
 }
 
 .header-tools-panel .header-tools-section {
@@ -1101,18 +1121,19 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 .header-tools-panel .header-tools-section:nth-child(1) {
-  animation-delay: 0ms;
+  animation-delay: 60ms;
 }
 
 .header-tools-panel .header-tools-section:nth-child(3) {
-  animation-delay: 40ms;
+  animation-delay: 100ms;
 }
 
 .header-tools-panel .header-tools-section:nth-child(5) {
-  animation-delay: 80ms;
+  animation-delay: 140ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .header-tools-panel[data-open],
   .header-tools-panel .header-tools-section {
     animation: none;
   }

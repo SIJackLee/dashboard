@@ -200,13 +200,18 @@ function TourOverlay({
         finish(true);
         return;
       }
+      const leaving = TOUR_STEPS[stepIdx];
+      const entering = TOUR_STEPS[next];
+      if (leaving?.id === "header" && entering?.id !== "header") {
+        dispatchGridAction("close-header-tools");
+      }
       stepGenRef.current += 1;
       tooltipRealignedRef.current = false;
       markTourStepSettling();
       setSettling(true);
       setStepIdx(next);
     },
-    [finish],
+    [finish, stepIdx],
   );
 
   // P2 — 투어 시작 시 모바일 브라우저 주소창 안정화(1회).

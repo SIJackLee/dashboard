@@ -44,6 +44,12 @@ import {
   type ViewportPreviewMode,
 } from "@/lib/ui/viewport-preview-store";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
+import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
+import {
+  afterFrames,
+  dispatchTourGridActionDone,
+  waitForTourTarget,
+} from "@/lib/onboarding/tour-timing";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -114,8 +120,29 @@ export function HeaderToolsMenu({
     ? "desktop"
     : "mobile";
 
+  const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [themeReady, setThemeReady] = useState(false);
+
+  useEffect(() => {
+    const onTourAction = (e: Event) => {
+      const action = (e as CustomEvent<{ action?: string }>).detail?.action;
+      if (action === "open-header-tools") setMenuOpen(true);
+      if (action === "close-header-tools") setMenuOpen(false);
+    };
+    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+  }, []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    void (async () => {
+      await afterFrames(2);
+      await waitForTourTarget('[data-tour-id="header-tools-panel"]');
+      dispatchTourGridActionDone("open-header-tools");
+    })();
+  }, [menuOpen]);
+
   useEffect(() => {
     queueMicrotask(() => {
       setTheme(
@@ -161,7 +188,7 @@ export function HeaderToolsMenu({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger
         className={cn(
           dashboardUi.topHeaderActionBtn,
@@ -175,11 +202,15 @@ export function HeaderToolsMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        side="bottom"
+        side="left"
         sideOffset={8}
         data-mobile-viewport-dropdown={viewportCompact || undefined}
         data-tour-id="header-tools-panel"
-        className="header-tools-panel w-[min(100vw-1rem,20rem)] p-2 md:w-[22rem]"
+        className={cn(
+          motionClass.headerToolsPanel,
+          "w-[min(100vw-1rem,20rem)] p-2 md:w-[22rem]",
+          "animate-none data-open:animate-none data-closed:animate-none",
+        )}
       >
         <DropdownMenuGroup className="header-tools-section">
           <DropdownMenuLabel className="px-2 py-1.5 text-[0.7rem] font-semibold tracking-wide text-muted-foreground uppercase">

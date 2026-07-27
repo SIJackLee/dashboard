@@ -160,7 +160,7 @@ const HEADER_ICON_ITEMS = [
   {
     key: "tools",
     label: "헤더 도구",
-    desc: "세로 점 아이콘을 누르면 알림 → 기능 → 스타일 순으로 펼쳐집니다.",
+    desc: "⋮ 버튼을 누르면 왼쪽으로 알림 → 기능 → 스타일 패널이 펼쳐집니다.",
     Icon: EllipsisVertical,
   },
   {

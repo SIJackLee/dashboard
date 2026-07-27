@@ -76,6 +76,9 @@ export const motionClass = {
   /** Emphasis — 확대 상세 morph */
   emphasisMorph: "farm-heat-morph",
 
+  /** 헤더 도구 패널 — 버튼 왼쪽 슬라이드 */
+  headerToolsPanel: "header-tools-panel",
+
   /** 그리드 상세 — 컨트롤러 캐러셀 enter/exit */
   detailCarousel: "farm-detail-carousel",
   detailCarouselLayer: "farm-detail-carousel-layer",

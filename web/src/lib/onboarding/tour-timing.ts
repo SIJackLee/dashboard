@@ -204,6 +204,10 @@ export function settleSelectorsForGridAction(
         '[data-audit-region="controller-mobile-sheet-settings"]',
         '[data-tour-id="controller-card"]',
       ];
+    case "open-header-tools":
+      return ['[data-tour-id="header-tools-panel"]'];
+    case "close-header-tools":
+      return ['[data-tour-id="header-tools"]'];
     default:
       return null;
   }
