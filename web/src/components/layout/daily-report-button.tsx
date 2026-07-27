@@ -140,7 +140,6 @@ export function DailyReportButton({
             ? cn(
                 dashboardUi.headerToolsCard,
                 "w-full",
-                dashboardUi.topHeaderActionBtnReport,
                 needsFarm && "opacity-40",
               )
             : presentation === "row"
