@@ -1,10 +1,22 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { legacyAdminHealthRedirectUrl } from "@/lib/admin/health/legacy-health-redirect";
 
 // 공개 경로(미인증 허용)
 const PUBLIC_PATHS = ["/login", "/auth"];
 
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  const legacyHealthTarget = legacyAdminHealthRedirectUrl(pathname);
+  if (legacyHealthTarget) {
+    const url = request.nextUrl.clone();
+    const target = new URL(legacyHealthTarget, request.nextUrl.origin);
+    url.pathname = target.pathname;
+    url.search = target.search;
+    return NextResponse.redirect(url);
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -39,8 +51,6 @@ export async function updateSession(request: NextRequest) {
     await supabase.auth.signOut();
     user = null;
   }
-
-  const { pathname } = request.nextUrl;
 
   if (pathname === "/admin/ops") {
     const legacyTab = request.nextUrl.searchParams.get("tab");
