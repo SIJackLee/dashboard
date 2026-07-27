@@ -11,9 +11,10 @@
  *   정상: s <= 0.85 · 주의: 0.85 < s <= 1 · 경고: s > 1
  *
  * 밴드 소스:
- *   온도 = 알람 tempLow ~ tempHigh (설정온도·편차는 환기 제어용, 알람 시각화에 미사용)
- *   습도 = 알람 humidityLow ~ humidityHigh
+ *   온도 = 알람 tempLow ~ tempHigh (점선) — 녹색 fill은 기간 관측 min~max
+ *   습도 = 알람 humidityLow ~ humidityHigh (점선)
  *   팬   = thermo.minVentPct ~ maxVentPct (없으면 자기 이력 통계 밴드로 폴백)
+ * 설정온도·편차는 환기 제어용, 알람 점선 시각화와 분리.
  */
 
 import type { AlarmThresholds } from "@/lib/data/alarms";
@@ -97,6 +98,21 @@ export function fanBand(
   if (!Number.isFinite(minVentPct) || !Number.isFinite(maxVentPct)) return null;
   if (maxVentPct <= minVentPct) return null;
   return { lo: minVentPct, hi: maxVentPct };
+}
+
+/**
+ * 기간 관측 편차 밴드 — 시리즈 min~max (그래프 녹색 fill용).
+ * 표본이 없거나 폭이 0이면 null.
+ */
+export function observedRangeBand(
+  values: (number | null | undefined)[],
+): Band | null {
+  const xs = values.filter((v): v is number => v != null && Number.isFinite(v));
+  if (xs.length === 0) return null;
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  if (!(hi > lo)) return null;
+  return { lo, hi };
 }
 
 /**

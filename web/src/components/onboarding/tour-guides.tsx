@@ -7,7 +7,7 @@
  * - HeaderIconsGuide: 상단 헤더 아이콘(테마·연결·알림·계정).
  */
 
-import { Bell, Moon, UserRound, Wifi } from "lucide-react";
+import { Bell, Cpu, EllipsisVertical, FileText, Moon, UserRound } from "lucide-react";
 
 const ANATOMY_ITEMS = [
   { n: 1, label: "현재값", desc: "주황 구간 — 지금 측정된 값" },
@@ -158,22 +158,34 @@ function cnBox(compact: boolean) {
 
 const HEADER_ICON_ITEMS = [
   {
-    key: "theme",
-    label: "라이트 · 다크",
-    desc: "달·태양 아이콘으로 화면 밝기를 전환합니다. 선택은 이 기기에 저장됩니다.",
-    Icon: Moon,
+    key: "tools",
+    label: "헤더 도구",
+    desc: "세로 점 아이콘을 누르면 알림 → 기능 → 스타일 순으로 펼쳐집니다.",
+    Icon: EllipsisVertical,
   },
   {
     key: "connectivity",
     label: "컨트롤러 연결",
-    desc: "WiFi 아이콘과 숫자는 등록된 컨트롤러 수입니다. 오프라인이 있으면 붉게 표시되며, 탭하면 연결·오프라인 대수를 확인할 수 있습니다.",
-    Icon: Wifi,
+    desc: "도구 메뉴 알림 구역. 컨트롤러 아이콘과 등록 대수·오프라인 현황을 확인합니다.",
+    Icon: Cpu,
   },
   {
     key: "alarms",
-    label: "알림",
-    desc: "벨 아이콘에서 센서·기상 알림을 확인합니다. 미확인 건수가 배지로 표시됩니다.",
+    label: "센서 알림",
+    desc: "도구 메뉴 알림 구역. 미확인 건수 배지와 최근 알림 목록을 봅니다.",
     Icon: Bell,
+  },
+  {
+    key: "ops-report",
+    label: "운영 · 일보",
+    desc: "도구 메뉴 기능 구역. 관리자는 운영 화면으로, 오늘의 리포트 PDF를 받을 수 있습니다.",
+    Icon: FileText,
+  },
+  {
+    key: "style",
+    label: "레이아웃 · 테마",
+    desc: "도구 메뉴 스타일 구역. PC/모바일 미리보기와 라이트/다크를 전환합니다.",
+    Icon: Moon,
   },
   {
     key: "account",
@@ -193,7 +205,7 @@ export function HeaderIconsGuide({ compact = false }: GuideProps) {
             : "mb-2 text-sm font-semibold text-muted-foreground"
         }
       >
-        상단 아이콘 안내
+        헤더 도구 안내
       </p>
       <ul className={compact ? "space-y-2" : "space-y-2.5"}>
         {HEADER_ICON_ITEMS.map((item) => (

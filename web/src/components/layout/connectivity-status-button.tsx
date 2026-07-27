@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { Wifi } from "lucide-react";
+import { Cpu } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,7 +63,7 @@ export function ConnectivityStatusButton({ overview }: Props) {
 
   const triggerBody = (
     <>
-      <Wifi className={dashboardUi.topHeaderOverlayIcon} aria-hidden />
+      <Cpu className={dashboardUi.topHeaderOverlayIcon} aria-hidden />
       {registered !== undefined ? (
         <span
           className={cn(

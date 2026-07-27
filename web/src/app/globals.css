@@ -1082,6 +1082,42 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
+/* ── 헤더 도구 패널 — 섹션 세로 stagger ── */
+
+@keyframes header-tools-section-in {
+  0% {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance-md) * -1));
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.header-tools-panel .header-tools-section {
+  animation: header-tools-section-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+.header-tools-panel .header-tools-section:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.header-tools-panel .header-tools-section:nth-child(3) {
+  animation-delay: 40ms;
+}
+
+.header-tools-panel .header-tools-section:nth-child(5) {
+  animation-delay: 80ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-tools-panel .header-tools-section {
+    animation: none;
+  }
+}
+
 /* ── 로그인 스플래시 (F4: 로고 페이드 + 점 3개) ── */
 
 @keyframes login-splash-logo-in {

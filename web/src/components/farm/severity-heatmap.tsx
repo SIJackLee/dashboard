@@ -8,6 +8,7 @@ import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   SEV_COLOR,
   SEV_LABEL,
+  observedRangeBand,
   severityScore,
   sevOfScore,
   type Band,
@@ -283,15 +284,27 @@ export function MetricLineChart({
     cur.push(`${x(i)},${y(v)}`);
   });
   if (cur.length > 1) segments.push(cur.join(" "));
+  const observed = observedRangeBand(values);
+  const obsTop = observed ? y(observed.hi) : null;
+  const obsBot = observed ? y(observed.lo) : null;
   const bandTop = band ? y(band.hi) : null;
   const bandBot = band ? y(band.lo) : null;
   return (
     <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="지표 상세 추이" style={{ display: "block" }}>
+      {observed && obsTop != null && obsBot != null ? (
+        <rect
+          x={0}
+          y={obsTop}
+          width={W}
+          height={Math.max(0, obsBot - obsTop)}
+          fill={SEV_COLOR.normal}
+          fillOpacity={0.1}
+        />
+      ) : null}
       {band && bandTop != null && bandBot != null ? (
         <>
-          <rect x={0} y={bandTop} width={W} height={Math.max(0, bandBot - bandTop)} fill={SEV_COLOR.normal} fillOpacity={0.1} />
-          <line x1={0} y1={bandTop} x2={W} y2={bandTop} stroke={SEV_COLOR.warning} strokeDasharray="4 3" strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
-          <line x1={0} y1={bandBot} x2={W} y2={bandBot} stroke={SEV_COLOR.warning} strokeDasharray="4 3" strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
+          <line x1={0} y1={bandTop} x2={W} y2={bandTop} stroke={SEV_COLOR.warning} strokeDasharray="4 3" strokeOpacity={0.65} vectorEffect="non-scaling-stroke" />
+          <line x1={0} y1={bandBot} x2={W} y2={bandBot} stroke={SEV_COLOR.warning} strokeDasharray="4 3" strokeOpacity={0.65} vectorEffect="non-scaling-stroke" />
         </>
       ) : null}
       {segments.map((pts, i) => (

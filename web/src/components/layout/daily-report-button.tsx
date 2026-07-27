@@ -23,6 +23,8 @@ type Props = {
   /** SSR PageShell 값 — shallow 농장 전환 시 stale 할 수 있음 */
   farmKey: FarmKey | null;
   alarmCount?: number;
+  /** icon = 헤더 단독 버튼 · row = 도구 메뉴 행 */
+  presentation?: "icon" | "row";
 };
 
 const NO_FARM_TOAST =
@@ -34,7 +36,11 @@ function resolveReportFarmKey(serverFarmKey: FarmKey | null): FarmKey | null {
   return fromUrl ?? serverFarmKey;
 }
 
-export function DailyReportButton({ farmKey: serverFarmKey, alarmCount = 0 }: Props) {
+export function DailyReportButton({
+  farmKey: serverFarmKey,
+  alarmCount = 0,
+  presentation = "icon",
+}: Props) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{
@@ -128,9 +134,17 @@ export function DailyReportButton({ farmKey: serverFarmKey, alarmCount = 0 }: Pr
       <button
         type="button"
         className={cn(
-          dashboardUi.topHeaderActionBtn,
-          dashboardUi.topHeaderActionBtnReport,
-          needsFarm && "opacity-40",
+          presentation === "row"
+            ? cn(
+                "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
+                dashboardUi.topHeaderActionBtnReport,
+                needsFarm && "opacity-40",
+              )
+            : cn(
+                dashboardUi.topHeaderActionBtn,
+                dashboardUi.topHeaderActionBtnReport,
+                needsFarm && "opacity-40",
+              ),
         )}
         data-tour-id="header-daily-report"
         aria-label={
@@ -148,10 +162,13 @@ export function DailyReportButton({ farmKey: serverFarmKey, alarmCount = 0 }: Pr
         onClick={run}
       >
         {busy ? (
-          <Loader2 className="size-4 animate-spin md:size-5" aria-hidden />
+          <Loader2 className="size-4 shrink-0 animate-spin md:size-5" aria-hidden />
         ) : (
-          <FileText className="size-4 md:size-5" aria-hidden />
+          <FileText className="size-4 shrink-0 md:size-5" aria-hidden />
         )}
+        {presentation === "row" ? (
+          <span className="font-medium">오늘의 리포트</span>
+        ) : null}
       </button>
       <InlineStatusToast
         message={toast?.message ?? null}

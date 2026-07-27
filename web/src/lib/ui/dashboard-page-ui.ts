@@ -137,7 +137,7 @@ export const dashboardUi = {
   topBadgeDot: "size-2.5 shrink-0 rounded-full",
   topBadgeIcon: "size-5 shrink-0",
   topIconBtn: "relative rounded-lg p-3 hover:bg-muted",
-  /** ThemeToggle · WiFi · 알람 — bordered 헤더 액션 버튼 */
+  /** ThemeToggle · 도구 메뉴 · 알람 — bordered 헤더 액션 버튼 */
   topHeaderActionBtn:
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:size-11",
   topHeaderActionBtnAlert:
@@ -146,7 +146,7 @@ export const dashboardUi = {
   topHeaderActionBtnReport:
     "border-red-300/70 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 disabled:opacity-40 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60 dark:hover:text-red-300",
   topBellIcon: "size-7",
-  /** WiFi · 알람 bell 아이콘 (배지 오버레이용) */
+  /** 컨트롤러 · 알람 bell 아이콘 (배지 오버레이용) */
   topHeaderOverlayIcon: "size-7",
   topHeaderCountBadge:
     "absolute -right-0.5 -top-0.5 flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full px-0.5 text-[10px] font-bold leading-none tabular-nums text-white lg:min-h-[1.5rem] lg:min-w-[1.5rem] lg:px-1 lg:text-[1rem]",

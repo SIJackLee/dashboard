@@ -6,6 +6,7 @@ import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
 import {
   type Band,
+  observedRangeBand,
   SEV_COLOR,
   sevOfScore,
   severityScore,
@@ -19,7 +20,10 @@ export type TrendSeries = {
   /** Hex color for line/bar/legend. */
   color: string;
   axis?: TrendAxis;
-  /** 알람/환기 밴드 — fill + 주의·경고 마커 (MetricLineChart와 동일). */
+  /**
+   * 알람/환기 한계 — 점선 + 주의·경고 마커.
+   * 녹색 fill은 기간 관측 편차(`observedRangeBand`)로 별도 렌더.
+   */
   band?: Band | null;
 };
 
@@ -225,8 +229,8 @@ export function TrendChart({
     return out;
   }, [autoTick, n]);
 
-  /** 동일 axis·밴드는 한 번만 fill (채널 A/B/C 중복 방지). */
-  const uniqueBands = useMemo(() => {
+  /** 알람/한계 점선 — 동일 axis·밴드 1회. */
+  const uniqueAlarmBands = useMemo(() => {
     const seen = new Set<string>();
     const out: { band: Band; axis: TrendAxis }[] = [];
     for (const s of series) {
@@ -239,6 +243,37 @@ export function TrendChart({
     }
     return out;
   }, [series]);
+
+  /** 기간 관측 편차(min~max) — 녹색 fill, axis별 1회. */
+  const observedBands = useMemo(() => {
+    const byAxis = new Map<TrendAxis, (number | null)[]>();
+    for (const s of series) {
+      const axis = s.axis ?? "left";
+      const list = byAxis.get(axis) ?? [];
+      list.push(...s.data);
+      byAxis.set(axis, list);
+    }
+    const out: { band: Band; axis: TrendAxis }[] = [];
+    for (const [axis, data] of byAxis) {
+      const band = observedRangeBand(data);
+      if (band) out.push({ band, axis });
+    }
+    return out;
+  }, [series]);
+
+  /** referenceLines 중 알람 band 모서리와 중복되는 점선 제거. */
+  const dedupedReferenceLines = useMemo(() => {
+    if (uniqueAlarmBands.length === 0) return referenceLines;
+    return referenceLines.filter((ref) => {
+      const axis = ref.axis ?? "left";
+      return !uniqueAlarmBands.some(
+        ({ band, axis: bandAxis }) =>
+          bandAxis === axis &&
+          (Math.abs(band.lo - ref.value) < 1e-6 ||
+            Math.abs(band.hi - ref.value) < 1e-6),
+      );
+    });
+  }, [referenceLines, uniqueAlarmBands]);
 
   if (!hasAny || n === 0) {
     return (
@@ -296,19 +331,29 @@ export function TrendChart({
         aria-label="추이 차트"
       >
         {mode === "line"
-          ? uniqueBands.map(({ band, axis }, idx) => {
+          ? observedBands.map(({ band, axis }, idx) => {
               const yTop = yFor(band.hi, axis);
               const yBot = yFor(band.lo, axis);
               return (
-                <g key={`band-${idx}`}>
-                  <rect
-                    x={PAD_X}
-                    y={yTop}
-                    width={innerW}
-                    height={Math.max(0, yBot - yTop)}
-                    fill={SEV_COLOR.normal}
-                    fillOpacity={0.1}
-                  />
+                <rect
+                  key={`obs-${idx}`}
+                  x={PAD_X}
+                  y={yTop}
+                  width={innerW}
+                  height={Math.max(0, yBot - yTop)}
+                  fill={SEV_COLOR.normal}
+                  fillOpacity={0.1}
+                />
+              );
+            })
+          : null}
+
+        {mode === "line"
+          ? uniqueAlarmBands.map(({ band, axis }, idx) => {
+              const yTop = yFor(band.hi, axis);
+              const yBot = yFor(band.lo, axis);
+              return (
+                <g key={`alarm-${idx}`}>
                   <line
                     x1={PAD_X}
                     x2={VIEW_W - PAD_X}
@@ -317,7 +362,7 @@ export function TrendChart({
                     stroke={SEV_COLOR.warning}
                     strokeWidth={0.5}
                     strokeDasharray="2 1.5"
-                    strokeOpacity={0.5}
+                    strokeOpacity={0.65}
                     vectorEffect="non-scaling-stroke"
                   />
                   <line
@@ -328,7 +373,7 @@ export function TrendChart({
                     stroke={SEV_COLOR.warning}
                     strokeWidth={0.5}
                     strokeDasharray="2 1.5"
-                    strokeOpacity={0.5}
+                    strokeOpacity={0.65}
                     vectorEffect="non-scaling-stroke"
                   />
                 </g>
@@ -336,7 +381,7 @@ export function TrendChart({
             })
           : null}
 
-        {referenceLines.map((ref, idx) => {
+        {dedupedReferenceLines.map((ref, idx) => {
           const y = yFor(ref.value, ref.axis ?? "left");
           if (!Number.isFinite(y)) return null;
           return (

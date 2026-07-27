@@ -1,11 +1,6 @@
-import { AdminOpsHeaderButton } from "@/components/layout/admin-ops-header-button";
 import { AppHeaderAccount } from "@/components/layout/app-header-account";
 import { AppHeaderBrand } from "@/components/layout/app-header-brand";
-import { ConnectivityStatusButton } from "@/components/layout/connectivity-status-button";
-import { DailyReportButton } from "@/components/layout/daily-report-button";
-import { MobileViewPreviewToggle } from "@/components/layout/mobile-view-preview-toggle";
-import { TopBarAlarmSlot } from "@/components/layout/top-bar-alarm-slot";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { HeaderToolsMenu } from "@/components/layout/header-tools-menu";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmOverview } from "@/lib/data/iot";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
@@ -38,7 +33,6 @@ export function TopBar({
   canEditLocation = false,
   user,
 }: TopBarProps) {
-  const showConnectivity = overview != null;
   const isAdmin = user.role === "admin";
 
   return (
@@ -49,21 +43,16 @@ export function TopBar({
         </div>
 
         <div className="flex min-w-0 shrink-0 items-center justify-end gap-1 md:gap-3">
-          <MobileViewPreviewToggle />
           <div
             data-tour-id="header-actions"
             className="flex shrink-0 items-center gap-1 md:gap-3"
           >
-            {isAdmin ? <AdminOpsHeaderButton /> : null}
-            <ThemeToggle />
-            <DailyReportButton
+            <HeaderToolsMenu
+              overview={overview}
+              alarms={alarms}
+              isAdmin={isAdmin}
               farmKey={activeFarmKey}
-              alarmCount={alarms.length}
             />
-            {showConnectivity ? (
-              <ConnectivityStatusButton overview={overview} />
-            ) : null}
-            <TopBarAlarmSlot alarms={alarms} />
             <AppHeaderAccount
               user={user}
               receipts={overview?.receipts}

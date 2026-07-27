@@ -120,6 +120,7 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | `farm-detail-slide-enter-next` / `enter-prev` | 캐러셀 enter (버튼 방향에서 진입) |
 | `farm-detail-slide-exit-next` / `exit-prev` | 캐러셀 exit (반대쪽으로 퇴장, enter와 겹침) |
 | `farm-detail-slide-next` / `farm-detail-slide-prev` | enter 별칭 (하위 호환) |
+| `header-tools-panel` / `header-tools-section` | 헤더 도구 세로 펼침 stagger |
 | `barn-list-panel-shell` | 목록 패널 (domain, Phase 2) |
 
 ---
