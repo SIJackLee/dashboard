@@ -155,6 +155,7 @@ export function BarnListGraphPanel({
           : "border-t bg-muted/20 px-3 py-3 sm:px-4",
       )}
       data-audit-region="barn-list-graph-panel"
+      data-tour-id="list-graph-panel"
       data-graph-layout={layout}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}

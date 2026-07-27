@@ -3,15 +3,10 @@
  * 서버 액션·클라이언트 엔진 양쪽에서 import 하므로 "use client"/"server-only" 금지.
  *
  * 1회차 루트 (위→아래 · 그리드 후 목록):
- *   헤더 → 농장 선택 → 커맨드바 → 맵 그리드 → 확대 상세 → 상세 그래프
- *   → 보기 탭 → 목록 커맨드바 → 컨트롤러 → 그래프 모드 → 설정 모드
+ *   헤더 → 농장 선택 → 커맨드바 → 축사 카드(개별) → 상세 헤더 → 상세 차트
+ *   → 보기 탭 → 목록 커맨드바 → 컨트롤러 카드 → 그래프 패널 → 설정 패널
  *
- * 모바일 scrollPolicy (md 미만):
- * | 정책            | 용도                                      |
- * |-----------------|-------------------------------------------|
- * | none            | 헤더·짧은 UI                              |
- * | anchor-top      | 일반 타깃 상단 고정                       |
- * | fit-between     | 확대 상세·그래프 등 큰 패널               |
+ * 큰 컨테이너(map-grid·list-body)는 hole로 쓰지 않음 — 개별 카드/패널만 스포트라이트.
  */
 
 import {
@@ -24,7 +19,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 7;
+export const TOUR_VERSION = 8;
 
 /** 자동 시작 전 DOM 준비 — 보기 탭 + 축사 카드 + 히트맵. */
 export const TOUR_READY_SELECTOR = '[data-tour-id="barn-card"]';
@@ -117,37 +112,38 @@ export const TOUR_STEPS: TourStepDef[] = [
     ],
   },
   {
-    id: "map-grid",
-    selector: '[data-tour-id="map-grid"]',
+    id: "map-barn-card",
+    selector: '[data-tour-id="barn-card"]',
+    accentSelector: '[data-tour-id="barn-drag"]',
     view: "map",
     scrollPolicy: "anchor-top",
-    title: "축사 그리드",
-    body: "축사 배치와 상태를 한눈에 봅니다.",
+    title: "축사 카드",
+    body: "그리드의 기본 단위입니다. 대표 카드 하나를 기준으로 봅니다.",
     bullets: [
-      "카드 — 온도·습도·상태(테두리 색)",
+      "테두리 색 — 정상·주의·경고",
+      "온도·습도 — 현재 측정값",
       "히트맵 — 채널×시간, 초록·주황·빨강",
       "손잡이(⠿) — 드래그로 배치, 자동 저장",
-      "카드·히트맵 탭 — 아래 확대 상세",
+      "카드·히트맵 탭 — 확대 상세",
     ],
   },
   {
     id: "detail-panel",
-    selector: '[data-tour-id="detail-panel"]',
-    mobileSelector: '[data-tour-id="detail-panel-header"]',
+    selector: '[data-tour-id="detail-panel-header"]',
     view: "map",
     gridAction: "expand-first",
-    scrollPolicy: "fit-between",
+    scrollPolicy: "anchor-top",
     title: "확대 상세 — 컨트롤러",
-    body: "선택한 축사의 컨트롤러별 현재값과 허용 범위를 나란히 봅니다.",
+    body: "축사를 열면 컨트롤러별 현재값과 허용 범위가 나옵니다.",
     bullets: [
-      "컨트롤러 카드 — 번호·온도·습도·채널",
+      "컨트롤러 번호·온도·습도·채널",
       "게이지 — 현재값과 알람·설정 구간",
     ],
   },
   {
     id: "detail-charts",
-    selector: '[data-tour-id="detail-panel-charts"]',
-    mobileSelector: '[data-tour-id="detail-panel-chart-first"]',
+    selector: '[data-tour-id="detail-panel-chart-first"]',
+    mobileSelector: '[data-tour-id="detail-panel-charts"]',
     view: "map",
     scrollPolicy: "fit-between",
     title: "확대 상세 — 그래프",
@@ -185,24 +181,24 @@ export const TOUR_STEPS: TourStepDef[] = [
   },
   {
     id: "list-controller",
-    selector: '[data-tour-id="list-body"]',
+    selector: '[data-tour-id="controller-card"]',
     mobileSelector: '[data-tour-id="controller-gauge-metrics"]',
+    mobileScrollSelector: '[data-tour-id="panel-pills"]',
     view: "list",
     gridAction: "list-mode-controller",
     scrollPolicy: "anchor-top",
-    title: "컨트롤러 목록",
-    body: "컨트롤러 카드가 기본 단위입니다. 게이지에서 현재값·범위를 읽습니다.",
+    title: "컨트롤러 카드",
+    body: "목록의 기본 단위입니다. 게이지에서 현재값·범위를 읽습니다.",
     extra: "anatomy",
   },
   {
     id: "list-graph",
-    selector: '[data-tour-id="list-body"]',
-    mobileSelector: '[data-audit-region="barn-list-graph-panel"]',
+    selector: '[data-tour-id="list-graph-panel"]',
     view: "list",
     gridAction: "list-mode-graph",
     scrollPolicy: "fit-between",
-    title: "목록 · 그래프 모드",
-    body: "보기 모드를 그래프로 바꾸면 각 카드에 추이 패널이 펼쳐집니다.",
+    title: "목록 · 그래프",
+    body: "그래프 모드에서 카드 아래(또는 패널)에 추이가 펼쳐집니다.",
     bullets: [
       "컨트롤러별 온도·습도·채널 추이",
       "기간은 패널·상단에서 변경",
@@ -210,12 +206,13 @@ export const TOUR_STEPS: TourStepDef[] = [
   },
   {
     id: "list-settings",
-    selector: '[data-tour-id="list-body"]',
+    selector: '[data-tour-id="list-settings-panel"]',
+    mobileSelector: '[data-tour-id="controller-card"]',
     view: "list",
     gridAction: "list-mode-settings",
     scrollPolicy: "fit-between",
-    title: "목록 · 설정 모드",
-    body: "설정 모드에서 알람·설정온도·환기 범위를 카드에서 바로 조정합니다.",
+    title: "목록 · 설정",
+    body: "설정 모드에서 알람·설정온도·환기 범위를 카드에서 조정합니다.",
     bullets: [
       "알람 상·하한, 설정온도·편차, 환기 범위",
       "투어는 여기까지 — 계정 메뉴 → 「기능 안내 다시 보기」",

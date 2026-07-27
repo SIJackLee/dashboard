@@ -43,14 +43,14 @@ const BAND_TARGETS = {
   1: "app-header",
   2: "farm-switcher",
   3: "farm-command-bar",
-  4: "map-grid",
+  4: "barn-card",
   5: "detail-panel-header",
   6: "detail-panel-chart-first",
   7: "view-toggle",
   8: "farm-command-bar",
   9: "controller-gauge-metrics",
-  10: "list-body",
-  11: "list-body",
+  10: "list-graph-panel",
+  11: "list-settings-panel",
 };
 
 async function login(page, email) {
