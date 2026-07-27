@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { FileText, Loader2 } from "lucide-react";
 import { fetchDailyReportPayloadAction } from "@/app/(dashboard)/farm/actions";
 import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
+import {
+  InlineStatusToast,
+  type InlineStatusTone,
+} from "@/components/common/inline-status-toast";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { buildAndDownloadDailyReportPdf } from "@/lib/report/build-daily-report-pdf";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -14,9 +18,16 @@ type Props = {
   alarmCount?: number;
 };
 
+const NO_FARM_TOAST =
+  "농장을 선택한 뒤 오늘의 리포트를 받을 수 있습니다.";
+
 export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<{
+    message: string;
+    tone: InlineStatusTone;
+  } | null>(null);
   const [overlay, setOverlay] = useState({
     visible: false,
     phase: "loading" as "loading" | "success" | "error",
@@ -24,10 +35,20 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
     detail: undefined as string | undefined,
   });
 
-  const disabled = !farmKey || busy || pending;
+  const needsFarm = !farmKey;
+  const busyLocked = busy || pending;
+  /** 네이티브 disabled면 클릭이 막혀 토스트를 못 띄움 — 농장 미선택만 aria-disabled. */
+  const nativeDisabled = busyLocked;
+
+  const dismissToast = useCallback(() => setToast(null), []);
 
   const run = () => {
-    if (!farmKey || busy) return;
+    if (busyLocked) return;
+    if (!farmKey) {
+      setToast({ message: NO_FARM_TOAST, tone: "warn" });
+      return;
+    }
+    setToast(null);
     setBusy(true);
     setOverlay({
       visible: true,
@@ -86,6 +107,7 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
         className={cn(
           dashboardUi.topHeaderActionBtn,
           dashboardUi.topHeaderActionBtnReport,
+          needsFarm && "opacity-40",
         )}
         data-tour-id="header-daily-report"
         aria-label={
@@ -98,7 +120,8 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
             ? "오늘의 리포트"
             : "농장을 선택한 뒤 리포트를 받을 수 있습니다"
         }
-        disabled={disabled}
+        aria-disabled={needsFarm || undefined}
+        disabled={nativeDisabled}
         onClick={run}
       >
         {busy ? (
@@ -107,6 +130,11 @@ export function DailyReportButton({ farmKey, alarmCount = 0 }: Props) {
           <FileText className="size-4 md:size-5" aria-hidden />
         )}
       </button>
+      <InlineStatusToast
+        message={toast?.message ?? null}
+        tone={toast?.tone ?? "warn"}
+        onDismiss={dismissToast}
+      />
       <CommandPipelineOverlay
         visible={overlay.visible}
         phase={overlay.phase}
