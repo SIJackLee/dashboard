@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   useCallback,
-  type AnimationEvent,
 } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
@@ -66,14 +65,6 @@ export type FarmMapControllerDetailController = {
   label: string;
   reading: BarnReading | null;
   metricsById: Record<string, StackMetric>;
-};
-
-type ExitingSlide = {
-  controller: FarmMapControllerDetailController;
-  dir: -1 | 1;
-  token: number;
-  index: number;
-  total: number;
 };
 
 export type FarmMapControllerDetailData = {
@@ -149,8 +140,6 @@ export function FarmMapControllerDetail({
   const [prevLabel, setPrevLabel] = useState(label);
   /** null = 첫 진입 morph · -1/1 = 좌우 전환 슬라이드 */
   const [navDir, setNavDir] = useState<-1 | 1 | null>(null);
-  const [exiting, setExiting] = useState<ExitingSlide | null>(null);
-  const exitTokenRef = useRef(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const controllerCardRef = useRef<HTMLDivElement | null>(null);
 
@@ -161,7 +150,6 @@ export function FarmMapControllerDetail({
 
   if (label !== prevLabel) {
     setPrevLabel(label);
-    setExiting(null);
     setNavDir(null);
   }
 
@@ -311,7 +299,6 @@ export function FarmMapControllerDetail({
   const selectControllerFromPicker = (readingKey: string) => {
     const ctrlKey = resolveControllerKey(readingKey);
     if (ctrlKey) {
-      setExiting(null);
       setNavDir(null);
       setSelectedKey(ctrlKey);
       syncSelectedReadingKey(readingKey);
@@ -326,13 +313,11 @@ export function FarmMapControllerDetail({
     if (selectedKey === key) {
       setSelectedKey(null);
       setNavDir(null);
-      setExiting(null);
       closeMobileSheet();
       syncSelectedReadingKey(null);
       return;
     }
     setNavDir(null);
-    setExiting(null);
     setSelectedKey(key);
     const reading = controllers.find((c) => c.key === key)?.reading;
     syncSelectedReadingKey(reading?.key ?? null);
@@ -353,23 +338,10 @@ export function FarmMapControllerDetail({
   const navigateAdjacent = useCallback(
     (delta: -1 | 1) => {
       if (selectedIndex < 0) return;
-      const outgoing = controllers[selectedIndex];
       const next = controllers[selectedIndex + delta];
-      if (!outgoing || !next) return;
-      if (!prefersReducedMotion()) {
-        const token = ++exitTokenRef.current;
-        setExiting({
-          controller: outgoing,
-          dir: delta,
-          token,
-          index: selectedIndex,
-          total: controllers.length,
-        });
-        setNavDir(delta);
-      } else {
-        setExiting(null);
-        setNavDir(null);
-      }
+      if (!next) return;
+      // enter-only — exit 레이어 겹침 잔상 방지
+      setNavDir(prefersReducedMotion() ? null : delta);
       setSelectedKey(next.key);
       onSelectedReadingKeyChange?.(next.reading?.key ?? null);
       if (isMobileStack && !sheetOpenRef.current) {
@@ -383,15 +355,6 @@ export function FarmMapControllerDetail({
       openMobileSheet,
       onSelectedReadingKeyChange,
     ],
-  );
-
-  const handleExitAnimationEnd = useCallback(
-    (event: AnimationEvent<HTMLDivElement>, token: number) => {
-      if (event.target !== event.currentTarget) return;
-      if (token !== exitTokenRef.current) return;
-      setExiting(null);
-    },
-    [],
   );
 
   const canGoPrev = selectedIndex > 0;
@@ -574,54 +537,13 @@ export function FarmMapControllerDetail({
                 className={cn("mt-3", motionClass.detailCarousel)}
                 data-nav-dir={navDir ?? "enter"}
               >
-                {exiting?.controller.reading ? (
-                  <div
-                    key={`exit-${exiting.controller.key}-${exiting.token}`}
-                    className={cn(
-                      motionClass.detailCarouselLayer,
-                      exiting.dir === 1
-                        ? motionClass.detailSlideExitNext
-                        : motionClass.detailSlideExitPrev,
-                    )}
-                    data-role="exit"
-                    aria-hidden
-                    onAnimationEnd={(event) =>
-                      handleExitAnimationEnd(event, exiting.token)
-                    }
-                  >
-                    <ControllerDetailSlideBody
-                      controller={exiting.controller}
-                      index={exiting.index}
-                      total={exiting.total}
-                      showNav={exiting.total > 1}
-                      interactive={false}
-                      readings={readings}
-                      thermoSettings={thermoSettings}
-                      commands={commands}
-                      canCommand={canCommand}
-                      alarmSettings={alarmSettings}
-                      controllerTrendByPeriod={controllerTrendByPeriod}
-                      period={period}
-                      panelPeriod={panelPeriod}
-                      onPanelPeriodChange={setPanelPeriod}
-                      onPeriodChange={onPeriodChange}
-                      trendLoading={trendLoading}
-                      trendStale={trendStale}
-                      gridCols={gridCols}
-                      panelLayoutVariant={panelLayoutVariant}
-                      graphExpanded={false}
-                      settingsExpanded={false}
-                      showDesktopGraph={!isMobileStack}
-                    />
-                  </div>
-                ) : null}
                 <div
                   key={selected.key}
                   className={cn(
                     motionClass.detailCarouselLayer,
                     navDir === 1 && motionClass.detailSlideEnterNext,
                     navDir === -1 && motionClass.detailSlideEnterPrev,
-                    navDir == null && !exiting && motionClass.emphasisMorph,
+                    navDir == null && motionClass.emphasisMorph,
                   )}
                   data-role="enter"
                 >

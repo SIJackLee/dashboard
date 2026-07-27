@@ -969,37 +969,35 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 그리드 상세 — 컨트롤러 캐러셀 (enter + exit 겹침) ── */
+/* ── 그리드 상세 — 컨트롤러 캐러셀 (enter only · 슬라이드감, 이중 레이어 잔상 없음) ── */
 
 .farm-detail-carousel {
   position: relative;
   overflow: hidden;
+  /* 캐러셀 전용 — 패널 너비 대비 이동 (이중 레이어 없이도 슬라이드로 읽힘) */
+  --motion-distance-slide-detail: 18%;
 }
 
 .farm-detail-carousel-layer {
   display: flex;
   flex-direction: column;
   gap: 0.75rem; /* space-y-3 */
+  will-change: transform;
 }
 
 .farm-detail-carousel-layer[data-role="exit"] {
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  z-index: 1;
-  width: 100%;
-  pointer-events: none;
+  display: none;
 }
 
 .farm-detail-carousel-layer[data-role="enter"] {
   position: relative;
-  z-index: 2;
+  z-index: 1;
 }
 
 @keyframes farm-detail-slide-enter-next {
   0% {
-    opacity: 0.35;
-    transform: translateX(var(--motion-distance-slide));
+    opacity: 1;
+    transform: translateX(var(--motion-distance-slide-detail));
   }
   100% {
     opacity: 1;
@@ -1009,8 +1007,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
 @keyframes farm-detail-slide-enter-prev {
   0% {
-    opacity: 0.35;
-    transform: translateX(calc(var(--motion-distance-slide) * -1));
+    opacity: 1;
+    transform: translateX(calc(var(--motion-distance-slide-detail) * -1));
   }
   100% {
     opacity: 1;
@@ -1021,54 +1019,50 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 @keyframes farm-detail-slide-exit-next {
   0% {
     opacity: 1;
-    transform: translateX(0);
   }
   100% {
     opacity: 0;
-    transform: translateX(calc(var(--motion-distance-slide) * -1));
   }
 }
 
 @keyframes farm-detail-slide-exit-prev {
   0% {
     opacity: 1;
-    transform: translateX(0);
   }
   100% {
     opacity: 0;
-    transform: translateX(var(--motion-distance-slide));
   }
 }
 
 .farm-detail-slide-enter-next {
-  animation: farm-detail-slide-enter-next var(--motion-duration-emphasis)
-    var(--motion-ease-enter) both;
+  animation: farm-detail-slide-enter-next var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
 }
 
 .farm-detail-slide-enter-prev {
-  animation: farm-detail-slide-enter-prev var(--motion-duration-emphasis)
-    var(--motion-ease-enter) both;
+  animation: farm-detail-slide-enter-prev var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
 }
 
 .farm-detail-slide-exit-next {
-  animation: farm-detail-slide-exit-next var(--motion-duration-emphasis)
+  animation: farm-detail-slide-exit-next var(--motion-duration-exit)
     var(--motion-ease-exit) both;
 }
 
 .farm-detail-slide-exit-prev {
-  animation: farm-detail-slide-exit-prev var(--motion-duration-emphasis)
+  animation: farm-detail-slide-exit-prev var(--motion-duration-exit)
     var(--motion-ease-exit) both;
 }
 
 /* 하위 호환 alias (단일 enter만 쓰던 경로) */
 .farm-detail-slide-next {
-  animation: farm-detail-slide-enter-next var(--motion-duration-emphasis)
-    var(--motion-ease-enter) both;
+  animation: farm-detail-slide-enter-next var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
 }
 
 .farm-detail-slide-prev {
-  animation: farm-detail-slide-enter-prev var(--motion-duration-emphasis)
-    var(--motion-ease-enter) both;
+  animation: farm-detail-slide-enter-prev var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
