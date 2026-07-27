@@ -117,6 +117,53 @@ function collectAttentionRows(
   return rows;
 }
 
+/** 24h 시리즈에서 약 N포인트 발췌 (축사·컨트롤러 표 공용) */
+function sampleDetailRows(
+  series: DailyReportSeries,
+  maxRows = 8,
+): {
+  label: string;
+  temp: number | null;
+  humidity: number | null;
+  motorA: number | null;
+  motorB: number | null;
+}[] {
+  const finiteIdx: number[] = [];
+  for (let i = 0; i < series.categories.length; i++) {
+    if (
+      series.temp[i] != null ||
+      series.humidity[i] != null ||
+      series.motorA[i] != null ||
+      series.motorB[i] != null
+    ) {
+      finiteIdx.push(i);
+    }
+  }
+  if (!finiteIdx.length && !series.categories.length) return [];
+  const pick =
+    finiteIdx.length >= maxRows
+      ? finiteIdx
+          .filter((_, j) => j % Math.ceil(finiteIdx.length / maxRows) === 0)
+          .slice(0, maxRows)
+      : finiteIdx.length > 0
+        ? finiteIdx
+        : Array.from(
+            { length: Math.min(maxRows, series.categories.length) },
+            (_, j) =>
+              Math.floor(
+                (j * Math.max(0, series.categories.length - 1)) /
+                  Math.max(1, maxRows - 1),
+              ),
+          );
+  return pick.map((i) => ({
+    label: series.categories[i] ?? "",
+    temp: series.temp[i] ?? null,
+    humidity: series.humidity[i] ?? null,
+    motorA: series.motorA[i] ?? null,
+    motorB: series.motorB[i] ?? null,
+  }));
+}
+
 function countSeriesPoints(
   series: { values: (number | null)[] }[],
 ): number {
@@ -435,8 +482,8 @@ export async function buildAndDownloadDailyReportPdf(
       });
     }
   }
-  /** 표지 1 + 축사 N + 컨트롤러 첨부(2대/페이지) */
-  const appendixPages = Math.ceil(appendix.length / 2);
+  /** 표지 1 + 축사 N + 컨트롤러 첨부(1대/페이지 · 발췌표 포함) */
+  const appendixPages = appendix.length;
   const totalPages = 1 + payload.barns.length + appendixPages;
   let pageNo = 0;
 
@@ -714,91 +761,98 @@ export async function buildAndDownloadDailyReportPdf(
     await yieldFrame();
   }
 
-  // ---- 컨트롤러 첨부 (2대/페이지) ----
-  for (let i = 0; i < appendix.length; i += 2) {
+  // ---- 컨트롤러 첨부 (1대/페이지 · KPI + 24h 차트 + 발췌 표) ----
+  for (let i = 0; i < appendix.length; i++) {
     pageNo += 1;
-    const a = appendix[i]!;
-    const b = appendix[i + 1];
+    const item = appendix[i]!;
     reportProgress(
-      b
-        ? `첨부 · ${a.ctrl.eqpmnNo}번 / ${b.ctrl.eqpmnNo}번`
-        : `첨부 · ${a.ctrl.eqpmnNo}번`,
+      `첨부 · ${item.stallLabel} ${item.stallNo} ${item.ctrl.eqpmnNo}번`,
     );
     const { canvas, ctx } = createPageCanvas();
-    headerBand(ctx, "컨트롤러 상세", [
-      `${payload.farmKey.lsindRegistNo} / ${payload.farmKey.itemCode}`,
-      `보고일 ${payload.reportDate}`,
-      `${i + 1}–${Math.min(i + 2, appendix.length)} / ${appendix.length}`,
-    ]);
-
-    const drawControllerBlock = (
-      item: AppendixItem,
-      yStart: number,
-      maxY: number,
-    ): number => {
-      let y = yStart;
-      ctx.fillStyle = ACCENT;
-      ctx.font = `bold 11px ${FONT}`;
-      ctx.fillText(
-        `${item.stallLabel} ${item.stallNo} · ${item.ctrl.eqpmnNo}번`,
-        MARGIN,
-        y,
-      );
-      y += 12;
-      ctx.fillStyle = MUTED;
-      ctx.font = `8px ${FONT}`;
-      ctx.fillText(
+    headerBand(
+      ctx,
+      `${item.stallLabel} ${item.stallNo} · ${item.ctrl.eqpmnNo}번`,
+      [
+        `${payload.farmKey.lsindRegistNo} / ${payload.farmKey.itemCode}`,
         `${item.stallTyCode} · ${item.ctrl.controllerKey}`,
-        MARGIN,
-        y,
-      );
-      y += 10;
+        `컨트롤러 상세 ${i + 1}/${appendix.length}`,
+      ],
+    );
 
-      const kpiGap = 4;
-      const kpiW = (PAGE_W - MARGIN * 2 - kpiGap * 5) / 6;
-      const kpis: [string, string][] = [
-        [`${fmt(item.ctrl.tempC)}℃`, "온도"],
-        [`${fmt(item.ctrl.humidityPct)}%`, "습도"],
-        [
-          item.ctrl.motorA == null ? "—" : `${fmt(item.ctrl.motorA, 0)}%`,
-          "채널 A",
-        ],
-        [
-          item.ctrl.motorB == null ? "—" : `${fmt(item.ctrl.motorB, 0)}%`,
-          "채널 B",
-        ],
-        [
-          item.ctrl.motorC == null ? "—" : `${fmt(item.ctrl.motorC, 0)}%`,
-          "채널 C",
-        ],
-        [statusLabel(item.ctrl.status), "상태"],
+    let y = MARGIN + 46;
+
+    const kpiGap = 4;
+    const kpiW = (PAGE_W - MARGIN * 2 - kpiGap * 5) / 6;
+    const kpis: [string, string][] = [
+      [`${fmt(item.ctrl.tempC)}℃`, "온도"],
+      [`${fmt(item.ctrl.humidityPct)}%`, "습도"],
+      [
+        item.ctrl.motorA == null ? "—" : `${fmt(item.ctrl.motorA, 0)}%`,
+        "채널 A",
+      ],
+      [
+        item.ctrl.motorB == null ? "—" : `${fmt(item.ctrl.motorB, 0)}%`,
+        "채널 B",
+      ],
+      [
+        item.ctrl.motorC == null ? "—" : `${fmt(item.ctrl.motorC, 0)}%`,
+        "채널 C",
+      ],
+      [statusLabel(item.ctrl.status), "상태"],
+    ];
+    kpis.forEach(([v, l], idx) => {
+      kpiBox(ctx, MARGIN + idx * (kpiW + kpiGap), y, kpiW, v, l, 32);
+    });
+    y += 40;
+
+    y = periodRow(
+      ctx,
+      y,
+      "24시간 · 온도 / 습도 / 모터",
+      item.ctrl.period24h,
+      70,
+    );
+
+    const detailRows = sampleDetailRows(item.ctrl.period24h, 8);
+    if (detailRows.length > 0 && y + 40 < CONTENT_BOTTOM) {
+      ctx.fillStyle = INK;
+      ctx.font = `bold 10px ${FONT}`;
+      ctx.fillText("24시간 발췌", MARGIN, y);
+      y += 12;
+      const dHeads = ["시각", "온도℃", "습도%", "모터A", "모터B"];
+      const dCols = [
+        MARGIN + 4,
+        MARGIN + 90,
+        MARGIN + 160,
+        MARGIN + 230,
+        MARGIN + 300,
       ];
-      kpis.forEach(([v, l], idx) => {
-        kpiBox(ctx, MARGIN + idx * (kpiW + kpiGap), y, kpiW, v, l, 30);
-      });
-      y += 38;
-
-      if (y + 70 < maxY) {
-        y = periodRow(
-          ctx,
+      tableHeaderBar(ctx, y, dHeads, dCols);
+      y += 12;
+      ctx.font = `8px ${FONT}`;
+      for (let rowIdx = 0; rowIdx < detailRows.length; rowIdx++) {
+        if (y > CONTENT_BOTTOM - 8) break;
+        const row = detailRows[rowIdx]!;
+        if (rowIdx % 2 === 1) {
+          ctx.fillStyle = "#F9FAFB";
+          ctx.fillRect(MARGIN, y - 9, PAGE_W - MARGIN * 2, 12);
+        }
+        ctx.fillStyle = INK;
+        ctx.fillText(row.label, dCols[0]!, y);
+        ctx.fillText(fmt(row.temp), dCols[1]!, y);
+        ctx.fillText(fmt(row.humidity), dCols[2]!, y);
+        ctx.fillText(
+          row.motorA == null ? "—" : fmt(row.motorA, 0),
+          dCols[3]!,
           y,
-          "24시간 · 온도 / 습도 / 모터",
-          item.ctrl.period24h,
-          56,
         );
+        ctx.fillText(
+          row.motorB == null ? "—" : fmt(row.motorB, 0),
+          dCols[4]!,
+          y,
+        );
+        y += 12;
       }
-      return y;
-    };
-
-    const mid = MARGIN + 46 + (CONTENT_BOTTOM - (MARGIN + 46)) / 2;
-    drawControllerBlock(a, MARGIN + 46, mid - 8);
-    if (b) {
-      ctx.strokeStyle = RULE;
-      ctx.beginPath();
-      ctx.moveTo(MARGIN, mid - 4);
-      ctx.lineTo(PAGE_W - MARGIN, mid - 4);
-      ctx.stroke();
-      drawControllerBlock(b, mid + 8, CONTENT_BOTTOM);
     }
 
     footer(ctx, pageNo, totalPages);
