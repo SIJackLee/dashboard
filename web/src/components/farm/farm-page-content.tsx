@@ -31,7 +31,8 @@ import {
   prefetchFarmControllerTrend,
   useFarmControllerTrend,
 } from "@/lib/farm/use-farm-controller-trend";
-import { fetchFarmScopedPanelDataAction } from "@/app/(dashboard)/farm/actions";
+import { prefetchFarmStallTrend } from "@/lib/farm/use-farm-stall-trend";
+import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
 import {
   readFarmPanelCache,
   useFarmLiveRefreshOptional,
@@ -89,6 +90,7 @@ export function FarmPageContent({
     liveRefreshRef.current = liveRefresh;
   });
   const enrichFarmRef = useRef<string | null>(null);
+  const enrichGenRef = useRef(0);
   /** shallow URL(window)은 mount 후에만 — hydration 시 searchParams와 불일치 방지 */
   const [urlHydrated, setUrlHydrated] = useState(false);
   /** SSR·첫 페인트와 동일한 URL 기준 초기 탭 (window 읽지 않음) */
@@ -205,15 +207,22 @@ export function FarmPageContent({
       return;
     }
 
+    const gen = ++enrichGenRef.current;
     try {
-      const data = await fetchFarmScopedPanelDataAction(lazyListFarmKey);
+      const data = await fetchFarmPanelEnrichShared(lazyListFarmKey);
+      if (gen !== enrichGenRef.current) return;
+      if (farmKeyId(data.farmKey) !== farmId) return;
       liveRefreshRef.current?.hydrateScopedPanel(data);
     } catch {
       // 목록은 grid readings로 제한 표시 — enrich 실패해도 기존 카드 유지
     }
   }, [lazyListEnrichment, lazyListFarmKey]);
 
-  /** LIVE 안정 후 idle — 추이·panel enrich를 백그라운드에 채움 */
+  useEffect(() => {
+    enrichGenRef.current += 1;
+  }, [lazyListFarmKey]);
+
+  /** LIVE 안정 후 idle — stall·controller 추이·panel enrich를 백그라운드에 채움 */
   useEffect(() => {
     if (!gridFarmKey || tourActive) return;
     let cancelled = false;
@@ -221,6 +230,10 @@ export function FarmPageContent({
     const run = () => {
       if (cancelled) return;
       void prefetchFarmControllerTrend(gridFarmKey);
+      void prefetchFarmStallTrend(gridFarmKey).then((trend) => {
+        if (cancelled) return;
+        liveRefreshRef.current?.hydrateStallTrend(gridFarmKey, trend);
+      });
       void enrichListIfNeeded();
     };
     const ric =

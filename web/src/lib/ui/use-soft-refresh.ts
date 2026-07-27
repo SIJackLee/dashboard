@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDeferredLoading } from "@/lib/ui/use-deferred-loading";
 
 /** 너무 짧은 busy flash 방지 */
-const DEFAULT_MIN_BUSY_MS = 200;
+const DEFAULT_MIN_BUSY_MS = 80;
 /** hung promise 안전망 */
 const DEFAULT_MAX_BUSY_MS = 12_000;
 

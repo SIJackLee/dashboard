@@ -1082,33 +1082,73 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 헤더 도구 — 카드 없이 아이콘이 트리거 왼쪽으로 또르륵 ── */
+/* ── 헤더 도구 — 카드 없이 아이콘이 트리거 왼쪽으로 또르륵 (열림·접힘) ── */
 
 @keyframes header-tools-icon-in {
   0% {
     opacity: 0;
-    transform: translateX(var(--motion-distance-md));
+    transform: translateX(var(--motion-distance-md)) scale(0.92);
   }
   100% {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes header-tools-icon-out {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--motion-distance-md)) scale(0.92);
+  }
+}
+
+/* Base UI getAnimations()는 패널 자신만 봄 — 자식 stagger 동안 유지 */
+@keyframes header-tools-panel-exit-hold {
+  0%,
+  100% {
+    opacity: 1;
   }
 }
 
 .header-tools-panel {
+  --tools-stagger: 45ms;
+  --tools-max: 5;
   transform-origin: right center;
   background: transparent !important;
   box-shadow: none !important;
 }
 
-.header-tools-panel[data-open] .header-tools-icon {
+.header-tools-panel[data-open]:not([data-ending-style]) .header-tools-icon {
   animation: header-tools-icon-in var(--motion-duration-moderate)
     var(--motion-ease-enter) both;
-  animation-delay: calc(var(--tools-i, 0) * 45ms);
+  animation-delay: calc(var(--tools-i, 0) * var(--tools-stagger));
+}
+
+.header-tools-panel[data-ending-style]:not([data-instant]) {
+  animation: header-tools-panel-exit-hold
+    calc(
+      var(--motion-duration-moderate) + var(--tools-max) * var(--tools-stagger)
+    )
+    linear both;
+}
+
+.header-tools-panel[data-ending-style]:not([data-instant]) .header-tools-icon {
+  animation: header-tools-icon-out var(--motion-duration-moderate)
+    var(--motion-ease-exit) both;
+  /* 바깥(연결)부터 접혀 트리거 쪽으로 — open의 역순 */
+  animation-delay: calc(
+    (var(--tools-max) - var(--tools-i, 0)) * var(--tools-stagger)
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .header-tools-panel[data-open] .header-tools-icon {
+  .header-tools-panel[data-open] .header-tools-icon,
+  .header-tools-panel[data-ending-style] .header-tools-icon,
+  .header-tools-panel[data-ending-style] {
     animation: none;
   }
 }

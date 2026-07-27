@@ -23,7 +23,8 @@ export function NavigationLoadingOverlay({
     return (
       <div
         className={cn(
-          "pointer-events-none fixed inset-0 z-[9999] flex items-center justify-center bg-background",
+          /* brand splash — 로그인 직후만 풀스크린 차단; 일반 nav spinner는 pointer-events-none */
+          "fixed inset-0 z-[9999] flex items-center justify-center bg-background",
           exiting && "login-splash--exit"
         )}
         data-mobile-viewport-fullscreen

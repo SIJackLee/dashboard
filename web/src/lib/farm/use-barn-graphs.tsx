@@ -9,6 +9,7 @@ import type {
   TrendPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
 import {
   findStallTrendSeries,
@@ -94,7 +95,9 @@ export function useBarnGraphs({
   const { graphByBarnId, metricIdsByBarnId } = useMemo(() => {
     const map = new Map<string, ReactNode>();
     const idsMap = new Map<string, string[]>();
-    if (!enabled || !trendByPeriod) return { graphByBarnId: map, metricIdsByBarnId: idsMap };
+    if (!enabled || !hasStallTrendByPeriod(trendByPeriod)) {
+      return { graphByBarnId: map, metricIdsByBarnId: idsMap };
+    }
     const readings = controller?.readings ?? [];
     const thermoSettings = controller?.thermoSettings ?? {};
     const alarmSettings = controller?.alarmSettings;

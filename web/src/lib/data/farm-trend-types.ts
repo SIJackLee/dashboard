@@ -87,6 +87,13 @@ export type TrendPeriodData = {
   totalSamples: number;
 };
 
+/** 히트맵/그래프 활성 여부 — 빈 `{}`는 falsy로 취급 */
+export function hasStallTrendByPeriod(
+  trend: Partial<Record<TrendPeriodId, TrendPeriodData>> | null | undefined,
+): boolean {
+  return trend != null && trend["24h"] != null;
+}
+
 /** One controller (eqpmn) aligned series — list graph mode. */
 export type TrendControllerSeries = TrendStallSeries & {
   controllerKey: string;

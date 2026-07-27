@@ -10,6 +10,7 @@ import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { type FarmKey } from "@/lib/data/farm-key";
 import {
   DEFAULT_TREND_PERIOD,
+  hasStallTrendByPeriod,
   type TrendControllerPeriodData,
   type TrendPeriodData,
   type TrendPeriodId,
@@ -242,7 +243,7 @@ export function FarmMapCanvas({
     [barns],
   );
 
-  const graphAvailable = Boolean(trendByPeriod);
+  const graphAvailable = hasStallTrendByPeriod(trendByPeriod);
   /** 병합 카드 — 추이 데이터가 있고 일괄모드가 아니면 요약+히트맵을 함께 표시. */
   const graphMode = graphAvailable && !bulkMode;
   /** 병합 카드는 요약(온·습도) + 히트맵이 들어가 요약 전용보다 큰 행 트랙 필요. */

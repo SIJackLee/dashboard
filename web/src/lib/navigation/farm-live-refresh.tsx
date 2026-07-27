@@ -13,9 +13,9 @@ import {
 import { useRouter } from "next/navigation";
 import {
   fetchFarmScopedLiveDataAction,
-  fetchFarmScopedPanelDataAction,
   revalidateFarmLiveAction,
 } from "@/app/(dashboard)/farm/actions";
+import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
@@ -46,7 +46,22 @@ import type {
 } from "@/lib/farm/load-farm-scoped-panel-data";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+
+/** soft refresh LIVE coalesce */
+const liveInflight = new Map<string, Promise<FarmScopedLiveData>>();
+
+function fetchFarmLiveShared(farmKey: FarmKey): Promise<FarmScopedLiveData> {
+  const id = farmKeyId(farmKey);
+  const pending = liveInflight.get(id);
+  if (pending) return pending;
+  const req = fetchFarmScopedLiveDataAction(farmKey).finally(() => {
+    if (liveInflight.get(id) === req) liveInflight.delete(id);
+  });
+  liveInflight.set(id, req);
+  return req;
+}
 
 export type FarmLiveRevalidateMode = "live" | "full";
 
@@ -74,6 +89,11 @@ type FarmLiveRefreshContextValue = {
   /** 적용 직후 thermoSettings·commands에 명령값 즉시 반영 (낙관적) */
   patchThermoFromCommand: (cmd: ThermoCommand) => void;
   hydrateScopedPanel: (data: FarmScopedPanelData) => void;
+  /** Phase B — stall trend idle hydrate (SSR에서 제외) */
+  hydrateStallTrend: (
+    farmKey: FarmKey,
+    trendByPeriod: Record<TrendPeriodId, TrendPeriodData>,
+  ) => void;
 };
 
 const FarmLiveRefreshContext =
@@ -118,8 +138,16 @@ function applyFreshPanel({
   setAlarmPatch,
   setThermoPatch,
 }: ApplyPanelArgs): void {
-  setFarmPanelCache(farmId, data);
-  setSlice(sliceFromPanel(data));
+  setSlice((prev) => {
+    const next = sliceFromPanel(data);
+    const merged: FarmLiveSlice =
+      !hasStallTrendByPeriod(next.trendByPeriod) &&
+      hasStallTrendByPeriod(prev.trendByPeriod)
+        ? { ...next, trendByPeriod: prev.trendByPeriod }
+        : next;
+    setFarmPanelCache(farmId, farmPanelCacheFromSlice(data.farmKey, merged));
+    return merged;
+  });
   setAlarmPatch(null);
   setThermoPatch({});
 }
@@ -250,7 +278,12 @@ export function FarmLiveRefreshProvider({
         setIsBootstrapping(true);
       }
     } else {
-      setSlice(initial);
+      const next =
+        !hasStallTrendByPeriod(initial.trendByPeriod) &&
+        hasStallTrendByPeriod(slice.trendByPeriod)
+          ? { ...initial, trendByPeriod: slice.trendByPeriod }
+          : initial;
+      setSlice(next);
       setAlarmPatch(null);
       setThermoPatch({});
       if (farmKey && initial.readings.length > 0) {
@@ -279,9 +312,10 @@ export function FarmLiveRefreshProvider({
   const fetchAndApplyPanel = useCallback((key: FarmKey) => {
     const farmId = farmKeyId(key);
     let cancelled = false;
-    void fetchFarmScopedPanelDataAction(key)
+    void fetchFarmPanelEnrichShared(key)
       .then((data) => {
         if (cancelled) return;
+        if (farmKeyId(data.farmKey) !== farmId) return;
         applyFreshPanel({
           farmId,
           data,
@@ -359,12 +393,41 @@ export function FarmLiveRefreshProvider({
   const hydrateScopedPanel = useCallback((data: FarmScopedPanelData) => {
     // skip 시 캐시도 갱신하지 않음 — UI·캐시 신선도 불일치 방지
     if (shouldSkipScopedPanelHydrate(sliceRef.current, data)) return;
-    setFarmPanelCache(farmKeyId(data.farmKey), data);
-    setSlice(sliceFromPanel(data));
+    setSlice((prev) => {
+      const next = sliceFromPanel(data);
+      const merged: FarmLiveSlice =
+        !hasStallTrendByPeriod(next.trendByPeriod) &&
+        hasStallTrendByPeriod(prev.trendByPeriod)
+          ? { ...next, trendByPeriod: prev.trendByPeriod }
+          : next;
+      setFarmPanelCache(
+        farmKeyId(data.farmKey),
+        farmPanelCacheFromSlice(data.farmKey, merged),
+      );
+      return merged;
+    });
     setAlarmPatch(null);
     setThermoPatch({});
     setIsBootstrapping(false);
   }, []);
+
+  const hydrateStallTrend = useCallback(
+    (
+      key: FarmKey,
+      trendByPeriod: Record<TrendPeriodId, TrendPeriodData>,
+    ) => {
+      if (farmKey && farmKeyId(farmKey) !== farmKeyId(key)) return;
+      setSlice((prev) => {
+        const next: FarmLiveSlice = { ...prev, trendByPeriod };
+        setFarmPanelCache(
+          farmKeyId(key),
+          farmPanelCacheFromSlice(key, next),
+        );
+        return next;
+      });
+    },
+    [farmKey],
+  );
 
   /** Admin hub — readings만 있는 slice에 thermo·alarm 패널 데이터 보강 */
   useEffect(() => {
@@ -389,7 +452,7 @@ export function FarmLiveRefreshProvider({
       try {
         await revalidateFarmLiveAction(farmKey);
         if (mode === "full") {
-          const fresh = await fetchFarmScopedPanelDataAction(farmKey);
+          const fresh = await fetchFarmPanelEnrichShared(farmKey);
           if (seq !== revalidateSeq.current) return;
           applyFreshPanel({
             farmId,
@@ -400,7 +463,7 @@ export function FarmLiveRefreshProvider({
           });
           return;
         }
-        const live = await fetchFarmScopedLiveDataAction(farmKey);
+        const live = await fetchFarmLiveShared(farmKey);
         if (seq !== revalidateSeq.current) return;
         applyLivePatch({ farmKey, data: live, setSlice });
       } catch {
@@ -445,6 +508,7 @@ export function FarmLiveRefreshProvider({
       patchAlarmSettings,
       patchThermoFromCommand,
       hydrateScopedPanel,
+      hydrateStallTrend,
     }),
     [
       farmKey,
@@ -452,6 +516,7 @@ export function FarmLiveRefreshProvider({
       patchAlarmSettings,
       patchThermoFromCommand,
       hydrateScopedPanel,
+      hydrateStallTrend,
       revalidateFarmLive,
       revalidating,
       isBootstrapping,

@@ -33,6 +33,11 @@ import { sortReadings } from "@/lib/data/reading-hierarchy";
 
 export type LiveReadingsScope = {
   farmKey?: FarmKey | null;
+  /**
+   * soft refresh — farm-scoped도 list tier 사용 (channels[] 생략).
+   * full panel / bulk thermo는 slim 없이 decoded_latest.
+   */
+  slim?: boolean;
 };
 
 const LEGACY_SOURCE = "v_iot_decoded_latest" as const;
@@ -332,11 +337,13 @@ async function fetchLiveRowsWithToken(
   /**
    * list tier (`v_iot_dashboard_list`) omits channels[] for payload size.
    * Farm-scoped panel/bulk need channels for SET_CHANNEL_THERMO — use decoded_latest.
+   * soft refresh (`slim`) forces list tier even when farm-scoped.
    */
   const farmScoped =
     Boolean(scope.farmKey) ||
     (scopedFarms != null && scopedFarms.length > 0);
-  const useListTier = tier === "list" && !farmScoped;
+  const useListTier =
+    Boolean(scope.slim) || (tier === "list" && !farmScoped);
   const source = useListTier ? LIST_SOURCE : LEGACY_SOURCE;
 
   const runQuery = async (cols: string) => {
@@ -425,12 +432,15 @@ export async function fetchLiveReadings(
         : "global";
 
   const userId = user?.id ?? "anon";
-  // farm-scoped uses decoded_latest (channels); hub list uses flat list view
+  // farm-scoped full → decoded_latest; soft slim / hub list → flat list view
   const farmScoped =
     Boolean(scope.farmKey) ||
     (scopedFarms != null && scopedFarms.length > 0);
-  const sourceTag =
-    liveReadTier() === "list" && !farmScoped ? "list" : "decoded";
+  const sourceTag = scope.slim
+    ? "list-slim"
+    : liveReadTier() === "list" && !farmScoped
+      ? "list"
+      : "decoded";
 
   const rows = await cachedLiveQuery(
     ["live-readings", sourceTag, userId, scopeKey],

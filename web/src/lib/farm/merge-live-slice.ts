@@ -94,12 +94,17 @@ export function mergeLiveReadings(
   let reusedAll = prev.length === next.length;
   const merged = next.map((n, i) => {
     const p = prevByKey.get(n.key);
-    if (p && liveReadingUnchanged(p, n)) {
+    // soft slim list-tier — channels 생략 시 이전 channels 유지 (bulk thermo)
+    const candidate =
+      p?.channels?.length && !n.channels?.length
+        ? { ...n, channels: p.channels }
+        : n;
+    if (p && liveReadingUnchanged(p, candidate)) {
       if (prev[i] !== p) reusedAll = false;
       return p;
     }
     reusedAll = false;
-    return n;
+    return candidate;
   });
 
   if (reusedAll && merged.every((r, i) => r === prev[i])) return prev;

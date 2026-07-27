@@ -20,7 +20,6 @@ import {
 } from "@/lib/farm/trend-chart-series";
 import {
   findControllerTrendSeries,
-  formatControllerNoLabel,
   resolveReadingAlarmThresholds,
 } from "@/lib/farm/controller-summary-display";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
@@ -30,8 +29,6 @@ import {
   downsampleTrendAxis,
   tickEveryForDisplayBars,
 } from "@/lib/farm/trend-display-buckets";
-import { normalizeStallTyCode } from "@/lib/data/stall-type";
-import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -138,11 +135,6 @@ export function BarnListGraphPanel({
   const tickEvery = display.tickEvery;
   const hasData = hasDataRaw && chartSeries != null;
 
-  const sp = reading.stallTyCode
-    ? normalizeStallTyCode(reading.stallTyCode)
-    : "—";
-  const stall = reading.stallNo?.trim() || "—";
-
   return (
     <div
       className={cn(
@@ -156,33 +148,25 @@ export function BarnListGraphPanel({
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <div
-        className={cn(
-          "mb-3 flex min-w-0 flex-col gap-2",
-          sheetCompact && "mb-2 gap-1.5",
-        )}
-      >
-        <div className="min-w-0">
-          {!sheetCompact ? (
-            <>
-              <p className={cn("font-semibold", dashboardTypography.sectionTitle)}>
-                {sp} · 축사 {stall} · {formatControllerNoLabel(reading.eqpmnNo)}
-              </p>
-              <p className={cn(dashboardTypography.meta, "mt-0.5")}>
-                컨트롤러 단위 · {trendPeriodLabel(period)}
-              </p>
-            </>
-          ) : (
-            <p className="text-[0.65rem] text-muted-foreground">
+      <div className={cn("mb-3", sheetCompact && "mb-2")}>
+        {sheetCompact ? (
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <p className="min-w-0 text-[0.65rem] text-muted-foreground">
               추이 · {trendPeriodLabel(period)}
             </p>
-          )}
-        </div>
-        <TrendPeriodToggle
-          value={period}
-          onChange={onPeriodChange}
-          className="self-start"
-        />
+            <TrendPeriodToggle
+              value={period}
+              onChange={onPeriodChange}
+              className="shrink-0"
+            />
+          </div>
+        ) : (
+          <TrendPeriodToggle
+            value={period}
+            onChange={onPeriodChange}
+            className="self-start"
+          />
+        )}
       </div>
 
       {!hasData ? (

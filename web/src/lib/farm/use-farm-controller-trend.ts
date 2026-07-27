@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchFarmControllerTrendAllPeriodsAction } from "@/app/(dashboard)/farm/actions";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import type {
@@ -14,6 +14,10 @@ type TrendBundle = Record<TrendPeriodId, TrendControllerPeriodData>;
 /** map/list 훅 인스턴스 간 공유 — 탭 전환 시 이중 fetch 방지 */
 const trendCache = new Map<string, TrendBundle>();
 const trendInflight = new Map<string, Promise<TrendBundle>>();
+/** soft refresh coalesce — 연속 refresh는 동일 Promise */
+const trendRefreshInflight = new Map<string, Promise<TrendBundle>>();
+/** scope별 결과 적용 세대 — 빠른 농장 전환 시 stale setState 방지 */
+const trendApplyGen = new Map<string, number>();
 
 export function peekFarmControllerTrendCache(
   farmKey: FarmKey,
@@ -30,6 +34,12 @@ function readTrendCache(scopeId: string): TrendBundle | null {
   return trendCache.get(scopeId) ?? null;
 }
 
+function bumpApplyGen(scopeId: string): number {
+  const next = (trendApplyGen.get(scopeId) ?? 0) + 1;
+  trendApplyGen.set(scopeId, next);
+  return next;
+}
+
 function fetchTrendShared(
   farmKey: FarmKey,
   scopeId: string,
@@ -40,12 +50,19 @@ function fetchTrendShared(
     if (cached) return Promise.resolve(cached);
     const pending = trendInflight.get(scopeId);
     if (pending) return pending;
+  } else {
+    const pendingRefresh = trendRefreshInflight.get(scopeId);
+    if (pendingRefresh) return pendingRefresh;
   }
+
+  const applyGen = bumpApplyGen(scopeId);
 
   const req = fetchFarmControllerTrendAllPeriodsAction(farmKey, {
     refresh: refresh || undefined,
   }).then((result) => {
-    trendCache.set(scopeId, result);
+    if (trendApplyGen.get(scopeId) === applyGen) {
+      trendCache.set(scopeId, result);
+    }
     return result;
   });
 
@@ -53,6 +70,13 @@ function fetchTrendShared(
     trendInflight.set(scopeId, req);
     void req.finally(() => {
       if (trendInflight.get(scopeId) === req) trendInflight.delete(scopeId);
+    });
+  } else {
+    trendRefreshInflight.set(scopeId, req);
+    void req.finally(() => {
+      if (trendRefreshInflight.get(scopeId) === req) {
+        trendRefreshInflight.delete(scopeId);
+      }
     });
   }
 
@@ -65,6 +89,7 @@ export function useFarmControllerTrend(params: {
 }) {
   const scopeId = params.farmKey ? farmKeyId(params.farmKey) : "";
   const active = params.enabled && Boolean(params.farmKey);
+  const applyTokenRef = useRef(0);
   const [bundle, setBundle] = useState<{
     scopeId: string;
     data: TrendBundle;
@@ -88,32 +113,39 @@ export function useFarmControllerTrend(params: {
   useEffect(() => {
     if (!active || !params.farmKey) return;
     if (readTrendCache(scopeId)) return;
-    let cancelled = false;
+    const token = ++applyTokenRef.current;
     void fetchTrendShared(params.farmKey, scopeId, false)
       .then((result) => {
-        if (!cancelled) {
-          setBundle({ scopeId, data: result });
-          setError(false);
-        }
+        if (token !== applyTokenRef.current) return;
+        setBundle({ scopeId, data: result });
+        setError(false);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (token !== applyTokenRef.current) return;
+        setError(true);
       });
     return () => {
-      cancelled = true;
+      applyTokenRef.current += 1;
     };
   }, [active, scopeId, params.farmKey]);
 
   const refresh = useCallback(() => {
     if (!params.farmKey) return Promise.resolve();
+    const token = ++applyTokenRef.current;
     setRefreshing(true);
     return fetchTrendShared(params.farmKey, scopeId, true)
       .then((result) => {
+        if (token !== applyTokenRef.current) return;
         setBundle({ scopeId, data: result });
         setError(false);
       })
-      .catch(() => setError(true))
-      .finally(() => setRefreshing(false));
+      .catch(() => {
+        if (token !== applyTokenRef.current) return;
+        setError(true);
+      })
+      .finally(() => {
+        if (token === applyTokenRef.current) setRefreshing(false);
+      });
   }, [params.farmKey, scopeId]);
 
   // enabled=false여도 캐시는 유지 — 투어 pause 등으로 active가 꺼져도

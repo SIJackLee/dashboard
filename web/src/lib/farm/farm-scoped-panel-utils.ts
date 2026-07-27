@@ -83,8 +83,7 @@ export function farmPanelCacheFromSlice(
     barnSnapshots: slice.barnSnapshots,
     gridCols: slice.gridCols,
     gridRows: slice.gridRows,
-    trendByPeriod:
-      slice.trendByPeriod ?? ({} as Record<TrendPeriodId, TrendPeriodData>),
+    trendByPeriod: slice.trendByPeriod ?? null,
     controller: slice.controller ?? {
       readings: slice.readings,
       thermoSettings: {},

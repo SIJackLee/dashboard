@@ -7,6 +7,7 @@ import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import {
   DEFAULT_TREND_PERIOD,
+  hasStallTrendByPeriod,
   type TrendControllerPeriodData,
   type TrendPeriodData,
   type TrendPeriodId,
@@ -80,7 +81,7 @@ export function FarmMapMobileStage({
   } | null>(null);
 
   const bulkEnabled = Boolean(controller?.canCommand);
-  const graphMode = Boolean(trendByPeriod) && !bulkMode;
+  const graphMode = hasStallTrendByPeriod(trendByPeriod) && !bulkMode;
 
   const { expanded, setExpanded, graphByBarnId, metricIdsByBarnId, detail } =
     useBarnGraphs({

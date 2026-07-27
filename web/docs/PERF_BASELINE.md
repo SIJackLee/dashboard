@@ -67,22 +67,23 @@ npm run measure:live
 
 | RPC | When loaded | Cache tag | Typical rows (24h) |
 | --- | --- | --- | --- |
-| `farm_trend_history` | SSR (grid + page + hub scoped Z3) | `live:trend:{scope}` | SP × stall × 96 buckets |
+| `farm_trend_history` | Client idle (grid heatmap hydrate) | `live:trend:{scope}` | SP × stall × 96 buckets |
 | `farm_trend_history_by_controller` | Client lazy (list graph) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets |
 
 - Bucket policy (source → display via `binWorst` / avg downsample): 24h = 15 min × 96 → 24, 7d = 1 h × 168 → 28, 30d = 1 h × 720 → 30 (`farm-trend-types.ts` + `GRAPH_BARS`)
-- Map tab SSR skips controller-trend fetch (P4 lazy load)
-- Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch + SSR trend via server action when `tab=ops` and farm selected
+- Map tab SSR skips stall trend + controller-trend (Phase B idle hydrate / P4 lazy)
+- Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch; stall trend client-idle when map opens
 
 ## Soft refresh tiers (H2)
 
 | Mode | Action | Loads | Used by |
 | --- | --- | --- | --- |
-| `live` (default) | `fetchFarmScopedLiveDataAction` | LIVE readings + barn layout/map | ScopeBar / list soft refresh, ACK `onRefreshLive` |
-| `full` | `fetchFarmScopedPanelDataAction` | LIVE + alarm + thermo/history + map trend | cold bootstrap / enrich / `revalidateFarmLive({ mode: "full" })` |
+| `live` (default) | `fetchFarmScopedLiveDataAction` | LIVE **slim** (list tier, no channels[]) + barn layout/map | ScopeBar / list soft refresh, ACK `onRefreshLive` |
+| `full` | `fetchFarmScopedPanelDataAction` | LIVE (decoded + channels) + alarm + thermo/history · **no stall trend** | cold bootstrap / enrich / `revalidateFarmLive({ mode: "full" })` |
+| stall trend | `fetchFarmTrendAllPeriodsAction` | map heatmap stall trend | idle `prefetchFarmStallTrend` |
 | controller trend | `fetchFarmControllerTrendAllPeriodsAction` | list graph controller trend | list trend refresh bar |
 
-Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
+Soft refresh no longer reloads settings or trend in the same round-trip as LIVE. Slim soft merge keeps prior `channels[]` when omitted.
 
 ## Follow-ups (M1–M5 / L1–L2)
 

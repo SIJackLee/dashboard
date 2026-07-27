@@ -19,7 +19,6 @@ import type { ThermoCommand } from "@/lib/data/commands";
 import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
 import { getAlarmSettings } from "@/lib/data/alarm-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
-import { getFarmTrendAllPeriods } from "@/lib/data/farm-trend-history";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
@@ -31,11 +30,12 @@ export type FarmScopedPanelData = {
   barnSnapshots: BarnMapSnapshot[];
   gridCols: number;
   gridRows: number;
-  trendByPeriod: Record<TrendPeriodId, TrendPeriodData>;
+  /** Phase B — SSR/enrich는 null; stall trend는 client idle hydrate */
+  trendByPeriod: Record<TrendPeriodId, TrendPeriodData> | null;
   controller: ControllerGridData;
 };
 
-/** soft refresh / ACK 폴링 — LIVE(+layout)만. settings·trend 제외 */
+/** soft refresh / ACK 폴링 — LIVE(+layout)만. settings·trend 제외 · slim readings */
 export type FarmScopedLiveData = {
   farmKey: FarmKey;
   readings: BarnReading[];
@@ -80,14 +80,14 @@ async function buildScopedBarnMap(
   };
 }
 
-/** LIVE tier only — soft refresh / command confirm용 */
+/** LIVE tier only — soft refresh / command confirm용 (list-tier slim, channels 생략) */
 export async function loadFarmScopedLiveData(params: {
   farmKey: FarmKey;
   layoutPrefs?: BarnLayoutPrefs;
 }): Promise<FarmScopedLiveData> {
   const { farmKey } = params;
   const [readings, layoutPrefs] = await Promise.all([
-    getLiveReadings({ farmKey }),
+    getLiveReadings({ farmKey, slim: true }),
     params.layoutPrefs
       ? Promise.resolve(params.layoutPrefs)
       : getBarnLayoutPrefs(),
@@ -113,7 +113,7 @@ export async function loadFarmScopedPanelData(params: {
 }): Promise<FarmScopedPanelData> {
   const { farmKey, canCommand } = params;
 
-  const [readings, layoutPrefs, alarmSettings, trendByPeriod, commandThermoMap, history] =
+  const [readings, layoutPrefs, alarmSettings, commandThermoMap, history] =
     await Promise.all([
       getLiveReadings({ farmKey }),
       params.layoutPrefs
@@ -122,7 +122,6 @@ export async function loadFarmScopedPanelData(params: {
       params.alarmSettings
         ? Promise.resolve(params.alarmSettings)
         : getAlarmSettings(),
-      getFarmTrendAllPeriods({ farmKey }),
       params.commandThermoMap
         ? Promise.resolve(params.commandThermoMap)
         : getThermoSettingsMap(500),
@@ -141,7 +140,7 @@ export async function loadFarmScopedPanelData(params: {
     barnSnapshots: map.barnSnapshots,
     gridCols: map.gridCols,
     gridRows: map.gridRows,
-    trendByPeriod,
+    trendByPeriod: null,
     controller: {
       readings: map.scopedReadings,
       thermoSettings: thermoSettingsForFarm,
