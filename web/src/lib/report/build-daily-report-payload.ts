@@ -95,6 +95,43 @@ function seriesFromControllers(
   };
 }
 
+function emptySeries(): DailyReportSeries {
+  return {
+    categories: [],
+    temp: [],
+    humidity: [],
+    motorA: [],
+    motorB: [],
+    motorC: [],
+  };
+}
+
+function seriesFromOneController(
+  categories: string[],
+  c: TrendControllerSeries | undefined,
+): DailyReportSeries {
+  if (!c || !categories.length) return emptySeries();
+  return {
+    categories: categories.slice(),
+    temp: c.temp.slice(),
+    humidity: c.humidity.slice(),
+    motorA: c.fanIntake.slice(),
+    motorB: c.fanExhaust.slice(),
+    motorC: c.fanSupply.slice(),
+  };
+}
+
+function matchTrendController(
+  ctrls: TrendControllerSeries[],
+  controllerKey: string,
+  eqpmnNo: string,
+): TrendControllerSeries | undefined {
+  const byKey = ctrls.find((c) => c.controllerKey === controllerKey);
+  if (byKey) return byKey;
+  const eq = String(eqpmnNo).trim();
+  return ctrls.find((c) => String(c.eqpmnNo).trim() === eq);
+}
+
 function detailFrom24h(series: DailyReportSeries): DailyReportBarn["detailRows"] {
   const finiteIdx: number[] = [];
   for (let i = 0; i < series.categories.length; i++) {
@@ -226,6 +263,13 @@ export async function buildDailyReportPayload(
             a.controllerKey.localeCompare(b.controllerKey),
         );
 
+      const ctrls24 = findStallControllers(
+        trends["24h"],
+        stallTyCode,
+        stallNo,
+      );
+      const cats24 = trends["24h"].categories;
+
       const controllers: DailyReportControllerRow[] = liveCtrls.map((r) => {
         const chA = r.channels?.find((c) => c.channel === "A");
         const chB = r.channels?.find((c) => c.channel === "B");
@@ -236,6 +280,11 @@ export async function buildDailyReportPayload(
           chB?.fanPct ?? r.fanExhaust ?? r.fanExhaustSeries.at(-1) ?? null;
         const motorC =
           chC?.fanPct ?? r.fanSupply ?? r.fanSupplySeries.at(-1) ?? null;
+        const trend = matchTrendController(
+          ctrls24,
+          r.controllerKey,
+          r.eqpmnNo,
+        );
         return {
           controllerKey: r.controllerKey,
           eqpmnNo: r.eqpmnNo,
@@ -245,6 +294,7 @@ export async function buildDailyReportPayload(
           motorB,
           motorC,
           status: r.status,
+          period24h: seriesFromOneController(cats24, trend),
         };
       });
 

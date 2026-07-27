@@ -14,6 +14,8 @@ export type DailyReportControllerRow = {
   motorB: number | null;
   motorC: number | null;
   status: string;
+  /** 첨부용 컨트롤러 단위 24h 시리즈 */
+  period24h: DailyReportSeries;
 };
 
 export type DailyReportSeries = {

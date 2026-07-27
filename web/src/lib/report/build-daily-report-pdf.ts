@@ -31,6 +31,92 @@ function fmt(n: number | null | undefined, digits = 1): string {
   return n.toFixed(digits);
 }
 
+function statusLabel(status: string): string {
+  if (status === "offline") return "오프라인";
+  if (status === "caution") return "주의";
+  return "정상";
+}
+
+/** 축사 시리즈 슬롯 평균 → 농장 대표 시리즈 */
+function averageFarmSeries(
+  barns: DailyReportPayload["barns"],
+  period: TrendPeriodId,
+): DailyReportSeries {
+  if (!barns.length) {
+    return {
+      categories: [],
+      temp: [],
+      humidity: [],
+      motorA: [],
+      motorB: [],
+      motorC: [],
+    };
+  }
+  const categories = barns[0]!.periods[period].categories.slice();
+  const len = categories.length;
+  const avgCol = (
+    pick: (s: DailyReportSeries) => (number | null)[],
+  ): (number | null)[] => {
+    const out = new Array<number | null>(len).fill(null);
+    for (let i = 0; i < len; i++) {
+      let sum = 0;
+      let n = 0;
+      for (const b of barns) {
+        const v = pick(b.periods[period])[i];
+        if (v != null && !Number.isNaN(v)) {
+          sum += v;
+          n += 1;
+        }
+      }
+      out[i] = n ? sum / n : null;
+    }
+    return out;
+  };
+  return {
+    categories,
+    temp: avgCol((s) => s.temp),
+    humidity: avgCol((s) => s.humidity),
+    motorA: avgCol((s) => s.motorA),
+    motorB: avgCol((s) => s.motorB),
+    motorC: avgCol((s) => s.motorC),
+  };
+}
+
+type AttentionRow = {
+  barn: string;
+  eqpmnNo: string;
+  controllerKey: string;
+  status: string;
+  tempC: number | null;
+  humidityPct: number | null;
+};
+
+function collectAttentionRows(
+  barns: DailyReportPayload["barns"],
+): AttentionRow[] {
+  const rows: AttentionRow[] = [];
+  for (const b of barns) {
+    for (const c of b.controllers) {
+      if (c.status !== "caution" && c.status !== "offline") continue;
+      rows.push({
+        barn: `${b.stallLabel} ${b.stallNo}`,
+        eqpmnNo: c.eqpmnNo,
+        controllerKey: c.controllerKey,
+        status: c.status,
+        tempC: c.tempC,
+        humidityPct: c.humidityPct,
+      });
+    }
+  }
+  rows.sort((a, b) => {
+    const rank = (s: string) => (s === "offline" ? 0 : 1);
+    const d = rank(a.status) - rank(b.status);
+    if (d !== 0) return d;
+    return a.barn.localeCompare(b.barn, "ko");
+  });
+  return rows;
+}
+
 function countSeriesPoints(
   series: { values: (number | null)[] }[],
 ): number {
@@ -332,8 +418,26 @@ export async function buildAndDownloadDailyReportPdf(
   payload: DailyReportPayload,
   onProgress?: (p: DailyReportProgress) => void,
 ): Promise<void> {
-  /** 표지 1 + 축사당 1페이지 (밀도 우선) */
-  const totalPages = 1 + payload.barns.length;
+  type AppendixItem = {
+    stallLabel: string;
+    stallNo: string;
+    stallTyCode: string;
+    ctrl: DailyReportPayload["barns"][number]["controllers"][number];
+  };
+  const appendix: AppendixItem[] = [];
+  for (const b of payload.barns) {
+    for (const ctrl of b.controllers) {
+      appendix.push({
+        stallLabel: b.stallLabel,
+        stallNo: b.stallNo,
+        stallTyCode: b.stallTyCode,
+        ctrl,
+      });
+    }
+  }
+  /** 표지 1 + 축사 N + 컨트롤러 첨부(2대/페이지) */
+  const appendixPages = Math.ceil(appendix.length / 2);
+  const totalPages = 1 + payload.barns.length + appendixPages;
   let pageNo = 0;
 
   const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
@@ -373,6 +477,10 @@ export async function buildAndDownloadDailyReportPdf(
     });
     y += 44;
 
+    // 1) 농장 24h 요약 차트
+    const farm24 = averageFarmSeries(payload.barns, "24h");
+    y = periodRow(ctx, y, "농장 24시간 요약 · 온도 / 습도 / 모터", farm24, 64);
+
     ctx.fillStyle = INK;
     ctx.font = `bold 11px ${FONT}`;
     ctx.fillText("축사 인덱스", MARGIN, y);
@@ -397,7 +505,7 @@ export async function buildAndDownloadDailyReportPdf(
     ctx.fillStyle = INK;
     ctx.font = `9px ${FONT}`;
     for (const b of payload.barns) {
-      if (y > CONTENT_BOTTOM - 24) break;
+      if (y > CONTENT_BOTTOM - 120) break;
       ctx.fillText(`${b.stallLabel} ${b.stallNo}`, indexCols[0]!, y);
       ctx.fillText(b.stallTyCode, indexCols[1]!, y);
       ctx.fillText(String(b.kpi.total), indexCols[2]!, y);
@@ -405,6 +513,65 @@ export async function buildAndDownloadDailyReportPdf(
       ctx.fillText(`${fmt(b.kpi.humNow)}%`, indexCols[4]!, y);
       ctx.fillText(b.kpi.judge, indexCols[5]!, y);
       y += 13;
+    }
+    y += 10;
+
+    // 2) 주의·오프라인 컨트롤러
+    if (y + 40 < CONTENT_BOTTOM) {
+      const attention = collectAttentionRows(payload.barns);
+      ctx.fillStyle = INK;
+      ctx.font = `bold 11px ${FONT}`;
+      ctx.fillText(
+        attention.length
+          ? `주의·오프라인 컨트롤러 (${attention.length})`
+          : "주의·오프라인 컨트롤러",
+        MARGIN,
+        y,
+      );
+      y += 12;
+
+      if (attention.length === 0) {
+        ctx.fillStyle = MUTED;
+        ctx.font = `9px ${FONT}`;
+        ctx.fillText("이상 없음 — 주의·오프라인 장치가 없습니다.", MARGIN, y);
+        y += 14;
+      } else {
+        const aCols = [
+          MARGIN + 4,
+          MARGIN + 100,
+          MARGIN + 140,
+          MARGIN + 280,
+          MARGIN + 340,
+          MARGIN + 400,
+        ];
+        tableHeaderBar(
+          ctx,
+          y,
+          ["축사", "번호", "컨트롤러", "상태", "온도", "습도"],
+          aCols,
+        );
+        y += 12;
+        ctx.font = `8px ${FONT}`;
+        for (let i = 0; i < attention.length; i++) {
+          if (y > CONTENT_BOTTOM - 8) break;
+          const row = attention[i]!;
+          if (i % 2 === 1) {
+            ctx.fillStyle = "#F9FAFB";
+            ctx.fillRect(MARGIN, y - 9, PAGE_W - MARGIN * 2, 12);
+          }
+          ctx.fillStyle = INK;
+          ctx.fillText(row.barn, aCols[0]!, y);
+          ctx.fillText(row.eqpmnNo, aCols[1]!, y);
+          ctx.fillText(row.controllerKey.slice(0, 22), aCols[2]!, y);
+          ctx.fillStyle =
+            row.status === "offline" ? "#B91C1C" : "#B45309";
+          ctx.fillText(statusLabel(row.status), aCols[3]!, y);
+          ctx.fillStyle = INK;
+          ctx.fillText(`${fmt(row.tempC)}℃`, aCols[4]!, y);
+          ctx.fillText(`${fmt(row.humidityPct)}%`, aCols[5]!, y);
+          y += 12;
+        }
+      }
     }
 
     footer(ctx, pageNo, totalPages);
@@ -539,6 +706,99 @@ export async function buildAndDownloadDailyReportPdf(
         );
         y += 12;
       }
+    }
+
+    footer(ctx, pageNo, totalPages);
+    addCanvasPage(pdf, canvas, first);
+    first = false;
+    await yieldFrame();
+  }
+
+  // ---- 컨트롤러 첨부 (2대/페이지) ----
+  for (let i = 0; i < appendix.length; i += 2) {
+    pageNo += 1;
+    const a = appendix[i]!;
+    const b = appendix[i + 1];
+    reportProgress(
+      b
+        ? `첨부 · ${a.ctrl.eqpmnNo}번 / ${b.ctrl.eqpmnNo}번`
+        : `첨부 · ${a.ctrl.eqpmnNo}번`,
+    );
+    const { canvas, ctx } = createPageCanvas();
+    headerBand(ctx, "컨트롤러 상세", [
+      `${payload.farmKey.lsindRegistNo} / ${payload.farmKey.itemCode}`,
+      `보고일 ${payload.reportDate}`,
+      `${i + 1}–${Math.min(i + 2, appendix.length)} / ${appendix.length}`,
+    ]);
+
+    const drawControllerBlock = (
+      item: AppendixItem,
+      yStart: number,
+      maxY: number,
+    ): number => {
+      let y = yStart;
+      ctx.fillStyle = ACCENT;
+      ctx.font = `bold 11px ${FONT}`;
+      ctx.fillText(
+        `${item.stallLabel} ${item.stallNo} · ${item.ctrl.eqpmnNo}번`,
+        MARGIN,
+        y,
+      );
+      y += 12;
+      ctx.fillStyle = MUTED;
+      ctx.font = `8px ${FONT}`;
+      ctx.fillText(
+        `${item.stallTyCode} · ${item.ctrl.controllerKey}`,
+        MARGIN,
+        y,
+      );
+      y += 10;
+
+      const kpiGap = 4;
+      const kpiW = (PAGE_W - MARGIN * 2 - kpiGap * 5) / 6;
+      const kpis: [string, string][] = [
+        [`${fmt(item.ctrl.tempC)}℃`, "온도"],
+        [`${fmt(item.ctrl.humidityPct)}%`, "습도"],
+        [
+          item.ctrl.motorA == null ? "—" : `${fmt(item.ctrl.motorA, 0)}%`,
+          "채널 A",
+        ],
+        [
+          item.ctrl.motorB == null ? "—" : `${fmt(item.ctrl.motorB, 0)}%`,
+          "채널 B",
+        ],
+        [
+          item.ctrl.motorC == null ? "—" : `${fmt(item.ctrl.motorC, 0)}%`,
+          "채널 C",
+        ],
+        [statusLabel(item.ctrl.status), "상태"],
+      ];
+      kpis.forEach(([v, l], idx) => {
+        kpiBox(ctx, MARGIN + idx * (kpiW + kpiGap), y, kpiW, v, l, 30);
+      });
+      y += 38;
+
+      if (y + 70 < maxY) {
+        y = periodRow(
+          ctx,
+          y,
+          "24시간 · 온도 / 습도 / 모터",
+          item.ctrl.period24h,
+          56,
+        );
+      }
+      return y;
+    };
+
+    const mid = MARGIN + 46 + (CONTENT_BOTTOM - (MARGIN + 46)) / 2;
+    drawControllerBlock(a, MARGIN + 46, mid - 8);
+    if (b) {
+      ctx.strokeStyle = RULE;
+      ctx.beginPath();
+      ctx.moveTo(MARGIN, mid - 4);
+      ctx.lineTo(PAGE_W - MARGIN, mid - 4);
+      ctx.stroke();
+      drawControllerBlock(b, mid + 8, CONTENT_BOTTOM);
     }
 
     footer(ctx, pageNo, totalPages);
