@@ -7,7 +7,6 @@ import {
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import {
   getBarnLayoutPrefs,
-  mergeBarnLayouts,
   type BarnLayoutPrefs,
 } from "@/lib/data/barn-meta";
 import {
@@ -24,6 +23,8 @@ import type { FarmKey } from "@/lib/data/farm-key";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import { getLiveReadings } from "@/lib/data/iot";
 
+export type BarnLayoutsToPersist = Record<string, { col: number; row: number }>;
+
 export type FarmScopedPanelData = {
   farmKey: FarmKey;
   readings: BarnReading[];
@@ -33,6 +34,8 @@ export type FarmScopedPanelData = {
   /** Phase B — SSR/enrich는 null; stall trend는 client idle hydrate */
   trendByPeriod: Record<TrendPeriodId, TrendPeriodData> | null;
   controller: ControllerGridData;
+  /** Phase C — 읽기 경로 write 제거; client idle persist */
+  layoutsToPersist?: BarnLayoutsToPersist;
 };
 
 /** soft refresh / ACK 폴링 — LIVE(+layout)만. settings·trend 제외 · slim readings */
@@ -42,18 +45,20 @@ export type FarmScopedLiveData = {
   barnSnapshots: BarnMapSnapshot[];
   gridCols: number;
   gridRows: number;
+  layoutsToPersist?: BarnLayoutsToPersist;
 };
 
-async function buildScopedBarnMap(
+function buildScopedBarnMap(
   farmKey: FarmKey,
   readings: BarnReading[],
   layoutPrefs: BarnLayoutPrefs,
-): Promise<{
+): {
   scopedReadings: BarnReading[];
   barnSnapshots: BarnMapSnapshot[];
   gridCols: number;
   gridRows: number;
-}> {
+  layoutsToPersist: BarnLayoutsToPersist;
+} {
   const scopedReadings = filterReadingsByFarmKey(readings, farmKey);
   const scopedLayoutPrefs = filterBarnLayoutPrefsForFarm(layoutPrefs, farmKey);
 
@@ -62,10 +67,7 @@ async function buildScopedBarnMap(
     scopedLayoutPrefs,
   );
 
-  if (Object.keys(layoutsToPersist).length > 0) {
-    await mergeBarnLayouts(layoutsToPersist);
-  }
-
+  // Phase C — SSR/soft read path에서 profiles write 제거 (idle client persist)
   const mergedLayouts = {
     ...scopedLayoutPrefs.layouts,
     ...layoutsToPersist,
@@ -77,6 +79,7 @@ async function buildScopedBarnMap(
     barnSnapshots,
     gridCols: gridSize.cols,
     gridRows: gridSize.rows,
+    layoutsToPersist,
   };
 }
 
@@ -93,13 +96,17 @@ export async function loadFarmScopedLiveData(params: {
       : getBarnLayoutPrefs(),
   ]);
 
-  const map = await buildScopedBarnMap(farmKey, readings, layoutPrefs);
+  const map = buildScopedBarnMap(farmKey, readings, layoutPrefs);
   return {
     farmKey,
     readings: map.scopedReadings,
     barnSnapshots: map.barnSnapshots,
     gridCols: map.gridCols,
     gridRows: map.gridRows,
+    layoutsToPersist:
+      Object.keys(map.layoutsToPersist).length > 0
+        ? map.layoutsToPersist
+        : undefined,
   };
 }
 
@@ -128,7 +135,7 @@ export async function loadFarmScopedPanelData(params: {
       params.history ? Promise.resolve(params.history) : getThermoCommandHistory(100),
     ]);
 
-  const map = await buildScopedBarnMap(farmKey, readings, layoutPrefs);
+  const map = buildScopedBarnMap(farmKey, readings, layoutPrefs);
   const thermoSettingsForFarm = mergeThermoSettingsMaps(
     commandThermoMap,
     buildThermoSettingsFromReadings(map.scopedReadings),
@@ -141,6 +148,10 @@ export async function loadFarmScopedPanelData(params: {
     gridCols: map.gridCols,
     gridRows: map.gridRows,
     trendByPeriod: null,
+    layoutsToPersist:
+      Object.keys(map.layoutsToPersist).length > 0
+        ? map.layoutsToPersist
+        : undefined,
     controller: {
       readings: map.scopedReadings,
       thermoSettings: thermoSettingsForFarm,

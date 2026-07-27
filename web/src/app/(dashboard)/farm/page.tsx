@@ -169,6 +169,7 @@ export default async function FarmPage({
             sp={params.sp}
             view={params.view}
             trendByPeriod={scopedPanelData?.trendByPeriod ?? null}
+            layoutsToPersist={scopedPanelData?.layoutsToPersist}
             controller={
               scopedPanelData?.controller ?? {
                 readings: [],

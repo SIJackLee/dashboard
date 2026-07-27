@@ -18,6 +18,7 @@ import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
+import type { BarnLayoutsToPersist } from "@/lib/farm/load-farm-scoped-panel-data";
 import { currentFarmSearchParams } from "@/lib/farm/farm-view-url";
 import { useAdminHubPanels } from "@/lib/navigation/admin-hub-panels-context";
 import {
@@ -40,6 +41,7 @@ export type FarmDashboardShellProps = {
   view?: string | null;
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
   controller?: ControllerGridData | null;
+  layoutsToPersist?: BarnLayoutsToPersist;
   allFarmGrids?: AdminFarmGridPanel[] | null;
   deferAdminGridLoad?: boolean;
   children?: ReactNode;
@@ -259,6 +261,7 @@ export function FarmDashboardShell({
   view,
   trendByPeriod,
   controller,
+  layoutsToPersist,
   allFarmGrids = null,
   deferAdminGridLoad = false,
   children,
@@ -330,6 +333,7 @@ export function FarmDashboardShell({
       gridRows,
       trendByPeriod,
       controller,
+      layoutsToPersist,
     };
   }, [
     useCachedSingle,
@@ -341,6 +345,7 @@ export function FarmDashboardShell({
     gridRows,
     trendByPeriod,
     controller,
+    layoutsToPersist,
   ]);
 
   const onHubUrlChange = useCallback(() => {

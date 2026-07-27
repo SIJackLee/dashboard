@@ -94,6 +94,7 @@ Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
 | M5 | Ops `fetchHealthSnapshotAction` patch (no periodic `router.refresh`) | **done** (2026-07-22) |
 | L1 | `staggerMount` only when `readings.length > STAGGER_MOUNT_MIN_READINGS` (8) | **done** (2026-07-22) |
 | L2 | `FarmMapCanvas` / `FarmMapMobileStage` / `FarmMapBulkApply` via `next/dynamic` | **done** (2026-07-22) |
+| Phase C | Hub visible-first LIVE · Ops Scan client defer · `mergeBarnLayouts` off read path | **done** |
 
 ## Admin hub TTFB
 
@@ -103,6 +104,7 @@ Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
 | `cachedLiveQuery` | broken `shouldCache`(always DB) → real `unstable_cache` hit |
 | Admin login warm | `signInWithEmail`이 overview 캐시를 미리 채움 → 직후 `/farm` cold≈warm |
 | Hub grid SSR | 첫 배치 LIVE SSR 제거 → `TailLoader`가 전부 client hydrate |
+| Hub visible-first | TailLoader가 viewport ∩ pending을 배치 우선 로드 |
 
 ### Measured (dev, 2026-07-22)
 

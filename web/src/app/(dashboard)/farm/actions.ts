@@ -164,6 +164,14 @@ export async function persistBarnLayoutsAction(
   return result;
 }
 
+/** Phase C — read path idle persist (router revalidate 없음) */
+export async function persistBarnLayoutsQuietAction(
+  partial: Record<string, { col: number; row: number }>
+): Promise<{ ok: boolean; error?: string }> {
+  if (Object.keys(partial).length === 0) return { ok: true };
+  return mergeBarnLayouts(partial);
+}
+
 /** SP 카드 위치 SP01~ 순 자동 배치로 되돌림 */
 export async function resetBarnLayoutsAction(): Promise<{
   ok: boolean;

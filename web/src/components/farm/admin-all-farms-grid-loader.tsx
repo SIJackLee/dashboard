@@ -19,7 +19,11 @@ export function AdminAllFarmsGridLoader({ farmOptions }: Props) {
   const keys = farmOptions.slice(0, ADMIN_HUB_MAX_FARMS);
 
   return (
-    <AdminHubPanelsHydrator panels={[]} tailFarmKeys={keys}>
+    <AdminHubPanelsHydrator
+      panels={[]}
+      tailFarmKeys={keys}
+      hubFarmKeys={keys}
+    >
       <AdminAllFarmsGridPanels
         panels={[]}
         liveFromContext

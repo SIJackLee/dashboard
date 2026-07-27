@@ -9,6 +9,8 @@ type Props = {
   panels: AdminFarmGridPanel[];
   /** SSR 이후 클라이언트에서 이어서 로드할 farm keys */
   tailFarmKeys?: FarmKey[];
+  /** placeholder / visible-first 우선순위용 전체 목록 */
+  hubFarmKeys?: FarmKey[];
   children: ReactNode;
 };
 
@@ -16,14 +18,23 @@ type Props = {
 export function AdminHubPanelsHydrator({
   panels,
   tailFarmKeys = [],
+  hubFarmKeys = [],
   children,
 }: Props) {
-  const { setPanels, setTailFarmKeys } = useAdminHubPanels();
+  const { setPanels, setTailFarmKeys, setHubFarmKeys } = useAdminHubPanels();
 
   useLayoutEffect(() => {
     setPanels(panels);
     setTailFarmKeys(tailFarmKeys);
-  }, [panels, tailFarmKeys, setPanels, setTailFarmKeys]);
+    setHubFarmKeys(hubFarmKeys.length > 0 ? hubFarmKeys : tailFarmKeys);
+  }, [
+    panels,
+    tailFarmKeys,
+    hubFarmKeys,
+    setPanels,
+    setTailFarmKeys,
+    setHubFarmKeys,
+  ]);
 
   return <>{children}</>;
 }

@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -20,6 +21,12 @@ type AdminHubPanelsContextValue = {
   /** SSR 이후 남은 farm keys — TailLoader가 hub 뷰에서 이어서 로드 */
   tailFarmKeys: FarmKey[];
   setTailFarmKeys: (keys: FarmKey[]) => void;
+  /** placeholder/IO용 전체 hub farm 목록 */
+  hubFarmKeys: FarmKey[];
+  setHubFarmKeys: (keys: FarmKey[]) => void;
+  /** viewport 우선 hydrate — TailLoader가 매 배치 전에 확인 */
+  requestPriorityFarmKeys: (keys: FarmKey[]) => void;
+  takePriorityFarmKeys: () => FarmKey[];
   getPanelByFarmKey: (farmKey: FarmKey) => AdminFarmGridPanel | undefined;
   hubUrlEpoch: number;
   notifyHubUrlChange: () => void;
@@ -34,6 +41,8 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [hubUrlEpoch, setHubUrlEpoch] = useState(0);
   const [tailFarmKeys, setTailFarmKeys] = useState<FarmKey[]>([]);
+  const [hubFarmKeys, setHubFarmKeys] = useState<FarmKey[]>([]);
+  const priorityRef = useRef<FarmKey[]>([]);
 
   const setPanels = useCallback((next: AdminFarmGridPanel[]) => {
     setPanelsState(next);
@@ -50,6 +59,31 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
       return [...map.values()];
     });
     setReady(true);
+  }, []);
+
+  const requestPriorityFarmKeys = useCallback((keys: FarmKey[]) => {
+    if (keys.length === 0) return;
+    const seen = new Set<string>();
+    const next: FarmKey[] = [];
+    for (const k of keys) {
+      const id = farmKeyId(k);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      next.push(k);
+    }
+    for (const k of priorityRef.current) {
+      const id = farmKeyId(k);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      next.push(k);
+    }
+    priorityRef.current = next;
+  }, []);
+
+  const takePriorityFarmKeys = useCallback(() => {
+    const keys = priorityRef.current;
+    priorityRef.current = [];
+    return keys;
   }, []);
 
   const getPanelByFarmKey = useCallback(
@@ -70,6 +104,10 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
       appendPanels,
       tailFarmKeys,
       setTailFarmKeys,
+      hubFarmKeys,
+      setHubFarmKeys,
+      requestPriorityFarmKeys,
+      takePriorityFarmKeys,
       getPanelByFarmKey,
       hubUrlEpoch,
       notifyHubUrlChange,
@@ -80,6 +118,9 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
       setPanels,
       appendPanels,
       tailFarmKeys,
+      hubFarmKeys,
+      requestPriorityFarmKeys,
+      takePriorityFarmKeys,
       getPanelByFarmKey,
       hubUrlEpoch,
       notifyHubUrlChange,

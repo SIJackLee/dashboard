@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import {
   fetchFarmScopedLiveDataAction,
+  persistBarnLayoutsQuietAction,
   revalidateFarmLiveAction,
 } from "@/app/(dashboard)/farm/actions";
 import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
@@ -41,6 +42,7 @@ import {
   setFarmPanelCache,
 } from "@/lib/farm/farm-panel-cache";
 import type {
+  BarnLayoutsToPersist,
   FarmScopedLiveData,
   FarmScopedPanelData,
 } from "@/lib/farm/load-farm-scoped-panel-data";
@@ -48,6 +50,20 @@ import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+
+/** Phase C — 신규 SP 좌표 idle persist (read path write 대체) */
+function schedulePersistLayouts(layouts?: BarnLayoutsToPersist): void {
+  if (!layouts || Object.keys(layouts).length === 0) return;
+  if (typeof window === "undefined") return;
+  const run = () => {
+    void persistBarnLayoutsQuietAction(layouts);
+  };
+  if ("requestIdleCallback" in window) {
+    window.requestIdleCallback(run, { timeout: 4000 });
+  } else {
+    globalThis.setTimeout(run, 800);
+  }
+}
 
 /** soft refresh LIVE coalesce */
 const liveInflight = new Map<string, Promise<FarmScopedLiveData>>();
@@ -72,6 +88,8 @@ export type FarmLiveSlice = {
   gridRows: number;
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
   controller?: ControllerGridData | null;
+  /** Phase C — SSR 응답의 신규 SP 좌표 → idle quiet persist */
+  layoutsToPersist?: BarnLayoutsToPersist;
 };
 
 type FarmLiveRefreshContextValue = {
@@ -150,6 +168,7 @@ function applyFreshPanel({
   });
   setAlarmPatch(null);
   setThermoPatch({});
+  schedulePersistLayouts(data.layoutsToPersist);
 }
 
 type ApplyLiveArgs = {
@@ -211,6 +230,7 @@ function applyLivePatch({ farmKey, data, setSlice }: ApplyLiveArgs): void {
     setFarmPanelCache(farmKeyId(farmKey), farmPanelCacheFromSlice(farmKey, next));
     return next;
   });
+  schedulePersistLayouts(data.layoutsToPersist);
 }
 
 type ProviderProps = {
@@ -244,10 +264,19 @@ export function FarmLiveRefreshProvider({
     Record<string, ControllerThermoSettings>
   >({});
   const revalidateSeq = useRef(0);
+  const layoutsPersistOnceRef = useRef(false);
   const sliceRef = useRef(slice);
   useEffect(() => {
     sliceRef.current = slice;
   });
+
+  // SSR panel에 실려 온 신규 SP 좌표 — 한 번만 idle persist
+  useEffect(() => {
+    if (layoutsPersistOnceRef.current) return;
+    if (!initial.layoutsToPersist) return;
+    layoutsPersistOnceRef.current = true;
+    schedulePersistLayouts(initial.layoutsToPersist);
+  }, [initial.layoutsToPersist]);
 
   const serverFingerprint = useMemo(() => sliceFingerprint(initial), [initial]);
   const farmId = farmKey ? farmKeyId(farmKey) : null;
@@ -409,6 +438,7 @@ export function FarmLiveRefreshProvider({
     setAlarmPatch(null);
     setThermoPatch({});
     setIsBootstrapping(false);
+    schedulePersistLayouts(data.layoutsToPersist);
   }, []);
 
   const hydrateStallTrend = useCallback(

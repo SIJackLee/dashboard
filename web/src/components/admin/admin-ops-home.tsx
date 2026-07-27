@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-import { HealthSystemShell } from "@/components/admin/health/health-system-shell";
+import { OpsScanClient } from "@/components/admin/ops-scan-client";
 import { AdminDirectoryPanel } from "@/components/admin/admin-directory-panel";
 import { CommandHistorySlim } from "@/components/controllers/command-history-slim";
 import { AdminOpsTabContentSkeleton } from "@/components/admin/admin-ops-loading-skeleton";
-import { fetchHealthSnapshot } from "@/lib/admin/health/fetch-snapshot";
 import { listManagedUsers } from "@/lib/admin/list-users";
 import { getEditableFarmLocationOptions } from "@/lib/data/farm-location";
 import { getThermoCommandHistory } from "@/lib/data/commands";
@@ -31,15 +30,6 @@ async function loadDirectoryFarmOptions() {
   );
 }
 
-async function ScanSection() {
-  const snapshot = await fetchHealthSnapshot();
-  return (
-    <section id="scan" className="order-3 scroll-mt-3 md:order-1">
-      <HealthSystemShell snapshot={snapshot} />
-    </section>
-  );
-}
-
 async function DirectorySection() {
   let users: Awaited<ReturnType<typeof listManagedUsers>> = [];
   let configError = false;
@@ -58,7 +48,8 @@ async function DirectorySection() {
     <section
       id="directory"
       className={cn("order-1 scroll-mt-3 md:order-2", opsLayout.stack)}
-    >      {configError ? (
+    >
+      {configError ? (
         <p
           className={cn(
             "rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-amber-900",
@@ -88,7 +79,7 @@ async function CommandsSection() {
   );
 }
 
-/** 운영 홈 — 스캔 + 디렉터리(B) + 슬림 명령. */
+/** 운영 홈 — 스캔(client defer) + 디렉터리(B) + 슬림 명령. */
 export async function AdminOpsHome() {
   return (
     <div
@@ -96,9 +87,8 @@ export async function AdminOpsHome() {
         "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-6",
         opsLayout.stack,
       )}
-    >      <Suspense fallback={<AdminOpsTabContentSkeleton label="스캔" />}>
-        <ScanSection />
-      </Suspense>
+    >
+      <OpsScanClient />
       <Suspense fallback={<AdminOpsTabContentSkeleton label="디렉터리" />}>
         <DirectorySection />
       </Suspense>
