@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 
 type Props = {
   stale?: boolean;
@@ -15,7 +16,9 @@ export function StaleWhileRevalidateShell({
   return (
     <div
       className={cn(
-        "relative transition-opacity duration-200",
+        "relative",
+        motionClass.transitionOpacity,
+        motionClass.durationNormal,
         stale && "opacity-[0.72]",
         className,
       )}

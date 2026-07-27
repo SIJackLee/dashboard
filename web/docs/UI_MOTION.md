@@ -156,7 +156,7 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | **0** | L1 tokens, CSS vars | ✅ |
 | **1** | L2 presets, intent map, verify script, this doc | ✅ |
 | **2** | ui/* shadcn + farm domain 마이그레이션 | ✅ |
-| **3** | ESLint guard, Playwright motion snapshots | 예정 |
+| **3** | ESLint guard, Playwright motion snapshots | ✅ |
 
 ### Phase 2 적용 요약
 
@@ -167,6 +167,17 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 `barn-table` refresh ring, `bulk-apply` 스위치, `barn-controller-mobile-sheet` 트랙,  
 툴바·기간 토글·패널 닫기·피커·게이지 pill·목록 SP 칩 등  
 → 임의 `duration-300` / `transition-all` 제거, L2 preset 치환
+
+### Phase 3 가드레일
+
+| 명령 | 역할 |
+|------|------|
+| `npm run lint` | `no-restricted-syntax` — `transition-all`, `duration-N` (non-motion) |
+| `npm run verify:motion-classes` | src 전체 문자열 스캔 (ESLint 보완) |
+| `npm run audit:motion-reduced` | CSS reduce 정적 검수 + Playwright 런타임 (BASE 가용 시) |
+| `npm run verify:motion` | tokens + classes + reduced 일괄 |
+
+런타임 강제: `STRICT_MOTION_RUNTIME=1 npm run audit:motion-reduced`
 
 ---
 

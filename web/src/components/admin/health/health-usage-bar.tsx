@@ -1,4 +1,5 @@
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 type HealthUsageBarProps = {
@@ -38,7 +39,9 @@ export function HealthUsageBar({
       <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
         <div
           className={cn(
-            "h-full rounded-full transition-all",
+            "h-full rounded-full transition-[width]",
+            motionClass.durationModerate,
+            motionClass.easeStandard,
             tone === "warn" ? "bg-amber-500" : "bg-sky-500"
           )}
           style={{ width: `${pct}%` }}

@@ -20,6 +20,9 @@
     "audit:farm-command": "node scripts/farm-command-audit.mjs",
     "audit:health-drilldown": "node scripts/health-drilldown-audit.mjs",
     "verify:motion-tokens": "node scripts/verify-motion-tokens.mjs",
+    "verify:motion-classes": "node scripts/verify-motion-classes.mjs",
+    "audit:motion-reduced": "node scripts/motion-reduced-audit.mjs",
+    "verify:motion": "npm run verify:motion-tokens && npm run verify:motion-classes && npm run audit:motion-reduced",
     "set:test-passwords": "node scripts/set-test-passwords.mjs"
   },
   "dependencies": {

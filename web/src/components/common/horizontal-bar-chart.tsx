@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { motionClass } from "@/lib/ui/motion-classes";
 
 export type HorizontalBarItem = {
   /** React key — label alone may duplicate across farms */
@@ -47,7 +48,12 @@ export function HorizontalBarChart({
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className={cn("h-full rounded-full transition-all", barClassName)}
+                className={cn(
+                  "h-full rounded-full transition-[width]",
+                  motionClass.durationModerate,
+                  motionClass.easeStandard,
+                  barClassName,
+                )}
                 style={{ width: v === null ? "0%" : `${pct}%` }}
               />
             </div>
