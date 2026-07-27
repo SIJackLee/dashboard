@@ -7,12 +7,19 @@ import {
   clampMenuValue,
   EDIT_START_DRAFT,
   MENU_STEPS,
-  PANEL_MENU_ITEMS,
   type PanelMenuId,
 } from "@/lib/controllers/controller-panel-map";
-import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
+import {
+  thermoValuesMatch,
+  type ControllerThermoSettings,
+} from "@/lib/controllers/controller-settings";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 import { formatUserError } from "@/lib/ui/controller-labels";
+
+type ThermoValues = Pick<
+  ControllerThermoSettings,
+  "setpointTemp" | "tempDeviation" | "minVentPct" | "maxVentPct"
+>;
 
 export type PanelDraft = {
   setpointTemp: number;
@@ -106,6 +113,35 @@ function panelDraftToFields(d: PanelDraft): Record<PanelMenuId, number> {
   };
 }
 
+function draftToThermo(d: PanelDraft): ThermoValues {
+  return {
+    setpointTemp: d.setpointTemp,
+    tempDeviation: d.tempDeviation,
+    minVentPct: d.minVentPct,
+    maxVentPct: d.maxVentPct,
+  };
+}
+
+function fieldsToThermo(
+  f: Record<PanelMenuId, number>,
+): ThermoValues {
+  return {
+    setpointTemp: f.setpoint,
+    tempDeviation: f.deviation,
+    minVentPct: f.minVent,
+    maxVentPct: f.maxVent,
+  };
+}
+
+function thermoToFields(t: ThermoValues): Record<PanelMenuId, number> {
+  return {
+    setpoint: t.setpointTemp,
+    deviation: t.tempDeviation,
+    minVent: t.minVentPct,
+    maxVent: t.maxVentPct,
+  };
+}
+
 export function useControllerPanel(
   target: ControllerReading | undefined,
   knownSettings: ControllerThermoSettings | null,
@@ -113,11 +149,15 @@ export function useControllerPanel(
   activeChannel?: ChannelSlot,
   channelEqpmnCode?: string,
   onCommandRegistered?: (command: import("@/lib/data/commands").ThermoCommand) => void,
+  /** LIVE 디코드 설정 — dirty/「현재」표시 기준 (낙관 knownSettings와 분리) */
+  liveBaseline?: ThermoValues | null,
 ) {
   const [pending, setPending] = useState(false);
   const [activeMenu, setActiveMenu] = useState<PanelMenuId>("setpoint");
   const [draft, setDraft] = useState<PanelDraft | null>(null);
   const [hasEdited, setHasEdited] = useState(false);
+  /** Apply 성공 직후 dirty 기준 — LIVE 반영 전 동일값 재전송 방지 */
+  const [saveBaseline, setSaveBaseline] = useState<PanelDraft | null>(null);
   const [message, setMessage] = useState<{
     tone: "ok" | "error";
     text: string;
@@ -143,8 +183,18 @@ export function useControllerPanel(
   if (panelIdentity !== prevPanelIdentity) {
     setPrevPanelIdentity(panelIdentity);
     setHasEdited(false);
+    setSaveBaseline(null);
     setMessage(null);
     setDraft(knownSettings ? draftFromSettings(knownSettings) : null);
+  }
+
+  /** LIVE가 제출값과 일치하면 saveBaseline 해제 → 이후 dirty는 LIVE 기준 */
+  if (
+    saveBaseline &&
+    liveBaseline &&
+    thermoValuesMatch(draftToThermo(saveBaseline), liveBaseline)
+  ) {
+    setSaveBaseline(null);
   }
 
   /**
@@ -305,6 +355,7 @@ export function useControllerPanel(
         ]);
         if (result.ok) {
           onCommandRegistered?.(result.command);
+          setSaveBaseline({ ...values });
           setHasEdited(false);
         } else {
           setMessage({ tone: "error", text: formatUserError(result.error) });
@@ -354,27 +405,48 @@ export function useControllerPanel(
     [draft, knownSettings],
   );
 
-  /** 장치·LIVE 기준 현재 설정 (편집 전 baseline — 폴링 시 갱신) */
+  /**
+   * 「현재」표시 — LIVE 우선 (낙관 명령값과 분리).
+   * LIVE 없으면 knownSettings.
+   */
   const currentValues = useMemo((): Record<PanelMenuId, number> | null => {
+    if (liveBaseline) return thermoToFields(liveBaseline);
     if (!knownSettings) return null;
     return panelDraftToFields(draftFromSettings(knownSettings));
-  }, [knownSettings]);
+  }, [liveBaseline, knownSettings]);
+
+  /**
+   * dirty 기준 — 방금 제출한 값 > LIVE > knownSettings.
+   * 낙관 patch만으로 Apply가 꺼지거나, LIVE 미반영인데 재전송되는 것을 피함.
+   */
+  const dirtyBaseline = useMemo((): Record<PanelMenuId, number> | null => {
+    if (saveBaseline) return panelDraftToFields(saveBaseline);
+    if (liveBaseline) return thermoToFields(liveBaseline);
+    if (!knownSettings) return null;
+    return panelDraftToFields(draftFromSettings(knownSettings));
+  }, [saveBaseline, liveBaseline, knownSettings]);
 
   const isFieldChanged = useCallback(
     (menu: PanelMenuId): boolean => {
-      if (!currentValues) return hasEdited;
-      return sliderValues[menu] !== currentValues[menu];
+      if (!dirtyBaseline) return hasEdited;
+      const a = sliderValues[menu];
+      const b = dirtyBaseline[menu];
+      if (menu === "setpoint" || menu === "deviation") {
+        return Math.abs(a - b) > 0.05;
+      }
+      return a !== b;
     },
-    [currentValues, hasEdited, sliderValues],
+    [dirtyBaseline, hasEdited, sliderValues],
   );
 
   const hasChanges = useMemo(() => {
-    if (!hasEdited && !currentValues) return false;
-    if (!currentValues) return hasEdited;
-    return PANEL_MENU_ITEMS.some(
-      (item) => sliderValues[item.id] !== currentValues[item.id],
+    if (!hasEdited && !dirtyBaseline) return false;
+    if (!dirtyBaseline) return hasEdited;
+    return !thermoValuesMatch(
+      fieldsToThermo(sliderValues),
+      fieldsToThermo(dirtyBaseline),
     );
-  }, [currentValues, hasEdited, sliderValues]);
+  }, [dirtyBaseline, hasEdited, sliderValues]);
 
   return {
     activeMenu,

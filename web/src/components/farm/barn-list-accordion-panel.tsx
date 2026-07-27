@@ -168,6 +168,7 @@ export function BarnListAccordionPanel({
     hasChannels ? activeChannel : undefined,
     hasChannels ? channelEqpmnCode : undefined,
     registerCommand,
+    liveThermo,
   );
 
   /** 카드 LIVE 상태 우선 — detail API가 늦거나 offline이면 적용이 잠기지 않게 */
