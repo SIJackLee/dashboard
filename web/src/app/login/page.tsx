@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { LoginFormWithNav } from "@/components/login/login-form-with-nav";
+import { OAuthButtons } from "@/components/login/oauth-buttons";
 import {
   Card,
   CardContent,
@@ -41,6 +42,7 @@ export default async function LoginPage({
         </CardHeader>
         <CardContent className="space-y-4">
           <LoginFormWithNav initialError={message} />
+          <OAuthButtons />
           <p className="text-center text-xs text-muted-foreground">
             계정이 없거나 접근 권한이 필요하면 관리자에게 문의하세요.
           </p>

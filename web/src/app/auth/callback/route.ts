@@ -1,30 +1,34 @@
 import { NextResponse } from "next/server";
+import { resolvePostLoginPath } from "@/lib/auth/resolve-post-login-path";
 import { createClient } from "@/lib/supabase/server";
 
-// OAuth 리디렉션 후 code → 세션 교환
+function redirectBase(request: Request): string {
+  const { origin } = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const isLocal = process.env.NODE_ENV === "development";
+
+  if (isLocal) return origin;
+  if (forwardedHost) {
+    const proto = request.headers.get("x-forwarded-proto") ?? "https";
+    return `${proto}://${forwardedHost}`;
+  }
+  return origin;
+}
+
+/** OAuth 리디렉션 후 code → 세션 교환, 권한에 따라 /farm | /pending */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/farm";
+  const base = redirectBase(request);
 
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      let target = next;
-      if (next === "/farm" || next.startsWith("/farm?")) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "")
-          .maybeSingle();
-        if (profile?.role === "admin") {
-          target = "/farm";
-        }
-      }
-      return NextResponse.redirect(`${origin}${target}`);
+      const { nextPath } = await resolvePostLoginPath(supabase);
+      return NextResponse.redirect(`${base}${nextPath}`);
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  return NextResponse.redirect(`${base}/login?error=auth`);
 }

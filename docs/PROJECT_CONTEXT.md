@@ -165,7 +165,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - **빠른 비교** UI는 제거. 온습도·팬 비교로 역할 분리.
 - **컨트롤러 제품 UI** (AVR-2000 / AUTOFAN 사진 기반)는 **추후**.
 - 제어 명령 의도는 4종: **최저환기 / 최고환기 / 설정온도 / 온도편차** (`ctrl_thermo_command`).
-- 인증은 OAuth가 아니라 이메일/비밀번호 (계정이 이미 `auth.users`에 존재).
+- 인증: **이메일/비밀번호** + **Google / 카카오 OAuth** (Supabase Auth). OAuth 콜백 `/auth/callback`. 신규·미승인 계정은 `user_access`/`admin` 없으면 `/pending` (정책 A).
 
 ## 10. 농장 지도 UI/UX
 

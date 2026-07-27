@@ -1,6 +1,8 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { resolvePostLoginPath } from "@/lib/auth/resolve-post-login-path";
 import { createClient } from "@/lib/supabase/server";
 
 export type SignInErrorCode = "missing" | "credentials" | "auth";
@@ -9,34 +11,7 @@ export type SignInResult =
   | { ok: true; nextPath: "/farm" | "/pending" }
   | { ok: false; error: SignInErrorCode };
 
-async function resolveNextPathAfterSignIn(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<{ nextPath: "/farm" | "/pending"; isAdmin: boolean }> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { nextPath: "/farm", isAdmin: false };
-
-  const [{ data: profile }, { data: accesses }] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("role")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("user_access")
-      .select("can_read")
-      .eq("user_id", user.id),
-  ]);
-
-  const isAdmin = profile?.role === "admin";
-  const hasAccess =
-    isAdmin || (accesses ?? []).some((row) => row.can_read === true);
-  return {
-    nextPath: hasAccess ? "/farm" : "/pending",
-    isAdmin,
-  };
-}
+export type OAuthProvider = "google" | "kakao";
 
 /** Admin hub cold TTFB — 로그인 직후 overview 캐시를 미리 채운다. */
 async function warmAdminHubOverviewCache(): Promise<void> {
@@ -48,6 +23,26 @@ async function warmAdminHubOverviewCache(): Promise<void> {
   } catch {
     /* best-effort — /farm이 다시 조회 */
   }
+}
+
+function appOriginFromHeaders(headerStore: Headers): string {
+  const envSite = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  if (envSite) return envSite;
+
+  const forwardedHost = headerStore.get("x-forwarded-host");
+  const forwardedProto = headerStore.get("x-forwarded-proto") ?? "https";
+  if (forwardedHost) return `${forwardedProto}://${forwardedHost}`;
+
+  const origin = headerStore.get("origin");
+  if (origin) return origin;
+
+  const host = headerStore.get("host");
+  if (host) {
+    const proto = host.includes("localhost") ? "http" : "https";
+    return `${proto}://${host}`;
+  }
+
+  return "http://localhost:3000";
 }
 
 export async function signInWithEmail(formData: FormData): Promise<SignInResult> {
@@ -65,7 +60,7 @@ export async function signInWithEmail(formData: FormData): Promise<SignInResult>
     return { ok: false, error: "credentials" };
   }
 
-  const { nextPath, isAdmin } = await resolveNextPathAfterSignIn(supabase);
+  const { nextPath, isAdmin } = await resolvePostLoginPath(supabase);
   if (
     nextPath === "/farm" &&
     isAdmin &&
@@ -74,6 +69,33 @@ export async function signInWithEmail(formData: FormData): Promise<SignInResult>
     await warmAdminHubOverviewCache();
   }
   return { ok: true, nextPath };
+}
+
+export async function signInWithOAuthProvider(provider: OAuthProvider) {
+  const supabase = await createClient();
+  const headerStore = await headers();
+  const origin = appOriginFromHeaders(headerStore);
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: `${origin}/auth/callback`,
+    },
+  });
+
+  if (error || !data.url) {
+    redirect("/login?error=auth");
+  }
+
+  redirect(data.url);
+}
+
+export async function signInWithGoogle() {
+  await signInWithOAuthProvider("google");
+}
+
+export async function signInWithKakao() {
+  await signInWithOAuthProvider("kakao");
 }
 
 export async function signOut() {
