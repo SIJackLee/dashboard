@@ -15,7 +15,6 @@ import {
   getFarmUrlEpochServer,
   subscribeFarmUrlEpoch,
 } from "@/lib/farm/farm-view-url";
-import { buildAndDownloadDailyReportPdf } from "@/lib/report/build-daily-report-pdf";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +98,9 @@ export function DailyReportButton({
             ...o,
             detail: `표지 + 축사 ${payload.barns.length}곳 PDF 구성 중`,
           }));
+          const { buildAndDownloadDailyReportPdf } = await import(
+            "@/lib/report/build-daily-report-pdf"
+          );
           await buildAndDownloadDailyReportPdf(payload, (p) => {
             setOverlay({
               visible: true,

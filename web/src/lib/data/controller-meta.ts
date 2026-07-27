@@ -1,9 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import {
-  parseControllerMeta,
-  type ControllerMetaEntry,
-} from "@/lib/data/controller-meta-shared";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
+import type { ControllerMetaEntry } from "@/lib/data/controller-meta-shared";
 
 export type {
   ControllerMetaConfig,
@@ -12,22 +10,10 @@ export type {
 
 export { controllerDisplayName } from "@/lib/data/controller-meta-shared";
 
+/** profiles.ui_config — getCurrentUser와 동일 요청 내 캐시 공유 */
 export async function getControllerMetas(): Promise<ControllerMetaEntry[]> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return [];
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("ui_config")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (error || !data) return [];
-  const cfg = data.ui_config as Record<string, unknown> | null;
-  return parseControllerMeta(cfg).controllers;
+  const user = await getCurrentUser();
+  return user?.controllerMetas ?? [];
 }
 
 export async function upsertControllerDisplayName(

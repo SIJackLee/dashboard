@@ -94,39 +94,52 @@ export default async function FarmPage({
     view: params.view,
   };
 
-  const shellCtx = await getPageShellContext(shellParams);
+  /** Admin hub — farmOptions는 shell과 병렬 후 확정. 스코프 defer는 activeFarmKey만으로 판단 */
+  const adminScopedFarmDefer = isAdmin && activeFarmKey != null;
+  const likelyAdminHub = isAdmin && !activeFarmKey;
+  const needsPanelData = Boolean(activeFarmKey) && !adminScopedFarmDefer;
+  const needsHistory = needsPanelData || !likelyAdminHub;
+
+  const [shellCtx, panelBundle] = await Promise.all([
+    getPageShellContext(shellParams),
+    (async () => {
+      if (!needsHistory) {
+        return {
+          scopedPanelData: null as Awaited<
+            ReturnType<typeof loadFarmScopedPanelData>
+          > | null,
+          thermoSettings: {} as Record<string, ControllerThermoSettings>,
+          history: [] as ThermoCommand[],
+        };
+      }
+      const [historyRes, commandThermoMap] = await Promise.all([
+        getThermoCommandHistory(100),
+        getThermoSettingsMap(500),
+      ]);
+      const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
+      let scopedPanelData: Awaited<
+        ReturnType<typeof loadFarmScopedPanelData>
+      > | null = null;
+      if (needsPanelData && activeFarmKey) {
+        scopedPanelData = await loadFarmScopedPanelData({
+          farmKey: activeFarmKey,
+          commandThermoMap: thermoSettings,
+          history: historyRes,
+          canCommand: canCommand(user),
+        });
+      }
+      return {
+        scopedPanelData,
+        thermoSettings,
+        history: historyRes,
+      };
+    })(),
+  ]);
 
   const adminAllFarmsMode =
     isAdmin && !activeFarmKey && shellCtx.farmOptions.length > 0;
 
-  /** Admin hub 단일 농장 — server action POST 시 무거운 SSR 생략, 클라이언트 캐시·lazy fetch */
-  const adminScopedFarmDefer =
-    isAdmin && activeFarmKey != null && !adminAllFarmsMode;
-
-  let scopedPanelData: Awaited<ReturnType<typeof loadFarmScopedPanelData>> | null =
-    null;
-  let thermoSettings: Record<string, ControllerThermoSettings> = {};
-  let history: ThermoCommand[] = [];
-
-  const needsPanelData = Boolean(activeFarmKey) && !adminScopedFarmDefer;
-  const needsHistory = needsPanelData || !adminAllFarmsMode;
-
-  if (needsHistory) {
-    const [historyRes, commandThermoMap] = await Promise.all([
-      getThermoCommandHistory(100),
-      getThermoSettingsMap(500),
-    ]);
-    history = historyRes;
-    thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});
-    if (needsPanelData && activeFarmKey) {
-      scopedPanelData = await loadFarmScopedPanelData({
-        farmKey: activeFarmKey,
-        commandThermoMap: thermoSettings,
-        history,
-        canCommand: canCommand(user),
-      });
-    }
-  }
+  const { scopedPanelData, thermoSettings, history } = panelBundle;
 
   const pageBody = (content: ReactNode) => (
     <div className="space-y-4 md:space-y-5">

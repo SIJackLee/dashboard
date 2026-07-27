@@ -1,5 +1,9 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseControllerMeta,
+  type ControllerMetaEntry,
+} from "@/lib/data/controller-meta-shared";
 
 export type Role = "admin" | "operator" | "viewer";
 
@@ -22,6 +26,8 @@ export type CurrentUser = {
   isAdmin: boolean;
   /** 데이터 조회 권한 보유 여부 (관리자이거나 can_read 스코프 1개 이상) */
   hasAccess: boolean;
+  /** profiles.ui_config 컨트롤러 표시명 — layout/meta와 동일 요청 내 재조회 방지 */
+  controllerMetas: ControllerMetaEntry[];
 };
 
 // React cache() 로 동일 요청 내 중복 조회 제거
@@ -37,7 +43,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const [{ data: profile }, { data: accesses }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("role, display_name")
+      .select("role, display_name, ui_config")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
@@ -61,6 +67,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     accesses: accessList,
     isAdmin,
     hasAccess,
+    controllerMetas: parseControllerMeta(profile?.ui_config).controllers,
   };
 });
 
