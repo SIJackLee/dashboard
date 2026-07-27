@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * @deprecated Prefer BarnChannelTrendPanel layout="split".
- * 오버레이(A/B/C 한 차트) → 스몰멀티플로 위임.
+ * @deprecated Prefer BarnChannelTrendPanel layout="overlay".
  */
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
@@ -32,7 +31,7 @@ export function BarnChannelGraphSection({
       controllerTrendByPeriod={controllerTrendByPeriod}
       period={period}
       thermoSettings={thermoSettings}
-      layout="split"
+      layout="overlay"
       compact={compact}
       className={className}
     />

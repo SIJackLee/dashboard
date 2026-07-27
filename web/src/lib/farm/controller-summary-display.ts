@@ -50,6 +50,18 @@ export function channelPercentsFromReading(r: BarnReading): ChannelPercents {
   };
 }
 
+/** LIVE decode 활성 채널. channels[] 없으면 현재 팬값이 있는 슬롯. */
+export function activeChannelSlotsFromReading(r: BarnReading): ChannelSlot[] {
+  if (r.channels?.length) {
+    const slots = r.channels
+      .map((c) => c.channel)
+      .filter((s, i, arr) => arr.indexOf(s) === i);
+    return CHANNELS.filter((s) => slots.includes(s));
+  }
+  const pct = channelPercentsFromReading(r);
+  return CHANNELS.filter((s) => pct[s] != null);
+}
+
 export function resolveReadingThermo(
   r: BarnReading,
   thermoSettings: Record<string, ControllerThermoSettings>

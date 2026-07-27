@@ -376,7 +376,7 @@ export function ControllerSummaryGaugeRow({
         controllerTrendByPeriod={controllerTrendByPeriod}
         period={panelPeriod}
         thermoSettings={thermoSettings}
-        layout="split"
+        layout="overlay"
         compact={panelPlacement === "right"}
         dense={channelTrendCompact}
       />

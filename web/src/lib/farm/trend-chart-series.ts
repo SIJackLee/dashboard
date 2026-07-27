@@ -146,15 +146,14 @@ export function humidityTrendSeries(
   };
 }
 
-export function envTrendSeries(m: StallMetrics): TrendSeries[] {
+/** 복합 환경 차트 — 온도(left·알람 band) + 습도(right·알람 band). */
+export function envTrendSeries(
+  m: Pick<TrendStallSeries, "temp" | "humidity">,
+  thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
+): TrendSeries[] {
   return [
-    { name: "온도", data: m.temp, color: TREND_CHART_COLORS.temp, axis: "left" },
-    {
-      name: "습도",
-      data: m.humidity,
-      color: TREND_CHART_COLORS.humidity,
-      axis: "right",
-    },
+    tempTrendSeries(m, thresholds),
+    { ...humidityTrendSeries(m, thresholds), axis: "right" },
   ];
 }
 
@@ -190,6 +189,28 @@ export function channelFanTrendSeries(
       band: band ?? undefined,
     };
   });
+}
+
+/**
+ * 활성 채널만 한 차트에 오버레이 (단위 %).
+ * band/참조선은 생략 — 다중 채널 시 겹침 방지.
+ */
+export function channelOverlayTrendSeries(
+  m: StallMetrics,
+  slots: ChannelSlot[],
+): TrendSeries[] {
+  const out: TrendSeries[] = [];
+  for (const slot of slots) {
+    const meta = CHANNEL_SLOT_META[slot];
+    const data = m[meta.field];
+    if (!data.some((v) => v != null && Number.isFinite(v))) continue;
+    out.push({
+      name: meta.label,
+      data,
+      color: meta.color,
+    });
+  }
+  return out;
 }
 
 /** 그래프 pill / 채널 스트립 — 단일 채널 line trend. */

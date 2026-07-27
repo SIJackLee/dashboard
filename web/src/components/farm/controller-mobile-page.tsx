@@ -39,7 +39,7 @@ export function ControllerMobilePage({
           controllerTrendByPeriod={controllerTrendByPeriod}
           period={period}
           thermoSettings={thermoSettings}
-          layout="split"
+          layout="overlay"
           compact
           dense
         />

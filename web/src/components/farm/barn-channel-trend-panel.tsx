@@ -6,14 +6,15 @@ import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-t
 import type { BarnReading } from "@/lib/data/iot";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
-import { CHANNELS } from "@/lib/farm/controller-summary-display";
 import {
+  activeChannelSlotsFromReading,
   channelPercentsFromReading,
   findControllerTrendSeries,
   formatChannelPercent,
   resolveReadingChannelThermo,
 } from "@/lib/farm/controller-summary-display";
 import {
+  channelOverlayTrendSeries,
   channelSlotTrendSeries,
   fanTrendReferenceLines,
   stallTrendHasData,
@@ -30,8 +31,12 @@ type Props = {
   controllerTrendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   period: TrendPeriodId;
   thermoSettings?: Record<string, ControllerThermoSettings>;
-  /** split = A/B/C 각각 · single = 한 채널만 (ChannelStrip 펼침). */
-  layout?: "split" | "single";
+  /**
+   * overlay = 활성 A/B/C 한 차트 (기본)
+   * single = 한 채널만 (ChannelStrip 펼침)
+   * split = overlay 별칭 (하위 호환)
+   */
+  layout?: "overlay" | "split" | "single";
   slot?: ChannelSlot;
   compact?: boolean;
   /** stack 모바일 — 차트 높이·tick 더 축소. */
@@ -126,18 +131,19 @@ function ChannelSlotTrendChart({
   );
 }
 
-/** 그래프(채널) pill — 채널 A/B/C RPC 트렌드 (bar 그래프 대체). */
+/** 그래프(채널) — 활성 채널 오버레이(기본) 또는 단일 채널. */
 export function BarnChannelTrendPanel({
   reading,
   controllerTrendByPeriod,
   period,
   thermoSettings = {},
-  layout = "split",
+  layout = "overlay",
   slot,
   compact = false,
   dense = false,
   className,
 }: Props) {
+  const resolvedLayout = layout === "split" ? "overlay" : layout;
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
     () =>
@@ -198,6 +204,16 @@ export function BarnChannelTrendPanel({
   const tickEvery = display.tickEvery;
   const hasData = hasDataRaw && chartSeries != null;
 
+  const activeSlots = useMemo(
+    () => activeChannelSlotsFromReading(reading),
+    [reading],
+  );
+
+  const overlaySeries = useMemo(() => {
+    if (!chartSeries || resolvedLayout !== "overlay") return [];
+    return channelOverlayTrendSeries(chartSeries, activeSlots);
+  }, [chartSeries, resolvedLayout, activeSlots]);
+
   if (!hasData || !chartSeries) {
     return (
       <div
@@ -212,35 +228,66 @@ export function BarnChannelTrendPanel({
     );
   }
 
-  const slots: ChannelSlot[] =
-    layout === "single" && slot ? [slot] : [...CHANNELS];
-
-  return (
-    <div className={cn("space-y-2", className)}>
-      {layout === "split" ? (
-        <p
-          className={cn(
-            "font-semibold text-muted-foreground",
-            compact ? "text-[0.65rem]" : "text-xs"
-          )}
-        >
-          그래프 · 채널 추이 · {trendPeriodLabel(period)}
-        </p>
-      ) : null}
-      {slots.map((s) => (
+  if (resolvedLayout === "single" && slot) {
+    return (
+      <div className={cn("space-y-2", className)}>
         <ChannelSlotTrendChart
-          key={s}
           reading={reading}
-          slot={s}
+          slot={slot}
           controllerSeries={chartSeries}
           categories={categories}
-          thermo={resolveReadingChannelThermo(reading, thermoSettings, s)}
+          thermo={resolveReadingChannelThermo(reading, thermoSettings, slot)}
           tickEvery={tickEvery}
           period={period}
           compact={compact}
           dense={dense}
         />
-      ))}
+      </div>
+    );
+  }
+
+  if (overlaySeries.length === 0) {
+    return (
+      <div
+        className={cn(
+          "rounded-lg border border-border/80 bg-muted/15 px-2.5 py-3 text-xs text-muted-foreground",
+          className,
+        )}
+      >
+        활성 채널 추이 없음
+      </div>
+    );
+  }
+
+  const slotLabel = overlaySeries.map((s) => s.name.replace("채널 ", "")).join("·");
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border border-sky-500/20 bg-sky-500/5 px-2.5 py-2",
+        compact && "py-1.5",
+        className,
+      )}
+    >
+      <p
+        className={cn(
+          "mb-1 font-semibold text-muted-foreground",
+          compact ? "text-[0.65rem]" : "text-xs",
+        )}
+      >
+        모터 · 채널 {slotLabel} · {trendPeriodLabel(period)}
+      </p>
+      <TrendChart
+        mode="line"
+        categories={categories}
+        series={overlaySeries}
+        height={dense ? 72 : compact ? 88 : 104}
+        leftUnit="%"
+        leftDomain={[0, 100]}
+        tickEvery={tickEvery}
+        period={period}
+        showLegend={!dense}
+      />
     </div>
   );
 }

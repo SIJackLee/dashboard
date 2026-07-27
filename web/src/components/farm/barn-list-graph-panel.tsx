@@ -12,13 +12,11 @@ import {
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import {
+  envTrendReferenceLines,
+  envTrendSeries,
   humidityTrendLeftDomain,
-  humidityTrendReferenceLines,
-  humidityTrendSeries,
   stallTrendHasData,
   tempTrendLeftDomain,
-  tempTrendReferenceLines,
-  tempTrendSeries,
 } from "@/lib/farm/trend-chart-series";
 import {
   findControllerTrendSeries,
@@ -71,14 +69,12 @@ export function BarnListGraphPanel({
   layout = "default",
 }: Props) {
   const sheetCompact = layout === "sheetCompact";
-  const tempChartHeight = sheetCompact ? 64 : 88;
-  const humidityChartHeight = sheetCompact ? 56 : 72;
+  const envChartHeight = sheetCompact ? 88 : 112;
   const showChannels = showChannelSection && !sheetCompact;
   const thresholds = resolveReadingAlarmThresholds(reading, alarmSettings);
   const tempDomain = tempTrendLeftDomain(thresholds);
   const humidityDomain = humidityTrendLeftDomain(thresholds);
-  const tempRefs = tempTrendReferenceLines(thresholds);
-  const humidityRefs = humidityTrendReferenceLines(thresholds);
+  const envRefs = envTrendReferenceLines(thresholds);
 
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
@@ -203,36 +199,18 @@ export function BarnListGraphPanel({
             )}
           >
             <p className="mb-1 text-xs font-semibold text-muted-foreground">
-              환경 · 온도 (℃)
+              환경 · 온·습도
             </p>
             <TrendChart
               mode="line"
               categories={categories}
-              series={[tempTrendSeries(chartSeries!)]}
-              height={tempChartHeight}
+              series={envTrendSeries(chartSeries!, thresholds)}
+              height={envChartHeight}
               leftUnit="℃"
+              rightUnit="%"
               leftDomain={tempDomain}
-              referenceLines={tempRefs}
-              tickEvery={tickEvery}
-              period={period}
-              showLegend={!sheetCompact}
-            />
-            <p
-              className={cn(
-                "mb-1 text-xs font-semibold text-muted-foreground",
-                sheetCompact ? "mt-1.5" : "mt-2",
-              )}
-            >
-              환경 · 습도 (%)
-            </p>
-            <TrendChart
-              mode="line"
-              categories={categories}
-              series={[humidityTrendSeries(chartSeries!, thresholds)]}
-              height={humidityChartHeight}
-              leftUnit="%"
-              leftDomain={humidityDomain}
-              referenceLines={humidityRefs}
+              rightDomain={humidityDomain}
+              referenceLines={envRefs}
               tickEvery={tickEvery}
               period={period}
               showLegend={!sheetCompact}
@@ -244,7 +222,7 @@ export function BarnListGraphPanel({
               controllerTrendByPeriod={controllerTrendByPeriod}
               period={period}
               thermoSettings={thermoSettings}
-              layout="split"
+              layout="overlay"
             />
           ) : null}
         </div>
