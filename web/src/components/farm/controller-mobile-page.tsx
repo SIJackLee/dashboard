@@ -32,6 +32,7 @@ export function ControllerMobilePage({
       <div
         className="border-t bg-muted/15 py-2 pb-1"
         data-audit-region="controller-mobile-sheet-channel-trend"
+        data-tour-id="list-graph-panel"
       >
         <BarnChannelTrendPanel
           reading={reading}

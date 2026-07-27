@@ -4,7 +4,11 @@ import { useEffect, useRef } from "react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnGraphExpanded } from "@/lib/farm/use-barn-graphs";
 import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
-import { dispatchTourGridActionDone } from "@/lib/onboarding/tour-timing";
+import {
+  afterFrames,
+  dispatchTourGridActionDone,
+  waitForTourTarget,
+} from "@/lib/onboarding/tour-timing";
 
 type Options = {
   barns: BarnMapSnapshot[];
@@ -40,9 +44,15 @@ export function useFarmTourGridAction({
         const ids = first ? metricIdsByBarnId.get(first.meta.id) : undefined;
         if (first && ids?.[0]) {
           setExpanded({ barnId: first.meta.id, metricId: ids[0] });
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => dispatchTourGridActionDone("expand-first"));
-          });
+          // morph(opacity 0→1) 후 헤더 present까지 대기 — 2 rAF만으로는 레이스.
+          void (async () => {
+            await afterFrames(2);
+            await waitForTourTarget([
+              '[data-tour-id="detail-panel-header"]',
+              '[data-tour-id="detail-panel"]',
+            ]);
+            dispatchTourGridActionDone("expand-first");
+          })();
         } else {
           dispatchTourGridActionDone("expand-first");
         }

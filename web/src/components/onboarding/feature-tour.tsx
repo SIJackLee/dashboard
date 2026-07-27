@@ -49,6 +49,7 @@ import {
   afterFrames,
   markTourStepReady,
   markTourStepSettling,
+  settleSelectorsForGridAction,
   TOUR_AUTO_READY_GIVE_UP_MS,
   TOUR_FIND_INTERVAL_MS,
   TOUR_FIND_RETRIES,
@@ -58,6 +59,7 @@ import {
   TOUR_REVEAL_MAX_ATTEMPTS,
   waitForTooltipExtraReady,
   waitForTourGridAction,
+  waitForTourTarget,
 } from "@/lib/onboarding/tour-timing";
 import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 import {
@@ -342,9 +344,12 @@ function TourOverlay({
       const findRetries = viewChanged
         ? TOUR_FIND_RETRIES_AFTER_VIEW_CHANGE
         : TOUR_FIND_RETRIES;
-      // 모바일 전용 셀렉터 미존재 시 데스크톱 셀렉터로 폴백.
+      // 모바일 전용 → 데스크톱 셀렉터 폴백(차트 등 조건부 DOM).
       const el =
         findBestTourTarget(spotlightSelector) ??
+        (step.mobileSelector && step.mobileSelector !== spotlightSelector
+          ? findBestTourTarget(step.mobileSelector)
+          : null) ??
         (step.mobileSelector ? findBestTourTarget(step.selector) : null);
       if (el) {
         targetRef.current = el;
@@ -384,6 +389,7 @@ function TourOverlay({
     };
 
     // expand/collapse done 수신 후에 locate — done을 locate 뒤에서 놓치지 않음.
+    // 맵→목록은 view-toggle(map)과 list-command-bar(list)로 분리해 동시 전환을 피함.
     void (async () => {
       if (cancelled || stepGenRef.current !== stepGen) return;
       setView(step.view);
@@ -395,6 +401,15 @@ function TourOverlay({
         dispatchGridAction(step.gridAction);
         await pending;
         await afterFrames(2);
+        const settleSels = settleSelectorsForGridAction(step.gridAction);
+        if (settleSels) await waitForTourTarget(settleSels);
+      } else if (step.view === "list" && prevStep?.view !== "list") {
+        // 목록 첫 진입 — 커맨드바·카드 마운트 여유.
+        await waitForTourTarget([
+          step.selector,
+          ...(step.mobileSelector ? [step.mobileSelector] : []),
+          '[data-tour-id="controller-card"]',
+        ]);
       }
       if (!cancelled && stepGenRef.current === stepGen) locate();
     })();

@@ -4,9 +4,10 @@
  *
  * 1회차 루트 (위→아래 · 그리드 후 목록):
  *   헤더 → 농장 선택 → 커맨드바 → 축사 카드(개별) → 상세 헤더 → 상세 차트
- *   → 보기 탭 → 목록 커맨드바 → 컨트롤러 카드 → 그래프 패널 → 설정 패널
+ *   → 보기 탭(맵 유지) → 목록 커맨드바 → 컨트롤러 카드 → 그래프 패널 → 설정 패널
  *
  * 큰 컨테이너(map-grid·list-body)는 hole로 쓰지 않음 — 개별 카드/패널만 스포트라이트.
+ * view-toggle은 map에서 collapse만 하고, 목록 전환은 list-command-bar에서 수행.
  */
 
 import {
@@ -19,7 +20,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 8;
+export const TOUR_VERSION = 9;
 
 /** 자동 시작 전 DOM 준비 — 보기 탭 + 축사 카드 + 히트맵. */
 export const TOUR_READY_SELECTOR = '[data-tour-id="barn-card"]';
@@ -156,7 +157,8 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "view-toggle",
     selector: '[data-tour-id="view-toggle"]',
-    view: "list",
+    /** 맵에 남긴 채 탭만 강조 — list 전환은 다음 스텝에서(동시 collapse+list 방지). */
+    view: "map",
     gridAction: "collapse",
     scrollPolicy: "none",
     title: "그리드 · 목록",
@@ -194,6 +196,9 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "list-graph",
     selector: '[data-tour-id="list-graph-panel"]',
+    /** 모바일 툴바 시트 page0 — 인라인 list-graph-panel 대신 채널 추이. */
+    mobileSelector:
+      '[data-audit-region="controller-mobile-sheet-channel-trend"]',
     view: "list",
     gridAction: "list-mode-graph",
     scrollPolicy: "fit-between",

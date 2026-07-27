@@ -4,10 +4,12 @@
 
 import { FARM_TOUR_ACTION_DONE_EVENT } from "@/lib/onboarding/tour-steps";
 import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
+import { findBestTourTarget } from "@/lib/onboarding/tour-viewport";
 
 export const TOUR_LAYOUT_IDLE_MS = 48;
 export const TOUR_LAYOUT_TIMEOUT_MS = 720;
-export const TOUR_GRID_ACTION_TIMEOUT_MS = 620;
+/** expand/list-mode — 타깃 마운트까지 done이 늦어질 수 있음. */
+export const TOUR_GRID_ACTION_TIMEOUT_MS = 2_000;
 export const TOUR_EXTRA_MIN_HEIGHT = 120;
 export const TOUR_REVEAL_MAX_ATTEMPTS = 4;
 export const TOUR_FIND_INTERVAL_MS = 50;
@@ -16,6 +18,9 @@ export const TOUR_FIND_RETRIES = 40;
 /** 맵↔목록 전환 직후 — 목록 카드 마운트 대기. */
 export const TOUR_FIND_RETRIES_AFTER_VIEW_CHANGE = 80;
 export const TOUR_READY_INTERVAL_MS = 50;
+/** gridAction 이후 셀렉터 등장 대기. */
+export const TOUR_TARGET_WAIT_MS = 1_600;
+export const TOUR_TARGET_WAIT_INTERVAL_MS = 50;
 /** 자동 투어 — 콘텐츠 ready 최대 대기(ms). 초과 시 시작하지 않음. */
 export const TOUR_AUTO_READY_GIVE_UP_MS = 45_000;
 /** 수동 재시작 — ready 강제 시작까지 대기(ms). */
@@ -135,6 +140,68 @@ export function dispatchTourGridActionDone(action: TourGridAction): void {
   window.dispatchEvent(
     new CustomEvent(FARM_TOUR_ACTION_DONE_EVENT, { detail: { action } }),
   );
+}
+
+/** 셀렉터 중 하나라도 present가 될 때까지 폴링(타임아웃 시 null). */
+export function waitForTourTarget(
+  selectors: string | string[],
+  opts?: { timeoutMs?: number; intervalMs?: number },
+): Promise<HTMLElement | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  const list = Array.isArray(selectors) ? selectors : [selectors];
+  const timeoutMs = opts?.timeoutMs ?? TOUR_TARGET_WAIT_MS;
+  const intervalMs = opts?.intervalMs ?? TOUR_TARGET_WAIT_INTERVAL_MS;
+
+  return new Promise((resolve) => {
+    const started = performance.now();
+    const tick = () => {
+      for (const sel of list) {
+        const el = findBestTourTarget(sel);
+        if (el) {
+          resolve(el);
+          return;
+        }
+      }
+      if (performance.now() - started >= timeoutMs) {
+        resolve(null);
+        return;
+      }
+      window.setTimeout(tick, intervalMs);
+    };
+    tick();
+  });
+}
+
+/** gridAction 직후 locate 전에 기다릴 타깃(모프·시트·패널 마운트). */
+export function settleSelectorsForGridAction(
+  action: TourGridAction,
+): string[] | null {
+  switch (action) {
+    case "expand-first":
+      return [
+        '[data-tour-id="detail-panel-header"]',
+        '[data-tour-id="detail-panel"]',
+      ];
+    case "collapse":
+      return ['[data-tour-id="view-toggle"]'];
+    case "list-mode-controller":
+      return [
+        '[data-tour-id="controller-card"]',
+        '[data-tour-id="controller-gauge-metrics"]',
+      ];
+    case "list-mode-graph":
+      return [
+        '[data-tour-id="list-graph-panel"]',
+        '[data-audit-region="controller-mobile-sheet-channel-trend"]',
+      ];
+    case "list-mode-settings":
+      return [
+        '[data-tour-id="list-settings-panel"]',
+        '[data-tour-id="controller-card"]',
+      ];
+    default:
+      return null;
+  }
 }
 
 /** 스텝 hole-ready 시각 — audit 스크립트용. */

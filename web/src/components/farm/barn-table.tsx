@@ -69,7 +69,11 @@ import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { isFilterAll } from "@/lib/ui/filter-all";
 import { cn } from "@/lib/utils";
 import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
-import { dispatchTourGridActionDone } from "@/lib/onboarding/tour-timing";
+import {
+  afterFrames,
+  dispatchTourGridActionDone,
+  waitForTourTarget,
+} from "@/lib/onboarding/tour-timing";
 import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 
 type Props = {
@@ -500,11 +504,27 @@ export function BarnTable({
           listMode: mode === "controller" ? null : mode,
         });
       }
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() =>
-          dispatchTourGridActionDone(action as TourGridAction),
-        );
-      });
+      // 카드·시트·패널 paint 후 done — 2 rAF만으로는 locate 레이스.
+      void (async () => {
+        await afterFrames(2);
+        const settle =
+          mode === "graph"
+            ? [
+                '[data-tour-id="list-graph-panel"]',
+                '[data-audit-region="controller-mobile-sheet-channel-trend"]',
+              ]
+            : mode === "settings"
+              ? [
+                  '[data-tour-id="list-settings-panel"]',
+                  '[data-tour-id="controller-card"]',
+                ]
+              : [
+                  '[data-tour-id="controller-card"]',
+                  '[data-tour-id="controller-gauge-metrics"]',
+                ];
+        await waitForTourTarget(settle);
+        dispatchTourGridActionDone(action as TourGridAction);
+      })();
     };
     window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
     return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
