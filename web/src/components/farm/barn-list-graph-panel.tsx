@@ -158,7 +158,7 @@ export function BarnListGraphPanel({
     >
       <div
         className={cn(
-          "mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
+          "mb-3 flex min-w-0 flex-col gap-2",
           sheetCompact && "mb-2 gap-1.5",
         )}
       >
@@ -178,7 +178,11 @@ export function BarnListGraphPanel({
             </p>
           )}
         </div>
-        <TrendPeriodToggle value={period} onChange={onPeriodChange} />
+        <TrendPeriodToggle
+          value={period}
+          onChange={onPeriodChange}
+          className="self-start"
+        />
       </div>
 
       {!hasData ? (

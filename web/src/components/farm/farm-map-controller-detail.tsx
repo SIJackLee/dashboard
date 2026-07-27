@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
@@ -301,6 +302,35 @@ export function FarmMapControllerDetail({
     }
   };
 
+  const selectedIndex = useMemo(() => {
+    if (!selected) return -1;
+    return controllers.findIndex((c) => c.key === selected.key);
+  }, [controllers, selected]);
+
+  const navigateAdjacent = useCallback(
+    (delta: -1 | 1) => {
+      if (selectedIndex < 0) return;
+      const next = controllers[selectedIndex + delta];
+      if (!next) return;
+      setSelectedKey(next.key);
+      onSelectedReadingKeyChange?.(next.reading?.key ?? null);
+      if (isMobileStack && !sheetOpenRef.current) {
+        openMobileSheet(0);
+      }
+    },
+    [
+      controllers,
+      selectedIndex,
+      isMobileStack,
+      openMobileSheet,
+      onSelectedReadingKeyChange,
+    ],
+  );
+
+  const canGoPrev = selectedIndex > 0;
+  const canGoNext =
+    selectedIndex >= 0 && selectedIndex < controllers.length - 1;
+
   const handleSheetPageChange = (page: ControllerMobileSheetPage) => {
     if (sheetHosted) {
       onHostedMobileSheetOpenChange?.(true);
@@ -473,6 +503,54 @@ export function FarmMapControllerDetail({
           {selected ? (
             selected.reading ? (
               <div ref={controllerCardRef} className="farm-heat-morph mt-3 space-y-3">
+                {controllers.length > 1 ? (
+                  <div
+                    className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5"
+                    data-tour-id="detail-controller-nav"
+                  >
+                    <button
+                      type="button"
+                      disabled={!canGoPrev}
+                      aria-label="이전 컨트롤러"
+                      onClick={() => navigateAdjacent(-1)}
+                      className={cn(
+                        "inline-flex size-8 shrink-0 items-center justify-center rounded-md border",
+                        motionClass.microInteractive,
+                        canGoPrev
+                          ? "hover:bg-muted"
+                          : "cursor-not-allowed opacity-40",
+                      )}
+                    >
+                      <ChevronLeft className="size-4" aria-hidden />
+                    </button>
+                    <div className="min-w-0 flex-1 text-center">
+                      <p className="truncate text-sm font-semibold">
+                        {selected.label}
+                      </p>
+                      <p className="text-[0.65rem] text-muted-foreground">
+                        {selectedIndex + 1} / {controllers.length}
+                        {selected.eqpmnNo
+                          ? ` · ${selected.eqpmnNo}번`
+                          : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!canGoNext}
+                      aria-label="다음 컨트롤러"
+                      onClick={() => navigateAdjacent(1)}
+                      className={cn(
+                        "inline-flex size-8 shrink-0 items-center justify-center rounded-md border",
+                        motionClass.microInteractive,
+                        canGoNext
+                          ? "hover:bg-muted"
+                          : "cursor-not-allowed opacity-40",
+                      )}
+                    >
+                      <ChevronRight className="size-4" aria-hidden />
+                    </button>
+                  </div>
+                ) : null}
                 <ControllerSummaryGaugeRow
                   reading={selected.reading}
                   readings={readings}

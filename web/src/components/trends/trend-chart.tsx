@@ -60,6 +60,25 @@ const PAD_X = 6;
 const PAD_TOP = 6;
 const VIEW_W = 100;
 
+/** 호버 툴팁 — 온도·습도 소수 1자리, 모터(%) 정수. */
+export function formatTrendHoverValue(
+  value: number,
+  unit: string,
+  seriesName: string,
+): string {
+  if (!Number.isFinite(value)) return "–";
+  const motorLike =
+    unit === "%" &&
+    (seriesName.startsWith("채널") ||
+      seriesName === "A" ||
+      seriesName === "B" ||
+      seriesName === "C" ||
+      seriesName.includes("모터"));
+  if (motorLike) return `${Math.round(value)}${unit}`;
+  if (unit === "℃" || unit === "%") return `${value.toFixed(1)}${unit}`;
+  return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}${unit}`;
+}
+
 function finiteValues(series: TrendSeries[], axis: TrendAxis | undefined): number[] {
   const out: number[] = [];
   for (const s of series) {
@@ -438,7 +457,9 @@ export function TrendChart({
                     {s.name}
                   </span>
                   <span className="font-medium tabular-nums">
-                    {v == null || !Number.isFinite(v) ? "–" : `${v}${unit}`}
+                    {v == null || !Number.isFinite(v)
+                      ? "–"
+                      : formatTrendHoverValue(v, unit, s.name)}
                   </span>
                 </div>
               );
