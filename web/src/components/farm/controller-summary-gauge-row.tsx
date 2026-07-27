@@ -20,6 +20,7 @@ import {
 import { ControllerMobilePage } from "@/components/farm/controller-mobile-page";
 import { ControllerMobileSettingsPage } from "@/components/farm/controller-mobile-settings-page";
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
+import { BarnEnvTrendPanel } from "@/components/farm/barn-env-trend-panel";
 import { BarnListGraphPanel } from "@/components/farm/barn-list-graph-panel";
 import { BarnListAccordionPanel } from "@/components/farm/barn-list-accordion-panel";
 import {
@@ -158,11 +159,15 @@ export function ControllerSummaryGaugeRow({
     !mobileSheetOpen &&
     !suppressMobileInlinePanels;
 
+  /** 그리드 PC 상세(hideGraphToggle) — 설정 없이도 환경·모터 추이를 카드에 고정. */
   const channelTrendVisible =
-    panelPlacement === "right" && settingsExpanded;
+    panelPlacement === "right" && (settingsExpanded || hideGraphToggle);
 
   const channelTrendCompact =
     panelPlacement === "right" && resolvedPanelLayout === "stack";
+
+  /** 카드 인라인 추이 — 하단 BarnListGraphPanel과 기간·차트 중복 방지. */
+  const inlineEnvWithChannels = hideGraphToggle;
 
   const toggleChannel = useCallback((slot: ChannelSlot) => {
     setExpandedChannel((prev) => (prev === slot ? null : slot));
@@ -376,15 +381,28 @@ export function ControllerSummaryGaugeRow({
       className="barn-list-panel-stagger--channel-trend border-t bg-muted/15 px-2.5 pb-2.5 pt-2 sm:px-3"
       data-audit-region="controller-channel-trend"
     >
-      <BarnChannelTrendPanel
-        reading={reading}
-        controllerTrendByPeriod={controllerTrendByPeriod}
-        period={panelPeriod}
-        thermoSettings={thermoSettings}
-        layout="overlay"
-        compact={panelPlacement === "right"}
-        dense={channelTrendCompact}
-      />
+      <div className="space-y-2">
+        {inlineEnvWithChannels ? (
+          <BarnEnvTrendPanel
+            reading={reading}
+            controllerTrendByPeriod={controllerTrendByPeriod}
+            period={panelPeriod}
+            alarmSettings={alarmSettings}
+            compact={panelPlacement === "right"}
+            dense={channelTrendCompact}
+            loading={trendLoading}
+          />
+        ) : null}
+        <BarnChannelTrendPanel
+          reading={reading}
+          controllerTrendByPeriod={controllerTrendByPeriod}
+          period={panelPeriod}
+          thermoSettings={thermoSettings}
+          layout="overlay"
+          compact={panelPlacement === "right"}
+          dense={channelTrendCompact}
+        />
+      </div>
     </div>
   ) : null;
 

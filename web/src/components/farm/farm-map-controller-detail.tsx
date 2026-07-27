@@ -278,6 +278,10 @@ export function FarmMapControllerDetail({
     const ctrlKey = resolveControllerKey(selectedReadingKey);
     if (ctrlKey && ctrlKey !== selectedKey) {
       setSelectedKey(ctrlKey);
+      if (!isMobileStack) {
+        setGraphOpen(false);
+        setSettingsOpen(true);
+      }
     }
   }
 
@@ -324,9 +328,9 @@ export function FarmMapControllerDetail({
     if (isMobileStack) {
       if (!sheetOpenRef.current) openMobileSheet(0);
     } else {
-      // 컨트롤러 선택 시 그래프 패널을 바로 열어 heatmap → 상세 클릭 수를 줄인다
-      setGraphOpen(true);
-      setSettingsOpen(false);
+      // PC 상세 — 설정+인라인 추이(환경·모터)를 바로 열어 클릭 수를 줄인다
+      setGraphOpen(false);
+      setSettingsOpen(true);
     }
   };
 
@@ -614,7 +618,7 @@ export function FarmMapControllerDetail({
                     }
                     showSheetPickerAffiliation={isMobileStack}
                     suppressPerCardMobileSheet={sheetHosted && isMobileStack}
-                    showDesktopGraph={!isMobileStack}
+                    showDesktopGraph={false}
                     showChannelSection={!settingsOpen}
                   />
                 </div>

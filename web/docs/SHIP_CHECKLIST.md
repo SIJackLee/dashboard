@@ -28,7 +28,7 @@
 
 - [x] `/farm` 허브: LIVE 그리드만 (위치만 농장 숨김/안내) — `audit:ship-checklist` (2026-07-24)
 - [x] Farm switcher: `LIVE` / `위치만` 뱃지 (해당 시) — 제품화 반영
-- [x] 헤더 **운영** → `/admin/ops` 시스템·사용자·농장 탭 로드 — `audit:ship-checklist` (2026-07-24)
+- [x] 헤더 **도구 → 운영** → `/admin/ops` 시스템·사용자·농장 탭 로드 — `audit:ship-checklist` (2026-07-28)
 - [x] 레거시 `/admin/health/farm/:slug` → `/admin/ops?farm=…&modules=1` (proxy middleware, `--`·`:` slug 모두) — curl 307 (2026-07-27)
 - [x] 테마·모바일 미리보기 토글 동작, hydration 경고 없음 — `ship-p0-gate-smoke` 테마 (2026-07-24)
 
