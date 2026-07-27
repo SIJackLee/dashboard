@@ -4,6 +4,11 @@ export type PostLoginPath = "/farm" | "/pending";
 
 type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
 
+/** OAuth enter 페이지 query — 오픈 리다이렉트 방지 */
+export function safePostLoginPath(path: string | null | undefined): PostLoginPath {
+  return path === "/pending" ? "/pending" : "/farm";
+}
+
 /** 로그인(이메일·OAuth) 직후 이동 경로 — admin 또는 can_read 있으면 /farm, 없으면 /pending */
 export async function resolvePostLoginPath(
   supabase: SupabaseServer,
