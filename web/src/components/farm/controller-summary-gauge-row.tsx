@@ -331,7 +331,11 @@ export function ControllerSummaryGaugeRow({
   ) : null;
 
   const graphPanel = hideGraphToggle ? null : (
-    <BarnListPanelShell open={graphExpanded} panelKind="graph">
+    <BarnListPanelShell
+      open={graphExpanded}
+      panelKind="graph"
+      keepMounted
+    >
       {graphExpanded ? (
         <BarnListGraphPanel
           reading={reading}
@@ -351,6 +355,7 @@ export function ControllerSummaryGaugeRow({
     <BarnListPanelShell
       open={settingsExpanded && !cardBodyCollapsed}
       panelKind="settings"
+      keepMounted
     >
       {settingsExpanded && !cardBodyCollapsed ? (
         <BarnListAccordionPanel

@@ -1087,7 +1087,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 @keyframes header-tools-panel-in {
   0% {
     opacity: 0;
-    transform: translateX(var(--motion-distance-lg)) scale(0.97);
+    transform: translateX(calc(var(--motion-distance-lg) * 1.5)) scale(0.98);
   }
   100% {
     opacity: 1;

@@ -28,7 +28,10 @@ import {
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
-import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
+import {
+  prefetchFarmControllerTrend,
+  useFarmControllerTrend,
+} from "@/lib/farm/use-farm-controller-trend";
 import { fetchFarmScopedPanelDataAction } from "@/app/(dashboard)/farm/actions";
 import {
   readFarmPanelCache,
@@ -211,6 +214,35 @@ export function FarmPageContent({
       // 목록은 grid readings로 제한 표시 — enrich 실패해도 기존 카드 유지
     }
   }, [lazyListEnrichment, lazyListFarmKey]);
+
+  /** LIVE 안정 후 idle — 추이·panel enrich를 백그라운드에 채움 */
+  useEffect(() => {
+    if (!gridFarmKey || tourActive) return;
+    let cancelled = false;
+    let idleId = 0;
+    const run = () => {
+      if (cancelled) return;
+      void prefetchFarmControllerTrend(gridFarmKey);
+      void enrichListIfNeeded();
+    };
+    const ric =
+      typeof window !== "undefined" && "requestIdleCallback" in window
+        ? window.requestIdleCallback.bind(window)
+        : null;
+    if (ric) {
+      idleId = ric(run, { timeout: 2500 });
+    } else {
+      idleId = window.setTimeout(run, 600);
+    }
+    return () => {
+      cancelled = true;
+      if (ric && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      } else {
+        window.clearTimeout(idleId);
+      }
+    };
+  }, [gridFarmKey, tourActive, enrichListIfNeeded]);
 
   useEffect(() => {
     enrichFarmRef.current = null;

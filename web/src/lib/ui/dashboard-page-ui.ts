@@ -145,6 +145,21 @@ export const dashboardUi = {
   /** 오늘의 리포트 — PDF 강조(문서 아이콘) */
   topHeaderActionBtnReport:
     "border-red-300/70 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 disabled:opacity-40 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60 dark:hover:text-red-300",
+  /**
+   * 헤더 도구 패널 행 — 트리거(⋮)와 동일 rounded-lg border 계열.
+   * 왼쪽: size-9 아이콘 칩 · 오른쪽: 라벨/요약.
+   */
+  headerToolsCard:
+    "mx-1 mb-1 flex w-[calc(100%-0.5rem)] items-start gap-2.5 rounded-lg border bg-background px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50",
+  headerToolsCardAlert:
+    "border-red-300/60 bg-red-50/50 hover:bg-red-50 dark:border-red-900/40 dark:bg-red-950/20 dark:hover:bg-red-950/30",
+  headerToolsCardIcon:
+    "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground",
+  headerToolsCardIconAlert:
+    "border-red-300/60 bg-red-50/80 text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400",
+  headerToolsCardBody: "min-w-0 flex-1",
+  headerToolsCardTitle: "flex items-center gap-2 text-sm font-medium leading-tight",
+  headerToolsCardMeta: "mt-0.5 text-xs leading-snug text-muted-foreground",
   topBellIcon: "size-7",
   /** 컨트롤러 · 알람 bell 아이콘 (배지 오버레이용) */
   topHeaderOverlayIcon: "size-7",

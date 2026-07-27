@@ -15,6 +15,17 @@ type TrendBundle = Record<TrendPeriodId, TrendControllerPeriodData>;
 const trendCache = new Map<string, TrendBundle>();
 const trendInflight = new Map<string, Promise<TrendBundle>>();
 
+export function peekFarmControllerTrendCache(
+  farmKey: FarmKey,
+): TrendBundle | null {
+  return trendCache.get(farmKeyId(farmKey)) ?? null;
+}
+
+/** 로그인·농장 LIVE 이후 idle 시 호출 — 그래프 탭 대기 제거 */
+export function prefetchFarmControllerTrend(farmKey: FarmKey): Promise<TrendBundle> {
+  return fetchTrendShared(farmKey, farmKeyId(farmKey), false);
+}
+
 function readTrendCache(scopeId: string): TrendBundle | null {
   return trendCache.get(scopeId) ?? null;
 }

@@ -23,8 +23,8 @@ type Props = {
   /** SSR PageShell 값 — shallow 농장 전환 시 stale 할 수 있음 */
   farmKey: FarmKey | null;
   alarmCount?: number;
-  /** icon = 헤더 단독 버튼 · row = 도구 메뉴 행 */
-  presentation?: "icon" | "row";
+  /** icon = 헤더 단독 버튼 · row/tools-card = 도구 메뉴 행 */
+  presentation?: "icon" | "row" | "tools-card";
 };
 
 const NO_FARM_TOAST =
@@ -134,17 +134,24 @@ export function DailyReportButton({
       <button
         type="button"
         className={cn(
-          presentation === "row"
+          presentation === "tools-card"
             ? cn(
-                "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
+                dashboardUi.headerToolsCard,
+                "w-full",
                 dashboardUi.topHeaderActionBtnReport,
                 needsFarm && "opacity-40",
               )
-            : cn(
-                dashboardUi.topHeaderActionBtn,
-                dashboardUi.topHeaderActionBtnReport,
-                needsFarm && "opacity-40",
-              ),
+            : presentation === "row"
+              ? cn(
+                  "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
+                  dashboardUi.topHeaderActionBtnReport,
+                  needsFarm && "opacity-40",
+                )
+              : cn(
+                  dashboardUi.topHeaderActionBtn,
+                  dashboardUi.topHeaderActionBtnReport,
+                  needsFarm && "opacity-40",
+                ),
         )}
         data-tour-id="header-daily-report"
         aria-label={
@@ -161,14 +168,45 @@ export function DailyReportButton({
         disabled={nativeDisabled}
         onClick={run}
       >
-        {busy ? (
-          <Loader2 className="size-4 shrink-0 animate-spin md:size-5" aria-hidden />
+        {presentation === "tools-card" ? (
+          <>
+            <span
+              className={cn(
+                dashboardUi.headerToolsCardIcon,
+                dashboardUi.headerToolsCardIconAlert,
+              )}
+              aria-hidden
+            >
+              {busy ? (
+                <Loader2 className="size-4 animate-spin md:size-5" />
+              ) : (
+                <FileText className="size-4 md:size-5" />
+              )}
+            </span>
+            <div className={dashboardUi.headerToolsCardBody}>
+              <div className={dashboardUi.headerToolsCardTitle}>
+                오늘의 리포트
+              </div>
+              <p className={dashboardUi.headerToolsCardMeta}>
+                PDF 다운로드
+              </p>
+            </div>
+          </>
         ) : (
-          <FileText className="size-4 shrink-0 md:size-5" aria-hidden />
+          <>
+            {busy ? (
+              <Loader2
+                className="size-4 shrink-0 animate-spin md:size-5"
+                aria-hidden
+              />
+            ) : (
+              <FileText className="size-4 shrink-0 md:size-5" aria-hidden />
+            )}
+            {presentation === "row" ? (
+              <span className="font-medium">오늘의 리포트</span>
+            ) : null}
+          </>
         )}
-        {presentation === "row" ? (
-          <span className="font-medium">오늘의 리포트</span>
-        ) : null}
       </button>
       <InlineStatusToast
         message={toast?.message ?? null}

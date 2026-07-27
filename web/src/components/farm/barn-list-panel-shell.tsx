@@ -10,6 +10,11 @@ type Props = {
   panelKind: BarnListPanelKind;
   children: ReactNode;
   className?: string;
+  /**
+   * true면 한 번 열린 뒤 unmount하지 않음 — 목록 탭 빠른 전환용.
+   * collapse는 grid-rows로만 숨김.
+   */
+  keepMounted?: boolean;
 };
 
 /** 축사 목록 — 그래프 / 설정 패널 expand·collapse (hybrid motion) */
@@ -18,6 +23,7 @@ export function BarnListPanelShell({
   panelKind,
   children,
   className,
+  keepMounted = false,
 }: Props) {
   const [mounted, setMounted] = useState(open);
   const [show, setShow] = useState(open);
@@ -30,15 +36,22 @@ export function BarnListPanelShell({
     if (open) {
       setMounted(true);
       setShow(true);
+      if (children != null && children !== false) {
+        setLatchedChildren(children);
+      }
     } else {
-      setLatchedChildren(children);
       setShow(false);
+    }
+  } else if (open && children != null && children !== false) {
+    if (latchedChildren !== children) {
+      setLatchedChildren(children);
     }
   }
 
   useEffect(() => {
     const el = shellRef.current;
     if (!el || show || !mounted) return;
+    if (keepMounted) return;
 
     const onEnd = (e: TransitionEvent) => {
       if (e.target !== el || e.propertyName !== "grid-template-rows") return;
@@ -50,7 +63,7 @@ export function BarnListPanelShell({
       el.removeEventListener("transitionend", onEnd);
       window.clearTimeout(fallback);
     };
-  }, [show, mounted]);
+  }, [show, mounted, keepMounted]);
 
   if (!mounted) return null;
 

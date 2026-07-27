@@ -20,6 +20,10 @@ import {
   type TrendStallSeries,
 } from "@/lib/data/farm-trend-types";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
+import {
+  sliceControllerTrendFromLonger,
+  sliceStallTrendFromLonger,
+} from "@/lib/data/trend-period-slice";
 
 export type {
   TrendPeriodId,
@@ -328,17 +332,19 @@ export async function getFarmTrendHistory(params: {
   return buildPeriodData(rows, params.period, fromMs);
 }
 
-/** SSR all three periods so the client can toggle without re-fetching. */
+/** SSR — 24h(15m) + 30d(1h). 7d는 30d에서 파생(동일 1h 버킷). */
 export async function getFarmTrendAllPeriods(params: {
   farmKey: FarmKey;
   now?: number;
 }): Promise<Record<TrendPeriodId, TrendPeriodData>> {
   const now = params.now ?? Date.now();
-  const [h24, d7, d30] = await Promise.all([
+  const [h24, d30] = await Promise.all([
     getFarmTrendHistory({ farmKey: params.farmKey, period: "24h", now }),
-    getFarmTrendHistory({ farmKey: params.farmKey, period: "7d", now }),
     getFarmTrendHistory({ farmKey: params.farmKey, period: "30d", now }),
   ]);
+  const d7 =
+    sliceStallTrendFromLonger(d30, "7d") ??
+    (await getFarmTrendHistory({ farmKey: params.farmKey, period: "7d", now }));
   return { "24h": h24, "7d": d7, "30d": d30 };
 }
 
@@ -381,16 +387,30 @@ export async function getFarmControllerTrendHistory(params: {
   return buildControllerPeriodData(rows, params.period, fromMs);
 }
 
-/** SSR all three periods for list graph mode (per-controller series). */
+/** 목록 그래프 — 24h(15m) + 30d(1h). 7d는 30d에서 파생. */
 export async function getFarmControllerTrendAllPeriods(params: {
   farmKey: FarmKey;
   now?: number;
 }): Promise<Record<TrendPeriodId, TrendControllerPeriodData>> {
   const now = params.now ?? Date.now();
-  const [h24, d7, d30] = await Promise.all([
-    getFarmControllerTrendHistory({ farmKey: params.farmKey, period: "24h", now }),
-    getFarmControllerTrendHistory({ farmKey: params.farmKey, period: "7d", now }),
-    getFarmControllerTrendHistory({ farmKey: params.farmKey, period: "30d", now }),
+  const [h24, d30] = await Promise.all([
+    getFarmControllerTrendHistory({
+      farmKey: params.farmKey,
+      period: "24h",
+      now,
+    }),
+    getFarmControllerTrendHistory({
+      farmKey: params.farmKey,
+      period: "30d",
+      now,
+    }),
   ]);
+  const d7 =
+    sliceControllerTrendFromLonger(d30, "7d") ??
+    (await getFarmControllerTrendHistory({
+      farmKey: params.farmKey,
+      period: "7d",
+      now,
+    }));
   return { "24h": h24, "7d": d7, "30d": d30 };
 }

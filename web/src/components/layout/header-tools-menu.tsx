@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import {
   Bell,
   Cpu,
@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Smartphone,
   Sun,
+  type LucideIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
@@ -78,9 +79,57 @@ function connectivityMessage(overview?: FarmOverview): string {
   return `${registered}개 중 ${connected}개 연결`;
 }
 
+function ToolsIconChip({
+  Icon,
+  alert = false,
+  className,
+}: {
+  Icon: LucideIcon;
+  alert?: boolean;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        dashboardUi.headerToolsCardIcon,
+        alert && dashboardUi.headerToolsCardIconAlert,
+        className,
+      )}
+      aria-hidden
+    >
+      <Icon className="size-4 md:size-5" />
+    </span>
+  );
+}
+
+function ToolsCardShell({
+  children,
+  alert = false,
+  className,
+  tourId,
+}: {
+  children: ReactNode;
+  alert?: boolean;
+  className?: string;
+  tourId?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        dashboardUi.headerToolsCard,
+        alert && dashboardUi.headerToolsCardAlert,
+        className,
+      )}
+      data-tour-id={tourId}
+    >
+      {children}
+    </div>
+  );
+}
+
 /**
- * 헤더 도구 — 알림 → 기능 → 스타일 순 세로 펼침.
- * 개별 data-tour-id는 내부 행에 유지(감사·투어).
+ * 헤더 도구 — 알림 → 기능 → 스타일 순, 트리거(⋮) 왼쪽으로 슬라이드.
+ * 카드·아이콘 칩은 헤더 버튼(rounded-lg border)과 동일 계열.
  */
 export function HeaderToolsMenu({
   overview,
@@ -131,7 +180,8 @@ export function HeaderToolsMenu({
       if (action === "close-header-tools") setMenuOpen(false);
     };
     window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+    return () =>
+      window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
   }, []);
 
   useEffect(() => {
@@ -203,7 +253,8 @@ export function HeaderToolsMenu({
       <DropdownMenuContent
         align="end"
         side="left"
-        sideOffset={8}
+        sideOffset={10}
+        alignOffset={0}
         data-mobile-viewport-dropdown={viewportCompact || undefined}
         data-tour-id="header-tools-panel"
         className={cn(
@@ -216,114 +267,110 @@ export function HeaderToolsMenu({
           <DropdownMenuLabel className="px-2 py-1.5 text-[0.7rem] font-semibold tracking-wide text-muted-foreground uppercase">
             알림
           </DropdownMenuLabel>
-          <div
-            className="mx-1 mb-1 rounded-lg border bg-muted/20 px-2.5 py-2"
-            data-tour-id="header-connectivity"
+          <ToolsCardShell
+            tourId="header-connectivity"
+            alert={offline > 0}
           >
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Cpu
-                className={cn(
-                  "size-4 shrink-0",
-                  offline > 0
-                    ? "text-red-600 dark:text-red-400"
-                    : "text-emerald-600",
-                )}
-                aria-hidden
-              />
-              <span>컨트롤러 연결</span>
-              {registered !== undefined ? (
-                <span className="ml-auto tabular-nums text-muted-foreground">
-                  {registered}
-                </span>
+            <ToolsIconChip Icon={Cpu} alert={offline > 0} />
+            <div className={dashboardUi.headerToolsCardBody}>
+              <div className={dashboardUi.headerToolsCardTitle}>
+                <span>컨트롤러 연결</span>
+                {registered !== undefined ? (
+                  <span className="ml-auto tabular-nums text-muted-foreground">
+                    {registered}
+                  </span>
+                ) : null}
+              </div>
+              <p className={dashboardUi.headerToolsCardMeta}>
+                {connectivityMessage(overview)}
+              </p>
+              {offline > 0 ? (
+                <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">
+                  오프라인 {offline}개
+                </p>
               ) : null}
             </div>
-            <p className="mt-1 text-xs leading-snug text-muted-foreground">
-              {connectivityMessage(overview)}
-            </p>
-            {offline > 0 ? (
-              <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">
-                오프라인 {offline}개
-              </p>
-            ) : null}
-          </div>
-          <div
-            className="mx-1 mb-1 rounded-lg border bg-muted/20 px-2.5 py-2"
-            data-tour-id="header-alarms"
+          </ToolsCardShell>
+          <ToolsCardShell
+            tourId="header-alarms"
+            alert={alarmCount > 0}
           >
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Bell className="size-4 shrink-0" aria-hidden />
-              <span>센서 알림</span>
-              {alarmCount > 0 ? (
-                <Badge
-                  variant="destructive"
-                  className="ml-auto h-5 min-h-0 px-1.5 text-[0.65rem]"
-                >
-                  {alarmCount}건
-                </Badge>
-              ) : null}
-            </div>
-            {alarmPreview.length === 0 ? (
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                센서 알림 없음
-              </p>
-            ) : (
-              <ul className="mt-1.5 space-y-1">
-                {alarmPreview.map((a) => (
-                  <li key={a.id}>
-                    <button
-                      type="button"
-                      disabled={isPending}
-                      className={cn(
-                        "w-full rounded-md px-1.5 py-1.5 text-left hover:bg-muted/80",
-                        motionClass.microInteractive,
-                      )}
-                      onClick={() =>
-                        navigate(alarmControlHref(a), {
-                          message: "컨트롤러 제어로 이동 중…",
-                        })
-                      }
-                    >
-                      <span className="flex items-center justify-between gap-2 text-xs font-medium">
-                        <span className="truncate">{a.alarmType}</span>
-                        <span className="shrink-0 text-[0.65rem] text-muted-foreground">
-                          {a.severity === "critical" ? "심각" : "주의"}
+            <ToolsIconChip Icon={Bell} alert={alarmCount > 0} />
+            <div className={dashboardUi.headerToolsCardBody}>
+              <div className={dashboardUi.headerToolsCardTitle}>
+                <span>센서 알림</span>
+                {alarmCount > 0 ? (
+                  <Badge
+                    variant="destructive"
+                    className="ml-auto h-5 min-h-0 px-1.5 text-[0.65rem]"
+                  >
+                    {alarmCount}건
+                  </Badge>
+                ) : null}
+              </div>
+              {alarmPreview.length === 0 ? (
+                <p className={dashboardUi.headerToolsCardMeta}>
+                  센서 알림 없음
+                </p>
+              ) : (
+                <ul className="mt-1.5 space-y-1">
+                  {alarmPreview.map((a) => (
+                    <li key={a.id}>
+                      <button
+                        type="button"
+                        disabled={isPending}
+                        className={cn(
+                          "w-full rounded-md border border-transparent px-1.5 py-1.5 text-left hover:border-border hover:bg-muted/80",
+                          motionClass.microInteractive,
+                        )}
+                        onClick={() =>
+                          navigate(alarmControlHref(a), {
+                            message: "컨트롤러 제어로 이동 중…",
+                          })
+                        }
+                      >
+                        <span className="flex items-center justify-between gap-2 text-xs font-medium">
+                          <span className="truncate">{a.alarmType}</span>
+                          <span className="shrink-0 text-[0.65rem] text-muted-foreground">
+                            {a.severity === "critical" ? "심각" : "주의"}
+                          </span>
                         </span>
-                      </span>
-                      <span className="block truncate text-[0.65rem] text-muted-foreground">
-                        {a.stallTyCode
-                          ? formatStallTypeLabel(a.stallTyCode)
-                          : "—"}{" "}
-                        ·{" "}
-                        {formatControllerSlotLabel({
-                          stallNo: a.stallNo,
-                          eqpmnNo: a.eqpmnNo,
-                          idx: a.idx,
-                        })}
-                      </span>
-                      <span className="block text-[0.65rem] text-muted-foreground">
-                        {formatKst(a.occurredAt, "short")}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {alarmCount > 0 ? (
-              <DropdownMenuItem
-                className="mt-1 justify-center text-xs font-medium text-emerald-700"
-                disabled={isPending}
-                onClick={() =>
-                  navigate(monitoringHref("ops"), {
-                    message: "이상 탭으로 이동 중…",
-                  })
-                }
-              >
-                {alarmCount > alarmPreview.length
-                  ? `센서 알림 ${alarmCount}건 보기`
-                  : "이상 탭으로 이동"}
-              </DropdownMenuItem>
-            ) : null}
-          </div>
+                        <span className="block truncate text-[0.65rem] text-muted-foreground">
+                          {a.stallTyCode
+                            ? formatStallTypeLabel(a.stallTyCode)
+                            : "—"}{" "}
+                          ·{" "}
+                          {formatControllerSlotLabel({
+                            stallNo: a.stallNo,
+                            eqpmnNo: a.eqpmnNo,
+                            idx: a.idx,
+                          })}
+                        </span>
+                        <span className="block text-[0.65rem] text-muted-foreground">
+                          {formatKst(a.occurredAt, "short")}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {alarmCount > 0 ? (
+                <DropdownMenuItem
+                  className="mt-1.5 justify-center rounded-lg border text-xs font-medium text-emerald-700"
+                  disabled={isPending}
+                  onClick={() =>
+                    navigate(monitoringHref("ops"), {
+                      message: "이상 탭으로 이동 중…",
+                    })
+                  }
+                >
+                  {alarmCount > alarmPreview.length
+                    ? `센서 알림 ${alarmCount}건 보기`
+                    : "이상 탭으로 이동"}
+                </DropdownMenuItem>
+              ) : null}
+            </div>
+          </ToolsCardShell>
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator className="my-1.5" />
@@ -339,26 +386,39 @@ export function HeaderToolsMenu({
                 onOps ? "모니터링으로 이동 중…" : "운영으로 이동 중…"
               }
               className={cn(
-                "mx-1 flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-sm hover:bg-muted/60",
+                dashboardUi.headerToolsCard,
+                "mb-1 no-underline",
                 onOps &&
-                  "border-emerald-600/60 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300",
+                  "border-emerald-600/60 bg-emerald-50 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300",
                 motionClass.microInteractive,
               )}
               aria-label={onOps ? "운영 종료 — 모니터링으로" : "운영"}
               title={onOps ? "운영 → 모니터링" : "모니터링 → 운영"}
               data-tour-id="header-ops"
             >
-              <ShieldCheck className="size-4 shrink-0" aria-hidden />
-              <span className="font-medium">
-                {onOps ? "모니터링으로" : "운영"}
-              </span>
+              <ToolsIconChip
+                Icon={ShieldCheck}
+                className={
+                  onOps
+                    ? "border-emerald-600/50 text-emerald-700 dark:border-emerald-500/40 dark:text-emerald-300"
+                    : undefined
+                }
+              />
+              <div className={dashboardUi.headerToolsCardBody}>
+                <div className={dashboardUi.headerToolsCardTitle}>
+                  {onOps ? "모니터링으로" : "운영"}
+                </div>
+                <p className={dashboardUi.headerToolsCardMeta}>
+                  {onOps ? "운영 화면 종료" : "시스템 · 사용자 · 명령"}
+                </p>
+              </div>
             </AppNavLink>
           ) : null}
-          <div className={cn("mx-1", isAdmin && "mt-1")}>
+          <div>
             <DailyReportButton
               farmKey={farmKey}
               alarmCount={alarms.length}
-              presentation="row"
+              presentation="tools-card"
             />
           </div>
         </DropdownMenuGroup>
@@ -371,23 +431,38 @@ export function HeaderToolsMenu({
           </DropdownMenuLabel>
           <DropdownMenuItem
             className={cn(
-              "mx-1 flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2",
+              dashboardUi.headerToolsCard,
+              "cursor-pointer data-highlighted:bg-muted/50",
               viewportIsMobile && "border-primary/60 bg-primary/5 text-primary",
             )}
             data-tour-id="viewport-preview-toggle"
             onClick={() => setViewportPreviewMode(nextViewport)}
           >
-            <ViewportIcon className="size-4 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1 text-sm font-medium">
-              {MODE_LABEL[viewportMode]}
-              {viewportPref === "auto" ? " (자동)" : ""}
-            </span>
-            <span className="text-[0.65rem] text-muted-foreground">
-              → {MODE_LABEL[nextViewport]}
-            </span>
+            <ToolsIconChip
+              Icon={ViewportIcon}
+              className={
+                viewportIsMobile
+                  ? "border-primary/50 text-primary"
+                  : undefined
+              }
+            />
+            <div className={dashboardUi.headerToolsCardBody}>
+              <div className={dashboardUi.headerToolsCardTitle}>
+                <span className="min-w-0 flex-1 truncate">
+                  {MODE_LABEL[viewportMode]}
+                  {viewportPref === "auto" ? " (자동)" : ""}
+                </span>
+              </div>
+              <p className={dashboardUi.headerToolsCardMeta}>
+                → {MODE_LABEL[nextViewport]}
+              </p>
+            </div>
           </DropdownMenuItem>
           <DropdownMenuItem
-            className="mx-1 mt-1 flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2"
+            className={cn(
+              dashboardUi.headerToolsCard,
+              "mt-0 cursor-pointer data-highlighted:bg-muted/50",
+            )}
             data-tour-id="header-theme"
             data-theme-ready={themeReady || undefined}
             onClick={() => {
@@ -397,14 +472,15 @@ export function HeaderToolsMenu({
               setTheme(next);
             }}
           >
-            {themeIsDark ? (
-              <Sun className="size-4 shrink-0" aria-hidden />
-            ) : (
-              <Moon className="size-4 shrink-0" aria-hidden />
-            )}
-            <span className="text-sm font-medium">
-              {themeIsDark ? "라이트 모드" : "다크 모드"}
-            </span>
+            <ToolsIconChip Icon={themeIsDark ? Sun : Moon} />
+            <div className={dashboardUi.headerToolsCardBody}>
+              <div className={dashboardUi.headerToolsCardTitle}>
+                {themeIsDark ? "라이트 모드" : "다크 모드"}
+              </div>
+              <p className={dashboardUi.headerToolsCardMeta}>
+                화면 밝기 전환
+              </p>
+            </div>
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
