@@ -26,7 +26,7 @@ async function warmAdminHubOverviewCache(): Promise<void> {
 }
 
 function appOriginFromHeaders(headerStore: Headers): string {
-  const envSite = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  const envSite = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
   if (envSite) return envSite;
 
   const forwardedHost = headerStore.get("x-forwarded-host");
