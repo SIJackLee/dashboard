@@ -71,7 +71,7 @@ async function measureTourTiming(page) {
 
   const transitions = [{ step: 1, ms: step1Ms, kind: "initial" }];
 
-  for (let step = 2; step <= 9; step += 1) {
+  for (let step = 2; step <= 5; step += 1) {
     const t0 = Date.now();
     await page.locator(".farm-tour-tooltip button", { hasText: /^(다음|완료)$/ }).first().click();
     const ms = await waitStepReady(page, step);

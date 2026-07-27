@@ -143,7 +143,7 @@ export function FarmPageContent({
     );
     return allSame ? first : null;
   }, [readings]);
-  // 투어 중에도 유지 — 5/9(detail-panel-chart-first)가 controllerTrend에 의존.
+  // 투어 중에도 유지 — 목록 챕터(C) 진입 전 목록 enrich에 쓸 수 있음.
   // 목록 enrich·soft panel fetch만 tourActive로 일시정지.
   // listEverOpened 후에도 유지해 목록 BarnTable과 캐시를 공유한다.
   const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } = useFarmControllerTrend({

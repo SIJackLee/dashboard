@@ -673,6 +673,18 @@ function TourOverlay({
         >
           {step.body}
         </p>
+        {step.bullets && step.bullets.length > 0 ? (
+          <ul
+            className={cn(
+              "list-disc space-y-1 pl-4 text-muted-foreground",
+              mobileSheet ? "mt-1.5 text-sm leading-snug" : "mt-2 text-[0.9375rem] leading-snug",
+            )}
+          >
+            {step.bullets.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
         {step.extra === "anatomy" ? (
           <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="anatomy">
             <GaugeAnatomy compact={mobileSheet} />

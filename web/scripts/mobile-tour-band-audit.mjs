@@ -23,8 +23,8 @@ const BROWSER_PROFILES = [
     id: "safari-ios",
     label: "Safari iOS",
     viewport: { width: 390, height: 844 },
-    /** 7/8 스텝에서 주소창 접힘 시뮬레이션 */
-    resizeAtStep: 7,
+    /** 목록 챕터에서 주소창 접힘 시뮬레이션 */
+    resizeAtStep: 4,
     collapsedViewport: { width: 390, height: 763 },
   },
   {
@@ -39,14 +39,13 @@ const BROWSER_PROFILES = [
   },
 ];
 
-/** band 검증 대상 — data-tour-id suffix */
+/** band 검증 대상 — 1-based step index → data-tour-id */
 const BAND_TARGETS = {
-  2: "period-select",
+  1: "header-actions",
+  2: "view-toggle",
   3: "barn-card",
-  5: "detail-panel-chart-first",
-  6: "bulk-apply",
-  7: "controller-gauge-metrics",
-  8: "panel-pills",
+  4: "controller-gauge-metrics",
+  5: "panel-pills",
 };
 
 async function login(page, email) {
