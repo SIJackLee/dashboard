@@ -37,6 +37,10 @@ function statusLabel(status: string): string {
   return "정상";
 }
 
+function severityLabel(severity: "warning" | "critical"): string {
+  return severity === "critical" ? "심각" : "경고";
+}
+
 /** 축사 시리즈 슬롯 평균 → 농장 대표 시리즈 */
 function averageFarmSeries(
   barns: DailyReportPayload["barns"],
@@ -621,6 +625,72 @@ export async function buildAndDownloadDailyReportPdf(
       }
     }
 
+    // 3) 활성 알람 (임계값 초과·미만)
+    if (y + 40 < CONTENT_BOTTOM) {
+      const alarms = payload.alarms;
+      ctx.fillStyle = INK;
+      ctx.font = `bold 11px ${FONT}`;
+      ctx.fillText(
+        alarms.length ? `활성 알람 (${alarms.length})` : "활성 알람",
+        MARGIN,
+        y,
+      );
+      y += 12;
+
+      if (alarms.length === 0) {
+        ctx.fillStyle = MUTED;
+        ctx.font = `9px ${FONT}`;
+        ctx.fillText("이상 없음 — 임계값 초과·미만 알람이 없습니다.", MARGIN, y);
+        y += 14;
+      } else {
+        const maxRows = 8;
+        const shown = alarms.slice(0, maxRows);
+        const aCols = [
+          MARGIN + 4,
+          MARGIN + 90,
+          MARGIN + 130,
+          MARGIN + 220,
+          MARGIN + 280,
+          MARGIN + 330,
+        ];
+        tableHeaderBar(
+          ctx,
+          y,
+          ["축사", "번호", "유형", "심각도", "상세"],
+          aCols,
+        );
+        y += 12;
+        ctx.font = `8px ${FONT}`;
+        for (let i = 0; i < shown.length; i++) {
+          if (y > CONTENT_BOTTOM - 8) break;
+          const row = shown[i]!;
+          if (i % 2 === 1) {
+            ctx.fillStyle = "#F9FAFB";
+            ctx.fillRect(MARGIN, y - 9, PAGE_W - MARGIN * 2, 12);
+          }
+          ctx.fillStyle = INK;
+          ctx.fillText(`${row.stallLabel} ${row.stallNo}`, aCols[0]!, y);
+          ctx.fillText(row.eqpmnNo, aCols[1]!, y);
+          ctx.fillText(row.alarmType.slice(0, 12), aCols[2]!, y);
+          ctx.fillStyle = row.severity === "critical" ? "#B91C1C" : "#B45309";
+          ctx.fillText(severityLabel(row.severity), aCols[3]!, y);
+          ctx.fillStyle = INK;
+          ctx.fillText(row.detail.slice(0, 28), aCols[4]!, y);
+          y += 12;
+        }
+        if (alarms.length > maxRows) {
+          ctx.fillStyle = MUTED;
+          ctx.font = `8px ${FONT}`;
+          ctx.fillText(
+            `외 ${alarms.length - maxRows}건 — 대시보드 알람 메뉴에서 전체 확인`,
+            MARGIN,
+            y + 2,
+          );
+          y += 14;
+        }
+      }
+    }
+
     footer(ctx, pageNo, totalPages);
     addCanvasPage(pdf, canvas, first);
     first = false;
@@ -761,7 +831,7 @@ export async function buildAndDownloadDailyReportPdf(
     await yieldFrame();
   }
 
-  // ---- 컨트롤러 첨부 (1대/페이지 · KPI + 24h 차트 + 발췌 표) ----
+  // ---- 컨트롤러 첨부 (1대/페이지 · KPI + 24h/7d/30d 차트 + 발췌 표) ----
   for (let i = 0; i < appendix.length; i++) {
     pageNo += 1;
     const item = appendix[i]!;
@@ -805,15 +875,23 @@ export async function buildAndDownloadDailyReportPdf(
     });
     y += 40;
 
-    y = periodRow(
-      ctx,
-      y,
-      "24시간 · 온도 / 습도 / 모터",
-      item.ctrl.period24h,
-      70,
-    );
+    const ctrlPeriods: { id: TrendPeriodId; label: string; chartH: number }[] =
+      [
+        { id: "24h", label: "24시간", chartH: 50 },
+        { id: "7d", label: "7일", chartH: 42 },
+        { id: "30d", label: "30일", chartH: 42 },
+      ];
+    for (const p of ctrlPeriods) {
+      y = periodRow(
+        ctx,
+        y,
+        `${p.label} · 온도 / 습도 / 모터`,
+        item.ctrl.periods[p.id],
+        p.chartH,
+      );
+    }
 
-    const detailRows = sampleDetailRows(item.ctrl.period24h, 8);
+    const detailRows = sampleDetailRows(item.ctrl.periods["24h"], 6);
     if (detailRows.length > 0 && y + 40 < CONTENT_BOTTOM) {
       ctx.fillStyle = INK;
       ctx.font = `bold 10px ${FONT}`;

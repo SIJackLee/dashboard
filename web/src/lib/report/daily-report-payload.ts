@@ -14,8 +14,8 @@ export type DailyReportControllerRow = {
   motorB: number | null;
   motorC: number | null;
   status: string;
-  /** 첨부용 컨트롤러 단위 24h 시리즈 */
-  period24h: DailyReportSeries;
+  /** 첨부용 컨트롤러 단위 시리즈 (24h / 7d / 30d) */
+  periods: Record<TrendPeriodId, DailyReportSeries>;
 };
 
 export type DailyReportSeries = {
@@ -55,6 +55,17 @@ export type DailyReportBarn = {
   }[];
 };
 
+export type DailyReportAlarmRow = {
+  stallLabel: string;
+  stallNo: string;
+  stallTyCode: string | null;
+  eqpmnNo: string;
+  controllerKey: string;
+  alarmType: string;
+  severity: "warning" | "critical";
+  detail: string;
+};
+
 export type DailyReportPayload = {
   farmKey: FarmKey;
   reportDate: string;
@@ -67,4 +78,6 @@ export type DailyReportPayload = {
     alarmCount: number;
   };
   barns: DailyReportBarn[];
+  /** LIVE 기준 활성 알람 (임계값 초과·미만) */
+  alarms: DailyReportAlarmRow[];
 };

@@ -8,8 +8,11 @@ import type {
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import { fetchLiveReadings } from "@/lib/data/iot-live-fetch";
+import { deriveAlarmsFromReadings } from "@/lib/data/alarms";
+import { getAlarmSettings } from "@/lib/data/alarm-settings";
 import { getStallTypeName } from "@/lib/data/stall-type";
 import type {
+  DailyReportAlarmRow,
   DailyReportBarn,
   DailyReportControllerRow,
   DailyReportPayload,
@@ -208,10 +211,25 @@ export async function buildDailyReportPayload(
   farmKey: FarmKey,
   options?: { alarmCount?: number },
 ): Promise<DailyReportPayload> {
-  const [trends, readings] = await Promise.all([
+  const [trends, readings, alarmSettings] = await Promise.all([
     getFarmControllerTrendAllPeriods({ farmKey }),
     fetchLiveReadings({ farmKey }),
+    getAlarmSettings(),
   ]);
+
+  const derivedAlarms = deriveAlarmsFromReadings(readings, alarmSettings).filter(
+    (a) => a.status === "active",
+  );
+  const alarms: DailyReportAlarmRow[] = derivedAlarms.map((a) => ({
+    stallLabel: a.stallTyCode ? getStallTypeName(a.stallTyCode) : "—",
+    stallNo: a.stallNo ?? "—",
+    stallTyCode: a.stallTyCode,
+    eqpmnNo: a.eqpmnNo,
+    controllerKey: a.controllerKey,
+    alarmType: a.alarmType,
+    severity: a.severity,
+    detail: a.detail,
+  }));
 
   const barnKeys = new Map<string, { stallTyCode: string; stallNo: string }>();
   for (const period of PERIODS) {
@@ -263,13 +281,6 @@ export async function buildDailyReportPayload(
             a.controllerKey.localeCompare(b.controllerKey),
         );
 
-      const ctrls24 = findStallControllers(
-        trends["24h"],
-        stallTyCode,
-        stallNo,
-      );
-      const cats24 = trends["24h"].categories;
-
       const controllers: DailyReportControllerRow[] = liveCtrls.map((r) => {
         const chA = r.channels?.find((c) => c.channel === "A");
         const chB = r.channels?.find((c) => c.channel === "B");
@@ -280,11 +291,17 @@ export async function buildDailyReportPayload(
           chB?.fanPct ?? r.fanExhaust ?? r.fanExhaustSeries.at(-1) ?? null;
         const motorC =
           chC?.fanPct ?? r.fanSupply ?? r.fanSupplySeries.at(-1) ?? null;
-        const trend = matchTrendController(
-          ctrls24,
-          r.controllerKey,
-          r.eqpmnNo,
-        );
+        const periods = {} as Record<TrendPeriodId, DailyReportSeries>;
+        for (const period of PERIODS) {
+          const cats = trends[period].categories;
+          const ctrls = findStallControllers(trends[period], stallTyCode, stallNo);
+          const trend = matchTrendController(
+            ctrls,
+            r.controllerKey,
+            r.eqpmnNo,
+          );
+          periods[period] = seriesFromOneController(cats, trend);
+        }
         return {
           controllerKey: r.controllerKey,
           eqpmnNo: r.eqpmnNo,
@@ -294,7 +311,7 @@ export async function buildDailyReportPayload(
           motorB,
           motorC,
           status: r.status,
-          period24h: seriesFromOneController(cats24, trend),
+          periods,
         };
       });
 
@@ -348,9 +365,10 @@ export async function buildDailyReportPayload(
       controllerCount,
       onlineCount: controllerCount - offlineCount,
       offlineCount,
-      alarmCount: options?.alarmCount ?? 0,
+      alarmCount: alarms.length,
     },
     barns,
+    alarms,
   };
 }
 
