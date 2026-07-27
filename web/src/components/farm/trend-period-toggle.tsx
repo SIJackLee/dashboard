@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import {
   TREND_PERIODS,
@@ -34,7 +34,6 @@ export function TrendPeriodToggle({
   const [pendingPeriod, setPendingPeriod] = useState<TrendPeriodId | null>(
     null,
   );
-  const [isPending, startTransition] = useTransition();
 
   if (pendingPeriod != null && value === pendingPeriod) {
     setPendingPeriod(null);
@@ -46,7 +45,7 @@ export function TrendPeriodToggle({
     return () => window.clearTimeout(t);
   }, [pendingPeriod]);
 
-  const busy = isPending || pendingPeriod != null;
+  const busy = pendingPeriod != null;
 
   return (
     <div
@@ -71,7 +70,7 @@ export function TrendPeriodToggle({
               if (p === value && !busy) return;
               if (p === pendingPeriod) return;
               setPendingPeriod(p);
-              startTransition(() => onChange(p));
+              onChange(p);
             }}
             className={cn(
               "inline-flex items-center gap-1 font-medium",

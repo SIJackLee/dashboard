@@ -6,7 +6,7 @@ import {
   getOAuthSignInUrl,
   type OAuthProvider,
 } from "@/app/auth/actions";
-import { isRestrictedOAuthBrowser } from "@/lib/auth/oauth-browser";
+import { isGoogleOAuthBlockedBrowser } from "@/lib/auth/oauth-browser";
 
 const emptySubscribe = () => () => {};
 
@@ -19,15 +19,15 @@ function loginPageHref(): string {
 
 export function OAuthButtons() {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
-  const restricted = mounted && isRestrictedOAuthBrowser();
+  const googleBlocked = mounted && isGoogleOAuthBlockedBrowser();
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const startOAuth = async (provider: OAuthProvider) => {
     if (busy) return;
-    if (isRestrictedOAuthBrowser()) {
+    if (provider === "google" && isGoogleOAuthBlockedBrowser()) {
       setError(
-        "이 창에서는 Google/카카오 로그인이 차단됩니다. Chrome 또는 Edge에서 로그인 페이지를 열어 주세요.",
+        "이 창에서는 Google 로그인이 차단됩니다. 카카오를 쓰거나 Chrome/Edge에서 열어 주세요.",
       );
       return;
     }
@@ -59,10 +59,10 @@ export function OAuthButtons() {
         </div>
       </div>
 
-      {restricted ? (
+      {googleBlocked ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-          Cursor·IDE 내장 브라우저에서는 Google 로그인이 지원되지 않습니다.
-          Chrome/Edge에서{" "}
+          Cursor·IDE 내장 브라우저에서는 Google 로그인이 막힙니다. 카카오는
+          이 창에서도 가능하고, Google은 Chrome/Edge에서{" "}
           <a
             className="font-medium underline underline-offset-2"
             href={loginPageHref()}
@@ -82,7 +82,7 @@ export function OAuthButtons() {
 
       <button
         type="button"
-        disabled={busy != null || restricted}
+        disabled={busy != null || googleBlocked}
         onClick={() => void startOAuth("google")}
         className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-input bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-60"
       >
@@ -96,7 +96,7 @@ export function OAuthButtons() {
 
       <button
         type="button"
-        disabled={busy != null || restricted}
+        disabled={busy != null}
         onClick={() => void startOAuth("kakao")}
         className="flex h-10 w-full items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:cursor-wait disabled:opacity-60"
         style={{ backgroundColor: "#FEE500", color: "#191919" }}

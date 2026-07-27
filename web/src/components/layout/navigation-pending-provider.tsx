@@ -56,6 +56,7 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
   const waitForReadyRef = useRef(false);
   const navigateStartedAtRef = useRef(0);
   const pathnameRef = useRef(pathname);
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     pathnameRef.current = pathname;
@@ -71,14 +72,22 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
     [isTargetPathReachedFor]
   );
 
+  const cancelScheduledClear = useCallback(() => {
+    if (clearTimerRef.current != null) {
+      clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
+  }, []);
+
   const finishPending = useCallback(() => {
+    cancelScheduledClear();
     pendingRef.current = false;
     exitingRef.current = false;
     targetPathRef.current = null;
     waitForReadyRef.current = false;
     setExiting(false);
     setPending(null);
-  }, []);
+  }, [cancelScheduledClear]);
 
   const clearPending = useCallback(() => {
     if (variantRef.current === "brand" && pendingRef.current) {
@@ -86,21 +95,22 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
       if (exitingRef.current) return;
       exitingRef.current = true;
       setExiting(true);
-      window.setTimeout(finishPending, NAV_BRAND_FADE_OUT_MS);
+      clearTimerRef.current = setTimeout(finishPending, NAV_BRAND_FADE_OUT_MS);
       return;
     }
     finishPending();
   }, [finishPending]);
 
   const scheduleClearAfterMinDisplay = useCallback(() => {
+    cancelScheduledClear();
     const minDisplay =
       variantRef.current === "brand"
         ? NAV_BRAND_MIN_DISPLAY_MS
         : NAV_MIN_DISPLAY_MS;
     const elapsed = Date.now() - startedAtRef.current;
     const minRemaining = Math.max(0, minDisplay - elapsed);
-    window.setTimeout(clearPending, minRemaining);
-  }, [clearPending]);
+    clearTimerRef.current = setTimeout(clearPending, minRemaining);
+  }, [cancelScheduledClear, clearPending]);
 
   useEffect(() => {
     if (!pending) return;
@@ -167,10 +177,12 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
           variant: variantRef.current,
         });
       } else {
-        /* 로딩 중 다른 네비 — 목적지만 교체(기존 클릭 무시하지 않음) */
+        /* 로딩 중 다른 네비 — 이전 clear 타이머 취소 후 목적지 교체 */
+        cancelScheduledClear();
+        startedAtRef.current = Date.now();
         targetPathRef.current = href;
         waitForReadyRef.current = options?.waitForContentReady ?? false;
-        navigateStartedAtRef.current = Date.now();
+        navigateStartedAtRef.current = startedAtRef.current;
         setPending({
           ...resolveNavMessage(href, options),
           variant: variantRef.current,
@@ -179,7 +191,7 @@ function NavigationPendingProviderInner({ children }: { children: ReactNode }) {
 
       router.push(href);
     },
-    [pathname, router]
+    [pathname, router, cancelScheduledClear]
   );
 
   return (

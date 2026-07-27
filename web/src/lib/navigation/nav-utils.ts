@@ -1,4 +1,4 @@
-export const NAV_MIN_DISPLAY_MS = 200;
+export const NAV_MIN_DISPLAY_MS = 80;
 /** brand(로그인 스플래시) — 로고 페이드인(2s)이 완주되도록 하는 최소 표시 시간 */
 export const NAV_BRAND_MIN_DISPLAY_MS = 2_100;
 /** brand 스플래시 페이드아웃 시간(globals.css login-splash-fade-out과 동기) */

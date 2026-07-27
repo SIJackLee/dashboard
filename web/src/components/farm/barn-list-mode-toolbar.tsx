@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -28,7 +28,6 @@ export function BarnListModeToolbar({
   className,
 }: Props) {
   const [pendingMode, setPendingMode] = useState<BarnListViewMode | null>(null);
-  const [isPending, startTransition] = useTransition();
 
   if (pendingMode != null && value === pendingMode) {
     setPendingMode(null);
@@ -42,7 +41,7 @@ export function BarnListModeToolbar({
 
   /** 클릭 즉시 선택 표시 — URL/부모 value 동기화 전 */
   const displayMode = pendingMode ?? value;
-  const switching = isPending || pendingMode != null;
+  const switching = pendingMode != null;
 
   return (
     <div
@@ -81,7 +80,7 @@ export function BarnListModeToolbar({
               if (mode.id === displayMode && !switching) return;
               if (mode.id === pendingMode) return;
               setPendingMode(mode.id);
-              startTransition(() => onChange(mode.id));
+              onChange(mode.id);
             }}
           >
             {modeBusy ? (

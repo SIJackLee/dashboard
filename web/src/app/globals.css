@@ -1082,20 +1082,9 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 헤더 도구 패널 — 버튼 왼쪽 슬라이드 + 섹션 stagger ── */
+/* ── 헤더 도구 — 카드 없이 아이콘이 트리거 왼쪽으로 또르륵 ── */
 
-@keyframes header-tools-panel-in {
-  0% {
-    opacity: 0;
-    transform: translateX(calc(var(--motion-distance-lg) * 1.5)) scale(0.98);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes header-tools-section-in {
+@keyframes header-tools-icon-in {
   0% {
     opacity: 0;
     transform: translateX(var(--motion-distance-md));
@@ -1108,33 +1097,18 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
 .header-tools-panel {
   transform-origin: right center;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-.header-tools-panel[data-open] {
-  animation: header-tools-panel-in var(--motion-duration-emphasis)
-    var(--motion-ease-emphasis) both;
-}
-
-.header-tools-panel .header-tools-section {
-  animation: header-tools-section-in var(--motion-duration-moderate)
+.header-tools-panel[data-open] .header-tools-icon {
+  animation: header-tools-icon-in var(--motion-duration-moderate)
     var(--motion-ease-enter) both;
-}
-
-.header-tools-panel .header-tools-section:nth-child(1) {
-  animation-delay: 60ms;
-}
-
-.header-tools-panel .header-tools-section:nth-child(3) {
-  animation-delay: 100ms;
-}
-
-.header-tools-panel .header-tools-section:nth-child(5) {
-  animation-delay: 140ms;
+  animation-delay: calc(var(--tools-i, 0) * 45ms);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .header-tools-panel[data-open],
-  .header-tools-panel .header-tools-section {
+  .header-tools-panel[data-open] .header-tools-icon {
     animation: none;
   }
 }

@@ -6,10 +6,9 @@ import {
   useMemo,
   useRef,
   useState,
-  useTransition,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { Map, List, Loader2 } from "lucide-react";
+import { Map, List } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
@@ -99,7 +98,6 @@ export function FarmPageContent({
   const [view, setViewState] = useState<"map" | "list">(bootstrapView);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [urlTick, setUrlTick] = useState(0);
-  const [viewPending, startTransition] = useTransition();
 
   useEffect(() => {
     queueMicrotask(() => setUrlHydrated(true));
@@ -300,32 +298,28 @@ export function FarmPageContent({
         setListEverOpened(true);
         void enrichListIfNeeded();
       }
+      /* 낙관적 UI — 탭·URL 즉시, transition 지연 없음 */
       setViewState(next);
-      // URL·hub epoch는 transition — 탭 페인트는 위 동기 setState로 즉시
-      startTransition(() => {
-        if (hubMode) {
-          const params = new URLSearchParams(
-            currentFarmSearchParams().toString(),
-          );
-          applyHubScopedViewParams(params, next);
-          replaceFarmUrlShallow(params);
-          onHubUrlChange?.();
-          setUrlTick((n) => n + 1);
-          return;
-        }
+      if (hubMode) {
         const params = new URLSearchParams(
           currentFarmSearchParams().toString(),
         );
-        params.delete("tab");
-        if (next === "list") {
-          params.set("view", "list");
-        } else {
-          params.delete("view");
-          params.delete("listMode");
-        }
+        applyHubScopedViewParams(params, next);
         replaceFarmUrlShallow(params);
+        onHubUrlChange?.();
         setUrlTick((n) => n + 1);
-      });
+        return;
+      }
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      params.delete("tab");
+      if (next === "list") {
+        params.set("view", "list");
+      } else {
+        params.delete("view");
+        params.delete("listMode");
+      }
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
     },
     [hubMode, onHubUrlChange, enrichListIfNeeded],
   );
@@ -366,7 +360,6 @@ export function FarmPageContent({
             type="button"
             role="tab"
             aria-selected={view === "map"}
-            aria-busy={viewPending && view === "map" ? true : undefined}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium",
               motionClass.microInteractive,
@@ -377,18 +370,13 @@ export function FarmPageContent({
             )}
             onClick={() => setView("map")}
           >
-            {viewPending && view === "map" ? (
-              <Loader2 className={cn(dashboardUi.iconSm, "animate-spin")} aria-hidden />
-            ) : (
-              <Map className={dashboardUi.iconSm} aria-hidden />
-            )}
+            <Map className={dashboardUi.iconSm} aria-hidden />
             그리드
           </button>
           <button
             type="button"
             role="tab"
             aria-selected={view === "list"}
-            aria-busy={viewPending && view === "list" ? true : undefined}
             className={cn(
               "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium",
               motionClass.microInteractive,
@@ -399,11 +387,7 @@ export function FarmPageContent({
             )}
             onClick={() => setView("list")}
           >
-            {viewPending && view === "list" ? (
-              <Loader2 className={cn(dashboardUi.iconSm, "animate-spin")} aria-hidden />
-            ) : (
-              <List className={dashboardUi.iconSm} aria-hidden />
-            )}
+            <List className={dashboardUi.iconSm} aria-hidden />
             목록
           </button>
         </div>

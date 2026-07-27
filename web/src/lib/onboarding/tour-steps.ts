@@ -21,7 +21,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 13;
+export const TOUR_VERSION = 15;
 
 export type TourScrollPolicy =
   | "none"
@@ -98,15 +98,14 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     gridAction: "open-header-tools",
     title: "상단 헤더 · 도구 메뉴",
-    body: "도구(⋮)를 누르면 버튼 왼쪽으로 알림 → 기능 → 스타일 패널이 펼쳐집니다.",
+    body: "도구(⋮)를 누르면 아이콘이 왼쪽으로 또르륵 펼쳐집니다.",
     bullets: [
-      "알림 — 컨트롤러 연결 · 센서 알림 카드",
-      "기능 — 운영(관리자) · 오늘의 리포트",
-      "스타일 — PC/모바일 · 라이트/다크",
+      "연결 · 알림 · 운영(관리자) · 오늘의 리포트",
+      "PC/모바일 · 라이트/다크 — 카드 없이 아이콘만",
       "계정 — 오른쪽 프로필 메뉴",
     ],
     mobileBullets: [
-      "도구(⋮) — 알림 · 기능 · 스타일",
+      "도구(⋮) — 아이콘이 왼쪽으로 펼쳐짐",
       "계정 — 기능 안내 · 최근 활동",
     ],
     extra: "header-icons",
