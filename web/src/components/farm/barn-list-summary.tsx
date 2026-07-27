@@ -409,7 +409,7 @@ export function BarnListSummary({
   if (layout === "flat") {
     return (
       <>
-        <div className="min-w-0" data-audit-region="barn-list-summary" data-list-layout="flat" data-list-mode={listMode}>
+        <div className="min-w-0" data-tour-id="list-body" data-audit-region="barn-list-summary" data-list-layout="flat" data-list-mode={listMode}>
           {bulkMode && onToggleSp ? (
             <SpBulkChipRow
               groups={visibleGroups}
@@ -432,6 +432,7 @@ export function BarnListSummary({
     <>
     <div
       className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2"
+      data-tour-id="list-body"
       data-audit-region="barn-list-summary"
       data-list-layout="group"
       data-list-mode={listMode}

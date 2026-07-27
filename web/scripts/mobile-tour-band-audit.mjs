@@ -24,7 +24,7 @@ const BROWSER_PROFILES = [
     label: "Safari iOS",
     viewport: { width: 390, height: 844 },
     /** 목록 챕터에서 주소창 접힘 시뮬레이션 */
-    resizeAtStep: 4,
+    resizeAtStep: 9,
     collapsedViewport: { width: 390, height: 763 },
   },
   {
@@ -39,13 +39,18 @@ const BROWSER_PROFILES = [
   },
 ];
 
-/** band 검증 대상 — 1-based step index → data-tour-id */
 const BAND_TARGETS = {
-  1: "header-actions",
-  2: "view-toggle",
-  3: "barn-card",
-  4: "controller-gauge-metrics",
-  5: "panel-pills",
+  1: "app-header",
+  2: "farm-switcher",
+  3: "farm-command-bar",
+  4: "map-grid",
+  5: "detail-panel-header",
+  6: "detail-panel-chart-first",
+  7: "view-toggle",
+  8: "farm-command-bar",
+  9: "controller-gauge-metrics",
+  10: "list-body",
+  11: "list-body",
 };
 
 async function login(page, email) {

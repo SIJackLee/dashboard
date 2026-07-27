@@ -474,7 +474,10 @@ export function FarmMapCanvas({
         </div>
       ) : null}
       {graphMode && barns.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+        <div
+          className="flex flex-wrap items-center gap-2 border-b px-3 py-2"
+          data-tour-id={bulkEnabled ? undefined : "farm-command-bar"}
+        >
           {!bulkEnabled ? (
             <TrendPeriodToggle
               value={graphPeriod}
@@ -495,6 +498,7 @@ export function FarmMapCanvas({
           "bg-[size:20px_20px] bg-muted/10 dark:bg-muted/6",
           isDragging && "select-none"
         )}
+        data-tour-id="map-grid"
         style={{
           minHeight: focusMode ? undefined : minHeight,
           gridTemplateColumns: `repeat(${gridCols}, minmax(${GRID_COL_MIN}, 1fr))`,

@@ -207,7 +207,10 @@ export function FarmMapMobileStage({
       ) : null}
 
       {!bulkEnabled && graphMode && barns.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+        <div
+          className="flex flex-wrap items-center gap-2 border-b px-3 py-2"
+          data-tour-id="farm-command-bar"
+        >
           <TrendPeriodToggle
             value={graphPeriod}
             onChange={setGraphPeriod}
@@ -217,7 +220,7 @@ export function FarmMapMobileStage({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-2 p-2">
+      <div className="flex flex-col gap-2 p-2" data-tour-id="map-grid">
         {barns.map((b) => {
           const spCode = parseBarnCatalogKey(b.meta.id)?.stallTyCode ?? "";
           const isExpanded = expanded?.barnId === b.meta.id;

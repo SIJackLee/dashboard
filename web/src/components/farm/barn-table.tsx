@@ -68,6 +68,9 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { isFilterAll } from "@/lib/ui/filter-all";
 import { cn } from "@/lib/utils";
+import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
+import { dispatchTourGridActionDone } from "@/lib/onboarding/tour-timing";
+import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 
 type Props = {
   rows?: BarnReading[];
@@ -470,6 +473,42 @@ export function BarnTable({
       });
     });
   };
+
+  /** 스포트라이트 투어 — 목록 보기 모드(컨트롤러/그래프/설정) 전환 */
+  useEffect(() => {
+    const onTourAction = (e: Event) => {
+      const action = (e as CustomEvent).detail?.action as string | undefined;
+      if (
+        action !== "list-mode-controller" &&
+        action !== "list-mode-graph" &&
+        action !== "list-mode-settings"
+      ) {
+        return;
+      }
+      const mode: BarnListViewMode =
+        action === "list-mode-graph"
+          ? "graph"
+          : action === "list-mode-settings"
+            ? "settings"
+            : "controller";
+      if (!bulkMode) {
+        setListMode(mode);
+        setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+        setCardBodyExpandedKeys(new Set());
+        setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
+        replaceListParams({
+          listMode: mode === "controller" ? null : mode,
+        });
+      }
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() =>
+          dispatchTourGridActionDone(action as TourGridAction),
+        );
+      });
+    };
+    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+  }, [bulkMode, replaceListParams]);
 
   const handleToolbarSheetKeyChange = useCallback(
     (key: string, page?: ControllerMobileSheetPage) => {

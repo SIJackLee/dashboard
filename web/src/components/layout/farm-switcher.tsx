@@ -157,6 +157,7 @@ function FarmSwitcherBody({
               )
         )}
         aria-label={switchPending ? "농장 전환 중" : "농장 선택"}
+        data-tour-id="farm-switcher"
       >
         <span className={compact ? "max-w-[18rem] truncate" : undefined}>
           {switchPending ? "전환 중…" : triggerLabel}

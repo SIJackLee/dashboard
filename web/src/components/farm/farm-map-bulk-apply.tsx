@@ -1086,6 +1086,7 @@ export function FarmMapBulkApply({
             trailing &&
             "flex-nowrap justify-between gap-2",
         )}
+        data-tour-id="farm-command-bar"
       >
         <div
           className={cn(
