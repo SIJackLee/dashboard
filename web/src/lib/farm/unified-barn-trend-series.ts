@@ -14,6 +14,23 @@ import {
 export const UNIFIED_CLOUD_FILL = "#14b8a6";
 export const UNIFIED_TEMP_BAND_FILL = "#ef4444";
 
+export type UnifiedLayerId =
+  | "motors"
+  | "temp"
+  | "hum"
+  | "band"
+  | "cloud";
+
+export type UnifiedLayerFlags = Record<UnifiedLayerId, boolean>;
+
+export const DEFAULT_UNIFIED_LAYERS: UnifiedLayerFlags = {
+  motors: true,
+  temp: true,
+  hum: true,
+  band: true,
+  cloud: true,
+};
+
 function avgFinite(nums: (number | null | undefined)[]): number | null {
   let sum = 0;
   let n = 0;
@@ -36,6 +53,17 @@ export function normalizeToAlarmRange(
   if (!(hi > lo)) return 50;
   const n = ((value - lo) / (hi - lo)) * 100;
   return Math.max(0, Math.min(100, n));
+}
+
+/** n∈[0,100] → 원단위 (호버 복원). */
+export function denormalizeFromAlarmRange(
+  n: number | null | undefined,
+  lo: number,
+  hi: number,
+): number | null {
+  if (n == null || !Number.isFinite(n)) return null;
+  if (!(hi > lo)) return null;
+  return lo + (n / 100) * (hi - lo);
 }
 
 function avgColumns(
@@ -80,20 +108,32 @@ function hasFinite(data: (number | null)[]): boolean {
   return data.some((v) => v != null && Number.isFinite(v));
 }
 
+export type UnifiedSeriesKey = "A" | "B" | "C" | "temp" | "hum";
+
 export type UnifiedBarnTrendBuild = {
   categories: string[];
-  series: TrendSeries[];
-  envelopes: TrendEnvelope[];
+  /** 레이어 필터 전 전체 시리즈 */
+  seriesByKey: Partial<Record<UnifiedSeriesKey, TrendSeries>>;
+  envelopesBand: TrendEnvelope | null;
+  envelopesCloud: TrendEnvelope | null;
   leftDomain: [number, number];
   rightDomain: [number, number];
   controllerCount: number;
   tempRangeLabel: string;
   humidityRangeLabel: string;
+  thresholds: AlarmThresholds;
+  available: {
+    motors: boolean;
+    temp: boolean;
+    hum: boolean;
+    band: boolean;
+    cloud: boolean;
+  };
 };
 
 /**
  * 패널 내 컨트롤러 equally 평균 → 좌축 모터% · 우축 온·습 알람 정규화 n.
- * 캔버스: 실선 A/B/C · 점선 온도 · 점선 습도 · teal 클라우드 · 온도 산포 밴드.
+ * 캔버스 최종안: 실선 A/B/C · 점선 온·습 · teal 클라우드 · 온도 산포.
  */
 export function buildUnifiedBarnTrendSeries(
   controllerSeriesList: TrendControllerSeries[],
@@ -145,82 +185,123 @@ export function buildUnifiedBarnTrendSeries(
   const tempRangeLabel = formatTempAlarmRange(thresholds);
   const humidityRangeLabel = formatHumidityAlarmRange(thresholds);
 
-  const series: TrendSeries[] = [];
+  const seriesByKey: Partial<Record<UnifiedSeriesKey, TrendSeries>> = {};
   if (hasFinite(fanA)) {
-    series.push({
+    seriesByKey.A = {
       name: "A",
       data: fanA,
       color: TREND_CHART_COLORS.fanIntake,
       axis: "left",
-    });
+    };
   }
   if (hasFinite(fanB)) {
-    series.push({
+    seriesByKey.B = {
       name: "B",
       data: fanB,
       color: TREND_CHART_COLORS.fanExhaust,
       axis: "left",
-    });
+    };
   }
   if (hasFinite(fanC)) {
-    series.push({
+    seriesByKey.C = {
       name: "C",
       data: fanC,
       color: TREND_CHART_COLORS.fanSupply,
       axis: "left",
-    });
+    };
   }
   if (hasFinite(tempN)) {
-    series.push({
+    seriesByKey.temp = {
       name: `온도 n (${tempRangeLabel})`,
       data: tempN,
       color: TREND_CHART_COLORS.temp,
       axis: "right",
       strokeDasharray: "5 3",
-    });
+      hoverSecondary: tempAvg,
+      hoverSecondaryUnit: "℃",
+    };
   }
   if (hasFinite(humN)) {
-    series.push({
+    seriesByKey.hum = {
       name: `습도 n (${humidityRangeLabel})`,
       data: humN,
       color: TREND_CHART_COLORS.humidity,
       axis: "right",
       strokeDasharray: "2 2",
-    });
+      hoverSecondary: humAvg,
+      hoverSecondaryUnit: "%",
+    };
   }
 
-  if (!series.length) return null;
+  if (!Object.keys(seriesByKey).length) return null;
 
-  const envelopes: TrendEnvelope[] = [];
-  if (hasFinite(tempMinN) && hasFinite(tempMaxN)) {
-    envelopes.push({
-      high: tempMaxN,
-      low: tempMinN,
-      axis: "right",
-      fill: UNIFIED_TEMP_BAND_FILL,
-      fillOpacity: 0.12,
-      legendLabel: "온도 산포",
-    });
-  }
-  if (hasFinite(cloudHigh) && hasFinite(cloudLow)) {
-    envelopes.push({
-      high: cloudHigh,
-      low: cloudLow,
-      axis: "right",
-      fill: UNIFIED_CLOUD_FILL,
-      fillOpacity: 0.22,
-      legendLabel: "클라우드",
-    });
-  }
+  const envelopesBand =
+    hasFinite(tempMinN) && hasFinite(tempMaxN)
+      ? {
+          high: tempMaxN,
+          low: tempMinN,
+          axis: "right" as const,
+          fill: UNIFIED_TEMP_BAND_FILL,
+          fillOpacity: 0.12,
+          legendLabel: "온도 산포",
+        }
+      : null;
+
+  const envelopesCloud =
+    hasFinite(cloudHigh) && hasFinite(cloudLow)
+      ? {
+          high: cloudHigh,
+          low: cloudLow,
+          axis: "right" as const,
+          fill: UNIFIED_CLOUD_FILL,
+          fillOpacity: 0.22,
+          legendLabel: "클라우드",
+        }
+      : null;
+
+  const hasMotors = Boolean(seriesByKey.A || seriesByKey.B || seriesByKey.C);
 
   return {
     categories,
-    series,
-    envelopes,
+    seriesByKey,
+    envelopesBand,
+    envelopesCloud,
     leftDomain: [0, 100],
     rightDomain: [0, 100],
     controllerCount: controllerSeriesList.length,
     tempRangeLabel,
     humidityRangeLabel,
+    thresholds,
+    available: {
+      motors: hasMotors,
+      temp: Boolean(seriesByKey.temp),
+      hum: Boolean(seriesByKey.hum),
+      band: Boolean(envelopesBand),
+      cloud: Boolean(envelopesCloud),
+    },
   };
+}
+
+/** 레이어 플래그에 맞춰 TrendChart props 조각 생성. */
+export function pickUnifiedTrendLayers(
+  built: UnifiedBarnTrendBuild,
+  layers: UnifiedLayerFlags,
+): { series: TrendSeries[]; envelopes: TrendEnvelope[] } {
+  const series: TrendSeries[] = [];
+  if (layers.motors) {
+    for (const k of ["A", "B", "C"] as const) {
+      const s = built.seriesByKey[k];
+      if (s) series.push(s);
+    }
+  }
+  if (layers.temp && built.seriesByKey.temp) series.push(built.seriesByKey.temp);
+  if (layers.hum && built.seriesByKey.hum) series.push(built.seriesByKey.hum);
+
+  const envelopes: TrendEnvelope[] = [];
+  if (layers.band && built.envelopesBand) envelopes.push(built.envelopesBand);
+  if (layers.cloud && layers.temp && layers.hum && built.envelopesCloud) {
+    envelopes.push(built.envelopesCloud);
+  }
+
+  return { series, envelopes };
 }

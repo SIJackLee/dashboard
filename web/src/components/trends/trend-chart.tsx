@@ -25,6 +25,11 @@ export type TrendSeries = {
   band?: Band | null;
   /** line 모드 stroke-dasharray (예: "5 3"). 없으면 실선. */
   strokeDasharray?: string;
+  /**
+   * 호버 보조값(정규화 n 옆 원단위 등). data와 동일 길이.
+   */
+  hoverSecondary?: (number | null)[];
+  hoverSecondaryUnit?: string;
 };
 
 /** 두 곡선 사이 면(이목 클라우드·온도 산포 등). */
@@ -92,6 +97,9 @@ export function formatTrendHoverValue(
       seriesName === "C" ||
       seriesName.includes("모터"));
   if (motorLike) return `${Math.round(value)}${unit}`;
+  if (unit === "n") {
+    return `n=${Number.isInteger(value) ? String(value) : value.toFixed(0)}`;
+  }
   if (unit === "℃" || unit === "%") return `${value.toFixed(1)}${unit}`;
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}${unit}`;
 }
@@ -680,23 +688,36 @@ export function TrendChart({
       {hover && hover.idx >= 0 && hover.idx < n ? (
         <div
           className="pointer-events-none absolute top-1 z-10 rounded-md border bg-popover px-2 py-1 text-popover-foreground shadow-md"
-          style={{ left: Math.min(Math.max(hover.xPx - 70, 2), Math.max(2, hover.w - 148)), width: 148 }}
+          style={{ left: Math.min(Math.max(hover.xPx - 70, 2), Math.max(2, hover.w - 168)), width: 168 }}
         >
           <div className="mb-1 text-[10px] font-semibold">{categories[hover.idx]}</div>
           <div className="space-y-0.5">
             {series.map((s) => {
               const v = s.data[hover.idx];
               const unit = (s.axis ?? "left") === "right" ? rightUnit : leftUnit;
+              const sec = s.hoverSecondary?.[hover.idx];
+              const primary =
+                v == null || !Number.isFinite(v)
+                  ? "–"
+                  : formatTrendHoverValue(v, unit, s.name);
+              const secondary =
+                sec != null &&
+                Number.isFinite(sec) &&
+                s.hoverSecondaryUnit
+                  ? formatTrendHoverValue(
+                      sec,
+                      s.hoverSecondaryUnit,
+                      s.name,
+                    )
+                  : null;
               return (
                 <div key={s.name} className="flex items-center justify-between gap-2 text-[10px]">
-                  <span className="inline-flex items-center gap-1">
-                    <span className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: s.color }} />
-                    {s.name}
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <span className="inline-block h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} />
+                    <span className="truncate">{s.name}</span>
                   </span>
-                  <span className="font-medium tabular-nums">
-                    {v == null || !Number.isFinite(v)
-                      ? "–"
-                      : formatTrendHoverValue(v, unit, s.name)}
+                  <span className="shrink-0 font-medium tabular-nums">
+                    {secondary ? `${secondary} · ${primary}` : primary}
                   </span>
                 </div>
               );

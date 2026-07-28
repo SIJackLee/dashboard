@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
@@ -17,8 +17,15 @@ import {
   downsampleTrendAxis,
   tickEveryForDisplayBars,
 } from "@/lib/farm/trend-display-buckets";
-import { buildUnifiedBarnTrendSeries } from "@/lib/farm/unified-barn-trend-series";
+import {
+  buildUnifiedBarnTrendSeries,
+  DEFAULT_UNIFIED_LAYERS,
+  pickUnifiedTrendLayers,
+  type UnifiedLayerFlags,
+  type UnifiedLayerId,
+} from "@/lib/farm/unified-barn-trend-series";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 export type UnifiedBarnTrendControllerRef = {
@@ -36,8 +43,17 @@ type Props = {
   className?: string;
 };
 
+const LAYER_CHIPS: { id: UnifiedLayerId; label: string }[] = [
+  { id: "motors", label: "모터 A·B·C" },
+  { id: "temp", label: "온도 n" },
+  { id: "hum", label: "습도 n" },
+  { id: "band", label: "온도 산포" },
+  { id: "cloud", label: "클라우드" },
+];
+
 /**
- * detail-panel 하단 — 캔버스 통합 추이 시각(이중축·클라우드·점선)에 맞춤.
+ * detail-panel 통합 추이 — 캔버스 최종안(이중축·정규화·클라우드·레이어).
+ * 위온습/아래모터 스택은 후속 검토(현 단계 미적용).
  */
 export function UnifiedBarnTrendPanel({
   label,
@@ -48,6 +64,8 @@ export function UnifiedBarnTrendPanel({
   isMobileStack = false,
   className,
 }: Props) {
+  const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
+
   const thresholds = useMemo(() => {
     const withReading = controllers.find((c) => c.reading != null)?.reading;
     if (!withReading) return DEFAULT_ALARM_THRESHOLDS;
@@ -107,6 +125,15 @@ export function UnifiedBarnTrendPanel({
     );
   }, [controllers, controllerTrendByPeriod, period, thresholds]);
 
+  const picked = useMemo(
+    () => (built ? pickUnifiedTrendLayers(built, layers) : null),
+    [built, layers],
+  );
+
+  const toggleLayer = (id: UnifiedLayerId) => {
+    setLayers((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <div
       className={cn(
@@ -119,16 +146,47 @@ export function UnifiedBarnTrendPanel({
         <span className="text-xs font-semibold">통합 추이</span>
         <span className="text-[0.7rem] text-muted-foreground">
           {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
-          {trendPeriodLabel(period)}
+          {trendPeriodLabel(period)} · 좌 모터% · 우 온·습 n
         </span>
       </div>
+
       {built ? (
+        <div
+          className="flex flex-wrap gap-1"
+          role="group"
+          aria-label="통합 추이 레이어"
+        >
+          {LAYER_CHIPS.map((chip) => {
+            if (!built.available[chip.id]) return null;
+            const on = layers[chip.id];
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggleLayer(chip.id)}
+                className={cn(
+                  "rounded-md border px-2 py-0.5 text-[0.65rem] font-medium",
+                  motionClass.microHover,
+                  on
+                    ? "border-sky-500/60 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
+                    : "border-border bg-muted/20 text-muted-foreground",
+                )}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {built && picked && picked.series.length > 0 ? (
         <TrendChart
           mode="line"
           categories={built.categories}
-          series={built.series}
-          envelopes={built.envelopes}
-          height={isMobileStack ? 168 : 220}
+          series={picked.series}
+          envelopes={picked.envelopes}
+          height={isMobileStack ? 176 : 240}
           leftUnit="%"
           rightUnit="n"
           leftDomain={built.leftDomain}
@@ -153,14 +211,19 @@ export function UnifiedBarnTrendPanel({
         />
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">
-          통합 추이 데이터가 없습니다.
+          {built
+            ? "표시할 레이어를 선택하세요."
+            : "통합 추이 데이터가 없습니다."}
         </p>
       )}
+
       {built ? (
         <p className="text-[0.65rem] text-muted-foreground">
-          좌 모터% · 우 온·습 정규화 n · 온도 {built.tempRangeLabel} · 습도{" "}
-          {built.humidityRangeLabel} · teal 클라우드=온·습 사이 · 분홍
-          밴드=컨트롤러 온도 산포
+          n=0 → 온도 {built.thresholds.tempLow}℃ · 습도{" "}
+          {built.thresholds.humidityLow}% · n=100 → 온도{" "}
+          {built.thresholds.tempHigh}℃ · 습도 {built.thresholds.humidityHigh}%
+          . 호버에 원단위+n. 클라우드=온·습 사이 · 산포=컨트롤러 온도
+          min–max.
         </p>
       ) : null}
     </div>
