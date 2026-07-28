@@ -83,6 +83,47 @@ export function formatTrendHoverValue(
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}${unit}`;
 }
 
+/** 한계·관측 끝단 라벨 — 정수면 그대로, 아니면 소수 1자리. */
+export function formatTrendBandEdge(value: number, unit: string): string {
+  if (!Number.isFinite(value)) return "–";
+  const rounded =
+    Math.abs(value - Math.round(value)) < 1e-6
+      ? String(Math.round(value))
+      : value.toFixed(1);
+  return `${rounded}${unit}`;
+}
+
+type EdgeBandLabel = {
+  id: string;
+  side: "left" | "right";
+  /** 0~100, 차트 영역 기준 top % */
+  topPct: number;
+  text: string;
+  color: string;
+  title: string;
+};
+
+/** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
+function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBandLabel[] {
+  const bySide: Record<"left" | "right", EdgeBandLabel[]> = {
+    left: [],
+    right: [],
+  };
+  for (const l of labels) bySide[l.side].push({ ...l });
+  for (const side of ["left", "right"] as const) {
+    const list = bySide[side].sort((a, b) => a.topPct - b.topPct);
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1]!;
+      const cur = list[i]!;
+      if (cur.topPct - prev.topPct < minGapPct) {
+        cur.topPct = Math.min(96, prev.topPct + minGapPct);
+      }
+    }
+    bySide[side] = list;
+  }
+  return [...bySide.left, ...bySide.right];
+}
+
 function finiteValues(series: TrendSeries[], axis: TrendAxis | undefined): number[] {
   const out: number[] = [];
   for (const s of series) {
@@ -274,6 +315,85 @@ export function TrendChart({
       );
     });
   }, [referenceLines, uniqueAlarmBands]);
+
+  const unitForAxis = (axis: TrendAxis) =>
+    axis === "right" ? rightUnit : leftUnit;
+
+  /**
+   * 끝단 라벨 배치
+   * - 단일 Y: 좌=한계(점선), 우=관측(녹색)
+   * - 이중 Y: 좌끝=left축, 우끝=right축 (한계·관측 색으로 구분)
+   */
+  const edgeBandLabels = useMemo(() => {
+    if (mode !== "line") return [] as EdgeBandLabel[];
+    const out: EdgeBandLabel[] = [];
+    const sideFor = (axis: TrendAxis, kind: "limit" | "observed"): "left" | "right" => {
+      if (usesRight) return axis === "right" ? "right" : "left";
+      return kind === "limit" ? "left" : "right";
+    };
+    const pushBand = (
+      band: Band,
+      axis: TrendAxis,
+      kind: "limit" | "observed",
+      color: string,
+      keyPrefix: string,
+    ) => {
+      const unit = unitForAxis(axis);
+      const side = sideFor(axis, kind);
+      const titleKind = kind === "limit" ? "한계" : "관측";
+      for (const edge of ["hi", "lo"] as const) {
+        const value = band[edge];
+        const y = yFor(value, axis);
+        if (!Number.isFinite(y)) continue;
+        out.push({
+          id: `${keyPrefix}-${axis}-${edge}-${value}`,
+          side,
+          topPct: (y / chartH) * 100,
+          text: formatTrendBandEdge(value, unit),
+          color,
+          title: `${titleKind} ${edge === "hi" ? "상한" : "하한"}`,
+        });
+      }
+    };
+    uniqueAlarmBands.forEach(({ band, axis }, idx) => {
+      pushBand(band, axis, "limit", SEV_COLOR.warning, `alarm-${idx}`);
+    });
+    observedBands.forEach(({ band, axis }, idx) => {
+      pushBand(band, axis, "observed", SEV_COLOR.normal, `obs-${idx}`);
+    });
+    for (const ref of dedupedReferenceLines) {
+      const axis = ref.axis ?? "left";
+      const y = yFor(ref.value, axis);
+      if (!Number.isFinite(y)) continue;
+      out.push({
+        id: `ref-${axis}-${ref.value}`,
+        side: sideFor(axis, "limit"),
+        topPct: (y / chartH) * 100,
+        text:
+          ref.label?.trim() ||
+          formatTrendBandEdge(ref.value, unitForAxis(axis)),
+        color: ref.color,
+        title: "한계",
+      });
+    }
+    return nudgeEdgeLabelTops(out, 7);
+    // yFor/chartH are stable for given domains+height
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- yFor closes over domain/size
+  }, [
+    mode,
+    usesRight,
+    uniqueAlarmBands,
+    observedBands,
+    dedupedReferenceLines,
+    leftUnit,
+    rightUnit,
+    chartH,
+    lMin,
+    lMax,
+    rMin,
+    rMax,
+    innerH,
+  ]);
 
   if (!hasAny || n === 0) {
     return (
@@ -485,10 +605,24 @@ export function TrendChart({
         ) : null}
       </svg>
 
+      {edgeBandLabels.map((label) => (
+        <span
+          key={label.id}
+          className={cn(
+            "pointer-events-none absolute z-[1] -translate-y-1/2 rounded-sm bg-background/85 px-0.5 text-[9px] leading-none tabular-nums",
+            label.side === "left" ? "left-0.5 text-left" : "right-0.5 text-right",
+          )}
+          style={{ top: `${label.topPct}%`, color: label.color }}
+          title={label.title}
+        >
+          {label.text}
+        </span>
+      ))}
+
       {hover && hover.idx >= 0 && hover.idx < n ? (
         <div
           className="pointer-events-none absolute top-1 z-10 rounded-md border bg-popover px-2 py-1 text-popover-foreground shadow-md"
-          style={{ left: Math.min(Math.max(hover.xPx - 64, 2), Math.max(2, hover.w - 130)), width: 128 }}
+          style={{ left: Math.min(Math.max(hover.xPx - 70, 2), Math.max(2, hover.w - 148)), width: 148 }}
         >
           <div className="mb-1 text-[10px] font-semibold">{categories[hover.idx]}</div>
           <div className="space-y-0.5">
@@ -510,6 +644,40 @@ export function TrendChart({
               );
             })}
           </div>
+          {uniqueAlarmBands.length > 0 || observedBands.length > 0 ? (
+            <div className="mt-1 space-y-0.5 border-t border-border/60 pt-1">
+              {uniqueAlarmBands.map(({ band, axis }, idx) => {
+                const unit = unitForAxis(axis);
+                return (
+                  <div
+                    key={`tip-alarm-${idx}`}
+                    className="flex items-center justify-between gap-2 text-[9px]"
+                    style={{ color: SEV_COLOR.warning }}
+                  >
+                    <span>한계{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
+                    <span className="tabular-nums">
+                      {formatTrendBandEdge(band.lo, unit)}–{formatTrendBandEdge(band.hi, unit)}
+                    </span>
+                  </div>
+                );
+              })}
+              {observedBands.map(({ band, axis }, idx) => {
+                const unit = unitForAxis(axis);
+                return (
+                  <div
+                    key={`tip-obs-${idx}`}
+                    className="flex items-center justify-between gap-2 text-[9px]"
+                    style={{ color: SEV_COLOR.normal }}
+                  >
+                    <span>관측{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
+                    <span className="tabular-nums">
+                      {formatTrendBandEdge(band.lo, unit)}–{formatTrendBandEdge(band.hi, unit)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
       </div>
