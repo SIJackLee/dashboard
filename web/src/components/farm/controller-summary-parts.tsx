@@ -12,7 +12,8 @@ import {
   CHANNELS,
   channelPercentsFromReading,
   formatChannelPercent,
-  formatControllerNoLabel,
+  formatControllerHeaderPrimary,
+  formatControllerHeaderSecondary,
   formatHumidityAlarmRange,
   formatSetpointDisplay,
   formatTempAlarmRange,
@@ -22,11 +23,6 @@ import {
   tempAlarmBreached,
 } from "@/lib/farm/controller-summary-display";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
-import { formatStallTypeLabel } from "@/lib/data/stall-type";
-import {
-  stallKeyFromReading,
-  stallLabelFromKey,
-} from "@/lib/data/reading-hierarchy";
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
@@ -117,7 +113,7 @@ export function ControllerSummaryHeader({
   settingsActive,
   showGraphPill = true,
   showSettingsPill = true,
-  showAffiliation = false,
+  showAffiliation: _showAffiliation = false,
   cardBodyCollapsed = false,
   onToggleGraph,
   onToggleSettings,
@@ -139,9 +135,8 @@ export function ControllerSummaryHeader({
 }) {
   const showCardBodyToggle = onToggleCardBody != null;
   const showPills = showGraphPill || showSettingsPill || showCardBodyToggle;
-  const affiliationLabel = showAffiliation
-    ? `${formatStallTypeLabel(reading.stallTyCode)} · ${stallLabelFromKey(stallKeyFromReading(reading))}`
-    : null;
+  const primaryLabel = formatControllerHeaderPrimary(reading);
+  const secondaryLabel = formatControllerHeaderSecondary(reading);
   const offline = reading.status === "offline";
   const caution = reading.status === "caution";
 
@@ -158,18 +153,16 @@ export function ControllerSummaryHeader({
       />
       <div className="min-w-0 flex-1">
         <span className={cn("block truncate font-semibold", dashboardUi.sectionTitle)}>
-          {formatControllerNoLabel(reading.eqpmnNo)}
+          {primaryLabel}
         </span>
-        {affiliationLabel ? (
-          <span
-            className={cn(
-              "block truncate text-muted-foreground",
-              dashboardTypography.meta
-            )}
-          >
-            {affiliationLabel}
-          </span>
-        ) : null}
+        <span
+          className={cn(
+            "block truncate text-muted-foreground",
+            dashboardTypography.meta
+          )}
+        >
+          {secondaryLabel}
+        </span>
         {cardBodyCollapsed && (offline || caution) ? (
           <span
             className={cn(

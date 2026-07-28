@@ -13,6 +13,7 @@ import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
 import {
   findStallTrendSeries,
+  formatControllerHeaderSecondary,
   formatControllerNoLabel,
   resolveReadingAlarmThresholds,
   resolveReadingChannelThermo,
@@ -229,7 +230,9 @@ export function useBarnGraphs({
       return {
         key: cs.controllerKey,
         eqpmnNo: cs.eqpmnNo,
-        label: formatControllerNoLabel(cs.eqpmnNo),
+        label: ctrlReading
+          ? formatControllerHeaderSecondary(ctrlReading)
+          : formatControllerNoLabel(cs.eqpmnNo),
         reading: ctrlReading,
         metricsById: {
           T: { id: "T", label: "온도", unit: "℃", values: cs.temp, band: ctrlTBand },

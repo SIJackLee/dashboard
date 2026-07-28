@@ -11,7 +11,10 @@ import {
 import type { BarnReading } from "@/lib/data/iot";
 import { BarnPanelBottomSheet } from "@/components/farm/barn-panel-bottom-sheet";
 import { ControllerMobilePickerStrip } from "@/components/farm/controller-mobile-picker-strip";
-import { formatControllerNoLabel } from "@/lib/farm/controller-summary-display";
+import {
+  formatControllerHeaderPrimary,
+  formatControllerHeaderSecondary,
+} from "@/lib/farm/controller-summary-display";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 
@@ -178,7 +181,8 @@ export function BarnControllerMobileSheet({
     if (next !== page) onPageSettled?.(next);
   }, [dragOffsetPx, onPageSettled]);
 
-  const eqpmn = formatControllerNoLabel(reading.eqpmnNo);
+  const headerPrimary = formatControllerHeaderPrimary(reading);
+  const headerSecondary = formatControllerHeaderSecondary(reading);
   const activeLabel =
     CONTROLLER_MOBILE_SHEET_PAGES.find((p) => p.id === viewPage)?.label ?? "";
 
@@ -194,7 +198,7 @@ export function BarnControllerMobileSheet({
     <BarnPanelBottomSheet
       open={open}
       onClose={onClose}
-      title={`${eqpmn} · ${activeLabel}`}
+      title={`${headerPrimary} · ${headerSecondary} · ${activeLabel}`}
       auditRegion="barn-controller-mobile-sheet"
       contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
       suppressFocusOutClose

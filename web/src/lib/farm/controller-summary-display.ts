@@ -9,6 +9,11 @@ import {
   type ChannelSlot,
 } from "@/lib/data/iot-channel";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
+import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
+import {
+  formatStallTypeLabel,
+  normalizeStallTyCode,
+} from "@/lib/data/stall-type";
 import type { TrendPeriodData, TrendPeriodId, TrendStallSeries, TrendControllerPeriodData, TrendControllerSeries } from "@/lib/data/farm-trend-types";
 import { resolveThresholdsForReading } from "@/lib/data/alarm-scope";
 import {
@@ -16,7 +21,6 @@ import {
   type AlarmSettings,
   type AlarmThresholds,
 } from "@/lib/data/alarms";
-import { normalizeStallTyCode } from "@/lib/data/stall-type";
 
 export type ListDisplayMode = "gauge";
 
@@ -30,6 +34,23 @@ export { parseTrendPeriodParam as parseTrendPeriod } from "@/lib/farm/farm-view-
 export function formatControllerNoLabel(eqpmnNo: string | undefined): string {
   const eq = normalizeEqpmnNo(eqpmnNo ?? "01");
   return `${eq}번`;
+}
+
+/** 카드 헤더 상위 — 축사유형 */
+export function formatControllerHeaderPrimary(
+  reading: Pick<BarnReading, "stallTyCode">,
+): string {
+  return formatStallTypeLabel(reading.stallTyCode);
+}
+
+/** 카드 헤더 하위 — N(축사번호)번 축사 M(컨트롤러번호) */
+export function formatControllerHeaderSecondary(
+  reading: Pick<BarnReading, "stallNo" | "eqpmnNo" | "controllerKey" | "idx">,
+): string {
+  const stallKey = stallKeyFromReading(reading);
+  const stallNo = stallKey.startsWith("__") ? "—" : stallKey;
+  const eq = normalizeEqpmnNo(reading.eqpmnNo ?? "01");
+  return `${stallNo}번 축사 ${eq}`;
 }
 
 export function channelPercentsFromReading(r: BarnReading): ChannelPercents {

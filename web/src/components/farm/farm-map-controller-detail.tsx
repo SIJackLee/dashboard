@@ -24,6 +24,10 @@ import {
   worstSingleStackMetric,
   type StackMetric,
 } from "@/lib/farm/stack-metric";
+import {
+  formatControllerHeaderPrimary,
+  formatControllerHeaderSecondary,
+} from "@/lib/farm/controller-summary-display";
 import { TrendChart, type TrendSeries } from "@/components/trends/trend-chart";
 import { ControllerSummaryGaugeRow } from "./controller-summary-gauge-row";
 import { BarnListGraphPanel } from "./barn-list-graph-panel";
@@ -33,6 +37,8 @@ import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { controllerKeyForReadingKey } from "@/lib/farm/use-barn-graphs";
 import { downsampleTrendAxis } from "@/lib/farm/trend-display-buckets";
 import { BarnPanelBottomSheet } from "@/components/farm/barn-panel-bottom-sheet";
+import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
+import { isUnifiedBarnTrendEnabled } from "@/lib/farm/unified-barn-trend-flag";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -596,12 +602,27 @@ export function FarmMapControllerDetail({
             </div>
           </div>
 
+          {isUnifiedBarnTrendEnabled() ? (
+            <UnifiedBarnTrendPanel
+              label={label}
+              controllers={controllers}
+              controllerTrendByPeriod={controllerTrendByPeriod}
+              period={period}
+              alarmSettings={alarmSettings}
+              isMobileStack={isMobileStack}
+            />
+          ) : null}
+
           {/* PC·비hosted — 하단 드로어. 모바일 hosted는 부모 BarnListToolbarMobileSheet. */}
           {!sheetHosted && selected ? (
             <BarnPanelBottomSheet
               open
               onClose={closeDetailDrawer}
-              title={selected.label}
+              title={
+                selected.reading
+                  ? `${formatControllerHeaderPrimary(selected.reading)} · ${formatControllerHeaderSecondary(selected.reading)}`
+                  : selected.label
+              }
               auditRegion="farm-map-controller-detail-drawer"
               className="h-[92dvh] max-h-[92dvh] md:h-[92dvh] md:max-h-[92dvh]"
               contentClassName="min-h-0 flex-1 overflow-y-auto"

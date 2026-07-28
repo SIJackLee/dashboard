@@ -2,12 +2,10 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { BarnReading } from "@/lib/data/iot";
-import { formatControllerNoLabel } from "@/lib/farm/controller-summary-display";
-import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import {
-  stallKeyFromReading,
-  stallLabelFromKey,
-} from "@/lib/data/reading-hierarchy";
+  formatControllerHeaderPrimary,
+  formatControllerHeaderSecondary,
+} from "@/lib/farm/controller-summary-display";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -41,7 +39,7 @@ export function ControllerMobilePickerStrip({
   readings,
   selectedKey,
   onSelect,
-  showAffiliation = false,
+  showAffiliation: _showAffiliation = false,
   className,
   active = true,
 }: Props) {
@@ -109,9 +107,6 @@ export function ControllerMobilePickerStrip({
       >
         {readings.map((r) => {
           const selected = r.key === selectedKey;
-          const affiliation = showAffiliation
-            ? `${formatStallTypeLabel(r.stallTyCode)} · ${stallLabelFromKey(stallKeyFromReading(r))}`
-            : null;
           return (
             <button
               key={r.key}
@@ -139,19 +134,17 @@ export function ControllerMobilePickerStrip({
                   )}
                   aria-hidden
                 />
-                {formatControllerNoLabel(r.eqpmnNo)}
+                {formatControllerHeaderPrimary(r)}
               </span>
-              {affiliation ? (
-                <span
-                  className={cn(
-                    "mt-0.5 max-w-[8rem] truncate",
-                    dashboardTypography.meta,
-                    selected ? "text-emerald-800/80 dark:text-emerald-300/80" : undefined,
-                  )}
-                >
-                  {affiliation}
-                </span>
-              ) : null}
+              <span
+                className={cn(
+                  "mt-0.5 max-w-[8rem] truncate",
+                  dashboardTypography.meta,
+                  selected ? "text-emerald-800/80 dark:text-emerald-300/80" : undefined,
+                )}
+              >
+                {formatControllerHeaderSecondary(r)}
+              </span>
             </button>
           );
         })}
