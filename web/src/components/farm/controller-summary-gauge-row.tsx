@@ -461,6 +461,11 @@ export function ControllerSummaryGaugeRow({
           {cardBody}
           {channelTrendBottom}
         </div>
+        {settingsExpanded && suppressPerCardMobileSheet ? (
+          <div className="mt-2 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card">
+            {settingsPanel}
+          </div>
+        ) : null}
         {mobileSheet}
       </>
     );

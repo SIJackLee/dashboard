@@ -603,6 +603,7 @@ export function FarmMapControllerDetail({
               onClose={closeDetailDrawer}
               title={selected.label}
               auditRegion="farm-map-controller-detail-drawer"
+              className="h-[92dvh] max-h-[92dvh] md:h-[92dvh] md:max-h-[92dvh]"
               contentClassName="min-h-0 flex-1 overflow-y-auto"
               suppressFocusOutClose
             >
