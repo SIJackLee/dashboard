@@ -8,21 +8,24 @@ import {
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
-import { Map, List } from "lucide-react";
+import { Map, List, LineChart } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { FarmMapView } from "@/components/farm/farm-map-view";
+import { FarmChartView } from "@/components/farm/farm-chart-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
 import {
   applyHubScopedViewParams,
   currentFarmSearchParams,
   replaceFarmUrlShallow,
+  resolveFarmHubView,
   resolveListLayoutParam,
   resolveListViewMode,
   resolveTrendPeriodParam,
   setTrendPeriodParam,
+  type FarmHubView,
 } from "@/lib/farm/farm-view-url";
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
@@ -59,8 +62,8 @@ type Props = {
   liveRefreshManaged?: boolean;
   /** hub 캐시 단일 농장 — 목록 탭 첫 진입 시 scoped panel 보강 */
   lazyListEnrichment?: boolean;
-  /** SSR과 일치하는 초기 그리드/목록 탭 (hubMode) */
-  initialHubView?: "map" | "list";
+  /** SSR과 일치하는 초기 그리드/목록/차트 탭 (hubMode) */
+  initialHubView?: FarmHubView;
   lazyListFarmKey?: FarmKey | null;
 };
 
@@ -94,11 +97,13 @@ export function FarmPageContent({
   /** shallow URL(window)은 mount 후에만 — hydration 시 searchParams와 불일치 방지 */
   const [urlHydrated, setUrlHydrated] = useState(false);
   /** SSR·첫 페인트와 동일한 URL 기준 초기 탭 (window 읽지 않음) */
-  const bootstrapView: "map" | "list" =
-    initialHubView ??
-    (searchParams.get("view") === "list" ? "list" : "map");
-  const [view, setViewState] = useState<"map" | "list">(bootstrapView);
+  const bootstrapView: FarmHubView =
+    initialHubView ?? resolveFarmHubView(searchParams.get("view"));
+  const [view, setViewState] = useState<FarmHubView>(bootstrapView);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
+  const [chartEverOpened, setChartEverOpened] = useState(
+    bootstrapView === "chart",
+  );
   const [urlTick, setUrlTick] = useState(0);
 
   useEffect(() => {
@@ -112,14 +117,14 @@ export function FarmPageContent({
   useEffect(() => {
     if (!hubMode) return;
     queueMicrotask(() => {
-      const next =
-        currentFarmSearchParams().get("view") === "list" ? "list" : "map";
+      const next = resolveFarmHubView(currentFarmSearchParams().get("view"));
       setViewState(next);
       if (next === "list") setListEverOpened(true);
+      if (next === "chart") setChartEverOpened(true);
     });
   }, [hubMode, hubUrlEpoch]);
 
-  // 비허브 — 라우터 네비게이션(view=list, 예: 히트맵 '컨트롤러 이동')에 뷰 상태 동기화.
+  // 비허브 — 라우터 네비게이션(view=list|chart)에 뷰 상태 동기화.
   // 탭 토글은 shallow replaceState라 useSearchParams가 갱신되지 않아 여기서 재정의되지 않음.
   const [lastViewParam, setLastViewParam] = useState<string | null>(
     () => searchParams.get("view"),
@@ -127,13 +132,17 @@ export function FarmPageContent({
   const viewParam = searchParams.get("view");
   if (!hubMode && viewParam !== lastViewParam) {
     setLastViewParam(viewParam);
-    const next = viewParam === "list" ? "list" : "map";
+    const next = resolveFarmHubView(viewParam);
     setViewState(next);
     if (next === "list") setListEverOpened(true);
+    if (next === "chart") setChartEverOpened(true);
   }
 
   if (view === "list" && !listEverOpened) {
     setListEverOpened(true);
+  }
+  if (view === "chart" && !chartEverOpened) {
+    setChartEverOpened(true);
   }
   // 그리드·목록 공유 프리페치 — map/list 훅이 모듈 캐시를 공유해 이중 fetch 방지.
   // FarmKey는 객체이므로 참조가 아닌 farmKeyId로 단일 농장 여부 판정.
@@ -151,7 +160,9 @@ export function FarmPageContent({
   // listEverOpened 후에도 유지해 목록 BarnTable과 캐시를 공유한다.
   const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } = useFarmControllerTrend({
     farmKey: gridFarmKey,
-    enabled: Boolean(gridFarmKey) && (view === "map" || listEverOpened),
+    enabled:
+      Boolean(gridFarmKey) &&
+      (view === "map" || view === "chart" || listEverOpened || chartEverOpened),
   });
 
   const shallowParams = useMemo(() => {
@@ -308,10 +319,13 @@ export function FarmPageContent({
   ]);
 
   const applyViewChange = useCallback(
-    (next: "map" | "list") => {
+    (next: FarmHubView) => {
       if (next === "list") {
         setListEverOpened(true);
         void enrichListIfNeeded();
+      }
+      if (next === "chart") {
+        setChartEverOpened(true);
       }
       /* 낙관적 UI — 탭·URL 즉시, transition 지연 없음 */
       setViewState(next);
@@ -329,6 +343,9 @@ export function FarmPageContent({
       params.delete("tab");
       if (next === "list") {
         params.set("view", "list");
+      } else if (next === "chart") {
+        params.set("view", "chart");
+        params.delete("listMode");
       } else {
         params.delete("view");
         params.delete("listMode");
@@ -340,6 +357,14 @@ export function FarmPageContent({
   );
 
   const setView = useCallback(
+    (next: FarmHubView) => {
+      applyViewChange(next);
+    },
+    [applyViewChange],
+  );
+
+  /** 온보딩 투어 — map|list 만 */
+  const setTourView = useCallback(
     (next: "map" | "list") => {
       applyViewChange(next);
     },
@@ -353,12 +378,13 @@ export function FarmPageContent({
 
   const mapHidden = view !== "map";
   const listHidden = view !== "list";
+  const chartHidden = view !== "chart";
   /** 비활성 패널 — hidden으로 클릭·inert 유령 UI 방지 (crossfade는 활성 패널만) */
   const panelVisible = cn("opacity-100", motionClass.viewCrossfade);
 
   return (
     <div className="space-y-4">
-      <FarmFeatureTour view={view} setView={setView} enabled={!hideViewTabs} />
+      <FarmFeatureTour view={view === "list" ? "list" : "map"} setView={setTourView} enabled={!hideViewTabs} />
       {!hideViewTabs ? (
         <div
           className={cn(
@@ -404,6 +430,23 @@ export function FarmPageContent({
           >
             <List className={dashboardUi.iconSm} aria-hidden />
             목록
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "chart"}
+            className={cn(
+              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium",
+              motionClass.microInteractive,
+              tabNavClass,
+              view === "chart"
+                ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setView("chart")}
+          >
+            <LineChart className={dashboardUi.iconSm} aria-hidden />
+            차트
           </button>
         </div>
       ) : null}
@@ -460,6 +503,24 @@ export function FarmPageContent({
               onRequestPanelEnrichment={enrichListIfNeeded}
               trendPeriod={trendPeriod}
               onTrendPeriodChange={onTrendPeriodChange}
+            />
+          </div>
+        ) : null}
+
+        {chartEverOpened ? (
+          <div
+            className={cn(chartHidden ? "hidden" : panelVisible)}
+            aria-hidden={chartHidden}
+            data-farm-view-panel="chart"
+            data-farm-view-active={!chartHidden}
+          >
+            <FarmChartView
+              readings={readings}
+              controllerTrendByPeriod={gridControllerTrend}
+              period={trendPeriod}
+              onPeriodChange={onTrendPeriodChange}
+              alarmSettings={alarmSettings}
+              isMobileStack={viewportCompact}
             />
           </div>
         ) : null}

@@ -42,6 +42,8 @@ type Props = {
   onPeriodChange?: (period: TrendPeriodId) => void;
   alarmSettings?: AlarmSettings;
   isMobileStack?: boolean;
+  /** 미지정 시 모바일 176 / 데스크톱 240 */
+  chartHeight?: number;
   className?: string;
 };
 
@@ -65,6 +67,7 @@ export function UnifiedBarnTrendPanel({
   onPeriodChange,
   alarmSettings,
   isMobileStack = false,
+  chartHeight,
   className,
 }: Props) {
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
@@ -232,7 +235,7 @@ export function UnifiedBarnTrendPanel({
           categories={built.categories}
           series={picked.series}
           envelopes={picked.envelopes}
-          height={isMobileStack ? 176 : 240}
+          height={chartHeight ?? (isMobileStack ? 176 : 240)}
           leftUnit="%"
           rightUnit="n"
           leftDomain={built.leftDomain}

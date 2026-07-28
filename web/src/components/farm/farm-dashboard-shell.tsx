@@ -19,7 +19,7 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 import type { BarnLayoutsToPersist } from "@/lib/farm/load-farm-scoped-panel-data";
-import { currentFarmSearchParams } from "@/lib/farm/farm-view-url";
+import { currentFarmSearchParams, resolveFarmHubView } from "@/lib/farm/farm-view-url";
 import { useAdminHubPanels } from "@/lib/navigation/admin-hub-panels-context";
 import {
   FarmLiveRefreshProvider,
@@ -119,7 +119,7 @@ function FarmLivePageContent({
   onHubUrlChange: () => void;
   lazyListEnrichment?: boolean;
   lazyListFarmKey?: FarmKey | null;
-  initialHubView?: "map" | "list";
+  initialHubView?: ReturnType<typeof resolveFarmHubView>;
 }) {
   const { slice, isStale, isBootstrapping } = useFarmLiveRefresh();
 
@@ -214,7 +214,7 @@ function AdminHubBody({
           onHubUrlChange={onHubUrlChange}
           lazyListEnrichment
           lazyListFarmKey={clientActiveFarmKey}
-          initialHubView={view === "list" ? "list" : "map"}
+          initialHubView={resolveFarmHubView(view)}
         />
       );
     }
@@ -223,7 +223,7 @@ function AdminHubBody({
         gridCompactShell={isAdmin}
         hubUrlEpoch={hubUrlEpoch}
         onHubUrlChange={onHubUrlChange}
-        initialHubView={view === "list" ? "list" : "map"}
+        initialHubView={resolveFarmHubView(view)}
       />
     );
   }
@@ -243,7 +243,7 @@ function AdminHubBody({
           gridCompactShell={isAdmin}
           hubUrlEpoch={hubUrlEpoch}
           onHubUrlChange={onHubUrlChange}
-          initialHubView={view === "list" ? "list" : "map"}
+          initialHubView={resolveFarmHubView(view)}
         />
       )}
     </Suspense>
@@ -404,7 +404,7 @@ export function FarmDashboardShell({
                 onHubUrlChange={onHubUrlChange}
                 lazyListEnrichment={useCachedSingle}
                 lazyListFarmKey={clientActiveFarmKey}
-                initialHubView={view === "list" ? "list" : "map"}
+                initialHubView={resolveFarmHubView(view)}
               />
             )}
           </Suspense>

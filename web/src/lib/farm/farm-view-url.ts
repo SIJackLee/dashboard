@@ -71,9 +71,28 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
+/** hub /farm 상단 탭 — 그리드(map) · 목록 · 차트 */
+export type FarmHubView = "map" | "list" | "chart";
+
+export function resolveFarmHubView(
+  raw: string | null | undefined,
+): FarmHubView {
+  if (raw === "list") return "list";
+  if (raw === "chart") return "chart";
+  return "map";
+}
+
 /** 목록 탭 전용 — view=list 유지, map drill(stall/mapLevel)만 제거 */
 export function applyListViewParams(params: URLSearchParams): void {
   params.set("view", "list");
+  params.delete("stall");
+  params.delete("mapLevel");
+}
+
+/** 차트 탭 — 전폭 통합 추이 테스트 뷰 */
+export function applyChartViewParams(params: URLSearchParams): void {
+  params.set("view", "chart");
+  params.delete("listMode");
   params.delete("stall");
   params.delete("mapLevel");
 }
@@ -124,13 +143,14 @@ export function buildFarmPath(params: URLSearchParams): string {
   return q ? `/farm?${q}` : "/farm";
 }
 
-/** view=list|map 전환 (레거시 tab=ops 쿼리 제거) */
+/** view=list|map|chart 전환 (레거시 tab=ops 쿼리 제거) */
 export function applyHubScopedViewParams(
   params: URLSearchParams,
-  view: "map" | "list"
+  view: FarmHubView,
 ): void {
   params.delete("tab");
   if (view === "list") applyListViewParams(params);
+  else if (view === "chart") applyChartViewParams(params);
   else applyMapGridParams(params);
 }
 
