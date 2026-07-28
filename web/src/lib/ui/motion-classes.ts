@@ -84,6 +84,9 @@ export const motionClass = {
   farmChartBrushWindow: "farm-chart-brush-window",
   farmChartScopeShell: "farm-chart-scope-shell",
   farmChartPanelShell: "farm-chart-panel-shell",
+  farmChartTipIn: "farm-chart-tip-in",
+  farmChartHoverRing: "farm-chart-hover-ring",
+  farmChartLineGlow: "farm-chart-line-glow",
 
   /** 헤더 도구 패널 — 버튼 왼쪽 슬라이드 */
   headerToolsPanel: "header-tools-panel",
@@ -121,8 +124,15 @@ export const motionClass = {
   transitionLayout:
     "transition-[grid-template-rows,opacity,transform] duration-motion-moderate ease-[var(--motion-ease-standard)]",
 
-  /** map ↔ list 패널 */
+  /** @deprecated map/list/chart — viewSlide* 사용 */
   viewCrossfade: "transition-opacity duration-motion-view ease-out",
+
+  /** 농장 보기 탭 패널 슬라이드 (그리드↔목록↔차트) */
+  viewSlideEnterNext: "farm-view-slide-enter-next",
+  viewSlideEnterPrev: "farm-view-slide-enter-prev",
+  viewSlideExitNext: "farm-view-slide-exit-next",
+  viewSlideExitPrev: "farm-view-slide-exit-prev",
+  viewTabPill: "farm-view-tab-pill",
 } as const;
 
 export type MotionClassKey = keyof typeof motionClass;

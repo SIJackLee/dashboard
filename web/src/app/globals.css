@@ -1052,6 +1052,42 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     right var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
+.farm-chart-tip-in {
+  animation: farm-chart-tip-in var(--motion-duration-fast) var(--motion-ease-enter)
+    both;
+}
+
+@keyframes farm-chart-tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes farm-chart-hover-ring {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.12;
+  }
+}
+
+.farm-chart-hover-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: farm-chart-hover-ring 1.15s var(--motion-ease-standard) infinite;
+}
+
+.farm-chart-line-glow {
+  opacity: 0.28;
+}
+
 .farm-chart-scope-shell {
   animation: ui-motion-slide-up-in var(--motion-duration-moderate)
     var(--motion-ease-enter) both;
@@ -1069,7 +1105,9 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   .farm-chart-line-soft-in,
   .farm-chart-marker-pop,
   .farm-chart-scope-shell,
-  .farm-chart-panel-shell {
+  .farm-chart-panel-shell,
+  .farm-chart-tip-in,
+  .farm-chart-hover-ring {
     animation: none;
   }
 
@@ -1182,6 +1220,91 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   .farm-detail-slide-next,
   .farm-detail-slide-prev {
     animation: none;
+  }
+}
+
+/* ── 농장 보기 탭(그리드·목록·차트) 패널 슬라이드 ── */
+
+@keyframes farm-view-slide-enter-next {
+  0% {
+    opacity: 0.85;
+    transform: translateX(var(--motion-distance-slide));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes farm-view-slide-enter-prev {
+  0% {
+    opacity: 0.85;
+    transform: translateX(calc(var(--motion-distance-slide) * -1));
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes farm-view-slide-exit-next {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(calc(var(--motion-distance-slide) * -1));
+  }
+}
+
+@keyframes farm-view-slide-exit-prev {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(var(--motion-distance-slide));
+  }
+}
+
+.farm-view-slide-enter-next {
+  animation: farm-view-slide-enter-next var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
+}
+
+.farm-view-slide-enter-prev {
+  animation: farm-view-slide-enter-prev var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
+}
+
+.farm-view-slide-exit-next {
+  animation: farm-view-slide-exit-next var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+}
+
+.farm-view-slide-exit-prev {
+  animation: farm-view-slide-exit-prev var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+}
+
+.farm-view-tab-pill {
+  transition:
+    left var(--motion-duration-moderate) var(--motion-ease-emphasis),
+    width var(--motion-duration-moderate) var(--motion-ease-emphasis);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farm-view-slide-enter-next,
+  .farm-view-slide-enter-prev,
+  .farm-view-slide-exit-next,
+  .farm-view-slide-exit-prev {
+    animation: none;
+  }
+
+  .farm-view-tab-pill {
+    transition: none;
   }
 }
 

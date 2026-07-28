@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef, useLayoutEffect, type CSSProperties } from "react";
+import { useMemo, useState, useRef, useLayoutEffect, useId, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
@@ -45,11 +45,56 @@ export type TrendEnvelope = {
   legendLabel?: string;
 };
 
+/** MACD형 편차 막대 / 거래량형 바 — baseline↔value. */
+export type TrendHistogram = {
+  /** chart domain Y (막대 끝) */
+  values: (number | null)[];
+  /** chart domain Y (0선 또는 밴드 바닥) */
+  baseline: number;
+  colorUp: string;
+  colorDown: string;
+  /**
+   * macd: +/− 양방향(기본).
+   * volume: 바닥→값, colorUp만 (거래량).
+   * overlay: 주패널 위에 얹는 macd(낮은 불투명도).
+   */
+  style?: "macd" | "volume" | "overlay";
+  /** volume 그룹 내 슬롯 (0..groupSize-1) */
+  groupIndex?: number;
+  groupSize?: number;
+  fillOpacity?: number;
+  /** 인덱스별 불투명도(있으면 fillOpacity보다 우선) */
+  fillOpacityValues?: (number | null)[];
+  legendLabel?: string;
+  /** 호버 원단위 (예: 편차 ℃ · 모터 %) */
+  hoverSecondary?: (number | null)[];
+  hoverSecondaryUnit?: string;
+  /** midpointDelta: "중점 ±n.n℃" */
+  hoverFormat?: "signed" | "percent" | "midpointDelta";
+};
+
 export type TrendReferenceLine = {
   value: number;
   axis?: TrendAxis;
   color: string;
   label?: string;
+  /** true면 끝단 숫자 라벨 숨김(구분선 전용). */
+  hideLabel?: boolean;
+};
+
+/** 스케일 상하한 라벨 — split Y 등에서 원단위 표기. */
+export type TrendScaleEdgeLabel = {
+  id: string;
+  /** 차트 domain Y */
+  value: number;
+  axis?: TrendAxis;
+  side?: "left" | "right";
+  text: string;
+  color: string;
+  title?: string;
+  mark?: "overline" | "underline";
+  /** 해당 Y에 점선 가이드 */
+  showLine?: boolean;
 };
 
 type TrendChartProps = {
@@ -63,8 +108,12 @@ type TrendChartProps = {
   leftDomain?: [number, number];
   rightDomain?: [number, number];
   referenceLines?: TrendReferenceLine[];
+  /** 우측/좌측 스케일 상하한(원단위 텍스트). */
+  scaleEdgeLabels?: TrendScaleEdgeLabel[];
   /** line 모드 — 시리즈 아래 면 채우기(클라우드·밴드). */
   envelopes?: TrendEnvelope[];
+  /** line 모드 — MACD형 히스토그램 막대. */
+  histograms?: TrendHistogram[];
   emptyLabel?: string;
   /** Show every Nth category tick (auto if omitted). */
   tickEvery?: number;
@@ -92,6 +141,10 @@ type TrendChartProps = {
    * 기간·레이어 변경 시 remount 없음.
    */
   animate?: boolean;
+  /**
+   * line 모드 — 전 시리즈가 null인 연속 구간을 세로 음영(결측)으로 표시.
+   */
+  showNullGaps?: boolean;
 };
 
 const PAD_X = 6;
@@ -200,7 +253,9 @@ export function TrendChart({
   leftDomain,
   rightDomain,
   referenceLines = [],
+  scaleEdgeLabels = [],
   envelopes = [],
+  histograms = [],
   emptyLabel = "데이터 없음",
   tickEvery,
   period,
@@ -210,26 +265,32 @@ export function TrendChart({
   markerDensity = "all",
   markerRadiusPx = 3,
   animate = false,
+  showNullGaps = false,
 }: TrendChartProps) {
   /** 호버 — 인덱스 변경 시에만 setState (mousemove 전량 리렌더 방지) */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hoverSeries, setHoverSeries] = useState<string | null>(null);
   const hoverIdxRef = useRef<number | null>(null);
+  const hoverSeriesRef = useRef<string | null>(null);
+  const crossVRef = useRef<SVGLineElement | null>(null);
+  const crossHRef = useRef<SVGLineElement | null>(null);
+  const tipRef = useRef<HTMLDivElement | null>(null);
+  const lastAnchorRef = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const plotRef = useRef<HTMLDivElement | null>(null);
   const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
-  /** enter motion 1회만 */
-  const enterPlayedRef = useRef(false);
+  const glowFilterId = `tc-glow-${useId().replace(/:/g, "")}`;
+  /** 기간·데이터 변경 시 enter motion 재실행 */
   const [enterMotion, setEnterMotion] = useState(false);
 
   useLayoutEffect(() => {
-    if (!animate || enterPlayedRef.current) {
+    if (!animate) {
       setEnterMotion(false);
       return;
     }
-    enterPlayedRef.current = true;
     setEnterMotion(true);
-    const t = window.setTimeout(() => setEnterMotion(false), 420);
+    const t = window.setTimeout(() => setEnterMotion(false), 560);
     return () => window.clearTimeout(t);
-  }, [animate]);
+  }, [animate, categories.length, period, series.length, histograms.length]);
 
   useLayoutEffect(() => {
     const el = plotRef.current;
@@ -258,7 +319,9 @@ export function TrendChart({
     };
   }, [height, categories.length, series.length]);
 
-  const hasAny = series.some((s) => s.data?.some((v) => v != null));
+  const hasAny =
+    series.some((s) => s.data?.some((v) => v != null)) ||
+    histograms.some((h) => h.values.some((v) => v != null));
   const n = categories.length;
 
   const axisH = 16;
@@ -311,41 +374,196 @@ export function TrendChart({
   const xAtIndex = (i: number): number =>
     mode === "bar" ? xForBar(i) : xFor(i);
 
-  const hoverIndexAtRatio = (ratio: number): number => {
-    if (mode === "bar" && barCenterCluster) {
-      const xView = PAD_X + ratio * innerW;
-      let idx = 0;
-      let best = Infinity;
-      for (let i = 0; i < n; i++) {
-        const d = Math.abs(xForBar(i) - xView);
-        if (d < best) {
-          best = d;
-          idx = i;
+  const setCrosshairVisible = (visible: boolean) => {
+    const op = visible ? "1" : "0";
+    if (crossVRef.current) crossVRef.current.style.opacity = op;
+    if (crossHRef.current) crossHRef.current.style.opacity = op;
+  };
+
+  const setCrosshairAt = (xView: number, yView: number) => {
+    if (crossVRef.current) {
+      crossVRef.current.setAttribute("x1", String(xView));
+      crossVRef.current.setAttribute("x2", String(xView));
+    }
+    if (crossHRef.current) {
+      crossHRef.current.setAttribute("y1", String(yView));
+      crossHRef.current.setAttribute("y2", String(yView));
+    }
+    setCrosshairVisible(true);
+  };
+
+  /** 데이터 점 근처 · 플롯 안 · 포인터/점을 가리지 않게 카드 배치 */
+  const placeTipNear = (
+    anchorX: number,
+    anchorY: number,
+    plotW: number,
+    plotH: number,
+  ) => {
+    const el = tipRef.current;
+    if (!el) return;
+    const tipW = el.offsetWidth || 168;
+    const tipH = el.offsetHeight || 72;
+    const gap = 14;
+    const pad = 4;
+
+    const spaceRight = plotW - anchorX - pad;
+    const spaceLeft = anchorX - pad;
+    const preferRight = spaceRight >= tipW + gap || spaceRight >= spaceLeft;
+    let left = preferRight ? anchorX + gap : anchorX - tipW - gap;
+    left = Math.min(Math.max(pad, left), Math.max(pad, plotW - tipW - pad));
+
+    const preferAbove = anchorY - pad >= tipH + gap;
+    let top = preferAbove ? anchorY - tipH - gap : anchorY + gap;
+    top = Math.min(Math.max(pad, top), Math.max(pad, plotH - tipH - pad));
+
+    el.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    el.style.opacity = "1";
+  };
+
+  /**
+   * 표시 데이터 지점(시리즈 샘플 · 막대 · 히스토그램 끝)에만 히트.
+   * 빈 플롯 영역 X스냅은 하지 않음.
+   */
+  const findDataPointHit = (
+    xPx: number,
+    yPx: number,
+    plotW: number,
+    plotH: number,
+  ): { idx: number; xView: number; yView: number; seriesKey: string } | null => {
+    if (n === 0 || plotW <= 0 || plotH <= 0) return null;
+    const hitR = Math.max(12, markerRadiusPx * 3.8);
+    const hitR2 = hitR * hitR;
+    let bestD2 = hitR2;
+    let best: {
+      idx: number;
+      xView: number;
+      yView: number;
+      seriesKey: string;
+    } | null = null;
+
+    const consider = (
+      i: number,
+      xView: number,
+      yView: number,
+      seriesKey: string,
+    ) => {
+      const sx = (xView / VIEW_W) * plotW;
+      const sy = (yView / chartH) * plotH;
+      const dx = xPx - sx;
+      const dy = yPx - sy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 <= bestD2) {
+        bestD2 = d2;
+        best = { idx: i, xView, yView, seriesKey };
+      }
+    };
+
+    if (mode === "bar") {
+      for (let si = 0; si < series.length; si++) {
+        const s = series[si]!;
+        const axis = s.axis ?? "left";
+        for (let i = 0; i < n; i++) {
+          const v = s.data[i];
+          if (v == null || !Number.isFinite(v)) continue;
+          const yTop = yFor(v, axis);
+          const baseY = PAD_TOP + innerH;
+          const gx = xForBar(i) - barSlotW / 2 + si * barW;
+          const barWv = Math.max(0.4, barW * 0.92);
+          const left = (gx / VIEW_W) * plotW;
+          const right = ((gx + barWv) / VIEW_W) * plotW;
+          const top = (yTop / chartH) * plotH;
+          const bottom = (baseY / chartH) * plotH;
+          if (xPx >= left && xPx <= right && yPx >= top && yPx <= bottom) {
+            consider(i, gx + barWv / 2, yTop, s.name);
+            continue;
+          }
+          consider(i, gx + barWv / 2, yTop, s.name);
         }
       }
-      return idx;
+    } else {
+      for (const s of series) {
+        const axis = s.axis ?? "left";
+        for (let i = 0; i < n; i++) {
+          const v = s.data[i];
+          if (v == null || !Number.isFinite(v)) continue;
+          consider(i, xFor(i), yFor(v, axis), s.name);
+        }
+      }
     }
-    return Math.round(ratio * (n - 1));
+
+    for (let hi = 0; hi < histograms.length; hi++) {
+      const h = histograms[hi]!;
+      const key = h.legendLabel ?? `hist-${hi}`;
+      for (let i = 0; i < n; i++) {
+        const v = h.values[i];
+        if (v == null || !Number.isFinite(v)) continue;
+        consider(i, xAtIndex(i), yFor(v, "left"), key);
+      }
+    }
+
+    return best;
   };
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (n === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
     const xPx = e.clientX - rect.left;
-    const ratio = Math.min(
-      1,
-      Math.max(0, rect.width > 0 ? xPx / rect.width : 0),
+    const yPx = e.clientY - rect.top;
+
+    /** 십자선 — 플롯 위에서는 마우스 기준 항상 표시 */
+    const xView = Math.min(
+      VIEW_W - PAD_X,
+      Math.max(PAD_X, (xPx / rect.width) * VIEW_W),
     );
-    const idx = hoverIndexAtRatio(ratio);
-    if (idx === hoverIdxRef.current) return;
-    hoverIdxRef.current = idx;
-    setHoverIdx(idx);
+    const yView = Math.min(
+      PAD_TOP + innerH,
+      Math.max(PAD_TOP, (yPx / rect.height) * chartH),
+    );
+    setCrosshairAt(xView, yView);
+
+    const hit = findDataPointHit(xPx, yPx, rect.width, rect.height);
+    if (!hit) {
+      if (hoverIdxRef.current != null || hoverSeriesRef.current != null) {
+        hoverIdxRef.current = null;
+        hoverSeriesRef.current = null;
+        setHoverIdx(null);
+        setHoverSeries(null);
+      }
+      return;
+    }
+    const anchorX = (hit.xView / VIEW_W) * rect.width;
+    const anchorY = (hit.yView / chartH) * rect.height;
+    lastAnchorRef.current = {
+      x: anchorX,
+      y: anchorY,
+      w: rect.width,
+      h: rect.height,
+    };
+    placeTipNear(anchorX, anchorY, rect.width, rect.height);
+    const same =
+      hit.idx === hoverIdxRef.current &&
+      hit.seriesKey === hoverSeriesRef.current;
+    if (same) return;
+    hoverIdxRef.current = hit.idx;
+    hoverSeriesRef.current = hit.seriesKey;
+    setHoverIdx(hit.idx);
+    setHoverSeries(hit.seriesKey);
   };
 
   const clearHover = () => {
     hoverIdxRef.current = null;
+    hoverSeriesRef.current = null;
     setHoverIdx(null);
+    setHoverSeries(null);
+    setCrosshairVisible(false);
   };
+
+  useLayoutEffect(() => {
+    if (hoverIdx == null) return;
+    const a = lastAnchorRef.current;
+    placeTipNear(a.x, a.y, a.w, a.h);
+  }, [hoverIdx]);
 
   const markerStride =
     markerDensity === "sparse" ? Math.max(1, Math.ceil(n / 8)) : 1;
@@ -456,6 +674,7 @@ export function TrendChart({
       }
     });
     for (const ref of dedupedReferenceLines) {
+      if (ref.hideLabel) continue;
       const axis = ref.axis ?? "left";
       const y = yFor(ref.value, axis);
       if (!Number.isFinite(y)) continue;
@@ -475,7 +694,21 @@ export function TrendChart({
         mark: ref.value >= mid ? "overline" : "underline",
       });
     }
-    return nudgeEdgeLabelTops(out, 7);
+    for (const guide of scaleEdgeLabels) {
+      const axis = guide.axis ?? "left";
+      const y = yFor(guide.value, axis);
+      if (!Number.isFinite(y)) continue;
+      out.push({
+        id: guide.id,
+        side: guide.side ?? "right",
+        topPct: (y / chartH) * 100,
+        text: guide.text,
+        color: guide.color,
+        title: guide.title ?? guide.text,
+        mark: guide.mark,
+      });
+    }
+    return nudgeEdgeLabelTops(out, 5.5);
     // yFor/chartH are stable for given domains+height
     // eslint-disable-next-line react-hooks/exhaustive-deps -- yFor closes over domain/size
   }, [
@@ -484,6 +717,7 @@ export function TrendChart({
     series,
     uniqueAlarmBands,
     dedupedReferenceLines,
+    scaleEdgeLabels,
     leftUnit,
     rightUnit,
     chartH,
@@ -521,6 +755,32 @@ export function TrendChart({
     if (cur.length > 1) segs.push(cur.join(" "));
     return segs;
   };
+
+  /** 결측 구간 — 기준 시리즈(온도 우선) null 연속, 없으면 전 시리즈 null. */
+  const nullGapRanges: { i0: number; i1: number }[] = [];
+  if (showNullGaps && mode === "line" && series.length > 0) {
+    const ref =
+      series.find((s) => s.name === "온도" || s.name.startsWith("온도")) ??
+      series[0]!;
+    let start: number | null = null;
+    const isGapAt = (i: number) => {
+      const v = ref.data[i];
+      return v == null || !Number.isFinite(v);
+    };
+    const flush = (end: number) => {
+      if (start == null) return;
+      if (end - start + 1 >= 2) nullGapRanges.push({ i0: start, i1: end });
+      start = null;
+    };
+    for (let i = 0; i < n; i++) {
+      if (isGapAt(i)) {
+        if (start == null) start = i;
+      } else {
+        flush(i - 1);
+      }
+    }
+    flush(n - 1);
+  }
 
   const envelopePath = (env: TrendEnvelope): string | null => {
     const axis = env.axis ?? "left";
@@ -586,12 +846,43 @@ export function TrendChart({
             </span>
           ) : null,
         )}
+        {histograms.map((h, idx) =>
+          h.legendLabel ? (
+            <span
+              key={`hist-leg-${idx}`}
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+            >
+              {h.style === "volume" ? (
+                <span
+                  className="inline-block h-2 w-3 rounded-sm"
+                  style={{ backgroundColor: h.colorUp, opacity: 0.85 }}
+                  aria-hidden
+                />
+              ) : (
+                <span
+                  className="inline-flex h-2 w-3 overflow-hidden rounded-sm"
+                  aria-hidden
+                >
+                  <span
+                    className="h-full w-1/2"
+                    style={{ backgroundColor: h.colorUp }}
+                  />
+                  <span
+                    className="h-full w-1/2"
+                    style={{ backgroundColor: h.colorDown }}
+                  />
+                </span>
+              )}
+              {h.legendLabel}
+            </span>
+          ) : null,
+        )}
       </div>
       ) : null}
 
       <div
         ref={plotRef}
-        className="relative"
+        className="relative cursor-crosshair"
         onMouseMove={onMove}
         onMouseLeave={clearHover}
       >
@@ -603,7 +894,121 @@ export function TrendChart({
         role="img"
         aria-label="추이 차트"
       >
+        <defs>
+          <filter
+            id={glowFilterId}
+            x="-40%"
+            y="-40%"
+            width="180%"
+            height="180%"
+          >
+            <feGaussianBlur in="SourceGraphic" stdDeviation="1.35" />
+          </filter>
+        </defs>
         <g className={enterMotion ? motionClass.farmChartPlotReveal : undefined}>
+        {nullGapRanges.map((g) => {
+          const x0 = xFor(g.i0);
+          const x1 = xFor(g.i1);
+          const slot =
+            n > 1 ? (VIEW_W - 2 * PAD_X) / (n - 1) : VIEW_W - 2 * PAD_X;
+          const left = Math.max(PAD_X, x0 - slot / 2);
+          const right = Math.min(VIEW_W - PAD_X, x1 + slot / 2);
+          return (
+            <rect
+              key={`null-gap-${g.i0}-${g.i1}`}
+              x={left}
+              y={PAD_TOP}
+              width={Math.max(0.4, right - left)}
+              height={innerH}
+              fill="#64748b"
+              fillOpacity={0.18}
+              stroke="none"
+            />
+          );
+        })}
+        {mode === "line"
+          ? histograms.map((h, hi) => {
+              const yBase = yFor(h.baseline, "left");
+              const slot =
+                n > 1 ? (VIEW_W - 2 * PAD_X) / (n - 1) : VIEW_W - 2 * PAD_X;
+              const isVolume = h.style === "volume";
+              const isOverlay = h.style === "overlay";
+              const gs = Math.max(1, h.groupSize ?? 1);
+              const gi = h.groupIndex ?? 0;
+              const barWHist = Math.max(
+                0.22,
+                slot *
+                  (isVolume && gs > 1
+                    ? 0.62 / gs
+                    : isVolume
+                      ? 0.5
+                      : isOverlay
+                        ? 0.28
+                        : 0.55),
+              );
+              const cluster =
+                isVolume && gs > 1
+                  ? (gi - (gs - 1) / 2) * (barWHist + 0.12)
+                  : 0;
+              const opacity = h.fillOpacity ?? (isOverlay ? 0.14 : isVolume ? 0.7 : 0.75);
+              return (
+                <g key={`hist-${hi}`}>
+                  {(!isVolume || gi === 0) && !isOverlay ? (
+                    <line
+                      x1={PAD_X}
+                      x2={VIEW_W - PAD_X}
+                      y1={yBase}
+                      y2={yBase}
+                      stroke="#94a3b8"
+                      strokeWidth={0.4}
+                      strokeDasharray={isVolume ? "1 2" : "1.5 1.5"}
+                      vectorEffect="non-scaling-stroke"
+                      opacity={isVolume ? 0.35 : 0.5}
+                    />
+                  ) : null}
+                  {isOverlay ? (
+                    <line
+                      x1={PAD_X}
+                      x2={VIEW_W - PAD_X}
+                      y1={yBase}
+                      y2={yBase}
+                      stroke="#f87171"
+                      strokeWidth={0.55}
+                      strokeDasharray="3 2.5"
+                      vectorEffect="non-scaling-stroke"
+                      opacity={0.55}
+                    />
+                  ) : null}
+                  {h.values.map((v, i) => {
+                    if (v == null || !Number.isFinite(v)) return null;
+                    const yVal = yFor(v, "left");
+                    const top = Math.min(yBase, yVal);
+                    const height = Math.max(0.35, Math.abs(yVal - yBase));
+                    const up = v >= h.baseline;
+                    const barOp =
+                      h.fillOpacityValues?.[i] != null &&
+                      Number.isFinite(h.fillOpacityValues[i]!)
+                        ? (h.fillOpacityValues[i] as number)
+                        : opacity;
+                    return (
+                      <rect
+                        key={`hist-${hi}-${i}`}
+                        x={xFor(i) + cluster - barWHist / 2}
+                        y={top}
+                        width={barWHist}
+                        height={height}
+                        fill={
+                          isVolume || up ? h.colorUp : h.colorDown
+                        }
+                        fillOpacity={barOp}
+                        stroke="none"
+                      />
+                    );
+                  })}
+                </g>
+              );
+            })
+          : null}
         {mode === "line"
           ? envelopes.map((env, idx) => {
               const d = envelopePath(env);
@@ -675,6 +1080,27 @@ export function TrendChart({
           );
         })}
 
+        {scaleEdgeLabels
+          .filter((g) => g.showLine)
+          .map((guide) => {
+            const y = yFor(guide.value, guide.axis ?? "left");
+            if (!Number.isFinite(y)) return null;
+            return (
+              <line
+                key={`scale-guide-${guide.id}`}
+                x1={PAD_X}
+                x2={VIEW_W - PAD_X}
+                y1={y}
+                y2={y}
+                stroke={guide.color}
+                strokeWidth={0.45}
+                strokeDasharray="1.5 2"
+                vectorEffect="non-scaling-stroke"
+                opacity={0.55}
+              />
+            );
+          })}
+
         {mode === "bar"
           ? series.map((s, si) =>
               s.data.map((v, i) => {
@@ -699,23 +1125,50 @@ export function TrendChart({
           : series.map((s, si) => {
               const axis = s.axis ?? "left";
               const segs = lineSegments(s);
+              const focused =
+                hoverSeries == null || hoverSeries === s.name;
+              const lineOpacity = focused ? 1 : 0.22;
+              const strokeW = focused && hoverSeries ? 1.85 : 1.55;
               return (
-                <g key={s.name}>
+                <g
+                  key={s.name}
+                  style={{
+                    opacity: lineOpacity,
+                    transition: "opacity 120ms linear",
+                  }}
+                >
                   {segs.map((pts, idx) => (
-                    <polyline
-                      key={idx}
-                      points={pts}
-                      fill="none"
-                      stroke={s.color}
-                      strokeWidth={1.4}
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                      strokeDasharray={s.strokeDasharray}
-                      vectorEffect="non-scaling-stroke"
-                      className={
-                        enterMotion ? motionClass.farmChartLineSoftIn : undefined
-                      }
-                    />
+                    <g key={idx}>
+                      {!s.strokeDasharray ? (
+                        <polyline
+                          points={pts}
+                          fill="none"
+                          stroke={s.color}
+                          strokeWidth={strokeW + 2.2}
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                          vectorEffect="non-scaling-stroke"
+                          filter={`url(#${glowFilterId})`}
+                          className={motionClass.farmChartLineGlow}
+                          opacity={focused ? 0.35 : 0.08}
+                        />
+                      ) : null}
+                      <polyline
+                        points={pts}
+                        fill="none"
+                        stroke={s.color}
+                        strokeWidth={strokeW}
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                        strokeDasharray={s.strokeDasharray}
+                        vectorEffect="non-scaling-stroke"
+                        className={
+                          enterMotion
+                            ? motionClass.farmChartLineSoftIn
+                            : undefined
+                        }
+                      />
+                    </g>
                   ))}
                   {showMarkers
                     ? s.data.map((v, i) => {
@@ -773,41 +1226,80 @@ export function TrendChart({
               );
             })}
 
-        {/* 호버 강조점 — 인덱스 변경 시에만 갱신, 전 마커 remount 없음 */}
+        {/* 호버 강조 — 링 펄스 + 코어 */}
         {mode === "line" && hoverIdx != null && hoverIdx >= 0 && hoverIdx < n
           ? series.map((s) => {
               const v = s.data[hoverIdx];
               if (v == null || !Number.isFinite(v)) return null;
               const axis = s.axis ?? "left";
+              const isFocus = hoverSeries == null || hoverSeries === s.name;
+              if (!isFocus) return null;
+              const cx = xFor(hoverIdx);
+              const cy = yFor(v, axis);
               return (
-                <ellipse
-                  key={`hover-${s.name}`}
-                  cx={xFor(hoverIdx)}
-                  cy={yFor(v, axis)}
-                  rx={markerRx(markerRadiusPx + 1.4)}
-                  ry={markerRy(markerRadiusPx + 1.4)}
-                  fill={s.color}
-                  opacity={0.95}
-                />
+                <g key={`hover-${s.name}`}>
+                  <ellipse
+                    cx={cx}
+                    cy={cy}
+                    rx={markerRx(markerRadiusPx + 5)}
+                    ry={markerRy(markerRadiusPx + 5)}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={1.1}
+                    vectorEffect="non-scaling-stroke"
+                    className={motionClass.farmChartHoverRing}
+                  />
+                  <ellipse
+                    cx={cx}
+                    cy={cy}
+                    rx={markerRx(markerRadiusPx + 1.8)}
+                    ry={markerRy(markerRadiusPx + 1.8)}
+                    fill={s.color}
+                    opacity={0.98}
+                  />
+                  <ellipse
+                    cx={cx}
+                    cy={cy}
+                    rx={markerRx(markerRadiusPx * 0.45)}
+                    ry={markerRy(markerRadiusPx * 0.45)}
+                    fill="#fff"
+                    opacity={0.9}
+                  />
+                </g>
               );
             })
           : null}
         </g>
 
-        {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
-          <line
-            x1={xAtIndex(hoverIdx)}
-            x2={xAtIndex(hoverIdx)}
-            y1={PAD_TOP}
-            y2={PAD_TOP + innerH}
-            stroke="currentColor"
-            strokeWidth={0.5}
-            strokeDasharray="1.5 1.5"
-            vectorEffect="non-scaling-stroke"
-            className="text-muted-foreground"
-            opacity={0.5}
-          />
-        ) : null}
+        {/* 마우스 기준 회색 십자선 — DOM 직접 갱신(리렌더 최소화) */}
+        <line
+          ref={crossVRef}
+          x1={PAD_X}
+          x2={PAD_X}
+          y1={PAD_TOP}
+          y2={PAD_TOP + innerH}
+          stroke="#94a3b8"
+          strokeWidth={0.7}
+          strokeDasharray="2.5 2"
+          vectorEffect="non-scaling-stroke"
+          opacity={0}
+          style={{ opacity: 0, transition: "opacity 90ms linear" }}
+          pointerEvents="none"
+        />
+        <line
+          ref={crossHRef}
+          x1={PAD_X}
+          x2={VIEW_W - PAD_X}
+          y1={PAD_TOP}
+          y2={PAD_TOP}
+          stroke="#94a3b8"
+          strokeWidth={0.7}
+          strokeDasharray="2.5 2"
+          vectorEffect="non-scaling-stroke"
+          opacity={0}
+          style={{ opacity: 0, transition: "opacity 90ms linear" }}
+          pointerEvents="none"
+        />
       </svg>
 
       {edgeBandLabels.map((label) => (
@@ -829,22 +1321,26 @@ export function TrendChart({
 
       {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
         <div
-          className="pointer-events-none absolute top-1 z-10 rounded-md border bg-popover px-2 py-1 text-popover-foreground shadow-md"
-          style={{
-            left: Math.min(
-              Math.max((xAtIndex(hoverIdx) / VIEW_W) * plotPx.w - 70, 2),
-              Math.max(2, plotPx.w - 168),
-            ),
-            width: 168,
-          }}
+          ref={tipRef}
+          className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[11.5rem]"
+          style={{ opacity: 0, willChange: "transform" }}
+          aria-live="polite"
+          data-tour-id="trend-chart-hover-card"
         >
+          <div
+            className={cn(
+              "rounded-md border border-border/80 bg-popover/95 px-2 py-1.5 text-popover-foreground shadow-lg backdrop-blur-sm",
+              motionClass.farmChartTipIn,
+            )}
+          >
           <div className="mb-1 text-[10px] font-semibold">
             {categories[hoverIdx]}
           </div>
           <div className="space-y-0.5">
             {series.map((s) => {
               const v = s.data[hoverIdx];
-              const unit = (s.axis ?? "left") === "right" ? rightUnit : leftUnit;
+              const unit =
+                (s.axis ?? "left") === "right" ? rightUnit : leftUnit;
               const sec = s.hoverSecondary?.[hoverIdx];
               const mappedPrimary =
                 v == null || !Number.isFinite(v)
@@ -854,17 +1350,69 @@ export function TrendChart({
                 sec != null &&
                 Number.isFinite(sec) &&
                 s.hoverSecondaryUnit
-                  ? formatTrendHoverValue(
-                      sec,
-                      s.hoverSecondaryUnit,
-                      s.name,
-                    )
+                  ? formatTrendHoverValue(sec, s.hoverSecondaryUnit, s.name)
                   : mappedPrimary;
               return (
-                <div key={s.name} className="flex items-center justify-between gap-2 text-[10px]">
+                <div
+                  key={s.name}
+                  className="flex items-center justify-between gap-2 text-[10px]"
+                  style={{
+                    opacity:
+                      hoverSeries && hoverSeries !== s.name ? 0.42 : 1,
+                    fontWeight:
+                      hoverSeries && hoverSeries === s.name ? 600 : undefined,
+                  }}
+                >
                   <span className="inline-flex min-w-0 items-center gap-1">
-                    <span className="inline-block h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} />
+                    <span
+                      className="inline-block h-2 w-2 shrink-0 rounded-sm"
+                      style={{ backgroundColor: s.color }}
+                    />
                     <span className="truncate">{s.name}</span>
+                  </span>
+                  <span className="shrink-0 font-medium tabular-nums">
+                    {display}
+                  </span>
+                </div>
+              );
+            })}
+            {histograms.map((h, hi) => {
+              const sec = h.hoverSecondary?.[hoverIdx];
+              const chartV = h.values[hoverIdx];
+              const up =
+                chartV != null && Number.isFinite(chartV)
+                  ? chartV >= h.baseline
+                  : true;
+              let display = "–";
+              if (sec != null && Number.isFinite(sec) && h.hoverSecondaryUnit) {
+                if (h.hoverFormat === "midpointDelta") {
+                  display = `중점 ${sec > 0 ? "+" : ""}${sec.toFixed(1)}${h.hoverSecondaryUnit}`;
+                } else if (
+                  h.hoverFormat === "percent" ||
+                  h.style === "volume" ||
+                  h.hoverSecondaryUnit === "%"
+                ) {
+                  display = `${Math.round(sec)}${h.hoverSecondaryUnit}`;
+                } else {
+                  display = `${sec > 0 ? "+" : ""}${sec.toFixed(1)}${h.hoverSecondaryUnit}`;
+                }
+              }
+              return (
+                <div
+                  key={`hist-tip-${hi}`}
+                  className="flex items-center justify-between gap-2 text-[10px]"
+                >
+                  <span className="inline-flex min-w-0 items-center gap-1">
+                    <span
+                      className="inline-block h-2 w-2 shrink-0 rounded-sm"
+                      style={{
+                        backgroundColor:
+                          h.style === "volume" || up
+                            ? h.colorUp
+                            : h.colorDown,
+                      }}
+                    />
+                    <span className="truncate">{h.legendLabel ?? "편차"}</span>
                   </span>
                   <span className="shrink-0 font-medium tabular-nums">
                     {display}
@@ -887,15 +1435,24 @@ export function TrendChart({
                     className="flex items-center justify-between gap-2 text-[9px]"
                     style={{ color: tipColor }}
                   >
-                    <span>한계{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
+                    <span>
+                      한계
+                      {usesRight
+                        ? axis === "right"
+                          ? "(우)"
+                          : "(좌)"
+                        : ""}
+                    </span>
                     <span className="tabular-nums">
-                      {formatTrendBandEdge(band.lo, unit)}–{formatTrendBandEdge(band.hi, unit)}
+                      {formatTrendBandEdge(band.lo, unit)}–
+                      {formatTrendBandEdge(band.hi, unit)}
                     </span>
                   </div>
                 );
               })}
             </div>
           ) : null}
+          </div>
         </div>
       ) : null}
       </div>

@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { TrendChart } from "@/components/trends/trend-chart";
+import { ChevronDown } from "lucide-react";
+import {
+  TrendChart,
+  type TrendScaleEdgeLabel,
+} from "@/components/trends/trend-chart";
 import { UnifiedTrendPeriodBrush } from "@/components/farm/unified-trend-period-brush";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
@@ -18,11 +22,17 @@ import {
   downsampleTrendAxis,
   tickEveryForDisplayBars,
 } from "@/lib/farm/trend-display-buckets";
+import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   buildUnifiedBarnTrendSeries,
   DEFAULT_UNIFIED_LAYERS,
+  mapHumPctToSplitY,
+  mapMotorPctToSplitY,
+  mapTempCToSplitY,
+  needsHumidityBand,
   pickUnifiedTrendLayers,
-  SPLIT_Y,
+  resolveSplitYLayout,
+  trimPickedUnifiedTrend,
   type UnifiedLayerFlags,
   type UnifiedLayerId,
 } from "@/lib/farm/unified-barn-trend-series";
@@ -43,21 +53,41 @@ type Props = {
   onPeriodChange?: (period: TrendPeriodId) => void;
   alarmSettings?: AlarmSettings;
   isMobileStack?: boolean;
-  /** 미지정 시 모바일 176 / 데스크톱 240 */
+  /** 미지정 시 모바일 220 / 데스크톱 340 */
   chartHeight?: number;
   className?: string;
 };
 
-const LAYER_CHIPS: { id: UnifiedLayerId; label: string }[] = [
-  { id: "motors", label: "모터 A·B·C" },
-  { id: "temp", label: "온도" },
-  { id: "hum", label: "습도" },
-  { id: "band", label: "온도 산포" },
-  { id: "cloud", label: "클라우드" },
+type LayerChip = { id: UnifiedLayerId; label: string };
+
+const TEMP_SUB_CHIPS: LayerChip[] = [
+  { id: "ema", label: "EMA" },
+  { id: "dev", label: "편차" },
+  { id: "band", label: "산포" },
 ];
 
+const HUM_SUB_CHIPS: LayerChip[] = [
+  { id: "humEma", label: "EMA" },
+  { id: "humDev", label: "편차" },
+  { id: "humBand", label: "산포" },
+];
+
+const MOTOR_SUB_CHIPS: LayerChip[] = [
+  { id: "motorCh", label: "채널 A/B/C" },
+];
+
+function layerChipClass(on: boolean) {
+  return cn(
+    "rounded-md border px-2 py-0.5 text-[0.65rem] font-medium",
+    motionClass.microHover,
+    on
+      ? "border-sky-500/60 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
+      : "border-border bg-muted/20 text-muted-foreground",
+  );
+}
+
 /**
- * 차트 탭 통합 추이 — Y 상하 분리(아래 모터% · 위 온·습 원단위, 정규화 없음).
+ * 차트 탭 통합 추이 — 온도+편차 · 모터 max/채널 · 네비 브러시.
  */
 export function UnifiedBarnTrendPanel({
   label,
@@ -71,6 +101,10 @@ export function UnifiedBarnTrendPanel({
   className,
 }: Props) {
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
+  /** 온도/습도/모터 하위 옵션 펼침 */
+  const [tempMenuOpen, setTempMenuOpen] = useState(false);
+  const [humMenuOpen, setHumMenuOpen] = useState(false);
+  const [motorMenuOpen, setMotorMenuOpen] = useState(false);
 
   const thresholds = useMemo(() => {
     const withReading = controllers.find((c) => c.reading != null)?.reading;
@@ -78,7 +112,13 @@ export function UnifiedBarnTrendPanel({
     return resolveReadingAlarmThresholds(withReading, alarmSettings);
   }, [controllers, alarmSettings]);
 
-  /** 브러시 스파크라인 — 30d 모터 A(없으면 온도) 평균 개요 */
+  const showHumBand = needsHumidityBand(layers);
+  const layout = useMemo(
+    () => resolveSplitYLayout(showHumBand),
+    [showHumBand],
+  );
+
+  /** 브러시 스파크라인 — 30d 온도 평균(없으면 모터 max) */
   const brushOverview = useMemo(() => {
     const periodData = controllerTrendByPeriod?.["30d"] ?? null;
     if (!periodData) return [];
@@ -96,19 +136,45 @@ export function UnifiedBarnTrendPanel({
       })
       .filter((s): s is NonNullable<typeof s> => s != null);
     if (!seriesList.length) return [];
-    const len = Math.max(...seriesList.map((s) => s.fanIntake?.length ?? 0));
+    const len = Math.max(
+      ...seriesList.map((s) =>
+        Math.max(
+          s.temp?.length ?? 0,
+          s.fanIntake?.length ?? 0,
+          s.fanExhaust?.length ?? 0,
+          s.fanSupply?.length ?? 0,
+        ),
+      ),
+    );
     const out: (number | null)[] = [];
     for (let i = 0; i < len; i++) {
-      let sum = 0;
-      let n = 0;
+      let tempSum = 0;
+      let tempN = 0;
+      let motorSum = 0;
+      let motorN = 0;
       for (const s of seriesList) {
-        const v = s.fanIntake?.[i] ?? s.temp?.[i] ?? null;
-        if (v != null && Number.isFinite(v)) {
-          sum += v;
-          n += 1;
+        const t = s.temp?.[i];
+        if (t != null && Number.isFinite(t)) {
+          tempSum += t;
+          tempN += 1;
+        }
+        const slot: number[] = [];
+        for (const v of [s.fanIntake?.[i], s.fanExhaust?.[i], s.fanSupply?.[i]]) {
+          if (v != null && Number.isFinite(v)) slot.push(v);
+        }
+        if (slot.length) {
+          motorSum += Math.max(...slot);
+          motorN += 1;
         }
       }
-      out.push(n > 0 ? sum / n : null);
+      if (tempN > 0) {
+        /* 브러시는 0~100 스케일 — 온도를 대략 0~40℃ → 0~100으로 투영 */
+        out.push(Math.max(0, Math.min(100, (tempSum / tempN / 40) * 100)));
+      } else if (motorN > 0) {
+        out.push(motorSum / motorN);
+      } else {
+        out.push(null);
+      }
     }
     return out;
   }, [controllers, controllerTrendByPeriod]);
@@ -163,16 +229,165 @@ export function UnifiedBarnTrendPanel({
       downsampledList,
       categories,
       thresholds,
+      { showHum: showHumBand },
     );
-  }, [controllers, controllerTrendByPeriod, period, thresholds]);
+  }, [controllers, controllerTrendByPeriod, period, thresholds, showHumBand]);
 
-  const picked = useMemo(
-    () => (built ? pickUnifiedTrendLayers(built, layers) : null),
-    [built, layers],
-  );
+  const picked = useMemo(() => {
+    if (!built) return null;
+    const raw = pickUnifiedTrendLayers(built, layers);
+    return trimPickedUnifiedTrend(built.categories, raw);
+  }, [built, layers]);
+
+  const chartCategories = picked?.categories ?? built?.categories ?? [];
+
+  /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 알람 고정 스케일. */
+  const scaleEdgeLabels = useMemo((): TrendScaleEdgeLabel[] => {
+    if (!built) return [];
+    const out: TrendScaleEdgeLabel[] = [];
+    const push = (
+      id: string,
+      chartY: number | null,
+      text: string,
+      color: string,
+      mark: "overline" | "underline",
+      title: string,
+      showLine: boolean,
+    ) => {
+      if (chartY == null || !Number.isFinite(chartY)) return;
+      out.push({
+        id,
+        value: chartY,
+        axis: "left",
+        side: "right",
+        text,
+        color,
+        mark,
+        title,
+        showLine,
+      });
+    };
+
+    if (layers.motors && built.available.motors) {
+      push(
+        "motor-hi",
+        mapMotorPctToSplitY(100, layout),
+        "100%",
+        "#64748b",
+        "overline",
+        "모터 상한",
+        false,
+      );
+      push(
+        "motor-lo",
+        mapMotorPctToSplitY(0, layout),
+        "0%",
+        "#64748b",
+        "underline",
+        "모터 하한",
+        false,
+      );
+    }
+    if (layers.temp && built.available.temp) {
+      push(
+        "temp-hi",
+        mapTempCToSplitY(
+          thresholds.tempHigh,
+          thresholds.tempLow,
+          thresholds.tempHigh,
+          layout,
+        ),
+        `${thresholds.tempHigh}℃`,
+        TREND_CHART_COLORS.temp,
+        "overline",
+        "온도 상한(알람)",
+        true,
+      );
+      push(
+        "temp-lo",
+        mapTempCToSplitY(
+          thresholds.tempLow,
+          thresholds.tempLow,
+          thresholds.tempHigh,
+          layout,
+        ),
+        `${thresholds.tempLow}℃`,
+        TREND_CHART_COLORS.temp,
+        "underline",
+        "온도 하한(알람)",
+        true,
+      );
+    }
+    if (layers.hum || layers.humDev || layers.humBand || layers.humEma) {
+      if (built.available.hum || built.available.humDev || built.available.humBand) {
+        push(
+          "hum-hi",
+          mapHumPctToSplitY(
+            thresholds.humidityHigh,
+            thresholds.humidityLow,
+            thresholds.humidityHigh,
+            layout,
+          ),
+          `${thresholds.humidityHigh}%`,
+          TREND_CHART_COLORS.humidity,
+          "overline",
+          "습도 상한(알람)",
+          true,
+        );
+        push(
+          "hum-lo",
+          mapHumPctToSplitY(
+            thresholds.humidityLow,
+            thresholds.humidityLow,
+            thresholds.humidityHigh,
+            layout,
+          ),
+          `${thresholds.humidityLow}%`,
+          TREND_CHART_COLORS.humidity,
+          "underline",
+          "습도 하한(알람)",
+          true,
+        );
+      }
+    }
+    return out;
+  }, [built, layers, thresholds, layout]);
 
   const toggleLayer = (id: UnifiedLayerId) => {
-    setLayers((prev) => ({ ...prev, [id]: !prev[id] }));
+    setLayers((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      if (id === "motorCh" && next.motorCh) next.motors = true;
+      /** 본선은 기본 유지 — 분석 칩만 토글 */
+      if (id === "ema" || id === "dev" || id === "band") next.temp = true;
+      if (id === "humEma" || id === "humDev" || id === "humBand") next.hum = true;
+      return next;
+    });
+  };
+
+  const tempSubActiveCount = TEMP_SUB_CHIPS.filter(
+    (c) => built?.available[c.id] && layers[c.id],
+  ).length;
+  const humSubActiveCount = HUM_SUB_CHIPS.filter(
+    (c) => built?.available[c.id] && layers[c.id],
+  ).length;
+  const motorSubActiveCount = MOTOR_SUB_CHIPS.filter(
+    (c) => built?.available[c.id] && layers[c.id],
+  ).length;
+
+  const renderSubChip = (chip: LayerChip) => {
+    if (!built?.available[chip.id]) return null;
+    const on = layers[chip.id];
+    return (
+      <button
+        key={chip.id}
+        type="button"
+        aria-pressed={on}
+        onClick={() => toggleLayer(chip.id)}
+        className={layerChipClass(on)}
+      >
+        {chip.label}
+      </button>
+    );
   };
 
   return (
@@ -187,7 +402,8 @@ export function UnifiedBarnTrendPanel({
         <span className="text-xs font-semibold">통합 추이</span>
         <span className="text-[0.7rem] text-muted-foreground">
           {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
-          {trendPeriodLabel(period)} · 위 온·습 · 아래 모터%
+          {trendPeriodLabel(period)}
+          {picked?.trimmed ? " · 실데이터 구간" : ""}
         </span>
       </div>
 
@@ -200,74 +416,156 @@ export function UnifiedBarnTrendPanel({
       ) : null}
 
       {built ? (
-        <div
-          className="flex flex-wrap gap-1"
-          role="group"
-          aria-label="통합 추이 레이어"
-        >
-          {LAYER_CHIPS.map((chip) => {
-            if (!built.available[chip.id]) return null;
-            const on = layers[chip.id];
-            return (
-              <button
-                key={chip.id}
-                type="button"
-                aria-pressed={on}
-                onClick={() => toggleLayer(chip.id)}
-                className={cn(
-                  "rounded-md border px-2 py-0.5 text-[0.65rem] font-medium",
-                  motionClass.microHover,
-                  on
-                    ? "border-sky-500/60 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
-                    : "border-border bg-muted/20 text-muted-foreground",
-                )}
-              >
-                {chip.label}
-              </button>
-            );
-          })}
+        <div className="space-y-1" aria-label="통합 추이 레이어">
+          <div className="flex flex-wrap items-start gap-1" role="group">
+            {built.available.temp ? (
+              <div className="flex min-w-0 flex-col gap-1">
+                <button
+                  type="button"
+                  aria-expanded={tempMenuOpen}
+                  aria-controls="unified-temp-sublayers"
+                  onClick={() => setTempMenuOpen((o) => !o)}
+                  className={cn(
+                    layerChipClass(true),
+                    "inline-flex items-center gap-0.5",
+                  )}
+                  title="온도 옵션 펼치기"
+                >
+                  온도
+                  {tempSubActiveCount > 0 ? (
+                    <span className="tabular-nums opacity-70">
+                      ·{tempSubActiveCount}
+                    </span>
+                  ) : null}
+                  <ChevronDown
+                    className={cn(
+                      "size-3 opacity-70 transition-transform duration-motion-fast",
+                      tempMenuOpen && "rotate-180",
+                    )}
+                    aria-hidden
+                  />
+                </button>
+                {tempMenuOpen ? (
+                  <div
+                    id="unified-temp-sublayers"
+                    className="flex flex-wrap gap-1 pl-1"
+                    role="group"
+                    aria-label="온도 상세 레이어"
+                  >
+                    {TEMP_SUB_CHIPS.map(renderSubChip)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {built.available.hum ? (
+              <div className="flex min-w-0 flex-col gap-1">
+                <button
+                  type="button"
+                  aria-expanded={humMenuOpen}
+                  aria-controls="unified-hum-sublayers"
+                  onClick={() => setHumMenuOpen((o) => !o)}
+                  className={cn(
+                    layerChipClass(true),
+                    "inline-flex items-center gap-0.5",
+                  )}
+                  title="습도 옵션 펼치기"
+                >
+                  습도
+                  {humSubActiveCount > 0 ? (
+                    <span className="tabular-nums opacity-70">
+                      ·{humSubActiveCount}
+                    </span>
+                  ) : null}
+                  <ChevronDown
+                    className={cn(
+                      "size-3 opacity-70 transition-transform duration-motion-fast",
+                      humMenuOpen && "rotate-180",
+                    )}
+                    aria-hidden
+                  />
+                </button>
+                {humMenuOpen ? (
+                  <div
+                    id="unified-hum-sublayers"
+                    className="flex flex-wrap gap-1 pl-1"
+                    role="group"
+                    aria-label="습도 상세 레이어"
+                  >
+                    {HUM_SUB_CHIPS.map(renderSubChip)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {built.available.motors ? (
+              <div className="flex min-w-0 flex-col gap-1">
+                <button
+                  type="button"
+                  aria-expanded={motorMenuOpen}
+                  aria-controls="unified-motor-sublayers"
+                  onClick={() => {
+                    setMotorMenuOpen((o) => !o);
+                    setLayers((prev) =>
+                      prev.motors ? prev : { ...prev, motors: true },
+                    );
+                  }}
+                  className={cn(
+                    layerChipClass(true),
+                    "inline-flex items-center gap-0.5",
+                  )}
+                  title="모터 옵션 펼치기"
+                >
+                  모터
+                  {motorSubActiveCount > 0 ? (
+                    <span className="tabular-nums opacity-70">
+                      ·{motorSubActiveCount}
+                    </span>
+                  ) : null}
+                  <ChevronDown
+                    className={cn(
+                      "size-3 opacity-70 transition-transform duration-motion-fast",
+                      motorMenuOpen && "rotate-180",
+                    )}
+                    aria-hidden
+                  />
+                </button>
+                {motorMenuOpen ? (
+                  <div
+                    id="unified-motor-sublayers"
+                    className="flex flex-wrap gap-1 pl-1"
+                    role="group"
+                    aria-label="모터 상세 레이어"
+                  >
+                    {MOTOR_SUB_CHIPS.map(renderSubChip)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
-      {built && picked && picked.series.length > 0 ? (
+      {built &&
+      picked &&
+      (picked.series.length > 0 || picked.histograms.length > 0) ? (
         <TrendChart
           mode="line"
-          categories={built.categories}
+          categories={chartCategories}
           series={picked.series}
-          envelopes={[
-            {
-              high: built.categories.map(() => SPLIT_Y.envLo),
-              low: built.categories.map(() => SPLIT_Y.motorHi),
-              axis: "left",
-              fill: "#64748b",
-              fillOpacity: 0.07,
-            },
-            ...picked.envelopes,
-          ]}
-          height={chartHeight ?? (isMobileStack ? 176 : 240)}
+          envelopes={picked.envelopes}
+          histograms={picked.histograms}
+          height={chartHeight ?? (isMobileStack ? 220 : 340)}
           leftUnit=""
           leftDomain={built.leftDomain}
           period={period}
-          tickEvery={tickEveryForDisplayBars(built.categories.length)}
+          tickEvery={tickEveryForDisplayBars(chartCategories.length)}
           showLegend
           showMarkers
-          markerDensity="sparse"
-          markerRadiusPx={isMobileStack ? 2.5 : 3}
+          markerDensity={period === "24h" ? "all" : "sparse"}
+          markerRadiusPx={isMobileStack ? 2.8 : 3.2}
           animate
-          referenceLines={[
-            {
-              value: SPLIT_Y.motorHi,
-              axis: "left",
-              color: "#94a3b8",
-              label: "모터%",
-            },
-            {
-              value: SPLIT_Y.envLo,
-              axis: "left",
-              color: "#94a3b8",
-              label: "온·습",
-            },
-          ]}
+          scaleEdgeLabels={scaleEdgeLabels}
         />
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">
@@ -279,9 +577,7 @@ export function UnifiedBarnTrendPanel({
 
       {built ? (
         <p className="text-[0.65rem] text-muted-foreground">
-          Y 상하 분리 · 정규화 없음. 위=온℃·습%(0–100 절대) · 아래=모터%.
-          알람 참고 {built.tempRangeLabel} / {built.humidityRangeLabel}.
-          클라우드=온·습 사이 · 산포=컨트롤러 온도 min–max.
+          온도·습도 클릭=옵션 펼침 · 편차 진함=알람 밖 · Y축 알람 고정
         </p>
       ) : null}
     </div>

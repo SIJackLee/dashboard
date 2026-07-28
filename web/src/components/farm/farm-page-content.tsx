@@ -3,10 +3,12 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { Map, List, LineChart } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
@@ -46,6 +48,21 @@ import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
+
+const FARM_HUB_VIEW_ORDER: Record<FarmHubView, number> = {
+  map: 0,
+  list: 1,
+  chart: 2,
+};
+
+/** globals.css farm-view-slide-* (moderate enter + exit) */
+const FARM_VIEW_SLIDE_MS = 280;
+
+type FarmViewSlide = {
+  from: FarmHubView;
+  to: FarmHubView;
+  dir: 1 | -1;
+};
 
 type Props = {
   readings: BarnReading[];
@@ -100,11 +117,44 @@ export function FarmPageContent({
   const bootstrapView: FarmHubView =
     initialHubView ?? resolveFarmHubView(searchParams.get("view"));
   const [view, setViewState] = useState<FarmHubView>(bootstrapView);
+  const [viewSlide, setViewSlide] = useState<FarmViewSlide | null>(null);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [chartEverOpened, setChartEverOpened] = useState(
     bootstrapView === "chart",
   );
   const [urlTick, setUrlTick] = useState(0);
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const [tabPill, setTabPill] = useState({ left: 0, width: 0 });
+  /** ScopeBar 농장 선택 옆 슬롯 — undefined=미확인, null=없음, Element=portal */
+  const [scopeToggleSlot, setScopeToggleSlot] = useState<
+    Element | null | undefined
+  >(undefined);
+
+  useEffect(() => {
+    if (hideViewTabs || !hubMode) {
+      queueMicrotask(() => setScopeToggleSlot(null));
+      return;
+    }
+    queueMicrotask(() => {
+      setScopeToggleSlot(
+        document.querySelector("[data-farm-view-toggle-slot]"),
+      );
+    });
+  }, [hideViewTabs, hubMode]);
+
+  const beginViewSlide = useCallback((from: FarmHubView, to: FarmHubView) => {
+    if (from === to) return;
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      setViewSlide(null);
+      return;
+    }
+    const dir: 1 | -1 =
+      FARM_HUB_VIEW_ORDER[to] >= FARM_HUB_VIEW_ORDER[from] ? 1 : -1;
+    setViewSlide({ from, to, dir });
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => setUrlHydrated(true));
@@ -118,11 +168,16 @@ export function FarmPageContent({
     if (!hubMode) return;
     queueMicrotask(() => {
       const next = resolveFarmHubView(currentFarmSearchParams().get("view"));
-      setViewState(next);
+      setViewState((prev) => {
+        if (prev !== next) {
+          queueMicrotask(() => beginViewSlide(prev, next));
+        }
+        return next;
+      });
       if (next === "list") setListEverOpened(true);
       if (next === "chart") setChartEverOpened(true);
     });
-  }, [hubMode, hubUrlEpoch]);
+  }, [hubMode, hubUrlEpoch, beginViewSlide]);
 
   // 비허브 — 라우터 네비게이션(view=list|chart)에 뷰 상태 동기화.
   // 탭 토글은 shallow replaceState라 useSearchParams가 갱신되지 않아 여기서 재정의되지 않음.
@@ -133,7 +188,10 @@ export function FarmPageContent({
   if (!hubMode && viewParam !== lastViewParam) {
     setLastViewParam(viewParam);
     const next = resolveFarmHubView(viewParam);
-    setViewState(next);
+    if (view !== next) {
+      beginViewSlide(view, next);
+      setViewState(next);
+    }
     if (next === "list") setListEverOpened(true);
     if (next === "chart") setChartEverOpened(true);
   }
@@ -328,6 +386,7 @@ export function FarmPageContent({
         setChartEverOpened(true);
       }
       /* 낙관적 UI — 탭·URL 즉시, transition 지연 없음 */
+      beginViewSlide(view, next);
       setViewState(next);
       if (hubMode) {
         const params = new URLSearchParams(
@@ -353,7 +412,7 @@ export function FarmPageContent({
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
     },
-    [hubMode, onHubUrlChange, enrichListIfNeeded],
+    [hubMode, onHubUrlChange, enrichListIfNeeded, beginViewSlide, view],
   );
 
   const setView = useCallback(
@@ -371,95 +430,154 @@ export function FarmPageContent({
     [applyViewChange],
   );
 
+  useEffect(() => {
+    if (!viewSlide) return;
+    const t = window.setTimeout(() => setViewSlide(null), FARM_VIEW_SLIDE_MS);
+    return () => window.clearTimeout(t);
+  }, [viewSlide]);
+
+  useLayoutEffect(() => {
+    const root = tablistRef.current;
+    if (!root) return;
+    const selected = root.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]',
+    );
+    if (!selected) return;
+    const next = { left: selected.offsetLeft, width: selected.offsetWidth };
+    setTabPill((prev) =>
+      prev.left === next.left && prev.width === next.width ? prev : next,
+    );
+  }, [view, hideViewTabs, gridCompactShell, viewportCompact, scopeToggleSlot]);
+
   const tabNavClass =
-    gridCompactShell || viewportCompact
+    gridCompactShell || viewportCompact || Boolean(scopeToggleSlot)
       ? "text-sm font-medium md:text-sm"
       : dashboardUi.tabNav;
 
-  const mapHidden = view !== "map";
-  const listHidden = view !== "list";
-  const chartHidden = view !== "chart";
-  /** 비활성 패널 — hidden으로 클릭·inert 유령 UI 방지 (crossfade는 활성 패널만) */
-  const panelVisible = cn("opacity-100", motionClass.viewCrossfade);
+  const panelMotionClass = (panel: FarmHubView) => {
+    const active = view === panel;
+    const exiting = viewSlide?.from === panel;
+    const entering = viewSlide?.to === panel;
+    if (!active && !exiting) return "hidden";
+    return cn(
+      exiting && "pointer-events-none absolute inset-x-0 top-0 z-0 w-full",
+      active && "relative z-[1] w-full",
+      exiting &&
+        (viewSlide!.dir === 1
+          ? motionClass.viewSlideExitNext
+          : motionClass.viewSlideExitPrev),
+      entering &&
+        (viewSlide!.dir === 1
+          ? motionClass.viewSlideEnterNext
+          : motionClass.viewSlideEnterPrev),
+    );
+  };
+
+  const embedInScopeHeader = Boolean(scopeToggleSlot);
+  const awaitingScopeSlot = hubMode && !hideViewTabs && scopeToggleSlot === undefined;
+
+  const viewToggle = !hideViewTabs ? (
+    <div
+      ref={tablistRef}
+      className={cn(
+        "relative inline-flex rounded-xl border bg-muted/20 p-1",
+        embedInScopeHeader
+          ? "text-sm md:text-sm"
+          : gridCompactShell || viewportCompact
+            ? "text-sm md:text-sm"
+            : dashboardUi.body,
+      )}
+      role="tablist"
+      aria-label="농장 보기"
+      data-tour-id="view-toggle"
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute top-1 bottom-1 z-0 rounded-lg bg-background shadow-sm dark:bg-primary/10",
+          motionClass.viewTabPill,
+          tabPill.width <= 0 && "opacity-0",
+        )}
+        style={{
+          left: tabPill.left,
+          width: tabPill.width,
+        }}
+      />
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "map"}
+        className={cn(
+          "relative z-[1] inline-flex items-center gap-1.5 rounded-lg font-medium",
+          embedInScopeHeader ? "px-3 py-1.5" : "gap-2 px-5 py-2.5",
+          motionClass.microInteractive,
+          tabNavClass,
+          view === "map"
+            ? "text-foreground dark:text-primary"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+        onClick={() => setView("map")}
+      >
+        <Map className={dashboardUi.iconSm} aria-hidden />
+        그리드
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "list"}
+        className={cn(
+          "relative z-[1] inline-flex items-center gap-1.5 rounded-lg font-medium",
+          embedInScopeHeader ? "px-3 py-1.5" : "gap-2 px-5 py-2.5",
+          motionClass.microInteractive,
+          tabNavClass,
+          view === "list"
+            ? "text-foreground dark:text-primary"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+        onClick={() => setView("list")}
+      >
+        <List className={dashboardUi.iconSm} aria-hidden />
+        목록
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={view === "chart"}
+        className={cn(
+          "relative z-[1] inline-flex items-center gap-1.5 rounded-lg font-medium",
+          embedInScopeHeader ? "px-3 py-1.5" : "gap-2 px-5 py-2.5",
+          motionClass.microInteractive,
+          tabNavClass,
+          view === "chart"
+            ? "text-foreground dark:text-primary"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+        onClick={() => setView("chart")}
+      >
+        <LineChart className={dashboardUi.iconSm} aria-hidden />
+        차트
+      </button>
+    </div>
+  ) : null;
 
   return (
-    <div className="space-y-4">
+    <div className={cn(embedInScopeHeader ? "space-y-3" : "space-y-4")}>
       <FarmFeatureTour view={view === "list" ? "list" : "map"} setView={setTourView} enabled={!hideViewTabs} />
-      {!hideViewTabs ? (
-        <div
-          className={cn(
-            "inline-flex rounded-xl border bg-muted/20 p-1",
-            gridCompactShell || viewportCompact
-              ? "text-sm md:text-sm"
-              : dashboardUi.body
-          )}
-          role="tablist"
-          aria-label="농장 보기"
-          data-tour-id="view-toggle"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "map"}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium",
-              motionClass.microInteractive,
-              tabNavClass,
-              view === "map"
-                ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setView("map")}
-          >
-            <Map className={dashboardUi.iconSm} aria-hidden />
-            그리드
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "list"}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium",
-              motionClass.microInteractive,
-              tabNavClass,
-              view === "list"
-                ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setView("list")}
-          >
-            <List className={dashboardUi.iconSm} aria-hidden />
-            목록
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "chart"}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-lg px-5 py-2.5 font-medium",
-              motionClass.microInteractive,
-              tabNavClass,
-              view === "chart"
-                ? "bg-background text-foreground shadow-sm dark:bg-primary/10 dark:text-primary"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setView("chart")}
-          >
-            <LineChart className={dashboardUi.iconSm} aria-hidden />
-            차트
-          </button>
-        </div>
-      ) : null}
+      {viewToggle && scopeToggleSlot
+        ? createPortal(viewToggle, scopeToggleSlot)
+        : awaitingScopeSlot
+          ? null
+          : viewToggle}
 
-      <div className="relative min-h-0" data-farm-view-slot>
+      <div className="relative min-h-0 overflow-hidden" data-farm-view-slot>
         <div
           className={cn(
             "min-h-0 lg:min-h-[16rem]",
-            mapHidden ? "hidden" : panelVisible,
+            panelMotionClass("map"),
           )}
-          aria-hidden={mapHidden}
+          aria-hidden={view !== "map"}
           data-farm-view-panel="map"
-          data-farm-view-active={!mapHidden}
+          data-farm-view-active={view === "map"}
         >
           <FarmMapView
             barns={barnSnapshots}
@@ -480,10 +598,10 @@ export function FarmPageContent({
 
         {listEverOpened ? (
           <div
-            className={cn(listHidden ? "hidden" : panelVisible)}
-            aria-hidden={listHidden}
+            className={panelMotionClass("list")}
+            aria-hidden={view !== "list"}
             data-farm-view-panel="list"
-            data-farm-view-active={!listHidden}
+            data-farm-view-active={view === "list"}
           >
             {/* enrich 중에도 grid readings로 BarnTable 유지 — 전체 skeleton 교체 금지 */}
             <BarnTable
@@ -509,10 +627,10 @@ export function FarmPageContent({
 
         {chartEverOpened ? (
           <div
-            className={cn(chartHidden ? "hidden" : panelVisible)}
-            aria-hidden={chartHidden}
+            className={panelMotionClass("chart")}
+            aria-hidden={view !== "chart"}
             data-farm-view-panel="chart"
-            data-farm-view-active={!chartHidden}
+            data-farm-view-active={view === "chart"}
           >
             <FarmChartView
               readings={readings}

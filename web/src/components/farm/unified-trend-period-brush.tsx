@@ -31,8 +31,7 @@ type Props = {
 };
 
 /**
- * 통합 추이용 기간 브러시 — 프리셋 + 30d 컨텍스트 윈도우.
- * 드래그 폭에 따라 24h/7d/30d로 스냅(우측 now 정렬).
+ * TradingView형 기간 네비게이터 — 프리셋 + 30d 컨텍스트 윈도우.
  */
 export function UnifiedTrendPeriodBrush({
   period,
@@ -45,8 +44,8 @@ export function UnifiedTrendPeriodBrush({
   const [draft, setDraft] = useState<{ a: number; b: number } | null>(null);
 
   const spark = useMemo(() => {
-    if (overviewValues.length <= 60) return overviewValues;
-    return downsampleTrendValues(overviewValues, 60);
+    if (overviewValues.length <= 80) return overviewValues;
+    return downsampleTrendValues(overviewValues, 80);
   }, [overviewValues]);
 
   const win = PERIOD_WINDOW[period];
@@ -70,7 +69,6 @@ export function UnifiedTrendPeriodBrush({
     const span = Math.abs(b - a);
     let next: TrendPeriodId;
     if (span < 0.02) {
-      // 클릭: 우측(now) 정렬 윈도우 중 해당 지점이 들어가는 최소 기간
       if (left >= PERIOD_WINDOW["24h"].start) next = "24h";
       else if (left >= PERIOD_WINDOW["7d"].start) next = "7d";
       else next = "30d";
@@ -83,8 +81,15 @@ export function UnifiedTrendPeriodBrush({
   };
 
   return (
-    <div className={cn("space-y-1.5", className)} data-tour-id="unified-trend-period-brush">
-      <div className="flex flex-wrap items-center gap-1" role="group" aria-label="추이 기간">
+    <div
+      className={cn("space-y-1.5", className)}
+      data-tour-id="unified-trend-period-brush"
+    >
+      <div
+        className="flex flex-wrap items-center gap-1"
+        role="group"
+        aria-label="추이 기간"
+      >
         {PERIOD_ORDER.map((id) => (
           <button
             key={id}
@@ -103,13 +108,13 @@ export function UnifiedTrendPeriodBrush({
           </button>
         ))}
         <span className="text-[0.6rem] text-muted-foreground">
-          브러시 드래그 → 기간 스냅
+          드래그=기간 · Y고정
         </span>
       </div>
 
       <div
         ref={trackRef}
-        className="relative h-9 select-none overflow-hidden rounded-md border bg-muted/30"
+        className="relative h-11 select-none overflow-hidden rounded-md border border-border/80 bg-muted/30"
         onPointerDown={(e) => {
           if (e.button !== 0) return;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -133,10 +138,10 @@ export function UnifiedTrendPeriodBrush({
           dragRef.current = null;
         }}
         role="group"
-        aria-label={`기간 브러시 · 현재 ${TREND_PERIODS[period].label}`}
+        aria-label={`기간 네비게이터 · 전체 30일 중 ${TREND_PERIODS[period].label} 선택`}
       >
         <svg
-          viewBox="0 0 100 36"
+          viewBox="0 0 100 44"
           preserveAspectRatio="none"
           className="absolute inset-0 h-full w-full"
           aria-hidden
@@ -145,17 +150,17 @@ export function UnifiedTrendPeriodBrush({
             if (v == null || !Number.isFinite(v)) return null;
             const n = Math.max(1, spark.length);
             const x = (i / n) * 100;
-            const w = Math.max(0.8, 100 / n - 0.3);
-            const h = Math.max(2, (Math.min(100, Math.max(0, v)) / 100) * 28);
+            const w = Math.max(0.6, 100 / n - 0.25);
+            const h = Math.max(2, (Math.min(100, Math.max(0, v)) / 100) * 34);
             return (
               <rect
                 key={i}
                 x={x}
-                y={32 - h}
+                y={40 - h}
                 width={w}
                 height={h}
-                fill="#f59e0b"
-                opacity={0.45}
+                fill="#38bdf8"
+                opacity={0.55}
               />
             );
           })}
@@ -163,14 +168,14 @@ export function UnifiedTrendPeriodBrush({
 
         <div
           className={cn(
-            "pointer-events-none absolute inset-y-0 bg-background/50",
+            "pointer-events-none absolute inset-y-0 bg-background/75",
             !draft && motionClass.farmChartBrushWindow,
           )}
           style={{ left: 0, width: `${display.start * 100}%` }}
         />
         <div
           className={cn(
-            "pointer-events-none absolute inset-y-0 bg-background/50",
+            "pointer-events-none absolute inset-y-0 bg-background/75",
             !draft && motionClass.farmChartBrushWindow,
           )}
           style={{
@@ -180,14 +185,31 @@ export function UnifiedTrendPeriodBrush({
         />
         <div
           className={cn(
-            "pointer-events-none absolute inset-y-0 rounded-sm border-2 border-sky-500 bg-sky-500/15",
+            "pointer-events-none absolute inset-y-0 border-y-2 border-sky-500 bg-sky-500/20 shadow-[inset_0_0_0_1px_rgba(14,165,233,0.35)]",
             !draft && motionClass.farmChartBrushWindow,
           )}
           style={{
             left: `${display.start * 100}%`,
             width: `${display.width * 100}%`,
           }}
-        />
+        >
+          <span
+            className="absolute inset-y-1 left-0 w-1 rounded-sm bg-sky-500"
+            aria-hidden
+          />
+          <span
+            className="absolute inset-y-1 right-0 w-1 rounded-sm bg-sky-500"
+            aria-hidden
+          />
+          <span className="absolute inset-x-0 bottom-0.5 text-center text-[0.6rem] font-semibold text-sky-100">
+            선택 {TREND_PERIODS[period].label}
+          </span>
+        </div>
+        {period !== "30d" ? (
+          <span className="pointer-events-none absolute left-1 top-0.5 text-[0.55rem] font-medium text-muted-foreground/90">
+            전체 30일
+          </span>
+        ) : null}
       </div>
     </div>
   );

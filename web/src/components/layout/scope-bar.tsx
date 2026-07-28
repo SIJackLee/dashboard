@@ -171,7 +171,19 @@ export function ScopeBar({
 
   const titleRow =
     adminFarmSwitcher != null ? (
-      <FarmSwitcher {...adminFarmSwitcher} compact={adminFarmSwitcher.compact} />
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        <div className="min-w-0 shrink">
+          <FarmSwitcher
+            {...adminFarmSwitcher}
+            compact={adminFarmSwitcher.compact}
+          />
+        </div>
+        {/* FarmPageContent 보기 토글(그리드/목록/차트) portal 대상 */}
+        <div
+          data-farm-view-toggle-slot
+          className="flex min-w-0 shrink-0 items-center"
+        />
+      </div>
     ) : multiFarm && onFarmChange ? (
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <span className={dashboardUi.scopeLabel}>농장</span>
@@ -222,7 +234,7 @@ export function ScopeBar({
     >
       <div className={cn("min-w-0 space-y-3", dashboardUi.body)}>
         {titleRow || refreshSlot ? (
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center justify-between gap-2">
             {titleRow ? (
               <div className="min-w-0 flex-1">{titleRow}</div>
             ) : (
