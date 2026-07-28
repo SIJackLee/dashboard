@@ -32,6 +32,7 @@ import { GridMetricLabel, gridMetricAriaLabel } from "@/lib/farm/grid-metric-lab
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { controllerKeyForReadingKey } from "@/lib/farm/use-barn-graphs";
 import { downsampleTrendAxis } from "@/lib/farm/trend-display-buckets";
+import { BarnPanelBottomSheet } from "@/components/farm/barn-panel-bottom-sheet";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -141,7 +142,7 @@ export function FarmMapControllerDetail({
   onClose,
   selectedReadingKey = null,
   onSelectedReadingKeyChange,
-  onPickerNavigateReading,
+  onPickerNavigateReading: _onPickerNavigateReading,
   hostedMobileSheetOpen = false,
   hostedMobileSheetPage = 0,
   onHostedMobileSheetOpenChange,
@@ -177,9 +178,6 @@ export function FarmMapControllerDetail({
   const isMobileStack = panelLayoutVariant === "stack";
   const sheetHosted = typeof onHostedMobileSheetOpenChange === "function";
 
-  const mobileGraphOpen = sheetHosted
-    ? hostedMobileSheetOpen && hostedMobileSheetPage === 0
-    : graphOpen;
   const mobileSettingsOpen = sheetHosted
     ? hostedMobileSheetOpen && hostedMobileSheetPage === 1
     : settingsOpen;
@@ -290,6 +288,26 @@ export function FarmMapControllerDetail({
     setSettingsOpen(false);
   }, [sheetHosted, onHostedMobileSheetOpenChange]);
 
+  const closeDetailDrawer = useCallback(() => {
+    setSelectedKey(null);
+    setNavDir(null);
+    setGraphOpen(false);
+    setSettingsOpen(false);
+    syncSelectedReadingKey(null);
+    closeMobileSheet();
+  }, [syncSelectedReadingKey, closeMobileSheet]);
+
+  /** hosted sheet가 닫히면 칩 선택도 해제 (오버레이 유지). */
+  const prevHostedOpenRef = useRef(hostedMobileSheetOpen);
+  useEffect(() => {
+    const wasOpen = prevHostedOpenRef.current;
+    prevHostedOpenRef.current = hostedMobileSheetOpen;
+    if (!sheetHosted || !wasOpen || hostedMobileSheetOpen) return;
+    setSelectedKey(null);
+    setNavDir(null);
+    syncSelectedReadingKey(null);
+  }, [sheetHosted, hostedMobileSheetOpen, syncSelectedReadingKey]);
+
   if (selectedReadingKey) {
     const ctrlKey = resolveControllerKey(selectedReadingKey);
     if (ctrlKey && ctrlKey !== selectedKey) {
@@ -316,25 +334,9 @@ export function FarmMapControllerDetail({
     openMobileSheet,
   ]);
 
-  const selectControllerFromPicker = (readingKey: string) => {
-    const ctrlKey = resolveControllerKey(readingKey);
-    if (ctrlKey) {
-      setNavDir(null);
-      setSelectedKey(ctrlKey);
-      syncSelectedReadingKey(readingKey);
-      // picker 전환 — sheet 유지, 표시 컨트롤러만 변경
-      return;
-    }
-    syncSelectedReadingKey(readingKey);
-    onPickerNavigateReading?.(readingKey);
-  };
-
   const selectController = (key: string) => {
     if (selectedKey === key) {
-      setSelectedKey(null);
-      setNavDir(null);
-      closeMobileSheet();
-      syncSelectedReadingKey(null);
+      closeDetailDrawer();
       return;
     }
     setNavDir(null);
@@ -344,7 +346,7 @@ export function FarmMapControllerDetail({
     if (isMobileStack) {
       if (!sheetOpenRef.current) openMobileSheet(0);
     } else {
-      // PC 상세 — 설정+인라인 추이(환경·모터)를 바로 열어 클릭 수를 줄인다
+      // PC — 하단 드로어에서 설정+인라인 추이
       setGraphOpen(false);
       setSettingsOpen(true);
     }
@@ -380,27 +382,6 @@ export function FarmMapControllerDetail({
   const canGoPrev = selectedIndex > 0;
   const canGoNext =
     selectedIndex >= 0 && selectedIndex < controllers.length - 1;
-
-  const handleSheetPageChange = (page: ControllerMobileSheetPage) => {
-    if (sheetHosted) {
-      onHostedMobileSheetOpenChange?.(true);
-      onHostedMobileSheetPageChange?.(page);
-      return;
-    }
-    if (page === 0) {
-      setSettingsOpen((settingsOpen) => {
-        if (!settingsOpen) return settingsOpen;
-        return false;
-      });
-      setGraphOpen((graphOpen) => (graphOpen ? graphOpen : true));
-      return;
-    }
-    setGraphOpen((graphOpen) => {
-      if (!graphOpen) return graphOpen;
-      return false;
-    });
-    setSettingsOpen((settingsOpen) => (settingsOpen ? settingsOpen : true));
-  };
 
   const count = controllers.length;
 
@@ -547,7 +528,6 @@ export function FarmMapControllerDetail({
         </div>
       ) : (
         <>
-          {!selected ? (
           <div
             className="space-y-2 rounded-md border bg-background p-2.5 sm:p-3"
             data-tour-id="detail-panel-charts"
@@ -571,142 +551,117 @@ export function FarmMapControllerDetail({
             )}
             <div
               className="flex flex-wrap gap-1.5"
-              role="list"
+              role="group"
               aria-label="컨트롤러 선택"
             >
-              {overlayMetric.rows.map((row, index) => (
-                <button
-                  key={row.key}
-                  type="button"
-                  role="listitem"
-                  data-tour-id={
-                    index === 0 ? "detail-panel-chart-first" : undefined
-                  }
-                  onClick={() => selectController(row.key)}
-                  className={cn(
-                    "inline-flex min-w-0 items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-left text-[0.7rem] hover:border-sky-400",
-                    motionClass.microHover,
-                    row.worst === "warning" && "border-red-500/50",
-                    row.worst === "caution" && "border-amber-500/50",
-                  )}
-                >
-                  <span
-                    className="inline-block size-2 shrink-0 rounded-sm"
-                    style={{ background: row.color }}
-                    aria-hidden
-                  />
-                  <span className="truncate font-semibold">{row.label}</span>
-                  {!isMobileStack ? (
-                    <span className="shrink-0 text-[0.6rem] text-muted-foreground">
-                      EQP{row.eqpmnNo}
-                    </span>
-                  ) : null}
-                  <span
-                    className="ml-0.5 shrink-0 font-semibold tabular-nums"
-                    style={{ color: SEV_COLOR[row.worst] }}
+              {overlayMetric.rows.map((row, index) => {
+                const isSel = row.key === selectedKey;
+                return (
+                  <button
+                    key={row.key}
+                    type="button"
+                    aria-pressed={isSel}
+                    data-tour-id={
+                      index === 0 ? "detail-panel-chart-first" : undefined
+                    }
+                    onClick={() => selectController(row.key)}
+                    className={cn(
+                      "inline-flex min-w-0 items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-left text-[0.7rem] hover:border-sky-400",
+                      motionClass.microHover,
+                      isSel && "border-sky-500 ring-2 ring-sky-500/30",
+                      !isSel && row.worst === "warning" && "border-red-500/50",
+                      !isSel && row.worst === "caution" && "border-amber-500/50",
+                    )}
                   >
-                    {formatStackMetricValue(row.cur, row.metric?.unit)}
-                  </span>
-                </button>
-              ))}
+                    <span
+                      className="inline-block size-2 shrink-0 rounded-sm"
+                      style={{ background: row.color }}
+                      aria-hidden
+                    />
+                    <span className="truncate font-semibold">{row.label}</span>
+                    {!isMobileStack ? (
+                      <span className="shrink-0 text-[0.6rem] text-muted-foreground">
+                        EQP{row.eqpmnNo}
+                      </span>
+                    ) : null}
+                    <span
+                      className="ml-0.5 shrink-0 font-semibold tabular-nums"
+                      style={{ color: SEV_COLOR[row.worst] }}
+                    >
+                      {formatStackMetricValue(row.cur, row.metric?.unit)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
-          ) : null}
 
-          {selected ? (
-            selected.reading ? (
-              <div
-                ref={controllerCardRef}
-                className={cn("mt-3", motionClass.detailCarousel)}
-                data-nav-dir={navDir ?? "enter"}
-              >
+          {/* PC·비hosted — 하단 드로어. 모바일 hosted는 부모 BarnListToolbarMobileSheet. */}
+          {!sheetHosted && selected ? (
+            <BarnPanelBottomSheet
+              open
+              onClose={closeDetailDrawer}
+              title={selected.label}
+              auditRegion="farm-map-controller-detail-drawer"
+              contentClassName="min-h-0 flex-1 overflow-y-auto"
+              suppressFocusOutClose
+            >
+              {selected.reading ? (
                 <div
-                  key={selected.key}
-                  className={cn(
-                    motionClass.detailCarouselLayer,
-                    navDir === 1 && motionClass.detailSlideEnterNext,
-                    navDir === -1 && motionClass.detailSlideEnterPrev,
-                    navDir == null && motionClass.emphasisMorph,
-                  )}
-                  data-role="enter"
+                  ref={controllerCardRef}
+                  className="space-y-3 p-3"
+                  data-nav-dir={navDir ?? "enter"}
                 >
-                  <ControllerDetailSlideBody
-                    controller={selected}
-                    index={selectedIndex}
-                    total={controllers.length}
-                    showNav={controllers.length > 1}
-                    interactive
-                    canGoPrev={canGoPrev}
-                    canGoNext={canGoNext}
-                    onNavigate={navigateAdjacent}
-                    readings={readings}
-                    thermoSettings={thermoSettings}
-                    commands={commands}
-                    canCommand={canCommand}
-                    alarmSettings={alarmSettings}
-                    controllerTrendByPeriod={controllerTrendByPeriod}
-                    period={period}
-                    panelPeriod={panelPeriod}
-                    onPanelPeriodChange={setPanelPeriod}
-                    onPeriodChange={onPeriodChange}
-                    trendLoading={trendLoading}
-                    trendStale={trendStale}
-                    gridCols={gridCols}
-                    panelLayoutVariant={panelLayoutVariant}
-                    hideGraphToggle={!isMobileStack}
-                    graphExpanded={isMobileStack ? mobileGraphOpen : false}
-                    settingsExpanded={
-                      isMobileStack ? mobileSettingsOpen : settingsOpen
-                    }
-                    onToggleGraph={() => {
-                      if (sheetHosted && isMobileStack) {
-                        if (
-                          hostedMobileSheetOpen &&
-                          hostedMobileSheetPage === 0
-                        ) {
-                          onHostedMobileSheetOpenChange?.(false);
-                        } else {
-                          openMobileSheet(0);
-                        }
-                        return;
-                      }
-                      setSettingsOpen(false);
-                      setGraphOpen((v) => !v);
-                    }}
-                    onToggleSettings={() => {
-                      if (sheetHosted && isMobileStack) {
-                        if (
-                          hostedMobileSheetOpen &&
-                          hostedMobileSheetPage === 1
-                        ) {
-                          onHostedMobileSheetOpenChange?.(false);
-                        } else {
-                          openMobileSheet(1);
-                        }
-                        return;
-                      }
-                      setGraphOpen(false);
-                      setSettingsOpen((v) => !v);
-                    }}
-                    onSheetPageChange={
-                      isMobileStack ? handleSheetPageChange : undefined
-                    }
-                    sheetPickerReadings={isMobileStack ? readings : undefined}
-                    onSheetPickerSelect={
-                      isMobileStack ? selectControllerFromPicker : undefined
-                    }
-                    showSheetPickerAffiliation={isMobileStack}
-                    suppressPerCardMobileSheet={sheetHosted && isMobileStack}
-                    showDesktopGraph={false}
-                    showChannelSection={!settingsOpen}
-                  />
+                  <div
+                    key={selected.key}
+                    className={cn(
+                      motionClass.detailCarouselLayer,
+                      navDir === 1 && motionClass.detailSlideEnterNext,
+                      navDir === -1 && motionClass.detailSlideEnterPrev,
+                      navDir == null && motionClass.emphasisMorph,
+                    )}
+                    data-role="enter"
+                  >
+                    <ControllerDetailSlideBody
+                      controller={selected}
+                      index={selectedIndex}
+                      total={controllers.length}
+                      showNav={controllers.length > 1}
+                      interactive
+                      canGoPrev={canGoPrev}
+                      canGoNext={canGoNext}
+                      onNavigate={navigateAdjacent}
+                      readings={readings}
+                      thermoSettings={thermoSettings}
+                      commands={commands}
+                      canCommand={canCommand}
+                      alarmSettings={alarmSettings}
+                      controllerTrendByPeriod={controllerTrendByPeriod}
+                      period={period}
+                      panelPeriod={panelPeriod}
+                      onPanelPeriodChange={setPanelPeriod}
+                      onPeriodChange={onPeriodChange}
+                      trendLoading={trendLoading}
+                      trendStale={trendStale}
+                      gridCols={gridCols}
+                      panelLayoutVariant="stack"
+                      hideGraphToggle
+                      graphExpanded={false}
+                      settingsExpanded
+                      onToggleGraph={() => {}}
+                      onToggleSettings={() => {}}
+                      suppressPerCardMobileSheet
+                      showDesktopGraph={false}
+                      showChannelSection={false}
+                    />
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="mt-3 rounded-md border bg-background px-3 py-4 text-center text-xs text-muted-foreground">
-                이 컨트롤러의 실시간 판독값을 찾을 수 없습니다.
-              </div>
-            )
+              ) : (
+                <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                  이 컨트롤러의 실시간 판독값을 찾을 수 없습니다.
+                </div>
+              )}
+            </BarnPanelBottomSheet>
           ) : null}
         </>
       )}

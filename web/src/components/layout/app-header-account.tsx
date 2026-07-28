@@ -48,6 +48,7 @@ function LogoutSubmitButton() {
           busy={pending}
           idleLabel="로그아웃"
           busyLabel="로그아웃 중…"
+          showSpinner={false}
         />
       </span>
     </button>

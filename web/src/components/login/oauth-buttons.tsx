@@ -91,7 +91,7 @@ export function OAuthButtons() {
         ) : (
           <GoogleMark />
         )}
-        Google로 계속하기
+        Google로 로그인하기
       </button>
 
       <button
@@ -106,7 +106,7 @@ export function OAuthButtons() {
         ) : (
           <KakaoMark />
         )}
-        카카오로 계속하기
+        카카오로 로그인하기
       </button>
     </div>
   );

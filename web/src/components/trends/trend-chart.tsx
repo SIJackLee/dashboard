@@ -6,7 +6,6 @@ import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
 import {
   type Band,
-  observedRangeBand,
   SEV_COLOR,
   sevOfScore,
   severityScore,
@@ -22,7 +21,6 @@ export type TrendSeries = {
   axis?: TrendAxis;
   /**
    * 알람/환기 한계 — 점선 + 주의·경고 마커.
-   * 녹색 fill은 기간 관측 편차(`observedRangeBand`)로 별도 렌더.
    */
   band?: Band | null;
 };
@@ -83,7 +81,7 @@ export function formatTrendHoverValue(
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}${unit}`;
 }
 
-/** 한계·관측 끝단 라벨 — 정수면 그대로, 아니면 소수 1자리. */
+/** 한계 끝단 라벨 — 정수면 그대로, 아니면 소수 1자리. */
 export function formatTrendBandEdge(value: number, unit: string): string {
   if (!Number.isFinite(value)) return "–";
   const rounded =
@@ -91,18 +89,6 @@ export function formatTrendBandEdge(value: number, unit: string): string {
       ? String(Math.round(value))
       : value.toFixed(1);
   return `${rounded}${unit}`;
-}
-
-/** 관측 편차 라벨 — 평균±(max−min)/2. */
-export function formatTrendObservedMeanPm(
-  mean: number,
-  halfSpan: number,
-  unit: string,
-): string {
-  if (!Number.isFinite(mean) || !Number.isFinite(halfSpan)) return "–";
-  const fmt = (v: number) =>
-    Math.abs(v - Math.round(v)) < 1e-6 ? String(Math.round(v)) : v.toFixed(1);
-  return `${fmt(mean)}±${fmt(halfSpan)}${unit}`;
 }
 
 type EdgeBandLabel = {
@@ -116,18 +102,6 @@ type EdgeBandLabel = {
   /** 상한=숫자 위 선, 하한=숫자 아래 선 */
   mark?: "overline" | "underline";
 };
-
-function observedMeanAndHalfSpan(
-  values: (number | null)[],
-): { mean: number; half: number; lo: number; hi: number } | null {
-  const xs = values.filter((v): v is number => v != null && Number.isFinite(v));
-  if (xs.length === 0) return null;
-  const lo = Math.min(...xs);
-  const hi = Math.max(...xs);
-  if (!(hi > lo)) return null;
-  const mean = xs.reduce((sum, v) => sum + v, 0) / xs.length;
-  return { mean, half: (hi - lo) / 2, lo, hi };
-}
 
 /** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
 function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBandLabel[] {
@@ -311,23 +285,6 @@ export function TrendChart({
     return out;
   }, [series]);
 
-  /** 기간 관측 편차(min~max) — 녹색 fill, axis별 1회. */
-  const observedBands = useMemo(() => {
-    const byAxis = new Map<TrendAxis, (number | null)[]>();
-    for (const s of series) {
-      const axis = s.axis ?? "left";
-      const list = byAxis.get(axis) ?? [];
-      list.push(...s.data);
-      byAxis.set(axis, list);
-    }
-    const out: { band: Band; axis: TrendAxis }[] = [];
-    for (const [axis, data] of byAxis) {
-      const band = observedRangeBand(data);
-      if (band) out.push({ band, axis });
-    }
-    return out;
-  }, [series]);
-
   /** referenceLines 중 알람 band 모서리와 중복되는 점선 제거. */
   const dedupedReferenceLines = useMemo(() => {
     if (uniqueAlarmBands.length === 0) return referenceLines;
@@ -346,9 +303,8 @@ export function TrendChart({
     axis === "right" ? rightUnit : leftUnit;
 
   /**
-   * 끝단 라벨 배치
-   * - 단일 Y: 좌=한계(상한 위선·하한 아래선), 우=관측 평균±(max−min)/2
-   * - 이중 Y: 좌끝=left축, 우끝=right축 — 시리즈 고유색
+   * 한계(점선) 끝단 라벨
+   * - 단일 Y: 좌끝 / 이중 Y: 축별 좌·우끝 (상한 위선·하한 아래선)
    */
   const edgeBandLabels = useMemo(() => {
     if (mode !== "line") return [] as EdgeBandLabel[];
@@ -357,20 +313,20 @@ export function TrendChart({
       const match = series.find((s) => (s.axis ?? "left") === axis);
       return match?.color ?? null;
     };
-    const sideFor = (axis: TrendAxis, kind: "limit" | "observed"): "left" | "right" => {
+    const sideForLimit = (axis: TrendAxis): "left" | "right" => {
       if (usesRight) return axis === "right" ? "right" : "left";
-      return kind === "limit" ? "left" : "right";
+      return "left";
     };
-    const colorFor = (axis: TrendAxis, kind: "limit" | "observed"): string => {
+    const colorForLimit = (axis: TrendAxis): string => {
       if (usesRight) {
         return seriesColorForAxis(axis) ?? SEV_COLOR.warning;
       }
-      return kind === "limit" ? SEV_COLOR.warning : SEV_COLOR.normal;
+      return SEV_COLOR.warning;
     };
     uniqueAlarmBands.forEach(({ band, axis }, idx) => {
       const unit = unitForAxis(axis);
-      const side = sideFor(axis, "limit");
-      const color = colorFor(axis, "limit");
+      const side = sideForLimit(axis);
+      const color = colorForLimit(axis);
       for (const edge of ["hi", "lo"] as const) {
         const value = band[edge];
         const y = yFor(value, axis);
@@ -386,24 +342,6 @@ export function TrendChart({
         });
       }
     });
-    for (const { axis } of observedBands) {
-      const axisValues = series
-        .filter((s) => (s.axis ?? "left") === axis)
-        .flatMap((s) => s.data);
-      const stats = observedMeanAndHalfSpan(axisValues);
-      if (!stats) continue;
-      const y = yFor(stats.mean, axis);
-      if (!Number.isFinite(y)) continue;
-      const unit = unitForAxis(axis);
-      out.push({
-        id: `obs-mean-${axis}-${stats.mean}`,
-        side: sideFor(axis, "observed"),
-        topPct: (y / chartH) * 100,
-        text: formatTrendObservedMeanPm(stats.mean, stats.half, unit),
-        color: colorFor(axis, "observed"),
-        title: `관측 평균±편차 (${formatTrendBandEdge(stats.lo, unit)}–${formatTrendBandEdge(stats.hi, unit)})`,
-      });
-    }
     for (const ref of dedupedReferenceLines) {
       const axis = ref.axis ?? "left";
       const y = yFor(ref.value, axis);
@@ -412,7 +350,7 @@ export function TrendChart({
       const mid = (mn + mx) / 2;
       out.push({
         id: `ref-${axis}-${ref.value}`,
-        side: sideFor(axis, "limit"),
+        side: sideForLimit(axis),
         topPct: (y / chartH) * 100,
         text:
           ref.label?.trim() ||
@@ -432,7 +370,6 @@ export function TrendChart({
     usesRight,
     series,
     uniqueAlarmBands,
-    observedBands,
     dedupedReferenceLines,
     leftUnit,
     rightUnit,
@@ -499,24 +436,6 @@ export function TrendChart({
         role="img"
         aria-label="추이 차트"
       >
-        {mode === "line"
-          ? observedBands.map(({ band, axis }, idx) => {
-              const yTop = yFor(band.hi, axis);
-              const yBot = yFor(band.lo, axis);
-              return (
-                <rect
-                  key={`obs-${idx}`}
-                  x={PAD_X}
-                  y={yTop}
-                  width={innerW}
-                  height={Math.max(0, yBot - yTop)}
-                  fill={SEV_COLOR.normal}
-                  fillOpacity={0.1}
-                />
-              );
-            })
-          : null}
-
         {mode === "line"
           ? uniqueAlarmBands.map(({ band, axis }, idx) => {
               const yTop = yFor(band.hi, axis);
@@ -613,16 +532,17 @@ export function TrendChart({
                     const cy = yFor(v, axis);
                     if (s.band) {
                       const sev = sevOfScore(severityScore(v, s.band));
-                      if (sev === "normal") return null;
-                      return (
-                        <circle
-                          key={`${s.name}-sev-${i}`}
-                          cx={cx}
-                          cy={cy}
-                          r={hover && hover.idx === i ? 2.4 : 2}
-                          fill={SEV_COLOR[sev]}
-                        />
-                      );
+                      if (sev !== "normal") {
+                        return (
+                          <circle
+                            key={`${s.name}-sev-${i}`}
+                            cx={cx}
+                            cy={cy}
+                            r={hover && hover.idx === i ? 2.4 : 2}
+                            fill={SEV_COLOR[sev]}
+                          />
+                        );
+                      }
                     }
                     return (
                       <circle
@@ -659,7 +579,8 @@ export function TrendChart({
           key={label.id}
           className={cn(
             "pointer-events-none absolute z-[1] -translate-y-1/2 rounded-sm bg-background/85 px-0.5 text-[9px] leading-none tabular-nums",
-            label.side === "left" ? "left-0.5 text-left" : "right-0.5 text-right",
+            label.side === "left" && "left-0.5 text-left",
+            label.side === "right" && "right-0.5 text-right",
             label.mark === "overline" && "border-t border-current pt-px",
             label.mark === "underline" && "border-b border-current pb-px",
           )}
@@ -695,7 +616,7 @@ export function TrendChart({
               );
             })}
           </div>
-          {uniqueAlarmBands.length > 0 || observedBands.length > 0 ? (
+          {uniqueAlarmBands.length > 0 ? (
             <div className="mt-1 space-y-0.5 border-t border-border/60 pt-1">
               {uniqueAlarmBands.map(({ band, axis }, idx) => {
                 const unit = unitForAxis(axis);
@@ -712,30 +633,6 @@ export function TrendChart({
                     <span>한계{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
                     <span className="tabular-nums">
                       {formatTrendBandEdge(band.lo, unit)}–{formatTrendBandEdge(band.hi, unit)}
-                    </span>
-                  </div>
-                );
-              })}
-              {observedBands.map(({ axis }, idx) => {
-                const unit = unitForAxis(axis);
-                const tipColor = usesRight
-                  ? series.find((s) => (s.axis ?? "left") === axis)?.color ??
-                    SEV_COLOR.normal
-                  : SEV_COLOR.normal;
-                const axisValues = series
-                  .filter((s) => (s.axis ?? "left") === axis)
-                  .flatMap((s) => s.data);
-                const stats = observedMeanAndHalfSpan(axisValues);
-                if (!stats) return null;
-                return (
-                  <div
-                    key={`tip-obs-${idx}`}
-                    className="flex items-center justify-between gap-2 text-[9px]"
-                    style={{ color: tipColor }}
-                  >
-                    <span>관측{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
-                    <span className="tabular-nums">
-                      {formatTrendObservedMeanPm(stats.mean, stats.half, unit)}
                     </span>
                   </div>
                 );
