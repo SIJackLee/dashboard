@@ -93,6 +93,18 @@ export function formatTrendBandEdge(value: number, unit: string): string {
   return `${rounded}${unit}`;
 }
 
+/** 관측 편차 라벨 — 평균±(max−min)/2. */
+export function formatTrendObservedMeanPm(
+  mean: number,
+  halfSpan: number,
+  unit: string,
+): string {
+  if (!Number.isFinite(mean) || !Number.isFinite(halfSpan)) return "–";
+  const fmt = (v: number) =>
+    Math.abs(v - Math.round(v)) < 1e-6 ? String(Math.round(v)) : v.toFixed(1);
+  return `${fmt(mean)}±${fmt(halfSpan)}${unit}`;
+}
+
 type EdgeBandLabel = {
   id: string;
   side: "left" | "right";
@@ -101,7 +113,21 @@ type EdgeBandLabel = {
   text: string;
   color: string;
   title: string;
+  /** 상한=숫자 위 선, 하한=숫자 아래 선 */
+  mark?: "overline" | "underline";
 };
+
+function observedMeanAndHalfSpan(
+  values: (number | null)[],
+): { mean: number; half: number; lo: number; hi: number } | null {
+  const xs = values.filter((v): v is number => v != null && Number.isFinite(v));
+  if (xs.length === 0) return null;
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  if (!(hi > lo)) return null;
+  const mean = xs.reduce((sum, v) => sum + v, 0) / xs.length;
+  return { mean, half: (hi - lo) / 2, lo, hi };
+}
 
 /** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
 function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBandLabel[] {
@@ -321,8 +347,8 @@ export function TrendChart({
 
   /**
    * 끝단 라벨 배치
-   * - 단일 Y: 좌=한계(점선), 우=관측(녹색)
-   * - 이중 Y: 좌끝=left축, 우끝=right축 — 각 축 시리즈 고유색(온도·습도)
+   * - 단일 Y: 좌=한계(상한 위선·하한 아래선), 우=관측 평균±(max−min)/2
+   * - 이중 Y: 좌끝=left축, 우끝=right축 — 시리즈 고유색
    */
   const edgeBandLabels = useMemo(() => {
     if (mode !== "line") return [] as EdgeBandLabel[];
@@ -341,40 +367,49 @@ export function TrendChart({
       }
       return kind === "limit" ? SEV_COLOR.warning : SEV_COLOR.normal;
     };
-    const pushBand = (
-      band: Band,
-      axis: TrendAxis,
-      kind: "limit" | "observed",
-      keyPrefix: string,
-    ) => {
+    uniqueAlarmBands.forEach(({ band, axis }, idx) => {
       const unit = unitForAxis(axis);
-      const side = sideFor(axis, kind);
-      const titleKind = kind === "limit" ? "한계" : "관측";
-      const color = colorFor(axis, kind);
+      const side = sideFor(axis, "limit");
+      const color = colorFor(axis, "limit");
       for (const edge of ["hi", "lo"] as const) {
         const value = band[edge];
         const y = yFor(value, axis);
         if (!Number.isFinite(y)) continue;
         out.push({
-          id: `${keyPrefix}-${axis}-${edge}-${value}`,
+          id: `alarm-${idx}-${axis}-${edge}-${value}`,
           side,
           topPct: (y / chartH) * 100,
           text: formatTrendBandEdge(value, unit),
           color,
-          title: `${titleKind} ${edge === "hi" ? "상한" : "하한"}`,
+          title: `한계 ${edge === "hi" ? "상한" : "하한"}`,
+          mark: edge === "hi" ? "overline" : "underline",
         });
       }
-    };
-    uniqueAlarmBands.forEach(({ band, axis }, idx) => {
-      pushBand(band, axis, "limit", `alarm-${idx}`);
     });
-    observedBands.forEach(({ band, axis }, idx) => {
-      pushBand(band, axis, "observed", `obs-${idx}`);
-    });
+    for (const { axis } of observedBands) {
+      const axisValues = series
+        .filter((s) => (s.axis ?? "left") === axis)
+        .flatMap((s) => s.data);
+      const stats = observedMeanAndHalfSpan(axisValues);
+      if (!stats) continue;
+      const y = yFor(stats.mean, axis);
+      if (!Number.isFinite(y)) continue;
+      const unit = unitForAxis(axis);
+      out.push({
+        id: `obs-mean-${axis}-${stats.mean}`,
+        side: sideFor(axis, "observed"),
+        topPct: (y / chartH) * 100,
+        text: formatTrendObservedMeanPm(stats.mean, stats.half, unit),
+        color: colorFor(axis, "observed"),
+        title: `관측 평균±편차 (${formatTrendBandEdge(stats.lo, unit)}–${formatTrendBandEdge(stats.hi, unit)})`,
+      });
+    }
     for (const ref of dedupedReferenceLines) {
       const axis = ref.axis ?? "left";
       const y = yFor(ref.value, axis);
       if (!Number.isFinite(y)) continue;
+      const [mn, mx] = axis === "right" ? [rMin, rMax] : [lMin, lMax];
+      const mid = (mn + mx) / 2;
       out.push({
         id: `ref-${axis}-${ref.value}`,
         side: sideFor(axis, "limit"),
@@ -386,6 +421,7 @@ export function TrendChart({
           ? seriesColorForAxis(axis) ?? ref.color
           : ref.color,
         title: "한계",
+        mark: ref.value >= mid ? "overline" : "underline",
       });
     }
     return nudgeEdgeLabelTops(out, 7);
@@ -624,6 +660,8 @@ export function TrendChart({
           className={cn(
             "pointer-events-none absolute z-[1] -translate-y-1/2 rounded-sm bg-background/85 px-0.5 text-[9px] leading-none tabular-nums",
             label.side === "left" ? "left-0.5 text-left" : "right-0.5 text-right",
+            label.mark === "overline" && "border-t border-current pt-px",
+            label.mark === "underline" && "border-b border-current pb-px",
           )}
           style={{ top: `${label.topPct}%`, color: label.color }}
           title={label.title}
@@ -678,12 +716,17 @@ export function TrendChart({
                   </div>
                 );
               })}
-              {observedBands.map(({ band, axis }, idx) => {
+              {observedBands.map(({ axis }, idx) => {
                 const unit = unitForAxis(axis);
                 const tipColor = usesRight
                   ? series.find((s) => (s.axis ?? "left") === axis)?.color ??
                     SEV_COLOR.normal
                   : SEV_COLOR.normal;
+                const axisValues = series
+                  .filter((s) => (s.axis ?? "left") === axis)
+                  .flatMap((s) => s.data);
+                const stats = observedMeanAndHalfSpan(axisValues);
+                if (!stats) return null;
                 return (
                   <div
                     key={`tip-obs-${idx}`}
@@ -692,7 +735,7 @@ export function TrendChart({
                   >
                     <span>관측{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
                     <span className="tabular-nums">
-                      {formatTrendBandEdge(band.lo, unit)}–{formatTrendBandEdge(band.hi, unit)}
+                      {formatTrendObservedMeanPm(stats.mean, stats.half, unit)}
                     </span>
                   </div>
                 );
