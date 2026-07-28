@@ -37,8 +37,7 @@ type Props = {
 };
 
 /**
- * detail-panel 하단 — 축사(패널) 컨트롤러 equally 평균 통합 추이.
- * 기존 detail-panel-charts 오버레이와 분리된 sibling.
+ * detail-panel 하단 — 캔버스 통합 추이 시각(이중축·클라우드·점선)에 맞춤.
  */
 export function UnifiedBarnTrendPanel({
   label,
@@ -119,8 +118,8 @@ export function UnifiedBarnTrendPanel({
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold">통합 추이</span>
         <span className="text-[0.7rem] text-muted-foreground">
-          {label} · 평균 {built?.controllerCount ?? 0}대 ·{" "}
-          {trendPeriodLabel(period)} · 좌 모터% · 우 온·습 n
+          {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
+          {trendPeriodLabel(period)}
         </span>
       </div>
       {built ? (
@@ -128,7 +127,8 @@ export function UnifiedBarnTrendPanel({
           mode="line"
           categories={built.categories}
           series={built.series}
-          height={isMobileStack ? 148 : 176}
+          envelopes={built.envelopes}
+          height={isMobileStack ? 168 : 220}
           leftUnit="%"
           rightUnit="n"
           leftDomain={built.leftDomain}
@@ -141,13 +141,13 @@ export function UnifiedBarnTrendPanel({
               value: 0,
               axis: "right",
               color: "#94a3b8",
-              label: "n0",
+              label: "n=0",
             },
             {
               value: 100,
               axis: "right",
               color: "#94a3b8",
-              label: "n100",
+              label: "n=100",
             },
           ]}
         />
@@ -158,8 +158,9 @@ export function UnifiedBarnTrendPanel({
       )}
       {built ? (
         <p className="text-[0.65rem] text-muted-foreground">
-          온도 {built.tempRangeLabel} · 습도 {built.humidityRangeLabel} → 각
-          구간을 0–100으로 정규화.
+          좌 모터% · 우 온·습 정규화 n · 온도 {built.tempRangeLabel} · 습도{" "}
+          {built.humidityRangeLabel} · teal 클라우드=온·습 사이 · 분홍
+          밴드=컨트롤러 온도 산포
         </p>
       ) : null}
     </div>

@@ -23,6 +23,19 @@ export type TrendSeries = {
    * 알람/환기 한계 — 점선 + 주의·경고 마커.
    */
   band?: Band | null;
+  /** line 모드 stroke-dasharray (예: "5 3"). 없으면 실선. */
+  strokeDasharray?: string;
+};
+
+/** 두 곡선 사이 면(이목 클라우드·온도 산포 등). */
+export type TrendEnvelope = {
+  high: (number | null)[];
+  low: (number | null)[];
+  axis?: TrendAxis;
+  fill: string;
+  fillOpacity?: number;
+  /** 범례 라벨 (없으면 숨김). */
+  legendLabel?: string;
 };
 
 export type TrendReferenceLine = {
@@ -43,6 +56,8 @@ type TrendChartProps = {
   leftDomain?: [number, number];
   rightDomain?: [number, number];
   referenceLines?: TrendReferenceLine[];
+  /** line 모드 — 시리즈 아래 면 채우기(클라우드·밴드). */
+  envelopes?: TrendEnvelope[];
   emptyLabel?: string;
   /** Show every Nth category tick (auto if omitted). */
   tickEvery?: number;
@@ -161,6 +176,7 @@ export function TrendChart({
   leftDomain,
   rightDomain,
   referenceLines = [],
+  envelopes = [],
   emptyLabel = "데이터 없음",
   tickEvery,
   period,
@@ -409,17 +425,70 @@ export function TrendChart({
     return segs;
   };
 
+  const envelopePath = (env: TrendEnvelope): string | null => {
+    const axis = env.axis ?? "left";
+    const len = Math.min(env.high.length, env.low.length, n);
+    if (len < 2) return null;
+    const top: string[] = [];
+    const bot: string[] = [];
+    for (let i = 0; i < len; i++) {
+      const hi = env.high[i];
+      const lo = env.low[i];
+      if (
+        hi == null ||
+        lo == null ||
+        !Number.isFinite(hi) ||
+        !Number.isFinite(lo)
+      ) {
+        continue;
+      }
+      top.push(`${xFor(i).toFixed(2)},${yFor(hi, axis).toFixed(2)}`);
+      bot.push(`${xFor(i).toFixed(2)},${yFor(lo, axis).toFixed(2)}`);
+    }
+    if (top.length < 2) return null;
+    return `M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`;
+  };
+
   return (
     <div className={showLegend ? "space-y-1.5" : "space-y-1"}>
       {showLegend ? (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {series.map((s) => (
           <span key={s.name} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span
+              className="inline-block w-3 border-t-2"
+              style={{
+                borderColor: s.color,
+                borderStyle: s.strokeDasharray
+                  ? s.strokeDasharray.startsWith("2")
+                    ? "dotted"
+                    : "dashed"
+                  : "solid",
+              }}
+              aria-hidden
+            />
             {s.name}
             {(s.axis ?? "left") === "right" && usesRight ? <span className="opacity-60">(우)</span> : null}
           </span>
         ))}
+        {envelopes.map((env, idx) =>
+          env.legendLabel ? (
+            <span
+              key={`env-leg-${idx}`}
+              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+            >
+              <span
+                className="inline-block h-2 w-3 rounded-sm"
+                style={{
+                  backgroundColor: env.fill,
+                  opacity: Math.min(1, (env.fillOpacity ?? 0.22) * 2),
+                }}
+                aria-hidden
+              />
+              {env.legendLabel}
+            </span>
+          ) : null,
+        )}
       </div>
       ) : null}
 
@@ -436,6 +505,22 @@ export function TrendChart({
         role="img"
         aria-label="추이 차트"
       >
+        {mode === "line"
+          ? envelopes.map((env, idx) => {
+              const d = envelopePath(env);
+              if (!d) return null;
+              return (
+                <path
+                  key={`env-${idx}`}
+                  d={d}
+                  fill={env.fill}
+                  fillOpacity={env.fillOpacity ?? 0.22}
+                  stroke="none"
+                />
+              );
+            })
+          : null}
+
         {mode === "line"
           ? uniqueAlarmBands.map(({ band, axis }, idx) => {
               const yTop = yFor(band.hi, axis);
@@ -523,6 +608,7 @@ export function TrendChart({
                       strokeWidth={1.4}
                       strokeLinejoin="round"
                       strokeLinecap="round"
+                      strokeDasharray={s.strokeDasharray}
                       vectorEffect="non-scaling-stroke"
                     />
                   ))}
