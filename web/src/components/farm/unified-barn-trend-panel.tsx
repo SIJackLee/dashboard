@@ -159,7 +159,7 @@ export function UnifiedBarnTrendPanel({
       {built ? (
         <p className="text-[0.65rem] text-muted-foreground">
           온도 {built.tempRangeLabel} · 습도 {built.humidityRangeLabel} → 각
-          구간을 0–100으로 정규화. 실험 플래그 ON 시에만 표시됩니다.
+          구간을 0–100으로 정규화.
         </p>
       ) : null}
     </div>
