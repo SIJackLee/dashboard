@@ -76,6 +76,15 @@ export const motionClass = {
   /** Emphasis — 확대 상세 morph */
   emphasisMorph: "farm-heat-morph",
 
+  /** 차트 탭 — 통합 추이 advanced motion */
+  farmChartPlotReveal: "farm-chart-plot-reveal",
+  farmChartEnvelopeIn: "farm-chart-envelope-in",
+  farmChartLineSoftIn: "farm-chart-line-soft-in",
+  farmChartMarkerPop: "farm-chart-marker-pop",
+  farmChartBrushWindow: "farm-chart-brush-window",
+  farmChartScopeShell: "farm-chart-scope-shell",
+  farmChartPanelShell: "farm-chart-panel-shell",
+
   /** 헤더 도구 패널 — 버튼 왼쪽 슬라이드 */
   headerToolsPanel: "header-tools-panel",
 

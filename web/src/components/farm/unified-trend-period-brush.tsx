@@ -162,18 +162,27 @@ export function UnifiedTrendPeriodBrush({
         </svg>
 
         <div
-          className="pointer-events-none absolute inset-y-0 bg-background/50"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 bg-background/50",
+            !draft && motionClass.farmChartBrushWindow,
+          )}
           style={{ left: 0, width: `${display.start * 100}%` }}
         />
         <div
-          className="pointer-events-none absolute inset-y-0 bg-background/50"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 bg-background/50",
+            !draft && motionClass.farmChartBrushWindow,
+          )}
           style={{
             left: `${(display.start + display.width) * 100}%`,
             right: 0,
           }}
         />
         <div
-          className="pointer-events-none absolute inset-y-0 rounded-sm border-2 border-sky-500 bg-sky-500/15"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 rounded-sm border-2 border-sky-500 bg-sky-500/15",
+            !draft && motionClass.farmChartBrushWindow,
+          )}
           style={{
             left: `${display.start * 100}%`,
             width: `${display.width * 100}%`,

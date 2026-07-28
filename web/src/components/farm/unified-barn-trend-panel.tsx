@@ -22,6 +22,7 @@ import {
   buildUnifiedBarnTrendSeries,
   DEFAULT_UNIFIED_LAYERS,
   pickUnifiedTrendLayers,
+  SPLIT_Y,
   type UnifiedLayerFlags,
   type UnifiedLayerId,
 } from "@/lib/farm/unified-barn-trend-series";
@@ -49,15 +50,14 @@ type Props = {
 
 const LAYER_CHIPS: { id: UnifiedLayerId; label: string }[] = [
   { id: "motors", label: "모터 A·B·C" },
-  { id: "temp", label: "온도 n" },
-  { id: "hum", label: "습도 n" },
+  { id: "temp", label: "온도" },
+  { id: "hum", label: "습도" },
   { id: "band", label: "온도 산포" },
   { id: "cloud", label: "클라우드" },
 ];
 
 /**
- * detail-panel 통합 추이 — 캔버스 최종안(이중축·정규화·클라우드·레이어).
- * 위온습/아래모터 스택은 후속 검토(현 단계 미적용).
+ * 차트 탭 통합 추이 — Y 상하 분리(아래 모터% · 위 온·습 원단위, 정규화 없음).
  */
 export function UnifiedBarnTrendPanel({
   label,
@@ -181,13 +181,13 @@ export function UnifiedBarnTrendPanel({
         "mt-2 space-y-2 rounded-md border bg-background p-2.5 sm:p-3",
         className,
       )}
-      data-tour-id="detail-panel-unified-trend"
+      data-tour-id="farm-chart-unified-trend"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold">통합 추이</span>
         <span className="text-[0.7rem] text-muted-foreground">
           {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
-          {trendPeriodLabel(period)} · 좌 모터% · 우 온·습 n
+          {trendPeriodLabel(period)} · 위 온·습 · 아래 모터%
         </span>
       </div>
 
@@ -234,29 +234,38 @@ export function UnifiedBarnTrendPanel({
           mode="line"
           categories={built.categories}
           series={picked.series}
-          envelopes={picked.envelopes}
+          envelopes={[
+            {
+              high: built.categories.map(() => SPLIT_Y.envLo),
+              low: built.categories.map(() => SPLIT_Y.motorHi),
+              axis: "left",
+              fill: "#64748b",
+              fillOpacity: 0.07,
+            },
+            ...picked.envelopes,
+          ]}
           height={chartHeight ?? (isMobileStack ? 176 : 240)}
-          leftUnit="%"
-          rightUnit="n"
+          leftUnit=""
           leftDomain={built.leftDomain}
-          rightDomain={built.rightDomain}
           period={period}
           tickEvery={tickEveryForDisplayBars(built.categories.length)}
           showLegend
           showMarkers
+          markerDensity="sparse"
           markerRadiusPx={isMobileStack ? 2.5 : 3}
+          animate
           referenceLines={[
             {
-              value: 0,
-              axis: "right",
+              value: SPLIT_Y.motorHi,
+              axis: "left",
               color: "#94a3b8",
-              label: "n=0",
+              label: "모터%",
             },
             {
-              value: 100,
-              axis: "right",
+              value: SPLIT_Y.envLo,
+              axis: "left",
               color: "#94a3b8",
-              label: "n=100",
+              label: "온·습",
             },
           ]}
         />
@@ -270,11 +279,9 @@ export function UnifiedBarnTrendPanel({
 
       {built ? (
         <p className="text-[0.65rem] text-muted-foreground">
-          n=0 → 온도 {built.thresholds.tempLow}℃ · 습도{" "}
-          {built.thresholds.humidityLow}% · n=100 → 온도{" "}
-          {built.thresholds.tempHigh}℃ · 습도 {built.thresholds.humidityHigh}%
-          . 호버에 원단위+n. 클라우드=온·습 사이 · 산포=컨트롤러 온도
-          min–max.
+          Y 상하 분리 · 정규화 없음. 위=온℃·습%(0–100 절대) · 아래=모터%.
+          알람 참고 {built.tempRangeLabel} / {built.humidityRangeLabel}.
+          클라우드=온·습 사이 · 산포=컨트롤러 온도 min–max.
         </p>
       ) : null}
     </div>

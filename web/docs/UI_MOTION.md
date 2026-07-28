@@ -116,6 +116,10 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | `ui-motion-command-overlay` / `ui-motion-command-card` | command pipeline |
 | `settings-collapsible-*` | 설정 collapsible |
 | `farm-heat-morph` | 그리드 확대 morph |
+| `farm-chart-plot-reveal` | 차트 탭 좌→우 clip reveal |
+| `farm-chart-envelope-in` / `farm-chart-line-soft-in` / `farm-chart-marker-pop` | 클라우드·라인·점 등장 |
+| `farm-chart-brush-window` | 기간 브러시 윈도우 transition |
+| `farm-chart-scope-shell` / `farm-chart-panel-shell` | 차트 탭 레이아웃 등장 |
 | `farm-detail-carousel` | 컨트롤러 상세 캐러셀 클립 컨테이너 |
 | `farm-detail-slide-enter-next` / `enter-prev` | 캐러셀 enter (버튼 방향에서 진입) |
 | `farm-detail-slide-exit-next` / `exit-prev` | 캐러셀 exit (반대쪽으로 퇴장, enter와 겹침) |

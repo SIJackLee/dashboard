@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef, useLayoutEffect } from "react";
+import { useMemo, useState, useRef, useLayoutEffect, type CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
@@ -10,6 +10,8 @@ import {
   sevOfScore,
   severityScore,
 } from "@/lib/farm/severity-score";
+import { motionClass } from "@/lib/ui/motion-classes";
+import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
 
 export type TrendAxis = "left" | "right";
 
@@ -78,8 +80,18 @@ type TrendChartProps = {
   barWidthCapPct?: number;
   /** line 모드 데이터 점 표시. 기본 true. */
   showMarkers?: boolean;
+  /**
+   * 마커 밀도 — all=전점, sparse≈8점/시리즈(+호버 강조점).
+   * 차트 탭 반응성용 sparse 권장.
+   */
+  markerDensity?: "all" | "sparse";
   /** 화면 기준 점 반지름(px). preserveAspectRatio=none 보정에 사용. */
   markerRadiusPx?: number;
+  /**
+   * 차트 탭 enter motion — 마운트 1회만 reveal/stagger.
+   * 기간·레이어 변경 시 remount 없음.
+   */
+  animate?: boolean;
 };
 
 const PAD_X = 6;
@@ -195,25 +207,55 @@ export function TrendChart({
   barWidthCapPct,
   showLegend = true,
   showMarkers = true,
+  markerDensity = "all",
   markerRadiusPx = 3,
+  animate = false,
 }: TrendChartProps) {
-  const [hover, setHover] = useState<{ idx: number; xPx: number; w: number } | null>(null);
+  /** 호버 — 인덱스 변경 시에만 setState (mousemove 전량 리렌더 방지) */
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const hoverIdxRef = useRef<number | null>(null);
   const plotRef = useRef<HTMLDivElement | null>(null);
   const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
+  /** enter motion 1회만 */
+  const enterPlayedRef = useRef(false);
+  const [enterMotion, setEnterMotion] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!animate || enterPlayedRef.current) {
+      setEnterMotion(false);
+      return;
+    }
+    enterPlayedRef.current = true;
+    setEnterMotion(true);
+    const t = window.setTimeout(() => setEnterMotion(false), 420);
+    return () => window.clearTimeout(t);
+  }, [animate]);
 
   useLayoutEffect(() => {
     const el = plotRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
+    let tid = 0;
     const apply = () => {
-      const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setPlotPx({ w: rect.width, h: rect.height });
-      }
+      window.clearTimeout(tid);
+      tid = window.setTimeout(() => {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setPlotPx((prev) =>
+            Math.abs(prev.w - rect.width) < 0.5 &&
+            Math.abs(prev.h - rect.height) < 0.5
+              ? prev
+              : { w: rect.width, h: rect.height },
+          );
+        }
+      }, 100);
     };
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      window.clearTimeout(tid);
+      ro.disconnect();
+    };
   }, [height, categories.length, series.length]);
 
   const hasAny = series.some((s) => s.data?.some((v) => v != null));
@@ -290,8 +332,27 @@ export function TrendChart({
     if (n === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const xPx = e.clientX - rect.left;
-    const ratio = Math.min(1, Math.max(0, rect.width > 0 ? xPx / rect.width : 0));
-    setHover({ idx: hoverIndexAtRatio(ratio), xPx, w: rect.width });
+    const ratio = Math.min(
+      1,
+      Math.max(0, rect.width > 0 ? xPx / rect.width : 0),
+    );
+    const idx = hoverIndexAtRatio(ratio);
+    if (idx === hoverIdxRef.current) return;
+    hoverIdxRef.current = idx;
+    setHoverIdx(idx);
+  };
+
+  const clearHover = () => {
+    hoverIdxRef.current = null;
+    setHoverIdx(null);
+  };
+
+  const markerStride =
+    markerDensity === "sparse" ? Math.max(1, Math.ceil(n / 8)) : 1;
+  const shouldShowMarker = (i: number) => {
+    if (markerDensity === "all") return true;
+    if (i === 0 || i === n - 1) return true;
+    return i % markerStride === 0;
   };
 
   const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / 5));
@@ -532,7 +593,7 @@ export function TrendChart({
         ref={plotRef}
         className="relative"
         onMouseMove={onMove}
-        onMouseLeave={() => setHover(null)}
+        onMouseLeave={clearHover}
       >
       <svg
         viewBox={`0 0 ${VIEW_W} ${chartH}`}
@@ -542,6 +603,7 @@ export function TrendChart({
         role="img"
         aria-label="추이 차트"
       >
+        <g className={enterMotion ? motionClass.farmChartPlotReveal : undefined}>
         {mode === "line"
           ? envelopes.map((env, idx) => {
               const d = envelopePath(env);
@@ -553,6 +615,9 @@ export function TrendChart({
                   fill={env.fill}
                   fillOpacity={env.fillOpacity ?? 0.22}
                   stroke="none"
+                  className={
+                    enterMotion ? motionClass.farmChartEnvelopeIn : undefined
+                  }
                 />
               );
             })
@@ -626,12 +691,12 @@ export function TrendChart({
                     width={Math.max(0.4, barW * 0.92)}
                     height={Math.max(0, baseY - yTop)}
                     fill={s.color}
-                    opacity={hover && hover.idx === i ? 1 : 0.85}
+                    opacity={hoverIdx === i ? 1 : 0.85}
                   />
                 );
               }),
             )
-          : series.map((s) => {
+          : series.map((s, si) => {
               const axis = s.axis ?? "left";
               const segs = lineSegments(s);
               return (
@@ -647,17 +712,32 @@ export function TrendChart({
                       strokeLinecap="round"
                       strokeDasharray={s.strokeDasharray}
                       vectorEffect="non-scaling-stroke"
+                      className={
+                        enterMotion ? motionClass.farmChartLineSoftIn : undefined
+                      }
                     />
                   ))}
                   {showMarkers
                     ? s.data.map((v, i) => {
                         if (v == null || !Number.isFinite(v)) return null;
+                        if (!shouldShowMarker(i)) return null;
                         const cx = xFor(i);
                         const cy = yFor(v, axis);
-                        const active = Boolean(hover && hover.idx === i);
-                        const rPx = active
-                          ? markerRadiusPx + 1.2
-                          : markerRadiusPx;
+                        const rPx = markerRadiusPx;
+                        const markerDelayMs = enterMotion
+                          ? 120 +
+                            si * motionStaggerStepMs +
+                            Math.min(i, 8) * 16
+                          : 0;
+                        const markerStyle = enterMotion
+                          ? ({
+                              ["--farm-chart-marker-delay" as string]:
+                                `${markerDelayMs}ms`,
+                            } as CSSProperties)
+                          : undefined;
+                        const markerClass = enterMotion
+                          ? motionClass.farmChartMarkerPop
+                          : undefined;
                         if (s.band) {
                           const sev = sevOfScore(severityScore(v, s.band));
                           if (sev !== "normal") {
@@ -669,6 +749,8 @@ export function TrendChart({
                                 rx={markerRx(rPx)}
                                 ry={markerRy(rPx)}
                                 fill={SEV_COLOR[sev]}
+                                className={markerClass}
+                                style={markerStyle}
                               />
                             );
                           }
@@ -681,6 +763,8 @@ export function TrendChart({
                             rx={markerRx(rPx)}
                             ry={markerRy(rPx)}
                             fill={s.color}
+                            className={markerClass}
+                            style={markerStyle}
                           />
                         );
                       })
@@ -689,10 +773,31 @@ export function TrendChart({
               );
             })}
 
-        {hover && hover.idx >= 0 && hover.idx < n ? (
+        {/* 호버 강조점 — 인덱스 변경 시에만 갱신, 전 마커 remount 없음 */}
+        {mode === "line" && hoverIdx != null && hoverIdx >= 0 && hoverIdx < n
+          ? series.map((s) => {
+              const v = s.data[hoverIdx];
+              if (v == null || !Number.isFinite(v)) return null;
+              const axis = s.axis ?? "left";
+              return (
+                <ellipse
+                  key={`hover-${s.name}`}
+                  cx={xFor(hoverIdx)}
+                  cy={yFor(v, axis)}
+                  rx={markerRx(markerRadiusPx + 1.4)}
+                  ry={markerRy(markerRadiusPx + 1.4)}
+                  fill={s.color}
+                  opacity={0.95}
+                />
+              );
+            })
+          : null}
+        </g>
+
+        {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
           <line
-            x1={xAtIndex(hover.idx)}
-            x2={xAtIndex(hover.idx)}
+            x1={xAtIndex(hoverIdx)}
+            x2={xAtIndex(hoverIdx)}
             y1={PAD_TOP}
             y2={PAD_TOP + innerH}
             stroke="currentColor"
@@ -722,22 +827,30 @@ export function TrendChart({
         </span>
       ))}
 
-      {hover && hover.idx >= 0 && hover.idx < n ? (
+      {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
         <div
           className="pointer-events-none absolute top-1 z-10 rounded-md border bg-popover px-2 py-1 text-popover-foreground shadow-md"
-          style={{ left: Math.min(Math.max(hover.xPx - 70, 2), Math.max(2, hover.w - 168)), width: 168 }}
+          style={{
+            left: Math.min(
+              Math.max((xAtIndex(hoverIdx) / VIEW_W) * plotPx.w - 70, 2),
+              Math.max(2, plotPx.w - 168),
+            ),
+            width: 168,
+          }}
         >
-          <div className="mb-1 text-[10px] font-semibold">{categories[hover.idx]}</div>
+          <div className="mb-1 text-[10px] font-semibold">
+            {categories[hoverIdx]}
+          </div>
           <div className="space-y-0.5">
             {series.map((s) => {
-              const v = s.data[hover.idx];
+              const v = s.data[hoverIdx];
               const unit = (s.axis ?? "left") === "right" ? rightUnit : leftUnit;
-              const sec = s.hoverSecondary?.[hover.idx];
-              const primary =
+              const sec = s.hoverSecondary?.[hoverIdx];
+              const mappedPrimary =
                 v == null || !Number.isFinite(v)
                   ? "–"
                   : formatTrendHoverValue(v, unit, s.name);
-              const secondary =
+              const display =
                 sec != null &&
                 Number.isFinite(sec) &&
                 s.hoverSecondaryUnit
@@ -746,7 +859,7 @@ export function TrendChart({
                       s.hoverSecondaryUnit,
                       s.name,
                     )
-                  : null;
+                  : mappedPrimary;
               return (
                 <div key={s.name} className="flex items-center justify-between gap-2 text-[10px]">
                   <span className="inline-flex min-w-0 items-center gap-1">
@@ -754,7 +867,7 @@ export function TrendChart({
                     <span className="truncate">{s.name}</span>
                   </span>
                   <span className="shrink-0 font-medium tabular-nums">
-                    {secondary ? `${secondary} · ${primary}` : primary}
+                    {display}
                   </span>
                 </div>
               );

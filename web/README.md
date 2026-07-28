@@ -40,7 +40,7 @@ npm run audit:health-drilldown
 
 Playwright audit은 **dev 서버 실행 중**(`npm run dev`)에 돌립니다. 다른 포트면 `UI_VERIFY_BASE=http://localhost:3001` 설정.
 
-**농장 그래프 기간:** 그리드·목록·차트 공유 query `trendPeriod=24h|7d|30d` (기본 24h, 생략 가능). 그리드 히트맵은 **축사 평균**, 목록 graph는 **컨트롤러 단위**입니다. **차트** 탭(`view=chart`)은 선택 농장 기본 집계 + 우측 트리(축사유형→번호→컨트롤러)로 범위를 좁혀 통합 추이(이중축·레이어·브러시)를 전폭으로 테스트합니다.
+**농장 그래프 기간:** 그리드·목록·차트 공유 query `trendPeriod=24h|7d|30d` (기본 24h, 생략 가능). 그리드 히트맵은 **축사 평균**, 목록 graph는 **컨트롤러 단위**입니다. 통합 추이 작업은 **차트** 탭만 사용합니다 — [`/farm?...&view=chart`](https://smart.autofankorea.com/farm?lsind=FARM01&item=P00&listLayout=group&view=chart). Y는 **상하 분리**(위 온℃·습% 원단위, 아래 모터%, 정규화 없음). 기본 집계는 선택 농장, 우측 트리로 축사유형→번호→컨트롤러 범위를 좁힙니다.
 
 ## 환경변수 (`.env.local`)
 

@@ -14,6 +14,20 @@ import {
 export const UNIFIED_CLOUD_FILL = "#14b8a6";
 export const UNIFIED_TEMP_BAND_FILL = "#ef4444";
 
+/**
+ * 단일 Y — 상하 분리(정규화 없음).
+ * 아래: 모터 0–100% → chart [motorLo, motorHi]
+ * 위: 온℃·습% 원단위(0–100 공유) → chart [envLo, envHi]
+ * 중간 gap은 구분선만.
+ */
+export const SPLIT_Y = {
+  motorLo: 0,
+  motorHi: 44,
+  envLo: 56,
+  envHi: 100,
+  domain: [0, 100] as [number, number],
+} as const;
+
 export type UnifiedLayerId =
   | "motors"
   | "temp"
@@ -43,7 +57,35 @@ function avgFinite(nums: (number | null | undefined)[]): number | null {
   return n ? sum / n : null;
 }
 
-/** 알람 [lo,hi] → 0–100 정규화 (구간 밖 clamp). */
+function clamp01to100(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+/** 모터% → 하단 밴드 chart Y */
+export function mapMotorPctToSplitY(pct: number | null | undefined): number | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  const t = clamp01to100(pct) / 100;
+  return SPLIT_Y.motorLo + t * (SPLIT_Y.motorHi - SPLIT_Y.motorLo);
+}
+
+/**
+ * 온℃·습% 원단위 → 상단 밴드 chart Y.
+ * 동일 0–100 절대 스케일(정규화 없음). 전형값에서 온·습은 거의 겹치지 않음.
+ */
+export function mapEnvAbsToSplitY(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const t = clamp01to100(value) / 100;
+  return SPLIT_Y.envLo + t * (SPLIT_Y.envHi - SPLIT_Y.envLo);
+}
+
+function mapColumn(
+  values: (number | null)[],
+  map: (v: number | null | undefined) => number | null,
+): (number | null)[] {
+  return values.map((v) => map(v));
+}
+
+/** @deprecated 상하분리로 대체. 테스트·호환용 유지. */
 export function normalizeToAlarmRange(
   value: number | null | undefined,
   lo: number,
@@ -55,7 +97,7 @@ export function normalizeToAlarmRange(
   return Math.max(0, Math.min(100, n));
 }
 
-/** n∈[0,100] → 원단위 (호버 복원). */
+/** @deprecated 상하분리로 대체. */
 export function denormalizeFromAlarmRange(
   n: number | null | undefined,
   lo: number,
@@ -112,7 +154,7 @@ export type UnifiedSeriesKey = "A" | "B" | "C" | "temp" | "hum";
 
 export type UnifiedBarnTrendBuild = {
   categories: string[];
-  /** 레이어 필터 전 전체 시리즈 */
+  /** 레이어 필터 전 전체 시리즈 (data=split Y 매핑값) */
   seriesByKey: Partial<Record<UnifiedSeriesKey, TrendSeries>>;
   envelopesBand: TrendEnvelope | null;
   envelopesCloud: TrendEnvelope | null;
@@ -132,8 +174,8 @@ export type UnifiedBarnTrendBuild = {
 };
 
 /**
- * 패널 내 컨트롤러 equally 평균 → 좌축 모터% · 우축 온·습 알람 정규화 n.
- * 캔버스 최종안: 실선 A/B/C · 점선 온·습 · teal 클라우드 · 온도 산포.
+ * 패널 내 컨트롤러 equally 평균 → 단일 Y 상하 분리.
+ * 아래 모터% · 위 온·습 원단위(정규화 없음).
  */
 export function buildUnifiedBarnTrendSeries(
   controllerSeriesList: TrendControllerSeries[],
@@ -154,28 +196,23 @@ export function buildUnifiedBarnTrendSeries(
     len,
   );
 
-  const tempN = tempAvg.map((v) =>
-    normalizeToAlarmRange(v, thresholds.tempLow, thresholds.tempHigh),
-  );
-  const humN = humAvg.map((v) =>
-    normalizeToAlarmRange(v, thresholds.humidityLow, thresholds.humidityHigh),
-  );
-  const tempMinN = tempSpread.min.map((v) =>
-    normalizeToAlarmRange(v, thresholds.tempLow, thresholds.tempHigh),
-  );
-  const tempMaxN = tempSpread.max.map((v) =>
-    normalizeToAlarmRange(v, thresholds.tempLow, thresholds.tempHigh),
-  );
+  const fanAPlot = mapColumn(fanA, mapMotorPctToSplitY);
+  const fanBPlot = mapColumn(fanB, mapMotorPctToSplitY);
+  const fanCPlot = mapColumn(fanC, mapMotorPctToSplitY);
+  const tempPlot = mapColumn(tempAvg, mapEnvAbsToSplitY);
+  const humPlot = mapColumn(humAvg, mapEnvAbsToSplitY);
+  const tempMinPlot = mapColumn(tempSpread.min, mapEnvAbsToSplitY);
+  const tempMaxPlot = mapColumn(tempSpread.max, mapEnvAbsToSplitY);
 
-  const cloudHigh = tempN.map((t, i) => {
-    const h = humN[i];
+  const cloudHigh = tempPlot.map((t, i) => {
+    const h = humPlot[i];
     if (t == null && h == null) return null;
     if (t == null) return h;
     if (h == null) return t;
     return Math.max(t, h);
   });
-  const cloudLow = tempN.map((t, i) => {
-    const h = humN[i];
+  const cloudLow = tempPlot.map((t, i) => {
+    const h = humPlot[i];
     if (t == null && h == null) return null;
     if (t == null) return h;
     if (h == null) return t;
@@ -186,47 +223,53 @@ export function buildUnifiedBarnTrendSeries(
   const humidityRangeLabel = formatHumidityAlarmRange(thresholds);
 
   const seriesByKey: Partial<Record<UnifiedSeriesKey, TrendSeries>> = {};
-  if (hasFinite(fanA)) {
+  if (hasFinite(fanAPlot)) {
     seriesByKey.A = {
       name: "A",
-      data: fanA,
+      data: fanAPlot,
       color: TREND_CHART_COLORS.fanIntake,
       axis: "left",
+      hoverSecondary: fanA,
+      hoverSecondaryUnit: "%",
     };
   }
-  if (hasFinite(fanB)) {
+  if (hasFinite(fanBPlot)) {
     seriesByKey.B = {
       name: "B",
-      data: fanB,
+      data: fanBPlot,
       color: TREND_CHART_COLORS.fanExhaust,
       axis: "left",
+      hoverSecondary: fanB,
+      hoverSecondaryUnit: "%",
     };
   }
-  if (hasFinite(fanC)) {
+  if (hasFinite(fanCPlot)) {
     seriesByKey.C = {
       name: "C",
-      data: fanC,
+      data: fanCPlot,
       color: TREND_CHART_COLORS.fanSupply,
       axis: "left",
+      hoverSecondary: fanC,
+      hoverSecondaryUnit: "%",
     };
   }
-  if (hasFinite(tempN)) {
+  if (hasFinite(tempPlot)) {
     seriesByKey.temp = {
-      name: `온도 n (${tempRangeLabel})`,
-      data: tempN,
+      name: `온도 (${tempRangeLabel})`,
+      data: tempPlot,
       color: TREND_CHART_COLORS.temp,
-      axis: "right",
+      axis: "left",
       strokeDasharray: "5 3",
       hoverSecondary: tempAvg,
       hoverSecondaryUnit: "℃",
     };
   }
-  if (hasFinite(humN)) {
+  if (hasFinite(humPlot)) {
     seriesByKey.hum = {
-      name: `습도 n (${humidityRangeLabel})`,
-      data: humN,
+      name: `습도 (${humidityRangeLabel})`,
+      data: humPlot,
       color: TREND_CHART_COLORS.humidity,
-      axis: "right",
+      axis: "left",
       strokeDasharray: "2 2",
       hoverSecondary: humAvg,
       hoverSecondaryUnit: "%",
@@ -236,11 +279,11 @@ export function buildUnifiedBarnTrendSeries(
   if (!Object.keys(seriesByKey).length) return null;
 
   const envelopesBand =
-    hasFinite(tempMinN) && hasFinite(tempMaxN)
+    hasFinite(tempMinPlot) && hasFinite(tempMaxPlot)
       ? {
-          high: tempMaxN,
-          low: tempMinN,
-          axis: "right" as const,
+          high: tempMaxPlot,
+          low: tempMinPlot,
+          axis: "left" as const,
           fill: UNIFIED_TEMP_BAND_FILL,
           fillOpacity: 0.12,
           legendLabel: "온도 산포",
@@ -252,7 +295,7 @@ export function buildUnifiedBarnTrendSeries(
       ? {
           high: cloudHigh,
           low: cloudLow,
-          axis: "right" as const,
+          axis: "left" as const,
           fill: UNIFIED_CLOUD_FILL,
           fillOpacity: 0.22,
           legendLabel: "클라우드",
@@ -266,8 +309,8 @@ export function buildUnifiedBarnTrendSeries(
     seriesByKey,
     envelopesBand,
     envelopesCloud,
-    leftDomain: [0, 100],
-    rightDomain: [0, 100],
+    leftDomain: [...SPLIT_Y.domain],
+    rightDomain: [...SPLIT_Y.domain],
     controllerCount: controllerSeriesList.length,
     tempRangeLabel,
     humidityRangeLabel,

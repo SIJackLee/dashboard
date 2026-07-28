@@ -72,6 +72,7 @@ export function FarmChartView({
     <div
       className={cn(
         "flex min-h-0 flex-col gap-3 lg:flex-row lg:items-stretch",
+        motionClass.farmChartScopeShell,
         className,
       )}
       data-tour-id="farm-chart-view"
@@ -94,6 +95,7 @@ export function FarmChartView({
         className={cn(
           "w-full shrink-0 rounded-xl border bg-card p-3 lg:w-64 xl:w-72",
           "lg:max-h-[min(70dvh,36rem)] lg:overflow-y-auto",
+          motionClass.farmChartPanelShell,
         )}
         data-tour-id="farm-chart-scope-panel"
         aria-label="차트 집계 범위"

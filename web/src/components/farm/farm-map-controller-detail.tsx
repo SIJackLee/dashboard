@@ -37,8 +37,6 @@ import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { controllerKeyForReadingKey } from "@/lib/farm/use-barn-graphs";
 import { downsampleTrendAxis } from "@/lib/farm/trend-display-buckets";
 import { BarnPanelBottomSheet } from "@/components/farm/barn-panel-bottom-sheet";
-import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
-import { isUnifiedBarnTrendEnabled } from "@/lib/farm/unified-barn-trend-flag";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -601,18 +599,6 @@ export function FarmMapControllerDetail({
               })}
             </div>
           </div>
-
-          {isUnifiedBarnTrendEnabled() ? (
-            <UnifiedBarnTrendPanel
-              label={label}
-              controllers={controllers}
-              controllerTrendByPeriod={controllerTrendByPeriod}
-              period={period}
-              onPeriodChange={onPeriodChange}
-              alarmSettings={alarmSettings}
-              isMobileStack={isMobileStack}
-            />
-          ) : null}
 
           {/* PC·비hosted — 하단 드로어. 모바일 hosted는 부모 BarnListToolbarMobileSheet. */}
           {!sheetHosted && selected ? (

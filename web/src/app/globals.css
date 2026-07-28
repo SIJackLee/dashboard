@@ -981,6 +981,103 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
+/* ── 차트 탭 — 통합 추이 advanced motion ── */
+
+@keyframes farm-chart-plot-reveal {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes farm-chart-envelope-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes farm-chart-marker-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes farm-chart-line-soft-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.farm-chart-plot-reveal {
+  animation: farm-chart-plot-reveal var(--motion-duration-emphasis)
+    var(--motion-ease-enter) both;
+}
+
+.farm-chart-envelope-in {
+  animation: farm-chart-envelope-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+.farm-chart-line-soft-in {
+  animation: farm-chart-line-soft-in var(--motion-duration-normal)
+    var(--motion-ease-enter) both;
+  animation-delay: 80ms;
+}
+
+.farm-chart-marker-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: farm-chart-marker-pop var(--motion-duration-normal)
+    var(--motion-ease-emphasis) both;
+  animation-delay: var(--farm-chart-marker-delay, 0ms);
+}
+
+.farm-chart-brush-window {
+  transition:
+    left var(--motion-duration-normal) var(--motion-ease-standard),
+    width var(--motion-duration-normal) var(--motion-ease-standard),
+    right var(--motion-duration-normal) var(--motion-ease-standard);
+}
+
+.farm-chart-scope-shell {
+  animation: ui-motion-slide-up-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+.farm-chart-panel-shell {
+  animation: ui-motion-fade-in var(--motion-duration-normal) var(--motion-ease-enter)
+    both;
+  animation-delay: 60ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .farm-chart-plot-reveal,
+  .farm-chart-envelope-in,
+  .farm-chart-line-soft-in,
+  .farm-chart-marker-pop,
+  .farm-chart-scope-shell,
+  .farm-chart-panel-shell {
+    animation: none;
+  }
+
+  .farm-chart-brush-window {
+    transition: none;
+  }
+}
+
 /* ── 그리드 상세 — 컨트롤러 캐러셀 (enter only · 슬라이드감, 이중 레이어 잔상 없음) ── */
 
 .farm-detail-carousel {
