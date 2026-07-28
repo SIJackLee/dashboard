@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
+import { UnifiedTrendPeriodBrush } from "@/components/farm/unified-trend-period-brush";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -38,6 +39,7 @@ type Props = {
   controllers: UnifiedBarnTrendControllerRef[];
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   period: TrendPeriodId;
+  onPeriodChange?: (period: TrendPeriodId) => void;
   alarmSettings?: AlarmSettings;
   isMobileStack?: boolean;
   className?: string;
@@ -60,6 +62,7 @@ export function UnifiedBarnTrendPanel({
   controllers,
   controllerTrendByPeriod,
   period,
+  onPeriodChange,
   alarmSettings,
   isMobileStack = false,
   className,
@@ -71,6 +74,41 @@ export function UnifiedBarnTrendPanel({
     if (!withReading) return DEFAULT_ALARM_THRESHOLDS;
     return resolveReadingAlarmThresholds(withReading, alarmSettings);
   }, [controllers, alarmSettings]);
+
+  /** 브러시 스파크라인 — 30d 모터 A(없으면 온도) 평균 개요 */
+  const brushOverview = useMemo(() => {
+    const periodData = controllerTrendByPeriod?.["30d"] ?? null;
+    if (!periodData) return [];
+    const seriesList = controllers
+      .map((c) => {
+        const r = c.reading;
+        if (!r) return null;
+        return findControllerTrendSeries(
+          controllerTrendByPeriod,
+          "30d",
+          r.stallTyCode,
+          r.stallNo,
+          r.controllerKey,
+        );
+      })
+      .filter((s): s is NonNullable<typeof s> => s != null);
+    if (!seriesList.length) return [];
+    const len = Math.max(...seriesList.map((s) => s.fanIntake?.length ?? 0));
+    const out: (number | null)[] = [];
+    for (let i = 0; i < len; i++) {
+      let sum = 0;
+      let n = 0;
+      for (const s of seriesList) {
+        const v = s.fanIntake?.[i] ?? s.temp?.[i] ?? null;
+        if (v != null && Number.isFinite(v)) {
+          sum += v;
+          n += 1;
+        }
+      }
+      out.push(n > 0 ? sum / n : null);
+    }
+    return out;
+  }, [controllers, controllerTrendByPeriod]);
 
   const built = useMemo(() => {
     const periodData = controllerTrendByPeriod?.[period] ?? null;
@@ -150,6 +188,14 @@ export function UnifiedBarnTrendPanel({
         </span>
       </div>
 
+      {onPeriodChange ? (
+        <UnifiedTrendPeriodBrush
+          period={period}
+          onPeriodChange={onPeriodChange}
+          overviewValues={brushOverview}
+        />
+      ) : null}
+
       {built ? (
         <div
           className="flex flex-wrap gap-1"
@@ -194,6 +240,8 @@ export function UnifiedBarnTrendPanel({
           period={period}
           tickEvery={tickEveryForDisplayBars(built.categories.length)}
           showLegend
+          showMarkers
+          markerRadiusPx={isMobileStack ? 2.5 : 3}
           referenceLines={[
             {
               value: 0,

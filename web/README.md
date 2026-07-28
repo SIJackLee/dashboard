@@ -40,7 +40,7 @@ npm run audit:health-drilldown
 
 Playwright audit은 **dev 서버 실행 중**(`npm run dev`)에 돌립니다. 다른 포트면 `UI_VERIFY_BASE=http://localhost:3001` 설정.
 
-**농장 그래프 기간:** 그리드·목록 공유 query `trendPeriod=24h|7d|30d` (기본 24h, 생략 가능). 그리드 히트맵은 **축사 평균**, 목록 graph는 **컨트롤러 단위**입니다.
+**농장 그래프 기간:** 그리드·목록 공유 query `trendPeriod=24h|7d|30d` (기본 24h, 생략 가능). 그리드 히트맵은 **축사 평균**, 목록 graph는 **컨트롤러 단위**입니다. detail-panel **통합 추이**는 이중축(모터%·온습 n) + 레이어 칩 + 기간 브러시(30d 컨텍스트, 우측 now 정렬 스냅)로 동일 `trendPeriod`를 바꿉니다.
 
 ## 환경변수 (`.env.local`)
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useLayoutEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
@@ -76,6 +76,10 @@ type TrendChartProps = {
    * (viewBox가 non-uniform 스케일이라 px 대신 % 단위를 사용)
    */
   barWidthCapPct?: number;
+  /** line 모드 데이터 점 표시. 기본 true. */
+  showMarkers?: boolean;
+  /** 화면 기준 점 반지름(px). preserveAspectRatio=none 보정에 사용. */
+  markerRadiusPx?: number;
 };
 
 const PAD_X = 6;
@@ -190,8 +194,28 @@ export function TrendChart({
   period,
   barWidthCapPct,
   showLegend = true,
+  showMarkers = true,
+  markerRadiusPx = 3,
 }: TrendChartProps) {
   const [hover, setHover] = useState<{ idx: number; xPx: number; w: number } | null>(null);
+  const plotRef = useRef<HTMLDivElement | null>(null);
+  const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
+
+  useLayoutEffect(() => {
+    const el = plotRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const apply = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setPlotPx({ w: rect.width, h: rect.height });
+      }
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [height, categories.length, series.length]);
+
   const hasAny = series.some((s) => s.data?.some((v) => v != null));
   const n = categories.length;
 
@@ -199,6 +223,10 @@ export function TrendChart({
   const chartH = height - axisH;
   const innerW = VIEW_W - PAD_X * 2;
   const innerH = chartH - PAD_TOP * 2;
+
+  /** preserveAspectRatio=none 에서 원이 옆으로 퍼지지 않도록 viewBox rx/ry 보정 */
+  const markerRx = (rPx: number) => (rPx * VIEW_W) / Math.max(1, plotPx.w);
+  const markerRy = (rPx: number) => (rPx * chartH) / Math.max(1, plotPx.h);
 
   const usesRight = series.some((s) => s.axis === "right") || referenceLines.some((r) => r.axis === "right");
 
@@ -501,6 +529,7 @@ export function TrendChart({
       ) : null}
 
       <div
+        ref={plotRef}
         className="relative"
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
@@ -620,34 +649,42 @@ export function TrendChart({
                       vectorEffect="non-scaling-stroke"
                     />
                   ))}
-                  {s.data.map((v, i) => {
-                    if (v == null || !Number.isFinite(v)) return null;
-                    const cx = xFor(i);
-                    const cy = yFor(v, axis);
-                    if (s.band) {
-                      const sev = sevOfScore(severityScore(v, s.band));
-                      if (sev !== "normal") {
+                  {showMarkers
+                    ? s.data.map((v, i) => {
+                        if (v == null || !Number.isFinite(v)) return null;
+                        const cx = xFor(i);
+                        const cy = yFor(v, axis);
+                        const active = Boolean(hover && hover.idx === i);
+                        const rPx = active
+                          ? markerRadiusPx + 1.2
+                          : markerRadiusPx;
+                        if (s.band) {
+                          const sev = sevOfScore(severityScore(v, s.band));
+                          if (sev !== "normal") {
+                            return (
+                              <ellipse
+                                key={`${s.name}-sev-${i}`}
+                                cx={cx}
+                                cy={cy}
+                                rx={markerRx(rPx)}
+                                ry={markerRy(rPx)}
+                                fill={SEV_COLOR[sev]}
+                              />
+                            );
+                          }
+                        }
                         return (
-                          <circle
-                            key={`${s.name}-sev-${i}`}
+                          <ellipse
+                            key={`${s.name}-dot-${i}`}
                             cx={cx}
                             cy={cy}
-                            r={hover && hover.idx === i ? 2.4 : 2}
-                            fill={SEV_COLOR[sev]}
+                            rx={markerRx(rPx)}
+                            ry={markerRy(rPx)}
+                            fill={s.color}
                           />
                         );
-                      }
-                    }
-                    return (
-                      <circle
-                        key={`${s.name}-dot-${i}`}
-                        cx={cx}
-                        cy={cy}
-                        r={hover && hover.idx === i ? 1.8 : 0.9}
-                        fill={s.color}
-                      />
-                    );
-                  })}
+                      })
+                    : null}
                 </g>
               );
             })}

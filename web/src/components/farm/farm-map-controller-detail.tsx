@@ -608,6 +608,7 @@ export function FarmMapControllerDetail({
               controllers={controllers}
               controllerTrendByPeriod={controllerTrendByPeriod}
               period={period}
+              onPeriodChange={onPeriodChange}
               alarmSettings={alarmSettings}
               isMobileStack={isMobileStack}
             />
