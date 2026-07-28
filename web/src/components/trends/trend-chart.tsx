@@ -322,25 +322,35 @@ export function TrendChart({
   /**
    * 끝단 라벨 배치
    * - 단일 Y: 좌=한계(점선), 우=관측(녹색)
-   * - 이중 Y: 좌끝=left축, 우끝=right축 (한계·관측 색으로 구분)
+   * - 이중 Y: 좌끝=left축, 우끝=right축 — 각 축 시리즈 고유색(온도·습도)
    */
   const edgeBandLabels = useMemo(() => {
     if (mode !== "line") return [] as EdgeBandLabel[];
     const out: EdgeBandLabel[] = [];
+    const seriesColorForAxis = (axis: TrendAxis): string | null => {
+      const match = series.find((s) => (s.axis ?? "left") === axis);
+      return match?.color ?? null;
+    };
     const sideFor = (axis: TrendAxis, kind: "limit" | "observed"): "left" | "right" => {
       if (usesRight) return axis === "right" ? "right" : "left";
       return kind === "limit" ? "left" : "right";
+    };
+    const colorFor = (axis: TrendAxis, kind: "limit" | "observed"): string => {
+      if (usesRight) {
+        return seriesColorForAxis(axis) ?? SEV_COLOR.warning;
+      }
+      return kind === "limit" ? SEV_COLOR.warning : SEV_COLOR.normal;
     };
     const pushBand = (
       band: Band,
       axis: TrendAxis,
       kind: "limit" | "observed",
-      color: string,
       keyPrefix: string,
     ) => {
       const unit = unitForAxis(axis);
       const side = sideFor(axis, kind);
       const titleKind = kind === "limit" ? "한계" : "관측";
+      const color = colorFor(axis, kind);
       for (const edge of ["hi", "lo"] as const) {
         const value = band[edge];
         const y = yFor(value, axis);
@@ -356,10 +366,10 @@ export function TrendChart({
       }
     };
     uniqueAlarmBands.forEach(({ band, axis }, idx) => {
-      pushBand(band, axis, "limit", SEV_COLOR.warning, `alarm-${idx}`);
+      pushBand(band, axis, "limit", `alarm-${idx}`);
     });
     observedBands.forEach(({ band, axis }, idx) => {
-      pushBand(band, axis, "observed", SEV_COLOR.normal, `obs-${idx}`);
+      pushBand(band, axis, "observed", `obs-${idx}`);
     });
     for (const ref of dedupedReferenceLines) {
       const axis = ref.axis ?? "left";
@@ -372,7 +382,9 @@ export function TrendChart({
         text:
           ref.label?.trim() ||
           formatTrendBandEdge(ref.value, unitForAxis(axis)),
-        color: ref.color,
+        color: usesRight
+          ? seriesColorForAxis(axis) ?? ref.color
+          : ref.color,
         title: "한계",
       });
     }
@@ -382,6 +394,7 @@ export function TrendChart({
   }, [
     mode,
     usesRight,
+    series,
     uniqueAlarmBands,
     observedBands,
     dedupedReferenceLines,
@@ -648,11 +661,15 @@ export function TrendChart({
             <div className="mt-1 space-y-0.5 border-t border-border/60 pt-1">
               {uniqueAlarmBands.map(({ band, axis }, idx) => {
                 const unit = unitForAxis(axis);
+                const tipColor = usesRight
+                  ? series.find((s) => (s.axis ?? "left") === axis)?.color ??
+                    SEV_COLOR.warning
+                  : SEV_COLOR.warning;
                 return (
                   <div
                     key={`tip-alarm-${idx}`}
                     className="flex items-center justify-between gap-2 text-[9px]"
-                    style={{ color: SEV_COLOR.warning }}
+                    style={{ color: tipColor }}
                   >
                     <span>한계{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
                     <span className="tabular-nums">
@@ -663,11 +680,15 @@ export function TrendChart({
               })}
               {observedBands.map(({ band, axis }, idx) => {
                 const unit = unitForAxis(axis);
+                const tipColor = usesRight
+                  ? series.find((s) => (s.axis ?? "left") === axis)?.color ??
+                    SEV_COLOR.normal
+                  : SEV_COLOR.normal;
                 return (
                   <div
                     key={`tip-obs-${idx}`}
                     className="flex items-center justify-between gap-2 text-[9px]"
-                    style={{ color: SEV_COLOR.normal }}
+                    style={{ color: tipColor }}
                   >
                     <span>관측{usesRight ? (axis === "right" ? "(우)" : "(좌)") : ""}</span>
                     <span className="tabular-nums">
