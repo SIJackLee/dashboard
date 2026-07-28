@@ -17,21 +17,21 @@ import type {
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state";
-import { SEV_COLOR } from "@/lib/farm/severity-score";
-import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
+import { SEV_COLOR, type Band } from "@/lib/farm/severity-score";
 import {
   currentStackMetricValue,
   formatStackMetricValue,
   worstSingleStackMetric,
   type StackMetric,
 } from "@/lib/farm/stack-metric";
+import { TrendChart, type TrendSeries } from "@/components/trends/trend-chart";
 import { ControllerSummaryGaugeRow } from "./controller-summary-gauge-row";
 import { BarnListGraphPanel } from "./barn-list-graph-panel";
-import { MetricLineChart } from "./severity-heatmap";
 import { PanelCloseButton } from "./panel-close-button";
 import { GridMetricLabel, gridMetricAriaLabel } from "@/lib/farm/grid-metric-label";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { controllerKeyForReadingKey } from "@/lib/farm/use-barn-graphs";
+import { downsampleTrendAxis } from "@/lib/farm/trend-display-buckets";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -44,6 +44,22 @@ const METRIC_TABS: { id: string; label: string }[] = [
   { id: "B", label: "B" },
   { id: "C", label: "C" },
 ];
+
+/** 컨트롤러 오버레이 선 색 — 대수를 구분 (지표 탭 색과 별개). */
+const CONTROLLER_OVERLAY_COLORS = [
+  "#ef4444",
+  "#0ea5e9",
+  "#10b981",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+  "#6366f1",
+  "#84cc16",
+  "#06b6d4",
+  "#a855f7",
+] as const;
 
 function isFeatureTourActive(): boolean {
   return (
@@ -387,15 +403,92 @@ export function FarmMapControllerDetail({
   };
 
   const count = controllers.length;
-  const useColGrid = typeof gridCols === "number" && gridCols >= 1;
-  const gridColsClass =
-    count <= 2
-      ? "sm:grid-cols-2"
-      : count <= 6
-        ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-        : "sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6";
-  const chartHeight = count <= 2 ? 84 : count <= 6 ? 64 : 48;
-  const dense = count > 6;
+
+  const overlayMetric = useMemo(() => {
+    const rows = controllers.map((c, index) => {
+      const metric = c.metricsById[effectiveMetricId] ?? null;
+      const color =
+        CONTROLLER_OVERLAY_COLORS[index % CONTROLLER_OVERLAY_COLORS.length]!;
+      return {
+        key: c.key,
+        label: c.label,
+        eqpmnNo: c.eqpmnNo,
+        color,
+        metric,
+        cur: metric ? currentStackMetricValue(metric.values) : null,
+        worst: metric ? worstSingleStackMetric(metric) : ("normal" as const),
+      };
+    });
+    const withData = rows.filter((r) =>
+      r.metric?.values.some((v) => v != null && Number.isFinite(v)),
+    );
+    const sampleLen = Math.max(
+      0,
+      ...withData.map((r) => r.metric?.values.length ?? 0),
+    );
+    const rawCats = controllerTrendByPeriod?.[period]?.categories ?? [];
+    const categoriesBase =
+      rawCats.length === sampleLen && sampleLen > 0
+        ? rawCats
+        : sampleLen > 0
+          ? Array.from({ length: sampleLen }, (_, i) => String(i + 1))
+          : [];
+    const columnsRaw = withData.map((r) => {
+      const values = r.metric?.values ?? [];
+      if (values.length === sampleLen) return values;
+      const padded = values.slice();
+      while (padded.length < sampleLen) padded.push(null);
+      return padded.slice(0, sampleLen);
+    });
+    const downsampled =
+      categoriesBase.length > 0
+        ? downsampleTrendAxis(categoriesBase, columnsRaw, period)
+        : { categories: [] as string[], columns: [] as (number | null)[][] };
+    const series: TrendSeries[] = withData.map((r, i) => ({
+      name: r.label,
+      data: downsampled.columns[i] ?? r.metric?.values ?? [],
+      color: r.color,
+    }));
+    const sharedBand: Band | null =
+      rows.map((r) => r.metric?.band ?? null).find((b) => b != null) ?? null;
+    const unit = rows.find((r) => r.metric?.unit)?.metric?.unit ?? "";
+    const leftDomain: [number, number] | undefined =
+      effectiveMetricId === "T" || effectiveMetricId === "H"
+        ? sharedBand
+          ? [sharedBand.lo, sharedBand.hi]
+          : undefined
+        : [0, 100];
+    const referenceLines = sharedBand
+      ? [
+          {
+            value: sharedBand.lo,
+            axis: "left" as const,
+            color: SEV_COLOR.warning,
+            label: formatStackMetricValue(sharedBand.lo, unit),
+          },
+          {
+            value: sharedBand.hi,
+            axis: "left" as const,
+            color: SEV_COLOR.warning,
+            label: formatStackMetricValue(sharedBand.hi, unit),
+          },
+        ]
+      : [];
+    return {
+      rows,
+      series,
+      categories: downsampled.categories,
+      unit,
+      leftDomain,
+      referenceLines,
+      hasData: series.length > 0 && downsampled.categories.length > 0,
+    };
+  }, [
+    controllers,
+    effectiveMetricId,
+    controllerTrendByPeriod,
+    period,
+  ]);
 
   return (
     <div
@@ -456,81 +549,67 @@ export function FarmMapControllerDetail({
         <>
           {!selected ? (
           <div
-            className={cn(
-              "grid",
-              !useColGrid && cn("grid-cols-1 gap-2", gridColsClass),
-            )}
+            className="space-y-2 rounded-md border bg-background p-2.5 sm:p-3"
             data-tour-id="detail-panel-charts"
-            style={
-              useColGrid
-                ? {
-                    gridTemplateColumns: `repeat(${gridCols}, minmax(4.75rem, 1fr))`,
-                    gap: "0.375rem",
-                  }
-                : undefined
-            }
           >
-            {controllers.map((c, chartIndex) => {
-              const metric = c.metricsById[effectiveMetricId];
-              const cur = metric ? currentStackMetricValue(metric.values) : null;
-              const worst = metric ? worstSingleStackMetric(metric) : "normal";
-              const isSel = c.key === selectedKey;
-              return (
+            {overlayMetric.hasData ? (
+              <TrendChart
+                mode="line"
+                categories={overlayMetric.categories}
+                series={overlayMetric.series}
+                height={isMobileStack ? 140 : 168}
+                leftUnit={overlayMetric.unit}
+                leftDomain={overlayMetric.leftDomain}
+                referenceLines={overlayMetric.referenceLines}
+                period={period}
+                showLegend={count <= 8}
+              />
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                선택한 기간에 수신된 데이터가 없습니다.
+              </p>
+            )}
+            <div
+              className="flex flex-wrap gap-1.5"
+              role="list"
+              aria-label="컨트롤러 선택"
+            >
+              {overlayMetric.rows.map((row, index) => (
                 <button
-                  key={c.key}
+                  key={row.key}
                   type="button"
+                  role="listitem"
                   data-tour-id={
-                    chartIndex === 0 ? "detail-panel-chart-first" : undefined
+                    index === 0 ? "detail-panel-chart-first" : undefined
                   }
-                  onClick={() => selectController(c.key)}
-                  aria-pressed={isSel}
+                  onClick={() => selectController(row.key)}
                   className={cn(
-                    "flex flex-col rounded-md border bg-background p-2 text-left hover:border-sky-400",
+                    "inline-flex min-w-0 items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-left text-[0.7rem] hover:border-sky-400",
                     motionClass.microHover,
-                    isSel && "border-sky-500 ring-2 ring-sky-500/30",
-                    !isSel && worst === "warning" && "border-red-500/50",
-                    !isSel && worst === "caution" && "border-amber-500/50",
+                    row.worst === "warning" && "border-red-500/50",
+                    row.worst === "caution" && "border-amber-500/50",
                   )}
                 >
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <span
-                      className="inline-block size-2 shrink-0 rounded-sm"
-                      style={{ background: SEV_COLOR[worst] }}
-                      aria-hidden
-                    />
-                    <span className="truncate text-[0.7rem] font-semibold">
-                      {c.label}
+                  <span
+                    className="inline-block size-2 shrink-0 rounded-sm"
+                    style={{ background: row.color }}
+                    aria-hidden
+                  />
+                  <span className="truncate font-semibold">{row.label}</span>
+                  {!isMobileStack ? (
+                    <span className="shrink-0 text-[0.6rem] text-muted-foreground">
+                      EQP{row.eqpmnNo}
                     </span>
-                    {!dense ? (
-                      <span className="shrink-0 text-[0.6rem] text-muted-foreground">
-                        EQP{c.eqpmnNo}
-                      </span>
-                    ) : null}
-                    <span
-                      className="ml-auto shrink-0 text-[0.7rem] font-semibold"
-                      style={{ color: SEV_COLOR[worst] }}
-                    >
-                      {formatStackMetricValue(cur, metric?.unit)}
-                    </span>
-                  </div>
-                  {metric ? (
-                    <MetricLineChart
-                      values={metric.values}
-                      band={metric.band}
-                      height={chartHeight}
-                      color={METRIC_ID_COLORS[effectiveMetricId] ?? "#0ea5e9"}
-                    />
-                  ) : (
-                    <div
-                      className="flex items-center justify-center text-[0.65rem] text-muted-foreground"
-                      style={{ height: chartHeight }}
-                    >
-                      데이터 없음
-                    </div>
-                  )}
+                  ) : null}
+                  <span
+                    className="ml-0.5 shrink-0 font-semibold tabular-nums"
+                    style={{ color: SEV_COLOR[row.worst] }}
+                  >
+                    {formatStackMetricValue(row.cur, row.metric?.unit)}
+                  </span>
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
           ) : null}
 

@@ -185,7 +185,7 @@ export function useBarnGraphs({
     return { graphByBarnId: map, metricIdsByBarnId: idsMap };
   }, [enabled, graphPeriod, trendByPeriod, barns, controller, expanded, heatmapLabelMode]);
 
-  /** 확대된 축사의 컨트롤러별 상세 데이터(스몰멀티플 + 목록 UI 재사용). */
+  /** 확대된 축사의 컨트롤러별 상세(오버레이 추이 + 목록 UI 재사용). */
   const detail = useMemo<FarmMapControllerDetailData | null>(() => {
     if (!enabled || !expanded) return null;
     const b = barns.find((x) => x.meta.id === expanded.barnId);
