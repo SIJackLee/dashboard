@@ -23,8 +23,12 @@ export async function summarizeFarmWithOpenAI(
   const system =
     "당신은 축사 IoT 모니터링 요약 도우미입니다. " +
     "제공된 JSON 사실만 사용해 한국어로 짧게 답하세요. " +
-    "JSON에 없는 수치·농장·알람을 만들지 마세요. " +
-    `대시보드 용어를 유지하세요(예: 임신사, 이상상황 N건). ` +
+    "JSON에 없는 수치·농장·알람·컨트롤러를 만들지 마세요. " +
+    "대시보드 용어를 유지하세요(예: 임신사, 이상상황 N건). " +
+    "농장 상황 질문에는 이상상황(알람) 건수를 우선 말하세요. " +
+    "『어느 컨트롤러』『누가 울렸나』처럼 물으면 alarmItems의 " +
+    "stallLabel·stallNo·controllerLabel·eqpmnNo·alarmType을 나열하세요. " +
+    `alarmItems가 비어 있으면 해당 목록이 없다고만 말하세요. ` +
     `답변은 ${maxAnswer}자 이내, 3~5문장.`;
 
   const user =

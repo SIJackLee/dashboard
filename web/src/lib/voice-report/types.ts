@@ -20,6 +20,20 @@ export type VoiceFarmFacts = {
     tempAvgC: number | null;
     humidityAvgPct: number | null;
   }[];
+  /**
+   * 활성 알람 상세 — 「어느 컨트롤러?」 후속 질문용.
+   * 건수가 많으면 위험 우선 상위 N건만.
+   */
+  alarmItems: {
+    stallLabel: string;
+    stallNo: string | null;
+    controllerLabel: string;
+    controllerKey: string;
+    eqpmnNo: string;
+    alarmType: string;
+    severity: "warning" | "critical";
+    detail: string;
+  }[];
   generatedAt: string;
 };
 
