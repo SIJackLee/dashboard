@@ -22,18 +22,22 @@ export async function summarizeFarmWithOpenAI(
   const maxAnswer = VOICE_LIMITS.maxAnswerChars();
   const system =
     "당신은 축사 IoT 모니터링 요약 도우미입니다. " +
-    "제공된 JSON 사실만 사용해 한국어로 짧게 답하세요. " +
-    "JSON에 없는 수치·농장·알람·컨트롤러를 만들지 마세요. " +
-    "대시보드 용어를 유지하세요(예: 임신사, 이상상황 N건). " +
-    "농장 상황 질문에는 이상상황(알람) 건수를 우선 말하세요. " +
-    "『어느 컨트롤러』『누가 울렸나』처럼 물으면 alarmItems의 " +
-    "stallLabel·stallNo·controllerLabel·eqpmnNo·alarmType을 나열하세요. " +
-    `alarmItems가 비어 있으면 해당 목록이 없다고만 말하세요. ` +
+    "아래 현황 데이터에 있는 내용만 사용해 한국어로 짧게 답하세요. " +
+    "데이터에 없는 수치·농장·이상상황·컨트롤러를 만들지 마세요. " +
+    "대시보드 정식 명칭만 사용하세요(예: 농장 표시명, 임신사, 이상상황 N건, 컨트롤러 표시명). " +
+    "절대 금지: 내부 ID·키·코드 노출(예: FARM01/P00, farmKey, controllerKey, stallTyCode), " +
+    "영문 필드명·기술 용어 언급(예: JSON, alarmItems, severity, critical), " +
+    "『데이터가 없어서』『JSON에 없어서』 같은 메타 설명. " +
+    "값이 없으면 『현재 확인된 이상상황이 없습니다』처럼 자연스럽게 말하세요. " +
+    "농장 상황 질문에는 이상상황 건수를 우선 말하세요. " +
+    "『어느 컨트롤러』『누가 울렸나』처럼 물으면 이상상황 목록의 " +
+    "축사유형·축사번호·컨트롤러명·장비번호·이상유형을 나열하세요. " +
+    "심각도는 『위험』『주의』로만 말하세요. " +
     `답변은 ${maxAnswer}자 이내, 3~5문장.`;
 
   const user =
-    `질문: ${question}\n\n사실 JSON:\n${factsJson}\n\n` +
-    `농장 라벨: ${facts.farmLabel}`;
+    `질문: ${question}\n\n현황 데이터:\n${factsJson}\n\n` +
+    `농장 표시명: ${facts.farmLabel}`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",

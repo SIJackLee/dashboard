@@ -1,16 +1,35 @@
 import "server-only";
 
 import type { CurrentUser } from "@/lib/auth/get-current-user";
-import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import type { FarmKey } from "@/lib/data/farm-key";
 import { getAlarmSettings } from "@/lib/data/alarm-settings";
 import {
   deriveAlarmsFromReadings,
   summarizeAlarms,
 } from "@/lib/data/alarms";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
 import { getLiveReadings } from "@/lib/data/iot";
 import { STALL_TYPE_NAMES, normalizeStallTyCode } from "@/lib/data/stall-type";
 import { VOICE_LIMITS } from "@/lib/voice-report/limits";
 import type { VoiceFarmFacts } from "@/lib/voice-report/types";
+
+function controllerDisplayLabel(args: {
+  label?: string | null;
+  eqpmnNo?: string | null;
+  stallNo?: string | null;
+}): string {
+  const label = args.label?.trim();
+  if (label) return label;
+  const eqpmnNo = args.eqpmnNo?.trim();
+  if (eqpmnNo) return `장비 ${eqpmnNo}`;
+  const stallNo = args.stallNo?.trim();
+  if (stallNo) return `축사 ${stallNo} 컨트롤러`;
+  return "컨트롤러";
+}
+
+function severityLabel(severity: "warning" | "critical"): "주의" | "위험" {
+  return severity === "critical" ? "위험" : "주의";
+}
 
 /** 프롬프트 한도 안에서 「어느 컨트롤러?」에 답할 수 있는 상위 건수 */
 const MAX_ALARM_ITEMS = 24;
@@ -99,7 +118,14 @@ export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> 
   const online = scoped.filter((r) => r.status !== "offline").length;
 
   const labelByKey = new Map(
-    scoped.map((r) => [r.controllerKey, r.label || r.eqpmnNo || r.controllerKey]),
+    scoped.map((r) => [
+      r.controllerKey,
+      controllerDisplayLabel({
+        label: r.label,
+        eqpmnNo: r.eqpmnNo,
+        stallNo: r.stallNo,
+      }),
+    ]),
   );
 
   const alarmItems = [...alarms]
@@ -118,7 +144,11 @@ export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> 
         stallLabel,
         stallNo: a.stallNo,
         controllerLabel:
-          labelByKey.get(a.controllerKey) ?? a.eqpmnNo ?? a.controllerKey,
+          labelByKey.get(a.controllerKey) ??
+          controllerDisplayLabel({
+            eqpmnNo: a.eqpmnNo,
+            stallNo: a.stallNo,
+          }),
         controllerKey: a.controllerKey,
         eqpmnNo: a.eqpmnNo,
         alarmType: a.alarmType,
@@ -129,7 +159,7 @@ export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> 
 
   return {
     farmKey,
-    farmLabel: farmKeyId(farmKey),
+    farmLabel: farmShortLabel(farmKey),
     totalControllers: scoped.length,
     onlineControllers: online,
     offlineControllers: scoped.length - online,
@@ -142,8 +172,35 @@ export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> 
   };
 }
 
+/** 모델에 넘기는 표시용 페이로드 — 내부 키·영문 기술 필드 제외 */
 export function factsToPromptJson(facts: VoiceFarmFacts): string {
-  const raw = JSON.stringify(facts);
+  const forPrompt = {
+    농장: facts.farmLabel,
+    컨트롤러합계: facts.totalControllers,
+    온라인: facts.onlineControllers,
+    오프라인: facts.offlineControllers,
+    이상상황합계: facts.alarmTotal,
+    위험: facts.alarmCritical,
+    주의: facts.alarmWarning,
+    축사유형별: facts.stalls.map((s) => ({
+      축사유형: s.stallLabel,
+      컨트롤러수: s.controllers,
+      온라인: s.online,
+      이상상황: s.alarmCount,
+      평균온도C: s.tempAvgC,
+      평균습도Pct: s.humidityAvgPct,
+    })),
+    이상상황목록: facts.alarmItems.map((a) => ({
+      축사유형: a.stallLabel,
+      축사번호: a.stallNo,
+      컨트롤러: a.controllerLabel,
+      장비번호: a.eqpmnNo,
+      이상유형: a.alarmType,
+      심각도: severityLabel(a.severity),
+      상세: a.detail,
+    })),
+  };
+  const raw = JSON.stringify(forPrompt);
   const max = VOICE_LIMITS.maxFactChars();
   if (raw.length <= max) return raw;
   return raw.slice(0, max);
@@ -172,10 +229,10 @@ export function buildTemplateSummary(facts: VoiceFarmFacts, maxChars: number): s
       .slice(0, 3)
       .map(
         (a) =>
-          `${a.stallLabel}${a.stallNo ? ` ${a.stallNo}번` : ""} ${a.controllerLabel}(${a.alarmType})`,
+          `${a.stallLabel}${a.stallNo ? ` ${a.stallNo}번` : ""} ${a.controllerLabel}(${a.alarmType}, ${severityLabel(a.severity)})`,
       )
       .join(", ");
-    text += ` 주요 알람: ${top}.`;
+    text += ` 주요 이상상황: ${top}.`;
   }
   if (tempBits) text += ` 온도는 ${tempBits} 수준입니다.`;
 
