@@ -316,9 +316,9 @@ export const dashboardUi = {
 
   /* ScopeBar — Phase 2 통합 (farm · SP · stall · Refresh) */
   scopeBar:
-    "rounded-xl border bg-muted/20 px-4 py-3 md:px-5 md:py-4",
+    "relative overflow-visible rounded-xl border bg-muted/20 px-4 py-3 md:px-5 md:py-4",
   scopeBarSticky:
-    "sticky top-0 z-20 border-b backdrop-blur supports-[backdrop-filter]:bg-background/90",
+    "sticky top-0 z-20 overflow-visible border-b backdrop-blur supports-[backdrop-filter]:bg-background/90",
   scopeChip: "rounded-full border px-4 py-2 text-[1.625rem] font-medium leading-snug",
   scopeLabel: "text-2xl font-medium text-muted-foreground",
 

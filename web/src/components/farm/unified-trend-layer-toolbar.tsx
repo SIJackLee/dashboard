@@ -193,6 +193,7 @@ function LayerFlyout({
   items,
   side,
   tone,
+  staggerIndex = 0,
 }: {
   id: string;
   open: boolean;
@@ -200,6 +201,8 @@ function LayerFlyout({
   /** bottom=아래로, left=오른쪽→왼쪽 */
   side: "bottom" | "left";
   tone: Tone;
+  /** 루트 일괄 펼침 시 그룹별 지연 */
+  staggerIndex?: number;
 }) {
   const { mounted, phase } = useOpenPresence(open, motionDuration.exit + 80);
   const nodes = useMemo(
@@ -241,6 +244,11 @@ function LayerFlyout({
         tone === "root" && "border-sky-300/50 dark:border-sky-900/40",
         phase === "enter" ? enter : exit,
       )}
+      style={
+        {
+          ["--farm-layer-group-i" as string]: String(staggerIndex),
+        } as CSSProperties
+      }
       aria-hidden={phase === "exit"}
       data-farm-layer-flyout=""
       data-side={side}
@@ -303,6 +311,13 @@ export function UnifiedTrendLayerToolbar({
     onMotorMenuOpenChange(false);
   };
 
+  /** 루트 열릴 때 온도·습도·모터 하위 플라이아웃도 함께 펼침 */
+  const openAllGroups = () => {
+    if (available.temp) onTempMenuOpenChange(true);
+    if (available.hum) onHumMenuOpenChange(true);
+    if (available.motors) onMotorMenuOpenChange(true);
+  };
+
   useEffect(() => {
     if (rootOpen) return;
     closeGroups();
@@ -350,7 +365,7 @@ export function UnifiedTrendLayerToolbar({
   return (
     <TooltipProvider delay={200}>
       <div
-        className={cn("relative inline-flex items-center", className)}
+        className={cn("relative inline-flex items-center overflow-visible", className)}
         data-tour-id="unified-trend-layer-toolbar"
         aria-label="통합 추이 레이어"
       >
@@ -360,7 +375,14 @@ export function UnifiedTrendLayerToolbar({
           expanded={rootOpen}
           controls="unified-layer-groups"
           tone="root"
-          onClick={() => setRootOpen((v) => !v)}
+          onClick={() => {
+            if (rootOpen) {
+              setRootOpen(false);
+              return;
+            }
+            setRootOpen(true);
+            openAllGroups();
+          }}
         >
           <LineChart className="size-4 md:size-5" aria-hidden />
           <LayerCountBadge count={totalActive} tone="root" />
@@ -381,7 +403,7 @@ export function UnifiedTrendLayerToolbar({
             data-farm-layer-column=""
             data-phase={rootPhase}
             className={cn(
-              "absolute right-0 top-[calc(100%+8px)] z-[70] flex flex-col gap-1 rounded-xl border border-sky-300/50 bg-popover/95 p-1.5 shadow-lg ring-1 ring-foreground/10 backdrop-blur-sm dark:border-sky-900/40",
+              "absolute right-0 top-[calc(100%+8px)] z-[70] flex flex-col gap-1 overflow-visible rounded-xl border border-sky-300/50 bg-popover/95 p-1.5 shadow-lg ring-1 ring-foreground/10 backdrop-blur-sm dark:border-sky-900/40",
               rootPhase === "enter"
                 ? motionClass.farmChartLayerColumnEnter
                 : motionClass.farmChartLayerColumnExit,
@@ -412,14 +434,7 @@ export function UnifiedTrendLayerToolbar({
                   expanded={tempMenuOpen}
                   controls="unified-temp-sublayers"
                   tone="temp"
-                  onClick={() => {
-                    const next = !tempMenuOpen;
-                    onTempMenuOpenChange(next);
-                    if (next) {
-                      onHumMenuOpenChange(false);
-                      onMotorMenuOpenChange(false);
-                    }
-                  }}
+                  onClick={() => onTempMenuOpenChange(!tempMenuOpen)}
                 >
                   <Thermometer className="size-4 md:size-5" aria-hidden />
                   {layers.temp ? (
@@ -431,6 +446,7 @@ export function UnifiedTrendLayerToolbar({
                   open={tempMenuOpen}
                   side="left"
                   tone="temp"
+                  staggerIndex={groupOrder.indexOf("temp")}
                   items={[
                     <IconTipButton
                       key="temp-main"
@@ -481,14 +497,7 @@ export function UnifiedTrendLayerToolbar({
                   expanded={humMenuOpen}
                   controls="unified-hum-sublayers"
                   tone="hum"
-                  onClick={() => {
-                    const next = !humMenuOpen;
-                    onHumMenuOpenChange(next);
-                    if (next) {
-                      onTempMenuOpenChange(false);
-                      onMotorMenuOpenChange(false);
-                    }
-                  }}
+                  onClick={() => onHumMenuOpenChange(!humMenuOpen)}
                 >
                   <Droplets className="size-4 md:size-5" aria-hidden />
                   {layers.hum ? (
@@ -500,6 +509,7 @@ export function UnifiedTrendLayerToolbar({
                   open={humMenuOpen}
                   side="left"
                   tone="hum"
+                  staggerIndex={groupOrder.indexOf("hum")}
                   items={[
                     <IconTipButton
                       key="hum-main"
@@ -550,14 +560,7 @@ export function UnifiedTrendLayerToolbar({
                   expanded={motorMenuOpen}
                   controls="unified-motor-sublayers"
                   tone="motor"
-                  onClick={() => {
-                    const next = !motorMenuOpen;
-                    onMotorMenuOpenChange(next);
-                    if (next) {
-                      onTempMenuOpenChange(false);
-                      onHumMenuOpenChange(false);
-                    }
-                  }}
+                  onClick={() => onMotorMenuOpenChange(!motorMenuOpen)}
                 >
                   <Fan className="size-4 md:size-5" aria-hidden />
                   {layers.motors ? (
@@ -569,6 +572,7 @@ export function UnifiedTrendLayerToolbar({
                   open={motorMenuOpen}
                   side="left"
                   tone="motor"
+                  staggerIndex={groupOrder.indexOf("motors")}
                   items={[
                     <IconTipButton
                       key="motor-main"

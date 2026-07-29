@@ -169,9 +169,19 @@ export function ScopeBar({
       />
     ) : null;
 
+  const chartLayersSlot = (className?: string) => (
+    <div
+      data-farm-chart-layers-slot
+      className={cn(
+        "relative flex min-w-0 shrink-0 items-center overflow-visible empty:hidden",
+        className,
+      )}
+    />
+  );
+
   const titleRow =
     adminFarmSwitcher != null ? (
-      /* 모바일: 농장 / (토글+레이어) 2행 — 한 줄 겹침 방지. sm+=가로 */
+      /* 모바일: 농장 / 토글 2행. 레이어는 refresh와 함께 우측 끝 */
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="min-w-0 shrink">
           <FarmSwitcher
@@ -179,18 +189,11 @@ export function ScopeBar({
             compact={adminFarmSwitcher.compact}
           />
         </div>
-        <div className="flex min-w-0 items-center gap-2 sm:ml-auto">
-          {/* FarmPageContent 보기 토글(그리드/목록/차트) portal 대상 */}
-          <div
-            data-farm-view-toggle-slot
-            className="flex min-w-0 shrink-0 items-center"
-          />
-          {/* 차트 탭 레이어 툴바 portal — 비어 있으면 숨김(차트 외 뷰) */}
-          <div
-            data-farm-chart-layers-slot
-            className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden sm:ml-0"
-          />
-        </div>
+        {/* FarmPageContent 보기 토글(그리드/목록/차트) portal 대상 */}
+        <div
+          data-farm-view-toggle-slot
+          className="flex min-w-0 shrink-0 items-center sm:ml-auto"
+        />
       </div>
     ) : multiFarm && onFarmChange ? (
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -212,10 +215,7 @@ export function ScopeBar({
             }}
           />
         ))}
-        <div
-          data-farm-chart-layers-slot
-          className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden"
-        />
+        {chartLayersSlot("ml-auto")}
       </div>
     ) : showFarmMeta ? (
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -236,10 +236,16 @@ export function ScopeBar({
             </>
           ) : null}
         </p>
-        <div
-          data-farm-chart-layers-slot
-          className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden"
-        />
+        {chartLayersSlot("ml-auto")}
+      </div>
+    ) : null;
+
+  const rightTools =
+    adminFarmSwitcher != null || refreshSlot != null ? (
+      <div className="flex shrink-0 items-start gap-1.5">
+        {refreshSlot}
+        {/* Admin: 차트 레이어 — ScopeBar 우측 끝 (모바일 포함) */}
+        {adminFarmSwitcher != null ? chartLayersSlot() : null}
       </div>
     ) : null;
 
@@ -251,14 +257,14 @@ export function ScopeBar({
       )}
     >
       <div className={cn("min-w-0 space-y-3", dashboardUi.body)}>
-        {titleRow || refreshSlot ? (
+        {titleRow || rightTools ? (
           <div className="flex items-start justify-between gap-2">
             {titleRow ? (
               <div className="min-w-0 flex-1">{titleRow}</div>
             ) : (
               <div className="min-w-0 flex-1" />
             )}
-            {refreshSlot}
+            {rightTools}
           </div>
         ) : null}
 

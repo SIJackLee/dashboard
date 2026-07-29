@@ -588,7 +588,7 @@ export function UnifiedBarnTrendPanel({
       <div
         key={layersAnimKey}
         className={cn(
-          "flex min-w-0 items-center",
+          "flex min-w-0 items-center overflow-visible",
           layersSlot
             ? "border-l border-border/50 pl-2 sm:pl-3"
             : "w-full border-t border-border/40 pt-2 sm:ml-auto sm:w-auto sm:border-l sm:border-t-0 sm:pt-0 sm:pl-2",
