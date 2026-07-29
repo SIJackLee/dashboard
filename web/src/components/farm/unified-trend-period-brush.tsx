@@ -166,12 +166,15 @@ export function UnifiedTrendPeriodBrush({
         </div>
       </div>
 
-      <p className="text-[0.65rem] leading-snug text-muted-foreground">
+      <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
         막대 = 온·습 적정 점수 · 드래그{" "}
         <span className="font-medium text-foreground/80">폭</span>
         =24h/7d/30d 프리셋 · 차트는 항상{" "}
         <span className="font-medium text-foreground/80">최근</span> 구간 ·
         세밀 줌은 위 차트 드래그 · 모터 제외
+      </p>
+      <p className="text-[0.65rem] leading-snug text-muted-foreground lg:hidden">
+        막대=온·습 점수 · 드래그 폭으로 24h/7d/30d · 세밀 줌은 위 차트
       </p>
 
       <div
@@ -317,12 +320,22 @@ export function UnifiedTrendPeriodBrush({
             className="absolute inset-y-2 right-0 w-1 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]"
             aria-hidden
           />
-          <span className="absolute inset-x-0 bottom-1.5 text-center text-[0.68rem] font-semibold tracking-wide text-sky-50 drop-shadow-sm">
-            {draft
-              ? `적용 · 최근 ${TREND_PERIODS[snapPeriod].label}`
-              : `최근 ${TREND_PERIODS[period].label}`}
-          </span>
         </div>
+        {/* 좁은 24h 윈도우 안에서는 세로 줄바꿈됨 → 트랙 기준·nowrap으로 표시 */}
+        <span
+          className={cn(
+            "pointer-events-none absolute bottom-1.5 z-[2] -translate-x-1/2",
+            "whitespace-nowrap rounded bg-sky-950/55 px-1.5 py-0.5",
+            "text-[0.68rem] font-semibold tracking-wide text-sky-50 backdrop-blur-sm",
+          )}
+          style={{
+            left: `clamp(3.25rem, ${((draft ? snapWin : win).start + (draft ? snapWin : win).width / 2) * 100}%, calc(100% - 3.25rem))`,
+          }}
+        >
+          {draft
+            ? `적용 · 최근 ${TREND_PERIODS[snapPeriod].label}`
+            : `최근 ${TREND_PERIODS[period].label}`}
+        </span>
 
         <span className="pointer-events-none absolute left-2 top-1.5 rounded bg-background/50 px-1.5 py-0.5 text-[0.6rem] font-medium text-muted-foreground/90 backdrop-blur-sm">
           전체 30일 맥락

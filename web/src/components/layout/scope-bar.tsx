@@ -171,23 +171,26 @@ export function ScopeBar({
 
   const titleRow =
     adminFarmSwitcher != null ? (
-      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+      /* 모바일: 농장 / (토글+레이어) 2행 — 한 줄 겹침 방지. sm+=가로 */
+      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="min-w-0 shrink">
           <FarmSwitcher
             {...adminFarmSwitcher}
             compact={adminFarmSwitcher.compact}
           />
         </div>
-        {/* FarmPageContent 보기 토글(그리드/목록/차트) portal 대상 */}
-        <div
-          data-farm-view-toggle-slot
-          className="flex min-w-0 shrink-0 items-center"
-        />
-        {/* 차트 탭 레이어 툴바 portal — 비어 있으면 숨김(차트 외 뷰) */}
-        <div
-          data-farm-chart-layers-slot
-          className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden"
-        />
+        <div className="flex min-w-0 items-center gap-2 sm:ml-auto">
+          {/* FarmPageContent 보기 토글(그리드/목록/차트) portal 대상 */}
+          <div
+            data-farm-view-toggle-slot
+            className="flex min-w-0 shrink-0 items-center"
+          />
+          {/* 차트 탭 레이어 툴바 portal — 비어 있으면 숨김(차트 외 뷰) */}
+          <div
+            data-farm-chart-layers-slot
+            className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden sm:ml-0"
+          />
+        </div>
       </div>
     ) : multiFarm && onFarmChange ? (
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -249,7 +252,7 @@ export function ScopeBar({
     >
       <div className={cn("min-w-0 space-y-3", dashboardUi.body)}>
         {titleRow || refreshSlot ? (
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             {titleRow ? (
               <div className="min-w-0 flex-1">{titleRow}</div>
             ) : (

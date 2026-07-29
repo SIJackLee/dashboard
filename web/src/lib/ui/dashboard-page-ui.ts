@@ -142,6 +142,21 @@ export const dashboardUi = {
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:size-11",
   topHeaderActionBtnAlert:
     "border-red-300/60 bg-red-50/80 text-red-600 hover:text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400 dark:hover:text-red-400",
+  /** 차트 레이어 툴바 — 헤더 도구 alert와 동일 패턴, sky 고유색 */
+  chartLayerActionBtn:
+    "border-sky-300/60 bg-sky-50/80 text-sky-600 hover:text-sky-700 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-400 dark:hover:text-sky-300",
+  chartLayerActionBtnIdle:
+    "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+  chartLayerGroupTemp:
+    "border-rose-300/60 bg-rose-50/80 text-rose-600 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-400",
+  chartLayerGroupHum:
+    "border-sky-300/60 bg-sky-50/80 text-sky-600 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-400",
+  chartLayerGroupMotor:
+    "border-amber-300/60 bg-amber-50/80 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-400",
+  chartLayerBadge: "bg-sky-500 text-white",
+  chartLayerBadgeTemp: "bg-rose-500 text-white",
+  chartLayerBadgeHum: "bg-sky-500 text-white",
+  chartLayerBadgeMotor: "bg-amber-500 text-white",
   /** 오늘의 리포트 — PDF 강조(문서 아이콘) */
   topHeaderActionBtnReport:
     "border-red-300/70 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 disabled:opacity-40 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60 dark:hover:text-red-300",

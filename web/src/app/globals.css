@@ -1210,6 +1210,309 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   transform-origin: right center;
 }
 
+/** 툴바 shell exit 시 하위 아이콘도 cascade out */
+.farm-chart-layers-exit .farm-chart-layer-icon-enter {
+  animation: farm-chart-layer-icon-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+  animation-delay: calc(
+    (2 - var(--farm-layer-icon-i, 0)) * 28ms
+  );
+}
+
+/** 그룹 아이콘 — 툴바 마운트 시 cascade (헤더 도구 icon-in-y 계열 + spring) */
+@keyframes farm-chart-layer-icon-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.55);
+    filter: blur(4px);
+  }
+  58% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.12);
+    filter: blur(0);
+  }
+  78% {
+    transform: translateY(-1px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes farm-chart-layer-icon-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.7);
+    filter: blur(2px);
+  }
+}
+
+.farm-chart-layer-icon-enter {
+  animation: farm-chart-layer-icon-enter 420ms var(--motion-ease-emphasis) both;
+  animation-delay: calc(40ms + var(--farm-layer-icon-i, 0) * 56ms);
+  transform-origin: center top;
+}
+
+.farm-chart-layer-icon-exit {
+  animation: farm-chart-layer-icon-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+  animation-delay: calc(
+    (var(--farm-layer-icon-n, 3) - 1 - var(--farm-layer-icon-i, 0)) * 36ms
+  );
+  pointer-events: none;
+}
+
+/** 플라이아웃 패널 */
+@keyframes farm-chart-layer-flyout-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.88);
+    filter: blur(3px);
+    clip-path: inset(0 0 100% 0 round 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    clip-path: inset(0 round 12px);
+  }
+}
+
+@keyframes farm-chart-layer-flyout-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    clip-path: inset(0 round 12px);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.92);
+    filter: blur(2px);
+    clip-path: inset(0 0 100% 0 round 12px);
+  }
+}
+
+.farm-chart-layer-flyout-enter {
+  animation: farm-chart-layer-flyout-enter 320ms var(--motion-ease-emphasis) both;
+  transform-origin: top right;
+}
+
+.farm-chart-layer-flyout-exit {
+  animation: farm-chart-layer-flyout-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+  pointer-events: none;
+  transform-origin: top right;
+}
+
+/** 플라이아웃 하위 아이콘 stagger */
+@keyframes farm-chart-layer-flyout-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.45) rotate(-10deg);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.1) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes farm-chart-layer-flyout-item-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.65);
+  }
+}
+
+.farm-chart-layer-flyout-item-enter {
+  animation: farm-chart-layer-flyout-item-enter 400ms var(--motion-ease-emphasis)
+    both;
+  animation-delay: calc(48ms + var(--farm-layer-flyout-i, 0) * 42ms);
+  transform-origin: center top;
+}
+
+.farm-chart-layer-flyout-item-exit {
+  animation: farm-chart-layer-flyout-item-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+  animation-delay: calc(
+    (var(--farm-layer-flyout-n, 4) - 1 - var(--farm-layer-flyout-i, 0)) * 24ms
+  );
+  pointer-events: none;
+  transform-origin: center top;
+}
+
+/** 활성 하위 개수 뱃지 */
+@keyframes farm-chart-layer-badge-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.farm-chart-layer-badge-pop {
+  animation: farm-chart-layer-badge-pop var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
+}
+
+/** 루트 아래 세로 그룹 패널 — clip-path 캐스케이드(헤더 도구 카드 계열) */
+@keyframes farm-chart-layer-column-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+    filter: blur(3px);
+    clip-path: inset(0 0 100% 0 round 12px);
+  }
+  55% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    clip-path: inset(0 round 12px);
+  }
+}
+
+@keyframes farm-chart-layer-column-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    clip-path: inset(0 round 12px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.94);
+    filter: blur(2px);
+    clip-path: inset(0 0 100% 0 round 12px);
+  }
+}
+
+.farm-chart-layer-column-enter {
+  animation: farm-chart-layer-column-enter 380ms var(--motion-ease-emphasis) both;
+  transform-origin: top right;
+}
+
+.farm-chart-layer-column-exit {
+  animation: farm-chart-layer-column-exit 260ms var(--motion-ease-exit) both;
+  pointer-events: none;
+  transform-origin: top right;
+}
+
+/** 하위 플라이아웃 — 오른쪽→왼쪽 clip wipe + spring */
+@keyframes farm-chart-layer-flyout-rtl-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(14px) scale(0.9);
+    filter: blur(3px);
+    clip-path: inset(0 0 0 100% round 12px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateX(-2px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+    clip-path: inset(0 round 12px);
+  }
+}
+
+@keyframes farm-chart-layer-flyout-rtl-exit {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+    clip-path: inset(0 round 12px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(12px) scale(0.92);
+    filter: blur(2px);
+    clip-path: inset(0 0 0 100% round 12px);
+  }
+}
+
+.farm-chart-layer-flyout-rtl-enter {
+  animation: farm-chart-layer-flyout-rtl-enter 360ms var(--motion-ease-emphasis)
+    both;
+  transform-origin: right center;
+}
+
+.farm-chart-layer-flyout-rtl-exit {
+  animation: farm-chart-layer-flyout-rtl-exit 240ms var(--motion-ease-exit) both;
+  pointer-events: none;
+  transform-origin: right center;
+}
+
+@keyframes farm-chart-layer-flyout-rtl-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(14px) scale(0.4) rotate(12deg);
+  }
+  62% {
+    opacity: 1;
+    transform: translateX(-2px) scale(1.12) rotate(-2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes farm-chart-layer-flyout-rtl-item-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(10px) scale(0.55);
+  }
+}
+
+.farm-chart-layer-flyout-rtl-item-enter {
+  animation: farm-chart-layer-flyout-rtl-item-enter 420ms
+    var(--motion-ease-emphasis) both;
+  animation-delay: calc(56ms + var(--farm-layer-flyout-i, 0) * 44ms);
+  transform-origin: right center;
+}
+
+.farm-chart-layer-flyout-rtl-item-exit {
+  animation: farm-chart-layer-flyout-rtl-item-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+  animation-delay: calc(
+    (var(--farm-layer-flyout-n, 4) - 1 - var(--farm-layer-flyout-i, 0)) * 22ms
+  );
+  pointer-events: none;
+  transform-origin: right center;
+}
+
 @keyframes farm-chart-clip-wipe-in {
   from {
     clip-path: inset(0 100% 0 0);
@@ -1236,28 +1539,6 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .farm-chart-clip-wipe-out {
   animation: farm-chart-clip-wipe-out var(--motion-duration-moderate)
     var(--motion-ease-exit) both;
-  pointer-events: none;
-}
-
-/** 드래그 윈도우 → 스코프 커밋: 선택 박스가 플롯으로 팽창하며 페이드 */
-@keyframes farm-chart-scope-commit {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  55% {
-    opacity: 0.55;
-  }
-  100% {
-    opacity: 0;
-    transform: scale(var(--farm-scope-sx, 1.8), var(--farm-scope-sy, 1.8));
-  }
-}
-
-.farm-chart-scope-commit {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: farm-chart-scope-commit 240ms var(--motion-ease-emphasis) both;
   pointer-events: none;
 }
 
@@ -1338,10 +1619,22 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   .farm-chart-band-guide-in,
   .farm-chart-layers-enter,
   .farm-chart-layers-exit,
+  .farm-chart-layer-icon-enter,
+  .farm-chart-layer-icon-exit,
+  .farm-chart-layer-flyout-enter,
+  .farm-chart-layer-flyout-exit,
+  .farm-chart-layer-flyout-item-enter,
+  .farm-chart-layer-flyout-item-exit,
+  .farm-chart-layer-column-enter,
+  .farm-chart-layer-column-exit,
+  .farm-chart-layer-flyout-rtl-enter,
+  .farm-chart-layer-flyout-rtl-exit,
+  .farm-chart-layer-flyout-rtl-item-enter,
+  .farm-chart-layer-flyout-rtl-item-exit,
+  .farm-chart-layer-badge-pop,
   .farm-chart-clip-wipe-in,
   .farm-chart-clip-wipe-out,
   .farm-chart-brush-bar,
-  .farm-chart-scope-commit,
   .farm-chart-scope-zoom-in,
   .farm-chart-scope-zoom-out,
   .farm-chart-scope-chip-in,

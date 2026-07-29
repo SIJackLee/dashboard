@@ -627,19 +627,27 @@ export function UnifiedBarnTrendPanel({
         ? createPortal(layerToolbar, layersSlot)
         : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold">통합 추이</span>
-        <span className="text-[0.7rem] text-muted-foreground">
-          {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
-          {trendPeriodLabel(period)}
-          {picked?.trimmed ? " · 실데이터 구간" : ""}
-        </span>
+      <div
+        className={cn(
+          "flex flex-col items-start gap-1",
+          "sm:flex-row sm:flex-wrap sm:items-center sm:gap-2",
+        )}
+      >
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="text-xs font-semibold">통합 추이</span>
+          <span className="text-[0.7rem] leading-snug text-muted-foreground">
+            {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
+            {trendPeriodLabel(period)}
+            {picked?.trimmed ? " · 실데이터 구간" : ""}
+          </span>
+        </div>
         {layerToolbar && !layersSlot ? layerToolbar : null}
         {xScope != null && picked ? (
           <div
             key={`scope-chip-${scopeMotionKey}`}
             className={cn(
-              "ml-auto inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-sky-500/40 bg-sky-50/80 px-2 py-1 text-[0.65rem] font-medium text-sky-900 dark:bg-sky-950/50 dark:text-sky-100",
+              "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-sky-500/40 bg-sky-50/80 px-2 py-1 text-[0.65rem] font-medium text-sky-900 dark:bg-sky-950/50 dark:text-sky-100",
+              "sm:ml-auto",
               motionClass.farmChartScopeChipIn,
             )}
           >
@@ -662,7 +670,7 @@ export function UnifiedBarnTrendPanel({
             <button
               type="button"
               aria-label="한 단계 뒤로"
-              title="우클릭과 동일"
+              title="한 단계 뒤로"
               onClick={popXScope}
               className={cn(
                 "inline-flex h-5 shrink-0 items-center justify-center rounded border border-sky-500/30 px-1",
@@ -791,9 +799,15 @@ export function UnifiedBarnTrendPanel({
       ) : null}
 
       {built ? (
-        <p className="text-[0.65rem] text-muted-foreground">
-          드래그=시간 줌 · 걸친 밴드만 표시 · 한 밴드=확대 · 우클릭/Esc=뒤로 · ×=전체 해제
-        </p>
+        <>
+          <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
+            드래그=시간 줌 · 걸친 밴드만 표시 · 한 밴드=확대 · 우클릭/Esc=뒤로 ·
+            ×=전체 해제
+          </p>
+          <p className="text-[0.65rem] leading-snug text-muted-foreground lg:hidden">
+            차트 드래그=구간 줌 · 한 밴드만 걸치면 확대 · 뒤로/×=해제
+          </p>
+        </>
       ) : null}
     </div>
   );

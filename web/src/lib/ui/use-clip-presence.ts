@@ -124,3 +124,34 @@ export function useClipPresence<T>(
       e.phase === "exit" ? e.item : (itemByKey.get(e.key) ?? e.item),
   }));
 }
+
+/**
+ * 열림/닫힘 유지 — 닫힐 때 exit 애니 후 unmount.
+ * 열릴 때는 렌더 중 상태 보정으로 즉시 표시 (effect setState 금지).
+ * @see https://react.dev/reference/react/useState#storing-information-from-previous-renders
+ */
+export function useOpenPresence(
+  open: boolean,
+  exitMs: number = motionDuration.exit,
+): { mounted: boolean; phase: "enter" | "exit" } {
+  const [show, setShow] = useState(open);
+
+  if (open && !show) {
+    setShow(true);
+  }
+
+  useEffect(() => {
+    if (open) return;
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const wait = reduced ? 0 : exitMs;
+    const t = window.setTimeout(() => setShow(false), wait);
+    return () => window.clearTimeout(t);
+  }, [open, exitMs]);
+
+  return {
+    mounted: show,
+    phase: open ? "enter" : "exit",
+  };
+}

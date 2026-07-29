@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
+import { VoiceReportFab } from "@/components/farm/voice-report-fab";
 import type { AlarmSettings } from "@/lib/data/alarms";
+import type { FarmKey } from "@/lib/data/farm-key";
 import type { BarnReading } from "@/lib/data/iot";
 import type {
   TrendControllerPeriodData,
@@ -28,6 +30,8 @@ type Props = {
   isMobileStack?: boolean;
   /** 차트 탭 활성 — ScopeBar 레이어 툴바 enter/exit */
   layersToolbarActive?: boolean;
+  /** 음성 AI 기본 농장 (URL 선택). 없으면 FAB 숨김 */
+  currentFarm?: FarmKey | null;
   className?: string;
 };
 
@@ -43,6 +47,7 @@ export function FarmChartView({
   alarmSettings,
   isMobileStack = false,
   layersToolbarActive = true,
+  currentFarm = null,
   className,
 }: Props) {
   const [scope, setScope] = useState<FarmChartScope>(DEFAULT_FARM_CHART_SCOPE);
@@ -71,15 +76,19 @@ export function FarmChartView({
 
   const stallExpandKey = (ty: string, stallNo: string) => `${ty}::${stallNo}`;
 
+  const voiceFab =
+    currentFarm != null ? (
+      <VoiceReportFab currentFarm={currentFarm} compact={isMobileStack} />
+    ) : null;
+
   return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-col gap-3 lg:flex-row lg:items-stretch",
-        motionClass.farmChartScopeShell,
-        className,
-      )}
-      data-tour-id="farm-chart-view"
-    >
+    <div className={cn("relative min-h-0", className)} data-tour-id="farm-chart-view">
+      <div
+        className={cn(
+          "flex min-h-0 flex-col gap-3 lg:flex-row lg:items-stretch",
+          motionClass.farmChartScopeShell,
+        )}
+      >
       <div className="min-w-0 flex-1">
         <UnifiedBarnTrendPanel
           label={label}
@@ -105,8 +114,11 @@ export function FarmChartView({
         aria-label="차트 집계 범위"
       >
         <p className="mb-2 text-xs font-semibold">집계 범위</p>
-        <p className="mb-3 text-[0.65rem] text-muted-foreground">
-          기본은 농장 전체. 유형·축사·컨트롤러를 골라 좁힙니다.
+        <p className="mb-3 text-[0.65rem] leading-snug text-muted-foreground">
+          <span className="lg:hidden">농장 전체 기본. 유형·축사·컨트롤러로 좁히기.</span>
+          <span className="hidden lg:inline">
+            기본은 농장 전체. 유형·축사·컨트롤러를 골라 좁힙니다.
+          </span>
         </p>
 
         <nav className="space-y-0.5 text-sm" aria-label="집계 범위 트리">
@@ -199,6 +211,9 @@ export function FarmChartView({
           })}
         </nav>
       </aside>
+      </div>
+
+      {voiceFab}
     </div>
   );
 }

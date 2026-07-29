@@ -31,7 +31,7 @@ import {
 } from "@/lib/farm/farm-view-url";
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { farmKeyId, parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
 import {
   prefetchFarmControllerTrend,
   useFarmControllerTrend,
@@ -213,6 +213,18 @@ export function FarmPageContent({
     );
     return allSame ? first : null;
   }, [readings]);
+
+  const chartVoiceFarm = useMemo<FarmKey | null>(() => {
+    void urlTick;
+    void hubUrlEpoch;
+    const params = urlHydrated
+      ? currentFarmSearchParams()
+      : new URLSearchParams(searchParams.toString());
+    return (
+      parseFarmKeyFromQuery(params.get("lsind"), params.get("item")) ??
+      gridFarmKey
+    );
+  }, [urlHydrated, hubUrlEpoch, urlTick, searchParams, gridFarmKey]);
   // 투어 중에도 유지 — 목록 챕터(C) 진입 전 목록 enrich에 쓸 수 있음.
   // 목록 enrich·soft panel fetch만 tourActive로 일시정지.
   // listEverOpened 후에도 유지해 목록 BarnTable과 캐시를 공유한다.
@@ -640,6 +652,7 @@ export function FarmPageContent({
               alarmSettings={alarmSettings}
               isMobileStack={viewportCompact}
               layersToolbarActive={view === "chart"}
+              currentFarm={view === "chart" ? chartVoiceFarm : null}
             />
           </div>
         ) : null}

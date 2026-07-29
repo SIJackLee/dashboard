@@ -14,7 +14,6 @@ import {
 } from "./unified-barn-trend-series";
 
 function sampleCtrl(temp: number[], hum: number[]): TrendControllerSeries {
-  const n = temp.length;
   return {
     stallNo: "1",
     controllerKey: "c1",

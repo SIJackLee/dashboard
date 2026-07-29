@@ -4,7 +4,6 @@ import {
   useMemo,
   useState,
   useRef,
-  useEffect,
   useLayoutEffect,
   useId,
   type CSSProperties,
@@ -20,7 +19,7 @@ import {
   severityScore,
 } from "@/lib/farm/severity-score";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { motionDuration, motionStaggerStepMs } from "@/lib/ui/motion-tokens";
+import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
 import {
   useClipPresence,
   type ClipPhase,
@@ -540,18 +539,6 @@ export function TrendChart({
     y0: number;
     y: number;
   } | null>(null);
-  const [scopeCommitFlash, setScopeCommitFlash] = useState<{
-    a: number;
-    b: number;
-    y0: number;
-    y: number;
-  } | null>(null);
-  const pendingScopeCommitRef = useRef<{
-    start: number;
-    end: number;
-    yStartRatio: number;
-    yEndRatio: number;
-  } | null>(null);
   const hoverIdxRef = useRef<number | null>(null);
   const hoverSeriesRef = useRef<string | null>(null);
   const crossVRef = useRef<SVGLineElement | null>(null);
@@ -902,7 +889,6 @@ export function TrendChart({
 
   const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!xScopeSelect || !onXScopeCommit || e.button !== 0 || n < 2) return;
-    if (scopeCommitFlash != null) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     xScopeOriginRef.current = { x: e.clientX, y: e.clientY };
     xScopeDraggingRef.current = false;
@@ -945,7 +931,6 @@ export function TrendChart({
     const y = yViewFromClient(e.clientY, rect);
     const a = xDraftRef.current.a;
     const y0 = xDraftRef.current.y0;
-    const flash = { a, b: x, y0, y };
     xDraftRef.current = null;
     setXDraft(null);
     xScopeOriginRef.current = null;
@@ -965,42 +950,20 @@ export function TrendChart({
       end = Math.min(n - 1, start + X_SCOPE_MIN_SPAN);
       start = Math.max(0, end - X_SCOPE_MIN_SPAN);
     }
-    const payload = {
+    onXScopeCommit({
       start,
       end,
       yStartRatio: yCenterRatioFromView(y0),
       yEndRatio: yCenterRatioFromView(y),
-    };
-    const reduced =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) {
-      onXScopeCommit(payload);
-      return;
-    }
-    pendingScopeCommitRef.current = payload;
-    setScopeCommitFlash(flash);
+    });
   };
 
   const onXScopePointerCancel = () => {
     xDraftRef.current = null;
     setXDraft(null);
-    setScopeCommitFlash(null);
-    pendingScopeCommitRef.current = null;
     xScopeOriginRef.current = null;
     xScopeDraggingRef.current = false;
   };
-
-  useEffect(() => {
-    if (scopeCommitFlash == null || !onXScopeCommit) return;
-    const t = window.setTimeout(() => {
-      const payload = pendingScopeCommitRef.current;
-      pendingScopeCommitRef.current = null;
-      setScopeCommitFlash(null);
-      if (payload) onXScopeCommit(payload);
-    }, motionDuration.moderate);
-    return () => window.clearTimeout(t);
-  }, [scopeCommitFlash, onXScopeCommit]);
 
   const onXScopeContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!xScopeSelect || !onXScopeBack) return;
@@ -1010,7 +973,7 @@ export function TrendChart({
   };
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (xScopeDraggingRef.current || xDraftRef.current != null || scopeCommitFlash != null)
+    if (xScopeDraggingRef.current || xDraftRef.current != null)
       return;
     if (n === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1387,7 +1350,7 @@ export function TrendChart({
         )}
         onMouseMove={onMove}
         onMouseLeave={() => {
-          if (xDraftRef.current != null || scopeCommitFlash != null) return;
+          if (xDraftRef.current != null) return;
           clearHover();
         }}
         onPointerDown={xScopeSelect ? onXScopePointerDown : undefined}
@@ -1864,9 +1827,8 @@ export function TrendChart({
           pointerEvents="none"
         />
         {(() => {
-          const win = scopeCommitFlash ?? xDraft;
+          const win = xDraft;
           if (win == null) return null;
-          const committing = scopeCommitFlash != null;
           const x0 = win.a;
           const x1 = win.b;
           const y0 = win.y0;
@@ -1883,41 +1845,25 @@ export function TrendChart({
             PAD_TOP + innerH - h,
             Math.max(PAD_TOP, rawH < 3.2 ? yMid - h / 2 : top),
           );
-          const sx = Math.min(8, Math.max(1.15, innerW / w));
-          const sy = Math.min(8, Math.max(1.15, innerH / h));
           const rx = markerRx(4.2);
           const ry = markerRy(4.2);
           const rxEnd = markerRx(5);
           const ryEnd = markerRy(5);
           return (
-            <g
-              pointerEvents="none"
-              aria-hidden
-              className={committing ? motionClass.farmChartScopeCommit : undefined}
-              style={
-                committing
-                  ? ({
-                      ["--farm-scope-sx" as string]: String(sx),
-                      ["--farm-scope-sy" as string]: String(sy),
-                    } as CSSProperties)
-                  : undefined
-              }
-            >
+            <g pointerEvents="none" aria-hidden>
               <rect
                 x={left}
                 y={yBox}
                 width={w}
                 height={h}
                 fill="rgb(14 165 233)"
-                fillOpacity={committing ? 0.22 : 0.12}
+                fillOpacity={0.12}
                 stroke="rgb(14 165 233)"
-                strokeWidth={committing ? 0.7 : 0.5}
+                strokeWidth={0.5}
                 vectorEffect="non-scaling-stroke"
               />
               <rect
-                className={
-                  committing ? undefined : motionClass.farmChartScopeHandlePulse
-                }
+                className={motionClass.farmChartScopeHandlePulse}
                 x={left}
                 y={yBox}
                 width={0.7}
@@ -1926,9 +1872,7 @@ export function TrendChart({
                 opacity={0.95}
               />
               <rect
-                className={
-                  committing ? undefined : motionClass.farmChartScopeHandlePulse
-                }
+                className={motionClass.farmChartScopeHandlePulse}
                 x={right - 0.7}
                 y={yBox}
                 width={0.7}
@@ -1963,19 +1907,17 @@ export function TrendChart({
                 ry={markerRy(2)}
                 fill="rgb(14 165 233)"
               />
-              {!committing ? (
-                <line
-                  x1={x0}
-                  y1={y0}
-                  x2={x1}
-                  y2={y1}
-                  stroke="rgb(14 165 233)"
-                  strokeWidth={0.35}
-                  strokeDasharray="1.2 1.2"
-                  vectorEffect="non-scaling-stroke"
-                  opacity={0.7}
-                />
-              ) : null}
+              <line
+                x1={x0}
+                y1={y0}
+                x2={x1}
+                y2={y1}
+                stroke="rgb(14 165 233)"
+                strokeWidth={0.35}
+                strokeDasharray="1.2 1.2"
+                vectorEffect="non-scaling-stroke"
+                opacity={0.7}
+              />
             </g>
           );
         })()}
