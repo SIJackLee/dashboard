@@ -320,8 +320,11 @@ export async function POST(request: Request) {
   let audioBase64: string | null = null;
   let audioMimeType: string | null = null;
   let ttsOk = false;
+  let ttsSkipped: VoiceAskSuccess["ttsSkipped"] = null;
 
-  if (wantTts) {
+  if (withTts && !useOpenAI) {
+    ttsSkipped = "openai_missing";
+  } else if (wantTts) {
     try {
       const speech = await synthesizeSpeechWithOpenAI(text);
       audioBase64 = speech.base64;
@@ -329,7 +332,7 @@ export async function POST(request: Request) {
       ttsOk = true;
     } catch (e) {
       console.error("[voice-report] tts", e);
-      // 요약 텍스트는 반환, 음성만 실패
+      ttsSkipped = "tts_failed";
     }
   }
 
@@ -358,6 +361,7 @@ export async function POST(request: Request) {
     estimatedCostUsd: cost,
     audioBase64,
     audioMimeType,
+    ttsSkipped,
   };
   return NextResponse.json(ok);
 }

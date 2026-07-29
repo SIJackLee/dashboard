@@ -13,6 +13,9 @@
 질문 예: `오늘 농장 상황 어때?` / `FARM02 상황 어때?`  
 농장 미지정 시 URL 현재 농장. **한 요청 = 농장 1개**.
 
+패널 내 **사운드 체크**(비프) / **마이크 테스트**(2초 녹음·재생)로  
+스피커·자동재생·마이크 권한을 API 호출 없이 점검할 수 있습니다.
+
 ## API
 - `POST /api/voice-report/ask`
   - JSON: `{ question, currentLsind, currentItem, withTts? }`

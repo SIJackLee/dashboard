@@ -45,6 +45,8 @@ export type VoiceAskSuccess = {
   estimatedCostUsd: number;
   audioBase64: string | null;
   audioMimeType?: string | null;
+  /** TTS를 원했지만 음성이 없을 때 */
+  ttsSkipped?: "openai_missing" | "tts_failed" | null;
 };
 
 export type VoiceAskErrorCode =

@@ -45,6 +45,12 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
   const [recordSec, setRecordSec] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [needsTapToPlay, setNeedsTapToPlay] = useState(false);
+  const [ttsHint, setTtsHint] = useState<string | null>(null);
+  const [deviceMsg, setDeviceMsg] = useState<string | null>(null);
+  const [micLevel, setMicLevel] = useState(0);
+  const [micTesting, setMicTesting] = useState(false);
+  const [soundBlocked, setSoundBlocked] = useState(false);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -53,6 +59,8 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
   const stopTimerRef = useRef<number | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const micTestCleanupRef = useRef<(() => void) | null>(null);
+  const beepCtxRef = useRef<AudioContext | null>(null);
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   /** compact는 overflow/transform 조상에서 잘리므로 모바일 프레임(또는 body) 포털 */
   const portalEl =
@@ -65,7 +73,8 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
     status === "recording" ||
     status === "uploading" ||
     status === "analyzing" ||
-    status === "speaking";
+    status === "speaking" ||
+    micTesting;
 
   const clearAudioUrl = useCallback(() => {
     if (audioUrlRef.current) {
@@ -79,18 +88,179 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
     }
   }, []);
 
+  const stopMicTest = useCallback(() => {
+    micTestCleanupRef.current?.();
+    micTestCleanupRef.current = null;
+    setMicTesting(false);
+    setMicLevel(0);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (tickRef.current != null) window.clearInterval(tickRef.current);
       if (stopTimerRef.current != null) window.clearTimeout(stopTimerRef.current);
       mediaRef.current?.stop();
+      micTestCleanupRef.current?.();
+      void beepCtxRef.current?.close();
       clearAudioUrl();
     };
   }, [clearAudioUrl]);
 
+  /** 스피커/자동재생 경로 점검 — Web Audio 비프 (로컬, 과금 없음) */
+  const runSoundCheck = useCallback(async () => {
+    setDeviceMsg(null);
+    setSoundBlocked(false);
+    try {
+      const AC =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AC) {
+        setDeviceMsg("이 브라우저는 오디오 재생을 지원하지 않습니다.");
+        return;
+      }
+      const ctx = beepCtxRef.current ?? new AC();
+      beepCtxRef.current = ctx;
+      if (ctx.state === "suspended") await ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.value = 0.0001;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const t0 = ctx.currentTime;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28);
+      osc.start(t0);
+      osc.stop(t0 + 0.3);
+      setDeviceMsg("사운드 체크 OK — 비프가 들리면 스피커 정상입니다.");
+    } catch {
+      setSoundBlocked(true);
+      setDeviceMsg(
+        "자동 재생이 차단되었습니다. 아래 「비프 다시 재생」을 탭해 주세요.",
+      );
+    }
+  }, []);
+
+  /** 마이크 권한·입력 레벨·짧은 녹음 재생 (로컬, 과금 없음) */
+  const runMicTest = useCallback(async () => {
+    if (busy) return;
+    stopMicTest();
+    setDeviceMsg(null);
+    setError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setDeviceMsg("이 브라우저는 마이크를 지원하지 않습니다.");
+      return;
+    }
+
+    setMicTesting(true);
+    setDeviceMsg("마이크 권한을 요청합니다…");
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioCtx = new (
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext
+      )();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+
+      let raf = 0;
+      const tickLevel = () => {
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i]!;
+        setMicLevel(Math.min(100, Math.round((sum / data.length / 255) * 140)));
+        raf = requestAnimationFrame(tickLevel);
+      };
+      raf = requestAnimationFrame(tickLevel);
+
+      const chunks: Blob[] = [];
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "";
+      const rec = mime
+        ? new MediaRecorder(stream, { mimeType: mime })
+        : new MediaRecorder(stream);
+
+      const cleanup = () => {
+        cancelAnimationFrame(raf);
+        if (rec.state !== "inactive") {
+          try {
+            rec.stop();
+          } catch {
+            /* ignore */
+          }
+        }
+        stream.getTracks().forEach((t) => t.stop());
+        void audioCtx.close();
+        setMicLevel(0);
+      };
+      micTestCleanupRef.current = cleanup;
+
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      rec.onstop = () => {
+        cancelAnimationFrame(raf);
+        stream.getTracks().forEach((t) => t.stop());
+        void audioCtx.close();
+        setMicTesting(false);
+        setMicLevel(0);
+        micTestCleanupRef.current = null;
+        const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+        if (blob.size < 80) {
+          setDeviceMsg(
+            "마이크 입력이 거의 없습니다. 권한·음소거·다른 앱 점유를 확인해 주세요.",
+          );
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        void audio
+          .play()
+          .then(() => {
+            setDeviceMsg(
+              "마이크 테스트 OK — 방금 녹음이 재생되면 입력·재생 모두 정상입니다.",
+            );
+          })
+          .catch(() => {
+            setDeviceMsg(
+              "녹음은 됐지만 재생이 차단되었습니다. 볼륨·자동재생 설정을 확인해 주세요.",
+            );
+          })
+          .finally(() => {
+            window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+          });
+      };
+
+      setDeviceMsg("2초간 말해 보세요…");
+      rec.start(100);
+      window.setTimeout(() => {
+        if (rec.state !== "inactive") rec.stop();
+      }, 2000);
+    } catch {
+      setMicTesting(false);
+      setDeviceMsg(
+        "마이크 권한이 필요합니다. 브라우저 주소창에서 마이크를 허용해 주세요.",
+      );
+    }
+  }, [busy, stopMicTest]);
+
   const playBase64 = useCallback(
     async (base64: string, mimeType: string) => {
       clearAudioUrl();
+      setNeedsTapToPlay(false);
       const bin = atob(base64);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -108,7 +278,8 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
           audio.onerror = () => resolve();
         });
       } catch {
-        /* autoplay / 권한 */
+        /* fetch 이후 모바일 자동재생 차단 → 탭하여 듣기 */
+        setNeedsTapToPlay(true);
       } finally {
         setStatus("idle");
       }
@@ -121,6 +292,8 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
       setError(null);
       setAnswer(null);
       setMeta(null);
+      setTtsHint(null);
+      setNeedsTapToPlay(false);
       clearAudioUrl();
       setStatus(opts.audio ? "uploading" : "analyzing");
 
@@ -169,7 +342,7 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
         setAnswer(data.text);
         setUsage(data.usage);
         setMeta(
-          `${data.farmLabel} · ${data.source === "openai" ? "AI 요약" : "템플릿"} · ${data.mode === "audio" ? "음성" : "텍스트"}`,
+          `${data.farmLabel} · ${data.source === "openai" ? "AI 요약" : "템플릿"} · ${data.mode === "audio" ? "음성" : "텍스트"}${data.audioBase64 ? " · TTS" : ""}`,
         );
 
         if (data.audioBase64) {
@@ -179,6 +352,19 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
           );
         } else {
           setStatus("idle");
+          if (ttsEnabled) {
+            if (data.ttsSkipped === "openai_missing") {
+              setTtsHint(
+                "OPENAI_API_KEY가 없어 템플릿 요약만 반환되었습니다. TTS를 쓰려면 배포 환경변수에 키를 넣어 주세요.",
+              );
+            } else if (data.ttsSkipped === "tts_failed") {
+              setTtsHint(
+                "음성 생성에 실패했습니다. OpenAI TTS 할당량·키를 확인해 주세요.",
+              );
+            } else {
+              setTtsHint("음성이 포함되지 않았습니다.");
+            }
+          }
         }
       } catch {
         setError("요청에 실패했습니다.");
@@ -372,11 +558,80 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
               type="checkbox"
               checked={ttsEnabled}
               disabled={busy}
-              onChange={(e) => setTtsEnabled(e.target.checked)}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setTtsEnabled(on);
+                /* 사용자 제스처에서 오디오 언락 — 이후 자동재생 성공률↑ */
+                if (on && typeof Audio !== "undefined") {
+                  try {
+                    const unlock = new Audio(
+                      "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
+                    );
+                    void unlock.play().then(() => {
+                      unlock.pause();
+                    });
+                  } catch {
+                    /* ignore */
+                  }
+                }
+              }}
               className="size-3"
             />
             음성으로 읽어주기 (TTS)
           </label>
+
+          <div className="mb-2 flex gap-1.5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void runSoundCheck()}
+              className={cn(
+                "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
+                "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+              )}
+            >
+              <Volume2 className="size-3" />
+              사운드 체크
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void runMicTest()}
+              className={cn(
+                "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
+                "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+              )}
+            >
+              <Mic className="size-3" />
+              {micTesting ? "테스트 중…" : "마이크 테스트"}
+            </button>
+          </div>
+          {micTesting ? (
+            <div
+              className="mb-2 h-1.5 overflow-hidden rounded-full bg-muted"
+              aria-hidden
+            >
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-[width] duration-motion-fast"
+                style={{ width: `${micLevel}%` }}
+              />
+            </div>
+          ) : null}
+          {soundBlocked ? (
+            <button
+              type="button"
+              className="mb-2 inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-medium text-primary-foreground"
+              onClick={() => void runSoundCheck()}
+            >
+              <Volume2 className="size-3" />
+              비프 다시 재생
+            </button>
+          ) : null}
+          {deviceMsg ? (
+            <p className="mb-2 text-[10px] text-muted-foreground" role="status">
+              {deviceMsg}
+            </p>
+          ) : null}
 
           <textarea
             value={question}
@@ -408,6 +663,11 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
               {error}
             </p>
           ) : null}
+          {ttsHint ? (
+            <p className="mb-2 text-[11px] text-amber-700 dark:text-amber-300" role="status">
+              {ttsHint}
+            </p>
+          ) : null}
           {answer ? (
             <div className="mt-1 rounded-lg bg-muted/50 p-2">
               {meta ? (
@@ -417,14 +677,20 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
               {audioUrl ? (
                 <button
                   type="button"
-                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-primary"
+                  className={cn(
+                    "mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium",
+                    needsTapToPlay
+                      ? "bg-primary text-primary-foreground"
+                      : "text-primary",
+                  )}
                   onClick={() => {
                     const a = new Audio(audioUrl);
+                    setNeedsTapToPlay(false);
                     void a.play();
                   }}
                 >
-                  <Volume2 className="size-3" />
-                  다시 듣기
+                  <Volume2 className="size-3.5" />
+                  {needsTapToPlay ? "탭하여 듣기" : "다시 듣기"}
                 </button>
               ) : null}
             </div>
