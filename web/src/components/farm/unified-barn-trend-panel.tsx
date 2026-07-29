@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   TrendChart,
   type TrendScaleEdgeLabel,
 } from "@/components/trends/trend-chart";
 import { UnifiedTrendPeriodBrush } from "@/components/farm/unified-trend-period-brush";
+import { UnifiedTrendLayerToolbar } from "@/components/farm/unified-trend-layer-toolbar";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -24,25 +25,48 @@ import {
 } from "@/lib/farm/trend-display-buckets";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
-  buildUnifiedBarnTrendSeries,
+  aggregateUnifiedBarnTrendRaw,
   DEFAULT_UNIFIED_LAYERS,
   mapHumPctToSplitY,
   mapMotorPctToSplitY,
   mapTempCToSplitY,
-  needsHumidityBand,
+  mapUnifiedBarnTrendRawToSplitY,
   pickUnifiedTrendLayers,
   resolveSplitYLayout,
-  trimPickedUnifiedTrend,
+  sliceUnifiedTrendByIndex,
+  splitYVisibilityFromLayers,
+  countSplitYBands,
+  resolveYScopeBands,
+  visibilityForYBands,
+  maskLayersForYBands,
+  UNIFIED_Y_BAND_LABEL,
   type UnifiedLayerFlags,
   type UnifiedLayerId,
+  type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
+import { envComfortScore } from "@/lib/farm/env-comfort-score";
+import {
+  buildUnifiedScopeSummary,
+  formatBreachPct,
+  formatScopeStat,
+} from "@/lib/farm/scope-range-summary";
+import { useFarmChartLayersSlot } from "@/lib/farm/use-farm-chart-layers-slot";
+import { useSplitYLayoutTransition } from "@/lib/farm/use-split-y-layout-transition";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { motionDuration } from "@/lib/ui/motion-tokens";
 import { cn } from "@/lib/utils";
 
 export type UnifiedBarnTrendControllerRef = {
   key: string;
   reading: BarnReading | null;
+};
+
+type ScopeEntry = {
+  start: number;
+  end: number;
+  /** null = Y필터 없음 · ["temp","hum"] = 걸린 밴드만 */
+  yBands: UnifiedYBandId[] | null;
 };
 
 type Props = {
@@ -55,36 +79,10 @@ type Props = {
   isMobileStack?: boolean;
   /** 미지정 시 모바일 220 / 데스크톱 340 */
   chartHeight?: number;
+  /** 차트 탭 활성 시에만 ScopeBar 레이어 툴바 표시 */
+  layersToolbarActive?: boolean;
   className?: string;
 };
-
-type LayerChip = { id: UnifiedLayerId; label: string };
-
-const TEMP_SUB_CHIPS: LayerChip[] = [
-  { id: "ema", label: "EMA" },
-  { id: "dev", label: "편차" },
-  { id: "band", label: "산포" },
-];
-
-const HUM_SUB_CHIPS: LayerChip[] = [
-  { id: "humEma", label: "EMA" },
-  { id: "humDev", label: "편차" },
-  { id: "humBand", label: "산포" },
-];
-
-const MOTOR_SUB_CHIPS: LayerChip[] = [
-  { id: "motorCh", label: "채널 A/B/C" },
-];
-
-function layerChipClass(on: boolean) {
-  return cn(
-    "rounded-md border px-2 py-0.5 text-[0.65rem] font-medium",
-    motionClass.microHover,
-    on
-      ? "border-sky-500/60 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
-      : "border-border bg-muted/20 text-muted-foreground",
-  );
-}
 
 /**
  * 차트 탭 통합 추이 — 온도+편차 · 모터 max/채널 · 네비 브러시.
@@ -98,6 +96,7 @@ export function UnifiedBarnTrendPanel({
   alarmSettings,
   isMobileStack = false,
   chartHeight,
+  layersToolbarActive = true,
   className,
 }: Props) {
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
@@ -105,6 +104,40 @@ export function UnifiedBarnTrendPanel({
   const [tempMenuOpen, setTempMenuOpen] = useState(false);
   const [humMenuOpen, setHumMenuOpen] = useState(false);
   const [motorMenuOpen, setMotorMenuOpen] = useState(false);
+  /** M2 — ScopeBar 슬롯 observe · 없으면 인라인 폴백 */
+  const layersSlot = useFarmChartLayersSlot();
+  const [toolbarActiveSeen, setToolbarActiveSeen] = useState(layersToolbarActive);
+  const [layersToolbarMounted, setLayersToolbarMounted] = useState(
+    layersToolbarActive,
+  );
+  const [layersToolbarPhase, setLayersToolbarPhase] = useState<
+    "enter" | "exit"
+  >(layersToolbarActive ? "enter" : "exit");
+  const [layersAnimKey, setLayersAnimKey] = useState(0);
+  /** P1/P2 스코프 스택 — X + 선택 Y밴드 */
+  const [xScopeStack, setXScopeStack] = useState<ScopeEntry[]>([]);
+  const xScope =
+    xScopeStack.length > 0 ? xScopeStack[xScopeStack.length - 1]! : null;
+  const [scopeMotionKey, setScopeMotionKey] = useState(0);
+  const [scopeMotionDir, setScopeMotionDir] = useState<"in" | "out">("in");
+  const bumpScopeMotion = (dir: "in" | "out") => {
+    setScopeMotionDir(dir);
+    setScopeMotionKey((k) => k + 1);
+  };
+
+  if (layersToolbarActive !== toolbarActiveSeen) {
+    setToolbarActiveSeen(layersToolbarActive);
+    if (layersToolbarActive) {
+      setLayersToolbarMounted(true);
+      setLayersToolbarPhase("enter");
+      setLayersAnimKey((k) => k + 1);
+    } else {
+      setLayersToolbarPhase("exit");
+      setTempMenuOpen(false);
+      setHumMenuOpen(false);
+      setMotorMenuOpen(false);
+    }
+  }
 
   const thresholds = useMemo(() => {
     const withReading = controllers.find((c) => c.reading != null)?.reading;
@@ -112,74 +145,94 @@ export function UnifiedBarnTrendPanel({
     return resolveReadingAlarmThresholds(withReading, alarmSettings);
   }, [controllers, alarmSettings]);
 
-  const showHumBand = needsHumidityBand(layers);
-  const layout = useMemo(
-    () => resolveSplitYLayout(showHumBand),
-    [showHumBand],
+  const layerVisibility = useMemo(
+    () => splitYVisibilityFromLayers(layers),
+    [layers],
+  );
+  const scopeVisibility = useMemo(() => {
+    const bandVis = visibilityForYBands(xScope?.yBands ?? null);
+    if (!bandVis) return layerVisibility;
+    return {
+      showTemp: layerVisibility.showTemp && bandVis.showTemp,
+      showHum: layerVisibility.showHum && bandVis.showHum,
+      showMotors: layerVisibility.showMotors && bandVis.showMotors,
+    };
+  }, [layerVisibility, xScope]);
+  const targetLayout = useMemo(
+    () => resolveSplitYLayout(scopeVisibility),
+    [scopeVisibility],
+  );
+  const layout = useSplitYLayoutTransition(targetLayout);
+  /** 드래그 hit/미리보기 — 레이어 기준(스코프 전) 멀티밴드 */
+  const layerLayout = useMemo(
+    () => resolveSplitYLayout(layerVisibility),
+    [layerVisibility],
   );
 
-  /** 브러시 스파크라인 — 30d 온도 평균(없으면 모터 max) */
+  /** 브러시 — 30d 온·습 양호도(B안) · 컨트롤러 평균 · 모터 제외 */
   const brushOverview = useMemo(() => {
     const periodData = controllerTrendByPeriod?.["30d"] ?? null;
     if (!periodData) return [];
-    const seriesList = controllers
+    const paired = controllers
       .map((c) => {
         const r = c.reading;
         if (!r) return null;
-        return findControllerTrendSeries(
+        const series = findControllerTrendSeries(
           controllerTrendByPeriod,
           "30d",
           r.stallTyCode,
           r.stallNo,
           r.controllerKey,
         );
+        if (!series) return null;
+        return {
+          series,
+          thresholds: resolveReadingAlarmThresholds(r, alarmSettings),
+        };
       })
-      .filter((s): s is NonNullable<typeof s> => s != null);
-    if (!seriesList.length) return [];
+      .filter((p): p is NonNullable<typeof p> => p != null);
+    if (!paired.length) return [];
     const len = Math.max(
-      ...seriesList.map((s) =>
-        Math.max(
-          s.temp?.length ?? 0,
-          s.fanIntake?.length ?? 0,
-          s.fanExhaust?.length ?? 0,
-          s.fanSupply?.length ?? 0,
-        ),
+      ...paired.map((p) =>
+        Math.max(p.series.temp?.length ?? 0, p.series.humidity?.length ?? 0),
       ),
     );
     const out: (number | null)[] = [];
     for (let i = 0; i < len; i++) {
-      let tempSum = 0;
-      let tempN = 0;
-      let motorSum = 0;
-      let motorN = 0;
-      for (const s of seriesList) {
-        const t = s.temp?.[i];
-        if (t != null && Number.isFinite(t)) {
-          tempSum += t;
-          tempN += 1;
-        }
-        const slot: number[] = [];
-        for (const v of [s.fanIntake?.[i], s.fanExhaust?.[i], s.fanSupply?.[i]]) {
-          if (v != null && Number.isFinite(v)) slot.push(v);
-        }
-        if (slot.length) {
-          motorSum += Math.max(...slot);
-          motorN += 1;
-        }
+      const scores: number[] = [];
+      for (const p of paired) {
+        const s = envComfortScore(
+          p.series.temp?.[i],
+          p.series.humidity?.[i],
+          p.thresholds,
+        );
+        if (s != null) scores.push(s);
       }
-      if (tempN > 0) {
-        /* 브러시는 0~100 스케일 — 온도를 대략 0~40℃ → 0~100으로 투영 */
-        out.push(Math.max(0, Math.min(100, (tempSum / tempN / 40) * 100)));
-      } else if (motorN > 0) {
-        out.push(motorSum / motorN);
-      } else {
-        out.push(null);
-      }
+      out.push(
+        scores.length
+          ? scores.reduce((a, b) => a + b, 0) / scores.length
+          : null,
+      );
     }
     return out;
-  }, [controllers, controllerTrendByPeriod]);
+  }, [controllers, controllerTrendByPeriod, alarmSettings]);
 
-  const built = useMemo(() => {
+  const splitBandGuides = useMemo(() => {
+    const guides: number[] = [];
+    const motorH = layout.motorHi - layout.motorLo;
+    const humH = layout.humHi - layout.humLo;
+    const tempH = layout.tempHi - layout.tempLo;
+    if (motorH > 0.5 && (humH > 0.5 || tempH > 0.5)) {
+      guides.push(layout.motorHi);
+    }
+    if (humH > 0.5 && tempH > 0.5) {
+      guides.push(layout.humHi);
+    }
+    return guides;
+  }, [layout]);
+
+  /** M1 — 다운샘플+집계는 layout 무관 1회, 보간은 Y매핑만 */
+  const trendRaw = useMemo(() => {
     const periodData = controllerTrendByPeriod?.[period] ?? null;
     const categoriesRaw = periodData?.categories ?? [];
     if (!categoriesRaw.length) return null;
@@ -225,21 +278,140 @@ export function UnifiedBarnTrendPanel({
       };
     });
 
-    return buildUnifiedBarnTrendSeries(
+    return aggregateUnifiedBarnTrendRaw(
       downsampledList,
       categories,
       thresholds,
-      { showHum: showHumBand },
     );
-  }, [controllers, controllerTrendByPeriod, period, thresholds, showHumBand]);
+  }, [controllers, controllerTrendByPeriod, period, thresholds]);
+
+  const built = useMemo(() => {
+    if (!trendRaw) return null;
+    return mapUnifiedBarnTrendRawToSplitY(trendRaw, layout);
+  }, [trendRaw, layout]);
 
   const picked = useMemo(() => {
     if (!built) return null;
-    const raw = pickUnifiedTrendLayers(built, layers);
-    return trimPickedUnifiedTrend(built.categories, raw);
-  }, [built, layers]);
+    const pickLayers = maskLayersForYBands(layers, xScope?.yBands ?? null);
+    const raw = pickUnifiedTrendLayers(built, pickLayers);
+    /** 스코프 인덱스 안정 — 자동 trim과 X/Y 줌 충돌 방지 */
+    return {
+      categories: built.categories,
+      series: raw.series,
+      envelopes: raw.envelopes,
+      histograms: raw.histograms,
+      trimmed: false as const,
+    };
+  }, [built, layers, xScope?.yBands]);
 
-  const chartCategories = picked?.categories ?? built?.categories ?? [];
+  /** 기간 변경 시 스코프 초기화 (render-time sync — effect setState 회피) */
+  const [scopePeriod, setScopePeriod] = useState(period);
+  if (period !== scopePeriod) {
+    setScopePeriod(period);
+    setXScopeStack([]);
+  }
+
+  /** 데이터 길이/인덱스 불일치 시 스택 비우기 */
+  if (xScope && picked && xScopeStack.length > 0) {
+    const n = picked.categories.length;
+    if (
+      n < 2 ||
+      xScope.start < 0 ||
+      xScope.end >= n ||
+      xScope.start > xScope.end ||
+      xScope.end - xScope.start < 2
+    ) {
+      setXScopeStack([]);
+    }
+  }
+
+  useEffect(() => {
+    if (xScopeStack.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setXScopeStack((stack) => {
+        if (stack.length === 0) return stack;
+        return stack.slice(0, -1);
+      });
+      if (xScopeStack.length > 0) {
+        bumpScopeMotion(xScopeStack.length <= 1 ? "out" : "in");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [xScopeStack.length]);
+
+  const scoped = useMemo(() => {
+    if (!picked) return null;
+    if (!xScope) {
+      return {
+        categories: picked.categories,
+        series: picked.series,
+        envelopes: picked.envelopes,
+        histograms: picked.histograms,
+      };
+    }
+    return sliceUnifiedTrendByIndex(
+      picked.categories,
+      picked,
+      xScope.start,
+      xScope.end,
+    );
+  }, [picked, xScope]);
+
+  /** P3 — 스코프 구간 원단위 요약 */
+  const scopeSummary = useMemo(() => {
+    if (!trendRaw || !xScope) return null;
+    return buildUnifiedScopeSummary(
+      trendRaw,
+      xScope.start,
+      xScope.end,
+      scopeVisibility,
+    );
+  }, [trendRaw, xScope, scopeVisibility]);
+
+  const chartCategories = scoped?.categories ?? [];
+
+  const commitXScope = (range: {
+    start: number;
+    end: number;
+    yStartRatio: number;
+    yEndRatio: number;
+  }) => {
+    if (!picked) return;
+    const domain = built?.leftDomain ?? ([0, 100] as [number, number]);
+    const span = domain[1] - domain[0] || 1;
+    const domainY0 = domain[1] - range.yStartRatio * span;
+    const domainY1 = domain[1] - range.yEndRatio * span;
+    const multi = countSplitYBands(layerVisibility) > 1;
+    const detected =
+      xScope?.yBands == null && multi
+        ? resolveYScopeBands(domainY0, domainY1, layerLayout, layerVisibility)
+        : null;
+    const yBands = xScope?.yBands ?? detected;
+    const next: ScopeEntry = {
+      start: xScope == null ? range.start : xScope.start + range.start,
+      end: xScope == null ? range.end : xScope.start + range.end,
+      yBands,
+    };
+    setXScopeStack((stack) => [...stack, next]);
+    bumpScopeMotion("in");
+  };
+
+  const popXScope = () => {
+    setXScopeStack((stack) => {
+      if (stack.length === 0) return stack;
+      return stack.slice(0, -1);
+    });
+    if (xScopeStack.length > 0) {
+      bumpScopeMotion(xScopeStack.length <= 1 ? "out" : "in");
+    }
+  };
+
+  const clearXScope = () => {
+    if (xScopeStack.length > 0) bumpScopeMotion("out");
+    setXScopeStack([]);
+  };
 
   /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 알람 고정 스케일. */
   const scaleEdgeLabels = useMemo((): TrendScaleEdgeLabel[] => {
@@ -268,7 +440,7 @@ export function UnifiedBarnTrendPanel({
       });
     };
 
-    if (layers.motors && built.available.motors) {
+    if (scopeVisibility.showMotors && layers.motors && built.available.motors) {
       push(
         "motor-hi",
         mapMotorPctToSplitY(100, layout),
@@ -288,7 +460,7 @@ export function UnifiedBarnTrendPanel({
         false,
       );
     }
-    if (layers.temp && built.available.temp) {
+    if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
       push(
         "temp-hi",
         mapTempCToSplitY(
@@ -318,7 +490,10 @@ export function UnifiedBarnTrendPanel({
         true,
       );
     }
-    if (layers.hum || layers.humDev || layers.humBand || layers.humEma) {
+    if (
+      scopeVisibility.showHum &&
+      (layers.hum || layers.humDev || layers.humBand || layers.humEma)
+    ) {
       if (built.available.hum || built.available.humDev || built.available.humBand) {
         push(
           "hum-hi",
@@ -351,44 +526,94 @@ export function UnifiedBarnTrendPanel({
       }
     }
     return out;
-  }, [built, layers, thresholds, layout]);
+  }, [built, layers, thresholds, layout, scopeVisibility]);
 
   const toggleLayer = (id: UnifiedLayerId) => {
     setLayers((prev) => {
       const next = { ...prev, [id]: !prev[id] };
       if (id === "motorCh" && next.motorCh) next.motors = true;
-      /** 본선은 기본 유지 — 분석 칩만 토글 */
-      if (id === "ema" || id === "dev" || id === "band") next.temp = true;
-      if (id === "humEma" || id === "humDev" || id === "humBand") next.hum = true;
+      if (id === "temp" && !next.temp) {
+        next.ema = false;
+        next.dev = false;
+        next.band = false;
+      }
+      if (id === "hum" && !next.hum) {
+        next.humEma = false;
+        next.humDev = false;
+        next.humBand = false;
+      }
+      if (id === "motors" && !next.motors) next.motorCh = false;
+      if (id === "ema" || id === "dev" || id === "band") {
+        if (next[id]) next.temp = true;
+      }
+      if (id === "humEma" || id === "humDev" || id === "humBand") {
+        if (next[id]) next.hum = true;
+      }
       return next;
     });
   };
 
-  const tempSubActiveCount = TEMP_SUB_CHIPS.filter(
-    (c) => built?.available[c.id] && layers[c.id],
-  ).length;
-  const humSubActiveCount = HUM_SUB_CHIPS.filter(
-    (c) => built?.available[c.id] && layers[c.id],
-  ).length;
-  const motorSubActiveCount = MOTOR_SUB_CHIPS.filter(
-    (c) => built?.available[c.id] && layers[c.id],
-  ).length;
-
-  const renderSubChip = (chip: LayerChip) => {
-    if (!built?.available[chip.id]) return null;
-    const on = layers[chip.id];
-    return (
-      <button
-        key={chip.id}
-        type="button"
-        aria-pressed={on}
-        onClick={() => toggleLayer(chip.id)}
-        className={layerChipClass(on)}
-      >
-        {chip.label}
-      </button>
-    );
+  const enableGroupAll = (group: "temp" | "hum" | "motor") => {
+    if (!built) return;
+    setLayers((prev) => {
+      const next = { ...prev };
+      if (group === "temp") {
+        next.temp = true;
+        if (built.available.ema) next.ema = true;
+        if (built.available.dev) next.dev = true;
+        if (built.available.band) next.band = true;
+      } else if (group === "hum") {
+        next.hum = true;
+        if (built.available.humEma) next.humEma = true;
+        if (built.available.humDev) next.humDev = true;
+        if (built.available.humBand) next.humBand = true;
+      } else {
+        next.motors = true;
+        if (built.available.motorCh) next.motorCh = true;
+      }
+      return next;
+    });
   };
+
+  useEffect(() => {
+    if (layersToolbarActive || layersToolbarPhase !== "exit") return;
+    const t = window.setTimeout(() => {
+      setLayersToolbarMounted(false);
+    }, motionDuration.exit);
+    return () => window.clearTimeout(t);
+  }, [layersToolbarActive, layersToolbarPhase, layersAnimKey]);
+
+  const layerToolbar =
+    built != null && layersToolbarMounted ? (
+      <div
+        key={layersAnimKey}
+        className={cn(
+          "flex min-w-0 items-center",
+          layersSlot
+            ? "border-l border-border/50 pl-2 sm:pl-3"
+            : "w-full border-t border-border/40 pt-2 sm:ml-auto sm:w-auto sm:border-l sm:border-t-0 sm:pt-0 sm:pl-2",
+          layersToolbarPhase === "enter"
+            ? motionClass.farmChartLayersEnter
+            : motionClass.farmChartLayersExit,
+        )}
+        data-farm-chart-layers-shell=""
+        data-farm-chart-layers-placement={layersSlot ? "portal" : "inline"}
+        aria-hidden={layersToolbarPhase === "exit"}
+      >
+        <UnifiedTrendLayerToolbar
+          layers={layers}
+          available={built.available}
+          tempMenuOpen={tempMenuOpen}
+          humMenuOpen={humMenuOpen}
+          motorMenuOpen={motorMenuOpen}
+          onTempMenuOpenChange={setTempMenuOpen}
+          onHumMenuOpenChange={setHumMenuOpen}
+          onMotorMenuOpenChange={setMotorMenuOpen}
+          onToggleLayer={toggleLayer}
+          onEnableGroupAll={enableGroupAll}
+        />
+      </div>
+    ) : null;
 
   return (
     <div
@@ -398,6 +623,10 @@ export function UnifiedBarnTrendPanel({
       )}
       data-tour-id="farm-chart-unified-trend"
     >
+      {layerToolbar && layersSlot
+        ? createPortal(layerToolbar, layersSlot)
+        : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold">통합 추이</span>
         <span className="text-[0.7rem] text-muted-foreground">
@@ -405,156 +634,124 @@ export function UnifiedBarnTrendPanel({
           {trendPeriodLabel(period)}
           {picked?.trimmed ? " · 실데이터 구간" : ""}
         </span>
+        {layerToolbar && !layersSlot ? layerToolbar : null}
+        {xScope != null && picked ? (
+          <div
+            key={`scope-chip-${scopeMotionKey}`}
+            className={cn(
+              "ml-auto inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-sky-500/40 bg-sky-50/80 px-2 py-1 text-[0.65rem] font-medium text-sky-900 dark:bg-sky-950/50 dark:text-sky-100",
+              motionClass.farmChartScopeChipIn,
+            )}
+          >
+            <span className="shrink-0">구간 줌</span>
+            {xScope.yBands?.length ? (
+              <span className="shrink-0 rounded bg-sky-500/15 px-1 py-px">
+                {xScope.yBands.map((b) => UNIFIED_Y_BAND_LABEL[b]).join("+")}
+              </span>
+            ) : null}
+            {xScopeStack.length > 1 ? (
+              <span className="shrink-0 tabular-nums text-sky-700/80 dark:text-sky-300/80">
+                ×{xScopeStack.length}
+              </span>
+            ) : null}
+            <span className="min-w-0 truncate tabular-nums text-sky-800/90 dark:text-sky-200/90">
+              {picked.categories[xScope.start] ?? "…"}
+              {" → "}
+              {picked.categories[xScope.end] ?? "…"}
+            </span>
+            <button
+              type="button"
+              aria-label="한 단계 뒤로"
+              title="우클릭과 동일"
+              onClick={popXScope}
+              className={cn(
+                "inline-flex h-5 shrink-0 items-center justify-center rounded border border-sky-500/30 px-1",
+                "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
+                motionClass.microHover,
+              )}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              aria-label="구간 줌 전체 해제"
+              onClick={clearXScope}
+              className={cn(
+                "inline-flex size-5 shrink-0 items-center justify-center rounded border border-sky-500/30",
+                "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
+                motionClass.microHover,
+              )}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      {onPeriodChange ? (
-        <UnifiedTrendPeriodBrush
-          period={period}
-          onPeriodChange={onPeriodChange}
-          overviewValues={brushOverview}
-        />
-      ) : null}
-
-      {built ? (
-        <div className="space-y-1" aria-label="통합 추이 레이어">
-          <div className="flex flex-wrap items-start gap-1" role="group">
-            {built.available.temp ? (
-              <div className="flex min-w-0 flex-col gap-1">
-                <button
-                  type="button"
-                  aria-expanded={tempMenuOpen}
-                  aria-controls="unified-temp-sublayers"
-                  onClick={() => setTempMenuOpen((o) => !o)}
-                  className={cn(
-                    layerChipClass(true),
-                    "inline-flex items-center gap-0.5",
-                  )}
-                  title="온도 옵션 펼치기"
-                >
-                  온도
-                  {tempSubActiveCount > 0 ? (
-                    <span className="tabular-nums opacity-70">
-                      ·{tempSubActiveCount}
+      {scopeSummary ? (
+        <div
+          className={cn(
+            "flex flex-wrap gap-x-3 gap-y-1.5 rounded-md border border-sky-500/25 bg-sky-50/40 px-2.5 py-1.5",
+            "dark:bg-sky-950/30",
+            motionClass.farmChartScopeChipIn,
+          )}
+          data-farm-chart-scope-summary=""
+          aria-label="선택 구간 요약"
+        >
+          <span className="self-center text-[0.65rem] font-semibold text-sky-900 dark:text-sky-100">
+            구간 요약
+          </span>
+          {scopeSummary.metrics.map((m) => {
+            const breach = formatBreachPct(m.breachRate);
+            return (
+              <div
+                key={m.id}
+                className="min-w-0 text-[0.65rem] tabular-nums text-sky-950/90 dark:text-sky-100/90"
+              >
+                <span className="font-medium text-sky-800 dark:text-sky-200">
+                  {m.label}
+                </span>
+                <span className="text-muted-foreground"> avg </span>
+                <span className="font-semibold">
+                  {formatScopeStat(m.avg)}
+                  {m.unit}
+                </span>
+                <span className="text-muted-foreground"> · </span>
+                <span>
+                  {formatScopeStat(m.min)}–{formatScopeStat(m.max)}
+                  {m.unit}
+                </span>
+                {breach != null ? (
+                  <>
+                    <span className="text-muted-foreground"> · 이탈 </span>
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        (m.breachRate ?? 0) > 0.2
+                          ? "text-rose-600 dark:text-rose-400"
+                          : "text-sky-800 dark:text-sky-200",
+                      )}
+                    >
+                      {breach}
                     </span>
-                  ) : null}
-                  <ChevronDown
-                    className={cn(
-                      "size-3 opacity-70 transition-transform duration-motion-fast",
-                      tempMenuOpen && "rotate-180",
-                    )}
-                    aria-hidden
-                  />
-                </button>
-                {tempMenuOpen ? (
-                  <div
-                    id="unified-temp-sublayers"
-                    className="flex flex-wrap gap-1 pl-1"
-                    role="group"
-                    aria-label="온도 상세 레이어"
-                  >
-                    {TEMP_SUB_CHIPS.map(renderSubChip)}
-                  </div>
+                  </>
                 ) : null}
               </div>
-            ) : null}
-
-            {built.available.hum ? (
-              <div className="flex min-w-0 flex-col gap-1">
-                <button
-                  type="button"
-                  aria-expanded={humMenuOpen}
-                  aria-controls="unified-hum-sublayers"
-                  onClick={() => setHumMenuOpen((o) => !o)}
-                  className={cn(
-                    layerChipClass(true),
-                    "inline-flex items-center gap-0.5",
-                  )}
-                  title="습도 옵션 펼치기"
-                >
-                  습도
-                  {humSubActiveCount > 0 ? (
-                    <span className="tabular-nums opacity-70">
-                      ·{humSubActiveCount}
-                    </span>
-                  ) : null}
-                  <ChevronDown
-                    className={cn(
-                      "size-3 opacity-70 transition-transform duration-motion-fast",
-                      humMenuOpen && "rotate-180",
-                    )}
-                    aria-hidden
-                  />
-                </button>
-                {humMenuOpen ? (
-                  <div
-                    id="unified-hum-sublayers"
-                    className="flex flex-wrap gap-1 pl-1"
-                    role="group"
-                    aria-label="습도 상세 레이어"
-                  >
-                    {HUM_SUB_CHIPS.map(renderSubChip)}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {built.available.motors ? (
-              <div className="flex min-w-0 flex-col gap-1">
-                <button
-                  type="button"
-                  aria-expanded={motorMenuOpen}
-                  aria-controls="unified-motor-sublayers"
-                  onClick={() => {
-                    setMotorMenuOpen((o) => !o);
-                    setLayers((prev) =>
-                      prev.motors ? prev : { ...prev, motors: true },
-                    );
-                  }}
-                  className={cn(
-                    layerChipClass(true),
-                    "inline-flex items-center gap-0.5",
-                  )}
-                  title="모터 옵션 펼치기"
-                >
-                  모터
-                  {motorSubActiveCount > 0 ? (
-                    <span className="tabular-nums opacity-70">
-                      ·{motorSubActiveCount}
-                    </span>
-                  ) : null}
-                  <ChevronDown
-                    className={cn(
-                      "size-3 opacity-70 transition-transform duration-motion-fast",
-                      motorMenuOpen && "rotate-180",
-                    )}
-                    aria-hidden
-                  />
-                </button>
-                {motorMenuOpen ? (
-                  <div
-                    id="unified-motor-sublayers"
-                    className="flex flex-wrap gap-1 pl-1"
-                    role="group"
-                    aria-label="모터 상세 레이어"
-                  >
-                    {MOTOR_SUB_CHIPS.map(renderSubChip)}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
+            );
+          })}
         </div>
       ) : null}
 
       {built &&
+      scoped &&
       picked &&
-      (picked.series.length > 0 || picked.histograms.length > 0) ? (
+      (scoped.series.length > 0 || scoped.histograms.length > 0) ? (
         <TrendChart
           mode="line"
           categories={chartCategories}
-          series={picked.series}
-          envelopes={picked.envelopes}
-          histograms={picked.histograms}
+          series={scoped.series}
+          envelopes={scoped.envelopes}
+          histograms={scoped.histograms}
           height={chartHeight ?? (isMobileStack ? 220 : 340)}
           leftUnit=""
           leftDomain={built.leftDomain}
@@ -565,7 +762,14 @@ export function UnifiedBarnTrendPanel({
           markerDensity={period === "24h" ? "all" : "sparse"}
           markerRadiusPx={isMobileStack ? 2.8 : 3.2}
           animate
+          layerClipWipe
+          splitBandGuides={splitBandGuides}
           scaleEdgeLabels={scaleEdgeLabels}
+          xScopeSelect
+          onXScopeCommit={commitXScope}
+          onXScopeBack={popXScope}
+          scopeMotionKey={scopeMotionKey}
+          scopeMotionDir={scopeMotionDir}
         />
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">
@@ -575,9 +779,20 @@ export function UnifiedBarnTrendPanel({
         </p>
       )}
 
+      {onPeriodChange ? (
+        <UnifiedTrendPeriodBrush
+          period={period}
+          onPeriodChange={(next) => {
+            clearXScope();
+            onPeriodChange(next);
+          }}
+          overviewValues={brushOverview}
+        />
+      ) : null}
+
       {built ? (
         <p className="text-[0.65rem] text-muted-foreground">
-          온도·습도 클릭=옵션 펼침 · 편차 진함=알람 밖 · Y축 알람 고정
+          드래그=시간 줌 · 걸친 밴드만 표시 · 한 밴드=확대 · 우클릭/Esc=뒤로 · ×=전체 해제
         </p>
       ) : null}
     </div>

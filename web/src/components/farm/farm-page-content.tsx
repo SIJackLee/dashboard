@@ -639,6 +639,7 @@ export function FarmPageContent({
               onPeriodChange={onTrendPeriodChange}
               alarmSettings={alarmSettings}
               isMobileStack={viewportCompact}
+              layersToolbarActive={view === "chart"}
             />
           </div>
         ) : null}

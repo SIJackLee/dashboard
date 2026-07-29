@@ -1,6 +1,15 @@
 "use client";
 
-import { useMemo, useState, useRef, useLayoutEffect, useId, type CSSProperties } from "react";
+import {
+  useMemo,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useId,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
@@ -11,7 +20,11 @@ import {
   severityScore,
 } from "@/lib/farm/severity-score";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
+import { motionDuration, motionStaggerStepMs } from "@/lib/ui/motion-tokens";
+import {
+  useClipPresence,
+  type ClipPhase,
+} from "@/lib/ui/use-clip-presence";
 
 export type TrendAxis = "left" | "right";
 
@@ -32,6 +45,8 @@ export type TrendSeries = {
    */
   hoverSecondary?: (number | null)[];
   hoverSecondaryUnit?: string;
+  /** 호버 카드 알람 트랙용 (원단위 lo–hi). 차트 Y와 무관. */
+  hoverAlarmBand?: { lo: number; hi: number; unit: string };
 };
 
 /** 두 곡선 사이 면(이목 클라우드·온도 산포 등). */
@@ -71,6 +86,12 @@ export type TrendHistogram = {
   hoverSecondaryUnit?: string;
   /** midpointDelta: "중점 ±n.n℃" */
   hoverFormat?: "signed" | "percent" | "midpointDelta";
+  /** 모터 max 등 — 호버 카드 채널 매트릭스 (레이어에 없어도 tip에 표시) */
+  hoverChannels?: {
+    label: string;
+    color: string;
+    values: (number | null)[];
+  }[];
 };
 
 export type TrendReferenceLine = {
@@ -137,19 +158,252 @@ type TrendChartProps = {
   /** 화면 기준 점 반지름(px). preserveAspectRatio=none 보정에 사용. */
   markerRadiusPx?: number;
   /**
-   * 차트 탭 enter motion — 마운트 1회만 reveal/stagger.
-   * 기간·레이어 변경 시 remount 없음.
+   * 차트 탭 enter motion — 마운트·기간·레이어 밴드 변경 시 reveal.
    */
   animate?: boolean;
+  /** @deprecated 밴드 Y 보간 사용. 전달해도 plot reflow CSS 미적용 */
+  layoutKey?: string;
+  /** 시리즈·히스토그램 추가/삭제 개별 클립 와이프 (기본 animate와 동일) */
+  layerClipWipe?: boolean;
+  /**
+   * split-Y 밴드 경계 가이드 (차트 domain Y, 예: motorHi·humHi).
+   * 레이어 on/off 재배치 시 fade-in.
+   */
+  splitBandGuides?: number[];
   /**
    * line 모드 — 전 시리즈가 null인 연속 구간을 세로 음영(결측)으로 표시.
    */
   showNullGaps?: boolean;
+  /**
+   * P1/P2 X스코프 — 드래그로 시간 구간(+Y밴드) 선택.
+   * y*Ratio: plot 상단=0 · 하단=1
+   */
+  xScopeSelect?: boolean;
+  onXScopeCommit?: (range: {
+    start: number;
+    end: number;
+    yStartRatio: number;
+    yEndRatio: number;
+  }) => void;
+  /** 우클릭 — 줌 한 단계 뒤로 (스택 pop). 있으면 컨텍스트 메뉴 억제 */
+  onXScopeBack?: () => void;
+  /** 스코프 스택 변경 시 줌 인/아웃 모션 키 */
+  scopeMotionKey?: number;
+  scopeMotionDir?: "in" | "out";
 };
 
 const PAD_X = 6;
 const PAD_TOP = 6;
 const VIEW_W = 100;
+const X_SCOPE_DRAG_PX = 8;
+const X_SCOPE_MIN_SPAN = 3;
+
+export type HoverMetricGroup = "temp" | "hum" | "motor";
+
+/** 시리즈/히스토그램 라벨 → 호버 카드 그룹 */
+export function inferHoverMetricGroup(label: string): HoverMetricGroup {
+  if (/습도/.test(label)) return "hum";
+  if (/모터|채널|^[ABC]$/.test(label)) return "motor";
+  return "temp";
+}
+
+const HOVER_GROUP_LABEL: Record<HoverMetricGroup, string> = {
+  temp: "온도",
+  hum: "습도",
+  motor: "모터",
+};
+
+function MiniSpark({
+  values,
+  color,
+  variant = "line",
+}: {
+  values: (number | null)[];
+  color: string;
+  variant?: "line" | "bars";
+}) {
+  const finite = values
+    .map((v, i) => ({ v, i }))
+    .filter((x): x is { v: number; i: number } => x.v != null && Number.isFinite(x.v));
+  if (finite.length < 2) return null;
+  const ys = finite.map((x) => x.v);
+  const min = Math.min(...ys);
+  const max = Math.max(...ys);
+  const span = max - min || 1;
+  const w = 56;
+  const h = 16;
+  if (variant === "bars") {
+    const barW = Math.max(2.5, (w - (finite.length - 1) * 1.5) / finite.length);
+    return (
+      <svg
+        width={w}
+        height={h}
+        className="shrink-0 opacity-90"
+        aria-hidden
+      >
+        {finite.map(({ v }, idx) => {
+          const bh = Math.max(2, ((v - min) / span) * (h - 2));
+          const x = idx * (barW + 1.5);
+          return (
+            <rect
+              key={idx}
+              x={x}
+              y={h - bh}
+              width={barW}
+              height={bh}
+              fill={color}
+              opacity={0.35 + (idx / Math.max(1, finite.length - 1)) * 0.55}
+              rx={0.5}
+            />
+          );
+        })}
+      </svg>
+    );
+  }
+  const pts = finite
+    .map(({ v }, idx) => {
+      const x = (idx / (finite.length - 1)) * w;
+      const y = h - ((v - min) / span) * (h - 2) - 1;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  return (
+    <svg
+      width={w}
+      height={h}
+      className="shrink-0 opacity-90"
+      aria-hidden
+    >
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function formatHistHoverDisplay(
+  h: TrendHistogram,
+  hoverIdx: number,
+): string {
+  const sec = h.hoverSecondary?.[hoverIdx];
+  if (sec == null || !Number.isFinite(sec) || !h.hoverSecondaryUnit) return "–";
+  if (h.hoverFormat === "midpointDelta") {
+    return `중점 ${sec > 0 ? "+" : ""}${sec.toFixed(1)}${h.hoverSecondaryUnit}`;
+  }
+  if (
+    h.hoverFormat === "percent" ||
+    h.style === "volume" ||
+    h.hoverSecondaryUnit === "%"
+  ) {
+    return `${Math.round(sec)}${h.hoverSecondaryUnit}`;
+  }
+  return `${sec > 0 ? "+" : ""}${sec.toFixed(1)}${h.hoverSecondaryUnit}`;
+}
+
+function AlarmTrack({
+  lo,
+  hi,
+  value,
+  unit,
+  color,
+}: {
+  lo: number;
+  hi: number;
+  value: number | null;
+  unit: string;
+  color: string;
+}) {
+  const span = hi - lo;
+  const pct =
+    value != null && Number.isFinite(value) && span > 0
+      ? Math.max(0, Math.min(100, ((value - lo) / span) * 100))
+      : null;
+  const outside =
+    value != null && Number.isFinite(value) && (value < lo || value > hi);
+  return (
+    <div className="mt-1.5 border-t border-border/60 pt-1.5">
+      <div className="mb-0.5 flex items-center justify-between gap-2 text-[9px] text-muted-foreground">
+        <span className="tabular-nums">
+          {formatTrendBandEdge(lo, unit)}
+        </span>
+        <span className={outside ? "font-medium text-amber-600 dark:text-amber-400" : undefined}>
+          {outside ? "한계 이탈" : "알람 구간"}
+        </span>
+        <span className="tabular-nums">
+          {formatTrendBandEdge(hi, unit)}
+        </span>
+      </div>
+      <div className="relative h-1.5 rounded-sm bg-muted/80">
+        {pct != null ? (
+          <span
+            className={cn(
+              "absolute top-1/2 h-2.5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full",
+              motionClass.farmChartAlarmPin,
+            )}
+            style={{ left: `${pct}%`, backgroundColor: color }}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function MotorChannelMatrix({
+  channels,
+  hoverIdx,
+}: {
+  channels: NonNullable<TrendHistogram["hoverChannels"]>;
+  hoverIdx: number;
+}) {
+  return (
+    <div className="mt-1.5 space-y-1">
+      {channels.map((ch) => {
+        const raw = ch.values[hoverIdx];
+        const pct =
+          raw != null && Number.isFinite(raw)
+            ? Math.max(0, Math.min(100, raw))
+            : null;
+        return (
+          <div
+            key={ch.label}
+            className="flex items-center gap-1.5 text-[10px]"
+          >
+            <span className="w-3 shrink-0 font-medium tabular-nums text-muted-foreground">
+              {ch.label}
+            </span>
+            <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted/80">
+              <div
+                className={cn(
+                  "h-full rounded-sm",
+                  motionClass.farmChartChannelBar,
+                )}
+                style={{
+                  width: pct != null ? `${pct}%` : "0%",
+                  backgroundColor: ch.color,
+                  opacity: 0.75,
+                }}
+              />
+            </div>
+            <span className="w-7 shrink-0 text-right font-medium tabular-nums">
+              {pct != null ? Math.round(pct) : "–"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function clipWipeClass(phase: ClipPhase): string | undefined {
+  if (phase === "enter") return motionClass.farmChartClipWipeIn;
+  if (phase === "exit") return motionClass.farmChartClipWipeOut;
+  return undefined;
+}
 
 /** 호버 툴팁 — 온도·습도 소수 1자리, 모터(%) 정수. */
 export function formatTrendHoverValue(
@@ -265,11 +519,39 @@ export function TrendChart({
   markerDensity = "all",
   markerRadiusPx = 3,
   animate = false,
+  layoutKey: _layoutKey,
+  layerClipWipe,
+  splitBandGuides = [],
   showNullGaps = false,
+  xScopeSelect = false,
+  onXScopeCommit,
+  onXScopeBack,
+  scopeMotionKey = 0,
+  scopeMotionDir = "in",
 }: TrendChartProps) {
+  void _layoutKey;
+  const clipWipeEnabled = layerClipWipe ?? animate;
   /** 호버 — 인덱스 변경 시에만 setState (mousemove 전량 리렌더 방지) */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [hoverSeries, setHoverSeries] = useState<string | null>(null);
+  const [xDraft, setXDraft] = useState<{
+    a: number;
+    b: number;
+    y0: number;
+    y: number;
+  } | null>(null);
+  const [scopeCommitFlash, setScopeCommitFlash] = useState<{
+    a: number;
+    b: number;
+    y0: number;
+    y: number;
+  } | null>(null);
+  const pendingScopeCommitRef = useRef<{
+    start: number;
+    end: number;
+    yStartRatio: number;
+    yEndRatio: number;
+  } | null>(null);
   const hoverIdxRef = useRef<number | null>(null);
   const hoverSeriesRef = useRef<string | null>(null);
   const crossVRef = useRef<SVGLineElement | null>(null);
@@ -279,18 +561,31 @@ export function TrendChart({
   const plotRef = useRef<HTMLDivElement | null>(null);
   const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
   const glowFilterId = `tc-glow-${useId().replace(/:/g, "")}`;
-  /** 기간·데이터 변경 시 enter motion 재실행 */
-  const [enterMotion, setEnterMotion] = useState(false);
+  /** 기간 변경 시만 plot wipe — 카테고리 trim/X스코프는 remount 금지 */
+  const plotEnterKey = animate ? String(period ?? "p") : "static";
+  const xScopeOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const xScopeDraggingRef = useRef(false);
+  const xDraftRef = useRef<{
+    a: number;
+    b: number;
+    y0: number;
+    y: number;
+  } | null>(null);
 
-  useLayoutEffect(() => {
-    if (!animate) {
-      setEnterMotion(false);
-      return;
-    }
-    setEnterMotion(true);
-    const t = window.setTimeout(() => setEnterMotion(false), 560);
-    return () => window.clearTimeout(t);
-  }, [animate, categories.length, period, series.length, histograms.length]);
+  const seriesPresence = useClipPresence(series, (s) => s.name, {
+    enabled: clipWipeEnabled,
+  });
+  const histPresence = useClipPresence(
+    histograms,
+    (h) =>
+      `${h.legendLabel ?? "hist"}:${h.groupIndex ?? 0}:${h.style ?? "macd"}`,
+    { enabled: clipWipeEnabled },
+  );
+  const envelopePresence = useClipPresence(
+    envelopes,
+    (e) => e.legendLabel ?? "envelope",
+    { enabled: clipWipeEnabled },
+  );
 
   useLayoutEffect(() => {
     const el = plotRef.current;
@@ -431,7 +726,7 @@ export function TrendChart({
     plotH: number,
   ): { idx: number; xView: number; yView: number; seriesKey: string } | null => {
     if (n === 0 || plotW <= 0 || plotH <= 0) return null;
-    const hitR = Math.max(12, markerRadiusPx * 3.8);
+    const hitR = Math.max(14, markerRadiusPx * 4.2);
     const hitR2 = hitR * hitR;
     let bestD2 = hitR2;
     let best: {
@@ -494,17 +789,229 @@ export function TrendChart({
     for (let hi = 0; hi < histograms.length; hi++) {
       const h = histograms[hi]!;
       const key = h.legendLabel ?? `hist-${hi}`;
+      const slot =
+        n > 1 ? (VIEW_W - 2 * PAD_X) / (n - 1) : VIEW_W - 2 * PAD_X;
+      const isVolume = h.style === "volume";
+      const isOverlay = h.style === "overlay";
+      const gs = Math.max(1, h.groupSize ?? 1);
+      const gi = h.groupIndex ?? 0;
+      const barWHist = Math.max(
+        0.22,
+        slot *
+          (isVolume && gs > 1
+            ? 0.62 / gs
+            : isVolume
+              ? 0.5
+              : isOverlay
+                ? 0.28
+                : 0.55),
+      );
+      const cluster =
+        isVolume && gs > 1
+          ? (gi - (gs - 1) / 2) * (barWHist + 0.12)
+          : 0;
+      const yBase = yFor(h.baseline, "left");
+
       for (let i = 0; i < n; i++) {
         const v = h.values[i];
         if (v == null || !Number.isFinite(v)) continue;
-        consider(i, xAtIndex(i), yFor(v, "left"), key);
+        const yVal = yFor(v, "left");
+        const tipY = yVal;
+        const gx = xAtIndex(i) + cluster - barWHist / 2;
+        const top = Math.min(yBase, yVal);
+        const bottom = Math.max(yBase, yVal);
+        const left = (gx / VIEW_W) * plotW;
+        const right = ((gx + barWHist) / VIEW_W) * plotW;
+        const topPx = (top / chartH) * plotH;
+        const bottomPx = (bottom / chartH) * plotH;
+        /** 모터/편차 막대 — 바 전체 영역 히트 (끝점만 아님) */
+        if (
+          xPx >= left - 2 &&
+          xPx <= right + 2 &&
+          yPx >= Math.min(topPx, bottomPx) - 2 &&
+          yPx <= Math.max(topPx, bottomPx) + 2
+        ) {
+          bestD2 = 0;
+          best = { idx: i, xView: gx + barWHist / 2, yView: tipY, seriesKey: key };
+          continue;
+        }
+        /** 바 근처 완화 히트 (모터 밴드에서 잡기 쉽게) */
+        const padHit = isVolume ? hitR * 1.35 : hitR;
+        const sx = ((gx + barWHist / 2) / VIEW_W) * plotW;
+        const sy = (tipY / chartH) * plotH;
+        const dx = xPx - sx;
+        const dy = yPx - sy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 <= padHit * padHit && d2 <= bestD2) {
+          bestD2 = d2;
+          best = {
+            idx: i,
+            xView: gx + barWHist / 2,
+            yView: tipY,
+            seriesKey: key,
+          };
+        }
       }
     }
 
     return best;
   };
 
+  const clearHover = () => {
+    hoverIdxRef.current = null;
+    hoverSeriesRef.current = null;
+    setHoverIdx(null);
+    setHoverSeries(null);
+    setCrosshairVisible(false);
+  };
+
+  const indexFromXView = (xView: number): number => {
+    if (n <= 1) return 0;
+    const u = (xView - PAD_X) / innerW;
+    return Math.round(Math.min(1, Math.max(0, u)) * (n - 1));
+  };
+
+  const xViewFromClient = (
+    clientX: number,
+    rect: DOMRect,
+  ): number => {
+    if (rect.width <= 0) return PAD_X;
+    const xPx = clientX - rect.left;
+    return Math.min(
+      VIEW_W - PAD_X,
+      Math.max(PAD_X, (xPx / rect.width) * VIEW_W),
+    );
+  };
+
+  const yViewFromClient = (
+    clientY: number,
+    rect: DOMRect,
+  ): number => {
+    if (rect.height <= 0) return PAD_TOP;
+    const yPx = clientY - rect.top;
+    return Math.min(
+      PAD_TOP + innerH,
+      Math.max(PAD_TOP, (yPx / rect.height) * chartH),
+    );
+  };
+
+  const yCenterRatioFromView = (yView: number): number => {
+    if (innerH <= 0) return 0.5;
+    return Math.min(1, Math.max(0, (yView - PAD_TOP) / innerH));
+  };
+
+  const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!xScopeSelect || !onXScopeCommit || e.button !== 0 || n < 2) return;
+    if (scopeCommitFlash != null) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    xScopeOriginRef.current = { x: e.clientX, y: e.clientY };
+    xScopeDraggingRef.current = false;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = xViewFromClient(e.clientX, rect);
+    const y = yViewFromClient(e.clientY, rect);
+    const next = { a: x, b: x, y0: y, y };
+    xDraftRef.current = next;
+    setXDraft(next);
+    clearHover();
+  };
+
+  const onXScopePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!xScopeSelect || xDraftRef.current == null || !xScopeOriginRef.current) {
+      return;
+    }
+    const dx = Math.abs(e.clientX - xScopeOriginRef.current.x);
+    const dy = Math.abs(e.clientY - xScopeOriginRef.current.y);
+    if (!xScopeDraggingRef.current && dx < X_SCOPE_DRAG_PX && dy < X_SCOPE_DRAG_PX) {
+      return;
+    }
+    xScopeDraggingRef.current = true;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = xViewFromClient(e.clientX, rect);
+    const y = yViewFromClient(e.clientY, rect);
+    const next = {
+      a: xDraftRef.current.a,
+      b: x,
+      y0: xDraftRef.current.y0,
+      y,
+    };
+    xDraftRef.current = next;
+    setXDraft(next);
+  };
+
+  const onXScopePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!xScopeSelect || xDraftRef.current == null) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = xViewFromClient(e.clientX, rect);
+    const y = yViewFromClient(e.clientY, rect);
+    const a = xDraftRef.current.a;
+    const y0 = xDraftRef.current.y0;
+    const flash = { a, b: x, y0, y };
+    xDraftRef.current = null;
+    setXDraft(null);
+    xScopeOriginRef.current = null;
+
+    if (!xScopeDraggingRef.current) {
+      xScopeDraggingRef.current = false;
+      return;
+    }
+    xScopeDraggingRef.current = false;
+    if (!onXScopeCommit) return;
+
+    let start = indexFromXView(Math.min(a, x));
+    let end = indexFromXView(Math.max(a, x));
+    if (end - start < X_SCOPE_MIN_SPAN) {
+      const mid = Math.round((start + end) / 2);
+      start = Math.max(0, mid - Math.floor(X_SCOPE_MIN_SPAN / 2));
+      end = Math.min(n - 1, start + X_SCOPE_MIN_SPAN);
+      start = Math.max(0, end - X_SCOPE_MIN_SPAN);
+    }
+    const payload = {
+      start,
+      end,
+      yStartRatio: yCenterRatioFromView(y0),
+      yEndRatio: yCenterRatioFromView(y),
+    };
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      onXScopeCommit(payload);
+      return;
+    }
+    pendingScopeCommitRef.current = payload;
+    setScopeCommitFlash(flash);
+  };
+
+  const onXScopePointerCancel = () => {
+    xDraftRef.current = null;
+    setXDraft(null);
+    setScopeCommitFlash(null);
+    pendingScopeCommitRef.current = null;
+    xScopeOriginRef.current = null;
+    xScopeDraggingRef.current = false;
+  };
+
+  useEffect(() => {
+    if (scopeCommitFlash == null || !onXScopeCommit) return;
+    const t = window.setTimeout(() => {
+      const payload = pendingScopeCommitRef.current;
+      pendingScopeCommitRef.current = null;
+      setScopeCommitFlash(null);
+      if (payload) onXScopeCommit(payload);
+    }, motionDuration.moderate);
+    return () => window.clearTimeout(t);
+  }, [scopeCommitFlash, onXScopeCommit]);
+
+  const onXScopeContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!xScopeSelect || !onXScopeBack) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onXScopeBack();
+  };
+
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (xScopeDraggingRef.current || xDraftRef.current != null || scopeCommitFlash != null)
+      return;
     if (n === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
@@ -549,14 +1056,6 @@ export function TrendChart({
     hoverSeriesRef.current = hit.seriesKey;
     setHoverIdx(hit.idx);
     setHoverSeries(hit.seriesKey);
-  };
-
-  const clearHover = () => {
-    hoverIdxRef.current = null;
-    hoverSeriesRef.current = null;
-    setHoverIdx(null);
-    setHoverSeries(null);
-    setCrosshairVisible(false);
   };
 
   useLayoutEffect(() => {
@@ -882,9 +1381,22 @@ export function TrendChart({
 
       <div
         ref={plotRef}
-        className="relative cursor-crosshair"
+        className={cn(
+          "relative touch-none",
+          xScopeSelect ? "cursor-crosshair" : "cursor-crosshair",
+        )}
         onMouseMove={onMove}
-        onMouseLeave={clearHover}
+        onMouseLeave={() => {
+          if (xDraftRef.current != null || scopeCommitFlash != null) return;
+          clearHover();
+        }}
+        onPointerDown={xScopeSelect ? onXScopePointerDown : undefined}
+        onPointerMove={xScopeSelect ? onXScopePointerMove : undefined}
+        onPointerUp={xScopeSelect ? onXScopePointerUp : undefined}
+        onPointerCancel={xScopeSelect ? onXScopePointerCancel : undefined}
+        onContextMenu={
+          xScopeSelect && onXScopeBack ? onXScopeContextMenu : undefined
+        }
       >
       <svg
         viewBox={`0 0 ${VIEW_W} ${chartH}`}
@@ -905,7 +1417,19 @@ export function TrendChart({
             <feGaussianBlur in="SourceGraphic" stdDeviation="1.35" />
           </filter>
         </defs>
-        <g className={enterMotion ? motionClass.farmChartPlotReveal : undefined}>
+        <g
+          key={`${plotEnterKey}:${scopeMotionKey}`}
+          className={cn(
+            animate && scopeMotionKey === 0
+              ? motionClass.farmChartPlotReveal
+              : undefined,
+            scopeMotionKey > 0
+              ? scopeMotionDir === "out"
+                ? motionClass.farmChartScopeZoomOut
+                : motionClass.farmChartScopeZoomIn
+              : undefined,
+          )}
+        >
         {nullGapRanges.map((g) => {
           const x0 = xFor(g.i0);
           const x1 = xFor(g.i1);
@@ -926,8 +1450,28 @@ export function TrendChart({
             />
           );
         })}
+        {splitBandGuides.map((gy, gi) => {
+          if (!Number.isFinite(gy)) return null;
+          const y = yFor(gy, "left");
+          if (!Number.isFinite(y)) return null;
+          return (
+            <line
+              key={`band-guide-${gi}-${gy}`}
+              x1={PAD_X}
+              x2={VIEW_W - PAD_X}
+              y1={y}
+              y2={y}
+              stroke="currentColor"
+              strokeWidth={0.4}
+              strokeDasharray="2.5 3"
+              vectorEffect="non-scaling-stroke"
+              className={cn("text-muted-foreground")}
+              opacity={0.35}
+            />
+          );
+        })}
         {mode === "line"
-          ? histograms.map((h, hi) => {
+          ? histPresence.map(({ item: h, key: histKey, phase }) => {
               const yBase = yFor(h.baseline, "left");
               const slot =
                 n > 1 ? (VIEW_W - 2 * PAD_X) / (n - 1) : VIEW_W - 2 * PAD_X;
@@ -952,7 +1496,11 @@ export function TrendChart({
                   : 0;
               const opacity = h.fillOpacity ?? (isOverlay ? 0.14 : isVolume ? 0.7 : 0.75);
               return (
-                <g key={`hist-${hi}`}>
+                <g
+                  key={histKey}
+                  className={clipWipeClass(phase)}
+                  data-clip-phase={phase}
+                >
                   {(!isVolume || gi === 0) && !isOverlay ? (
                     <line
                       x1={PAD_X}
@@ -990,9 +1538,18 @@ export function TrendChart({
                       Number.isFinite(h.fillOpacityValues[i]!)
                         ? (h.fillOpacityValues[i] as number)
                         : opacity;
+                    const hoverGroup = hoverSeries
+                      ? inferHoverMetricGroup(hoverSeries)
+                      : null;
+                    const histGroup = inferHoverMetricGroup(
+                      h.legendLabel ?? histKey,
+                    );
+                    const barFocused =
+                      hoverIdx === i &&
+                      (hoverGroup == null || hoverGroup === histGroup);
                     return (
                       <rect
-                        key={`hist-${hi}-${i}`}
+                        key={`${histKey}-${i}`}
                         x={xFor(i) + cluster - barWHist / 2}
                         y={top}
                         width={barWHist}
@@ -1000,8 +1557,10 @@ export function TrendChart({
                         fill={
                           isVolume || up ? h.colorUp : h.colorDown
                         }
-                        fillOpacity={barOp}
-                        stroke="none"
+                        fillOpacity={barFocused ? Math.min(1, barOp + 0.28) : barOp}
+                        stroke={barFocused ? (isVolume || up ? h.colorUp : h.colorDown) : "none"}
+                        strokeWidth={barFocused ? 0.4 : 0}
+                        vectorEffect="non-scaling-stroke"
                       />
                     );
                   })}
@@ -1010,19 +1569,18 @@ export function TrendChart({
             })
           : null}
         {mode === "line"
-          ? envelopes.map((env, idx) => {
+          ? envelopePresence.map(({ item: env, key: envKey, phase }) => {
               const d = envelopePath(env);
               if (!d) return null;
               return (
                 <path
-                  key={`env-${idx}`}
+                  key={envKey}
                   d={d}
                   fill={env.fill}
                   fillOpacity={env.fillOpacity ?? 0.22}
                   stroke="none"
-                  className={
-                    enterMotion ? motionClass.farmChartEnvelopeIn : undefined
-                  }
+                  className={clipWipeClass(phase)}
+                  data-clip-phase={phase}
                 />
               );
             })
@@ -1122,16 +1680,22 @@ export function TrendChart({
                 );
               }),
             )
-          : series.map((s, si) => {
+          : seriesPresence.map(({ item: s, key: seriesKey, phase }, si) => {
               const axis = s.axis ?? "left";
               const segs = lineSegments(s);
+              const hoverGroup = hoverSeries
+                ? inferHoverMetricGroup(hoverSeries)
+                : null;
               const focused =
-                hoverSeries == null || hoverSeries === s.name;
+                hoverGroup == null ||
+                inferHoverMetricGroup(s.name) === hoverGroup;
               const lineOpacity = focused ? 1 : 0.22;
               const strokeW = focused && hoverSeries ? 1.85 : 1.55;
               return (
                 <g
-                  key={s.name}
+                  key={seriesKey}
+                  className={clipWipeClass(phase)}
+                  data-clip-phase={phase}
                   style={{
                     opacity: lineOpacity,
                     transition: "opacity 120ms linear",
@@ -1162,11 +1726,6 @@ export function TrendChart({
                         strokeLinecap="round"
                         strokeDasharray={s.strokeDasharray}
                         vectorEffect="non-scaling-stroke"
-                        className={
-                          enterMotion
-                            ? motionClass.farmChartLineSoftIn
-                            : undefined
-                        }
                       />
                     </g>
                   ))}
@@ -1177,20 +1736,21 @@ export function TrendChart({
                         const cx = xFor(i);
                         const cy = yFor(v, axis);
                         const rPx = markerRadiusPx;
-                        const markerDelayMs = enterMotion
-                          ? 120 +
-                            si * motionStaggerStepMs +
-                            Math.min(i, 8) * 16
-                          : 0;
-                        const markerStyle = enterMotion
-                          ? ({
-                              ["--farm-chart-marker-delay" as string]:
-                                `${markerDelayMs}ms`,
-                            } as CSSProperties)
-                          : undefined;
-                        const markerClass = enterMotion
-                          ? motionClass.farmChartMarkerPop
-                          : undefined;
+                        const markerDelayMs =
+                          120 +
+                          si * motionStaggerStepMs +
+                          Math.min(i, 8) * 16;
+                        const markerStyle =
+                          phase === "enter"
+                            ? ({
+                                ["--farm-chart-marker-delay" as string]:
+                                  `${markerDelayMs}ms`,
+                              } as CSSProperties)
+                            : undefined;
+                        const markerClass =
+                          phase === "enter"
+                            ? motionClass.farmChartMarkerPop
+                            : undefined;
                         if (s.band) {
                           const sev = sevOfScore(severityScore(v, s.band));
                           if (sev !== "normal") {
@@ -1232,7 +1792,10 @@ export function TrendChart({
               const v = s.data[hoverIdx];
               if (v == null || !Number.isFinite(v)) return null;
               const axis = s.axis ?? "left";
-              const isFocus = hoverSeries == null || hoverSeries === s.name;
+              const isFocus =
+                hoverSeries == null ||
+                inferHoverMetricGroup(hoverSeries) ===
+                  inferHoverMetricGroup(s.name);
               if (!isFocus) return null;
               const cx = xFor(hoverIdx);
               const cy = yFor(v, axis);
@@ -1300,6 +1863,122 @@ export function TrendChart({
           style={{ opacity: 0, transition: "opacity 90ms linear" }}
           pointerEvents="none"
         />
+        {(() => {
+          const win = scopeCommitFlash ?? xDraft;
+          if (win == null) return null;
+          const committing = scopeCommitFlash != null;
+          const x0 = win.a;
+          const x1 = win.b;
+          const y0 = win.y0;
+          const y1 = win.y;
+          const left = Math.min(x0, x1);
+          const right = Math.max(x0, x1);
+          const top = Math.min(y0, y1);
+          const bot = Math.max(y0, y1);
+          const w = Math.max(0.5, right - left);
+          const rawH = bot - top;
+          const h = Math.max(3.2, rawH);
+          const yMid = (top + bot) / 2;
+          const yBox = Math.min(
+            PAD_TOP + innerH - h,
+            Math.max(PAD_TOP, rawH < 3.2 ? yMid - h / 2 : top),
+          );
+          const sx = Math.min(8, Math.max(1.15, innerW / w));
+          const sy = Math.min(8, Math.max(1.15, innerH / h));
+          const rx = markerRx(4.2);
+          const ry = markerRy(4.2);
+          const rxEnd = markerRx(5);
+          const ryEnd = markerRy(5);
+          return (
+            <g
+              pointerEvents="none"
+              aria-hidden
+              className={committing ? motionClass.farmChartScopeCommit : undefined}
+              style={
+                committing
+                  ? ({
+                      ["--farm-scope-sx" as string]: String(sx),
+                      ["--farm-scope-sy" as string]: String(sy),
+                    } as CSSProperties)
+                  : undefined
+              }
+            >
+              <rect
+                x={left}
+                y={yBox}
+                width={w}
+                height={h}
+                fill="rgb(14 165 233)"
+                fillOpacity={committing ? 0.22 : 0.12}
+                stroke="rgb(14 165 233)"
+                strokeWidth={committing ? 0.7 : 0.5}
+                vectorEffect="non-scaling-stroke"
+              />
+              <rect
+                className={
+                  committing ? undefined : motionClass.farmChartScopeHandlePulse
+                }
+                x={left}
+                y={yBox}
+                width={0.7}
+                height={h}
+                fill="rgb(56 189 248)"
+                opacity={0.95}
+              />
+              <rect
+                className={
+                  committing ? undefined : motionClass.farmChartScopeHandlePulse
+                }
+                x={right - 0.7}
+                y={yBox}
+                width={0.7}
+                height={h}
+                fill="rgb(56 189 248)"
+                opacity={0.95}
+              />
+              <ellipse
+                cx={x0}
+                cy={y0}
+                rx={rx}
+                ry={ry}
+                fill="rgb(14 165 233)"
+                stroke="#fff"
+                strokeWidth={0.35}
+                vectorEffect="non-scaling-stroke"
+              />
+              <ellipse
+                cx={x1}
+                cy={y1}
+                rx={rxEnd}
+                ry={ryEnd}
+                fill="#fff"
+                stroke="rgb(14 165 233)"
+                strokeWidth={0.55}
+                vectorEffect="non-scaling-stroke"
+              />
+              <ellipse
+                cx={x1}
+                cy={y1}
+                rx={markerRx(2)}
+                ry={markerRy(2)}
+                fill="rgb(14 165 233)"
+              />
+              {!committing ? (
+                <line
+                  x1={x0}
+                  y1={y0}
+                  x2={x1}
+                  y2={y1}
+                  stroke="rgb(14 165 233)"
+                  strokeWidth={0.35}
+                  strokeDasharray="1.2 1.2"
+                  vectorEffect="non-scaling-stroke"
+                  opacity={0.7}
+                />
+              ) : null}
+            </g>
+          );
+        })()}
       </svg>
 
       {edgeBandLabels.map((label) => (
@@ -1322,136 +2001,316 @@ export function TrendChart({
       {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
         <div
           ref={tipRef}
-          className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[11.5rem]"
+          className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[14rem]"
           style={{ opacity: 0, willChange: "transform" }}
           aria-live="polite"
           data-tour-id="trend-chart-hover-card"
         >
           <div
             className={cn(
-              "rounded-md border border-border/80 bg-popover/95 px-2 py-1.5 text-popover-foreground shadow-lg backdrop-blur-sm",
+              "rounded-md border border-border/80 bg-popover/95 px-2.5 py-1.5 text-popover-foreground shadow-lg backdrop-blur-sm",
               motionClass.farmChartTipIn,
             )}
           >
-          <div className="mb-1 text-[10px] font-semibold">
-            {categories[hoverIdx]}
-          </div>
-          <div className="space-y-0.5">
-            {series.map((s) => {
-              const v = s.data[hoverIdx];
-              const unit =
-                (s.axis ?? "left") === "right" ? rightUnit : leftUnit;
-              const sec = s.hoverSecondary?.[hoverIdx];
-              const mappedPrimary =
-                v == null || !Number.isFinite(v)
-                  ? "–"
-                  : formatTrendHoverValue(v, unit, s.name);
-              const display =
-                sec != null &&
-                Number.isFinite(sec) &&
-                s.hoverSecondaryUnit
-                  ? formatTrendHoverValue(sec, s.hoverSecondaryUnit, s.name)
-                  : mappedPrimary;
-              return (
-                <div
-                  key={s.name}
-                  className="flex items-center justify-between gap-2 text-[10px]"
-                  style={{
-                    opacity:
-                      hoverSeries && hoverSeries !== s.name ? 0.42 : 1,
-                    fontWeight:
-                      hoverSeries && hoverSeries === s.name ? 600 : undefined,
-                  }}
-                >
-                  <span className="inline-flex min-w-0 items-center gap-1">
-                    <span
-                      className="inline-block h-2 w-2 shrink-0 rounded-sm"
-                      style={{ backgroundColor: s.color }}
-                    />
-                    <span className="truncate">{s.name}</span>
-                  </span>
-                  <span className="shrink-0 font-medium tabular-nums">
-                    {display}
-                  </span>
-                </div>
+            {(() => {
+              const group = hoverSeries
+                ? inferHoverMetricGroup(hoverSeries)
+                : null;
+              const tipSeries = series.filter(
+                (s) =>
+                  group == null ||
+                  inferHoverMetricGroup(s.name) === group,
               );
-            })}
-            {histograms.map((h, hi) => {
-              const sec = h.hoverSecondary?.[hoverIdx];
-              const chartV = h.values[hoverIdx];
-              const up =
-                chartV != null && Number.isFinite(chartV)
-                  ? chartV >= h.baseline
-                  : true;
-              let display = "–";
-              if (sec != null && Number.isFinite(sec) && h.hoverSecondaryUnit) {
-                if (h.hoverFormat === "midpointDelta") {
-                  display = `중점 ${sec > 0 ? "+" : ""}${sec.toFixed(1)}${h.hoverSecondaryUnit}`;
-                } else if (
-                  h.hoverFormat === "percent" ||
-                  h.style === "volume" ||
-                  h.hoverSecondaryUnit === "%"
-                ) {
-                  display = `${Math.round(sec)}${h.hoverSecondaryUnit}`;
-                } else {
-                  display = `${sec > 0 ? "+" : ""}${sec.toFixed(1)}${h.hoverSecondaryUnit}`;
-                }
-              }
-              return (
-                <div
-                  key={`hist-tip-${hi}`}
-                  className="flex items-center justify-between gap-2 text-[10px]"
-                >
-                  <span className="inline-flex min-w-0 items-center gap-1">
-                    <span
-                      className="inline-block h-2 w-2 shrink-0 rounded-sm"
-                      style={{
-                        backgroundColor:
-                          h.style === "volume" || up
-                            ? h.colorUp
-                            : h.colorDown,
-                      }}
-                    />
-                    <span className="truncate">{h.legendLabel ?? "편차"}</span>
-                  </span>
-                  <span className="shrink-0 font-medium tabular-nums">
-                    {display}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          {uniqueAlarmBands.length > 0 ? (
-            <div className="mt-1 space-y-0.5 border-t border-border/60 pt-1">
-              {uniqueAlarmBands.map(({ band, axis }, idx) => {
-                const unit = unitForAxis(axis);
-                const tipColor = usesRight
-                  ? series.find((s) => (s.axis ?? "left") === axis)?.color ??
-                    SEV_COLOR.warning
-                  : SEV_COLOR.warning;
+              const tipHists = histograms.filter((h) => {
+                const label = h.legendLabel ?? "편차";
                 return (
-                  <div
-                    key={`tip-alarm-${idx}`}
-                    className="flex items-center justify-between gap-2 text-[9px]"
-                    style={{ color: tipColor }}
-                  >
-                    <span>
-                      한계
-                      {usesRight
-                        ? axis === "right"
-                          ? "(우)"
-                          : "(좌)"
-                        : ""}
-                    </span>
-                    <span className="tabular-nums">
-                      {formatTrendBandEdge(band.lo, unit)}–
-                      {formatTrendBandEdge(band.hi, unit)}
-                    </span>
-                  </div>
+                  group == null || inferHoverMetricGroup(label) === group
                 );
-              })}
-            </div>
-          ) : null}
+              });
+              const sparkSeries =
+                tipSeries.find((s) => s.name === hoverSeries) ?? tipSeries[0];
+              const sparkHist =
+                tipHists.find((h) => (h.legendLabel ?? "") === hoverSeries) ??
+                tipHists[0];
+              const sparkColor =
+                sparkSeries?.color ??
+                sparkHist?.colorUp ??
+                "#94a3b8";
+              const sparkSrc =
+                sparkSeries?.hoverSecondary ??
+                sparkSeries?.data ??
+                sparkHist?.hoverSecondary ??
+                sparkHist?.values ??
+                [];
+              const sparkSlice = sparkSrc.slice(
+                Math.max(0, hoverIdx - 7),
+                hoverIdx + 1,
+              );
+
+              const heroSeries =
+                tipSeries.find((s) => s.name === hoverSeries) ??
+                tipSeries.find((s) =>
+                  group === "temp"
+                    ? s.name === "온도"
+                    : group === "hum"
+                      ? s.name === "습도"
+                      : false,
+                ) ??
+                (group === "motor" ? undefined : tipSeries[0]);
+
+              const motorChannels: NonNullable<
+                TrendHistogram["hoverChannels"]
+              > = (() => {
+                if (group !== "motor") return [];
+                const fromMeta =
+                  tipHists.find((h) => h.hoverChannels?.length)?.hoverChannels ??
+                  [];
+                if (fromMeta.length) return fromMeta;
+                return tipHists
+                  .filter((h) => {
+                    const lab = h.legendLabel ?? "";
+                    return lab === "A" || lab === "B" || lab === "C";
+                  })
+                  .map((h) => ({
+                    label: h.legendLabel!,
+                    color: h.colorUp,
+                    values: h.hoverSecondary ?? h.values,
+                  }));
+              })();
+
+              const showMotorMatrix =
+                group === "motor" && motorChannels.length > 0;
+
+              let heroHist =
+                tipHists.find((h) => (h.legendLabel ?? "") === hoverSeries) ??
+                tipHists.find((h) => (h.legendLabel ?? "") === "모터") ??
+                (group === "motor" ? tipHists[0] : undefined);
+              if (group === "motor") {
+                heroHist =
+                  tipHists.find((h) => (h.legendLabel ?? "") === "모터") ??
+                  tipHists.find((h) => h.hoverChannels?.length) ??
+                  tipHists[0];
+              }
+
+              let heroLabel = group ? HOVER_GROUP_LABEL[group] : "데이터";
+              let heroText = "–";
+              let heroUnit = "";
+              let heroNum: number | null = null;
+              let heroColor = sparkColor;
+
+              if (group === "motor" && showMotorMatrix) {
+                const vals = motorChannels
+                  .map((ch) => ch.values[hoverIdx])
+                  .filter((v): v is number => v != null && Number.isFinite(v));
+                if (vals.length) {
+                  heroNum = Math.max(...vals);
+                  heroUnit = "%";
+                  heroText = `${Math.round(heroNum)}%`;
+                  heroLabel = "모터 max";
+                  heroColor =
+                    tipHists.find((h) => (h.legendLabel ?? "") === "모터")
+                      ?.colorUp ??
+                    motorChannels[0]?.color ??
+                    sparkColor;
+                }
+              } else if (heroSeries) {
+                const unit =
+                  (heroSeries.axis ?? "left") === "right"
+                    ? rightUnit
+                    : leftUnit;
+                const sec = heroSeries.hoverSecondary?.[hoverIdx];
+                const v = heroSeries.data[hoverIdx];
+                if (
+                  sec != null &&
+                  Number.isFinite(sec) &&
+                  heroSeries.hoverSecondaryUnit
+                ) {
+                  heroNum = sec;
+                  heroUnit = heroSeries.hoverSecondaryUnit;
+                  heroText = formatTrendHoverValue(
+                    sec,
+                    heroSeries.hoverSecondaryUnit,
+                    heroSeries.name,
+                  );
+                } else if (v != null && Number.isFinite(v)) {
+                  heroNum = v;
+                  heroUnit = unit;
+                  heroText = formatTrendHoverValue(v, unit, heroSeries.name);
+                }
+                heroLabel = heroSeries.name;
+                heroColor = heroSeries.color;
+              } else if (heroHist) {
+                const sec = heroHist.hoverSecondary?.[hoverIdx];
+                heroText = formatHistHoverDisplay(heroHist, hoverIdx);
+                if (sec != null && Number.isFinite(sec)) {
+                  heroNum = sec;
+                  heroUnit = heroHist.hoverSecondaryUnit ?? "";
+                }
+                heroLabel =
+                  group === "motor" || heroHist.legendLabel === "모터"
+                    ? "모터 max"
+                    : (heroHist.legendLabel ?? "값");
+                heroColor = heroHist.colorUp;
+              }
+
+              const heroKey = heroSeries?.name ?? heroHist?.legendLabel ?? "";
+
+              const alarmMeta =
+                group === "temp" || group === "hum"
+                  ? tipSeries.find((s) => s.hoverAlarmBand)?.hoverAlarmBand
+                  : undefined;
+
+              const secondarySeries = tipSeries.filter((s) => s.name !== heroKey);
+              const secondaryHists = tipHists.filter((h) => {
+                const lab = h.legendLabel ?? "";
+                if (lab === heroKey) return false;
+                if (showMotorMatrix && (lab === "모터" || /^[ABC]$/.test(lab))) {
+                  return false;
+                }
+                return true;
+              });
+
+              const heroMain = heroText.replace(
+                new RegExp(`${heroUnit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+                "",
+              );
+
+              return (
+                <>
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <span className="rounded-sm bg-muted/80 px-1 py-px text-[9px] font-semibold tracking-tight text-foreground/90">
+                      {group ? HOVER_GROUP_LABEL[group] : "데이터"}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {categories[hoverIdx]}
+                    </span>
+                    <div className="ml-auto">
+                      <MiniSpark
+                        values={sparkSlice}
+                        color={sparkColor}
+                        variant={group === "motor" ? "bars" : "line"}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    className={cn(
+                      "flex items-baseline gap-0.5",
+                      motionClass.farmChartTipHero,
+                    )}
+                    key={`hero-${heroKey}-${hoverIdx}`}
+                  >
+                    <span
+                      className="text-[18px] font-semibold leading-none tabular-nums tracking-tight"
+                      style={{ color: heroColor }}
+                    >
+                      {heroMain || "–"}
+                    </span>
+                    {heroUnit ? (
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        {heroUnit}
+                        {heroLabel === "모터 max" ? " max" : ""}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {(secondarySeries.length > 0 || secondaryHists.length > 0) &&
+                  !showMotorMatrix ? (
+                    <div className="mt-1.5 space-y-0.5">
+                      {secondarySeries.map((s) => {
+                        const unit =
+                          (s.axis ?? "left") === "right"
+                            ? rightUnit
+                            : leftUnit;
+                        const sec = s.hoverSecondary?.[hoverIdx];
+                        const v = s.data[hoverIdx];
+                        const mappedPrimary =
+                          v == null || !Number.isFinite(v)
+                            ? "–"
+                            : formatTrendHoverValue(v, unit, s.name);
+                        const display =
+                          sec != null &&
+                          Number.isFinite(sec) &&
+                          s.hoverSecondaryUnit
+                            ? formatTrendHoverValue(
+                                sec,
+                                s.hoverSecondaryUnit,
+                                s.name,
+                              )
+                            : mappedPrimary;
+                        return (
+                          <div
+                            key={s.name}
+                            className="flex items-center justify-between gap-2 text-[10px]"
+                          >
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <span
+                                className="inline-block h-1.5 w-1.5 shrink-0 rounded-sm"
+                                style={{ backgroundColor: s.color }}
+                              />
+                              <span className="truncate text-muted-foreground">
+                                {s.name}
+                              </span>
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                              {display}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {secondaryHists.map((h, hi) => {
+                        const chartV = h.values[hoverIdx];
+                        const up =
+                          chartV != null && Number.isFinite(chartV)
+                            ? chartV >= h.baseline
+                            : true;
+                        return (
+                          <div
+                            key={`hist-tip-${hi}`}
+                            className="flex items-center justify-between gap-2 text-[10px]"
+                          >
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <span
+                                className="inline-block h-1.5 w-1.5 shrink-0 rounded-sm"
+                                style={{
+                                  backgroundColor:
+                                    h.style === "volume" || up
+                                      ? h.colorUp
+                                      : h.colorDown,
+                                }}
+                              />
+                              <span className="truncate text-muted-foreground">
+                                {h.legendLabel ?? "편차"}
+                              </span>
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                              {formatHistHoverDisplay(h, hoverIdx)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  {showMotorMatrix ? (
+                    <MotorChannelMatrix
+                      channels={motorChannels}
+                      hoverIdx={hoverIdx}
+                    />
+                  ) : null}
+
+                  {alarmMeta ? (
+                    <AlarmTrack
+                      lo={alarmMeta.lo}
+                      hi={alarmMeta.hi}
+                      value={heroNum}
+                      unit={alarmMeta.unit}
+                      color={heroColor}
+                    />
+                  ) : null}
+                </>
+              );
+            })()}
           </div>
         </div>
       ) : null}

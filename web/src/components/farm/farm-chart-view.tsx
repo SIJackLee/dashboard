@@ -26,6 +26,8 @@ type Props = {
   onPeriodChange?: (period: TrendPeriodId) => void;
   alarmSettings?: AlarmSettings;
   isMobileStack?: boolean;
+  /** 차트 탭 활성 — ScopeBar 레이어 툴바 enter/exit */
+  layersToolbarActive?: boolean;
   className?: string;
 };
 
@@ -40,6 +42,7 @@ export function FarmChartView({
   onPeriodChange,
   alarmSettings,
   isMobileStack = false,
+  layersToolbarActive = true,
   className,
 }: Props) {
   const [scope, setScope] = useState<FarmChartScope>(DEFAULT_FARM_CHART_SCOPE);
@@ -87,6 +90,7 @@ export function FarmChartView({
           alarmSettings={alarmSettings}
           isMobileStack={isMobileStack}
           chartHeight={chartHeight}
+          layersToolbarActive={layersToolbarActive}
           className="mt-0"
         />
       </div>

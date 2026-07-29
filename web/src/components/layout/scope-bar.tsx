@@ -183,6 +183,11 @@ export function ScopeBar({
           data-farm-view-toggle-slot
           className="flex min-w-0 shrink-0 items-center"
         />
+        {/* 차트 탭 레이어 툴바 portal — 비어 있으면 숨김(차트 외 뷰) */}
+        <div
+          data-farm-chart-layers-slot
+          className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden"
+        />
       </div>
     ) : multiFarm && onFarmChange ? (
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -204,25 +209,35 @@ export function ScopeBar({
             }}
           />
         ))}
+        <div
+          data-farm-chart-layers-slot
+          className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden"
+        />
       </div>
     ) : showFarmMeta ? (
-      <p className="min-w-0 text-muted-foreground">
-        {lsindRegistNo ? (
-          <>
-            <span>축산업등록번호 </span>
-            <span className="font-medium text-foreground">{lsindRegistNo}</span>
-          </>
-        ) : null}
-        {lsindRegistNo && stallTypeLabel ? (
-          <span className="mx-2">·</span>
-        ) : null}
-        {stallTypeLabel ? (
-          <>
-            <span>축사유형 </span>
-            <span className="font-medium text-foreground">{stallTypeLabel}</span>
-          </>
-        ) : null}
-      </p>
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <p className="min-w-0 text-muted-foreground">
+          {lsindRegistNo ? (
+            <>
+              <span>축산업등록번호 </span>
+              <span className="font-medium text-foreground">{lsindRegistNo}</span>
+            </>
+          ) : null}
+          {lsindRegistNo && stallTypeLabel ? (
+            <span className="mx-2">·</span>
+          ) : null}
+          {stallTypeLabel ? (
+            <>
+              <span>축사유형 </span>
+              <span className="font-medium text-foreground">{stallTypeLabel}</span>
+            </>
+          ) : null}
+        </p>
+        <div
+          data-farm-chart-layers-slot
+          className="ml-auto flex min-w-0 shrink-0 items-center empty:hidden"
+        />
+      </div>
     ) : null;
 
   return (

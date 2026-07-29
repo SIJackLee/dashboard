@@ -1052,6 +1052,25 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     right var(--motion-duration-normal) var(--motion-ease-standard);
 }
 
+@keyframes farm-chart-brush-bar {
+  from {
+    opacity: 0;
+    transform: scaleY(0.15);
+  }
+  to {
+    opacity: 0.88;
+    transform: scaleY(1);
+  }
+}
+
+.farm-chart-brush-bar {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: farm-chart-brush-bar var(--motion-duration-moderate)
+    var(--motion-ease-emphasis) both;
+  animation-delay: var(--farm-brush-bar-delay, 0ms);
+}
+
 .farm-chart-tip-in {
   animation: farm-chart-tip-in var(--motion-duration-fast) var(--motion-ease-enter)
     both;
@@ -1066,6 +1085,27 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+@keyframes farm-chart-tip-hero {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.farm-chart-tip-hero {
+  animation: farm-chart-tip-hero 80ms var(--motion-ease-enter) both;
+}
+
+.farm-chart-alarm-pin {
+  transition: left 120ms var(--motion-ease-standard);
+}
+
+.farm-chart-channel-bar {
+  transition: width 120ms var(--motion-ease-standard);
 }
 
 @keyframes farm-chart-hover-ring {
@@ -1088,6 +1128,38 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   opacity: 0.28;
 }
 
+@keyframes farm-chart-reflow {
+  from {
+    opacity: 0.4;
+    transform: scaleY(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+.farm-chart-reflow {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: farm-chart-reflow 320ms var(--motion-ease-enter) both;
+}
+
+@keyframes farm-chart-band-guide-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.35;
+  }
+}
+
+.farm-chart-band-guide-in {
+  animation: farm-chart-band-guide-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+  animation-delay: 80ms;
+}
+
 .farm-chart-scope-shell {
   animation: ui-motion-slide-up-in var(--motion-duration-moderate)
     var(--motion-ease-enter) both;
@@ -1099,6 +1171,159 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   animation-delay: 60ms;
 }
 
+@keyframes farm-chart-layers-enter {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes farm-chart-layers-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(8px);
+    filter: blur(2px);
+  }
+}
+
+.farm-chart-layers-enter {
+  animation: farm-chart-layers-enter var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+  transform-origin: right center;
+}
+
+.farm-chart-layers-exit {
+  animation: farm-chart-layers-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
+  pointer-events: none;
+  transform-origin: right center;
+}
+
+@keyframes farm-chart-clip-wipe-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes farm-chart-clip-wipe-out {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+.farm-chart-clip-wipe-in {
+  animation: farm-chart-clip-wipe-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+.farm-chart-clip-wipe-out {
+  animation: farm-chart-clip-wipe-out var(--motion-duration-moderate)
+    var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+
+/** 드래그 윈도우 → 스코프 커밋: 선택 박스가 플롯으로 팽창하며 페이드 */
+@keyframes farm-chart-scope-commit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  55% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(var(--farm-scope-sx, 1.8), var(--farm-scope-sy, 1.8));
+  }
+}
+
+.farm-chart-scope-commit {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: farm-chart-scope-commit 240ms var(--motion-ease-emphasis) both;
+  pointer-events: none;
+}
+
+@keyframes farm-chart-scope-zoom-in {
+  from {
+    opacity: 0.25;
+    transform: scale(1.045);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes farm-chart-scope-zoom-out {
+  from {
+    opacity: 0.3;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.farm-chart-scope-zoom-in {
+  transform-origin: center;
+  animation: farm-chart-scope-zoom-in 320ms var(--motion-ease-emphasis) both;
+}
+
+.farm-chart-scope-zoom-out {
+  transform-origin: center;
+  animation: farm-chart-scope-zoom-out 280ms var(--motion-ease-enter) both;
+}
+
+@keyframes farm-chart-scope-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.farm-chart-scope-chip-in {
+  animation: farm-chart-scope-chip-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+@keyframes farm-chart-scope-handle-pulse {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.farm-chart-scope-handle-pulse {
+  animation: farm-chart-scope-handle-pulse 900ms var(--motion-ease-standard)
+    infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .farm-chart-plot-reveal,
   .farm-chart-envelope-in,
@@ -1107,11 +1332,26 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   .farm-chart-scope-shell,
   .farm-chart-panel-shell,
   .farm-chart-tip-in,
-  .farm-chart-hover-ring {
+  .farm-chart-tip-hero,
+  .farm-chart-hover-ring,
+  .farm-chart-reflow,
+  .farm-chart-band-guide-in,
+  .farm-chart-layers-enter,
+  .farm-chart-layers-exit,
+  .farm-chart-clip-wipe-in,
+  .farm-chart-clip-wipe-out,
+  .farm-chart-brush-bar,
+  .farm-chart-scope-commit,
+  .farm-chart-scope-zoom-in,
+  .farm-chart-scope-zoom-out,
+  .farm-chart-scope-chip-in,
+  .farm-chart-scope-handle-pulse {
     animation: none;
   }
 
-  .farm-chart-brush-window {
+  .farm-chart-brush-window,
+  .farm-chart-alarm-pin,
+  .farm-chart-channel-bar {
     transition: none;
   }
 }
