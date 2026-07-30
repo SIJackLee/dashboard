@@ -2,9 +2,9 @@
 
 IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase **Edge decode** 결과를 **List/Detail tier**로 권한별 조회하고, 컨트롤러에 제어 명령을 발행한다.
 
-> **문서 (Agent·개발자):** 찾을 때 **[`docs/README.md`](docs/README.md)부터** — 셸 / 디자인 / ARIA / Clean Up 정본 링크.  
-> **RS-DB-C:** LIVE 목록 `v_iot_dashboard_list`, 상세 `v_iot_decoded_latest`, Admin 지도 `v_iot_farm_overview`. Health insert rate는 `iot_room_state_raw` 직접 조회.  
-> **Cloud Agent:** [CLOUD_DEPLOY.md](CLOUD_DEPLOY.md) · [../../docs/CLOUD_DEPLOY_RS-DB-C.md](../../docs/CLOUD_DEPLOY_RS-DB-C.md)
+> **문서:** [`docs/README.md`](docs/README.md)부터.  
+> **배포:** [`CLOUD_DEPLOY.md`](CLOUD_DEPLOY.md) — `commit → push → main → Vercel`.  
+> **RS-DB-C:** LIVE 목록 `v_iot_dashboard_list`, 상세 `v_iot_decoded_latest`, Admin 지도 `v_iot_farm_overview`. Health insert rate는 `iot_room_state_raw` 직접 조회.
 
 ## 기술 스택
 

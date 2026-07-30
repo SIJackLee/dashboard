@@ -2,7 +2,7 @@
 
 > **배포 실행:** 단일 에이전트 (`SI1/.cursor/rules/single-agent.mdc`).  
 > **배포 기준 정본:** [`../CLOUD_DEPLOY.md`](../CLOUD_DEPLOY.md) — `commit → push → main → Vercel 자동배포`  
-> 허브 URL: [`farm-hub-url.md`](./farm-hub-url.md) · 산출물 맵: [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md)
+> 허브 URL: [`farm-hub-url.md`](./farm-hub-url.md) · 운영 메모: [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md)
 
 Git에 push되면 Vercel이 **그 커밋만** 빌드·배포한다.  
 로컬 dirty / 미추적 파일은 배포본에 **없다**.
@@ -42,16 +42,16 @@ ARIA는 탭에서 오브·도크·말하기 UI가 보이는지 추가로 확인.
 
 4. Production 도메인 예: `https://smart.autofankorea.com`
 
-## 셸 스모크
+## 스모크
 
 `scripts/farm-hub-url-manual-smoke.mjs` — 탭·URL·soft home.  
 로컬: `UI_VERIFY_BASE=http://localhost:3000`
 
-## Agent 범위 밖 (참고만)
+## 이슈 메모 (단일 에이전트가 이어서 처리)
 
-| 이슈 | 담당 |
+| 이슈 | 비고 |
 |------|------|
-| 기간 변경 줌 리셋 UX | [디자인 & 애니메이션] |
-| `listMode=channel`→`graph` URL 정규화 (#4) | [셸] 수정 · **Designer 배포** (정규화 hunk만, 디자인 dirty 분리) |
-| soft home 후 ARIA 도크/오브 상태 | [프로토콜] |
-| 판단 프로토콜·UNPACK 의미 | [프로토콜] |
+| 기간 변경 줌 리셋 UX | 디자인/차트 |
+| `listMode=channel`→`graph` URL 정규화 | 허브 URL · dirty 분리 커밋 권장 |
+| soft home 후 ARIA 도크/오브 상태 | ARIA UI |
+| 판단 프로토콜·UNPACK | `aria-protocol.md` 정본 |

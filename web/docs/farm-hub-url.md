@@ -135,13 +135,13 @@ flowchart LR
 
 ---
 
-## Agent 경계
+## 변경 시 주의 (단일 에이전트)
 
-| 변경 | 담당 |
-|------|------|
-| 쿼리 키·의미·soft home·epoch | `[셸]` / `[라우팅]` |
-| 탭 슬라이드·패널 모션 | `[디자인 & 애니메이션]` (`motionClass` 소비) |
-| `view=aria` 안 NLP·음성 | `[프로토콜]` |
+| 변경 | 참고 문서 |
+|------|-----------|
+| 쿼리 키·의미·soft home·epoch | 본 문서 (정본) |
+| 탭 슬라이드·패널 모션 | `UI_MOTION.md` · `motionClass`만 소비 |
+| `view=aria` NLP·음성 | `aria-protocol.md` |
 
 ---
 

@@ -1,0 +1,52 @@
+# 운영 메모 (스냅샷)
+
+> 갱신: 2026-07-30 · `dashboard/web`  
+> **진실의 원천은 `git status` / `origin/main`이다.** 이 파일은 메모일 뿐이다.  
+> 문서 허브: [`README.md`](./README.md) · 배포: [`../CLOUD_DEPLOY.md`](../CLOUD_DEPLOY.md)
+
+구명칭 `CLEANUP_ARTIFACT_MAP.md`는 stub로 남기고, 내용은 본 파일로 옮겼다.
+
+---
+
+## 현재 운영
+
+| 항목 | 상태 |
+|------|------|
+| 에이전트 | 단일 (`SI1/.cursor/rules/single-agent.mdc`) |
+| 배포 | `commit → push → main → Vercel 자동` |
+| CLI / Redeploy | 특수 케이스만 |
+| 테스트 게이트 | `npm test` · `verify:design` · GitHub `web-verify` · GitLab `web:test` |
+
+---
+
+## 겹침 주의 (한 PR에서 끝낼 것)
+
+| 파일 | 이유 |
+|------|------|
+| `farm-page-content.tsx` | 허브 탭 + ARIA 마운트 + 셸 |
+| `globals.css` / `dashboard-page-ui.ts` | 토큰 · ARIA 셸 · 밀도 |
+
+---
+
+## 예비 삭제 (미실행)
+
+| 후보 | 비고 |
+|------|------|
+| legacy `.cursor/rules/*-agent.mdc` 실삭제 | 지금은 `alwaysApply: false`만 |
+
+## 삭제 완료
+
+| 경로 | 일자 |
+|------|------|
+| `SI1/dashboard-aria-ship/` (worktree) | 2026-07-30 |
+| `SI1/dashboard-build-check/` | 2026-07-30 |
+| 일회성 test-results md · channel migrate 스크립트 | 2026-07-30 |
+
+---
+
+## 교훈
+
+1. 로컬 dirty build PASS ≠ Vercel clean build PASS  
+2. stub·반쪽 import → Production “작동안 함”  
+3. 문서 스냅샷이 git보다 낡으면 오판 — **status 우선**  
+4. 멀티 Agent 핸드오프는 혼선 유발 → 단일 진행
