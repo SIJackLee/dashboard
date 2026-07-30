@@ -151,7 +151,8 @@ flowchart LR
 - ARIA: [aria-protocol.md](./aria-protocol.md) (**정본**) · [voice-report-poc.md](./voice-report-poc.md) (**보조**)
 - 문서 진입점: [README.md](./README.md)
 - Preview 게이트 절차: [VERCEL_PREVIEW_GATE.md](./VERCEL_PREVIEW_GATE.md)
-- 로그인 후 브라우저 스모크: `node scripts/farm-hub-url-manual-smoke.mjs` (dev 또는 Vercel)
+- 허브 안정화 P0: [HUB_STABILITY_P0.md](./HUB_STABILITY_P0.md) (`npm run verify:hub` · `npm run smoke:hub-url`)
+- 로그인 후 브라우저 스모크: `npm run smoke:hub-url` (dev 또는 Vercel)
   - 로컬: 기본 `http://localhost:3000`
-  - 배포본: `UI_VERIFY_BASE=https://<preview-or-prod>.vercel.app node scripts/farm-hub-url-manual-smoke.mjs`
+  - 배포본: `UI_VERIFY_BASE=https://<preview-or-prod>.vercel.app npm run smoke:hub-url`
   - 전제: 배포 env의 Supabase와 로컬 `.env.local`이 **동일 프로젝트** (테스트 계정)

@@ -22,6 +22,7 @@ import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
 import {
   applyHubScopedViewParams,
   currentFarmSearchParams,
+  normalizeLegacyListModeParam,
   pinFarmHubViewParam,
   replaceFarmUrlShallow,
   resolveFarmHubView,
@@ -198,6 +199,14 @@ export function FarmPageContent({
       /** soft home 등 shallowParams 재계산 */
       bumpUrlTick?: boolean;
     }) => {
+      // 레거시 listMode=channel → graph (문서 계약). hub epoch 올리지 않음.
+      if (hubMode && opts?.viewRaw === undefined) {
+        const params = currentFarmSearchParams();
+        if (normalizeLegacyListModeParam(params)) {
+          replaceFarmUrlShallow(params);
+          setUrlTick((n) => n + 1);
+        }
+      }
       const next = resolveFarmHubView(
         opts?.viewRaw !== undefined
           ? opts.viewRaw
@@ -216,7 +225,7 @@ export function FarmPageContent({
       if (next === "aria") setAriaEverOpened(true);
       if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
     },
-    [beginViewSlide],
+    [beginViewSlide, hubMode],
   );
 
   useEffect(() => {

@@ -9,13 +9,16 @@ import {
   scopesEqual,
 } from "./farm-chart-scope";
 import {
+  applyHubScopedViewParams,
   applyMapGridParams,
   buildFarmMonitoringHomeParams,
+  clearHubFarmDrillParams,
   isFarmMonitoringSoftHome,
   pinFarmHubViewParam,
   resolveFarmHubView,
   resolveTrendPeriodParam,
   setTrendPeriodParam,
+  type FarmHubView,
 } from "./farm-view-url";
 
 function clone(q: string) {
@@ -110,6 +113,44 @@ function clone(q: string) {
   assert.equal(resolveFarmHubView(params.get("view")), "chart");
   assert.equal(params.get("chartSp"), "SP02");
   console.log("smoke 3: period change keeps chart view+scope — ok");
+}
+
+/** 4) 탭 왕복 — applyHubScopedViewParams 순서 map→list→chart→aria→map */
+{
+  const params = clone("lsind=FARM01&item=P00&sp=SP01&stall=3&mapLevel=stalls");
+  const order: FarmHubView[] = ["list", "chart", "aria", "map"];
+  for (const v of order) {
+    applyHubScopedViewParams(params, v);
+    assert.equal(resolveFarmHubView(params.get("view")), v);
+  }
+  // map 홈: view 없음 · 드릴 제거 · 농장 유지
+  assert.equal(params.get("view"), null);
+  assert.equal(params.get("sp"), null);
+  assert.equal(params.get("stall"), null);
+  assert.equal(params.get("lsind"), "FARM01");
+  assert.equal(params.get("item"), "P00");
+  // jarvis → aria
+  assert.equal(resolveFarmHubView("jarvis"), "aria");
+  console.log("smoke 4: tab roundtrip URL helpers — ok");
+}
+
+/** 5) 농장 전환 — drill/탭/chart* 제거 후 새 키 */
+{
+  const params = clone(
+    "lsind=FARM01&item=P00&view=list&listMode=graph&sp=SP02&stall=1&ctrl=a%2Fb&chartSp=SP03&trendPeriod=7d",
+  );
+  clearHubFarmDrillParams(params);
+  params.set("lsind", "FARM02");
+  params.set("item", "P00");
+  assert.equal(params.get("view"), null);
+  assert.equal(params.get("listMode"), null);
+  assert.equal(params.get("sp"), null);
+  assert.equal(params.get("ctrl"), null);
+  assert.equal(params.get("chartSp"), null);
+  assert.equal(params.get("lsind"), "FARM02");
+  assert.equal(params.get("trendPeriod"), "7d");
+  assert.equal(resolveFarmHubView(params.get("view")), "map");
+  console.log("smoke 5: farm switch clears hub drill — ok");
 }
 
 console.log("farm-hub-url-smoke.test.ts: all ok");

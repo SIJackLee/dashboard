@@ -13,6 +13,7 @@
 | npm / 파일 | 용도 |
 |------------|------|
 | `npm test` / `test:unit` → `run-unit-tests.mjs` | `src/**/*.test.ts` |
+| `verify:hub` → `verify-hub.mjs` | 허브 URL·keep-alive 유닛 ([`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md)) |
 | `verify:design` | `verify-motion-classes` + `verify-ui-density` |
 | `verify:motion-css` / `verify:motion-tokens` / `verify:motion-classes` | 모션 |
 | `verify:ui-colors` / `verify:ui-density` / `verify:ui-elevation` | UI 토큰·밀도 (colors/elevation은 Production 팔레트와 충돌 가능) |
@@ -43,7 +44,7 @@ GitLab `web:test` / `web:verify-design`, GitHub `.github/workflows/web-verify.ym
 
 | 파일 | 용도 |
 |------|------|
-| `farm-hub-url-manual-smoke.mjs` | 허브 URL·탭·soft home — [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) |
+| `farm-hub-url-manual-smoke.mjs` (`npm run smoke:hub-url`) | 허브 URL·탭·soft home — [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) · [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) |
 | `verify-channel-bulk-commands.mjs` | 채널 일괄 명령 |
 | `smoke-aria.ts` | 라우팅·DEPTH·unpack (네트워크 불필요) |
 | `smoke-aria-ui-ask.mjs` | UI/ask (서버·환경 필요) |

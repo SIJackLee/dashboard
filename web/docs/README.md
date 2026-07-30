@@ -20,6 +20,7 @@
 | [`SCRIPTS.md`](./SCRIPTS.md) | npm test · verify · 스모크 스크립트 |
 | [`mobile-ui-audit.md`](./mobile-ui-audit.md) | 모바일 UI audit |
 | [`PERF_BASELINE.md`](./PERF_BASELINE.md) | LIVE/TTFB |
+| [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) | 허브 안정화 P0 게이트·체크리스트 |
 | [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md) | 운영 메모(스냅샷) |
 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) | 작업 맥락·스키마 참고 |
 

@@ -5,10 +5,11 @@
  * 2) 로고 soft home — chart* 제거 · 기간 유지
  * 3) 차트에서 기간 변경 — 탭·범위 유지 (그리드 안 튐)
  * 4) listMode=channel → graph 정규화
+ * 5) 탭 왕복 그리드→목록→차트→ARIA→그리드 (활성 패널)
  *
  * Usage:
- *   node scripts/farm-hub-url-manual-smoke.mjs
- *   UI_VERIFY_BASE=https://<preview>.vercel.app node scripts/farm-hub-url-manual-smoke.mjs
+ *   npm run smoke:hub-url
+ *   UI_VERIFY_BASE=https://<preview>.vercel.app npm run smoke:hub-url
  *
  * Vercel 배포본 검증: Git 연동 Preview/Production URL을 UI_VERIFY_BASE로 지정.
  * (로컬 .env.local의 Supabase와 배포 환경이 같은 프로젝트여야 테스트 계정 로그인 가능)
@@ -47,6 +48,20 @@ async function waitFarmReady(page) {
   await page.waitForTimeout(2000);
 }
 
+/** 온보딩 투어가 탭 클릭을 가로채면 건너뛰기 */
+async function dismissFarmTourIfOpen(page) {
+  const tour = page.locator('[aria-label="기능 안내 투어"]');
+  if (!(await tour.isVisible().catch(() => false))) return;
+  const skip = page.getByRole("button", { name: "건너뛰기" });
+  if (await skip.isVisible().catch(() => false)) {
+    await skip.click({ timeout: 5000 });
+  } else {
+    await page.getByRole("button", { name: "투어 닫기" }).click({ timeout: 5000 });
+  }
+  await tour.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(400);
+}
+
 async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -76,6 +91,8 @@ async function main() {
       email: TEST_ACCOUNTS.operator.email,
       password: passwordForEmail(TEST_ACCOUNTS.operator.email),
     });
+    await waitFarmReady(page);
+    await dismissFarmTourIfOpen(page);
 
     // —— 1) 차트 딥링크 · reload ——
     const chartPath = `/farm?${FARM_Q}&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1`;
@@ -158,6 +175,37 @@ async function main() {
     assert(p.get("view") === "list", "4: view=list");
     assert(p.get("listMode") === "graph", "4: channel→graph normalized");
     results.push("smoke 4: listMode=channel normalize — PASS");
+
+    // —— 5) 탭 왕복 ——
+    await page.goto(`${BASE}/farm?${FARM_Q}`, { waitUntil: "load" });
+    await waitFarmReady(page);
+    await dismissFarmTourIfOpen(page);
+    await page
+      .locator('[data-farm-view-panel="map"][data-farm-view-active="true"]')
+      .waitFor({ timeout: 15000 });
+
+    const tabRound = [
+      { name: "목록", view: "list", panel: "list" },
+      { name: "차트", view: "chart", panel: "chart" },
+      { name: "ARIA", view: "aria", panel: "aria" },
+      { name: "그리드", view: null, panel: "map" },
+    ];
+    for (const step of tabRound) {
+      await page.getByRole("tab", { name: step.name }).click();
+      await page.waitForTimeout(900);
+      await page
+        .locator(
+          `[data-farm-view-panel="${step.panel}"][data-farm-view-active="true"]`,
+        )
+        .waitFor({ timeout: 15000 });
+      p = qs(page.url());
+      if (step.view) {
+        assert(p.get("view") === step.view, `5 ${step.name}: view=${step.view}`);
+      } else {
+        assert(!p.get("view"), "5 그리드: view cleared");
+      }
+    }
+    results.push("smoke 5: tab roundtrip map→list→chart→aria→map — PASS");
 
     for (const line of results) console.log(line);
     console.log("farm-hub-url-manual-smoke: all PASS");

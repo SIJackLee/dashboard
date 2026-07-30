@@ -25,6 +25,7 @@ Git에 push되면 Vercel이 **그 커밋만** 빌드·배포한다.
 2. 새 토큰·CSS·`motionClass`·env example이 같이 가는가  
 3. UI가 stub/플레이스홀더로 남아 “작동안 함”처럼 보이지 않는가  
 4. clean worktree `npm test` · `npm run verify:design` · `npm run build` PASS  
+4b. 허브 URL/셸 변경 시 `npm run verify:hub` PASS ([`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md))  
 5. 보고에 포함 산출물(허브/디자인/ARIA/…)을 명시  
 
 ## 절차
