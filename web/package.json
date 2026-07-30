@@ -8,6 +8,8 @@
     "build": "next build --webpack",
     "start": "next start",
     "test:chart-heuristics": "tsx src/lib/farm/chart-heuristics-m5.test.ts && tsx src/lib/farm/unified-barn-trend-series-m1.test.ts && tsx src/components/farm/unified-trend-period-brush.test.ts && tsx src/lib/farm/scope-range-summary.test.ts",
+    "test": "node scripts/run-unit-tests.mjs",
+    "test:unit": "node scripts/run-unit-tests.mjs",
     "lint": "eslint",
     "knip": "knip --include files,dependencies,unlisted,duplicates,unresolved",
     "knip:exports": "knip --exports",

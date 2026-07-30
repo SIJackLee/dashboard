@@ -10,11 +10,11 @@
 
 | 스크립트 / npm | 용도 | 비고 |
 |----------------|------|------|
+| `npm test` / `test:unit` | `src/**/*.test.ts` (protocol · hub URL · chart) | **P1 게이트** · `scripts/run-unit-tests.mjs` |
 | `verify:design` (motion + ui-density) | 모션·맵 수치 가드 | 기본 게이트 |
 | `verify:motion-css` / `verify:ui-*:strict` | 차트 CSS·색·elevation | 선택(엄격) |
 | `audit:ship-checklist` 등 `audit:*` | 출고·모바일·명령 감사 | |
 | `measure:live` / `measure:hub-ttfb` | 성능 기준 | |
-| `src/lib/aria/protocol/protocol.test.ts` | 프로토콜 단위 테스트 | npm 미등록(P1) |
 
 ---
 
