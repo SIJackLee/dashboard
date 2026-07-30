@@ -9,6 +9,7 @@ import {
   keepAliveFlagsForActiveView,
   keepAliveRemainingMs,
   nextPanelInactiveSince,
+  isFarmHubPanelLiveActive,
 } from "./farm-hub-keepalive";
 
 {
@@ -59,6 +60,13 @@ import {
     chart: false,
     aria: true,
   });
+}
+
+{
+  assert.equal(isFarmHubPanelLiveActive("list", "list"), true);
+  assert.equal(isFarmHubPanelLiveActive("map", "list"), false);
+  assert.equal(isFarmHubPanelLiveActive("aria", "chart"), false);
+  assert.equal(isFarmHubPanelLiveActive("chart", "chart"), true);
 }
 
 console.log("farm-hub-keepalive.test.ts: ok");

@@ -74,3 +74,14 @@ export function keepAliveFlagsForActiveView(activeView: FarmHubView): {
     aria: activeView === "aria",
   };
 }
+
+/**
+ * keep-alive로 DOM은 남아 있어도 LIVE·enrich·패널 폴링은 활성 탭만.
+ * map은 상시 마운트이므로 activeView===map 일 때만 “맵 측” 백그라운드 채움.
+ */
+export function isFarmHubPanelLiveActive(
+  activeView: FarmHubView,
+  panel: FarmHubView,
+): boolean {
+  return activeView === panel;
+}

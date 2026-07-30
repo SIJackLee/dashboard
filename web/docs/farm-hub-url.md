@@ -132,6 +132,7 @@ flowchart LR
 - 농장 키 변경 시 비활성 패널 keep-alive **즉시 flush**
 - `visibilitychange` → visible 시 TTL 재계산 (백그라운드 만료분 즉시 해제)
 - 재진입 시 다시 마운트 (차트 범위는 URL, 목록 스크롤 등은 리셋될 수 있음)
+- **P1 live pause:** DOM keep-alive와 별도 — 비활성 패널은 LIVE/enrich/폴링 중지 (`isFarmHubPanelLiveActive`). 캐시 유지 → 재진입 즉시 복구. 목록 enrich는 `view=list`일 때만 ([`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md))
 
 ---
 

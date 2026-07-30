@@ -40,6 +40,8 @@ function farmKeyId(farm: FarmKey): string {
 type Props = {
   currentFarm?: FarmKey | null;
   isMobileStack?: boolean;
+  /** 허브 keep-alive: false면 metrics 폴링 중지 */
+  panelLiveActive?: boolean;
   className?: string;
 };
 
@@ -47,6 +49,7 @@ type Props = {
 export function FarmAriaView({
   currentFarm = null,
   isMobileStack = false,
+  panelLiveActive = true,
   className,
 }: Props) {
   const [orbMode, setOrbMode] = useState<AriaOrbMode>("idle");
@@ -98,13 +101,15 @@ export function FarmAriaView({
       });
       return;
     }
+    if (!panelLiveActive) return;
     queueMicrotask(() => {
       void loadMetrics(currentFarm);
     });
-  }, [currentFarm, loadMetrics]);
+  }, [currentFarm, panelLiveActive, loadMetrics]);
 
   const focus = ariaStageFocusFromOrbMode(currentFarm ? orbMode : "idle");
   const metricsVisible =
+    panelLiveActive &&
     currentFarm != null &&
     (orbMode === "listen" || orbMode === "think" || orbMode === "speak");
 

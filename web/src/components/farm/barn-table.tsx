@@ -98,6 +98,11 @@ type Props = {
   /** 그리드·목록 공유 추이 기간 (URL 동기화). */
   trendPeriod?: TrendPeriodId;
   onTrendPeriodChange?: (period: TrendPeriodId) => void;
+  /**
+   * 허브 keep-alive: false면 컨트롤러 추이 fetch/refresh 중지 (캐시 유지).
+   * 비허브·기본 true.
+   */
+  panelLiveActive?: boolean;
 };
 
 function stallTyCodesFromReadings(readings: BarnReading[]): string[] {
@@ -129,6 +134,7 @@ export function BarnTable({
   focusControllerKey = null,
   trendPeriod: trendPeriodProp,
   onTrendPeriodChange,
+  panelLiveActive = true,
 }: Props) {
   const router = useRouter();
   const compact = useHydrationSafeDashboardCompact();
@@ -228,7 +234,7 @@ export function BarnTable({
   const hasTrendToolbarRow = graphToolbarMode || graphPanelsOpen;
   const settingsPanelsOpen = panelSets.settingsKeys.size > 0;
   const farmKey = rows[0]?.farmKey ?? null;
-  const trendEnabled = Boolean(farmKey) && !bulkMode;
+  const trendEnabled = Boolean(farmKey) && !bulkMode && panelLiveActive;
 
   const {
     data: lazyControllerTrend,

@@ -42,6 +42,7 @@ import {
   canUnmountKeepAlivePanel,
   FARM_HUB_KEEPALIVE_PANELS,
   FARM_HUB_KEEPALIVE_TTL_MS,
+  isFarmHubPanelLiveActive,
   keepAliveFlagsForActiveView,
   keepAliveRemainingMs,
   nextPanelInactiveSince,
@@ -339,14 +340,13 @@ export function FarmPageContent({
       gridFarmKey
     );
   }, [urlHydrated, hubUrlEpoch, urlTick, searchParams, gridFarmKey]);
-  // 투어 중에도 유지 — 목록 챕터(C) 진입 전 목록 enrich에 쓸 수 있음.
-  // 목록 enrich·soft panel fetch만 tourActive로 일시정지.
-  // listEverOpened 후에도 유지해 목록 BarnTable과 캐시를 공유한다.
+  // 활성 탭만 추이 fetch — keep-alive로 목록/차트가 남아도 ARIA 등에선 pause.
+  // 캐시는 훅·shared map에 유지되어 재진입 시 즉시 복구.
   const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } = useFarmControllerTrend({
     farmKey: gridFarmKey,
     enabled:
       Boolean(gridFarmKey) &&
-      (view === "map" || view === "chart" || listEverOpened || chartEverOpened),
+      (view === "map" || view === "chart" || view === "list"),
   });
 
   const shallowParams = useMemo(() => {
@@ -432,19 +432,24 @@ export function FarmPageContent({
     enrichGenRef.current += 1;
   }, [lazyListFarmKey]);
 
-  /** LIVE 안정 후 idle — stall·controller 추이·panel enrich를 백그라운드에 채움 */
+  /** LIVE 안정 후 idle — 활성 탭에 맞는 stall·controller 추이·list enrich만 */
   useEffect(() => {
     if (!gridFarmKey || tourActive) return;
+    if (view === "aria") return;
     let cancelled = false;
     let idleId = 0;
     const run = () => {
       if (cancelled) return;
-      void prefetchFarmControllerTrend(gridFarmKey);
-      void prefetchFarmStallTrend(gridFarmKey).then((trend) => {
-        if (cancelled) return;
-        liveRefreshRef.current?.hydrateStallTrend(gridFarmKey, trend);
-      });
-      void enrichListIfNeeded();
+      if (view === "map" || view === "chart" || view === "list") {
+        void prefetchFarmControllerTrend(gridFarmKey);
+        void prefetchFarmStallTrend(gridFarmKey).then((trend) => {
+          if (cancelled) return;
+          liveRefreshRef.current?.hydrateStallTrend(gridFarmKey, trend);
+        });
+      }
+      if (view === "list") {
+        void enrichListIfNeeded();
+      }
     };
     const ric =
       typeof window !== "undefined" && "requestIdleCallback" in window
@@ -463,7 +468,7 @@ export function FarmPageContent({
         window.clearTimeout(idleId);
       }
     };
-  }, [gridFarmKey, tourActive, enrichListIfNeeded]);
+  }, [gridFarmKey, tourActive, enrichListIfNeeded, view]);
 
   useEffect(() => {
     enrichFarmRef.current = null;
@@ -472,6 +477,7 @@ export function FarmPageContent({
   useEffect(() => {
     if (!lazyListEnrichment || !lazyListFarmKey) return;
     if (tourActive) return;
+    if (view !== "list") return;
 
     const farmId = farmKeyId(lazyListFarmKey);
     if (enrichFarmRef.current === farmId) return;
@@ -488,6 +494,7 @@ export function FarmPageContent({
     lazyListEnrichment,
     lazyListFarmKey,
     tourActive,
+    view,
     liveRefresh?.slice.controller?.alarmSettings,
     liveRefresh?.slice.controller?.thermoSettings,
     enrichListIfNeeded,
@@ -843,6 +850,7 @@ export function FarmPageContent({
               onRequestPanelEnrichment={enrichListIfNeeded}
               trendPeriod={trendPeriod}
               onTrendPeriodChange={onTrendPeriodChange}
+              panelLiveActive={isFarmHubPanelLiveActive(view, "list")}
             />
           </div>
         ) : null}
@@ -878,6 +886,7 @@ export function FarmPageContent({
             <FarmAriaView
               currentFarm={ariaFarm}
               isMobileStack={viewportCompact}
+              panelLiveActive={isFarmHubPanelLiveActive(view, "aria")}
             />
           </div>
         ) : null}

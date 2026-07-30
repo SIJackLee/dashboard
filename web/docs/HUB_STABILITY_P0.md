@@ -74,10 +74,23 @@ node scripts/archive/ship-p0-visibility-poll-smoke.mjs
 
 ---
 
-## 다음 (P1)
+## P1 — 비활성 패널 LIVE pause (구현됨)
 
-비활성 keep-alive 패널의 **LIVE/enrich pause**, 기간 변경 시 hub epoch 금지 규칙 강화.  
-P0 게이트·체크리스트를 통과한 뒤에만 진행.
+| 대상 | pause 조건 |
+|------|------------|
+| 목록 `BarnTable` 추이 fetch | `panelLiveActive` = `view===list` |
+| ARIA metrics 로드·폴링 | `panelLiveActive` = `view===aria` |
+| 셸 controller trend 훅 | `view` ∈ map\|list\|chart (ARIA에서 off) |
+| list enrich / idle prefetch enrich | `view===list`만 · ARIA에선 idle prefetch 전체 skip |
+
+헬퍼: `isFarmHubPanelLiveActive` (`farm-hub-keepalive.ts`).  
+공유 LIVE slice(맵 적용 후 readings)는 유지 — 명령 ACK 경로와 무관.
+
+### P1 수동 확인 (M6·M7)
+
+1. 목록·ARIA 각 1회 진입 후 그리드로 복귀  
+2. Network에서 목록 추이·ARIA metrics 요청이 **비활성 중 중단**되는지 확인  
+3. 목록/ARIA 재진입 시 캐시로 즉시 표시되는지 확인  
 
 ---
 
@@ -87,6 +100,7 @@ P0 게이트·체크리스트를 통과한 뒤에만 진행.
 |------|------|
 | 2026-07-30 | P0 게이트 `verify:hub` · 유닛/수동 스모크 확장 · 본 문서 |
 | 2026-07-30 | 스모크 #4로 `normalizeLegacyListModeParam`이 UI에 미연결임을 발견 → `FarmPageContent.syncViewFromUrl`에 배선 |
+| 2026-07-30 | P1: keep-alive 비활성 패널 LIVE/enrich/ARIA poll pause |
 
 ## 로컬 실행 기록 (2026-07-30)
 
