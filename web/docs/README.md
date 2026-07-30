@@ -1,88 +1,63 @@
-# dashboard/web 문서 (단일 루트)
+# dashboard/web/docs — 문서 유일 위치
 
-> **모든 앱 문서는 이 폴더에 둔다:** `dashboard/web/docs/`  
-> 운영: 단일 에이전트 · 배포: `commit → push → main → Vercel`  
-> 규칙: `SI1/.cursor/rules/single-agent.mdc`  
-> 코드 반영 여부: **문서보다 `git status` / `origin/main` 우선**
+> **앱(제품) 문서는 전부 이 폴더에만 둔다.**  
+> `web/` 루트·`scripts/`·`dashboard/docs/` 에 md를 새로 만들지 말 것.  
+> 배포: `commit → push → main → Vercel` · 규칙: `SI1/.cursor/rules/single-agent.mdc`  
+> 코드 반영: **`git status` / `origin/main`이 문서보다 우선**
 
 ---
 
-## 인덱스
+## 목차 (전부)
 
-| 하고 싶은 일 | 문서 |
-|--------------|------|
-| 로컬 실행 · env | [`../README.md`](../README.md) (요약) · [`.env.example`](../.env.example) |
-| Production 배포 | [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) |
-| push 전 게이트 | [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) |
-| `/farm` URL·탭 | [`farm-hub-url.md`](./farm-hub-url.md) |
-| ARIA 판단 규칙 | [`aria-protocol.md`](./aria-protocol.md) |
-| 디자인 토큰·모션 | [`UI_MOTION.md`](./UI_MOTION.md) |
-| 스크립트·테스트 | [`SCRIPTS.md`](./SCRIPTS.md) |
-| 모바일 UI audit | [`mobile-ui-audit.md`](./mobile-ui-audit.md) |
-| CI | [`GITLAB_CI.md`](./GITLAB_CI.md) · `../.github/workflows/web-verify.yml` (repo 루트 기준 `dashboard/.github`) |
-| 작업 맥락·스키마 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) |
-| 운영자 매뉴얼 | [`user-manual/README.md`](./user-manual/README.md) |
-| 운영 메모 | [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md) |
+### 시작 · 배포 · CI
+
+| 문서 | 내용 |
+|------|------|
+| [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) | 배포 정본 |
+| [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) | push 전 게이트 |
+| [`SHIP_CHECKLIST.md`](./SHIP_CHECKLIST.md) | 출고 스모크 |
+| [`GITLAB_CI.md`](./GITLAB_CI.md) | GitLab / GitHub Actions |
+| [`SCRIPTS.md`](./SCRIPTS.md) | npm test · verify · 스모크 스크립트 |
+| [`mobile-ui-audit.md`](./mobile-ui-audit.md) | 모바일 UI audit |
+| [`PERF_BASELINE.md`](./PERF_BASELINE.md) | LIVE/TTFB |
+| [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md) | 운영 메모(스냅샷) |
+| [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) | 작업 맥락·스키마 참고 |
+
+### 허브 · ARIA · 디자인
+
+| 문서 | 내용 |
+|------|------|
+| [`farm-hub-url.md`](./farm-hub-url.md) | `/farm` URL·탭·epoch |
+| [`aria-protocol.md`](./aria-protocol.md) | ARIA 정본 |
+| [`voice-report-poc.md`](./voice-report-poc.md) | PoC·API·한도 |
+| [`UI_MOTION.md`](./UI_MOTION.md) | 모션 |
+| [`UI_DENSITY.md`](./UI_DENSITY.md) | 밀도·맵 수치 |
+| [`UI_ELEVATION.md`](./UI_ELEVATION.md) | elevation |
+| [`UI_CHROMA.md`](./UI_CHROMA.md) | 채도 |
+| [`UI_FEEDBACK.md`](./UI_FEEDBACK.md) | ops-feedback |
+| [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) | ARIA presence |
+| [`UI_VISUAL_QA.md`](./UI_VISUAL_QA.md) | 시각 QA |
+
+### 운영자 매뉴얼
+
+| 문서 | 내용 |
+|------|------|
+| [`user-manual/README.md`](./user-manual/README.md) | 목차 |
+| [`user-manual/`](./user-manual/) | 00–10 절 + images |
+
+**갭:** 차트·ARIA 전용 매뉴얼 절 없음.
+
+---
+
+## 이 폴더 밖에 두는 것 (문서 아님)
+
+| 경로 | 이유 |
+|------|------|
+| `web/README.md` | npm/GitHub용 3줄 실행 안내 → 여기로 링크 |
+| `web/AGENTS.md` · `CLAUDE.md` | 에디터 도구용 포인터만 |
+| `Operation/docs` | 파이프라인·펌웨어 (별 영역) |
 
 ```bash
 cd dashboard/web
 npm test && npm run verify:design && npm run build
 ```
-
----
-
-## 폴더 안 구성
-
-```
-docs/
-  README.md              ← 여기 (인덱스)
-  CLOUD_DEPLOY.md        ← 배포 정본
-  VERCEL_PREVIEW_GATE.md
-  farm-hub-url.md
-  aria-protocol.md
-  voice-report-poc.md
-  UI_*.md
-  SCRIPTS.md
-  mobile-ui-audit.md
-  GITLAB_CI.md
-  PROJECT_CONTEXT.md
-  SHIP_CHECKLIST.md
-  PERF_BASELINE.md
-  WORKSPACE_NOTES.md
-  CLEANUP_ARTIFACT_MAP.md  ← stub → WORKSPACE_NOTES
-  user-manual/
-```
-
-### 루트에 남기는 것 (도구/관례)
-
-| 경로 | 이유 |
-|------|------|
-| `web/README.md` | npm/GitHub 기본 README — **짧은 포인터 + 실행만** |
-| `web/AGENTS.md` · `web/CLAUDE.md` | Cursor/Claude 도구 stub (Next 주의) |
-| `web/scripts/*.mjs` | 코드 · 문서는 `docs/SCRIPTS.md` |
-
----
-
-## 주제 → 정본
-
-| 주제 | 정본 | 보조 |
-|------|------|------|
-| 배포 | [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) | [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) · [`SHIP_CHECKLIST.md`](./SHIP_CHECKLIST.md) |
-| 허브 URL | [`farm-hub-url.md`](./farm-hub-url.md) | |
-| ARIA | [`aria-protocol.md`](./aria-protocol.md) | [`voice-report-poc.md`](./voice-report-poc.md) |
-| 디자인 | [`UI_MOTION.md`](./UI_MOTION.md) | Density · Elevation · Chroma · Feedback · ARIA Presence · Visual QA |
-| 스크립트 | [`SCRIPTS.md`](./SCRIPTS.md) | [`mobile-ui-audit.md`](./mobile-ui-audit.md) |
-| 성능 | [`PERF_BASELINE.md`](./PERF_BASELINE.md) | |
-| 맥락 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) | 구 테이블명 혼재 가능 → `src/lib/data` 교차 |
-
-**매뉴얼 갭:** 차트·ARIA 전용 사용설명서 절 없음 (`user-manual/`).
-
----
-
-## 인접 (이 폴더 밖)
-
-| 경로 | 용도 |
-|------|------|
-| `SI1/README.md` | 워크스페이스 |
-| `Operation/RSD/docs/` | 파이프라인·wire · **변경 이력** `changes/` |
-| `dashboard/.gitlab-ci.yml` · `dashboard/.github/` | CI 정의 파일 |
