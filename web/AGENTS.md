@@ -1,7 +1,4 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+<!-- Cursor / Next tooling -->
+제품·배포 문서: [`docs/README.md`](docs/README.md)
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-
-제품·배포·ARIA 문서는 [`docs/README.md`](docs/README.md) 만 본다.
-<!-- END:nextjs-agent-rules -->
+Next.js 16은 학습 데이터와 다를 수 있다. `node_modules/next/dist/docs/` 참고.

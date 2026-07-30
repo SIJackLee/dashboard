@@ -4,7 +4,7 @@
 > **진실의 원천은 `git status` / `origin/main`이다.** 이 파일은 메모일 뿐이다.  
 > 문서 허브: [`README.md`](./README.md) · 배포: [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md)
 
-구명칭 `CLEANUP_ARTIFACT_MAP.md`는 stub로 남기고, 내용은 본 파일로 옮겼다.
+구명칭 `CLEANUP_ARTIFACT_MAP` 내용은 본 파일로만 유지한다 (별도 stub 파일 없음).
 
 ---
 
