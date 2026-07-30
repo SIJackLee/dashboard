@@ -12,7 +12,7 @@
 | **허브 URL·탭** | [`farm-hub-url.md`](./farm-hub-url.md) | keep-alive · soft home · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) |
 | **디자인·모션** | [`UI_MOTION.md`](./UI_MOTION.md) | [`UI_DENSITY`](./UI_DENSITY.md) · [`UI_ELEVATION`](./UI_ELEVATION.md) · [`UI_CHROMA`](./UI_CHROMA.md) · [`UI_FEEDBACK`](./UI_FEEDBACK.md) · [`UI_ARIA_PRESENCE`](./UI_ARIA_PRESENCE.md) · [`UI_VISUAL_QA`](./UI_VISUAL_QA.md) |
 | **ARIA 프로토콜** | [`aria-protocol.md`](./aria-protocol.md) **정본** | [`voice-report-poc.md`](./voice-report-poc.md) **보조**(PoC·UI·API·한도) |
-| **정리·배포 게이트** | [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md) · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) | [`../scripts/README.md`](../scripts/README.md) |
+| **정리·배포 게이트** | [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md) · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) | [`../CLOUD_DEPLOY.md`](../CLOUD_DEPLOY.md) (commit→push→main) · [`../scripts/README.md`](../scripts/README.md) |
 
 검증: `npm run verify:design` · Preview/Production [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md)
 

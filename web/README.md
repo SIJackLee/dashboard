@@ -89,6 +89,10 @@ Playwright audit은 **dev 서버 실행 중**(`npm run dev`)에 돌립니다. �
 
 ## Vercel 배포
 
+**기준:** `commit → push → main 적용 → Vercel 자동 배포`  
+정본: [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) · 게이트: [`docs/VERCEL_PREVIEW_GATE.md`](./docs/VERCEL_PREVIEW_GATE.md)  
+특수: Vercel CLI / 대시보드 Redeploy (장애·핫픽스만).
+
 이 저장소는 Next.js 앱이 **`web/`** 폴더에 있다. Vercel 프로젝트에서 아래를 설정한다.
 
 | 설정 | 값 |
