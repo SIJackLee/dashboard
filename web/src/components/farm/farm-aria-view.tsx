@@ -1,7 +1,22 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  startTransition,
+} from "react";
+import {
+  fetchAriaFarmMetricsAction,
+  type AriaMetricsSnapshot,
+} from "@/app/(dashboard)/farm/aria-metrics-actions";
+import { AriaMetricsSlides } from "@/components/farm/aria-metrics-slides";
 import { AriaOrb } from "@/components/farm/aria-orb";
+import {
+  AriaStageLayout,
+  ariaStageFocusFromOrbMode,
+} from "@/components/farm/aria-stage-layout";
 import { VoiceReportFab } from "@/components/farm/voice-report-fab";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
@@ -16,16 +31,19 @@ import { dashboardAriaShell } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
+const METRICS_POLL_MS = 30_000;
+
+function farmKeyId(farm: FarmKey): string {
+  return `${farm.lsindRegistNo}/${farm.itemCode}`;
+}
+
 type Props = {
   currentFarm?: FarmKey | null;
   isMobileStack?: boolean;
   className?: string;
 };
 
-/**
- * ARIA 탭 — 오브 중심 + 하단 도크 (셸 비주얼 = 갭4).
- * 프로토콜·음성 파이프라인 로직은 VoiceReportFab / lib/aria 소유.
- */
+/** ARIA 탭 — 스테이지(오브↔지표 LIVE) + 하단 도크. */
 export function FarmAriaView({
   currentFarm = null,
   isMobileStack = false,
@@ -33,6 +51,10 @@ export function FarmAriaView({
 }: Props) {
   const [orbMode, setOrbMode] = useState<AriaOrbMode>("idle");
   const [orbLevel, setOrbLevel] = useState(0);
+  const [facts, setFacts] = useState<AriaMetricsSnapshot | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const requestGen = useRef(0);
 
   const onVoiceStatus = useCallback(
     (status: VoiceReportStatus, meta: { micTesting: boolean }) => {
@@ -47,6 +69,60 @@ export function FarmAriaView({
   const onMicLevel = useCallback((pct: number) => {
     setOrbLevel(Math.max(0, Math.min(1, pct / 100)));
   }, []);
+
+  const loadMetrics = useCallback(async (farm: FarmKey, soft = false) => {
+    const gen = ++requestGen.current;
+    if (!soft) startTransition(() => setMetricsLoading(true));
+    const result = await fetchAriaFarmMetricsAction(farm);
+    if (gen !== requestGen.current) return;
+    startTransition(() => {
+      if (result.ok) {
+        setFacts(result.facts);
+        setMetricsError(null);
+      } else {
+        setMetricsError("지표를 불러오지 못했습니다.");
+      }
+      setMetricsLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!currentFarm) {
+      requestGen.current += 1;
+      queueMicrotask(() => {
+        startTransition(() => {
+          setFacts(null);
+          setMetricsError(null);
+          setMetricsLoading(false);
+        });
+      });
+      return;
+    }
+    queueMicrotask(() => {
+      void loadMetrics(currentFarm);
+    });
+  }, [currentFarm, loadMetrics]);
+
+  const focus = ariaStageFocusFromOrbMode(currentFarm ? orbMode : "idle");
+  const metricsVisible =
+    currentFarm != null &&
+    (orbMode === "listen" || orbMode === "think" || orbMode === "speak");
+
+  useEffect(() => {
+    if (!currentFarm || !metricsVisible) return;
+    queueMicrotask(() => {
+      void loadMetrics(currentFarm, true);
+    });
+    const id = window.setInterval(() => {
+      void loadMetrics(currentFarm, true);
+    }, METRICS_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [currentFarm, metricsVisible, loadMetrics]);
+
+  const displayFacts =
+    currentFarm && facts && farmKeyId(facts.farmKey) === farmKeyId(currentFarm)
+      ? facts
+      : null;
 
   return (
     <div
@@ -76,15 +152,29 @@ export function FarmAriaView({
         )}
       </header>
 
-      <div className={dashboardAriaShell.orbZone}>
-        <AriaOrb
-          mode={currentFarm ? orbMode : "idle"}
-          level={currentFarm ? orbLevel : 0}
-        />
-        <p className={dashboardAriaShell.hint}>
-          말로 묻거나, 아래에서 텍스트로 질문하세요.
-        </p>
-      </div>
+      <AriaStageLayout
+        focus={focus}
+        metricsVisible={metricsVisible}
+        metrics={
+          <AriaMetricsSlides
+            facts={displayFacts}
+            loading={metricsLoading}
+            error={metricsError}
+            emphasized={focus === "metrics"}
+          />
+        }
+        orb={
+          <AriaOrb
+            mode={currentFarm ? orbMode : "idle"}
+            level={currentFarm ? orbLevel : 0}
+          />
+        }
+        hint={
+          <p className={dashboardAriaShell.hint}>
+            말로 묻거나, 아래에서 텍스트로 질문하세요.
+          </p>
+        }
+      />
 
       {currentFarm != null ? (
         <div
