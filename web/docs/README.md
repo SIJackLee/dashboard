@@ -44,9 +44,9 @@
 | 문서 | 내용 |
 |------|------|
 | [`user-manual/README.md`](./user-manual/README.md) | 목차 |
-| [`user-manual/`](./user-manual/) | 00–10 절 + images |
+| [`user-manual/`](./user-manual/) | 00–12 절 + images |
 
-**갭:** 차트·ARIA 전용 매뉴얼 절 없음.
+스크린샷 추가 예정: `user-manual/images/11-farm-chart.png`, `12-farm-aria.png`.
 
 ---
 

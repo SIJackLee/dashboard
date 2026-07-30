@@ -1,10 +1,8 @@
-# 스마트 축사 IoT 대시보드 - 작업 맥락
+﻿# 스마트 축사 IoT 대시보드 - 작업 맥락
 
 > **문서 허브:** [`README.md`](./README.md)  
 > **배포 기준:** [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) (`commit → push → main → Vercel`)  
 > IoT 축사 모니터링·제어 대시보드. 인증/권한 기반 조회·명령.
-
-> **주의:** 아래 스키마 절에 구 `iot_room_state_decoded` 설명이 남아 있을 수 있다. LIVE 조회 현행은 RS-DB-C / `v_iot_raw_live` 등 — [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) · `web/src/lib/data/*` 를 교차 확인.
 
 ## 1. 프로젝트 개요
 
@@ -43,78 +41,61 @@ npm run build    # webpack 프로덕션 빌드 검증
 
 > `service_role` key는 서버 코드(`lib/supabase/admin.ts`, 관리자 액션)에서만 사용하며 `server-only`로 가드.
 
-## 5. 데이터 구조 (`public.iot_room_state_decoded`)
+## 5. LIVE 데이터 경로 (현행)
 
-한 행 = 한 모듈의 한 시점 스냅샷.
+RS-DB-C: EC2는 raw INSERT, **decode·LIVE UI는 이 앱**. 배포 요약: [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md).
 
-| 컬럼 | 설명 |
+| 계층 | 현행 |
 | --- | --- |
-| `farm_uid` (smallint) | 농장 식별자 |
-| `module_uid` (smallint) | 통신 모듈 식별자 |
-| `mesure_dt` (text) | 측정 시각 (KST wall-clock `YYYY-MM-DD HH:MM:SS`) |
-| `mesure_at` (timestamptz) | 측정 시각 timestamptz (KST 문자열에서 파생, 시계열 정렬용) |
-| `received_at` (timestamptz) | 수신 시각 (UTC 저장, UI는 KST 표시) |
-| `mode` (text) | `live` \| `replay` (v0x06) |
-| `chunk_seq` (smallint) | REPLAY burst 청크 (LIVE=0) |
-| `decoded_json` (jsonb) | 디코딩 결과 |
+| Raw / pipeline | `v_iot_raw_live` 등 (Edge·앱 decode) |
+| 대시보드 list tier (기본) | `v_iot_dashboard_list` — `NEXT_PUBLIC_LIVE_READ_TIER` 미설정 시 |
+| Farm-scoped full / bulk | `v_iot_decoded_latest` (channels[] 필요) |
+| Overview | `v_iot_farm_overview` |
+| 레거시 롤백 | `NEXT_PUBLIC_LIVE_READ_TIER=legacy` → decoded_latest + decoded_json 중심 |
 
-**조회 view:** `v_iot_replay_burst_summary`, `v_iot_replay_controllers` 등 (`dashboard/web/supabase/migrations/20260610000000_iot_replay_views.sql`)
+구현: `web/src/lib/data/iot-live-fetch.ts`, `live-config.ts`, `iot-raw-live.ts`.
 
-`decoded_json.controllers[]` — v0x06 LIVE: idx 0~47 (48건). REPLAY: SW 그룹별 ctrl (idx 0~47). 각 항목:
-
-- `idx` (0~47), `eqpmnNo` ("01"~"48")
-- `ES01`: 온도(℃) 배열 (문자열) — 예 `["25.0","24.2"]`
-- `ES02`: 습도(%) 배열 (문자열)
-- `EC01`: **송풍팬** %, `EC02`: **배기팬** %, `EC03`: **입기팬** % (각 10포인트 시계열, 문자열)
-- 메타: `makrId`, `stallNo`, `stallTyCode`, `itemCode`, `mesureDt`, `lsindRegistNo`
-
-### 현장 계층 구조 (도메인)
+### 도메인 계층 (현장)
 
 ```mermaid
 flowchart TB
-  F[농장 farm_uid] --> M1[통신모듈 module_uid 1]
-  F --> M2[통신모듈 module_uid 2]
-  M1 --> C1["컨트롤러 idx 0~47 (최대 48대/모듈, SW 12×4)"]
-  M2 --> C2["컨트롤러 idx 0~47"]
-  NVM[통신모듈 NVM idx→stall_no] --> C1
-  C1 --> S1[축사 stallNo]
-  C1 --> S1
-  C1 --> S2[축사 stallNo]
+  F[농장] --> M1[통신모듈]
+  F --> M2[통신모듈]
+  M1 --> C1["컨트롤러 (모듈당 최대 48)"]
+  M2 --> C2["컨트롤러"]
+  C1 --> S1[축사]
+  C1 --> S2[축사]
 ```
 
-| 계층 | 식별자 | 설명 |
-| --- | --- | --- |
-| **농장** | `farm_uid` | 다농장 확장. 농장 하나에 **여러 축사**·**여러 통신모듈** |
-| **통신모듈** | `module_uid` | RS-485 마스터 1대. **모듈당 컨트롤러 최대 48대** (`idx` 0~47, `eqpmnNo` 01~48), SW 12개×4 ctrl |
-| **컨트롤러** | `idx` / `eqpmnNo` | 모듈 로컬 번호. 측정값(ES/EC) 보유 단위 |
-| **축사(칸)** | `stallNo` | **통신모듈이 idx별 `stall_no` 설정·전송** (`ver=0x04`). **축사 1개에 컨트롤러 여러 대** 가능 |
+| 계층 | 설명 |
+| --- | --- |
+| 농장 | 다농장 · UI는 표시명 |
+| 통신모듈 | RS-485 마스터 · 컨트롤러 최대 48 |
+| 컨트롤러 | 온·습·팬 측정 단위 |
+| 축사 | 지도 카드 1장 = 축사 1 |
 
-- `idx` 48개 상한 = **축사 수가 아니라 통신모듈 1대가 수용하는 컨트롤러 수** (레거시 v0x04는 50).
-- 농장 지도 카드 1장 = **`stallNo` 1개** (소속 컨트롤러 readings 를 평균·최악 상태로 집계).
-- MQTT 1건 = 모듈 1대 스냅샷 (`controllers[]` 길이 ≤ 48 LIVE).
+**제외:** NH3, CO2 (수집 불가 미구현).
 
-**데이터 계층**: `farm_uid` → `module_uid` → `controllers[idx]` + **통신모듈 NVM `stall_no`** → `decoded_json.stallNo`
+### 페이로드·파싱 가정
 
-**제외 데이터**: NH3, CO2 (수집 불가로 미구현)
+- 디코드 결과의 컨트롤러 배열 · 시계열 → UI 현재값은 보통 **마지막 원소**
+- 통신상태 ≈ 수신 시각 신선도 (약 15분 / 60분 / 그 외)
+- **REPLAY UI** = **미구현** (`v_iot_replay_*` view만)
+- 구 테이블 `iot_room_state_decoded` 는 RLS·이력 참고용일 수 있음. **출고 LIVE 읽기 정본은 위 view**
 
-### 파싱 가정 (`web/src/lib/data/iot.ts`)
-- **LIVE UI** = `getLiveReadings()` — 모듈별 최신 `mode=live` 패킷만
-- **REPLAY UI** = **미구현** — DB view(`v_iot_replay_*`)는 존재하나 대시보드 라우트·fetch 모듈 없음
-- **축사 식별** = `stallNo` (통신모듈 전송, `stallTyCode` 는 Registry/LUT 보조)
-- **현재값** = 각 ES/EC 배열의 **마지막 원소** (`READING_AT` 상수로 변경 가능)
-- **통신상태** = `received_at` 신선도: 15분 이내 `normal` / 60분 이내 `caution` / 그 외 `offline`
+### 데이터 모듈
 
-### 데이터 모듈 분리
 | 파일 | 용도 |
 | --- | --- |
-| `lib/data/iot.ts` | LIVE readings (`getLiveReadings`) |
-| `lib/data/iot-live-fetch.ts` | list/detail/overview fetch + cache |
-| `lib/data/iot-live-merge.ts` | LIVE 패킷 병합 |
-| `lib/data/iot-chart.ts` | 차트 (`LIVE_SLOT_COUNT=48`, 레거시 50 fallback) |
-| `lib/data/iot-firmware.ts` | 48 ctrl / SW 12×4 상수·헬퍼 |
-| `lib/data/barn-meta.ts` | `profiles.ui_config` 축사 메타 CRUD |
-| `lib/data/controller-meta.ts` | `profiles.ui_config.controllers` 이름 |
-| `lib/data/alarms.ts` | LIVE 기준 파생 알람 |
+| `lib/data/iot.ts` | LIVE readings 진입 |
+| `lib/data/iot-live-fetch.ts` | list/detail/overview + cache |
+| `lib/data/iot-live-merge.ts` | LIVE 병합 |
+| `lib/data/iot-chart.ts` | 차트 집계 |
+| `lib/data/iot-firmware.ts` | 48 ctrl 상수 |
+| `lib/data/barn-meta.ts` | 축사 메타 |
+| `lib/data/controller-meta.ts` | 컨트롤러 표시명 |
+| `lib/data/alarms.ts` | 파생 알람 |
+
 
 ## 6. 인증 / 권한 (RLS)
 
@@ -135,7 +116,8 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - `/` → `/login` 리다이렉트
 - `proxy.ts`(Next 16 미들웨어): 미인증 시 보호 경로 → `/login`, 로그인 상태에서 `/login` → `/farm`
 - `(dashboard)/layout.tsx`: 미인증 → `/login`, 권한 없음(`!hasAccess`) → `/pending`
-- 관리자 메뉴(`/admin/users`)는 `role === "admin"`에만 노출
+- 관리자 메뉴(`/admin/ops`)는 `role === "admin"`에만 노출
+- 허브 탭: [`farm-hub-url.md`](./farm-hub-url.md) · 사용설명서: [`user-manual/`](./user-manual/)
 
 ## 8. 구현 현황
 
@@ -143,19 +125,13 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 | --- | --- |
 | 로그인 / 로그아웃 / 세션 미들웨어 | 완료 |
 | 접근 게이트 / `/pending` / RoleGuard | 완료 |
-| 관리자 사용자·농장 접근 권한 관리(`/admin/users`) | 완료 (service_role 액션) |
-| 축사 페이지 실데이터 (요약 + 차트 + 컨트롤러 목록) | 완료 |
-| 축사 페이지 차트 (상태 도넛 / 온습도 비교 / 팬 비교) | 완료 |
-| 컨트롤러 페이지 실데이터 (캐스케이드 선택 + 상세/목록/팬 추이) | 완료 |
-| 컨트롤러 페이지 명령 패널·이력 | 완료 (`ctrl_thermo_command`) |
-| 농장 페이지 실데이터 (요약/환경평균/최근수신/연결상태) | 완료 |
-| 농장 지도 (2D 그리드 카드 맵 + 축사 메타데이터) | 완료 |
-| 축사 메타데이터 설정 (`/settings?tab=barn`) | 완료 |
-| v0x06 LIVE/REPLAY 분리 (`/replay`, `/logs`) | **미구현** (DB view만 존재) |
-| 컨트롤러 REPLAY 이력 패널 (ctrl/SW 그룹) | **미구현** |
-| 알람·컨트롤러 허브 (`/farm?tab=ops`) | 완료 (`OpsTriageView`) |
-| 컨트롤러 이름 메타데이터 | 완료 (`profiles.ui_config.controllers`) |
+| 관리자 `/admin/ops` (디렉터리·명령·헬스) | 완료 |
+| `/farm` 허브 — 그리드 · 목록 · 차트 · ARIA | 완료 (ARIA는 PoC) |
+| 일괄적용 · 컨트롤러 설정 · 명령 insert | 완료 |
+| LIVE view 경로 (`dashboard_list` / `decoded_latest`) | 완료 — §5 |
+| REPLAY UI (`/replay`, `/logs`) | **미구현** (DB view만) |
 | 명령 downlink Agent (`pending` → MQTT → `sent`) | 미구현 (대시보드는 insert만) |
+| 사용설명서 차트·ARIA 절 | 완료 — `user-manual/11` · `12` |
 
 ## 9. 주요 의사결정
 
