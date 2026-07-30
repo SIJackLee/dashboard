@@ -54,9 +54,9 @@ UI_VERIFY_BASE=https://<preview-or-prod>.vercel.app npm run smoke:hub-url
 | M2 | soft home (로고 / 모바일 모니터링) | #2 |
 | M3 | 기간만 변경 — 탭·chart 범위 유지 | #3 |
 | M4 | 차트 딥링크 새로고침 | #1 |
-| M5 | 농장 전환(admin) — drill/탭 초기화·기간 유지 | 수동 · 유닛 smoke 5 |
-| M6 | 탭 숨김 → 복귀 — LIVE 폴링 폭주 없음 | 아래 관측 |
-| M7 | 목록·차트·ARIA 방문 후 그리드만 — 메모리/네트워크 이상 없음 | DevTools |
+| M5 | 농장 전환(admin) — drill/탭 초기화·기간 유지 | **PASS** (2026-07-30 수동 · 이상 없음) |
+| M6 | 탭 숨김 → 복귀 — LIVE 폴링 폭주 없음 | **PASS** (2026-07-30 수동 · 이상 없음) |
+| M7 | 목록·차트·ARIA 방문 후 그리드만 — 메모리/네트워크 이상 없음 | **PASS** (2026-07-30 수동 · 이상 없음) |
 
 ### M6 · M7 관측 방법
 
@@ -102,6 +102,9 @@ node scripts/archive/ship-p0-visibility-poll-smoke.mjs
 | 2026-07-30 | 스모크 #4로 `normalizeLegacyListModeParam`이 UI에 미연결임을 발견 → `FarmPageContent.syncViewFromUrl`에 배선 |
 | 2026-07-30 | P1: keep-alive 비활성 패널 LIVE/enrich/ARIA poll pause |
 | 2026-07-30 | P2: view sync·keep-alive TTL → `use-farm-hub-view-shell` (동작 동일) |
+| 2026-07-30 | M5 농장 전환(admin) 수동 관측 PASS · 이상 없음 |
+| 2026-07-30 | M6 탭 숨김→복귀 수동 관측 PASS · 이상 없음 |
+| 2026-07-30 | M7 keep-alive 후 그리드 백그라운드 부하 수동 관측 PASS · 이상 없음 |
 
 ## 로컬 실행 기록 (2026-07-30)
 
@@ -109,3 +112,6 @@ node scripts/archive/ship-p0-visibility-poll-smoke.mjs
 |--------|------|
 | `npm run verify:hub` | PASS |
 | `npm run smoke:hub-url` (localhost) | PASS (#1–#5). 중간: #4 미연결 재현→배선, #5 투어 오버레이→스모크에서 건너뛰기 |
+| M5 농장 전환 (admin 수동) | PASS · 이상 없음 |
+| M6 탭 숨김→복귀 | PASS · 이상 없음 |
+| M7 목록·차트·ARIA 후 그리드 | PASS · 이상 없음 |
