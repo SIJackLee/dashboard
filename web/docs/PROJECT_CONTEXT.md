@@ -1,10 +1,10 @@
 # 스마트 축사 IoT 대시보드 - 작업 맥락
 
-> **문서 허브:** [`../web/docs/README.md`](../web/docs/README.md)  
-> **배포 기준:** [`../web/CLOUD_DEPLOY.md`](../web/CLOUD_DEPLOY.md) (`commit → push → main → Vercel`)  
+> **문서 허브:** [`README.md`](./README.md)  
+> **배포 기준:** [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) (`commit → push → main → Vercel`)  
 > IoT 축사 모니터링·제어 대시보드. 인증/권한 기반 조회·명령.
 
-> **주의:** 아래 스키마 절에 구 `iot_room_state_decoded` 설명이 남아 있을 수 있다. LIVE 조회 현행은 RS-DB-C / `v_iot_raw_live` 등 — [`../web/CLOUD_DEPLOY.md`](../web/CLOUD_DEPLOY.md) · `web/src/lib/data/*` 를 교차 확인.
+> **주의:** 아래 스키마 절에 구 `iot_room_state_decoded` 설명이 남아 있을 수 있다. LIVE 조회 현행은 RS-DB-C / `v_iot_raw_live` 등 — [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) · `web/src/lib/data/*` 를 교차 확인.
 
 ## 1. 프로젝트 개요
 

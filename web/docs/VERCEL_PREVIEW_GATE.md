@@ -1,7 +1,7 @@
 # Vercel Preview 게이트 (Git→배포 검증)
 
 > **배포 실행:** 단일 에이전트 (`SI1/.cursor/rules/single-agent.mdc`).  
-> **배포 기준 정본:** [`../CLOUD_DEPLOY.md`](../CLOUD_DEPLOY.md) — `commit → push → main → Vercel 자동배포`  
+> **배포 기준 정본:** [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) — `commit → push → main → Vercel 자동배포`  
 > 허브 URL: [`farm-hub-url.md`](./farm-hub-url.md) · 운영 메모: [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md)
 
 Git에 push되면 Vercel이 **그 커밋만** 빌드·배포한다.  
