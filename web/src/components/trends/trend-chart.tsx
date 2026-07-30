@@ -115,6 +115,23 @@ export type TrendScaleEdgeLabel = {
   mark?: "overline" | "underline";
   /** 해당 Y에 점선 가이드 */
   showLine?: boolean;
+  /** true면 세로 드래그로 value 조절 (알람 상·하한 등) */
+  draggable?: boolean;
+  /** 우클릭 숫자 입력용 원단위 값 (없으면 text에서 파싱) */
+  editValue?: number;
+};
+
+export type ScaleEdgeDragEvent = {
+  id: string;
+  /** 차트 domain Y (guide.value와 동일 공간) */
+  value: number;
+  phase: "start" | "move" | "end" | "cancel";
+};
+
+export type ScaleEdgeNumericCommitEvent = {
+  id: string;
+  /** 사용자가 입력한 원단위 숫자 (℃ 또는 %) */
+  value: number;
 };
 
 type TrendChartProps = {
@@ -189,6 +206,13 @@ type TrendChartProps = {
   /** 스코프 스택 변경 시 줌 인/아웃 모션 키 */
   scopeMotionKey?: number;
   scopeMotionDir?: "in" | "out";
+  /**
+   * draggable scaleEdgeLabels — 세로 드래그로 domain Y 조절.
+   * X스코프와 충돌 시 가이드 hit이 우선.
+   */
+  onScaleEdgeDrag?: (event: ScaleEdgeDragEvent) => void;
+  /** 우클릭 숫자 입력 확정 */
+  onScaleEdgeNumericCommit?: (event: ScaleEdgeNumericCommitEvent) => void;
 };
 
 const PAD_X = 6;
@@ -196,6 +220,20 @@ const PAD_TOP = 6;
 const VIEW_W = 100;
 const X_SCOPE_DRAG_PX = 8;
 const X_SCOPE_MIN_SPAN = 3;
+/** 알람 가이드선 hit (화면 px) */
+const SCALE_EDGE_HIT_PX = 10;
+/** 라벨에서 드래그 시작까지 이동량 — 클릭과 구분 */
+const SCALE_EDGE_LABEL_DRAG_PX = 4;
+
+function parseScaleEdgeEditSeed(
+  guide: Pick<TrendScaleEdgeLabel, "editValue" | "text">,
+): string {
+  if (guide.editValue != null && Number.isFinite(guide.editValue)) {
+    return String(guide.editValue);
+  }
+  const m = guide.text.match(/-?\d+(?:\.\d+)?/);
+  return m?.[0] ?? "";
+}
 
 export type HoverMetricGroup = "temp" | "hum" | "motor";
 
@@ -446,6 +484,8 @@ type EdgeBandLabel = {
   title: string;
   /** 상한=숫자 위 선, 하한=숫자 아래 선 */
   mark?: "overline" | "underline";
+  draggable?: boolean;
+  editValue?: number;
 };
 
 /** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
@@ -527,6 +567,8 @@ export function TrendChart({
   onXScopeBack,
   scopeMotionKey = 0,
   scopeMotionDir = "in",
+  onScaleEdgeDrag,
+  onScaleEdgeNumericCommit,
 }: TrendChartProps) {
   void _layoutKey;
   const clipWipeEnabled = layerClipWipe ?? animate;
@@ -538,6 +580,11 @@ export function TrendChart({
     b: number;
     y0: number;
     y: number;
+  } | null>(null);
+  const [edgeDragId, setEdgeDragId] = useState<string | null>(null);
+  const [edgeEdit, setEdgeEdit] = useState<{
+    id: string;
+    text: string;
   } | null>(null);
   const hoverIdxRef = useRef<number | null>(null);
   const hoverSeriesRef = useRef<string | null>(null);
@@ -557,6 +604,18 @@ export function TrendChart({
     b: number;
     y0: number;
     y: number;
+  } | null>(null);
+  const edgeDragRef = useRef<{
+    id: string;
+    axis: TrendAxis;
+  } | null>(null);
+  const labelDragArmRef = useRef<{
+    id: string;
+    axis: TrendAxis;
+    value: number;
+    x: number;
+    y: number;
+    pointerId: number;
   } | null>(null);
 
   const seriesPresence = useClipPresence(series, (s) => s.name, {
@@ -887,6 +946,145 @@ export function TrendChart({
     return Math.min(1, Math.max(0, (yView - PAD_TOP) / innerH));
   };
 
+  const domainValueFromYView = (yView: number, axis: TrendAxis): number => {
+    const [mn, mx] = axis === "right" ? [rMin, rMax] : [lMin, lMax];
+    if (innerH <= 0) return (mn + mx) / 2;
+    const t = 1 - (yView - PAD_TOP) / innerH;
+    return mn + Math.min(1, Math.max(0, t)) * (mx - mn);
+  };
+
+  const hitDraggableScaleEdge = (
+    clientY: number,
+    rect: DOMRect,
+  ): { id: string; axis: TrendAxis; value: number } | null => {
+    if (!onScaleEdgeDrag || rect.height <= 0) return null;
+    const yPx = clientY - rect.top;
+    let best: { id: string; axis: TrendAxis; value: number; d: number } | null =
+      null;
+    for (const guide of scaleEdgeLabels) {
+      if (!guide.draggable || !guide.showLine) continue;
+      const axis = guide.axis ?? "left";
+      const y = yFor(guide.value, axis);
+      if (!Number.isFinite(y)) continue;
+      const screenY = (y / chartH) * rect.height;
+      const d = Math.abs(yPx - screenY);
+      if (d > SCALE_EDGE_HIT_PX) continue;
+      if (!best || d < best.d) {
+        best = { id: guide.id, axis, value: guide.value, d };
+      }
+    }
+    return best ? { id: best.id, axis: best.axis, value: best.value } : null;
+  };
+
+  const emitScaleEdgeDrag = (
+    id: string,
+    value: number,
+    phase: ScaleEdgeDragEvent["phase"],
+  ) => {
+    onScaleEdgeDrag?.({ id, value, phase });
+  };
+
+  const beginScaleEdgeEdit = (guideId: string) => {
+    if (!onScaleEdgeNumericCommit) return;
+    const guide = scaleEdgeLabels.find((g) => g.id === guideId);
+    if (!guide?.draggable) return;
+    if (edgeDragRef.current) {
+      endScaleEdgeDrag("cancel");
+    }
+    labelDragArmRef.current = null;
+    setEdgeEdit({
+      id: guideId,
+      text: parseScaleEdgeEditSeed(guide),
+    });
+    clearHover();
+  };
+
+  const cancelScaleEdgeEdit = () => {
+    setEdgeEdit(null);
+  };
+
+  const commitScaleEdgeEdit = () => {
+    if (!edgeEdit || !onScaleEdgeNumericCommit) {
+      setEdgeEdit(null);
+      return;
+    }
+    const parsed = Number(edgeEdit.text.trim());
+    if (!Number.isFinite(parsed)) {
+      setEdgeEdit(null);
+      return;
+    }
+    const id = edgeEdit.id;
+    setEdgeEdit(null);
+    onScaleEdgeNumericCommit({ id, value: parsed });
+  };
+
+  const endScaleEdgeDrag = (phase: "end" | "cancel") => {
+    const cur = edgeDragRef.current;
+    if (!cur) return;
+    const guide = scaleEdgeLabels.find((g) => g.id === cur.id);
+    emitScaleEdgeDrag(cur.id, guide?.value ?? 0, phase);
+    edgeDragRef.current = null;
+    setEdgeDragId(null);
+  };
+
+  const onPlotPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if (edgeEdit) return;
+    /** 플롯 본문은 시간 줌 우선 — 알람선 전체폭 hit로 X스코프를 가로채지 않음.
+     *  알람 세로 조절은 우측 숫자 라벨 드래그 / 우클릭 숫자 입력. */
+    if (xScopeSelect) onXScopePointerDown(e);
+  };
+
+  const onPlotPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const arm = labelDragArmRef.current;
+    if (arm && !edgeDragRef.current) {
+      const dx = Math.abs(e.clientX - arm.x);
+      const dy = Math.abs(e.clientY - arm.y);
+      if (dx >= SCALE_EDGE_LABEL_DRAG_PX || dy >= SCALE_EDGE_LABEL_DRAG_PX) {
+        labelDragArmRef.current = null;
+        edgeDragRef.current = { id: arm.id, axis: arm.axis };
+        setEdgeDragId(arm.id);
+        clearHover();
+        emitScaleEdgeDrag(arm.id, arm.value, "start");
+        const rect = e.currentTarget.getBoundingClientRect();
+        const yView = yViewFromClient(e.clientY, rect);
+        const value = domainValueFromYView(yView, arm.axis);
+        emitScaleEdgeDrag(arm.id, value, "move");
+      }
+      return;
+    }
+    const cur = edgeDragRef.current;
+    if (cur) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const yView = yViewFromClient(e.clientY, rect);
+      const value = domainValueFromYView(yView, cur.axis);
+      emitScaleEdgeDrag(cur.id, value, "move");
+      return;
+    }
+    if (xScopeSelect) onXScopePointerMove(e);
+  };
+
+  const onPlotPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (labelDragArmRef.current) {
+      labelDragArmRef.current = null;
+      return;
+    }
+    if (edgeDragRef.current) {
+      endScaleEdgeDrag("end");
+      return;
+    }
+    if (xScopeSelect) onXScopePointerUp(e);
+  };
+
+  const onPlotPointerCancel = () => {
+    labelDragArmRef.current = null;
+    if (edgeDragRef.current) {
+      endScaleEdgeDrag("cancel");
+      return;
+    }
+    onXScopePointerCancel();
+  };
+
   const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!xScopeSelect || !onXScopeCommit || e.button !== 0 || n < 2) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -972,8 +1170,28 @@ export function TrendChart({
     onXScopeBack();
   };
 
+  const onPlotContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (onScaleEdgeNumericCommit) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const hit = hitDraggableScaleEdge(e.clientY, rect);
+      if (hit) {
+        e.preventDefault();
+        e.stopPropagation();
+        beginScaleEdgeEdit(hit.id);
+        return;
+      }
+    }
+    if (xScopeSelect && onXScopeBack) onXScopeContextMenu(e);
+  };
+
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (xScopeDraggingRef.current || xDraftRef.current != null)
+    if (
+      edgeEdit != null ||
+      edgeDragRef.current != null ||
+      labelDragArmRef.current != null ||
+      xScopeDraggingRef.current ||
+      xDraftRef.current != null
+    )
       return;
     if (n === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1168,6 +1386,8 @@ export function TrendChart({
         color: guide.color,
         title: guide.title ?? guide.text,
         mark: guide.mark,
+        draggable: Boolean(guide.draggable),
+        editValue: guide.editValue,
       });
     }
     return nudgeEdgeLabelTops(out, 5.5);
@@ -1346,20 +1566,18 @@ export function TrendChart({
         ref={plotRef}
         className={cn(
           "relative touch-none",
-          xScopeSelect ? "cursor-crosshair" : "cursor-crosshair",
+          edgeDragId ? "cursor-ns-resize" : "cursor-crosshair",
         )}
         onMouseMove={onMove}
         onMouseLeave={() => {
-          if (xDraftRef.current != null) return;
+          if (xDraftRef.current != null || edgeDragRef.current != null) return;
           clearHover();
         }}
-        onPointerDown={xScopeSelect ? onXScopePointerDown : undefined}
-        onPointerMove={xScopeSelect ? onXScopePointerMove : undefined}
-        onPointerUp={xScopeSelect ? onXScopePointerUp : undefined}
-        onPointerCancel={xScopeSelect ? onXScopePointerCancel : undefined}
-        onContextMenu={
-          xScopeSelect && onXScopeBack ? onXScopeContextMenu : undefined
-        }
+        onPointerDown={onPlotPointerDown}
+        onPointerMove={onPlotPointerMove}
+        onPointerUp={onPlotPointerUp}
+        onPointerCancel={onPlotPointerCancel}
+        onContextMenu={onPlotContextMenu}
       >
       <svg
         viewBox={`0 0 ${VIEW_W} ${chartH}`}
@@ -1606,6 +1824,7 @@ export function TrendChart({
           .map((guide) => {
             const y = yFor(guide.value, guide.axis ?? "left");
             if (!Number.isFinite(y)) return null;
+            const dragging = edgeDragId === guide.id;
             return (
               <line
                 key={`scale-guide-${guide.id}`}
@@ -1614,10 +1833,11 @@ export function TrendChart({
                 y1={y}
                 y2={y}
                 stroke={guide.color}
-                strokeWidth={0.45}
+                strokeWidth={dragging ? 0.85 : 0.45}
                 strokeDasharray="1.5 2"
                 vectorEffect="non-scaling-stroke"
-                opacity={0.55}
+                opacity={dragging ? 0.95 : 0.55}
+                pointerEvents="none"
               />
             );
           })}
@@ -1923,22 +2143,93 @@ export function TrendChart({
         })()}
       </svg>
 
-      {edgeBandLabels.map((label) => (
-        <span
-          key={label.id}
-          className={cn(
-            "pointer-events-none absolute z-[1] -translate-y-1/2 rounded-sm bg-background/85 px-0.5 text-[9px] leading-none tabular-nums",
-            label.side === "left" && "left-0.5 text-left",
-            label.side === "right" && "right-0.5 text-right",
-            label.mark === "overline" && "border-t border-current pt-px",
-            label.mark === "underline" && "border-b border-current pb-px",
-          )}
-          style={{ top: `${label.topPct}%`, color: label.color }}
-          title={label.title}
-        >
-          {label.text}
-        </span>
-      ))}
+      {edgeBandLabels.map((label) => {
+        const editing = edgeEdit?.id === label.id;
+        return (
+          <span
+            key={label.id}
+            className={cn(
+              "absolute z-[2] -translate-y-1/2 rounded-sm bg-background/85 px-0.5 text-[9px] leading-none tabular-nums",
+              label.draggable && !editing
+                ? "pointer-events-auto cursor-ns-resize select-none"
+                : editing
+                  ? "pointer-events-auto"
+                  : "pointer-events-none",
+              label.side === "left" && "left-0.5 text-left",
+              label.side === "right" && "right-0.5 text-right",
+              !editing && label.mark === "overline" && "border-t border-current pt-px",
+              !editing && label.mark === "underline" && "border-b border-current pb-px",
+              edgeDragId === label.id && "ring-1 ring-current/40",
+            )}
+            style={{ top: `${label.topPct}%`, color: label.color }}
+            title={
+              label.draggable
+                ? `${label.title} · 드래그 조절 · 우클릭 숫자 입력`
+                : label.title
+            }
+            onPointerDown={
+              label.draggable && !editing
+                ? (e) => {
+                    if (e.button !== 0 || !plotRef.current) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const guide = scaleEdgeLabels.find((g) => g.id === label.id);
+                    if (!guide?.draggable) return;
+                    plotRef.current.setPointerCapture(e.pointerId);
+                    labelDragArmRef.current = {
+                      id: guide.id,
+                      axis: guide.axis ?? "left",
+                      value: guide.value,
+                      x: e.clientX,
+                      y: e.clientY,
+                      pointerId: e.pointerId,
+                    };
+                    clearHover();
+                  }
+                : undefined
+            }
+            onContextMenu={
+              label.draggable && onScaleEdgeNumericCommit
+                ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    beginScaleEdgeEdit(label.id);
+                  }
+                : undefined
+            }
+          >
+            {editing ? (
+              <input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                aria-label={`${label.title} 숫자 입력`}
+                className="h-4 w-10 rounded-sm border border-current/40 bg-background px-0.5 text-center text-[9px] tabular-nums outline-none"
+                style={{ color: label.color }}
+                value={edgeEdit.text}
+                onChange={(e) =>
+                  setEdgeEdit({ id: label.id, text: e.target.value })
+                }
+                onFocus={(e) => e.currentTarget.select()}
+                onBlur={() => commitScaleEdgeEdit()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitScaleEdgeEdit();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelScaleEdgeEdit();
+                  }
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              label.text
+            )}
+          </span>
+        );
+      })}
 
       {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
         <div

@@ -1,15 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   TrendChart,
+  type ScaleEdgeDragEvent,
+  type ScaleEdgeNumericCommitEvent,
   type TrendScaleEdgeLabel,
 } from "@/components/trends/trend-chart";
 import { UnifiedTrendPeriodBrush } from "@/components/farm/unified-trend-period-brush";
 import { UnifiedTrendLayerToolbar } from "@/components/farm/unified-trend-layer-toolbar";
-import type { AlarmSettings } from "@/lib/data/alarms";
-import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
+import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
+import {
+  mergeScopeThreshold,
+  resolveThresholdsForScope,
+} from "@/lib/data/alarm-scope";
+import type { AlarmSettings, AlarmThresholds } from "@/lib/data/alarms";
+import {
+  DEFAULT_ALARM_SETTINGS,
+  DEFAULT_ALARM_THRESHOLDS,
+  validateAlarmThresholds,
+} from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import type {
   TrendControllerPeriodData,
@@ -19,6 +30,10 @@ import {
   findControllerTrendSeries,
   resolveReadingAlarmThresholds,
 } from "@/lib/farm/controller-summary-display";
+import {
+  alarmScopeKeyFromFarmChartScope,
+  type FarmChartScope,
+} from "@/lib/farm/farm-chart-scope";
 import {
   downsampleTrendAxis,
   tickEveryForDisplayBars,
@@ -40,6 +55,8 @@ import {
   visibilityForYBands,
   maskLayersForYBands,
   UNIFIED_Y_BAND_LABEL,
+  unmapHumPctFromSplitY,
+  unmapTempCFromSplitY,
   type UnifiedLayerFlags,
   type UnifiedLayerId,
   type UnifiedYBandId,
@@ -53,9 +70,55 @@ import {
 import { useFarmChartLayersSlot } from "@/lib/farm/use-farm-chart-layers-slot";
 import { useSplitYLayoutTransition } from "@/lib/farm/use-split-y-layout-transition";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionDuration } from "@/lib/ui/motion-tokens";
 import { cn } from "@/lib/utils";
+
+const TEMP_STEP = 0.5;
+const HUM_STEP = 1;
+const TEMP_MIN = 10;
+const TEMP_MAX = 35;
+const HUM_MIN = 0;
+const HUM_MAX = 100;
+
+const ALARM_EDGE_KEY: Record<string, keyof AlarmThresholds> = {
+  "temp-hi": "tempHigh",
+  "temp-lo": "tempLow",
+  "hum-hi": "humidityHigh",
+  "hum-lo": "humidityLow",
+};
+
+function snapStep(n: number, step: number): number {
+  return Math.round(n / step) * step;
+}
+
+function clampAlarmDraft(
+  next: AlarmThresholds,
+  key: keyof AlarmThresholds,
+): AlarmThresholds {
+  let { tempLow, tempHigh, humidityLow, humidityHigh } = next;
+  if (key === "tempHigh" || key === "tempLow") {
+    tempHigh = snapStep(tempHigh, TEMP_STEP);
+    tempLow = snapStep(tempLow, TEMP_STEP);
+    tempHigh = Math.min(TEMP_MAX, Math.max(TEMP_MIN + TEMP_STEP, tempHigh));
+    tempLow = Math.min(TEMP_MAX - TEMP_STEP, Math.max(TEMP_MIN, tempLow));
+    if (tempHigh <= tempLow) {
+      if (key === "tempHigh") tempHigh = tempLow + TEMP_STEP;
+      else tempLow = tempHigh - TEMP_STEP;
+    }
+  } else {
+    humidityHigh = snapStep(humidityHigh, HUM_STEP);
+    humidityLow = snapStep(humidityLow, HUM_STEP);
+    humidityHigh = Math.min(HUM_MAX, Math.max(HUM_MIN + HUM_STEP, humidityHigh));
+    humidityLow = Math.min(HUM_MAX - HUM_STEP, Math.max(HUM_MIN, humidityLow));
+    if (humidityHigh <= humidityLow) {
+      if (key === "humidityHigh") humidityHigh = humidityLow + HUM_STEP;
+      else humidityLow = humidityHigh - HUM_STEP;
+    }
+  }
+  return { tempLow, tempHigh, humidityLow, humidityHigh };
+}
 
 export type UnifiedBarnTrendControllerRef = {
   key: string;
@@ -76,6 +139,10 @@ type Props = {
   period: TrendPeriodId;
   onPeriodChange?: (period: TrendPeriodId) => void;
   alarmSettings?: AlarmSettings;
+  /** 차트 집계 범위 — 알람 저장 계층과 동일 */
+  chartScope: FarmChartScope;
+  /** 조회 전용(뷰어)이면 알람선 드래그 비활성 */
+  canCommand?: boolean;
   isMobileStack?: boolean;
   /** 미지정 시 모바일 220 / 데스크톱 340 */
   chartHeight?: number;
@@ -94,11 +161,14 @@ export function UnifiedBarnTrendPanel({
   period,
   onPeriodChange,
   alarmSettings,
+  chartScope,
+  canCommand = false,
   isMobileStack = false,
   chartHeight,
   layersToolbarActive = true,
   className,
 }: Props) {
+  const liveRefresh = useFarmLiveRefreshOptional();
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
   /** 온도/습도/모터 하위 옵션 펼침 */
   const [tempMenuOpen, setTempMenuOpen] = useState(false);
@@ -118,6 +188,14 @@ export function UnifiedBarnTrendPanel({
   const [xScopeStack, setXScopeStack] = useState<ScopeEntry[]>([]);
   const xScope =
     xScopeStack.length > 0 ? xScopeStack[xScopeStack.length - 1]! : null;
+  const [draftThresholds, setDraftThresholds] = useState<AlarmThresholds | null>(
+    null,
+  );
+  const [dragFreeze, setDragFreeze] = useState<AlarmThresholds | null>(null);
+  const [alarmSaving, setAlarmSaving] = useState(false);
+  const [alarmSaveError, setAlarmSaveError] = useState<string | null>(null);
+  const draftRef = useRef<AlarmThresholds | null>(null);
+  const freezeRef = useRef<AlarmThresholds | null>(null);
   const [scopeMotionKey, setScopeMotionKey] = useState(0);
   const [scopeMotionDir, setScopeMotionDir] = useState<"in" | "out">("in");
   const bumpScopeMotion = (dir: "in" | "out") => {
@@ -139,11 +217,40 @@ export function UnifiedBarnTrendPanel({
     }
   }
 
-  const thresholds = useMemo(() => {
+  const scopedReadings = useMemo(
+    () =>
+      controllers
+        .map((c) => c.reading)
+        .filter((r): r is BarnReading => r != null),
+    [controllers],
+  );
+
+  const alarmScopeKey = useMemo(
+    () => alarmScopeKeyFromFarmChartScope(scopedReadings, chartScope),
+    [scopedReadings, chartScope],
+  );
+
+  const [alarmScopeEpoch, setAlarmScopeEpoch] = useState(alarmScopeKey ?? "");
+  if ((alarmScopeKey ?? "") !== alarmScopeEpoch) {
+    setAlarmScopeEpoch(alarmScopeKey ?? "");
+    setDraftThresholds(null);
+    setDragFreeze(null);
+    setAlarmSaveError(null);
+  }
+
+  const baseThresholds = useMemo(() => {
+    const settings = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
+    if (alarmScopeKey) {
+      return resolveThresholdsForScope(settings, alarmScopeKey);
+    }
     const withReading = controllers.find((c) => c.reading != null)?.reading;
     if (!withReading) return DEFAULT_ALARM_THRESHOLDS;
-    return resolveReadingAlarmThresholds(withReading, alarmSettings);
-  }, [controllers, alarmSettings]);
+    return resolveReadingAlarmThresholds(withReading, settings);
+  }, [controllers, alarmSettings, alarmScopeKey]);
+
+  const thresholds = draftThresholds ?? baseThresholds;
+  /** 드래그 중 Y 도메인 고정 — 선이 커서를 따라가게 */
+  const mappingThresholds = dragFreeze ?? thresholds;
 
   const layerVisibility = useMemo(
     () => splitYVisibilityFromLayers(layers),
@@ -281,9 +388,9 @@ export function UnifiedBarnTrendPanel({
     return aggregateUnifiedBarnTrendRaw(
       downsampledList,
       categories,
-      thresholds,
+      mappingThresholds,
     );
-  }, [controllers, controllerTrendByPeriod, period, thresholds]);
+  }, [controllers, controllerTrendByPeriod, period, mappingThresholds]);
 
   const built = useMemo(() => {
     if (!trendRaw) return null;
@@ -413,10 +520,149 @@ export function UnifiedBarnTrendPanel({
     setXScopeStack([]);
   };
 
+  const alarmDragEnabled =
+    canCommand && Boolean(alarmScopeKey) && !alarmSaving;
+
+  const persistAlarmDraft = (nextDraft: AlarmThresholds) => {
+    if (!alarmScopeKey || !canCommand) return;
+    const err = validateAlarmThresholds(nextDraft);
+    if (err) {
+      setAlarmSaveError(err);
+      setDraftThresholds(null);
+      setDragFreeze(null);
+      draftRef.current = null;
+      freezeRef.current = null;
+      return;
+    }
+    const previous = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
+    const nextSettings = mergeScopeThreshold(
+      previous,
+      alarmScopeKey,
+      nextDraft,
+    );
+    setAlarmSaving(true);
+    setAlarmSaveError(null);
+    const formData = new FormData();
+    formData.set("settings_json", JSON.stringify(nextSettings));
+    void (async () => {
+      try {
+        const result = await saveAlarmSettingsInlineAction(formData);
+        if (!result.ok) {
+          setAlarmSaveError(result.error ?? "알람값 저장에 실패했습니다.");
+          setDraftThresholds(null);
+          draftRef.current = null;
+          return;
+        }
+        liveRefresh?.patchAlarmSettings(nextSettings);
+        setDraftThresholds(null);
+        draftRef.current = null;
+      } finally {
+        setAlarmSaving(false);
+        setDragFreeze(null);
+        freezeRef.current = null;
+      }
+    })();
+  };
+
+  const onScaleEdgeDrag = (event: ScaleEdgeDragEvent) => {
+    if (!canCommand || !alarmScopeKey) return;
+    if (alarmSaving && event.phase !== "cancel") return;
+    const key = ALARM_EDGE_KEY[event.id];
+    if (!key) return;
+
+    if (event.phase === "start") {
+      const base = draftRef.current ?? baseThresholds;
+      freezeRef.current = base;
+      draftRef.current = base;
+      setDragFreeze(base);
+      setDraftThresholds(base);
+      setAlarmSaveError(null);
+      return;
+    }
+
+    if (event.phase === "cancel") {
+      draftRef.current = null;
+      freezeRef.current = null;
+      setDraftThresholds(null);
+      setDragFreeze(null);
+      return;
+    }
+
+    if (event.phase === "move") {
+      const freeze = freezeRef.current ?? baseThresholds;
+      const cur = draftRef.current ?? freeze;
+      const raw =
+        key === "tempHigh" || key === "tempLow"
+          ? unmapTempCFromSplitY(
+              event.value,
+              freeze.tempLow,
+              freeze.tempHigh,
+              layout,
+            )
+          : unmapHumPctFromSplitY(
+              event.value,
+              freeze.humidityLow,
+              freeze.humidityHigh,
+              layout,
+            );
+      if (raw == null || !Number.isFinite(raw)) return;
+      const next = clampAlarmDraft({ ...cur, [key]: raw }, key);
+      draftRef.current = next;
+      setDraftThresholds(next);
+      return;
+    }
+
+    if (event.phase === "end") {
+      const next = draftRef.current;
+      freezeRef.current = null;
+      setDragFreeze(null);
+      if (!next) {
+        draftRef.current = null;
+        setDraftThresholds(null);
+        return;
+      }
+      const unchanged =
+        next.tempHigh === baseThresholds.tempHigh &&
+        next.tempLow === baseThresholds.tempLow &&
+        next.humidityHigh === baseThresholds.humidityHigh &&
+        next.humidityLow === baseThresholds.humidityLow;
+      if (unchanged) {
+        draftRef.current = null;
+        setDraftThresholds(null);
+        return;
+      }
+      persistAlarmDraft(next);
+    }
+  };
+
+  const onScaleEdgeNumericCommit = (event: ScaleEdgeNumericCommitEvent) => {
+    if (!canCommand || !alarmScopeKey || alarmSaving) return;
+    const key = ALARM_EDGE_KEY[event.id];
+    if (!key) return;
+    const next = clampAlarmDraft(
+      { ...(draftRef.current ?? baseThresholds), [key]: event.value },
+      key,
+    );
+    const unchanged =
+      next.tempHigh === baseThresholds.tempHigh &&
+      next.tempLow === baseThresholds.tempLow &&
+      next.humidityHigh === baseThresholds.humidityHigh &&
+      next.humidityLow === baseThresholds.humidityLow;
+    if (unchanged) return;
+    draftRef.current = next;
+    setDraftThresholds(next);
+    setAlarmSaveError(null);
+    persistAlarmDraft(next);
+  };
+
   /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 알람 고정 스케일. */
   const scaleEdgeLabels = useMemo((): TrendScaleEdgeLabel[] => {
     if (!built) return [];
     const out: TrendScaleEdgeLabel[] = [];
+    const mapLo = mappingThresholds.tempLow;
+    const mapHi = mappingThresholds.tempHigh;
+    const mapHumLo = mappingThresholds.humidityLow;
+    const mapHumHi = mappingThresholds.humidityHigh;
     const push = (
       id: string,
       chartY: number | null,
@@ -425,6 +671,8 @@ export function UnifiedBarnTrendPanel({
       mark: "overline" | "underline",
       title: string,
       showLine: boolean,
+      draggable = false,
+      editValue?: number,
     ) => {
       if (chartY == null || !Number.isFinite(chartY)) return;
       out.push({
@@ -437,6 +685,8 @@ export function UnifiedBarnTrendPanel({
         mark,
         title,
         showLine,
+        draggable,
+        editValue,
       });
     };
 
@@ -463,31 +713,25 @@ export function UnifiedBarnTrendPanel({
     if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
       push(
         "temp-hi",
-        mapTempCToSplitY(
-          thresholds.tempHigh,
-          thresholds.tempLow,
-          thresholds.tempHigh,
-          layout,
-        ),
+        mapTempCToSplitY(thresholds.tempHigh, mapLo, mapHi, layout),
         `${thresholds.tempHigh}℃`,
         TREND_CHART_COLORS.temp,
         "overline",
         "온도 상한(알람)",
         true,
+        alarmDragEnabled,
+        thresholds.tempHigh,
       );
       push(
         "temp-lo",
-        mapTempCToSplitY(
-          thresholds.tempLow,
-          thresholds.tempLow,
-          thresholds.tempHigh,
-          layout,
-        ),
+        mapTempCToSplitY(thresholds.tempLow, mapLo, mapHi, layout),
         `${thresholds.tempLow}℃`,
         TREND_CHART_COLORS.temp,
         "underline",
         "온도 하한(알람)",
         true,
+        alarmDragEnabled,
+        thresholds.tempLow,
       );
     }
     if (
@@ -499,8 +743,8 @@ export function UnifiedBarnTrendPanel({
           "hum-hi",
           mapHumPctToSplitY(
             thresholds.humidityHigh,
-            thresholds.humidityLow,
-            thresholds.humidityHigh,
+            mapHumLo,
+            mapHumHi,
             layout,
           ),
           `${thresholds.humidityHigh}%`,
@@ -508,13 +752,15 @@ export function UnifiedBarnTrendPanel({
           "overline",
           "습도 상한(알람)",
           true,
+          alarmDragEnabled,
+          thresholds.humidityHigh,
         );
         push(
           "hum-lo",
           mapHumPctToSplitY(
             thresholds.humidityLow,
-            thresholds.humidityLow,
-            thresholds.humidityHigh,
+            mapHumLo,
+            mapHumHi,
             layout,
           ),
           `${thresholds.humidityLow}%`,
@@ -522,11 +768,21 @@ export function UnifiedBarnTrendPanel({
           "underline",
           "습도 하한(알람)",
           true,
+          alarmDragEnabled,
+          thresholds.humidityLow,
         );
       }
     }
     return out;
-  }, [built, layers, thresholds, layout, scopeVisibility]);
+  }, [
+    built,
+    layers,
+    thresholds,
+    mappingThresholds,
+    layout,
+    scopeVisibility,
+    alarmDragEnabled,
+  ]);
 
   const toggleLayer = (id: UnifiedLayerId) => {
     setLayers((prev) => {
@@ -778,6 +1034,12 @@ export function UnifiedBarnTrendPanel({
           onXScopeBack={popXScope}
           scopeMotionKey={scopeMotionKey}
           scopeMotionDir={scopeMotionDir}
+          onScaleEdgeDrag={
+            canCommand && alarmScopeKey ? onScaleEdgeDrag : undefined
+          }
+          onScaleEdgeNumericCommit={
+            canCommand && alarmScopeKey ? onScaleEdgeNumericCommit : undefined
+          }
         />
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">
@@ -786,6 +1048,15 @@ export function UnifiedBarnTrendPanel({
             : "통합 추이 데이터가 없습니다."}
         </p>
       )}
+
+      {alarmSaveError ? (
+        <p
+          className="text-[0.65rem] text-destructive"
+          role="alert"
+        >
+          {alarmSaveError}
+        </p>
+      ) : null}
 
       {onPeriodChange ? (
         <UnifiedTrendPeriodBrush
@@ -801,11 +1072,12 @@ export function UnifiedBarnTrendPanel({
       {built ? (
         <>
           <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
-            드래그=시간 줌 · 걸친 밴드만 표시 · 한 밴드=확대 · 우클릭/Esc=뒤로 ·
-            ×=전체 해제
+            드래그=시간 줌 · 우측 알람 숫자 드래그/우클릭=임계값 · 걸친 밴드만 표시 ·
+            한 밴드=확대 · 빈 곳 우클릭/Esc=뒤로 · ×=전체 해제
           </p>
           <p className="text-[0.65rem] leading-snug text-muted-foreground lg:hidden">
-            차트 드래그=구간 줌 · 한 밴드만 걸치면 확대 · 뒤로/×=해제
+            차트 드래그=구간 줌 · 우측 알람 숫자 드래그·우클릭=임계값 · 한 밴드만
+            걸치면 확대 · 뒤로/×=해제
           </p>
         </>
       ) : null}

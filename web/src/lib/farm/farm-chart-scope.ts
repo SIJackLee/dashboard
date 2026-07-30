@@ -1,4 +1,6 @@
 import type { BarnReading } from "@/lib/data/iot";
+import { buildAlarmScopeKey } from "@/lib/data/alarm-scope";
+import { farmKeyId } from "@/lib/data/farm-key";
 import {
   compareStallNo,
   stallKeyFromReading,
@@ -59,6 +61,42 @@ export function filterReadingsByChartScope(
     if (stallKey !== scope.stallNo.trim()) return false;
     if (scope.level === "stall") return true;
     return r.controllerKey === scope.controllerKey;
+  });
+}
+
+/**
+ * 차트 집계 범위 → 알람 byScope 키.
+ * 농장 전체 = farm만, 유형/축사/컨트롤러는 설정 패널과 동일 계층.
+ */
+export function alarmScopeKeyFromFarmChartScope(
+  readings: BarnReading[],
+  scope: FarmChartScope,
+): string | null {
+  const farmId = readings[0] ? farmKeyId(readings[0].farmKey) : "";
+  if (!farmId) return null;
+  if (scope.level === "farm") {
+    return buildAlarmScopeKey({ farmId });
+  }
+  const sp = normalizeStallTyCode(scope.stallTyCode);
+  if (scope.level === "sp") {
+    return buildAlarmScopeKey({ farmId, sp });
+  }
+  if (scope.level === "stall") {
+    return buildAlarmScopeKey({
+      farmId,
+      sp,
+      stall: scope.stallNo.trim(),
+    });
+  }
+  const hit = readings.find((r) => r.controllerKey === scope.controllerKey);
+  const stall =
+    scope.stallNo.trim() || (hit ? stallKeyFromReading(hit) : "");
+  if (!stall) return null;
+  return buildAlarmScopeKey({
+    farmId,
+    sp,
+    stall,
+    controllerKey: scope.controllerKey,
   });
 }
 

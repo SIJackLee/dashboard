@@ -27,6 +27,8 @@ type Props = {
   scope: FarmChartScope;
   onScopeChange?: (scope: FarmChartScope) => void;
   alarmSettings?: AlarmSettings;
+  /** 조회 전용이면 알람선 드래그 비활성 */
+  canCommand?: boolean;
   isMobileStack?: boolean;
   /** 차트 탭 활성 — ScopeBar 레이어 툴바 enter/exit */
   layersToolbarActive?: boolean;
@@ -45,6 +47,7 @@ export function FarmChartView({
   scope,
   onScopeChange,
   alarmSettings,
+  canCommand = false,
   isMobileStack = false,
   layersToolbarActive = true,
   className,
@@ -115,6 +118,8 @@ export function FarmChartView({
           period={period}
           onPeriodChange={onPeriodChange}
           alarmSettings={alarmSettings}
+          chartScope={scope}
+          canCommand={canCommand}
           isMobileStack={isMobileStack}
           chartHeight={chartHeight}
           layersToolbarActive={layersToolbarActive}

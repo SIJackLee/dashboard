@@ -453,6 +453,43 @@ function mapToValueBand(
   return bandLo + clamped * (bandHi - bandLo);
 }
 
+/** split-Y 밴드 Y → 원단위 (드래그 역매핑). 도메인 고정용. */
+function unmapFromValueBand(
+  splitY: number,
+  valueLo: number,
+  valueHi: number,
+  bandLo: number,
+  bandHi: number,
+): number | null {
+  if (!Number.isFinite(splitY)) return null;
+  if (!(valueHi > valueLo) || !(bandHi > bandLo)) return (valueLo + valueHi) / 2;
+  const t = (splitY - bandLo) / (bandHi - bandLo);
+  const clamped = Math.max(0, Math.min(1, t));
+  return valueLo + clamped * (valueHi - valueLo);
+}
+
+/** 습도 밴드 Y → % (드래그 시작 시 고정 도메인 기준) */
+export function unmapHumPctFromSplitY(
+  splitY: number,
+  humidityLow: number,
+  humidityHigh: number,
+  layout: SplitYLayout = SPLIT_Y_WITH_HUM,
+): number | null {
+  const [vlo, vhi] = paddedAlarmDomain(humidityLow, humidityHigh);
+  return unmapFromValueBand(splitY, vlo, vhi, layout.humLo, layout.humHi);
+}
+
+/** 온도 밴드 Y → ℃ (드래그 시작 시 고정 도메인 기준) */
+export function unmapTempCFromSplitY(
+  splitY: number,
+  tempLow: number,
+  tempHigh: number,
+  layout: SplitYLayout = SPLIT_Y_WITH_HUM,
+): number | null {
+  const [vlo, vhi] = paddedAlarmDomain(tempLow, tempHigh);
+  return unmapFromValueBand(splitY, vlo, vhi, layout.tempLo, layout.tempHi);
+}
+
 /** 모터% → 모터 밴드 */
 export function mapMotorPctToSplitY(
   pct: number | null | undefined,

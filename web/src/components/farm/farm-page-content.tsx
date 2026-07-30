@@ -562,6 +562,7 @@ export function FarmPageContent({
               scope={chartScope}
               onScopeChange={onChartScopeChange}
               alarmSettings={alarmSettings}
+              canCommand={controller?.canCommand ?? false}
               isMobileStack={viewportCompact}
               layersToolbarActive={view === "chart"}
             />

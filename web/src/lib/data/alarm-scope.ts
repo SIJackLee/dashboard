@@ -17,7 +17,7 @@ type AlarmScopeParts = {
   controllerKey?: string;
 };
 
-function buildAlarmScopeKey(parts: AlarmScopeParts): string {
+export function buildAlarmScopeKey(parts: AlarmScopeParts): string {
   const segments = [`farm:${parts.farmId}`];
   if (parts.sp) segments.push(`sp:${parts.sp}`);
   if (parts.stall) segments.push(`stall:${parts.stall}`);
