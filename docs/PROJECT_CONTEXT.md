@@ -1,12 +1,16 @@
 # 스마트 축사 IoT 대시보드 - 작업 맥락
 
-> IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. decoded 센서 데이터 표시와 제어 명령 발행을 인증/권한 기반으로 제공한다.
+> **문서 허브:** [`../web/docs/README.md`](../web/docs/README.md)  
+> **배포 기준:** [`../web/CLOUD_DEPLOY.md`](../web/CLOUD_DEPLOY.md) (`commit → push → main → Vercel`)  
+> IoT 축사 모니터링·제어 대시보드. 인증/권한 기반 조회·명령.
+
+> **주의:** 아래 스키마 절에 구 `iot_room_state_decoded` 설명이 남아 있을 수 있다. LIVE 조회 현행은 RS-DB-C / `v_iot_raw_live` 등 — [`../web/CLOUD_DEPLOY.md`](../web/CLOUD_DEPLOY.md) · `web/src/lib/data/*` 를 교차 확인.
 
 ## 1. 프로젝트 개요
 
-- **대상 폴더**: `web/` (Next.js 앱). 루트(`dashboard/`)에는 목업 이미지(`*.png`)와 문서가 위치.
-- **목적**: Supabase에 적재된 IoT 디코딩 데이터를 권한별로 조회하고, 컨트롤러에 제어 명령을 발행.
-- **Supabase 프로젝트**: `ompufmezugftzoergdbn` (운영 DB, 신중히 다룰 것)
+- **대상 폴더**: `web/` (Next.js 앱).
+- **목적**: Supabase IoT 데이터 권한별 조회 · 컨트롤러 명령.
+- **Supabase**: 운영 프로젝트는 `.env.local` 기준 (키·ref 문서에 하드코딩하지 말 것).
 
 ## 2. 기술 스택
 
