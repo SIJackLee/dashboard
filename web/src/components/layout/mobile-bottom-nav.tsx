@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutDashboard, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { isMonitoringNavPath } from "@/lib/dashboard-sections";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import {
+  buildFarmMonitoringHomePath,
+  buildFarmMonitoringHomeParams,
+  currentFarmSearchParams,
+  isFarmMonitoringSoftHome,
+  replaceFarmUrlShallow,
+  requestFarmHubViewResync,
+} from "@/lib/farm/farm-view-url";
+import { dashboardChroma, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type Role = "admin" | "operator" | "viewer";
@@ -27,18 +35,45 @@ export function MobileBottomNav({ docked = false }: Props) {
 
   const monitoringActive = isMonitoringNavPath(pathname);
 
+  /** SSR·Link용 — Next searchParams. 클릭 시 window URL로 재계산 */
+  const monitoringHomeHref = useMemo(
+    () => buildFarmMonitoringHomePath(new URLSearchParams(searchParams.toString())),
+    [searchParams],
+  );
+
   if (!isPending && pendingHref != null) {
     setPendingHref(null);
   }
 
-  const goSection = (href: string) => {
+  const goMonitoringHome = () => {
+    const live = currentFarmSearchParams();
+    const homeParams = buildFarmMonitoringHomeParams(live);
+    const href = buildFarmMonitoringHomePath(live);
+
+    if (pathname === "/farm" && isFarmMonitoringSoftHome(live)) {
+      return;
+    }
+
     setPendingHref(href);
+
+    if (pathname === "/farm") {
+      startTransition(() => {
+        replaceFarmUrlShallow(homeParams);
+        // layout 밖 Provider — hubUrlEpoch 대신 전용 resync
+        requestFarmHubViewResync();
+      });
+      return;
+    }
+
     startTransition(() => {
       router.push(href);
     });
   };
 
-  const monitoringBusy = isPending && pendingHref === "/farm";
+  const monitoringBusy =
+    isPending &&
+    pendingHref != null &&
+    (pendingHref === "/farm" || pendingHref.startsWith("/farm?"));
 
   return (
     <nav
@@ -52,18 +87,19 @@ export function MobileBottomNav({ docked = false }: Props) {
       aria-busy={isPending || undefined}
     >
       <Link
-        href="/farm"
+        href={monitoringHomeHref}
         scroll={false}
         aria-current={monitoringActive ? "page" : undefined}
         aria-busy={monitoringBusy || undefined}
         onClick={(e) => {
-          if (monitoringActive && !searchParams.toString()) return;
           e.preventDefault();
-          goSection("/farm");
+          goMonitoringHome();
         }}
         className={cn(
           dashboardUi.mobileBottomNavItem,
-          monitoringActive ? "text-emerald-700" : "text-muted-foreground",
+          monitoringActive
+            ? cn(dashboardChroma.chromeActiveText, "font-semibold")
+            : "text-muted-foreground",
           monitoringBusy && "opacity-70",
         )}
       >
