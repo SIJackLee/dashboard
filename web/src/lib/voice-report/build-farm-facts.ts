@@ -7,7 +7,8 @@ import {
   deriveAlarmsFromReadings,
   summarizeAlarms,
 } from "@/lib/data/alarms";
-import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { farmDisplayLabel } from "@/lib/data/farm-summaries";
+import { getFarmLocation } from "@/lib/data/farm-location";
 import { getLiveReadings } from "@/lib/data/iot";
 import { STALL_TYPE_NAMES, normalizeStallTyCode } from "@/lib/data/stall-type";
 import { VOICE_LIMITS } from "@/lib/voice-report/limits";
@@ -50,9 +51,10 @@ function avg(nums: number[]): number | null {
 }
 
 export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> {
-  const [readings, alarmSettings] = await Promise.all([
+  const [readings, alarmSettings, location] = await Promise.all([
     getLiveReadings({ farmKey, slim: true }),
     getAlarmSettings(),
+    getFarmLocation(farmKey),
   ]);
   const scoped = readings.filter(
     (r) =>
@@ -128,6 +130,15 @@ export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> 
     ]),
   );
 
+  const ventByKey = new Map(
+    scoped.map((r) => [
+      r.controllerKey,
+      r.thermo?.maxVentPct != null && Number.isFinite(r.thermo.maxVentPct)
+        ? Number(r.thermo.maxVentPct)
+        : null,
+    ]),
+  );
+
   const alarmItems = [...alarms]
     .sort((a, b) => {
       if (a.severity !== b.severity) {
@@ -154,12 +165,13 @@ export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> 
         alarmType: a.alarmType,
         severity: a.severity,
         detail: a.detail,
+        maxVentPct: ventByKey.get(a.controllerKey) ?? null,
       };
     });
 
   return {
     farmKey,
-    farmLabel: farmShortLabel(farmKey),
+    farmLabel: farmDisplayLabel(farmKey, location?.farmName),
     totalControllers: scoped.length,
     onlineControllers: online,
     offlineControllers: scoped.length - online,

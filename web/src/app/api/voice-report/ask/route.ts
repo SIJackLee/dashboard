@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
+import {
+  runAriaProtocol,
+  ariaProtocolV1Enabled,
+  routeByRules,
+} from "@/lib/aria/protocol/pipeline";
+import { parseAriaSession } from "@/lib/aria/protocol/route";
+import { recordAriaTurnLog } from "@/lib/aria/protocol/turn-log";
+import type { AriaSession } from "@/lib/aria/protocol/types";
 import {
   buildFarmFacts,
   buildTemplateSummary,
@@ -70,7 +79,18 @@ type ParsedAsk = {
   durationSec: number;
   withTts: boolean;
   currentFarm: FarmKey | null;
+  ariaSession: AriaSession | null;
 };
+
+function parseSessionFromForm(form: FormData): AriaSession | null {
+  const raw = String(form.get("ariaSession") ?? "").trim();
+  if (!raw) return null;
+  try {
+    return parseAriaSession(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
 
 async function parseAskRequest(request: Request): Promise<ParsedAsk | { parseError: true }> {
   const contentType = request.headers.get("content-type") ?? "";
@@ -99,6 +119,7 @@ async function parseAskRequest(request: Request): Promise<ParsedAsk | { parseErr
         currentItem: String(form.get("currentItem") ?? ""),
         currentFarm: String(form.get("currentFarm") ?? ""),
       }),
+      ariaSession: parseSessionFromForm(form),
     };
   }
 
@@ -109,6 +130,7 @@ async function parseAskRequest(request: Request): Promise<ParsedAsk | { parseErr
       currentItem?: string;
       currentFarm?: string;
       withTts?: boolean;
+      ariaSession?: unknown;
     };
     return {
       mode: "text",
@@ -118,6 +140,9 @@ async function parseAskRequest(request: Request): Promise<ParsedAsk | { parseErr
       durationSec: 0,
       withTts: Boolean(body.withTts),
       currentFarm: parseCurrentFarm(body),
+      ariaSession: body.ariaSession
+        ? parseAriaSession(body.ariaSession)
+        : null,
     };
   } catch {
     return { parseError: true };
@@ -125,7 +150,7 @@ async function parseAskRequest(request: Request): Promise<ParsedAsk | { parseErr
 }
 
 /**
- * 텍스트 또는 음성 질문 → 권한 스코프 fact → 요약 (+선택 TTS).
+ * 텍스트 또는 음성 질문 → ARIA 프로토콜(또는 레거시 요약) (+선택 TTS).
  */
 export async function POST(request: Request) {
   if (!voiceReportEnabled()) {
@@ -253,15 +278,26 @@ export async function POST(request: Request) {
 
   markVoiceRequest(user.id);
 
-  let facts;
-  try {
-    facts = await buildFarmFacts(farmKey);
-  } catch (e) {
-    console.error("[voice-report] facts", e);
-    return err(500, "openai_error", "농장 데이터를 불러오지 못했습니다.", usage);
+  const useProtocol = ariaProtocolV1Enabled();
+  const ariaSessionIn = parsed.ariaSession;
+  const routeHint = useProtocol ? routeByRules(question) : null;
+
+  let facts = null as Awaited<ReturnType<typeof buildFarmFacts>> | null;
+  if (!useProtocol || routeHint !== "CHAT") {
+    try {
+      facts = await buildFarmFacts(farmKey);
+    } catch (e) {
+      console.error("[voice-report] facts", e);
+      return err(
+        500,
+        "openai_error",
+        "농장 데이터를 불러오지 못했습니다.",
+        usage,
+      );
+    }
   }
 
-  const factsJson = factsToPromptJson(facts);
+  const factsJson = facts ? factsToPromptJson(facts) : "";
   const maxAnswer = VOICE_LIMITS.maxAnswerChars();
   const promptChars = question.length + factsJson.length + 400;
   const wantTts = withTts && useOpenAI;
@@ -289,14 +325,36 @@ export async function POST(request: Request) {
 
   let text: string;
   let source: VoiceAskSuccess["source"];
+  let ariaSessionOut: VoiceAskSuccess["ariaSession"];
+  let ariaRoute: VoiceAskSuccess["ariaRoute"];
+  const farmKeyOut = facts?.farmKey ?? farmKey;
+  const farmLabelOut = facts?.farmLabel ?? farmShortLabel(farmKey);
 
   try {
-    if (useOpenAI) {
+    if (useProtocol) {
+      const result = await runAriaProtocol({
+        question,
+        facts,
+        session: ariaSessionIn,
+        useOpenAI,
+        route: routeHint ?? undefined,
+      });
+      text = result.text;
+      source = result.source;
+      ariaSessionOut = result.session;
+      ariaRoute = result.route;
+    } else if (useOpenAI && facts) {
       text = await summarizeFarmWithOpenAI(question, facts, factsJson);
       source = "openai";
-    } else {
+      ariaSessionOut = undefined;
+      ariaRoute = undefined;
+    } else if (facts) {
       text = buildTemplateSummary(facts, maxAnswer);
       source = "template";
+      ariaSessionOut = undefined;
+      ariaRoute = undefined;
+    } else {
+      return err(500, "openai_error", "농장 데이터를 불러오지 못했습니다.", usage);
     }
   } catch (e) {
     console.error("[voice-report] summarize", e);
@@ -349,12 +407,27 @@ export async function POST(request: Request) {
   const nextUsage =
     cost > 0 ? recordVoiceSpend(user.id, cost) : getVoiceUsage(user.id);
 
+  if (useProtocol && ariaRoute && ariaSessionOut) {
+    void recordAriaTurnLog({
+      userId: user.id,
+      farmKey: farmKeyOut,
+      question,
+      route: ariaRoute,
+      depth: ariaRoute === "FARM" ? ariaSessionOut.depth : null,
+      source,
+      sessionIn: ariaSessionIn,
+      sessionOut: ariaSessionOut,
+      answer: text,
+      protocolV1: true,
+    });
+  }
+
   const ok: VoiceAskSuccess = {
     ok: true,
     text,
     question,
-    farmKey: facts.farmKey,
-    farmLabel: facts.farmLabel,
+    farmKey: farmKeyOut,
+    farmLabel: farmLabelOut,
     source,
     mode,
     usage: nextUsage,
@@ -362,6 +435,8 @@ export async function POST(request: Request) {
     audioBase64,
     audioMimeType,
     ttsSkipped,
+    ariaSession: ariaSessionOut,
+    ariaRoute,
   };
   return NextResponse.json(ok);
 }

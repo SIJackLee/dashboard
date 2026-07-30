@@ -1,5 +1,5 @@
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
-import type { EditableFarmOption } from "@/lib/data/farm-location";
+import type { EditableFarmOption } from "@/lib/data/farm-location-shared";
 import { regionsBySido, SIDO_LIST } from "@/lib/geo/korea-regions";
 
 export function farmOptionId(farmKey: FarmKey): string {
@@ -43,6 +43,7 @@ export function filterFarmOptions(
       o.label,
       o.farmKey.lsindRegistNo,
       o.farmKey.itemCode,
+      o.location?.farmName,
       o.location?.sido,
       o.location?.sigungu,
     ]

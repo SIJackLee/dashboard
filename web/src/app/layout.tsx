@@ -46,12 +46,16 @@ export default function RootLayout({
     <html
       lang="ko"
       data-viewport-preview="desktop"
+      data-density="comfortable"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full bg-muted/30 dark:bg-background">
         <Script id="dashboard-theme-init" strategy="beforeInteractive">
           {`try{var t=localStorage.getItem("dashboard-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`}
+        </Script>
+        <Script id="dashboard-density-init" strategy="beforeInteractive">
+          {`try{var d=localStorage.getItem("dashboard-density");document.documentElement.dataset.density=(d==="compact"||d==="comfortable")?d:"comfortable"}catch(e){document.documentElement.dataset.density="comfortable"}`}
         </Script>
         <Script id="dashboard-viewport-init" strategy="beforeInteractive">
           {`try{var k="dashboard-viewport-preview";var v=localStorage.getItem(k);var pref=(v==="mobile"||v==="desktop")?v:"auto";var mobile=window.matchMedia("(max-width: 767px)").matches;var mode=pref==="auto"?(mobile?"mobile":"desktop"):pref;document.documentElement.dataset.viewportPreview=mode}catch(e){document.documentElement.dataset.viewportPreview=window.matchMedia("(max-width: 767px)").matches?"mobile":"desktop"}`}

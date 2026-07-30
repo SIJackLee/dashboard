@@ -4,12 +4,15 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { createPortal } from "react-dom";
 import { Bot, Loader2, Mic, Square, Volume2, X } from "lucide-react";
 import type { FarmKey } from "@/lib/data/farm-key";
-import { farmKeyId } from "@/lib/data/farm-key";
+import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { ARIA_NAME, type VoiceReportStatus } from "@/lib/aria/aria-mode";
 import type {
   VoiceAskError,
   VoiceAskSuccess,
   VoiceUsageSnapshot,
 } from "@/lib/voice-report/types";
+import { motionClass } from "@/lib/ui/motion-classes";
+import { dashboardAriaShell } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 const MAX_RECORD_SEC = 15;
@@ -18,29 +21,40 @@ const emptySubscribe = () => () => {};
 
 type Props = {
   currentFarm: FarmKey;
-  /** 모바일 — 하단 탭 위에 fixed */
+  /** 모바일 — 하단 탭 위에 fixed (fab 레이아웃만) */
   compact?: boolean;
+  /** fab: 플로팅 버튼 · dock: ARIA 하단 도크 (FAB 없음) */
+  layout?: "fab" | "dock";
+  /** fab 레이아웃 — 진입 시 패널 펼침 */
+  defaultOpen?: boolean;
+  onStatusChange?: (
+    status: VoiceReportStatus,
+    meta: { micTesting: boolean },
+  ) => void;
+  /** 0~100 — 녹음·마이크 테스트 RMS */
+  onMicLevelChange?: (levelPct: number) => void;
   className?: string;
 };
 
-type Status =
-  | "idle"
-  | "recording"
-  | "uploading"
-  | "analyzing"
-  | "speaking"
-  | "error";
-
 /**
- * 차트 뷰 우측 하단 AI 패널 — 마이크 STT + TTS + 텍스트 폴백.
+ * ARIA / 음성 AI — fab(플로팅) 또는 dock(하단 도크).
  */
-export function VoiceReportFab({ currentFarm, compact = false, className }: Props) {
-  const [open, setOpen] = useState(false);
+export function VoiceReportFab({
+  currentFarm,
+  compact = false,
+  layout = "fab",
+  defaultOpen = false,
+  onStatusChange,
+  onMicLevelChange,
+  className,
+}: Props) {
+  const isDock = layout === "dock";
+  const [open, setOpen] = useState(defaultOpen || isDock);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [meta, setMeta] = useState<string | null>(null);
   const [usage, setUsage] = useState<VoiceUsageSnapshot | null>(null);
-  const [status, setStatus] = useState<Status>("idle");
+  const [status, setStatus] = useState<VoiceReportStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [recordSec, setRecordSec] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -51,6 +65,9 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
   const [micLevel, setMicLevel] = useState(0);
   const [micTesting, setMicTesting] = useState(false);
   const [soundBlocked, setSoundBlocked] = useState(false);
+  const [ariaSession, setAriaSession] = useState<
+    VoiceAskSuccess["ariaSession"] | null
+  >(null);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -105,6 +122,14 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
       clearAudioUrl();
     };
   }, [clearAudioUrl]);
+
+  useEffect(() => {
+    onStatusChange?.(status, { micTesting });
+  }, [status, micTesting, onStatusChange]);
+
+  useEffect(() => {
+    onMicLevelChange?.(micLevel);
+  }, [micLevel, onMicLevelChange]);
 
   /** 스피커/자동재생 경로 점검 — Web Audio 비프 (로컬, 과금 없음) */
   const runSoundCheck = useCallback(async () => {
@@ -306,6 +331,9 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
           form.append("currentItem", currentFarm.itemCode);
           form.append("durationSec", String(opts.durationSec ?? 0));
           form.append("withTts", ttsEnabled ? "1" : "0");
+          if (ariaSession) {
+            form.append("ariaSession", JSON.stringify(ariaSession));
+          }
           res = await fetch("/api/voice-report/ask", {
             method: "POST",
             body: form,
@@ -326,6 +354,7 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
               currentLsind: currentFarm.lsindRegistNo,
               currentItem: currentFarm.itemCode,
               withTts: ttsEnabled,
+              ariaSession: ariaSession ?? undefined,
             }),
           });
         }
@@ -341,8 +370,18 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
         if (data.question) setQuestion(data.question);
         setAnswer(data.text);
         setUsage(data.usage);
+        if (data.ariaSession) setAriaSession(data.ariaSession);
+        const sourceLabel =
+          data.source === "protocol" || data.source === "protocol_heuristic"
+            ? "프로토콜"
+            : data.source === "chat"
+              ? "대화"
+              : data.source === "openai"
+                ? "AI 요약"
+                : "템플릿";
+        const routeLabel = data.ariaRoute ? ` · ${data.ariaRoute}` : "";
         setMeta(
-          `${data.farmLabel} · ${data.source === "openai" ? "AI 요약" : "템플릿"} · ${data.mode === "audio" ? "음성" : "텍스트"}${data.audioBase64 ? " · TTS" : ""}`,
+          `${data.farmLabel} · ${sourceLabel}${routeLabel} · ${data.mode === "audio" ? "음성" : "텍스트"}${data.audioBase64 ? " · TTS" : ""}`,
         );
 
         if (data.audioBase64) {
@@ -372,6 +411,7 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
       }
     },
     [
+      ariaSession,
       clearAudioUrl,
       currentFarm.itemCode,
       currentFarm.lsindRegistNo,
@@ -412,12 +452,38 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
       chunksRef.current = [];
       startedAtRef.current = Date.now();
       setRecordSec(0);
+      setMicLevel(0);
       setStatus("recording");
+
+      const audioCtx = new (
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext
+      )();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const freq = new Uint8Array(analyser.frequencyBinCount);
+      let levelRaf = 0;
+      const tickLevel = () => {
+        analyser.getByteFrequencyData(freq);
+        let sum = 0;
+        for (let i = 0; i < freq.length; i++) sum += freq[i]!;
+        setMicLevel(
+          Math.min(100, Math.round((sum / freq.length / 255) * 140)),
+        );
+        levelRaf = requestAnimationFrame(tickLevel);
+      };
+      levelRaf = requestAnimationFrame(tickLevel);
 
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
       rec.onstop = () => {
+        cancelAnimationFrame(levelRaf);
+        void audioCtx.close();
+        setMicLevel(0);
         stream.getTracks().forEach((t) => t.stop());
         if (tickRef.current != null) {
           window.clearInterval(tickRef.current);
@@ -470,6 +536,239 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
             ? "읽는 중…"
             : null;
 
+  const panelControls = (
+    <>
+      <div className={cn("mb-2 flex gap-1.5", isDock && "mb-3")}>
+        {status === "recording" ? (
+          <button
+            type="button"
+            onClick={stopRecording}
+            className={cn(
+              "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl",
+              "bg-destructive px-3 py-2.5 text-sm font-medium text-destructive-foreground",
+              isDock && "py-3",
+            )}
+          >
+            <Square className="size-3.5 fill-current" />
+            중지 · 분석
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void startRecording()}
+            className={cn(
+              "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl",
+              "bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground",
+              "disabled:opacity-50",
+              isDock && "py-3 shadow-sm",
+            )}
+          >
+            {status === "uploading" ||
+            status === "analyzing" ||
+            status === "speaking" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Mic className="size-4" />
+            )}
+            말하기
+          </button>
+        )}
+      </div>
+
+      {statusLabel ? (
+        <p className="mb-2 text-[11px] text-muted-foreground" aria-live="polite">
+          {statusLabel}
+        </p>
+      ) : null}
+
+      {status === "recording" || micTesting ? (
+        <div
+          className="mb-2 h-1.5 overflow-hidden rounded-full bg-muted"
+          aria-hidden
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-motion-fast"
+            style={{ width: `${micLevel}%` }}
+          />
+        </div>
+      ) : null}
+
+      <label className="mb-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        <input
+          type="checkbox"
+          checked={ttsEnabled}
+          disabled={busy}
+          onChange={(e) => {
+            const on = e.target.checked;
+            setTtsEnabled(on);
+            if (on && typeof Audio !== "undefined") {
+              try {
+                const unlock = new Audio(
+                  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
+                );
+                void unlock.play().then(() => {
+                  unlock.pause();
+                });
+              } catch {
+                /* ignore */
+              }
+            }
+          }}
+          className="size-3"
+        />
+        음성으로 읽어주기 (TTS)
+      </label>
+
+      <div className="mb-2 flex gap-1.5">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void runSoundCheck()}
+          className={cn(
+            "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
+            "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+          )}
+        >
+          <Volume2 className="size-3" />
+          사운드 체크
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void runMicTest()}
+          className={cn(
+            "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
+            "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+          )}
+        >
+          <Mic className="size-3" />
+          {micTesting ? "테스트 중…" : "마이크 테스트"}
+        </button>
+      </div>
+      {soundBlocked ? (
+        <button
+          type="button"
+          className="mb-2 inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-medium text-primary-foreground"
+          onClick={() => void runSoundCheck()}
+        >
+          <Volume2 className="size-3" />
+          비프 다시 재생
+        </button>
+      ) : null}
+      {deviceMsg ? (
+        <p className="mb-2 text-[10px] text-muted-foreground" role="status">
+          {deviceMsg}
+        </p>
+      ) : null}
+
+      <textarea
+        value={question}
+        onChange={(e) => setQuestion(e.target.value)}
+        rows={2}
+        maxLength={200}
+        disabled={busy}
+        className={cn(
+          "mb-2 w-full resize-none rounded-lg border border-border/70 bg-background px-2 py-1.5",
+          "text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+        placeholder="또는 텍스트: 오늘 농장 상황 어때?"
+      />
+      <button
+        type="button"
+        disabled={busy || !question.trim()}
+        onClick={() => void submitAsk({ text: question })}
+        className={cn(
+          "mb-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg",
+          "border border-border/80 bg-background px-2 py-1.5 text-xs font-medium",
+          "disabled:opacity-50",
+        )}
+      >
+        텍스트로 요약
+      </button>
+
+      {error ? (
+        <p
+          className={cn("text-[11px] text-destructive", motionClass.ariaReplyIn)}
+          role="alert"
+        >
+          {error}
+        </p>
+      ) : null}
+      {ttsHint ? (
+        <p
+          className={cn(
+            "mb-2 text-[11px] text-amber-700 dark:text-amber-300",
+            motionClass.ariaReplyIn,
+          )}
+          role="status"
+        >
+          {ttsHint}
+        </p>
+      ) : null}
+      {answer ? (
+        <div
+          key={answer.slice(0, 48)}
+          className={cn(
+            "mt-1 max-h-40 overflow-y-auto rounded-lg bg-muted/50 p-2",
+            motionClass.ariaReplyIn,
+          )}
+        >
+          {meta ? (
+            <p className="mb-1 text-[10px] text-muted-foreground">{meta}</p>
+          ) : null}
+          <p className="text-xs leading-relaxed text-foreground">{answer}</p>
+          {audioUrl ? (
+            <button
+              type="button"
+              className={cn(
+                "mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium",
+                needsTapToPlay
+                  ? "bg-primary text-primary-foreground"
+                  : "text-primary",
+              )}
+              onClick={() => {
+                const a = new Audio(audioUrl);
+                setNeedsTapToPlay(false);
+                void a.play();
+              }}
+            >
+              <Volume2 className="size-3.5" />
+              {needsTapToPlay ? "탭하여 듣기" : "다시 듣기"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {usage ? (
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          이번 달 추정 ${usage.spentUsd.toFixed(3)} / ${usage.softCapUsd}
+          {usage.softWarn ? " · 한도 주의" : ""}
+        </p>
+      ) : null}
+    </>
+  );
+
+  if (isDock) {
+    return (
+      <div
+        className={cn(
+          "pointer-events-auto mx-auto w-full max-w-lg",
+          dashboardAriaShell.dock,
+          motionClass.ariaDockIn,
+          className,
+        )}
+        data-testid="voice-report-dock"
+        role="region"
+        aria-label={`${ARIA_NAME} 입력`}
+      >
+        <p className="mb-2 text-center text-[10px] text-muted-foreground">
+          {farmShortLabel(currentFarm)}
+        </p>
+        {panelControls}
+      </div>
+    );
+  }
+
   const fab = (
     <div
       className={cn(
@@ -481,19 +780,20 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
           : "absolute bottom-3 right-3",
         className,
       )}
-      data-tour-id="voice-report-fab"
+      data-testid="voice-report-fab"
     >
       {open ? (
         <div
           className={cn(
             "pointer-events-auto w-[min(100vw-1.5rem,20rem)] rounded-xl border border-border/80",
             "bg-popover/95 p-3 shadow-lg backdrop-blur-sm",
+            motionClass.ariaPanelIn,
           )}
           role="dialog"
-          aria-label="농장 음성 AI 요약"
+          aria-label={`${ARIA_NAME} 음성 AI`}
         >
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-foreground">농장 AI 요약</p>
+            <p className="text-xs font-semibold text-foreground">{ARIA_NAME}</p>
             <button
               type="button"
               className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -508,199 +808,9 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
             </button>
           </div>
           <p className="mb-2 text-[10px] text-muted-foreground">
-            기준 {farmKeyId(currentFarm)} · “FARM02 …”로 다른 농장 질문 가능
+            기준 {farmShortLabel(currentFarm)} · 말로 다른 농장도 질문 가능
           </p>
-
-          <div className="mb-2 flex gap-1.5">
-            {status === "recording" ? (
-              <button
-                type="button"
-                onClick={stopRecording}
-                className={cn(
-                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg",
-                  "bg-destructive px-2 py-2 text-xs font-medium text-destructive-foreground",
-                )}
-              >
-                <Square className="size-3.5 fill-current" />
-                중지 · 분석
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void startRecording()}
-                className={cn(
-                  "inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg",
-                  "bg-primary px-2 py-2 text-xs font-medium text-primary-foreground",
-                  "disabled:opacity-50",
-                )}
-              >
-                {status === "uploading" ||
-                status === "analyzing" ||
-                status === "speaking" ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <Mic className="size-3.5" />
-                )}
-                말하기
-              </button>
-            )}
-          </div>
-
-          {statusLabel ? (
-            <p className="mb-2 text-[11px] text-muted-foreground" aria-live="polite">
-              {statusLabel}
-            </p>
-          ) : null}
-
-          <label className="mb-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={ttsEnabled}
-              disabled={busy}
-              onChange={(e) => {
-                const on = e.target.checked;
-                setTtsEnabled(on);
-                /* 사용자 제스처에서 오디오 언락 — 이후 자동재생 성공률↑ */
-                if (on && typeof Audio !== "undefined") {
-                  try {
-                    const unlock = new Audio(
-                      "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
-                    );
-                    void unlock.play().then(() => {
-                      unlock.pause();
-                    });
-                  } catch {
-                    /* ignore */
-                  }
-                }
-              }}
-              className="size-3"
-            />
-            음성으로 읽어주기 (TTS)
-          </label>
-
-          <div className="mb-2 flex gap-1.5">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void runSoundCheck()}
-              className={cn(
-                "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
-                "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
-              )}
-            >
-              <Volume2 className="size-3" />
-              사운드 체크
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void runMicTest()}
-              className={cn(
-                "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
-                "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
-              )}
-            >
-              <Mic className="size-3" />
-              {micTesting ? "테스트 중…" : "마이크 테스트"}
-            </button>
-          </div>
-          {micTesting ? (
-            <div
-              className="mb-2 h-1.5 overflow-hidden rounded-full bg-muted"
-              aria-hidden
-            >
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-[width] duration-motion-fast"
-                style={{ width: `${micLevel}%` }}
-              />
-            </div>
-          ) : null}
-          {soundBlocked ? (
-            <button
-              type="button"
-              className="mb-2 inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-medium text-primary-foreground"
-              onClick={() => void runSoundCheck()}
-            >
-              <Volume2 className="size-3" />
-              비프 다시 재생
-            </button>
-          ) : null}
-          {deviceMsg ? (
-            <p className="mb-2 text-[10px] text-muted-foreground" role="status">
-              {deviceMsg}
-            </p>
-          ) : null}
-
-          <textarea
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            rows={2}
-            maxLength={200}
-            disabled={busy}
-            className={cn(
-              "mb-2 w-full resize-none rounded-lg border border-border/70 bg-background px-2 py-1.5",
-              "text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            )}
-            placeholder="또는 텍스트: 오늘 농장 상황 어때?"
-          />
-          <button
-            type="button"
-            disabled={busy || !question.trim()}
-            onClick={() => void submitAsk({ text: question })}
-            className={cn(
-              "mb-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg",
-              "border border-border/80 bg-background px-2 py-1.5 text-xs font-medium",
-              "disabled:opacity-50",
-            )}
-          >
-            텍스트로 요약
-          </button>
-
-          {error ? (
-            <p className="text-[11px] text-destructive" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {ttsHint ? (
-            <p className="mb-2 text-[11px] text-amber-700 dark:text-amber-300" role="status">
-              {ttsHint}
-            </p>
-          ) : null}
-          {answer ? (
-            <div className="mt-1 rounded-lg bg-muted/50 p-2">
-              {meta ? (
-                <p className="mb-1 text-[10px] text-muted-foreground">{meta}</p>
-              ) : null}
-              <p className="text-xs leading-relaxed text-foreground">{answer}</p>
-              {audioUrl ? (
-                <button
-                  type="button"
-                  className={cn(
-                    "mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium",
-                    needsTapToPlay
-                      ? "bg-primary text-primary-foreground"
-                      : "text-primary",
-                  )}
-                  onClick={() => {
-                    const a = new Audio(audioUrl);
-                    setNeedsTapToPlay(false);
-                    void a.play();
-                  }}
-                >
-                  <Volume2 className="size-3.5" />
-                  {needsTapToPlay ? "탭하여 듣기" : "다시 듣기"}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          {usage ? (
-            <p className="mt-2 text-[10px] text-muted-foreground">
-              이번 달 추정 ${usage.spentUsd.toFixed(3)} / ${usage.softCapUsd}
-              {usage.softWarn ? " · 한도 주의" : ""}
-            </p>
-          ) : null}
+          {panelControls}
         </div>
       ) : null}
 
@@ -712,7 +822,7 @@ export function VoiceReportFab({ currentFarm, compact = false, className }: Prop
           "hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           status === "recording" && "animate-pulse bg-destructive",
         )}
-        aria-label={open ? "AI 패널 닫기" : "농장 AI 요약 열기"}
+        aria-label={open ? `${ARIA_NAME} 패널 닫기` : `${ARIA_NAME} 열기`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >

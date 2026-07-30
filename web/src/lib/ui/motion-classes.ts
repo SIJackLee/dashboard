@@ -118,6 +118,23 @@ export const motionClass = {
   farmChartScopeChipIn: "farm-chart-scope-chip-in",
   farmChartScopeHandlePulse: "farm-chart-scope-handle-pulse",
 
+  /** ARIA 오브 (P1) */
+  ariaOrbRings: "aria-orb-rings",
+  ariaOrbBreathe: "aria-orb-breathe",
+  ariaOrbPulseListen: "aria-orb-pulse-listen",
+  ariaOrbPulseSpeak: "aria-orb-pulse-speak",
+  ariaOrbSpin: "aria-orb-spin",
+  ariaOrbStatic: "aria-orb-static",
+  ariaOrbCore: "aria-orb-core",
+  ariaOrbCoreListen: "aria-orb-core-listen",
+  ariaOrbCoreSpeak: "aria-orb-core-speak",
+  ariaOrbBreatheAlt: "aria-orb-breathe-alt",
+  ariaOrbHero: "aria-orb-hero",
+  ariaDockIn: "aria-dock-in",
+  /** 응답·상태 메시지 등장 */
+  ariaReplyIn: "ui-motion-enter-fade",
+  ariaPanelIn: "ui-motion-enter-slide-up",
+
   /** 헤더 도구 패널 — 버튼 왼쪽 슬라이드 */
   headerToolsPanel: "header-tools-panel",
 

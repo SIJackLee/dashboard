@@ -29,6 +29,16 @@ export const motionDistance = {
   slidePercent: 28,
 } as const;
 
+/** H2 chart amplitude — globals.css `--motion-chart-*` 와 동기 */
+export const motionChartAmplitude = {
+  scaleFrom: 0.92,
+  scaleExit: 0.94,
+  /** overshoot 상한 (verify: scale ≤ 1.08) */
+  scaleMax: 1.08,
+  /** enter scale 하한 (verify: scale ≥ 0.85) */
+  scaleMin: 0.85,
+} as const;
+
 /** 목록·카드 stagger 간격(ms) — PC·모바일 동일 리듬 */
 export const motionStaggerStepMs = 40;
 

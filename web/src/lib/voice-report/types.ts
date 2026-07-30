@@ -33,6 +33,8 @@ export type VoiceFarmFacts = {
     alarmType: string;
     severity: "warning" | "critical";
     detail: string;
+    /** 현재 최고환기량(%) — CTRL 대응용. 없으면 null */
+    maxVentPct: number | null;
   }[];
   generatedAt: string;
 };
@@ -53,7 +55,7 @@ export type VoiceAskSuccess = {
   question?: string;
   farmKey: FarmKey;
   farmLabel: string;
-  source: "openai" | "template";
+  source: "openai" | "template" | "protocol" | "protocol_heuristic" | "chat";
   mode: VoiceAskMode;
   usage: VoiceUsageSnapshot;
   estimatedCostUsd: number;
@@ -61,6 +63,14 @@ export type VoiceAskSuccess = {
   audioMimeType?: string | null;
   /** TTS를 원했지만 음성이 없을 때 */
   ttsSkipped?: "openai_missing" | "tts_failed" | null;
+  /** ARIA 프로토콜 세션 (다음 요청에 에코) */
+  ariaSession?: {
+    depth: 1 | 2 | 3 | 4;
+    focusStallType: string | null;
+    focusStallNo: string | null;
+    lastRoute: "CHAT" | "FARM" | "CTRL" | null;
+  };
+  ariaRoute?: "CHAT" | "FARM" | "CTRL";
 };
 
 export type VoiceAskErrorCode =

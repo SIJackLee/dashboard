@@ -95,6 +95,15 @@ export function farmShortLabel(farmKey: FarmKey): string {
   return `${farmKey.lsindRegistNo} · ${itemName}`;
 }
 
+/** 프로필 농장명 우선, 없으면 등록번호·축종 라벨 */
+export function farmDisplayLabel(
+  farmKey: FarmKey,
+  farmName?: string | null,
+): string {
+  const n = farmName?.trim();
+  return n || farmShortLabel(farmKey);
+}
+
 /** 내부 farmKeyId(lsind/itemCode) → 사용자 표시 라벨 */
 export function farmShortLabelFromId(farmId: string): string {
   const fk = parseFarmKeyId(farmId);

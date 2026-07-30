@@ -1,7 +1,7 @@
 import { findRegion } from "@/lib/geo/korea-regions";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { farmKeyId } from "@/lib/data/farm-key";
-import type { EditableFarmOption } from "@/lib/data/farm-location";
+import type { EditableFarmOption } from "@/lib/data/farm-location-shared";
 
 export type FarmLocationCsvRow = {
   farmKey: FarmKey;

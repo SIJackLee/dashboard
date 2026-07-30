@@ -1,8 +1,10 @@
 import { Suspense } from "react";
 import { OpsScanClient } from "@/components/admin/ops-scan-client";
 import { AdminDirectoryPanel } from "@/components/admin/admin-directory-panel";
+import { AriaTurnLogPanel } from "@/components/admin/aria-turn-log-panel";
 import { CommandHistorySlim } from "@/components/controllers/command-history-slim";
 import { AdminOpsTabContentSkeleton } from "@/components/admin/admin-ops-loading-skeleton";
+import { listAriaTurnLogs } from "@/lib/aria/protocol/turn-log";
 import { listManagedUsers } from "@/lib/admin/list-users";
 import { getEditableFarmLocationOptions } from "@/lib/data/farm-location";
 import { getThermoCommandHistory } from "@/lib/data/commands";
@@ -79,7 +81,21 @@ async function CommandsSection() {
   );
 }
 
-/** 운영 홈 — 스캔(client defer) + 디렉터리(B) + 슬림 명령. */
+async function AriaLogsSection() {
+  let rows: Awaited<ReturnType<typeof listAriaTurnLogs>> = [];
+  try {
+    rows = await listAriaTurnLogs({ limit: 50 });
+  } catch {
+    rows = [];
+  }
+  return (
+    <div className="order-3 scroll-mt-3 md:order-4">
+      <AriaTurnLogPanel initialRows={rows} />
+    </div>
+  );
+}
+
+/** 운영 홈 — 스캔(client defer) + 디렉터리(B) + 슬림 명령 + ARIA 로그. */
 export async function AdminOpsHome() {
   return (
     <div
@@ -94,6 +110,9 @@ export async function AdminOpsHome() {
       </Suspense>
       <Suspense fallback={<AdminOpsTabContentSkeleton label="명령" />}>
         <CommandsSection />
+      </Suspense>
+      <Suspense fallback={<AdminOpsTabContentSkeleton label="ARIA 로그" />}>
+        <AriaLogsSection />
       </Suspense>
     </div>
   );

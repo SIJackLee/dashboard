@@ -11,7 +11,7 @@ import {
   farmKeyId,
   type FarmKey,
 } from "@/lib/data/farm-key";
-import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { farmDisplayLabel } from "@/lib/data/farm-summaries";
 import { isValidMapCoord } from "@/lib/geo/map-coords";
 import {
   findRegion,
@@ -21,23 +21,28 @@ import {
   farmNoFromLsind,
   type KoreaRegion,
 } from "@/lib/geo/korea-regions";
+import {
+  FARM_NAME_MAX_CHARS,
+  type EditableFarmOption,
+  type FarmLocationBatchResult,
+  type FarmLocationRow,
+  type FarmLocationSaveResult,
+  type SaveFarmLocationInput,
+} from "@/lib/data/farm-location-shared";
 
-export type FarmLocationRow = {
-  farmKey: FarmKey;
-  sido: string;
-  sigungu: string;
-  addressDetail: string | null;
-  addressText: string;
-  lat: number;
-  lng: number;
-  geocodeSource: string;
-  updatedAt: string;
-  updatedBy: string | null;
-};
+export {
+  FARM_NAME_MAX_CHARS,
+  type EditableFarmOption,
+  type FarmLocationBatchResult,
+  type FarmLocationRow,
+  type FarmLocationSaveResult,
+  type SaveFarmLocationInput,
+} from "@/lib/data/farm-location-shared";
 
 type DbRow = {
   lsind_regist_no: string;
   item_code: string;
+  farm_name: string | null;
   sido: string;
   sigungu: string;
   address_detail: string | null;
@@ -49,12 +54,16 @@ type DbRow = {
   updated_at: string;
 };
 
+const FARM_LOCATION_SELECT =
+  "lsind_regist_no, item_code, farm_name, sido, sigungu, address_detail, address_text, lat, lng, geocode_source, updated_at, updated_by";
+
 function mapRow(row: DbRow): FarmLocationRow {
   return {
     farmKey: {
       lsindRegistNo: row.lsind_regist_no,
       itemCode: row.item_code,
     },
+    farmName: row.farm_name?.trim() || null,
     sido: row.sido,
     sigungu: row.sigungu,
     addressDetail: row.address_detail,
@@ -73,6 +82,7 @@ function synthesizeDevLocation(farmKey: FarmKey): FarmLocationRow {
   const detail = `목업 ${farmNo}번 축사단지`;
   return {
     farmKey,
+    farmName: `목업 ${farmNo}번 농장`,
     sido: region.sido,
     sigungu: region.sigungu,
     addressDetail: detail,
@@ -89,9 +99,7 @@ export async function getFarmLocations(): Promise<FarmLocationRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("farm_location")
-    .select(
-      "lsind_regist_no, item_code, sido, sigungu, address_detail, address_text, lat, lng, geocode_source, updated_at, updated_by"
-    );
+    .select(FARM_LOCATION_SELECT);
 
   if (!error && data && data.length > 0) {
     return (data as DbRow[])
@@ -109,6 +117,25 @@ export async function getFarmLocations(): Promise<FarmLocationRow[]> {
   return [];
 }
 
+export async function getFarmLocation(
+  farmKey: FarmKey,
+): Promise<FarmLocationRow | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("farm_location")
+    .select(FARM_LOCATION_SELECT)
+    .eq("lsind_regist_no", farmKey.lsindRegistNo)
+    .eq("item_code", farmKey.itemCode)
+    .maybeSingle();
+
+  if (!error && data) return mapRow(data as DbRow);
+
+  if (process.env.NODE_ENV === "development") {
+    return synthesizeDevLocation(farmKey);
+  }
+  return null;
+}
+
 export function farmLocationMap(
   rows: FarmLocationRow[]
 ): Map<string, FarmLocationRow> {
@@ -119,24 +146,11 @@ export function farmLocationMap(
   return map;
 }
 
-export type SaveFarmLocationInput = {
-  farmKey: FarmKey;
-  /** region_lookup path */
-  sido?: string;
-  sigungu?: string;
-  addressDetail?: string;
-  /** geocode path */
-  addressText?: string;
-  lat?: number;
-  lng?: number;
-  geocodeSource?: string;
-};
-
 export function buildLocationFromRegion(
   input: SaveFarmLocationInput,
   region: KoreaRegion,
   _farmNoForJitter = 0
-): Omit<DbRow, "updated_at" | "updated_by"> & {
+): Omit<DbRow, "updated_at" | "updated_by" | "farm_name"> & {
   updated_at?: string;
   updated_by?: string | null;
 } {
@@ -156,7 +170,7 @@ export function buildLocationFromRegion(
 
 function buildLocationFromCoords(
   input: SaveFarmLocationInput
-): Omit<DbRow, "updated_at" | "updated_by"> | null {
+): Omit<DbRow, "updated_at" | "updated_by" | "farm_name"> | null {
   const lat = input.lat;
   const lng = input.lng;
   if (lat == null || lng == null || !isValidMapCoord(lat, lng)) {
@@ -195,7 +209,7 @@ export async function saveFarmLocation(
     return { ok: false, error: "forbidden" };
   }
 
-  let row: Omit<DbRow, "updated_at" | "updated_by"> | null = null;
+  let row: Omit<DbRow, "updated_at" | "updated_by" | "farm_name"> | null = null;
 
   if (input.lat != null && input.lng != null) {
     row = buildLocationFromCoords(input);
@@ -217,11 +231,16 @@ export async function saveFarmLocation(
   }
 
   const supabase = await createClient();
-  const payload = {
+  const payload: Record<string, unknown> = {
     ...row,
     updated_by: user.id,
     updated_at: new Date().toISOString(),
   };
+
+  if (input.farmName !== undefined) {
+    const trimmed = (input.farmName ?? "").trim().slice(0, FARM_NAME_MAX_CHARS);
+    payload.farm_name = trimmed || null;
+  }
 
   const { error } = await supabase.from("farm_location").upsert(payload, {
     onConflict: "lsind_regist_no,item_code",
@@ -230,16 +249,6 @@ export async function saveFarmLocation(
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
-
-export type FarmLocationSaveResult =
-  | { ok: true }
-  | { ok: false; error: string; farmKey?: FarmKey };
-
-export type FarmLocationBatchResult = {
-  ok: boolean;
-  saved: number;
-  failed: { farmKey: FarmKey; error: string }[];
-};
 
 export async function saveFarmLocationsBatch(
   inputs: SaveFarmLocationInput[]
@@ -258,13 +267,6 @@ export async function saveFarmLocationsBatch(
 
   return { ok: failed.length === 0, saved, failed };
 }
-
-export type EditableFarmOption = {
-  farmKey: FarmKey;
-  label: string;
-  location: FarmLocationRow | null;
-  hasLiveData: boolean;
-};
 
 export async function getEditableFarmLocationOptions(): Promise<
   EditableFarmOption[]
@@ -306,10 +308,11 @@ export async function getEditableFarmLocationOptions(): Promise<
 
   return farmKeys.map((farmKey) => {
     const id = farmKeyId(farmKey);
+    const location = locMap.get(id) ?? null;
     return {
       farmKey,
-      label: farmShortLabel(farmKey),
-      location: locMap.get(id) ?? null,
+      label: farmDisplayLabel(farmKey, location?.farmName),
+      location,
       hasLiveData: liveIds.has(id),
     };
   });

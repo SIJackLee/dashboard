@@ -3,6 +3,8 @@
 PC·모바일·브라우저 공통 **motion token + L2 preset** 레이어.  
 Phase 1은 **규칙·프리셋·검증**까지 — 컴포넌트 전면 마이그레이션은 Phase 2~3.
 
+관련 디자인 문서: [UI_DENSITY.md](./UI_DENSITY.md) · [UI_ELEVATION.md](./UI_ELEVATION.md) · [UI_CHROMA.md](./UI_CHROMA.md) · [UI_FEEDBACK.md](./UI_FEEDBACK.md)
+
 ## 아키텍처
 
 ```
@@ -159,6 +161,65 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 
 ---
 
+## Chart motion budget (bundle C · H2)
+
+| 규칙 | 내용 |
+|------|------|
+| Duration | 차트 surface는 `fast`/`normal`/`moderate`/`emphasis`/`exit`만 |
+| Infinite | hover-ring · scope-handle-pulse는 **정적** |
+| Amplitude | enter `scale ≥ 0.85` (토큰 `--motion-chart-scale-from: 0.92`) · exit `0.94` · **overshoot ≤ 1.08 금지** |
+| Rotate | `farm-chart-*` 키프레임에서 `rotate()` 금지 |
+| Spring | 다단 bounce(1.12→0.97) 제거 — enter/exit 2키프레임 |
+| Stagger | 리터럴 ms 대신 `--motion-duration-fast` 배수 |
+| Glow | 라인 글로우 라이트 `0.12` / 다크 `0.28` |
+| Blur | 레이어 enter/exit blur 없음 |
+
+검증: `npm run verify:motion-css` (리터럴 ms · infinite · **amplitude**)
+
+---
+
+## Documented motion exceptions (bundle D)
+
+의도적으로 토큰/`infinite` 규칙을 벗어나는 surface. 신규 예외는 여기와 `verify-motion-css` allowlist에 함께 추가.
+
+| Surface | 이유 |
+|---------|------|
+| `.ui-motion-soft-refresh-bar` | 진행 인디케이터 (1.2s loop) |
+| `.aria-orb-*` | 음성 대기/청취/발화 호흡 — `--motion-aria-*-period` (H5) |
+| `.login-splash-logo` | 스플래시 입장 `--motion-duration-presence` (1200ms, 구 2s) — easing=`emphasis` |
+| `.login-splash-dot` | 로그인 스플래시 점 점멸 (장주기) — easing=`standard` |
+| `.farm-tour-accent` | 온보딩 스포트라이트 (장주기) — easing=`standard` |
+| `.farm-ctrl-focus` | 컨트롤러 포커스 펄스 2s×2 — easing=`enter` |
+| `.health-dag-*` edge flow | 헬스 DAG 흐름 표시 |
+
+**토큰 정렬 (투어·로그인)**: 리터럴 `cubic-bezier` / `ease-*` 제거.  
+hole=`moderate`+`emphasis`, tip=`normal`+`enter`, exit=`exit`+`enter`. accent glow=`--channel-hum`.
+
+**ARIA easing**: 주기는 `--motion-aria-*` 예외 유지, easing은 `--motion-ease-standard`.  
+톤 경계·Agent 소유권: [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) (H5).
+
+---
+
+## Channel color tokens
+
+| CSS var | Tailwind | 용도 |
+|---------|----------|------|
+| `--channel-fan-intake/exhaust/supply` | `channel-fan-*` | 모터 A/B/C 시리즈 |
+| `--status-warn` / `--status-danger` | `status-warn` 등 | 알람 참조선·심각도 |
+| `--chart-guide` | — | 차트 가이드(상·하한) |
+
+차트 SVG는 `TREND_CHART_COLORS` / `SEV_COLOR`가 `var(--…)`를 사용한다 (T3).
+
+공용 클래스: `dashboardUi.channelTint*` / `chartLayerGroup*` / `opsStatus.info`.  
+신규 채널·정보 UI는 `sky`/`rose`/`amber`(모터) 하드코딩 금지 — `channel-*` 또는 `opsStatus`/`primary` 사용.  
+경고(주의)만 `amber` 유지.
+
+**ARIA 프레즌스 (T4 + H5)**: 오브=시네마틱 예외. 도크=`ariaDockIn`, FAB 패널=`ariaPanelIn`, 응답/에러=`ariaReplyIn`. 모니터링은 L1만. 상세=`UI_ARIA_PRESENCE.md`.
+
+**규칙**: 새 UI는 `motionIntent` / `motionClass`만 사용. 임의 `duration-N`·`transition-all`·차트 리터럴 ms 금지.
+
+---
+
 ## Phase roadmap
 
 | Phase | 범위 | 상태 |
@@ -182,12 +243,62 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 
 | 명령 | 역할 |
 |------|------|
-| `npm run lint` | `no-restricted-syntax` — `transition-all`, `duration-N` (non-motion) |
+| `npm run lint` | `no-restricted-syntax` — `transition-all`, `duration-N` (non-motion), `sky-*`/`rose-*` |
 | `npm run verify:motion-classes` | src 전체 문자열 스캔 (ESLint 보완) |
+| `npm run verify:motion-css` | farm-chart 리터럴 ms · infinite 가드 |
+| `npm run verify:ui-colors` | `sky`/`rose` 유틸 + 차트 레거시 hex (`#ef4444` 등) 회귀 가드 |
+| `npm run verify:ui-density` | 인라인 `1.75rem`/`1.625rem` 금지 |
+| `npm run verify:ui-elevation` | `hover:shadow-*` · `bg-card`+`shadow-lg` 금지 |
 | `npm run audit:motion-reduced` | CSS reduce 정적 검수 + Playwright 런타임 (BASE 가용 시) |
-| `npm run verify:motion` | tokens + classes + reduced 일괄 |
+| `npm run verify:motion` | tokens + classes + css + reduced 일괄 |
+| `npm run verify:design` | motion + ui-colors + density + elevation |
 
-런타임 강제: `STRICT_MOTION_RUNTIME=1 npm run audit:motion-reduced`
+런타임 강제: `STRICT_MOTION_RUNTIME=1 npm run audit:motion-reduced`  
+또는 `npm run audit:motion-reduced:ci` (`--strict`, CI 권장)
+
+#### T5 — 색·채널 회귀
+
+- Tailwind: `sky-*` / `rose-*` / `violet-*` / `orange-*` → `channel-temp|hum|motor|info` 또는 `primary` / status
+  (주의·경고 UI의 `amber-*` / `--status-warn`은 허용)
+- 차트 SVG: `TREND_CHART_COLORS` / `--status-*` / `--channel-*` (리터럴 `#ef4444` `#0ea5e9` `#10b981` `#22c55e` 금지)
+- 브러시 양호도: `comfortScoreToColor` → `--status-ok|warn|danger` + `color-mix`
+- allowlist: `oauth-buttons.tsx`(카카오 브랜드색)
+- reduced-motion: ARIA dock·차트 hover-ring·slide-up 셀렉터도 정적 검수
+
+#### T2 — UI density
+
+- `docs/UI_DENSITY.md` — `comfortable` / `compact`, `--density-*`, 헤더 토글
+- 타이포·컨트롤: `dashboardTypography` / `dashboardControl` / `dashboardUi` → CSS 변수
+- `opsTypography`·차트 내부는 별도(이미 조밀)
+
+#### Elevation
+
+- `docs/UI_ELEVATION.md` — canvas → recessed → card → overlay (2~3단)
+- `dashboardElevation` 프리셋 · `verify:ui-elevation` (`hover:shadow-*` 금지)
+- 라이트: `shadow-sm` + ring · 다크: `shadow-none` · overlay만 `shadow-md`+
+
+#### H3 — 데이터 퍼스트 채도
+
+- `docs/UI_CHROMA.md` — 크롬 낮음 / 채널·알람 고채도
+- `dashboardChroma` · 헤더·탭·scope·스켈레톤·emptyState
+
+#### H4 — 운영 피드백
+
+- `docs/UI_FEEDBACK.md` — `ops-feedback` 톤 · 파이프라인 step 0..3
+- toast / command overlay / bulk banner 통일
+- `npm run audit:motion-reduced:ci` (`--strict`)
+
+헤더에서 밀도 토글 스모크 + `npm run verify:design`
+
+---
+
+## 동결 · 유지보수 (시스템 1.0)
+
+H1–H5 완료. **새 장식 모션·임의 hue 추가 금지.**  
+변경은 버그 수정·토큰 정렬·문서화된 예외만. 고급감 갭·수동 QA: [`UI_VISUAL_QA.md`](./UI_VISUAL_QA.md).
+
+색 가드: `sky` / `rose` / `violet` / `orange`(온도) Tailwind 유틸 → `channel-*` / `primary` / `status-*`.  
+주의(경고)만 `amber` / `--status-warn` 유지.
 
 ---
 

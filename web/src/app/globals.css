@@ -4,7 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* 레이아웃 미리보기 — 브라우저 너비와 무관하게 Tailwind breakpoint 강제 */
+/* ?????? ???? ???????? ????? ?????? Tailwind breakpoint ?? */
 @variant sm {
   html[data-viewport-preview="desktop"] & {
     @slot;
@@ -59,7 +59,7 @@
   }
 }
 
-/* 모바일 레이아웃 — 폰 너비·비율(390:844) 프레임 + bottom sheet 공용 변수 */
+/* ?????????? ??????????(390:844) ?????+ bottom sheet ?? ???*/
 html[data-viewport-preview="mobile"] {
   --mobile-preview-frame-h: min(
     100dvh,
@@ -126,6 +126,15 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-channel-temp: var(--channel-temp);
+  --color-channel-hum: var(--channel-hum);
+  --color-channel-motor: var(--channel-motor);
+  --color-channel-info: var(--channel-info);
+  --color-channel-fan-intake: var(--channel-fan-intake);
+  --color-channel-fan-exhaust: var(--channel-fan-exhaust);
+  --color-channel-fan-supply: var(--channel-fan-supply);
+  --color-status-warn: var(--status-warn);
+  --color-status-danger: var(--status-danger);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -148,46 +157,72 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --mobile-preview-max-w: 430px;
   --mobile-preview-aspect-w: 390;
   --mobile-preview-aspect-h: 844;
-  /* Light — cool green-gray (aligns with .dark), not pure white */
-  --background: oklch(0.972 0.008 155);
+  /* Light ? cool green-gray; bg/card/border ? for panel lift (bundle A) */
+  --background: oklch(0.958 0.01 155);
   --foreground: oklch(0.22 0.025 155);
-  --card: oklch(0.992 0.004 155);
+  --card: oklch(0.995 0.003 155);
   --card-foreground: oklch(0.22 0.025 155);
-  --popover: oklch(0.992 0.004 155);
+  --popover: oklch(0.995 0.003 155);
   --popover-foreground: oklch(0.22 0.025 155);
-  --primary: oklch(0.48 0.13 150);
+  /* Brand green ? same hue as .dark (#22c55e ? ~145); darker L for light fg */
+  --primary: oklch(0.5 0.15 145);
   --primary-foreground: oklch(0.99 0.01 155);
-  --secondary: oklch(0.945 0.012 155);
+  --secondary: oklch(0.935 0.014 155);
   --secondary-foreground: oklch(0.28 0.03 155);
-  --muted: oklch(0.945 0.012 155);
-  --muted-foreground: oklch(0.48 0.025 155);
-  --accent: oklch(0.94 0.02 155);
+  --muted: oklch(0.935 0.014 155);
+  --muted-foreground: oklch(0.45 0.025 155);
+  --accent: oklch(0.925 0.02 155);
   --accent-foreground: oklch(0.28 0.04 155);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.88 0.016 155);
-  --input: oklch(0.88 0.016 155);
-  --ring: oklch(0.55 0.12 150);
-  --chart-1: oklch(0.55 0.14 150);
+  --border: oklch(0.82 0.018 155);
+  --input: oklch(0.82 0.018 155);
+  --ring: oklch(0.55 0.14 145);
+  --chart-1: oklch(0.55 0.15 145);
   --chart-2: oklch(0.55 0.1 185);
   --chart-3: oklch(0.7 0.12 85);
   --chart-4: oklch(0.6 0.1 240);
   --chart-5: oklch(0.5 0.02 155);
   --radius: 0.625rem;
-  --sidebar: oklch(0.955 0.01 155);
+  --sidebar: oklch(0.948 0.012 155);
   --sidebar-foreground: oklch(0.22 0.025 155);
-  --sidebar-primary: oklch(0.48 0.13 150);
+  --sidebar-primary: oklch(0.5 0.15 145);
   --sidebar-primary-foreground: oklch(0.99 0.01 155);
-  --sidebar-accent: oklch(0.93 0.018 155);
+  --sidebar-accent: oklch(0.92 0.02 155);
   --sidebar-accent-foreground: oklch(0.28 0.04 155);
-  --sidebar-border: oklch(0.88 0.016 155);
-  --sidebar-ring: oklch(0.55 0.12 150);
-  /* motion tokens — prefers-reduced-motion 시 0ms 로 덮어씀 */
+  --sidebar-border: oklch(0.84 0.018 155);
+  --sidebar-ring: oklch(0.55 0.14 145);
+  /* Channel semantics ? temp / humidity / motor / info (bundle polish) */
+  --channel-temp: oklch(0.55 0.18 25);
+  --channel-hum: oklch(0.55 0.12 230);
+  --channel-motor: oklch(0.70 0.14 75);
+  --channel-info: oklch(0.55 0.12 230);
+  /* Fan overlay series (A/B/C) ? distinct hues, chart SVG via var() */
+  --channel-fan-intake: oklch(0.70 0.14 75);
+  --channel-fan-exhaust: oklch(0.55 0.17 295);
+  --channel-fan-supply: oklch(0.58 0.12 165);
+  --status-ok: var(--primary);
+  --status-warn: oklch(0.70 0.15 70);
+  --status-danger: var(--destructive);
+  --chart-guide: oklch(0.55 0.02 250);
+  /* Gap5 ? surface ladder (light: clearer lift) */
+  --surface-well: color-mix(in oklch, var(--muted) 88%, var(--background));
+  --surface-well-border: color-mix(in oklch, var(--border) 92%, transparent);
+  --surface-pocket: color-mix(in oklch, var(--muted) 72%, var(--card));
+  --surface-ring: color-mix(in oklch, var(--foreground) 12%, transparent);
+  --surface-shadow-tile: 0 1px 2px 0
+    color-mix(in oklch, var(--foreground) 7%, transparent);
+  --aria-stage-from: color-mix(in oklch, var(--primary) 9%, transparent);
+  --aria-stage-to: color-mix(in oklch, var(--muted) 40%, var(--background));
+  --aria-glow: color-mix(in oklch, var(--primary) 24%, transparent);
+  /* motion tokens */
   --motion-duration-fast: 120ms;
   --motion-duration-normal: 200ms;
   --motion-duration-moderate: 280ms;
   --motion-duration-emphasis: 360ms;
   --motion-duration-exit: 150ms;
   --motion-duration-view: 150ms;
+  /* H5 ? brand presence only (splash / ARIA). Not for monitoring UI. */
+  --motion-duration-presence: 1200ms;
   --motion-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --motion-ease-enter: cubic-bezier(0, 0, 0.2, 1);
   --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
@@ -195,42 +230,165 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --motion-distance-sm: 4px;
   --motion-distance-md: 8px;
   --motion-distance-lg: 16px;
-  /* 그리드 상세 컨트롤러 캐러셀 슬라이드 거리 */
+  /* ??????? ???? ???? ?????? ?? */
   --motion-distance-slide: 28%;
+  /* H2 chart amplitude budget ? enter/exit scale floor ? no spring overshoot */
+  --motion-chart-scale-from: 0.92;
+  --motion-chart-scale-exit: 0.94;
+  --motion-chart-travel: var(--motion-distance-md);
+  /* H5 ARIA presence periods (document exceptions ? not L1 UI durations) */
+  --motion-aria-breathe-period: 3.6s;
+  --motion-aria-listen-period: 0.9s;
+  --motion-aria-speak-period: 0.6s;
+  --motion-aria-spin-period: 5s;
+  --motion-aria-core-period: 3.6s;
+  --motion-aria-idle-scale-from: 0.92;
+  --motion-aria-idle-scale-to: 1.08;
+  --motion-aria-active-scale-from: 0.95;
+  --motion-aria-active-scale-to: 1.12;
+
+  /* UI density ? comfortable (default). compact: html[data-density="compact"] */
+  --density-page-title: 1.5rem;
+  --density-page-title-md: 2.25rem;
+  --density-card-title: 1.125rem;
+  --density-card-title-md: 2rem;
+  --density-section: 1.125rem;
+  --density-section-md: 1.5rem;
+  --density-body: 1rem;
+  --density-body-md: 1.75rem;
+  --density-meta: 0.875rem;
+  --density-meta-md: 1.75rem;
+  --density-badge: 0.875rem;
+  --density-badge-md: 1.25rem;
+  --density-value-lg: 1.5rem;
+  --density-value-lg-md: 2.25rem;
+  /* Gap2 ? hub readout (instrument) vs meta */
+  --density-readout: 1.25rem;
+  --density-readout-md: 1.875rem;
+  --density-readout-lg: 1.5rem;
+  --density-readout-lg-md: 2.25rem;
+  --density-readout-unit: 0.6875rem;
+  --density-readout-unit-md: 0.9375rem;
+  --density-readout-label: 0.6875rem;
+  --density-readout-label-md: 0.8125rem;
+  --tracking-readout: -0.03em;
+  --tracking-readout-label: 0.04em;
+  --density-control-text: 0.875rem;
+  --density-control-text-md: 1.75rem;
+  --density-control-h: 2.25rem;
+  --density-control-h-md: 3rem;
+  --density-control-h-sm: 2rem;
+  --density-control-h-sm-md: 2.75rem;
+  --density-nav: 1.625rem;
+  --density-alarm: 1.75rem;
+  --density-alarm-meta: 1.5rem;
+  --density-alarm-time: 1.375rem;
+  --density-stat-label: 1.5rem;
+  --density-stat-value: 2.25rem;
+  --density-stat-unit: 1.5rem;
+  --density-stat-sub: 1.25rem;
+  --density-stat-compact-label-md: 1.25rem;
+  --density-stat-compact-value-md: 1.875rem;
+  --density-scope-chip: 1.625rem;
+  --density-scope-label: 1.5rem;
+  --density-chart-label: 1.5rem;
+  --density-chart-legend: 1.25rem;
+  --density-chart-value: 2.25rem;
+  --density-sp-chip: 1.5rem;
+  --density-refresh: 1.25rem;
+  --density-icon-sm-md: 1.75rem;
+  --density-icon-md-md: 2rem;
+}
+
+html[data-density="compact"] {
+  --density-page-title-md: 1.5rem;
+  --density-card-title-md: 1.25rem;
+  --density-section-md: 1.125rem;
+  --density-body-md: 1rem;
+  --density-meta-md: 0.875rem;
+  --density-badge-md: 0.875rem;
+  --density-value-lg-md: 1.5rem;
+  --density-readout-md: 1.25rem;
+  --density-readout-lg-md: 1.5rem;
+  --density-readout-unit-md: 0.75rem;
+  --density-readout-label-md: 0.6875rem;
+  --density-control-text-md: 0.875rem;
+  --density-control-h-md: 2.5rem;
+  --density-control-h-sm-md: 2.25rem;
+  --density-nav: 0.9375rem;
+  --density-alarm: 0.875rem;
+  --density-alarm-meta: 0.8125rem;
+  --density-alarm-time: 0.75rem;
+  --density-stat-label: 0.875rem;
+  --density-stat-value: 1.5rem;
+  --density-stat-unit: 0.875rem;
+  --density-stat-sub: 0.875rem;
+  --density-stat-compact-label-md: 0.875rem;
+  --density-stat-compact-value-md: 1.25rem;
+  --density-scope-chip: 0.875rem;
+  --density-scope-label: 0.875rem;
+  --density-chart-label: 0.875rem;
+  --density-chart-legend: 0.8125rem;
+  --density-chart-value: 1.5rem;
+  --density-sp-chip: 0.875rem;
+  --density-refresh: 0.875rem;
+  --density-icon-sm-md: 1.25rem;
+  --density-icon-md-md: 1.5rem;
 }
 
 .dark {
-  --background: #0b1110;
-  --foreground: #eaf2ed;
-  --card: #121a17;
-  --card-foreground: #eaf2ed;
-  --popover: #121a17;
-  --popover-foreground: #eaf2ed;
-  --primary: #22c55e;
-  --primary-foreground: #04110a;
-  --secondary: #17231e;
-  --secondary-foreground: #dbe9e1;
-  --muted: #17231e;
-  --muted-foreground: #9caea4;
-  --accent: #193126;
-  --accent-foreground: #dcfce7;
-  --destructive: #ef4444;
-  --border: #26352e;
-  --input: #26352e;
-  --ring: #22c55e;
-  --chart-1: #22c55e;
-  --chart-2: #14b8a6;
-  --chart-3: #f59e0b;
-  --chart-4: #60a5fa;
-  --chart-5: #64748b;
-  --sidebar: #0f1714;
-  --sidebar-foreground: #eaf2ed;
-  --sidebar-primary: #22c55e;
-  --sidebar-primary-foreground: #04110a;
-  --sidebar-accent: #17231e;
-  --sidebar-accent-foreground: #dcfce7;
-  --sidebar-border: #26352e;
-  --sidebar-ring: #22c55e;
+  --background: oklch(0.145 0.015 155);
+  --foreground: oklch(0.95 0.012 155);
+  /* Gap5 ? card above muted (recessed), not muted above card */
+  --card: oklch(0.218 0.017 155);
+  --card-foreground: oklch(0.95 0.012 155);
+  --popover: oklch(0.235 0.017 155);
+  --popover-foreground: oklch(0.95 0.012 155);
+  /* Brand green ? oklch of former #22c55e / #04110a (bundle B) */
+  --primary: oklch(0.723 0.191 145);
+  --primary-foreground: oklch(0.18 0.035 145);
+  --secondary: oklch(0.172 0.016 155);
+  --secondary-foreground: oklch(0.91 0.015 155);
+  --muted: oklch(0.172 0.016 155);
+  --muted-foreground: oklch(0.64 0.02 155);
+  --accent: oklch(0.24 0.03 155);
+  --accent-foreground: oklch(0.95 0.04 150);
+  --destructive: oklch(0.63 0.22 25);
+  --border: oklch(0.275 0.018 155);
+  --input: oklch(0.275 0.018 155);
+  --ring: oklch(0.723 0.191 145);
+  --chart-1: oklch(0.723 0.191 145);
+  --chart-2: oklch(0.70 0.12 185);
+  --chart-3: oklch(0.77 0.15 75);
+  --chart-4: oklch(0.71 0.12 250);
+  --chart-5: oklch(0.55 0.03 250);
+  --sidebar: oklch(0.16 0.015 155);
+  --sidebar-foreground: oklch(0.95 0.012 155);
+  --sidebar-primary: oklch(0.723 0.191 145);
+  --sidebar-primary-foreground: oklch(0.18 0.035 145);
+  --sidebar-accent: oklch(0.172 0.016 155);
+  --sidebar-accent-foreground: oklch(0.95 0.04 150);
+  --sidebar-border: oklch(0.275 0.018 155);
+  --sidebar-ring: oklch(0.723 0.191 145);
+  --channel-temp: oklch(0.70 0.16 25);
+  --channel-hum: oklch(0.72 0.12 230);
+  --channel-motor: oklch(0.78 0.14 75);
+  --channel-info: oklch(0.72 0.12 230);
+  --channel-fan-intake: oklch(0.78 0.14 75);
+  --channel-fan-exhaust: oklch(0.72 0.14 295);
+  --channel-fan-supply: oklch(0.72 0.12 165);
+  --status-ok: var(--primary);
+  --status-warn: oklch(0.78 0.14 70);
+  --status-danger: var(--destructive);
+  --chart-guide: oklch(0.58 0.02 250);
+  --surface-well: color-mix(in oklch, var(--muted) 80%, var(--background));
+  --surface-well-border: color-mix(in oklch, var(--border) 70%, transparent);
+  --surface-pocket: color-mix(in oklch, var(--muted) 50%, var(--card));
+  --surface-ring: color-mix(in oklch, var(--foreground) 8%, transparent);
+  --surface-shadow-tile: none;
+  --aria-stage-from: color-mix(in oklch, var(--primary) 7%, transparent);
+  --aria-stage-to: color-mix(in oklch, var(--muted) 30%, var(--background));
+  --aria-glow: color-mix(in oklch, var(--primary) 14%, transparent);
 }
 
 @layer base {
@@ -309,7 +467,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
     box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
   }
 
-  /* enriched slider — 목표 채움·현재 눈금·메뉴별 accent */
+  /* enriched slider ???? ??????? ????????accent */
   .ctrl-slider-wrap {
     display: flex;
     align-items: center;
@@ -423,7 +581,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
     background: oklch(0.55 0.14 155);
   }
 
-  /* 알람 임계값 — dual-thumb range (상·하한) */
+  /* ??? ???????dual-thumb range (?????? */
   .threshold-dual-range {
     -webkit-appearance: none;
     appearance: none;
@@ -469,7 +627,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
     cursor: grab;
   }
 
-  /* 컨트롤러 설정온도 — dual-thumb (좌=설정온도, 우=+편차) — threshold-dual-range 재사용 */
+  /* ???? ?????? ??dual-thumb (????????, ??+???) ??threshold-dual-range ?????*/
 }
 
 @keyframes health-dag-edge-flow {
@@ -484,7 +642,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   }
 }
 
-/* 모바일 safe-area (노치·홈 인디케이터) */
+/* ????safe-area (?????????????) */
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
 }
@@ -501,7 +659,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   padding-right: env(safe-area-inset-right, 0px);
 }
 
-/* ── UI motion (tokens: :root --motion-*) ── */
+/* ???? UI motion (tokens: :root --motion-*) ???? */
 
 @keyframes ui-motion-toast-in {
   from {
@@ -565,12 +723,12 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   animation: ui-motion-modal-in var(--motion-duration-normal) var(--motion-ease-enter) both;
 }
 
-/** L2 — fade enter (surface·inline panel) */
+/** L2 ??fade enter (surface?inline panel) */
 .ui-motion-enter-fade {
   animation: ui-motion-fade-in var(--motion-duration-normal) var(--motion-ease-enter) both;
 }
 
-/** L2 — fade exit */
+/** L2 ??fade exit */
 @keyframes ui-motion-fade-out {
   from {
     opacity: 1;
@@ -584,7 +742,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   animation: ui-motion-fade-out var(--motion-duration-exit) var(--motion-ease-exit) both;
 }
 
-/** L2 — slide up enter (toast·list item) */
+/** L2 ??slide up enter (toast?list item) */
 @keyframes ui-motion-slide-up-in {
   from {
     opacity: 0;
@@ -600,7 +758,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   animation: ui-motion-slide-up-in var(--motion-duration-normal) var(--motion-ease-enter) both;
 }
 
-/** L2 — grid-rows panel expand (shell + data-open) */
+/** L2 ??grid-rows panel expand (shell + data-open) */
 .ui-motion-panel-expand {
   display: grid;
   grid-template-rows: 0fr;
@@ -616,7 +774,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   min-height: 0;
 }
 
-/** L2 — stagger item (style.animationDelay 로 offset) */
+/** L2 ??stagger item (style.animationDelay ??offset) */
 @keyframes ui-motion-stagger-in {
   from {
     opacity: 0;
@@ -639,7 +797,56 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
 .ui-motion-command-card {
   transition:
     opacity var(--motion-duration-normal) var(--motion-ease-enter),
-    transform var(--motion-duration-normal) var(--motion-ease-enter);
+    transform var(--motion-duration-normal) var(--motion-ease-enter),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+/** H4 ? ?? ?? ??? enter (amplitude budget) */
+@keyframes ui-motion-feedback-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-chart-scale-from));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ui-motion-feedback-icon {
+  transform-origin: center;
+}
+
+.ui-motion-command-card[data-phase="success"] .ui-motion-feedback-icon,
+.ui-motion-command-card[data-phase="error"] .ui-motion-feedback-icon,
+.ui-motion-command-card[data-phase="info"] .ui-motion-feedback-icon {
+  animation: ui-motion-feedback-icon-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+/** ???ACK ?? ? (loading) */
+.ui-motion-pipeline-steps {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+}
+
+.ui-motion-pipeline-step {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+  transition: background-color var(--motion-duration-fast)
+    var(--motion-ease-standard);
+}
+
+.ui-motion-pipeline-step[data-active="true"] {
+  background: var(--status-ok);
+}
+
+.ui-motion-pipeline-step[data-pulse="true"] {
+  animation: ui-motion-soft-refresh 1.2s var(--motion-ease-standard) infinite;
 }
 
 .settings-collapsible-body {
@@ -687,6 +894,12 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
     --motion-duration-emphasis: 0ms;
     --motion-duration-exit: 0ms;
     --motion-duration-view: 0ms;
+    --motion-duration-presence: 0ms;
+    --motion-aria-breathe-period: 0s;
+    --motion-aria-listen-period: 0s;
+    --motion-aria-speak-period: 0s;
+    --motion-aria-spin-period: 0s;
+    --motion-aria-core-period: 0s;
   }
 
   .ui-motion-toast,
@@ -699,6 +912,8 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   .ui-motion-stagger-in,
   .ui-motion-command-overlay,
   .ui-motion-command-card,
+  .ui-motion-feedback-icon,
+  .ui-motion-pipeline-step,
   .ui-motion-soft-refresh-bar {
     animation: none !important;
     transition: none !important;
@@ -717,7 +932,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   }
 }
 
-/* ── 축사 목록 — 그래프 / 설정 / 채널 추이 패널 드롭다운 (hybrid) ── */
+/* ???? ?? ?? ??????/ ??? / ?? ?? ??? ?????? (hybrid) ???? */
 
 @keyframes barn-list-panel-in {
   from {
@@ -751,7 +966,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   grid-template-rows: 1fr;
 }
 
-/* 열림 시 최소 높이 — 콘텐츠 로드 전·후 카드 점프 완화 */
+/* ??? ???? ??? ???????? ???? ?? ??? ??? */
 .barn-list-panel-shell[data-open="true"]
   .barn-list-panel-content[data-panel="graph"] {
   min-height: 11rem;
@@ -814,9 +1029,9 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   animation-delay: 100ms;
 }
 
-/* ── 모바일 컨트롤러 sheet — 2페이지 가로 carousel ── */
+/* ???? ???????? sheet ??2???? ???carousel ???? */
 
-/* bottom sheet — 모바일 프레임(390:844) 너비·높이·하단 정렬 */
+/* bottom sheet ???????????390:844) ??????????? ??? */
 html[data-viewport-preview="mobile"] [data-mobile-viewport-sheet] {
   top: auto !important;
   bottom: var(--mobile-preview-frame-inset-y) !important;
@@ -829,8 +1044,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-sheet] {
   translate: -50% 0 !important;
 }
 
-/* 헤더 WiFi·알람 dropdown — 모바일 프레임 너비·높이
- * 헤더 도구 아이콘 캐스케이드(data-header-tools-cascade)는 제외 — 전체 너비 강제 시 위치 깨짐 */
+/* ??? WiFi???? dropdown ??????????????????
+ * ??? ??? ???????????(data-header-tools-cascade)????? ????? ??? ?? ????? ?? */
 html[data-viewport-preview="mobile"] [data-mobile-viewport-dropdown]:not([data-header-tools-cascade]),
 html[data-viewport-preview="mobile"]
   [data-slot="dropdown-menu-content"]:not([data-header-tools-cascade]),
@@ -844,7 +1059,7 @@ html[data-viewport-preview="mobile"] [data-slot="select-content"] {
 }
 
 html[data-viewport-preview="mobile"] [data-header-tools-cascade] {
-  /* 콘텐츠 높이만 사용 — available-height로 늘어나면 flex-col-reverse가 아래로 밀림 */
+  /* ???????????? ??available-height???????? flex-col-reverse? ????????*/
   width: auto !important;
   min-width: 0 !important;
   max-width: calc(var(--mobile-preview-max-w) - 1rem) !important;
@@ -853,7 +1068,7 @@ html[data-viewport-preview="mobile"] [data-header-tools-cascade] {
   overflow: visible !important;
 }
 
-/* Dialog — 모바일 프레임 오버레이·콘텐츠 */
+/* Dialog ??????????????????????*/
 html[data-viewport-preview="mobile"] [data-slot="dialog-overlay"] {
   top: var(--mobile-preview-frame-inset-y) !important;
   bottom: var(--mobile-preview-frame-inset-y) !important;
@@ -874,7 +1089,7 @@ html[data-viewport-preview="mobile"] [data-slot="tooltip-content"] {
   max-width: calc(var(--mobile-preview-max-w) - 2rem) !important;
 }
 
-/* 전체 화면 오버레이·투어·로딩 — 모바일 프레임 영역 */
+/* ??? ??? ????????????? ?????????????? */
 html[data-viewport-preview="mobile"] [data-mobile-viewport-fullscreen] {
   top: var(--mobile-preview-frame-inset-y) !important;
   bottom: var(--mobile-preview-frame-inset-y) !important;
@@ -956,7 +1171,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 그리드 히트맵 — 이상 셀 클릭 시 인라인 확대(모프) ── */
+/* ???? ?????????????? ?? ??? ???????????(??) ???? */
 
 @keyframes farm-heat-morph-in {
   0% {
@@ -981,7 +1196,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 차트 탭 — 통합 추이 advanced motion ── */
+/* ???? ?? ??????? ?? advanced motion ???? */
 
 @keyframes farm-chart-plot-reveal {
   from {
@@ -1004,7 +1219,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 @keyframes farm-chart-marker-pop {
   from {
     opacity: 0;
-    transform: scale(0.15);
+    transform: scale(var(--motion-chart-scale-from));
   }
   to {
     opacity: 1;
@@ -1034,7 +1249,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .farm-chart-line-soft-in {
   animation: farm-chart-line-soft-in var(--motion-duration-normal)
     var(--motion-ease-enter) both;
-  animation-delay: 80ms;
+  animation-delay: var(--motion-duration-fast);
 }
 
 .farm-chart-marker-pop {
@@ -1055,7 +1270,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 @keyframes farm-chart-brush-bar {
   from {
     opacity: 0;
-    transform: scaleY(0.15);
+    transform: scaleY(var(--motion-chart-scale-from));
   }
   to {
     opacity: 0.88;
@@ -1079,7 +1294,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 @keyframes farm-chart-tip-in {
   from {
     opacity: 0;
-    transform: translateY(5px) scale(0.97);
+    transform: translateY(var(--motion-chart-travel))
+      scale(var(--motion-chart-scale-from));
   }
   to {
     opacity: 1;
@@ -1097,15 +1313,16 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 .farm-chart-tip-hero {
-  animation: farm-chart-tip-hero 80ms var(--motion-ease-enter) both;
+  animation: farm-chart-tip-hero var(--motion-duration-fast) var(--motion-ease-enter)
+    both;
 }
 
 .farm-chart-alarm-pin {
-  transition: left 120ms var(--motion-ease-standard);
+  transition: left var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .farm-chart-channel-bar {
-  transition: width 120ms var(--motion-ease-standard);
+  transition: width var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 @keyframes farm-chart-hover-ring {
@@ -1118,13 +1335,18 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
+/* Bundle C: no infinite pulse ? static highlight (hover state is enough) */
 .farm-chart-hover-ring {
   transform-box: fill-box;
   transform-origin: center;
-  animation: farm-chart-hover-ring 1.15s var(--motion-ease-standard) infinite;
+  opacity: 0.35;
 }
 
 .farm-chart-line-glow {
+  opacity: 0.12;
+}
+
+.dark .farm-chart-line-glow {
   opacity: 0.28;
 }
 
@@ -1142,7 +1364,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .farm-chart-reflow {
   transform-box: fill-box;
   transform-origin: center;
-  animation: farm-chart-reflow 320ms var(--motion-ease-enter) both;
+  animation: farm-chart-reflow var(--motion-duration-moderate) var(--motion-ease-enter)
+    both;
 }
 
 @keyframes farm-chart-band-guide-in {
@@ -1157,7 +1380,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .farm-chart-band-guide-in {
   animation: farm-chart-band-guide-in var(--motion-duration-moderate)
     var(--motion-ease-enter) both;
-  animation-delay: 80ms;
+  animation-delay: var(--motion-duration-fast);
 }
 
 .farm-chart-scope-shell {
@@ -1168,19 +1391,17 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .farm-chart-panel-shell {
   animation: ui-motion-fade-in var(--motion-duration-normal) var(--motion-ease-enter)
     both;
-  animation-delay: 60ms;
+  animation-delay: var(--motion-duration-fast);
 }
 
 @keyframes farm-chart-layers-enter {
   from {
     opacity: 0;
-    transform: translateX(12px);
-    filter: blur(2px);
+    transform: translateX(var(--motion-distance-lg));
   }
   to {
     opacity: 1;
     transform: translateX(0);
-    filter: blur(0);
   }
 }
 
@@ -1188,12 +1409,10 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   from {
     opacity: 1;
     transform: translateX(0);
-    filter: blur(0);
   }
   to {
     opacity: 0;
-    transform: translateX(8px);
-    filter: blur(2px);
+    transform: translateX(var(--motion-chart-travel));
   }
 }
 
@@ -1212,34 +1431,25 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   overflow: visible;
 }
 
-/** 툴바 shell exit 시 하위 아이콘도 cascade out */
+/** shell exit ? cascade icons out */
 .farm-chart-layers-exit .farm-chart-layer-icon-enter {
   animation: farm-chart-layer-icon-exit var(--motion-duration-exit)
     var(--motion-ease-exit) both;
   animation-delay: calc(
-    (2 - var(--farm-layer-icon-i, 0)) * 28ms
+    (2 - var(--farm-layer-icon-i, 0)) * var(--motion-duration-fast) * 0.25
   );
 }
 
-/** 그룹 아이콘 — 툴바 마운트 시 cascade (헤더 도구 icon-in-y 계열 + spring) */
+/** H2: soft enter ? no spring overshoot / rotate (amplitude budget) */
 @keyframes farm-chart-layer-icon-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(-12px) scale(0.55);
-    filter: blur(4px);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-from));
   }
-  58% {
-    opacity: 1;
-    transform: translateY(2px) scale(1.12);
-    filter: blur(0);
-  }
-  78% {
-    transform: translateY(-1px) scale(0.97);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: blur(0);
   }
 }
 
@@ -1250,14 +1460,18 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
   to {
     opacity: 0;
-    transform: translateY(-8px) scale(0.7);
-    filter: blur(2px);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-exit));
   }
 }
 
 .farm-chart-layer-icon-enter {
-  animation: farm-chart-layer-icon-enter 420ms var(--motion-ease-emphasis) both;
-  animation-delay: calc(40ms + var(--farm-layer-icon-i, 0) * 56ms);
+  animation: farm-chart-layer-icon-enter var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+  animation-delay: calc(
+    var(--motion-duration-fast) + var(--farm-layer-icon-i, 0) *
+      var(--motion-duration-fast) * 0.45
+  );
   transform-origin: center top;
 }
 
@@ -1265,23 +1479,22 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   animation: farm-chart-layer-icon-exit var(--motion-duration-exit)
     var(--motion-ease-exit) both;
   animation-delay: calc(
-    (var(--farm-layer-icon-n, 3) - 1 - var(--farm-layer-icon-i, 0)) * 36ms
+    (var(--farm-layer-icon-n, 3) - 1 - var(--farm-layer-icon-i, 0)) *
+      var(--motion-duration-fast) * 0.3
   );
   pointer-events: none;
 }
 
-/** 플라이아웃 패널 */
 @keyframes farm-chart-layer-flyout-enter {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.88);
-    filter: blur(3px);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-from));
     clip-path: inset(0 0 100% 0 round 12px);
   }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: blur(0);
     clip-path: inset(0 round 12px);
   }
 }
@@ -1290,19 +1503,19 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   from {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: blur(0);
     clip-path: inset(0 round 12px);
   }
   to {
     opacity: 0;
-    transform: translateY(-6px) scale(0.92);
-    filter: blur(2px);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-exit));
     clip-path: inset(0 0 100% 0 round 12px);
   }
 }
 
 .farm-chart-layer-flyout-enter {
-  animation: farm-chart-layer-flyout-enter 320ms var(--motion-ease-emphasis) both;
+  animation: farm-chart-layer-flyout-enter var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
   transform-origin: top right;
 }
 
@@ -1313,19 +1526,16 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   transform-origin: top right;
 }
 
-/** 플라이아웃 하위 아이콘 stagger */
+/** flyout items ? shared soft enter (no rotate / spring) */
 @keyframes farm-chart-layer-flyout-item-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(-10px) scale(0.45) rotate(-10deg);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-from));
   }
-  65% {
+  to {
     opacity: 1;
-    transform: translateY(2px) scale(1.1) rotate(2deg);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1) rotate(0deg);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1336,14 +1546,18 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
   to {
     opacity: 0;
-    transform: translateY(-8px) scale(0.65);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-exit));
   }
 }
 
 .farm-chart-layer-flyout-item-enter {
-  animation: farm-chart-layer-flyout-item-enter 400ms var(--motion-ease-emphasis)
-    both;
-  animation-delay: calc(48ms + var(--farm-layer-flyout-i, 0) * 42ms);
+  animation: farm-chart-layer-flyout-item-enter var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+  animation-delay: calc(
+    var(--motion-duration-fast) * 0.4 + var(--farm-layer-flyout-i, 0) *
+      var(--motion-duration-fast) * 0.35
+  );
   transform-origin: center top;
 }
 
@@ -1351,138 +1565,166 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   animation: farm-chart-layer-flyout-item-exit var(--motion-duration-exit)
     var(--motion-ease-exit) both;
   animation-delay: calc(
-    (var(--farm-layer-flyout-n, 4) - 1 - var(--farm-layer-flyout-i, 0)) * 24ms
+    (var(--farm-layer-flyout-n, 4) - 1 - var(--farm-layer-flyout-i, 0)) *
+      var(--motion-duration-fast) * 0.2
   );
   pointer-events: none;
   transform-origin: center top;
 }
 
-/** 활성 하위 개수 뱃지 */
+/**
+ * FAB/PC expand cascade (main = graph on/off):
+ * temp -> hum(+temp subs) -> motor(+hum subs) -> motor subs
+ */
+[data-fab-expand] .farm-chart-layer-icon-enter {
+  animation-delay: calc(
+    var(--motion-duration-fast) * 0.25 + var(--farm-layer-icon-i, 0) *
+      var(--motion-duration-fast) * 0.55
+  );
+}
+
+[data-fab-expand] .farm-chart-layer-flyout-enter {
+  animation-delay: calc(
+    var(--motion-duration-fast) * 0.25 + var(--farm-layer-group-i, 0) *
+      var(--motion-duration-fast) * 0.55
+  );
+}
+
+[data-fab-expand] .farm-chart-layer-flyout-item-enter {
+  animation-delay: calc(
+    var(--motion-duration-fast) * 0.25 + var(--farm-layer-group-i, 0) *
+      var(--motion-duration-fast) * 0.55 + var(--farm-layer-flyout-i, 0) *
+      var(--motion-duration-fast) * 0.55
+  );
+  overflow: visible;
+}
+
+[data-fab-expand="rail"] .farm-chart-layer-flyout-item-enter {
+  animation-delay: calc(
+    var(--motion-duration-fast) * 0.25 + var(--farm-layer-group-i, 0) *
+      var(--motion-duration-fast) * 0.55 +
+      (var(--farm-layer-flyout-i, 0) + 1) * var(--motion-duration-fast) * 0.4
+  );
+}
+
+[data-fab-expand] [data-farm-layer-flyout][data-side="stack"],
+[data-fab-expand] [data-farm-layer-flyout][data-side="rail"] {
+  overflow: visible;
+}
+
+[data-fab-expand="up"] .farm-chart-layer-flyout-item-enter {
+  transform-origin: center bottom;
+}
+
 @keyframes farm-chart-layer-badge-pop {
-  0% {
+  from {
     opacity: 0;
-    transform: scale(0.4);
+    transform: scale(var(--motion-chart-scale-from));
   }
-  70% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: scale(1);
   }
 }
 
 .farm-chart-layer-badge-pop {
-  animation: farm-chart-layer-badge-pop var(--motion-duration-moderate)
-    var(--motion-ease-emphasis) both;
+  animation: farm-chart-layer-badge-pop var(--motion-duration-normal)
+    var(--motion-ease-enter) both;
 }
 
-/** 루트 아래 세로 그룹 패널 — clip-path 금지(좌측 플라이아웃이 잘림) */
 @keyframes farm-chart-layer-column-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: translateY(-6px) scale(0.94);
-    filter: blur(3px);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-from));
   }
-  55% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: blur(0);
   }
 }
 
 @keyframes farm-chart-layer-column-exit {
-  0% {
+  from {
     opacity: 1;
     transform: translateY(0) scale(1);
-    filter: blur(0);
   }
-  100% {
+  to {
     opacity: 0;
-    transform: translateY(-8px) scale(0.94);
-    filter: blur(2px);
+    transform: translateY(calc(var(--motion-chart-travel) * -1))
+      scale(var(--motion-chart-scale-exit));
   }
 }
 
 .farm-chart-layer-column-enter {
-  animation: farm-chart-layer-column-enter 380ms var(--motion-ease-emphasis) both;
+  animation: farm-chart-layer-column-enter var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
   transform-origin: top right;
   overflow: visible;
 }
 
 .farm-chart-layer-column-exit {
-  animation: farm-chart-layer-column-exit 260ms var(--motion-ease-exit) both;
+  animation: farm-chart-layer-column-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
   pointer-events: none;
   transform-origin: top right;
   overflow: visible;
 }
 
-/** 하위 플라이아웃 — 오른쪽→왼쪽 clip wipe + spring */
+/** RTL flyout ? same amplitude budget, axis = X */
 @keyframes farm-chart-layer-flyout-rtl-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: translateX(14px) scale(0.9);
-    filter: blur(3px);
+    transform: translateX(var(--motion-distance-lg))
+      scale(var(--motion-chart-scale-from));
     clip-path: inset(0 0 0 100% round 12px);
   }
-  60% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateX(-2px) scale(1.02);
-  }
-  100% {
+  to {
     opacity: 1;
     transform: translateX(0) scale(1);
-    filter: blur(0);
     clip-path: inset(0 round 12px);
   }
 }
 
 @keyframes farm-chart-layer-flyout-rtl-exit {
-  0% {
+  from {
     opacity: 1;
     transform: translateX(0) scale(1);
-    filter: blur(0);
     clip-path: inset(0 round 12px);
   }
-  100% {
+  to {
     opacity: 0;
-    transform: translateX(12px) scale(0.92);
-    filter: blur(2px);
+    transform: translateX(var(--motion-distance-lg))
+      scale(var(--motion-chart-scale-exit));
     clip-path: inset(0 0 0 100% round 12px);
   }
 }
 
 .farm-chart-layer-flyout-rtl-enter {
-  animation: farm-chart-layer-flyout-rtl-enter 360ms var(--motion-ease-emphasis)
-    both;
-  animation-delay: calc(var(--farm-layer-group-i, 0) * 70ms);
+  animation: farm-chart-layer-flyout-rtl-enter var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+  animation-delay: calc(
+    var(--farm-layer-group-i, 0) * var(--motion-duration-fast) * 0.55
+  );
   transform-origin: right center;
 }
 
 .farm-chart-layer-flyout-rtl-exit {
-  animation: farm-chart-layer-flyout-rtl-exit 240ms var(--motion-ease-exit) both;
+  animation: farm-chart-layer-flyout-rtl-exit var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
   pointer-events: none;
   transform-origin: right center;
 }
 
 @keyframes farm-chart-layer-flyout-rtl-item-enter {
-  0% {
+  from {
     opacity: 0;
-    transform: translateX(14px) scale(0.4) rotate(12deg);
+    transform: translateX(var(--motion-distance-lg))
+      scale(var(--motion-chart-scale-from));
   }
-  62% {
+  to {
     opacity: 1;
-    transform: translateX(-2px) scale(1.12) rotate(-2deg);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(0) scale(1) rotate(0deg);
+    transform: translateX(0) scale(1);
   }
 }
 
@@ -1493,16 +1735,18 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
   to {
     opacity: 0;
-    transform: translateX(10px) scale(0.55);
+    transform: translateX(var(--motion-distance-lg))
+      scale(var(--motion-chart-scale-exit));
   }
 }
 
 .farm-chart-layer-flyout-rtl-item-enter {
-  animation: farm-chart-layer-flyout-rtl-item-enter 420ms
-    var(--motion-ease-emphasis) both;
+  animation: farm-chart-layer-flyout-rtl-item-enter
+    var(--motion-duration-moderate) var(--motion-ease-enter) both;
   animation-delay: calc(
-    var(--farm-layer-group-i, 0) * 70ms + 56ms +
-      var(--farm-layer-flyout-i, 0) * 44ms
+    var(--farm-layer-group-i, 0) * var(--motion-duration-fast) * 0.55 +
+      var(--motion-duration-fast) * 0.45 + var(--farm-layer-flyout-i, 0) *
+      var(--motion-duration-fast) * 0.35
   );
   transform-origin: right center;
 }
@@ -1511,7 +1755,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   animation: farm-chart-layer-flyout-rtl-item-exit var(--motion-duration-exit)
     var(--motion-ease-exit) both;
   animation-delay: calc(
-    (var(--farm-layer-flyout-n, 4) - 1 - var(--farm-layer-flyout-i, 0)) * 22ms
+    (var(--farm-layer-flyout-n, 4) - 1 - var(--farm-layer-flyout-i, 0)) *
+      var(--motion-duration-fast) * 0.2
   );
   pointer-events: none;
   transform-origin: right center;
@@ -1570,18 +1815,19 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
 .farm-chart-scope-zoom-in {
   transform-origin: center;
-  animation: farm-chart-scope-zoom-in 320ms var(--motion-ease-emphasis) both;
+  animation: farm-chart-scope-zoom-in var(--motion-duration-moderate) var(--motion-ease-emphasis) both;
 }
 
 .farm-chart-scope-zoom-out {
   transform-origin: center;
-  animation: farm-chart-scope-zoom-out 280ms var(--motion-ease-enter) both;
+  animation: farm-chart-scope-zoom-out var(--motion-duration-moderate) var(--motion-ease-enter) both;
 }
 
 @keyframes farm-chart-scope-chip-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.96);
+    transform: translateY(calc(var(--motion-distance-sm) * -1))
+      scale(var(--motion-chart-scale-from));
   }
   to {
     opacity: 1;
@@ -1605,8 +1851,148 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 .farm-chart-scope-handle-pulse {
-  animation: farm-chart-scope-handle-pulse 900ms var(--motion-ease-standard)
-    infinite;
+  opacity: 1;
+}
+
+/* ARIA orb (P1 / H5 presence) ? cinematic idle; active listen/speak only */
+@keyframes aria-orb-breathe {
+  0%,
+  100% {
+    transform: scale(var(--motion-aria-idle-scale-from));
+    opacity: 0.38;
+  }
+  50% {
+    transform: scale(var(--motion-aria-idle-scale-to));
+    opacity: 0.88;
+  }
+}
+
+@keyframes aria-orb-pulse-listen {
+  0%,
+  100% {
+    transform: scale(var(--motion-aria-active-scale-from));
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(var(--motion-aria-active-scale-to));
+    opacity: 1;
+  }
+}
+
+@keyframes aria-orb-pulse-speak {
+  0%,
+  100% {
+    transform: scale(0.97);
+    opacity: 0.5;
+  }
+  35% {
+    transform: scale(var(--motion-aria-active-scale-to));
+    opacity: 0.95;
+  }
+  70% {
+    transform: scale(1.02);
+    opacity: 0.7;
+  }
+}
+
+@keyframes aria-orb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes aria-orb-core-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+.aria-orb-rings {
+  will-change: transform, opacity;
+}
+
+.aria-orb-breathe {
+  animation: aria-orb-breathe var(--motion-aria-breathe-period)
+    var(--motion-ease-standard) infinite;
+}
+
+.aria-orb-breathe-alt {
+  animation: aria-orb-breathe var(--motion-aria-breathe-period)
+    var(--motion-ease-standard) infinite;
+  animation-delay: calc(var(--motion-aria-breathe-period) / -2);
+}
+
+.aria-orb-hero {
+  transition: transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+@keyframes aria-dock-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance-lg));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.aria-dock-in {
+  animation: aria-dock-in var(--motion-duration-moderate)
+    var(--motion-ease-enter) both;
+}
+
+/* Gap4 ? ARIA tab stage wash (static; not infinite motion) */
+.aria-shell-stage-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 58%;
+  background: radial-gradient(
+    ellipse 70% 65% at 50% 18%,
+    var(--aria-glow),
+    transparent 72%
+  );
+}
+
+.aria-orb-pulse-listen {
+  animation: aria-orb-pulse-listen var(--motion-aria-listen-period)
+    var(--motion-ease-standard) infinite;
+}
+
+.aria-orb-pulse-speak {
+  animation: aria-orb-pulse-speak var(--motion-aria-speak-period)
+    var(--motion-ease-standard) infinite;
+}
+
+.aria-orb-spin {
+  animation: aria-orb-spin var(--motion-aria-spin-period) linear infinite;
+}
+
+.aria-orb-static {
+  opacity: 0.75;
+}
+
+.aria-orb-core {
+  animation: aria-orb-core-breathe var(--motion-aria-core-period)
+    var(--motion-ease-standard) infinite;
+}
+
+.aria-orb-core-listen {
+  animation: aria-orb-core-breathe var(--motion-aria-listen-period)
+    var(--motion-ease-standard) infinite;
+}
+
+.aria-orb-core-speak {
+  animation: aria-orb-core-breathe var(--motion-aria-speak-period)
+    var(--motion-ease-standard) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1642,7 +2028,16 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   .farm-chart-scope-zoom-in,
   .farm-chart-scope-zoom-out,
   .farm-chart-scope-chip-in,
-  .farm-chart-scope-handle-pulse {
+  .farm-chart-scope-handle-pulse,
+  .aria-orb-breathe,
+  .aria-orb-breathe-alt,
+  .aria-orb-pulse-listen,
+  .aria-orb-pulse-speak,
+  .aria-orb-spin,
+  .aria-orb-core,
+  .aria-orb-core-listen,
+  .aria-orb-core-speak,
+  .aria-dock-in {
     animation: none;
   }
 
@@ -1653,12 +2048,12 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 그리드 상세 — 컨트롤러 캐러셀 (enter only · 슬라이드감, 이중 레이어 잔상 없음) ── */
+/* ???? ??????? ?????? ???? (enter only ? ???????? ??? ???????? ???) ???? */
 
 .farm-detail-carousel {
   position: relative;
   overflow: hidden;
-  /* 캐러셀 전용 — 패널 너비 대비 이동 (이중 레이어 없이도 슬라이드로 읽힘) */
+  /* ???? ??? ????? ??? ??????? (??? ?????????????????????) */
   --motion-distance-slide-detail: 18%;
 }
 
@@ -1738,7 +2133,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     var(--motion-ease-exit) both;
 }
 
-/* 하위 호환 alias (단일 enter만 쓰던 경로) */
+/* ??? ??? alias (??? enter????? ??) */
 .farm-detail-slide-next {
   animation: farm-detail-slide-enter-next var(--motion-duration-moderate)
     var(--motion-ease-emphasis) both;
@@ -1760,7 +2155,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 농장 보기 탭(그리드·목록·차트) 패널 슬라이드 ── */
+/* ???? ??? ?? ????????????? ??? ?????? ???? */
 
 @keyframes farm-view-slide-enter-next {
   0% {
@@ -1845,7 +2240,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 헤더 도구 — 아이콘 캐스케이드 (데스크톱: 좌측 가로 / 모바일: 하단 세로) ── */
+/* ???? ??? ??? ????????????? (??????: ?? ???/ ???? ??? ???) ???? */
 
 @keyframes header-tools-icon-in {
   0% {
@@ -1892,8 +2287,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 /*
- * 모바일 카드 — ⋯ 높이만 보이다가 아래로 펼침 (opacity/translate 없음 → 트리거 재등장 느낌 방지)
- * 2.75rem ≈ size-9 + p-2 상단 여백
+ * ?????? ??????????????? ???????? (opacity/translate ??? ??????????????? ???)
+ * 2.75rem ??size-9 + p-2 ??? ???
  */
 @keyframes header-tools-card-in {
   0% {
@@ -1913,7 +2308,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* Base UI getAnimations()는 패널 자신만 봄 — 자식 stagger 동안 유지 */
+/* Base UI getAnimations()????? ???????????? stagger ??? ???? */
 @keyframes header-tools-panel-exit-hold {
   0%,
   100% {
@@ -1934,7 +2329,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   overflow: visible !important;
 }
 
-/* 데스크톱 portal — 투명 패널 */
+/* ?????? portal ????? ??? */
 .header-tools-panel:not(.header-tools-cascade-card) {
   background: transparent !important;
   box-shadow: none !important;
@@ -1949,7 +2344,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   overflow: visible;
 }
 
-/* 모바일: 카드만 아래로 펼침 — 트리거는 DOM 밖(형제)에서 고정 */
+/* ???? ???????????? ??????? DOM ?????)??? ?? */
 .header-tools-panel[data-cascade="vertical"].header-tools-cascade-card[data-open]:not(
     [data-ending-style]
   ) {
@@ -1966,7 +2361,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     both;
 }
 
-/* 데스크톱 portal: 중첩 카드(레거시) */
+/* ?????? portal: ?? ??(????? */
 .header-tools-panel[data-cascade="vertical"][data-open]:not([data-ending-style])
   .header-tools-cascade-card:not(.header-tools-panel) {
   transform-origin: top right;
@@ -1992,7 +2387,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .header-tools-panel[data-ending-style]:not([data-instant]) .header-tools-icon {
   animation: header-tools-icon-out var(--motion-duration-moderate)
     var(--motion-ease-exit) both;
-  /* 바깥(연결)부터 접혀 트리거 쪽으로 — open의 역순 */
+  /* ??(???)??????? ???????????open?????? */
   animation-delay: calc(
     (var(--tools-max) - var(--tools-i, 0)) * var(--tools-stagger)
   );
@@ -2015,7 +2410,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 로그인 스플래시 (F4: 로고 페이드 + 점 3개) ── */
+/* ???? ?????????? (F4: ?? ?????+ ??3?? ???? */
 
 @keyframes login-splash-logo-in {
   0% {
@@ -2051,23 +2446,25 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 .login-splash-logo {
-  animation: login-splash-logo-in 2000ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: login-splash-logo-in var(--motion-duration-presence)
+    var(--motion-ease-emphasis) both;
 }
 
 .login-splash-dot {
-  animation: login-splash-dot 1.1s ease-in-out infinite;
+  animation: login-splash-dot 1.1s var(--motion-ease-standard) infinite;
 }
 
 .login-splash-dot:nth-child(2) {
-  animation-delay: 160ms;
+  animation-delay: var(--motion-duration-normal);
 }
 
 .login-splash-dot:nth-child(3) {
-  animation-delay: 320ms;
+  animation-delay: calc(var(--motion-duration-normal) * 2);
 }
 
 .login-splash--exit {
-  animation: login-splash-fade-out 150ms ease-out both;
+  animation: login-splash-fade-out var(--motion-duration-exit)
+    var(--motion-ease-enter) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2082,7 +2479,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 목록 컨트롤러 이동 도착 하이라이트 ── */
+/* ???? ?? ???? ??? ??? ???????????? */
 
 @keyframes farm-ctrl-focus-pulse {
   0% {
@@ -2097,7 +2494,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 }
 
 .farm-ctrl-focus {
-  animation: farm-ctrl-focus-pulse 2s ease-out 2;
+  animation: farm-ctrl-focus-pulse 2s var(--motion-ease-enter) 2;
   border-radius: 0.75rem;
 }
 
@@ -2108,7 +2505,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
-/* ── 스포트라이트 투어 (기능 안내) ── */
+/* ???? ????????? ??? (?? ???) ???? */
 
 html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[data-mobile="true"] {
   max-height: min(
@@ -2119,10 +2516,10 @@ html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[da
 
 .farm-tour-hole {
   transition:
-    top 280ms cubic-bezier(0.22, 0.8, 0.36, 1),
-    left 280ms cubic-bezier(0.22, 0.8, 0.36, 1),
-    width 280ms cubic-bezier(0.22, 0.8, 0.36, 1),
-    height 280ms cubic-bezier(0.22, 0.8, 0.36, 1);
+    top var(--motion-duration-moderate) var(--motion-ease-emphasis),
+    left var(--motion-duration-moderate) var(--motion-ease-emphasis),
+    width var(--motion-duration-moderate) var(--motion-ease-emphasis),
+    height var(--motion-duration-moderate) var(--motion-ease-emphasis);
 }
 
 .farm-tour-hole[data-settling="true"] {
@@ -2145,21 +2542,22 @@ html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[da
 }
 
 .farm-tour-tooltip {
-  animation: farm-tour-tip-in 220ms ease-out both;
+  animation: farm-tour-tip-in var(--motion-duration-normal)
+    var(--motion-ease-enter) both;
 }
 
 @keyframes farm-tour-accent-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.9);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--channel-hum) 90%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.35);
+    box-shadow: 0 0 0 6px color-mix(in oklch, var(--channel-hum) 35%, transparent);
   }
 }
 
 .farm-tour-accent {
-  animation: farm-tour-accent-pulse 1.4s ease-in-out infinite;
+  animation: farm-tour-accent-pulse 1.4s var(--motion-ease-standard) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2173,6 +2571,6 @@ html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[da
 
   .farm-tour-accent {
     animation: none;
-    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.9);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--channel-hum) 90%, transparent);
   }
 }
