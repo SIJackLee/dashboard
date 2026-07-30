@@ -2,6 +2,7 @@
 
 IoT 축사 환경 제어 시스템의 모니터링·제어 대시보드. Supabase **Edge decode** 결과를 **List/Detail tier**로 권한별 조회하고, 컨트롤러에 제어 명령을 발행한다.
 
+> **문서 (Agent·개발자):** 찾을 때 **[`docs/README.md`](docs/README.md)부터** — 셸 / 디자인 / ARIA / Clean Up 정본 링크.  
 > **RS-DB-C:** LIVE 목록 `v_iot_dashboard_list`, 상세 `v_iot_decoded_latest`, Admin 지도 `v_iot_farm_overview`. Health insert rate는 `iot_room_state_raw` 직접 조회.  
 > **Cloud Agent:** [CLOUD_DEPLOY.md](CLOUD_DEPLOY.md) · [../../docs/CLOUD_DEPLOY_RS-DB-C.md](../../docs/CLOUD_DEPLOY_RS-DB-C.md)
 
@@ -61,6 +62,7 @@ Playwright audit은 **dev 서버 실행 중**(`npm run dev`)에 돌립니다. �
 - **Cache:** 300s `unstable_cache` + `revalidateTag('live')` on thermo save
 - **Baseline:** `npm run measure:live` · [`docs/PERF_BASELINE.md`](docs/PERF_BASELINE.md)
 - **출고 스모크:** [`docs/SHIP_CHECKLIST.md`](docs/SHIP_CHECKLIST.md) — admin / operator / viewer 핵심 경로 (`npm run audit:ship-checklist`)
+- **`/farm` URL·셸 계약:** [`docs/farm-hub-url.md`](docs/farm-hub-url.md) — view / trendPeriod / soft home / epoch
 
 ## 인증 / 권한
 
@@ -155,7 +157,7 @@ Playwright audit은 **dev 서버 실행 중**(`npm run dev`)에 돌립니다. �
 
 ## UI 개선 Phase 6 (적용됨)
 
-- **Admin Ops 허브:** `/admin/ops` — 단일 스크롤 홈 (스캔 · 디렉터리 · 명령). 레거시 `?tab=` URL은 redirect.
+- **Admin Ops 허브:** `/admin/ops` — 단일 스크롤 홈 (스캔 · 디렉터리 · 명령 · ARIA 로그). 레거시 `?tab=` URL은 redirect.
 - **사이드바:** 시스템 상태·사용자 관리 → **운영** 1항목.
 - **레거시:** `/admin/health`·`/admin/users` → `/admin/ops` redirect. GrantAccessForm·탭 UI 제거. 권한/주소는 디렉터리 패널 인라인.
 - **설정:** Admin 농장 위치는 운영 디렉터리·설정 경로에서 처리.
@@ -166,14 +168,15 @@ Playwright audit은 **dev 서버 실행 중**(`npm run dev`)에 돌립니다. �
 
 | 구역 | 역할 |
 | --- | --- |
-| **디렉터리** | 사용자 선택 → 농장 조회/명령 권한 · 주소 편집. 「농장 추가」로 미부여 농장에 조회 권한 |
+| **디렉터리** | 사용자 선택 → 농장 조회/명령 권한 · 주소·농장명 편집. 「농장 추가」로 미부여 농장에 조회 권한 |
 | **명령** | 접힘 미리보기(최근 5건) · **조회**로 기간(기본 7일)·상태·검색(서버 조건) · 행 상세. 조건에 맞는 최대 200건 |
+| **ARIA 로그** | 턴 로그 표 · route/검수 필터 · 맞음/틀림 · 새로고침. 앵커 `#aria-logs` · 보관 7일 |
 | **스캔** | 시스템 상태. 정상 시 압축 바, 이상 시 경로칩·상세(DAG/모듈). 「갱신」은 **페이지 전체(스캔·사용자·명령) soft refresh** |
 
 참고:
 
 - **CSV 위치 일괄 업로드 UI 없음** — 주소는 농장 카드 인라인 편집.
-- 해시(`#directory` `#commands` `#scan`)는 브라우저 기본 앵커만 (구역 sticky 내비 제거).
+- 해시(`#directory` `#commands` `#aria-logs` `#scan`)는 브라우저 기본 앵커만 (구역 sticky 내비 제거).
 - 권한 API는 inline 액션(`grantFarmAccessInline` · `toggleFarmReadInline` · `toggleFarmCommandInline`)만 사용.
 
 ## 더 보기

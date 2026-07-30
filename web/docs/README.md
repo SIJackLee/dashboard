@@ -1,21 +1,20 @@
 # dashboard/web 문서 진입점
 
-> **다른 Agent · 사람:** 문서를 찾을 때 **이 파일부터** 연다.  
+> 문서를 찾을 때 **이 파일부터** 연다.  
 > 경로: `dashboard/web/docs/README.md`  
-> 미커밋 산출물 현황: [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md) ([Clean Up] 유지)
+> **운영 모드: 단일 에이전트** (`SI1/.cursor/rules/single-agent.mdc`)  
+> 산출물 스냅샷: [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md) · 실제는 `git status`
 
-## Agent → 정본 문서 (헤매지 않기)
+## 주제 → 정본 문서
 
-| Agent | 트리거 | 먼저 읽을 정본 | 보조 |
-|--------|--------|----------------|------|
-| **[허브 셸·라우팅]** | `[셸]` `[라우팅]` | [`farm-hub-url.md`](./farm-hub-url.md) | keep-alive · soft home · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) |
-| **[디자인 & 애니메이션]** | `[디자인 & 애니메이션]` | [`UI_MOTION.md`](./UI_MOTION.md) | [`UI_DENSITY`](./UI_DENSITY.md) · [`UI_ELEVATION`](./UI_ELEVATION.md) · [`UI_CHROMA`](./UI_CHROMA.md) · [`UI_FEEDBACK`](./UI_FEEDBACK.md) · [`UI_ARIA_PRESENCE`](./UI_ARIA_PRESENCE.md) · [`UI_VISUAL_QA`](./UI_VISUAL_QA.md) |
-| **[프로토콜] ARIA** | `[프로토콜]` | [`aria-protocol.md`](./aria-protocol.md) **정본** | [`voice-report-poc.md`](./voice-report-poc.md) **보조**(PoC·UI·API·한도) |
-| **[Clean Up]** | `[Clean Up]` `[정리]` | [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md) | 본 README · [`../scripts/README.md`](../scripts/README.md) |
+| 주제 | 먼저 읽을 정본 | 보조 |
+|------|----------------|------|
+| **허브 URL·탭** | [`farm-hub-url.md`](./farm-hub-url.md) | keep-alive · soft home · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) |
+| **디자인·모션** | [`UI_MOTION.md`](./UI_MOTION.md) | [`UI_DENSITY`](./UI_DENSITY.md) · [`UI_ELEVATION`](./UI_ELEVATION.md) · [`UI_CHROMA`](./UI_CHROMA.md) · [`UI_FEEDBACK`](./UI_FEEDBACK.md) · [`UI_ARIA_PRESENCE`](./UI_ARIA_PRESENCE.md) · [`UI_VISUAL_QA`](./UI_VISUAL_QA.md) |
+| **ARIA 프로토콜** | [`aria-protocol.md`](./aria-protocol.md) **정본** | [`voice-report-poc.md`](./voice-report-poc.md) **보조**(PoC·UI·API·한도) |
+| **정리·배포 게이트** | [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md) · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) | [`../scripts/README.md`](../scripts/README.md) |
 
-**교차 규칙:** URL·탭 sync는 셸 / 토큰·모션은 디자인 / JUDGE·SAY·REC는 ARIA. Clean Up은 산출물 정리만.
-
-검증: 디자인 `npm run verify:design` · 허브 Preview [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md)
+검증: `npm run verify:design` · Preview/Production [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md)
 
 ---
 

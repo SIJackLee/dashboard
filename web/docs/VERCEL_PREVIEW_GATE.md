@@ -1,6 +1,6 @@
 # Vercel Preview 게이트 (Git→배포 검증)
 
-> [Clean Up] 유지 · 계약 의미 변경 없음.  
+> **배포 실행:** 단일 에이전트 (`SI1/.cursor/rules/single-agent.mdc`).  
 > 허브 URL 정본: [`farm-hub-url.md`](./farm-hub-url.md) · 산출물 맵: [`CLEANUP_ARTIFACT_MAP.md`](./CLEANUP_ARTIFACT_MAP.md)
 
 Git에 push되면 Vercel이 **그 커밋만** 빌드·배포한다.  
@@ -14,7 +14,7 @@ Git에 push되면 Vercel이 **그 커밋만** 빌드·배포한다.
 | 브랜치 | 가능하면 `feature/…` → Preview → main (긴급 hotfix는 clean build 후 main) |
 | Supabase | Vercel env = 로컬 `.env.local`과 **동일 프로젝트** (테스트 계정) |
 | 빌드 | **clean tree**에서 `npm run build` (로컬 dirty PASS만으로 충분치 않음). `tsconfig` `scripts` exclude |
-| migration | SQL은 커밋에 넣되 **DB 적용은 별도 승인** (미적용 시 UI/로그 일부만 영향 가능) |
+| migration | SQL은 커밋에 넣되 **DB 적용은 별도 승인**. ARIA/`farm_name` 4건은 **iot-cloud 적용 완료**(2026-07-30 확인) |
 
 ## 완전 반영 체크 (push 전)
 
@@ -49,5 +49,6 @@ ARIA는 탭에서 오브·도크·말하기 UI가 보이는지 추가로 확인.
 | 이슈 | 담당 |
 |------|------|
 | 기간 변경 줌 리셋 UX | [디자인 & 애니메이션] |
+| `listMode=channel`→`graph` URL 정규화 (#4) | [셸] 수정 · **Designer 배포** (정규화 hunk만, 디자인 dirty 분리) |
 | soft home 후 ARIA 도크/오브 상태 | [프로토콜] |
 | 판단 프로토콜·UNPACK 의미 | [프로토콜] |

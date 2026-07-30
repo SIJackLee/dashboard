@@ -10,10 +10,14 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
+# testing / local audit outputs
 /coverage
 scripts/mobile-audit-output/
 scripts/ui-route-verify-results.json
+
+# local temp (Clean Up P2)
+/tmp/
+tmp/
 
 # next.js
 /.next/

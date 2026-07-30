@@ -20,6 +20,11 @@ dist/
 *.log
 npm-debug.log*
 
+# local temp / audit dumps (Clean Up P2)
+tmp/
+web/tmp/
+web/scripts/mobile-audit-output/
+
 # OS / editor
 .DS_Store
 Thumbs.db
