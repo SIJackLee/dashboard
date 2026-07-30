@@ -101,6 +101,7 @@ node scripts/archive/ship-p0-visibility-poll-smoke.mjs
 | 2026-07-30 | P0 게이트 `verify:hub` · 유닛/수동 스모크 확장 · 본 문서 |
 | 2026-07-30 | 스모크 #4로 `normalizeLegacyListModeParam`이 UI에 미연결임을 발견 → `FarmPageContent.syncViewFromUrl`에 배선 |
 | 2026-07-30 | P1: keep-alive 비활성 패널 LIVE/enrich/ARIA poll pause |
+| 2026-07-30 | P2: view sync·keep-alive TTL → `use-farm-hub-view-shell` (동작 동일) |
 
 ## 로컬 실행 기록 (2026-07-30)
 

@@ -126,7 +126,7 @@ flowchart LR
 | chart | 3분 | `chart*` URL로 범위 복구 |
 | aria | 2분 | 로컬 오브/마이크 UI 리셋 |
 
-구현: `src/lib/farm/farm-hub-keepalive.ts` · `FarmPageContent`의 `*EverOpened`.
+구현: `src/lib/farm/farm-hub-keepalive.ts` · `use-farm-hub-view-shell.ts` · `FarmPageContent`의 패널 렌더.
 
 - 슬라이드 중(`viewSlide`) 해당 패널 언마운트 금지
 - 농장 키 변경 시 비활성 패널 keep-alive **즉시 flush**

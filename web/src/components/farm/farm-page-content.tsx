@@ -20,17 +20,13 @@ import { FarmAriaView } from "@/components/farm/farm-aria-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
 import {
-  applyHubScopedViewParams,
   currentFarmSearchParams,
-  normalizeLegacyListModeParam,
   pinFarmHubViewParam,
   replaceFarmUrlShallow,
-  resolveFarmHubView,
   resolveListLayoutParam,
   resolveListViewMode,
   resolveTrendPeriodParam,
   setTrendPeriodParam,
-  subscribeFarmHubViewResync,
   type FarmHubView,
 } from "@/lib/farm/farm-view-url";
 import {
@@ -38,16 +34,8 @@ import {
   resolveFarmChartScope,
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
-import {
-  canUnmountKeepAlivePanel,
-  FARM_HUB_KEEPALIVE_PANELS,
-  FARM_HUB_KEEPALIVE_TTL_MS,
-  isFarmHubPanelLiveActive,
-  keepAliveFlagsForActiveView,
-  keepAliveRemainingMs,
-  nextPanelInactiveSince,
-  type FarmHubKeepAlivePanel,
-} from "@/lib/farm/farm-hub-keepalive";
+import { isFarmHubPanelLiveActive } from "@/lib/farm/farm-hub-keepalive";
+import { useFarmHubViewShell } from "@/lib/farm/use-farm-hub-view-shell";
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { farmKeyId, parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
@@ -67,22 +55,6 @@ import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
-
-const FARM_HUB_VIEW_ORDER: Record<FarmHubView, number> = {
-  map: 0,
-  list: 1,
-  chart: 2,
-  aria: 3,
-};
-
-/** globals.css farm-view-slide-* (moderate enter + exit) */
-const FARM_VIEW_SLIDE_MS = 280;
-
-type FarmViewSlide = {
-  from: FarmHubView;
-  to: FarmHubView;
-  dir: 1 | -1;
-};
 
 type Props = {
   readings: BarnReading[];
@@ -131,29 +103,11 @@ export function FarmPageContent({
   });
   const enrichFarmRef = useRef<string | null>(null);
   const enrichGenRef = useRef(0);
-  /** shallow URL(window)은 mount 후에만 — hydration 시 searchParams와 불일치 방지 */
-  const [urlHydrated, setUrlHydrated] = useState(false);
-  /** SSR·첫 페인트와 동일한 URL 기준 초기 탭 (window 읽지 않음) */
-  const bootstrapView: FarmHubView =
-    initialHubView ?? resolveFarmHubView(searchParams.get("view"));
-  const [view, setViewState] = useState<FarmHubView>(bootstrapView);
-  const [viewSlide, setViewSlide] = useState<FarmViewSlide | null>(null);
-  const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
-  const [chartEverOpened, setChartEverOpened] = useState(
-    bootstrapView === "chart",
-  );
-  const [ariaEverOpened, setAriaEverOpened] = useState(
-    bootstrapView === "aria",
-  );
-  /** 패널 이탈 시각 — TTL 언마운트용 (`farm-hub-keepalive`) */
-  const [panelInactiveSince, setPanelInactiveSince] = useState<
-    Partial<Record<FarmHubKeepAlivePanel, number>>
-  >({});
-  const prevViewForKeepAliveRef = useRef(bootstrapView);
-  const prevKeepAliveFarmIdRef = useRef("");
-  /** visibility 복귀 시 TTL 재계산 */
-  const [keepAliveVisTick, setKeepAliveVisTick] = useState(0);
-  const [urlTick, setUrlTick] = useState(0);
+  const tourActiveRef = useRef(tourActive);
+  useEffect(() => {
+    tourActiveRef.current = tourActive;
+  });
+
   const tablistRef = useRef<HTMLDivElement>(null);
   const [tabPill, setTabPill] = useState({ left: 0, width: 0 });
   /** ScopeBar 농장 선택 옆 슬롯 — undefined=미확인, null=없음, Element=portal */
@@ -173,136 +127,6 @@ export function FarmPageContent({
     });
   }, [hideViewTabs, hubMode]);
 
-  const beginViewSlide = useCallback((from: FarmHubView, to: FarmHubView) => {
-    if (from === to) return;
-    if (
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    ) {
-      setViewSlide(null);
-      return;
-    }
-    const dir: 1 | -1 =
-      FARM_HUB_VIEW_ORDER[to] >= FARM_HUB_VIEW_ORDER[from] ? 1 : -1;
-    setViewSlide({ from, to, dir });
-  }, []);
-
-  /**
-   * URL → hub 탭 state 단일 진입점.
-   * 트리거만 분리: hydrate / hubUrlEpoch / requestFarmHubViewResync / 비허브 searchParams.
-   */
-  const syncViewFromUrl = useCallback(
-    (opts?: {
-      /** 지정 시 window 대신 이 raw view 사용 (비허브 useSearchParams) */
-      viewRaw?: string | null;
-      /** 탭 슬라이드 — hydrate 첫 맞춤은 false */
-      animate?: boolean;
-      /** soft home 등 shallowParams 재계산 */
-      bumpUrlTick?: boolean;
-    }) => {
-      // 레거시 listMode=channel → graph (문서 계약). hub epoch 올리지 않음.
-      if (hubMode && opts?.viewRaw === undefined) {
-        const params = currentFarmSearchParams();
-        if (normalizeLegacyListModeParam(params)) {
-          replaceFarmUrlShallow(params);
-          setUrlTick((n) => n + 1);
-        }
-      }
-      const next = resolveFarmHubView(
-        opts?.viewRaw !== undefined
-          ? opts.viewRaw
-          : currentFarmSearchParams().get("view"),
-      );
-      const animate = opts?.animate ?? true;
-      setViewState((prev) => {
-        if (prev === next) return prev;
-        if (animate) {
-          queueMicrotask(() => beginViewSlide(prev, next));
-        }
-        return next;
-      });
-      if (next === "list") setListEverOpened(true);
-      if (next === "chart") setChartEverOpened(true);
-      if (next === "aria") setAriaEverOpened(true);
-      if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
-    },
-    [beginViewSlide, hubMode],
-  );
-
-  useEffect(() => {
-    queueMicrotask(() => setUrlHydrated(true));
-  }, []);
-
-  /** hydrate + hubUrlEpoch — 첫 맞춤은 슬라이드 없이, 이후 epoch만 animate */
-  const hubViewSyncedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!urlHydrated) return;
-    const first = !hubViewSyncedOnceRef.current;
-    hubViewSyncedOnceRef.current = true;
-    queueMicrotask(() =>
-      syncViewFromUrl({ animate: Boolean(hubMode && !first) }),
-    );
-  }, [urlHydrated, hubMode, hubUrlEpoch, syncViewFromUrl]);
-
-  /** Provider 밖 soft home — hubUrlEpoch 없이 동일 sync */
-  useEffect(() => {
-    if (!hubMode) return;
-    return subscribeFarmHubViewResync(() => {
-      queueMicrotask(() =>
-        syncViewFromUrl({ animate: true, bumpUrlTick: true }),
-      );
-    });
-  }, [hubMode, syncViewFromUrl]);
-
-  const tourActiveRef = useRef(tourActive);
-  useEffect(() => {
-    tourActiveRef.current = tourActive;
-  });
-
-  // 비허브 — 라우터 네비게이션(view=list|chart|aria)에 뷰 상태 동기화.
-  // 탭 토글은 shallow replaceState라 useSearchParams가 갱신되지 않아 여기서 재정의되지 않음.
-  const [lastViewParam, setLastViewParam] = useState<string | null>(
-    () => searchParams.get("view"),
-  );
-  const viewParam = searchParams.get("view");
-  if (!hubMode && viewParam !== lastViewParam) {
-    setLastViewParam(viewParam);
-    syncViewFromUrl({ viewRaw: viewParam, animate: true });
-  }
-
-  if (view === "list" && !listEverOpened) {
-    setListEverOpened(true);
-  }
-  if (view === "chart" && !chartEverOpened) {
-    setChartEverOpened(true);
-  }
-  if (view === "aria" && !ariaEverOpened) {
-    setAriaEverOpened(true);
-  }
-
-  // 탭 전환 → 이탈 시각 기록 (TTL 기준)
-  useEffect(() => {
-    const from = prevViewForKeepAliveRef.current;
-    const to = view;
-    if (from === to) return;
-    prevViewForKeepAliveRef.current = to;
-    setPanelInactiveSince((prev) =>
-      nextPanelInactiveSince(prev, from, to, Date.now()),
-    );
-  }, [view]);
-
-  useEffect(() => {
-    const onVis = () => {
-      if (document.visibilityState === "visible") {
-        setKeepAliveVisTick((n) => n + 1);
-      }
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => document.removeEventListener("visibilitychange", onVis);
-  }, []);
-
-  // 그리드·목록 공유 프리페치 — map/list 훅이 모듈 캐시를 공유해 이중 fetch 방지.
-  // FarmKey는 객체이므로 참조가 아닌 farmKeyId로 단일 농장 여부 판정.
   const gridFarmKey = useMemo<FarmKey | null>(() => {
     const first = readings[0]?.farmKey ?? null;
     if (!first) return null;
@@ -313,95 +137,10 @@ export function FarmPageContent({
     return allSame ? first : null;
   }, [readings]);
 
-  // 농장 키 변경 — 비활성 탭 keep-alive 즉시 flush (이전 농장 DOM 잔존 방지)
   const keepAliveFarmId = gridFarmKey ? farmKeyId(gridFarmKey) : "";
-  useEffect(() => {
-    if (!keepAliveFarmId) return;
-    const prev = prevKeepAliveFarmIdRef.current;
-    if (prev === keepAliveFarmId) return;
-    const hadPrev = prev !== "";
-    prevKeepAliveFarmIdRef.current = keepAliveFarmId;
-    if (!hadPrev) return;
-    const flags = keepAliveFlagsForActiveView(view);
-    setListEverOpened(flags.list);
-    setChartEverOpened(flags.chart);
-    setAriaEverOpened(flags.aria);
-    setPanelInactiveSince({});
-  }, [keepAliveFarmId, view]);
-
-  const ariaFarm = useMemo<FarmKey | null>(() => {
-    void urlTick;
-    void hubUrlEpoch;
-    const params = urlHydrated
-      ? currentFarmSearchParams()
-      : new URLSearchParams(searchParams.toString());
-    return (
-      parseFarmKeyFromQuery(params.get("lsind"), params.get("item")) ??
-      gridFarmKey
-    );
-  }, [urlHydrated, hubUrlEpoch, urlTick, searchParams, gridFarmKey]);
-  // 활성 탭만 추이 fetch — keep-alive로 목록/차트가 남아도 ARIA 등에선 pause.
-  // 캐시는 훅·shared map에 유지되어 재진입 시 즉시 복구.
-  const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } = useFarmControllerTrend({
-    farmKey: gridFarmKey,
-    enabled:
-      Boolean(gridFarmKey) &&
-      (view === "map" || view === "chart" || view === "list"),
-  });
-
-  const shallowParams = useMemo(() => {
-    void urlTick;
-    void hubUrlEpoch;
-    // SSR·hydration: useSearchParams (서버 HTML과 동일).
-    // mount 이후: shallow replaceState 반영을 위해 window.location.
-    if (!urlHydrated) {
-      return new URLSearchParams(searchParams.toString());
-    }
-    return currentFarmSearchParams();
-  }, [urlHydrated, hubUrlEpoch, urlTick, searchParams]);
-
-  const urlCtrl = shallowParams.get("ctrl");
-  const listSp = view === "list" ? shallowParams.get("sp") ?? undefined : undefined;
-  const listMode = useMemo(() => {
-    return resolveListViewMode(shallowParams, "controller");
-  }, [shallowParams]);
-  const listLayout = resolveListLayoutParam(shallowParams);
-  const trendPeriod = useMemo(
-    () => resolveTrendPeriodParam(shallowParams),
-    [shallowParams],
-  );
-  const chartScope = useMemo(
-    () => resolveFarmChartScope(shallowParams),
-    [shallowParams],
-  );
-
-  const onTrendPeriodChange = useCallback(
-    (period: TrendPeriodId) => {
-      const params = new URLSearchParams(currentFarmSearchParams().toString());
-      setTrendPeriodParam(params, period);
-      // React 탭 state를 URL에 고정 — shallow/Next desync로 view 유실 시 복구.
-      // map 드릴 쿼리는 유지(pin만, applyHubScopedViewParams 금지).
-      pinFarmHubViewParam(params, view);
-      replaceFarmUrlShallow(params);
-      // onHubUrlChange 금지 — hubUrlEpoch→view 재동기화가 차트→그리드 레이스를 유발함.
-      setUrlTick((n) => n + 1);
-    },
-    [view],
-  );
-
-  const onChartScopeChange = useCallback((scope: FarmChartScope) => {
-    const params = new URLSearchParams(currentFarmSearchParams().toString());
-    applyFarmChartScopeParams(params, scope);
-    pinFarmHubViewParam(params, "chart");
-    replaceFarmUrlShallow(params);
-    setUrlTick((n) => n + 1);
-  }, []);
-  const thermoSettings = controller?.thermoSettings ?? {};
-  const alarmSettings = controller?.alarmSettings;
 
   const enrichListIfNeeded = useCallback(async () => {
     if (!lazyListEnrichment || !lazyListFarmKey) return;
-    // A2 — 투어 중 목록 보강 억제 (카드가 뒤늦게 튀어나와 난잡해지는 것 방지)
     if (tourActiveRef.current) return;
 
     const lr = liveRefreshRef.current;
@@ -428,8 +167,35 @@ export function FarmPageContent({
     }
   }, [lazyListEnrichment, lazyListFarmKey]);
 
+  const {
+    view,
+    viewSlide,
+    urlHydrated,
+    urlTick,
+    setUrlTick,
+    listEverOpened,
+    chartEverOpened,
+    ariaEverOpened,
+    setView,
+    setTourView,
+  } = useFarmHubViewShell({
+    hubMode,
+    hubUrlEpoch,
+    onHubUrlChange,
+    initialHubView,
+    searchParams,
+    keepAliveFarmId,
+    onOpenList: () => {
+      void enrichListIfNeeded();
+    },
+  });
+
   useEffect(() => {
     enrichGenRef.current += 1;
+  }, [lazyListFarmKey]);
+
+  useEffect(() => {
+    enrichFarmRef.current = null;
   }, [lazyListFarmKey]);
 
   /** LIVE 안정 후 idle — 활성 탭에 맞는 stall·controller 추이·list enrich만 */
@@ -471,10 +237,6 @@ export function FarmPageContent({
   }, [gridFarmKey, tourActive, enrichListIfNeeded, view]);
 
   useEffect(() => {
-    enrichFarmRef.current = null;
-  }, [lazyListFarmKey]);
-
-  useEffect(() => {
     if (!lazyListEnrichment || !lazyListFarmKey) return;
     if (tourActive) return;
     if (view !== "list") return;
@@ -488,7 +250,6 @@ export function FarmPageContent({
 
     enrichFarmRef.current = farmId;
     void enrichListIfNeeded();
-  // controller 전체 포함 시 enrich 루프 — 설정 필드만 감시
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
   }, [
     lazyListEnrichment,
@@ -500,7 +261,6 @@ export function FarmPageContent({
     enrichListIfNeeded,
   ]);
 
-  // 투어 종료(active→inactive) 직후 목록 보강 재개
   const wasTourActiveRef = useRef(false);
   useEffect(() => {
     const wasActive = wasTourActiveRef.current;
@@ -510,7 +270,6 @@ export function FarmPageContent({
     if (!lazyListEnrichment || !lazyListFarmKey) return;
     if (isScopedControllerEnriched(liveRefresh?.slice.controller)) return;
     enrichFarmRef.current = null;
-    // effect 동기 setState 경고 회피 — 마이크로태스크로 보강 시작
     queueMicrotask(() => {
       void enrichListIfNeeded();
     });
@@ -524,146 +283,74 @@ export function FarmPageContent({
     enrichListIfNeeded,
   ]);
 
-  const applyViewChange = useCallback(
-    (next: FarmHubView) => {
-      if (next === "list") {
-        setListEverOpened(true);
-        void enrichListIfNeeded();
-      }
-      if (next === "chart") {
-        setChartEverOpened(true);
-      }
-      if (next === "aria") {
-        setAriaEverOpened(true);
-      }
-      /* 낙관적 UI — 탭·URL 즉시, transition 지연 없음 */
-      beginViewSlide(view, next);
-      setViewState(next);
-      if (hubMode) {
-        const params = new URLSearchParams(
-          currentFarmSearchParams().toString(),
-        );
-        applyHubScopedViewParams(params, next);
-        replaceFarmUrlShallow(params);
-        onHubUrlChange?.();
-        setUrlTick((n) => n + 1);
-        return;
-      }
+  const ariaFarm = useMemo<FarmKey | null>(() => {
+    void urlTick;
+    void hubUrlEpoch;
+    const params = urlHydrated
+      ? currentFarmSearchParams()
+      : new URLSearchParams(searchParams.toString());
+    return (
+      parseFarmKeyFromQuery(params.get("lsind"), params.get("item")) ??
+      gridFarmKey
+    );
+  }, [urlHydrated, hubUrlEpoch, urlTick, searchParams, gridFarmKey]);
+
+  const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } =
+    useFarmControllerTrend({
+      farmKey: gridFarmKey,
+      enabled:
+        Boolean(gridFarmKey) &&
+        (view === "map" || view === "chart" || view === "list"),
+    });
+
+  const shallowParams = useMemo(() => {
+    void urlTick;
+    void hubUrlEpoch;
+    if (!urlHydrated) {
+      return new URLSearchParams(searchParams.toString());
+    }
+    return currentFarmSearchParams();
+  }, [urlHydrated, hubUrlEpoch, urlTick, searchParams]);
+
+  const urlCtrl = shallowParams.get("ctrl");
+  const listSp = view === "list" ? shallowParams.get("sp") ?? undefined : undefined;
+  const listMode = useMemo(() => {
+    return resolveListViewMode(shallowParams, "controller");
+  }, [shallowParams]);
+  const listLayout = resolveListLayoutParam(shallowParams);
+  const trendPeriod = useMemo(
+    () => resolveTrendPeriodParam(shallowParams),
+    [shallowParams],
+  );
+  const chartScope = useMemo(
+    () => resolveFarmChartScope(shallowParams),
+    [shallowParams],
+  );
+
+  const onTrendPeriodChange = useCallback(
+    (period: TrendPeriodId) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
-      params.delete("tab");
-      if (next === "list") {
-        params.set("view", "list");
-      } else if (next === "chart") {
-        params.set("view", "chart");
-        params.delete("listMode");
-      } else if (next === "aria") {
-        params.set("view", "aria");
-        params.delete("listMode");
-      } else {
-        params.delete("view");
-        params.delete("listMode");
-      }
+      setTrendPeriodParam(params, period);
+      pinFarmHubViewParam(params, view);
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
     },
-    [hubMode, onHubUrlChange, enrichListIfNeeded, beginViewSlide, view],
+    [view, setUrlTick],
   );
 
-  const setView = useCallback(
-    (next: FarmHubView) => {
-      applyViewChange(next);
+  const onChartScopeChange = useCallback(
+    (scope: FarmChartScope) => {
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      applyFarmChartScopeParams(params, scope);
+      pinFarmHubViewParam(params, "chart");
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
     },
-    [applyViewChange],
+    [setUrlTick],
   );
 
-  /** 온보딩 투어 — map|list 만 */
-  const setTourView = useCallback(
-    (next: "map" | "list") => {
-      applyViewChange(next);
-    },
-    [applyViewChange],
-  );
-
-  useEffect(() => {
-    if (!viewSlide) return;
-    const t = window.setTimeout(() => setViewSlide(null), FARM_VIEW_SLIDE_MS);
-    return () => window.clearTimeout(t);
-  }, [viewSlide]);
-
-  // 비활성 패널 TTL — 슬라이드·활성 탭은 보류, 만료 시 EverOpened 해제
-  const keepAliveViewRef = useRef(view);
-  const keepAliveSlideRef = useRef(viewSlide);
-  useEffect(() => {
-    keepAliveViewRef.current = view;
-    keepAliveSlideRef.current = viewSlide;
-  });
-  useEffect(() => {
-    void keepAliveVisTick;
-    const timers: number[] = [];
-    const now = Date.now();
-    const openedOf = (panel: FarmHubKeepAlivePanel) =>
-      panel === "list"
-        ? listEverOpened
-        : panel === "chart"
-          ? chartEverOpened
-          : ariaEverOpened;
-    const clearOf = (panel: FarmHubKeepAlivePanel) => {
-      if (panel === "list") setListEverOpened(false);
-      else if (panel === "chart") setChartEverOpened(false);
-      else setAriaEverOpened(false);
-      setPanelInactiveSince((prev) => {
-        if (prev[panel] == null) return prev;
-        const next = { ...prev };
-        delete next[panel];
-        return next;
-      });
-    };
-
-    for (const panel of FARM_HUB_KEEPALIVE_PANELS) {
-      if (!openedOf(panel)) continue;
-      if (
-        !canUnmountKeepAlivePanel(
-          panel,
-          keepAliveViewRef.current,
-          keepAliveSlideRef.current,
-        )
-      ) {
-        continue;
-      }
-      const leftAt = panelInactiveSince[panel];
-      if (leftAt == null) continue;
-      const delay = keepAliveRemainingMs(
-        leftAt,
-        now,
-        FARM_HUB_KEEPALIVE_TTL_MS[panel],
-      );
-      timers.push(
-        window.setTimeout(() => {
-          if (
-            !canUnmountKeepAlivePanel(
-              panel,
-              keepAliveViewRef.current,
-              keepAliveSlideRef.current,
-            )
-          ) {
-            return;
-          }
-          clearOf(panel);
-        }, delay),
-      );
-    }
-    return () => {
-      for (const t of timers) window.clearTimeout(t);
-    };
-  }, [
-    view,
-    viewSlide,
-    listEverOpened,
-    chartEverOpened,
-    ariaEverOpened,
-    panelInactiveSince,
-    keepAliveVisTick,
-  ]);
+  const thermoSettings = controller?.thermoSettings ?? {};
+  const alarmSettings = controller?.alarmSettings;
 
   useLayoutEffect(() => {
     const root = tablistRef.current;
@@ -703,7 +390,8 @@ export function FarmPageContent({
   };
 
   const embedInScopeHeader = Boolean(scopeToggleSlot);
-  const awaitingScopeSlot = hubMode && !hideViewTabs && scopeToggleSlot === undefined;
+  const awaitingScopeSlot =
+    hubMode && !hideViewTabs && scopeToggleSlot === undefined;
 
   const viewTabBtn = (active: boolean) =>
     cn(
@@ -791,7 +479,11 @@ export function FarmPageContent({
 
   return (
     <div className={cn(embedInScopeHeader ? "space-y-3" : "space-y-4")}>
-      <FarmFeatureTour view={view === "list" ? "list" : "map"} setView={setTourView} enabled={!hideViewTabs} />
+      <FarmFeatureTour
+        view={view === "list" ? "list" : "map"}
+        setView={setTourView}
+        enabled={!hideViewTabs}
+      />
       {viewToggle && scopeToggleSlot
         ? createPortal(viewToggle, scopeToggleSlot)
         : awaitingScopeSlot
@@ -832,7 +524,6 @@ export function FarmPageContent({
             data-farm-view-panel="list"
             data-farm-view-active={view === "list"}
           >
-            {/* enrich 중에도 grid readings로 BarnTable 유지 — 전체 skeleton 교체 금지 */}
             <BarnTable
               rows={readings}
               controller={controller ?? null}

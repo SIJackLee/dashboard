@@ -23,7 +23,8 @@
 
 | 파일 | 이유 |
 |------|------|
-| `farm-page-content.tsx` | 허브 탭 + ARIA 마운트 + 셸 |
+| `farm-page-content.tsx` | 허브 패널 렌더·enrich (탭 sync는 `use-farm-hub-view-shell`) |
+| `use-farm-hub-view-shell.ts` | URL sync · 슬라이드 · keep-alive TTL |
 | `globals.css` / `dashboard-page-ui.ts` | 토큰 · ARIA 셸 · 밀도 |
 
 ---
