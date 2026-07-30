@@ -8,6 +8,8 @@
 | --- | --- | --- |
 | `web:install` | `npm ci` | 파이프라인 중단 |
 | `web:lint` | ESLint | 파이프라인 중단 |
+| `web:test` | `npm test` — `src/**/*.test.ts` (protocol · hub URL 등) | 파이프라인 중단 |
+| `web:verify-design` | `npm run verify:design` (motion + map density) | 파이프라인 중단 |
 | `web:knip` | dead files · deps · duplicates | 파이프라인 중단 |
 | `web:build` | `next build --webpack` (더미 Supabase env) | 파이프라인 중단 |
 | `web:audit` | Playwright UI audit (선택) | `allow_failure: true` |
@@ -42,7 +44,11 @@ npm run audit:farm-command
 npm run audit:health-drilldown
 ```
 
-## GitHub mirror
+## GitHub
 
-원격이 GitHub(`SIJackLee/dashboard`)인 경우 `.gitlab-ci.yml`은 GitLab 파이프라인 전용이다.  
-GitHub Actions는 별도 workflow가 없으면 push 후 자동 CI가 돌지 않는다.
+원격이 GitHub(`SIJackLee/dashboard`)인 경우 [`.github/workflows/web-verify.yml`](../.github/workflows/web-verify.yml)이  
+`npm test` · `verify:design` · `build`를 push/PR에서 실행한다.
+
+## GitHub mirror (구 메모)
+
+`.gitlab-ci.yml`은 GitLab 파이프라인 전용이다. GitHub Actions는 위 workflow를 사용한다.

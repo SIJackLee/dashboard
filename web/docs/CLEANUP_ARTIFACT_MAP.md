@@ -55,8 +55,14 @@
 
 | 후보 | 이유 | 승인 |
 |------|------|------|
-| `dashboard-aria-ship/` · `dashboard-build-check/` | 병렬 worktree 혼선 | 사용자 |
 | legacy Agent mdc 파일 실삭제 | 현재는 alwaysApply만 off | 사용자 |
+
+## 삭제 완료 (2026-07-30)
+
+| 경로 | 비고 |
+|------|------|
+| `SI1/dashboard-aria-ship/` | git worktree 제거 |
+| `SI1/dashboard-build-check/` | 병렬 검수 폴더 삭제 |
 
 ---
 

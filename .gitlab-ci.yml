@@ -23,6 +23,18 @@ web:lint:
   script:
     - cd web && npm run lint
 
+web:test:
+  stage: verify
+  needs: [web:install]
+  script:
+    - cd web && npm test
+
+web:verify-design:
+  stage: verify
+  needs: [web:install]
+  script:
+    - cd web && npm run verify:design
+
 web:knip:
   stage: verify
   needs: [web:install]
