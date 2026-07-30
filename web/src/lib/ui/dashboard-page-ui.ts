@@ -443,10 +443,12 @@ export const dashboardUi = {
   mapCardTitle: "text-xl font-semibold leading-tight",
   mapCardMeta: "text-lg text-muted-foreground",
 
-  /** ChannelCell · FarmMapCard EnvChip — 값/단위 (갭2 readout) */
+  /** ChannelCell · FarmMapCard EnvChip — 맵은 큰 계기판 수치 유지 */
   gridCellMetaCompact: dashboardReadout.unitBare,
-  gridCellValueCompact: dashboardReadout.value,
-  gridCellValueDefault: dashboardReadout.valueLg,
+  gridCellValueCompact:
+    "font-mono font-bold tabular-nums tracking-[var(--tracking-readout)] leading-none text-[length:var(--density-map-value-compact)] md:text-[length:var(--density-map-value-compact-md)]",
+  gridCellValueDefault:
+    "font-mono font-bold tabular-nums tracking-[var(--tracking-readout)] leading-none text-[length:var(--density-map-value)] md:text-[length:var(--density-map-value-md)]",
   /** 축사 카드 제목 — 수치 스타일 금지 (갭2) */
   gridCellTitleCompact:
     "font-sans font-semibold leading-tight text-[length:var(--density-meta)] md:text-[length:var(--density-meta-md)]",
@@ -552,5 +554,31 @@ export const dashboardAriaShell = {
   /** 하단 입력 도크 */
   dock:
     "rounded-2xl border border-primary/25 bg-card/90 p-3 shadow-[var(--surface-shadow-tile)] ring-1 ring-primary/15 backdrop-blur-md dark:border-primary/20 dark:bg-card/90 md:p-4",
+  stageBody:
+    "relative z-[1] flex min-h-0 flex-1 flex-col gap-2 px-3 pb-1 pt-1 md:flex-row md:items-stretch md:gap-3 md:px-4",
+  metricsSlot: "aria-stage-metrics order-2 min-h-0 md:order-1",
+  metricsSlotHidden: "aria-stage-metrics-collapsed",
+  metricsSlotRail:
+    "aria-stage-metrics-rail w-full shrink-0 md:w-[min(38%,17rem)] md:self-center",
+  metricsSlotHero:
+    "aria-stage-metrics-hero flex min-h-[9rem] flex-1 flex-col md:min-h-0 md:w-auto",
+  orbSlot:
+    "aria-stage-orb order-1 flex flex-col items-center justify-center md:order-2",
+  orbSlotCenter: "aria-stage-orb-center min-h-0 flex-1 w-full",
+  orbSlotSide:
+    "aria-stage-orb-side w-full shrink-0 md:w-[7.5rem] md:shrink-0 md:self-center",
+  metricsPanel:
+    "aria-stage-metrics-panel flex h-full min-h-0 flex-col rounded-xl border border-primary/20 bg-card/80 p-3 shadow-[var(--surface-shadow-tile)] backdrop-blur-sm md:p-3.5",
+  metricsEyebrow:
+    "text-[length:var(--density-readout-label)] font-medium tracking-[var(--tracking-readout-label)] text-primary/70",
+  metricsTitle:
+    "text-[length:var(--density-section)] font-semibold tracking-tight text-foreground md:text-[length:var(--density-section-md)]",
+  metricsBlurb:
+    "mt-0.5 text-[length:var(--density-meta)] text-muted-foreground",
+  metricsBody:
+    "mt-3 flex flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-muted/20 px-3 py-6",
+  metricsNavBtn:
+    "inline-flex size-7 items-center justify-center rounded-md border border-border/80 text-sm text-muted-foreground hover:bg-muted/50",
+  metricsSlideBody: "aria-stage-slide-body",
 } as const;
 

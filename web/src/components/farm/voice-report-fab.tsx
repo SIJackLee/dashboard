@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Loader2, Mic, Square, Volume2, X } from "lucide-react";
+import { Bot, ChevronDown, Loader2, Mic, Square, Volume2, X } from "lucide-react";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
 import { ARIA_NAME, type VoiceReportStatus } from "@/lib/aria/aria-mode";
@@ -65,6 +65,7 @@ export function VoiceReportFab({
   const [micLevel, setMicLevel] = useState(0);
   const [micTesting, setMicTesting] = useState(false);
   const [soundBlocked, setSoundBlocked] = useState(false);
+  const [deviceToolsOpen, setDeviceToolsOpen] = useState(false);
   const [ariaSession, setAriaSession] = useState<
     VoiceAskSuccess["ariaSession"] | null
   >(null);
@@ -620,47 +621,80 @@ export function VoiceReportFab({
         음성으로 읽어주기 (TTS)
       </label>
 
-      <div className="mb-2 flex gap-1.5">
+      <div className="mb-2">
         <button
           type="button"
-          disabled={busy}
-          onClick={() => void runSoundCheck()}
+          disabled={busy && !micTesting}
+          aria-expanded={deviceToolsOpen || soundBlocked || micTesting}
+          onClick={() => setDeviceToolsOpen((v) => !v)}
           className={cn(
-            "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
-            "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+            "inline-flex w-full items-center justify-between gap-1 rounded-lg px-1 py-1",
+            "text-[10px] font-medium text-muted-foreground hover:text-foreground",
+            "disabled:opacity-50",
           )}
         >
-          <Volume2 className="size-3" />
-          사운드 체크
+          <span>장치 테스트</span>
+          <ChevronDown
+            className={cn(
+              "size-3.5 shrink-0 transition-transform duration-motion-fast",
+              (deviceToolsOpen || soundBlocked || micTesting) && "rotate-180",
+            )}
+          />
         </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void runMicTest()}
-          className={cn(
-            "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
-            "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
-          )}
-        >
-          <Mic className="size-3" />
-          {micTesting ? "테스트 중…" : "마이크 테스트"}
-        </button>
+
+        {deviceToolsOpen || soundBlocked || micTesting ? (
+          <div className="mt-1.5 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-2">
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void runSoundCheck()}
+                className={cn(
+                  "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
+                  "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+                )}
+              >
+                <Volume2 className="size-3" />
+                사운드 체크
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setDeviceToolsOpen(true);
+                  void runMicTest();
+                }}
+                className={cn(
+                  "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
+                  "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+                )}
+              >
+                <Mic className="size-3" />
+                {micTesting ? "테스트 중…" : "마이크 테스트"}
+              </button>
+            </div>
+            {soundBlocked ? (
+              <button
+                type="button"
+                className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-medium text-primary-foreground"
+                onClick={() => void runSoundCheck()}
+              >
+                <Volume2 className="size-3" />
+                비프 다시 재생
+              </button>
+            ) : null}
+            {deviceMsg ? (
+              <p className="text-[10px] text-muted-foreground" role="status">
+                {deviceMsg}
+              </p>
+            ) : null}
+          </div>
+        ) : deviceMsg ? (
+          <p className="mt-1 text-[10px] text-muted-foreground" role="status">
+            {deviceMsg}
+          </p>
+        ) : null}
       </div>
-      {soundBlocked ? (
-        <button
-          type="button"
-          className="mb-2 inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-medium text-primary-foreground"
-          onClick={() => void runSoundCheck()}
-        >
-          <Volume2 className="size-3" />
-          비프 다시 재생
-        </button>
-      ) : null}
-      {deviceMsg ? (
-        <p className="mb-2 text-[10px] text-muted-foreground" role="status">
-          {deviceMsg}
-        </p>
-      ) : null}
 
       <textarea
         value={question}

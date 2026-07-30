@@ -24,7 +24,9 @@
     "verify:motion-classes": "node scripts/verify-motion-classes.mjs",
     "audit:motion-reduced": "node scripts/motion-reduced-audit.mjs",
     "verify:motion": "npm run verify:motion-tokens && npm run verify:motion-classes && npm run audit:motion-reduced",
-    "set:test-passwords": "node scripts/set-test-passwords.mjs"
+    "set:test-passwords": "node scripts/set-test-passwords.mjs",
+    "verify:ui-density": "node scripts/verify-ui-density.mjs",
+    "verify:design": "npm run verify:motion && npm run verify:ui-density"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
