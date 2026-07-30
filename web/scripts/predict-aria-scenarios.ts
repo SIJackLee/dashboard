@@ -264,7 +264,7 @@ async function main() {
     route: "CHAT",
     depth: null,
     factsMode: "skip",
-    text: "ARIA는 Agricultural Reporting & Intelligent Assistant입니다. 농장 이상상황·온도는 「상황 어때?」로 물어봐 주세요.",
+    text: "델린은 축사 환경·가축 현황을 말로 안내하는 AI입니다. 이상상황·온도는 「상황 어때?」로 물어봐 주세요.",
     note: "CHAT 예상 톤 (OpenAI 시 가변)",
   });
 

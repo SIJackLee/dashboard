@@ -54,6 +54,7 @@ import { dashboardChroma, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+import { DELIN_NAME } from "@/lib/aria/aria-mode";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 
 type Props = {
@@ -472,7 +473,7 @@ export function FarmPageContent({
         onClick={() => setView("aria")}
       >
         <Bot className={dashboardUi.iconSm} aria-hidden />
-        ARIA
+        {DELIN_NAME}
       </button>
     </div>
   ) : null;

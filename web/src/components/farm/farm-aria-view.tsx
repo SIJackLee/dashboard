@@ -21,8 +21,11 @@ import { VoiceReportFab } from "@/components/farm/voice-report-fab";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
 import {
-  ARIA_FULL_NAME,
-  ARIA_NAME,
+  DELIN_FULL_NAME,
+  DELIN_FULL_NAME_KO,
+  DELIN_NAME,
+  DELIN_NAME_KO,
+  DELIN_TAGLINE,
   voiceStatusToAriaMode,
   type AriaOrbMode,
   type VoiceReportStatus,
@@ -45,7 +48,7 @@ type Props = {
   className?: string;
 };
 
-/** ARIA 탭 — 스테이지(오브↔지표 LIVE) + 하단 도크. */
+/** DELIN(델린) 탭 — 스테이지(오브↔지표 LIVE) + 하단 도크. */
 export function FarmAriaView({
   currentFarm = null,
   isMobileStack = false,
@@ -142,9 +145,12 @@ export function FarmAriaView({
       <div className={dashboardAriaShell.stageGlow} aria-hidden />
 
       <header className="relative z-[1] flex flex-col items-center gap-1 px-4 pt-5 text-center md:pt-7">
-        <p className={dashboardAriaShell.eyebrow}>농장 음성 어시스턴트</p>
-        <h2 className={dashboardAriaShell.title} title={ARIA_FULL_NAME}>
-          {ARIA_NAME}
+        <p className={dashboardAriaShell.eyebrow}>{DELIN_FULL_NAME}</p>
+        <h2
+          className={dashboardAriaShell.title}
+          title={`${DELIN_FULL_NAME_KO} · ${DELIN_TAGLINE}`}
+        >
+          {DELIN_NAME}
         </h2>
         {currentFarm ? (
           <p className={dashboardAriaShell.farmMeta}>

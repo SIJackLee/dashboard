@@ -6,11 +6,11 @@ import { phraseIndex, phraseSeed } from "@/lib/aria/protocol/route";
 
 const WEATHER_RE = /날씨|기상|비\s*올|비\s*와|기온/;
 const WELLBEING_RE =
-  /^(괜찮니|괜찮아|괜찮아요|괜찮습니까|잘\s*지내|너는\s*괜찮|ARIA\s*괜찮)/i;
+  /^(괜찮니|괜찮아|괜찮아요|괜찮습니까|잘\s*지내|너는\s*괜찮|(ARIA|DELIN|델린)\s*괜찮)/i;
 const AMBIG_HOW_RE = /^(지금\s*)?어때\??$/;
 const THANKS_RE = /고마|감사/;
 const BYE_RE = /잘\s*자|바이|안녕히/;
-const WHO_RE = /뭐야|누구|소개|ARIA/;
+const WHO_RE = /뭐야|누구|소개|ARIA|DELIN|델린/;
 
 export function chatHeuristicReply(question: string): string {
   const q = question.trim();
@@ -25,7 +25,7 @@ export function chatHeuristicReply(question: string): string {
 
   if (WELLBEING_RE.test(q)) {
     return pick(q, [
-      "저요? 잘 듣고 있습니다. ARIA는 정상입니다. 농장 쪽이 걱정되면 「상황 어때?」라고 물어봐 주세요.",
+      "저요? 잘 듣고 있습니다. 델린은 정상입니다. 농장 쪽이 걱정되면 「상황 어때?」라고 물어봐 주세요.",
       "괜찮습니다, 대기 중입니다. 축사 상태는 「오늘 상황 어때」로 바로 확인해 드리겠습니다.",
       "네, 문제없습니다. 제가 아니라 농장이 궁금하시면 「이상상황」이라고 말씀해 주세요.",
     ], "wellbeing");
@@ -53,15 +53,15 @@ export function chatHeuristicReply(question: string): string {
 
   if (WHO_RE.test(q)) {
     return pick(q, [
-      "ARIA는 농장 현황을 말로 안내하는 도우미입니다. 이상상황·온도는 「상황 어때?」로 물어봐 주세요.",
-      "저는 ARIA입니다. 축사 이상과 대응 안내를 도와드립니다. 「뭐가 문제야」처럼 물어보시면 됩니다.",
-      "ARIA입니다. 정식 명칭으로 현황을 말씀드리고, 알람 설정값은 바꾸지 않습니다.",
+      "델린은 축사 환경과 가축 현황을 말로 안내하는 AI입니다. 이상상황·온도는 「상황 어때?」로 물어봐 주세요.",
+      "저는 델린입니다. 축사 이상과 대응 안내를 도와드립니다. 「뭐가 문제야」처럼 물어보시면 됩니다.",
+      "델린입니다. 정식 명칭으로 현황을 말씀드리고, 알람 설정값은 바꾸지 않습니다.",
     ], "who");
   }
 
   return pick(q, [
-    "안녕하세요. 저는 ARIA입니다. 농장 현황은 「상황 어때?」처럼 질문해 주세요.",
-    "네, ARIA입니다. 축사 이상이 궁금하시면 「오늘 상황 어때」라고 말씀해 주세요.",
+    "안녕하세요. 저는 델린입니다. 농장 현황은 「상황 어때?」처럼 질문해 주세요.",
+    "네, 델린입니다. 축사 이상이 궁금하시면 「오늘 상황 어때」라고 말씀해 주세요.",
     "안녕하세요. 잡담도 괜찮고, 현황은 「상황 어때?」로 이어가 주세요.",
   ], "hello");
 }

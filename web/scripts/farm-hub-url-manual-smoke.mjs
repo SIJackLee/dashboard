@@ -187,7 +187,7 @@ async function main() {
     const tabRound = [
       { name: "목록", view: "list", panel: "list" },
       { name: "차트", view: "chart", panel: "chart" },
-      { name: "ARIA", view: "aria", panel: "aria" },
+      { name: "DELIN", view: "aria", panel: "aria" },
       { name: "그리드", view: null, panel: "map" },
     ];
     for (const step of tabRound) {

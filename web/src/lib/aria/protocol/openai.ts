@@ -72,7 +72,7 @@ export async function judgeProtocolWithOpenAI(
 export async function chatReplyWithOpenAI(question: string): Promise<string> {
   const maxAnswer = VOICE_LIMITS.maxAnswerChars();
   const system =
-    "당신은 ARIA(농장 현황 도우미)입니다. " +
+    "당신은 델린(DELIN, 축사 환경·가축 현황 도우미)입니다. " +
     "짧은 한국어로 친근히 답하세요. 농장 수치·알람·컨트롤러 데이터를 만들지 마세요. " +
     "영문 풀네임은 읽지 마세요. 「괜찮니」는 본인 안부, 「지금 어때」는 농장/안부 확인 질문을 하세요. " +
     "날씨는 아직 준비 중이라고만 짧게 안내하세요. " +

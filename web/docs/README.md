@@ -24,19 +24,19 @@
 | [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md) | 운영 메모(스냅샷) |
 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) | 작업 맥락·스키마 참고 |
 
-### 허브 · ARIA · 디자인
+### 허브 · DELIN · 디자인
 
 | 문서 | 내용 |
 |------|------|
 | [`farm-hub-url.md`](./farm-hub-url.md) | `/farm` URL·탭·epoch |
-| [`aria-protocol.md`](./aria-protocol.md) | ARIA 정본 |
+| [`aria-protocol.md`](./aria-protocol.md) | 델린(DELIN) 판단 정본 |
 | [`voice-report-poc.md`](./voice-report-poc.md) | PoC·API·한도 |
 | [`UI_MOTION.md`](./UI_MOTION.md) | 모션 |
 | [`UI_DENSITY.md`](./UI_DENSITY.md) | 밀도·맵 수치 |
 | [`UI_ELEVATION.md`](./UI_ELEVATION.md) | elevation |
 | [`UI_CHROMA.md`](./UI_CHROMA.md) | 채도 |
 | [`UI_FEEDBACK.md`](./UI_FEEDBACK.md) | ops-feedback |
-| [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) | ARIA presence |
+| [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) | 델린 탭 presence |
 | [`UI_VISUAL_QA.md`](./UI_VISUAL_QA.md) | 시각 QA |
 
 ### 운영자 매뉴얼

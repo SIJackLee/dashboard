@@ -1,10 +1,12 @@
-# ARIA 판단 프로토콜
+# DELIN(델린) 판단 프로토콜
 
 > **역할: 정본** — JUDGE / SAY / REC / DEPTH / 금지 사항.  
 > PoC UI·API·한도·롤백·플래그 운영: [`voice-report-poc.md`](./voice-report-poc.md)  
 > 문서 찾기: [`README.md`](./README.md)
 
-ARIA = *Agricultural Reporting & Intelligent Assistant*
+**DELIN** = *Data-driven Environmental & Livestock Intelligence Navigator*  
+**델린** = 데이터 기반 축사 환경·가축 지능형 안내자  
+(코드·URL 호환 키는 당분간 `aria` / `ARIA_PROTOCOL_V1` 유지)
 
 AI는 **라우팅·슬롯·판단 코드**만 담당하고, 수치·정식 명칭·최종 문장은 서버가 pack/unpack 한다.
 

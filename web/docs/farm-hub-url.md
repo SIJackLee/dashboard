@@ -12,7 +12,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `aria` \| (`jarvis`→aria) | **없음 = 그리드(map)** | 상단 탭 |
+| `view` | `list` \| `chart` \| `aria` \| (`jarvis`→aria) | **없음 = 그리드(map)** | 상단 탭. `aria` UI 표기 **델린** |
 | `trendPeriod` | `7d` \| `30d` | **없음 = 24h** | 그리드·목록·차트 공유 기간. `24h`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
@@ -37,7 +37,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 resolveFarmHubView(raw)
   list  → list
   chart → chart
-  aria | jarvis → aria
+  aria | jarvis → aria   // UI 표기: 델린(DELIN)
   else  → map   // view 없음·알 수 없음
 ```
 

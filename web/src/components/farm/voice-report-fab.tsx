@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Bot, ChevronDown, Loader2, Mic, Square, Volume2, X } from "lucide-react";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
-import { ARIA_NAME, type VoiceReportStatus } from "@/lib/aria/aria-mode";
+import { DELIN_NAME, type VoiceReportStatus } from "@/lib/aria/aria-mode";
 import type {
   VoiceAskError,
   VoiceAskSuccess,
@@ -793,7 +793,7 @@ export function VoiceReportFab({
         )}
         data-testid="voice-report-dock"
         role="region"
-        aria-label={`${ARIA_NAME} 입력`}
+        aria-label={`${DELIN_NAME} 입력`}
       >
         <p className="mb-2 text-center text-[10px] text-muted-foreground">
           {farmShortLabel(currentFarm)}
@@ -824,10 +824,10 @@ export function VoiceReportFab({
             motionClass.ariaPanelIn,
           )}
           role="dialog"
-          aria-label={`${ARIA_NAME} 음성 AI`}
+          aria-label={`${DELIN_NAME} 음성 AI`}
         >
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-foreground">{ARIA_NAME}</p>
+            <p className="text-xs font-semibold text-foreground">{DELIN_NAME}</p>
             <button
               type="button"
               className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -856,7 +856,7 @@ export function VoiceReportFab({
           "hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           status === "recording" && "animate-pulse bg-destructive",
         )}
-        aria-label={open ? `${ARIA_NAME} 패널 닫기` : `${ARIA_NAME} 열기`}
+        aria-label={open ? `${DELIN_NAME} 패널 닫기` : `${DELIN_NAME} 열기`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >

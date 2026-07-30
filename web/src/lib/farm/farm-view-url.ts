@@ -87,7 +87,7 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
-/** hub /farm 상단 탭 — 그리드(map) · 목록 · 차트 · ARIA */
+/** 허브 탭 — 그리드(map) · 목록 · 차트 · 델린(view=aria) */
 export type FarmHubView = "map" | "list" | "chart" | "aria";
 
 export function resolveFarmHubView(
@@ -115,7 +115,7 @@ export function applyChartViewParams(params: URLSearchParams): void {
   params.delete("mapLevel");
 }
 
-/** ARIA 탭 — Agricultural Reporting & Intelligent Assistant */
+/** 델린 탭 — DELIN (URL view=aria 호환) */
 export function applyAriaViewParams(params: URLSearchParams): void {
   params.set("view", "aria");
   params.delete("listMode");

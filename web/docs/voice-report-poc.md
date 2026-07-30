@@ -1,4 +1,4 @@
-# 음성 AI 리포팅 PoC — ARIA
+# 음성 AI 리포팅 PoC — DELIN(델린)
 
 > **역할: 보조 (PoC·UI·API·한도·롤백)** — 판단 규칙 정본이 **아님**.  
 > 정본: [`aria-protocol.md`](./aria-protocol.md)  
@@ -9,14 +9,17 @@
 Cursor 규칙: 워크스페이스 `.cursor/rules/voice-protocol.mdc`.
 
 ## 명칭
-- **ARIA** — *Agricultural Reporting & Intelligent Assistant*
-- 농장 허브 탭·음성 오브·패널 표기명
+- **DELIN** — *Data-driven Environmental & Livestock Intelligence Navigator*
+- **델린** — 데이터 기반 축사 환경·가축 지능형 안내자
+- 유래: 목동·가축의 수호성인 성 벤델리노(Wendelin)
+- 슬로건: 축사를 이해하고, 농장을 지키는 AI — DELIN
+- 허브 탭 UI 표기: **델린** (`view=aria` 호환)
 
 ## 목적
-농장 허브 **ARIA** 탭(`view=aria`)에서 **단일 농장** 환경 요약을  
+농장 허브 **델린** 탭에서 **단일 농장** 환경 요약을  
 마이크 질문 → STT → **판단 프로토콜** → 서버 UNPACK 문장 → TTS 음성 안내.
 
-탭 구성: 그리드 · 목록 · 차트 · **ARIA**(음성 AI 전용). URL 계약은 [`farm-hub-url.md`](./farm-hub-url.md).
+탭 구성: 그리드 · 목록 · 차트 · **델린**. URL 계약은 [`farm-hub-url.md`](./farm-hub-url.md).
 
 ## 판단 프로토콜
 

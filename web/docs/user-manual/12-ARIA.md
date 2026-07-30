@@ -1,15 +1,21 @@
-# 12. ARIA — 음성 어시스턴트
+# 12. 델린(DELIN) — 음성 어시스턴트
 
-농장 현황을 **말하거나 글**로 묻고, 요약·안내를 듣는 보기입니다. 상단에서 **ARIA** 탭을 선택합니다.
+농장 현황을 **말하거나 글**로 묻고, 요약·안내를 듣는 보기입니다. 상단에서 **델린** 탭을 선택합니다.
 
-ARIA = *Agricultural Reporting & Intelligent Assistant* (농장 음성 어시스턴트).  
+**DELIN** = *Data-driven Environmental & Livestock Intelligence Navigator*  
+**델린** = 데이터 기반 축사 환경·가축 지능형 안내자  
+
+온도·습도·환기 등 LIVE 데이터를 바탕으로 이상상황과 **권장** 안내를 음성으로 돕습니다.  
+이름은 목동과 가축의 수호성인 성 벤델리노(Wendelin)에서 유래했습니다.  
+**축사를 이해하고, 농장을 지키는 AI — DELIN**
+
 현재는 **보조 PoC**입니다. 수치·정식 명칭은 서버가 조립하고, 화면에는 농장 표시명·축사유형·이상상황만 드러납니다.
 
-## ARIA 개요
+## 개요
 
-![ARIA 보기](./images/12-farm-aria.png)
+![델린 보기](./images/12-farm-aria.png)
 
-> 스크린샷이 아직 없으면 `/farm` → **ARIA** 탭을 캡처해 `images/12-farm-aria.png`로 저장하세요.
+> 스크린샷이 아직 없으면 `/farm` → **델린** 탭을 캡처해 `images/12-farm-aria.png`로 저장하세요.
 
 ### 이 화면에서 할 수 있는 것
 
@@ -20,14 +26,14 @@ ARIA = *Agricultural Reporting & Intelligent Assistant* (농장 음성 어시스
 
 ### 할 수 없는 것 (중요)
 
-- 컨트롤러 **설정 적용·명령 전송**을 ARIA가 대신하지 않습니다.
+- 컨트롤러 **설정 적용·명령 전송**을 델린이 대신하지 않습니다.
 - 「적용했습니다」류 안내는 **하지 않습니다**. 현장 대응은 **추천 문구만**일 수 있습니다.
 - 실제 설정 변경은 **목록·그리드 일괄적용**에서 직접 합니다. → [03-일괄적용.md](./03-일괄적용.md) · [04-컨트롤러-설정.md](./04-컨트롤러-설정.md)
 
 ## 사용 순서
 
 1. 헤더에서 확인할 **농장**을 고릅니다.
-2. **ARIA** 탭을 엽니다.
+2. **델린** 탭을 엽니다.
 3. 도크에서 **말하기**를 누르고 짧게 질문하거나, 글을 입력합니다.
 4. 오브가 생각·말하기 상태로 바뀌면 답변을 듣거나 화면 문장을 확인합니다.
 5. 더 자세한 현황·설정은 **그리드 / 목록 / 차트** 탭으로 이동합니다.
@@ -40,7 +46,7 @@ ARIA = *Agricultural Reporting & Intelligent Assistant* (농장 음성 어시스
 
 ## 역할
 
-| 역할 | ARIA |
+| 역할 | 델린 |
 |------|------|
 | 관리자 · 운영자 | 질문·음성 안내 사용 (환경·한도 내에서) |
 | 뷰어 | 조회·질문 가능 여부는 배포 설정에 따름. **적용·명령은 없음** |
@@ -51,6 +57,6 @@ ARIA = *Agricultural Reporting & Intelligent Assistant* (농장 음성 어시스
 
 - 판단 규칙 정본: [`../aria-protocol.md`](../aria-protocol.md)
 - PoC·한도·플래그: [`../voice-report-poc.md`](../voice-report-poc.md)
-- 탭 URL: [`../farm-hub-url.md`](../farm-hub-url.md) (`view=aria`)
+- 탭 URL(호환 키): [`../farm-hub-url.md`](../farm-hub-url.md) (`view=aria` → UI 표기는 델린)
 
 마이크 권한·OpenAI 키 등 환경이 없으면 말하기가 동작하지 않을 수 있습니다. 관리자에게 배포 설정을 확인하세요.
