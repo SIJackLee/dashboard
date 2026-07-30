@@ -367,4 +367,22 @@ export const dashboardUi = {
     "font-bold tabular-nums leading-none text-3xl sm:text-4xl",
   gridCellIconCompact: "size-5 shrink-0 sm:size-6",
   gridCellIconDefault: "size-6 shrink-0 sm:size-7",
+
+  /** Shell hotfix — used by farm-switcher / brand (full chroma set lands with design). */
+  menuItemActive: "bg-primary/5 dark:bg-primary/10",
+  brandChip:
+    "shrink-0 rounded border border-primary/25 bg-primary/5 px-1.5 py-0.5 text-[10px] font-medium text-foreground",
+} as const;
+
+/** Chroma — chrome tab/nav tokens (shell files import this; full H3 set lands with design branch). */
+export const dashboardChroma = {
+  chromeActiveText: "text-foreground",
+  chromeIdleText: "text-muted-foreground hover:text-foreground",
+  chromeSelected:
+    "border-primary/30 bg-primary/5 text-foreground dark:bg-primary/10",
+  viewTabPill:
+    "bg-card shadow-sm ring-1 ring-border/80 dark:bg-muted/50 dark:shadow-none dark:ring-0",
+  emptyState:
+    "px-4 py-8 text-center text-[length:var(--density-meta)] text-muted-foreground leading-snug md:text-[length:var(--density-meta-md)]",
+  skeletonBone: "animate-pulse rounded-md bg-muted/40",
 } as const;

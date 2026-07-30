@@ -2,9 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
-import { VoiceReportFab } from "@/components/farm/voice-report-fab";
 import type { AlarmSettings } from "@/lib/data/alarms";
-import type { FarmKey } from "@/lib/data/farm-key";
 import type { BarnReading } from "@/lib/data/iot";
 import type {
   TrendControllerPeriodData,
@@ -13,7 +11,6 @@ import type {
 import {
   buildFarmChartTree,
   chartScopeLabel,
-  DEFAULT_FARM_CHART_SCOPE,
   filterReadingsByChartScope,
   scopesEqual,
   type FarmChartScope,
@@ -26,35 +23,37 @@ type Props = {
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   period: TrendPeriodId;
   onPeriodChange?: (period: TrendPeriodId) => void;
+  /** URL 딥링크 집계 범위 (제어 컴포넌트) */
+  scope: FarmChartScope;
+  onScopeChange?: (scope: FarmChartScope) => void;
   alarmSettings?: AlarmSettings;
   isMobileStack?: boolean;
   /** 차트 탭 활성 — ScopeBar 레이어 툴바 enter/exit */
   layersToolbarActive?: boolean;
-  /** 음성 AI 기본 농장 (URL 선택). 없으면 FAB 숨김 */
-  currentFarm?: FarmKey | null;
   className?: string;
 };
 
 /**
  * 농장 보기 «차트» 탭 — 좌측 큰 통합 추이 + 우측 집계 범위 트리.
- * 기본 집계: 선택 농장 전체. 축사유형 → 번호 → 컨트롤러로 좁힘.
+ * 기본 집계: 선택 농장 전체. 유형 → 축사 → 컨트롤러 (URL chartSp/Stall/Ctrl).
  */
 export function FarmChartView({
   readings,
   controllerTrendByPeriod,
   period,
   onPeriodChange,
+  scope,
+  onScopeChange,
   alarmSettings,
   isMobileStack = false,
   layersToolbarActive = true,
-  currentFarm = null,
   className,
 }: Props) {
-  const [scope, setScope] = useState<FarmChartScope>(DEFAULT_FARM_CHART_SCOPE);
   const [expandedSp, setExpandedSp] = useState<Record<string, boolean>>({});
   const [expandedStall, setExpandedStall] = useState<Record<string, boolean>>(
     {},
   );
+  const [expandScopeKey, setExpandScopeKey] = useState("");
 
   const tree = useMemo(() => buildFarmChartTree(readings), [readings]);
   const scopedReadings = useMemo(
@@ -76,10 +75,29 @@ export function FarmChartView({
 
   const stallExpandKey = (ty: string, stallNo: string) => `${ty}::${stallNo}`;
 
-  const voiceFab =
-    currentFarm != null ? (
-      <VoiceReportFab currentFarm={currentFarm} compact={isMobileStack} />
-    ) : null;
+  /** 딥링크 범위 변경 시 트리 펼침 (render-time sync) */
+  const scopeExpandKey =
+    scope.level === "farm"
+      ? "farm"
+      : scope.level === "sp"
+        ? `sp:${scope.stallTyCode}`
+        : scope.level === "stall"
+          ? `stall:${scope.stallTyCode}:${scope.stallNo}`
+          : `ctrl:${scope.stallTyCode}:${scope.stallNo}:${scope.controllerKey}`;
+  if (scopeExpandKey !== expandScopeKey) {
+    setExpandScopeKey(scopeExpandKey);
+    if (scope.level !== "farm") {
+      setExpandedSp((prev) => ({ ...prev, [scope.stallTyCode]: true }));
+      if (scope.level !== "sp") {
+        const sk = stallExpandKey(scope.stallTyCode, scope.stallNo);
+        setExpandedStall((prev) => ({ ...prev, [sk]: true }));
+      }
+    }
+  }
+
+  const selectScope = (next: FarmChartScope) => {
+    onScopeChange?.(next);
+  };
 
   return (
     <div className={cn("relative min-h-0", className)} data-tour-id="farm-chart-view">
@@ -124,7 +142,7 @@ export function FarmChartView({
         <nav className="space-y-0.5 text-sm" aria-label="집계 범위 트리">
           <ScopeRow
             selected={scopesEqual(scope, { level: "farm" })}
-            onSelect={() => setScope({ level: "farm" })}
+            onSelect={() => selectScope({ level: "farm" })}
             depth={0}
             label="농장 전체"
             meta={`${readings.length}대`}
@@ -144,7 +162,7 @@ export function FarmChartView({
               >
                 <ScopeRow
                   selected={scopesEqual(scope, spScope)}
-                  onSelect={() => setScope(spScope)}
+                  onSelect={() => selectScope(spScope)}
                   depth={0}
                   label={sp.label}
                   meta={`${sp.controllerCount}대`}
@@ -170,7 +188,7 @@ export function FarmChartView({
                         <div key={sk}>
                           <ScopeRow
                             selected={scopesEqual(scope, stallScope)}
-                            onSelect={() => setScope(stallScope)}
+                            onSelect={() => selectScope(stallScope)}
                             depth={1}
                             label={stall.label}
                             meta={`${stall.controllers.length}대`}
@@ -195,7 +213,7 @@ export function FarmChartView({
                                   <ScopeRow
                                     key={c.controllerKey}
                                     selected={scopesEqual(scope, ctrlScope)}
-                                    onSelect={() => setScope(ctrlScope)}
+                                    onSelect={() => selectScope(ctrlScope)}
                                     depth={2}
                                     label={c.label}
                                   />
@@ -212,8 +230,6 @@ export function FarmChartView({
         </nav>
       </aside>
       </div>
-
-      {voiceFab}
     </div>
   );
 }
@@ -267,7 +283,7 @@ function ScopeRow({
           "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-[0.8rem]",
           motionClass.microHover,
           selected
-            ? "bg-sky-50 font-medium text-sky-900 dark:bg-sky-950/50 dark:text-sky-100"
+            ? "bg-channel-info/10 font-medium text-channel-info dark:bg-channel-info/15 dark:text-channel-info"
             : "text-foreground hover:bg-muted/50",
         )}
         aria-current={selected ? "true" : undefined}
