@@ -4,6 +4,12 @@ import {
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import {
+  clearFarmChartScopeParams,
+  CHART_CTRL_PARAM,
+  CHART_SP_PARAM,
+  CHART_STALL_PARAM,
+} from "@/lib/farm/farm-chart-scope";
 
 export const TREND_PERIOD_PARAM = "trendPeriod";
 
@@ -34,18 +40,18 @@ export function trendPeriodLabel(period: TrendPeriodId): string {
 export type FarmMapDrillLevel = "sp" | "stalls";
 
 /** 목록 탭 — 카드 그리드 전역 보기 모드 */
-export type BarnListViewMode = "controller" | "graph" | "settings" | "channel";
+export type BarnListViewMode = "controller" | "graph" | "settings";
 
 const LIST_VIEW_MODES: BarnListViewMode[] = [
   "controller",
   "graph",
   "settings",
-  "channel",
 ];
 
 export function parseListViewMode(
   raw: string | null | undefined
 ): BarnListViewMode {
+  // 레거시 listMode=channel → graph (읽기만; 쓰기는 graph)
   if (raw === "channel") return "graph";
   if (raw && LIST_VIEW_MODES.includes(raw as BarnListViewMode)) {
     return raw as BarnListViewMode;
@@ -63,6 +69,16 @@ export function resolveListViewMode(
   return fallback ?? "controller";
 }
 
+/**
+ * URL에 남은 `listMode=channel` → `graph` 정규화.
+ * @returns 변경 여부
+ */
+export function normalizeLegacyListModeParam(params: URLSearchParams): boolean {
+  if (params.get("listMode") !== "channel") return false;
+  params.set("listMode", "graph");
+  return true;
+}
+
 export function setListViewMode(
   params: URLSearchParams,
   mode: BarnListViewMode
@@ -71,14 +87,15 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
-/** hub /farm 상단 탭 — 그리드(map) · 목록 · 차트 */
-export type FarmHubView = "map" | "list" | "chart";
+/** hub /farm 상단 탭 — 그리드(map) · 목록 · 차트 · ARIA */
+export type FarmHubView = "map" | "list" | "chart" | "aria";
 
 export function resolveFarmHubView(
   raw: string | null | undefined,
 ): FarmHubView {
   if (raw === "list") return "list";
   if (raw === "chart") return "chart";
+  if (raw === "aria" || raw === "jarvis") return "aria";
   return "map";
 }
 
@@ -87,9 +104,10 @@ export function applyListViewParams(params: URLSearchParams): void {
   params.set("view", "list");
   params.delete("stall");
   params.delete("mapLevel");
+  clearFarmChartScopeParams(params);
 }
 
-/** 차트 탭 — 전폭 통합 추이 테스트 뷰 */
+/** 차트 탭 — 전폭 통합 추이. chart* 딥링크는 유지 */
 export function applyChartViewParams(params: URLSearchParams): void {
   params.set("view", "chart");
   params.delete("listMode");
@@ -97,11 +115,21 @@ export function applyChartViewParams(params: URLSearchParams): void {
   params.delete("mapLevel");
 }
 
+/** ARIA 탭 — Agricultural Reporting & Intelligent Assistant */
+export function applyAriaViewParams(params: URLSearchParams): void {
+  params.set("view", "aria");
+  params.delete("listMode");
+  params.delete("stall");
+  params.delete("mapLevel");
+  clearFarmChartScopeParams(params);
+}
+
 /** 지도 탭 — 그리드 진입(드릴 쿼리 제거) */
 export function applyMapGridParams(params: URLSearchParams): void {
   params.delete("view");
   params.delete("listMode");
   clearMapDrillParams(params);
+  clearFarmChartScopeParams(params);
 }
 
 export function clearMapDrillParams(params: URLSearchParams): void {
@@ -143,7 +171,7 @@ export function buildFarmPath(params: URLSearchParams): string {
   return q ? `/farm?${q}` : "/farm";
 }
 
-/** view=list|map|chart 전환 (레거시 tab=ops 쿼리 제거) */
+/** view=list|map|chart|aria 전환 (레거시 tab=ops 쿼리 제거) */
 export function applyHubScopedViewParams(
   params: URLSearchParams,
   view: FarmHubView,
@@ -151,7 +179,23 @@ export function applyHubScopedViewParams(
   params.delete("tab");
   if (view === "list") applyListViewParams(params);
   else if (view === "chart") applyChartViewParams(params);
+  else if (view === "aria") applyAriaViewParams(params);
   else applyMapGridParams(params);
+}
+
+/**
+ * 기간 등 view와 무관한 shallow 갱신 시 활성 탭만 URL에 고정.
+ * applyHubScopedViewParams와 달리 map 드릴(sp/stall/mapLevel)은 건드리지 않음.
+ */
+export function pinFarmHubViewParam(
+  params: URLSearchParams,
+  view: FarmHubView,
+): void {
+  if (view === "list" || view === "chart" || view === "aria") {
+    params.set("view", view);
+  } else {
+    params.delete("view");
+  }
 }
 
 /** hub farm 선택 시 in-grid drill + view 탭 초기화 */
@@ -161,8 +205,20 @@ export function clearHubFarmDrillParams(params: URLSearchParams): void {
   params.delete("listMode");
   params.delete("ctrl");
   params.delete("alarm");
+  clearFarmChartScopeParams(params);
 }
 
+/**
+ * Epoch 이중 구조 (의도적 분리 — 합치지 말 것):
+ * - **farmUrlEpoch** (`subscribeFarmUrlEpoch`): `replaceFarmUrlShallow` / popstate.
+ *   TopBar·DailyReport 등 window URL 구독.
+ * - **hubUrlEpoch** (shell local + admin context): 농장 전환·탭 전환 시
+ *   `FarmPageContent` view 재동기화.
+ * - **requestFarmHubViewResync**: Provider 밖(모바일 하단 내비 등)에서
+ *   shallow 후 탭 state만 URL에 맞출 때.
+ * 기간(`trendPeriod`)만 바꿀 때는 farmUrlEpoch만 bump하고 hubUrlEpoch·resync는 올리지 말 것
+ * (차트→그리드 레이스).
+ */
 /** in-grid drill — router.replace 없이 URL만 갱신 (그리드 깜빡임 방지) */
 export function replaceFarmUrlShallow(params: URLSearchParams): void {
   if (typeof window === "undefined") return;
@@ -175,6 +231,48 @@ export function replaceFarmUrlShallow(params: URLSearchParams): void {
 export function currentFarmSearchParams(): URLSearchParams {
   if (typeof window === "undefined") return new URLSearchParams();
   return new URLSearchParams(window.location.search);
+}
+
+/**
+ * 모니터링 soft home — 농장 키·기간만 유지, 탭/드릴/목록모드 제거.
+ * (모바일 하단 «모니터링», 허브 홈 복귀)
+ */
+export function buildFarmMonitoringHomeParams(
+  source: URLSearchParams,
+): URLSearchParams {
+  const next = new URLSearchParams();
+  const lsind = source.get("lsind");
+  const item = source.get("item");
+  if (lsind) next.set("lsind", lsind);
+  if (item) next.set("item", item);
+  const trend = source.get(TREND_PERIOD_PARAM);
+  if (trend === "7d" || trend === "30d") next.set(TREND_PERIOD_PARAM, trend);
+  return next;
+}
+
+export function buildFarmMonitoringHomePath(
+  source?: URLSearchParams,
+): string {
+  const from = source ?? currentFarmSearchParams();
+  return buildFarmPath(buildFarmMonitoringHomeParams(from));
+}
+
+/** 이미 그리드 홈(탭·드릴 없음)이면 true — 하단 내비 no-op용 */
+export function isFarmMonitoringSoftHome(params: URLSearchParams): boolean {
+  if (params.get("view")) return false;
+  if (params.get("listMode")) return false;
+  if (params.get("sp") || params.get("stall") || params.get("mapLevel")) {
+    return false;
+  }
+  if (params.get("ctrl") || params.get("alarm")) return false;
+  if (
+    params.get(CHART_SP_PARAM) ||
+    params.get(CHART_STALL_PARAM) ||
+    params.get(CHART_CTRL_PARAM)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -208,6 +306,22 @@ export function getFarmUrlEpoch(): number {
 
 export function getFarmUrlEpochServer(): number {
   return 0;
+}
+
+/** Provider 밖 shallow 후 탭 view 재동기화 (기간 변경에는 사용 금지) */
+const hubViewResyncListeners = new Set<() => void>();
+
+export function requestFarmHubViewResync(): void {
+  hubViewResyncListeners.forEach((l) => l());
+}
+
+export function subscribeFarmHubViewResync(
+  onStoreChange: () => void,
+): () => void {
+  hubViewResyncListeners.add(onStoreChange);
+  return () => {
+    hubViewResyncListeners.delete(onStoreChange);
+  };
 }
 
 export function parseMapDrillLevel(

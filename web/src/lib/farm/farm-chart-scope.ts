@@ -170,3 +170,60 @@ export function scopesEqual(a: FarmChartScope, b: FarmChartScope): boolean {
       );
   }
 }
+
+/** 차트 집계 딥링크 — 맵 drill(`sp`/`stall`)과 분리 */
+export const CHART_SP_PARAM = "chartSp";
+export const CHART_STALL_PARAM = "chartStall";
+export const CHART_CTRL_PARAM = "chartCtrl";
+
+export function clearFarmChartScopeParams(params: URLSearchParams): void {
+  params.delete(CHART_SP_PARAM);
+  params.delete(CHART_STALL_PARAM);
+  params.delete(CHART_CTRL_PARAM);
+}
+
+/** URL → 집계 범위. 불완전/빈 값은 가능한 상위 레벨로 완화. */
+export function resolveFarmChartScope(
+  params: URLSearchParams,
+): FarmChartScope {
+  const spRaw = params.get(CHART_SP_PARAM)?.trim() ?? "";
+  const stallRaw = params.get(CHART_STALL_PARAM)?.trim() ?? "";
+  const ctrlRaw = params.get(CHART_CTRL_PARAM)?.trim() ?? "";
+  if (!spRaw) return DEFAULT_FARM_CHART_SCOPE;
+
+  const stallTyCode = normalizeStallTyCode(spRaw);
+  if (ctrlRaw && stallRaw) {
+    return {
+      level: "controller",
+      stallTyCode,
+      stallNo: stallRaw,
+      controllerKey: safeDecodeCtrl(ctrlRaw),
+    };
+  }
+  if (stallRaw) {
+    return { level: "stall", stallTyCode, stallNo: stallRaw };
+  }
+  return { level: "sp", stallTyCode };
+}
+
+function safeDecodeCtrl(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+/** 집계 범위 → URL. farm 레벨이면 chart* 제거. */
+export function applyFarmChartScopeParams(
+  params: URLSearchParams,
+  scope: FarmChartScope,
+): void {
+  clearFarmChartScopeParams(params);
+  if (scope.level === "farm") return;
+  params.set(CHART_SP_PARAM, normalizeStallTyCode(scope.stallTyCode));
+  if (scope.level === "sp") return;
+  params.set(CHART_STALL_PARAM, scope.stallNo.trim());
+  if (scope.level === "stall") return;
+  params.set(CHART_CTRL_PARAM, encodeURIComponent(scope.controllerKey));
+}

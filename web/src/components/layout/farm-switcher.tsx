@@ -18,7 +18,11 @@ import {
   farmShortLabel,
   type FarmSummaryRow,
 } from "@/lib/data/farm-summaries";
-import { replaceFarmUrlShallow } from "@/lib/farm/farm-view-url";
+import {
+  clearHubFarmDrillParams,
+  currentFarmSearchParams,
+  replaceFarmUrlShallow,
+} from "@/lib/farm/farm-view-url";
 import { useAdminHubPanelsOptional } from "@/lib/navigation/admin-hub-panels-context";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -94,18 +98,20 @@ function FarmSwitcherBody({
   }, [farmOptions, liveByFarmId]);
 
   const navigate = (farmKey: FarmKey | null) => {
-    const params = new URLSearchParams(searchParams.toString());
+    // /farm shallow는 window URL 기준 — useSearchParams는 탭·기간 desync됨.
+    const params =
+      pathname === "/farm"
+        ? new URLSearchParams(currentFarmSearchParams().toString())
+        : new URLSearchParams(searchParams.toString());
     params.delete("lsind");
     params.delete("item");
 
+    if (pathname === "/farm") {
+      clearHubFarmDrillParams(params);
+    }
+
     if (farmKey) {
       appendFarmKeyParams(params, farmKey);
-      if (pathname === "/farm") {
-        params.delete("view");
-      }
-    } else if (pathname === "/farm") {
-      params.delete("view");
-      params.delete("sp");
     }
 
     const query = params.toString();
@@ -150,7 +156,7 @@ function FarmSwitcherBody({
                 "gap-3 rounded-xl px-5 py-2",
                 dashboardUi.body,
                 activeId === null
-                  ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200"
+                  ? cn(dashboardUi.menuItemActive, "text-foreground")
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )
         )}
@@ -184,7 +190,7 @@ function FarmSwitcherBody({
         className={cn(
           compact
             ? cn(dashboardUi.scopePillMenu, "!w-auto min-w-[var(--anchor-width)]")
-            : "min-w-[28rem] rounded-xl p-2 text-sm leading-snug md:text-[1.75rem] !w-auto"
+            : "min-w-[28rem] rounded-xl p-2 text-sm leading-snug md:text-[length:var(--density-meta-md)] !w-auto"
         )}
       >
         <DropdownMenuItem
@@ -192,8 +198,8 @@ function FarmSwitcherBody({
           className={cn(
             compact
               ? dashboardUi.scopePillMenuItem
-              : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[1.75rem]",
-            activeId === null && "bg-emerald-50 dark:bg-emerald-950/30"
+              : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[length:var(--density-meta-md)]",
+            activeId === null && dashboardUi.menuItemActive
           )}
         >
           <span className="flex-1 font-medium">
@@ -212,15 +218,15 @@ function FarmSwitcherBody({
               className={cn(
                 compact
                   ? dashboardUi.scopePillMenuItem
-                  : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[1.75rem]",
-                activeId === id && "bg-emerald-50 dark:bg-emerald-950/30"
+                  : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[length:var(--density-meta-md)]",
+                activeId === id && dashboardUi.menuItemActive
               )}
             >
               <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate">{farmShortLabel(farmKey)}</span>
                 {hasLiveSummary ? (
                   isLive ? (
-                    <span className="shrink-0 rounded border border-emerald-500/40 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                    <span className={dashboardUi.brandChip}>
                       LIVE
                     </span>
                   ) : (
@@ -234,7 +240,7 @@ function FarmSwitcherBody({
                 <span
                   className={cn(
                     "tabular-nums font-semibold",
-                    "text-sm leading-snug md:text-[1.75rem]",
+                    "text-sm leading-snug md:text-[length:var(--density-meta-md)]",
                     alarms > 0
                       ? "text-amber-700 dark:text-amber-400"
                       : "text-muted-foreground"
