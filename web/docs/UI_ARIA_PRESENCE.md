@@ -7,10 +7,32 @@
 
 | 소유 | 허용 | 금지 |
 |------|------|------|
-| **디자인 & 애니메이션** | `.aria-orb-*` / `.aria-shell-*` / `.aria-dock-in`, `--motion-aria-*`, `dashboardAriaShell`, `farm-aria-view` **셸 클래스**, dock 크롬 | `lib/aria` 판단, JUDGE/SAY/REC, voice-report **API·상태 머신** |
+| **디자인 & 애니메이션** | `.aria-orb-*` / `.aria-shell-*` / `.aria-stage-*` / `.aria-dock-in`, `--motion-aria-*`, `dashboardAriaShell`, `farm-aria-view` **셸 클래스**, dock 크롬, `AriaStageLayout` 모션 | `lib/aria` 판단, JUDGE/SAY/REC, voice-report **API·상태 머신** |
 | **[프로토콜] ARIA** | 판단·문장·음성 파이프라인 | 임의 장식 모션·색 하드코딩 |
 
 교차 시 셸 클래스만 디자인 Agent, 입력/ASK 로직은 프로토콜 Agent.
+
+## 스테이지 포커스 (페이즈1+)
+
+| `data-aria-stage-focus` | 오브 | 지표 |
+|-------------------------|------|------|
+| `orb` (idle/listen/think) | 중앙 | listen/think 때 레일, idle 접힘 |
+| `metrics` (speak) | 측면 축소 (`.aria-stage-orb-side`) | 전면 히어로 (`.aria-stage-metrics-hero`) |
+
+### 모션 훅 (디자인 Agent)
+
+| 클래스 | 역할 |
+|--------|------|
+| `.aria-stage-metrics-rail` / `-hero` | 지표 등장 |
+| `.aria-stage-orb-center` / `-side` | 오브 축소·이동 |
+| `.aria-stage-slide-body` | 슬라이드 페이지 전환 |
+| `.aria-stage-metrics-panel[data-emphasized="1"]` | 답변 중 패널 강조 |
+
+`prefers-reduced-motion: reduce` 시 stage 애니메이션·transition 비활성(배치 클래스만 유지).
+
+슬라이드 페이지: 환경(온도·습도) · 그래프(축사별) · 현황(컨트롤러·이상). **암모니아 없음.**  
+LIVE: `fetchAriaFarmMetricsAction` → `buildFarmFacts` (농장 선택 시 prefetch, 대화 중 30s 폴링).  
+도크: 사운드/마이크 테스트는 **장치 테스트** 접기(기본 숨김). TTS·말하기·텍스트는 유지.
 
 ## 톤 대비
 

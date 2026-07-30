@@ -30,6 +30,22 @@ const motionRestrictedSyntax = [
   },
 ];
 
+/** Tailwind sky/rose — channel-* / primary / status 토큰 사용 (T5) */
+const colorRestrictedSyntax = [
+  {
+    selector:
+      "Literal[value=/(?:^|[\\s\"'`:[])(?:bg|text|border|ring|stroke|fill|from|to|via|outline|decoration|accent|caret|divide|shadow)-?(?:sky|rose)-\\d/]",
+    message:
+      "sky-* / rose-* 금지 — channel-temp|hum|motor|info 또는 primary / status 토큰 사용 (docs/UI_MOTION.md T5)",
+  },
+  {
+    selector:
+      "TemplateElement[value.raw=/(?:^|[\\s\"'`:[])(?:bg|text|border|ring|stroke|fill|from|to|via|outline|decoration|accent|caret|divide|shadow)-?(?:sky|rose)-\\d/]",
+    message:
+      "sky-* / rose-* 금지 — channel-* / primary / status 토큰 사용 (docs/UI_MOTION.md T5)",
+  },
+];
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -37,7 +53,11 @@ const eslintConfig = defineConfig([
     files: ["**/*.{ts,tsx,js,jsx}"],
     ignores: [".next/**", "out/**", "build/**", "node_modules/**", "scripts/**"],
     rules: {
-      "no-restricted-syntax": ["error", ...motionRestrictedSyntax],
+      "no-restricted-syntax": [
+        "error",
+        ...motionRestrictedSyntax,
+        ...colorRestrictedSyntax,
+      ],
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {

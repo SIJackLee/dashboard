@@ -6,6 +6,7 @@
  *   node scripts/motion-reduced-audit.mjs
  *   UI_VERIFY_BASE=http://localhost:3000 node scripts/motion-reduced-audit.mjs
  *   STRICT_MOTION_RUNTIME=1 …  — BASE 필수 + 런타임 실패 시 exit 1
+ *   node scripts/motion-reduced-audit.mjs --strict  — 동일 (CI용)
  */
 import { readFileSync, mkdirSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
@@ -16,7 +17,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cssPath = join(root, "src/app/globals.css");
 const outDir = join(root, "tmp");
 const BASE = process.env.UI_VERIFY_BASE ?? "http://localhost:3000";
-const STRICT = process.env.STRICT_MOTION_RUNTIME === "1";
+const STRICT =
+  process.env.STRICT_MOTION_RUNTIME === "1" ||
+  process.argv.includes("--strict");
 
 const DURATION_KEYS = [
   "fast",
@@ -30,8 +33,15 @@ const DURATION_KEYS = [
 const REQUIRED_REDUCE_SELECTORS = [
   ".ui-motion-enter-fade",
   ".ui-motion-exit-fade",
+  ".ui-motion-enter-slide-up",
   ".ui-motion-panel-expand",
   ".ui-motion-stagger-in",
+  ".ui-motion-toast",
+  ".ui-motion-command-overlay",
+  ".ui-motion-command-card",
+  ".ui-motion-feedback-icon",
+  ".aria-dock-in",
+  ".farm-chart-hover-ring",
 ];
 
 function assertStaticCss() {

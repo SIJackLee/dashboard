@@ -8,12 +8,13 @@
 
 ## 유지 (CI · package.json · 가드)
 
-| 스크립트 / npm | 용도 | Agent |
-|----------------|------|--------|
-| `verify:design` (`verify-motion-*`, `verify-ui-*`, `audit:motion-reduced`) | 디자인 토큰·모션·밀도·elevation 가드 | 디자인 |
-| `audit:ship-checklist` 등 `audit:*` | 출고·모바일·명령 감사 | 공통 |
-| `measure:live` / `measure:hub-ttfb` | 성능 기준 | 공통 |
-| `src/lib/aria/protocol/protocol.test.ts` | 프로토콜 단위 테스트 | ARIA |
+| 스크립트 / npm | 용도 | 비고 |
+|----------------|------|------|
+| `verify:design` (motion + ui-density) | 모션·맵 수치 가드 | 기본 게이트 |
+| `verify:motion-css` / `verify:ui-*:strict` | 차트 CSS·색·elevation | 선택(엄격) |
+| `audit:ship-checklist` 등 `audit:*` | 출고·모바일·명령 감사 | |
+| `measure:live` / `measure:hub-ttfb` | 성능 기준 | |
+| `src/lib/aria/protocol/protocol.test.ts` | 프로토콜 단위 테스트 | npm 미등록(P1) |
 
 ---
 
