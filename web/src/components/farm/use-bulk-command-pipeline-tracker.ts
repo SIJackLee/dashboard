@@ -55,6 +55,8 @@ type Args = {
   readings: BarnReading[];
   /** farm soft refresh / RSC refresh */
   onRefreshLive?: () => void;
+  /** ACK(sent/applied) 시 UI 설정값을 명령값으로 유지 */
+  onCommandAck?: (cmd: ThermoCommand) => void;
 };
 
 type ThermoValues = Pick<
@@ -148,6 +150,7 @@ export function useBulkCommandPipelineTracker({
   thermoSettings,
   readings,
   onRefreshLive,
+  onCommandAck,
 }: Args) {
   const [rows, setRows] = useState<BulkLiveTrackRow[]>([]);
   const [active, setActive] = useState(false);
@@ -156,8 +159,12 @@ export function useBulkCommandPipelineTracker({
   const startedAtRef = useRef<number | null>(null);
   const rowsRef = useRef(rows);
   const onRefreshLiveRef = useRef(onRefreshLive);
+  const onCommandAckRef = useRef(onCommandAck);
   useEffect(() => {
     onRefreshLiveRef.current = onRefreshLive;
+  });
+  useEffect(() => {
+    onCommandAckRef.current = onCommandAck;
   });
 
   const readingByKey = useMemo(() => {
@@ -322,7 +329,17 @@ export function useBulkCommandPipelineTracker({
           prev.map((row) => {
             const fetched = updates.find((u) => u?.id === row.id) ?? null;
             const command = mergeCommand(row.command, fetched);
-            return command === row.command ? row : { ...row, command };
+            if (command !== row.command) {
+              // ACK 직후 UI는 LIVE 옛값보다 명령값 유지
+              if (
+                isAckDone(command.status) &&
+                !isAckDone(row.command.status)
+              ) {
+                onCommandAckRef.current?.(command);
+              }
+              return { ...row, command };
+            }
+            return row;
           }),
         );
         // pending-only 구간은 명령 status만. LIVE n/N 확인 중일 때만 farm LIVE 갱신

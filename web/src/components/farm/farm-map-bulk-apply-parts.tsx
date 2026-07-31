@@ -1,11 +1,29 @@
 import type { BulkThermoCommand } from "@/app/(dashboard)/controllers/actions";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { resolveThermoSettings } from "@/lib/controllers/controller-settings";
+import {
+  resolveThermoSettings,
+  type ControllerThermoSettings,
+} from "@/lib/controllers/controller-settings";
 import { EDIT_START_DRAFT } from "@/lib/controllers/controller-panel-map";
+import {
+  buildAlarmScopeKey,
+  resolveThresholdsForScope,
+} from "@/lib/data/alarm-scope";
+import {
+  DEFAULT_ALARM_SETTINGS,
+  DEFAULT_ALARM_THRESHOLDS,
+  type AlarmSettings,
+  type AlarmThresholds,
+} from "@/lib/data/alarms";
+import { farmKeyId } from "@/lib/data/farm-key";
+import type { BarnReading } from "@/lib/data/iot";
 import {
   DEFAULT_CHANNEL_EQPMN,
   type ChannelSlot,
 } from "@/lib/data/iot-channel";
+import { isReadingOnline } from "@/lib/data/reading-display";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
 import { cn } from "@/lib/utils";
 
 /** 일괄설정 모달 — Card 상속 타이포 차단 + 뷰포트별 스케일 */
@@ -81,6 +99,55 @@ export type BulkThermoDraft = {
 };
 
 export const BULK_CHANNEL_OPTIONS: ChannelSlot[] = ["A", "B", "C"];
+
+/** 일괄설정 모달 시드 — 대상의 현재 설정(명령 우선 merge) */
+export function bulkThermoDraftSeed(
+  targets: BarnReading[],
+  thermoSettings: Record<string, ControllerThermoSettings>,
+): Pick<BulkThermoDraft, "setpoint" | "deviation" | "minVent" | "maxVent"> {
+  const ordered = [
+    ...targets.filter((r) => isReadingOnline(r.status)),
+    ...targets.filter((r) => !isReadingOnline(r.status)),
+  ];
+  for (const r of ordered) {
+    const t = resolveReadingThermo(r, thermoSettings);
+    if (!t) continue;
+    return {
+      setpoint: t.setpointTemp,
+      deviation: t.tempDeviation,
+      minVent: t.minVentPct,
+      maxVent: t.maxVentPct,
+    };
+  }
+  return {
+    setpoint: EDIT_START_DRAFT.setpointTemp,
+    deviation: EDIT_START_DRAFT.tempDeviation,
+    minVent: EDIT_START_DRAFT.minVentPct,
+    maxVent: EDIT_START_DRAFT.maxVentPct,
+  };
+}
+
+/** 선택 SP의 현재 알람 임계값 (첫 SP 기준) */
+export function bulkAlarmDraftSeed(
+  targets: BarnReading[],
+  selectedSps: readonly string[],
+  alarmSettings: AlarmSettings | null | undefined,
+): AlarmThresholds {
+  const settings = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
+  const sp = selectedSps[0];
+  const sample =
+    targets.find(
+      (r) => sp != null && normalizeStallTyCode(r.stallTyCode) === sp,
+    ) ?? targets[0];
+  if (!sample || !sp) return DEFAULT_ALARM_THRESHOLDS;
+  return resolveThresholdsForScope(
+    settings,
+    buildAlarmScopeKey({
+      farmId: farmKeyId(sample.farmKey),
+      sp: normalizeStallTyCode(sp),
+    }),
+  );
+}
 
 function thermoValuesForReading(
   r: ControllerGridData["readings"][number],

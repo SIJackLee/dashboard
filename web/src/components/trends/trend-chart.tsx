@@ -7,6 +7,7 @@ import {
   useLayoutEffect,
   useId,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { Check, RotateCcw } from "lucide-react";
@@ -217,6 +218,8 @@ type TrendChartProps = {
   /** 스코프 스택 변경 시 줌 인/아웃 모션 키 */
   scopeMotionKey?: number;
   scopeMotionDir?: "in" | "out";
+  /** 빈 플롯 더블클릭 — 설정모드 토글 등 */
+  onPlotDoubleClick?: () => void;
   /**
    * draggable scaleEdgeLabels — 세로 드래그로 domain Y 조절.
    * X스코프와 충돌 시 가이드 hit이 우선.
@@ -586,6 +589,7 @@ export function TrendChart({
   onXScopeBack,
   scopeMotionKey = 0,
   scopeMotionDir = "in",
+  onPlotDoubleClick,
   onScaleEdgeDrag,
   onScaleEdgeNumericCommit,
   onScaleEdgeApply,
@@ -1108,6 +1112,15 @@ export function TrendChart({
     onXScopePointerCancel();
   };
 
+  const onPlotDoubleClickHandler = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onPlotDoubleClick) return;
+    if (edgeEdit || edgeDragRef.current || labelDragArmRef.current) return;
+    // 직전 포인터가 줌 드래그였으면 무시
+    if (xScopeDraggingRef.current) return;
+    e.preventDefault();
+    onPlotDoubleClick();
+  };
+
   const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!xScopeSelect || !onXScopeCommit || e.button !== 0 || n < 2) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -1602,6 +1615,7 @@ export function TrendChart({
         onPointerMove={onPlotPointerMove}
         onPointerUp={onPlotPointerUp}
         onPointerCancel={onPlotPointerCancel}
+        onDoubleClick={onPlotDoubleClickHandler}
         onContextMenu={onPlotContextMenu}
       >
       <svg

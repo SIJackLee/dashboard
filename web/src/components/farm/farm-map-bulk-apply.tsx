@@ -44,6 +44,8 @@ import {
   BULK_CHANNEL_OPTIONS,
   SectionToggle,
   buildBulkThermoCommands,
+  bulkAlarmDraftSeed,
+  bulkThermoDraftSeed,
   bulkModalShell,
   bulkModalSectionTitle,
   bulkModalMeta,
@@ -53,6 +55,7 @@ import {
   bulkModalTrackShell,
 } from "@/components/farm/farm-map-bulk-apply-parts";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
@@ -252,6 +255,7 @@ export function FarmMapBulkApply({
 }: Props) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const isMobile = useMobileLayout();
+  const liveRefresh = useFarmLiveRefreshOptional();
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [applyPhase, setApplyPhase] = useState<ApplyPhase>("idle");
@@ -284,6 +288,7 @@ export function FarmMapBulkApply({
     thermoSettings: controller.thermoSettings,
     readings: controller.readings,
     onRefreshLive,
+    onCommandAck: (cmd) => liveRefresh?.patchThermoFromCommand(cmd),
   });
 
   const spSet = useMemo(() => new Set(selectedSps), [selectedSps]);
@@ -299,6 +304,29 @@ export function FarmMapBulkApply({
     [targets]
   );
   const offlineCount = targets.length - onlineTargets.length;
+
+  const openSettingsWithCurrent = useCallback(() => {
+    const thermo = bulkThermoDraftSeed(targets, controller.thermoSettings);
+    setSetpoint(thermo.setpoint);
+    setDeviation(thermo.deviation);
+    setMinVent(thermo.minVent);
+    setMaxVent(thermo.maxVent);
+    setAlarm(
+      bulkAlarmDraftSeed(
+        targets,
+        selectedSps,
+        controller.alarmSettings,
+      ),
+    );
+    setError(null);
+    setResult(null);
+    setOpen(true);
+  }, [
+    targets,
+    controller.thermoSettings,
+    controller.alarmSettings,
+    selectedSps,
+  ]);
 
   const nothingSelected = !applyTemp && !applyVent && !applyAlarm;
   const wantedControl = applyTemp || applyVent;
@@ -460,6 +488,9 @@ export function FarmMapBulkApply({
       };
       const feedback = formatBulkApplyFeedback(applied, applyOpts);
       if (control?.sentItems?.length) {
+        for (const item of control.sentItems) {
+          liveRefresh?.patchThermoFromCommand(item.command);
+        }
         liveTracker.startSession(control.sentItems);
       }
       setLastApplyOpts(applyOpts);
@@ -1143,7 +1174,7 @@ export function FarmMapBulkApply({
             </button>
             <button
               type="button"
-              onClick={() => setOpen(true)}
+              onClick={openSettingsWithCurrent}
               disabled={selectedSps.length === 0}
               className={cn(
                 bulkModalBtn,

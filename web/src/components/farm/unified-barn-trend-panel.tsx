@@ -33,6 +33,7 @@ import type {
 import {
   findControllerTrendSeries,
   resolveReadingAlarmThresholds,
+  resolveReadingThermo,
 } from "@/lib/farm/controller-summary-display";
 import {
   alarmScopeKeyFromFarmChartScope,
@@ -52,10 +53,7 @@ import {
   clampMenuValue,
   EDIT_START_DRAFT,
 } from "@/lib/controllers/controller-panel-map";
-import {
-  resolveThermoSettings,
-  type ControllerThermoSettings,
-} from "@/lib/controllers/controller-settings";
+import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import {
   downsampleTrendAxis,
   tickEveryForDisplayBars,
@@ -256,6 +254,7 @@ export function UnifiedBarnTrendPanel({
     thermoSettings,
     readings: scopedReadings,
     onRefreshLive: onThermoRefreshLive,
+    onCommandAck: (cmd) => liveRefresh?.patchThermoFromCommand(cmd),
   });
 
   const alarmScopeKey = useMemo(
@@ -289,12 +288,8 @@ export function UnifiedBarnTrendPanel({
     for (const c of controllers) {
       const r = c.reading;
       if (!r) continue;
-      const hit = resolveThermoSettings(
-        thermoSettings,
-        r.farmKey,
-        r.moduleUid,
-        r.controllerKey,
-      );
+      // 채널 A·명령 우선 (slim LIVE 베이스 키만 보면 ACK 전 옛값으로 시드됨)
+      const hit = resolveReadingThermo(r, thermoSettings);
       if (hit) {
         return {
           setpointTemp: hit.setpointTemp,
@@ -813,6 +808,15 @@ export function UnifiedBarnTrendPanel({
     setThermoDraft(null);
     thermoDraftRef.current = null;
     setThermoApplyError(null);
+  };
+
+  const toggleControlModeFromPlot = () => {
+    if (controlMode) {
+      exitControlMode();
+      return;
+    }
+    if (!canCommand) return;
+    enterControlMode();
   };
 
   const applyThermoDraft = useCallback(() => {
@@ -1355,6 +1359,9 @@ export function UnifiedBarnTrendPanel({
           onXScopeBack={controlMode ? undefined : popXScope}
           scopeMotionKey={scopeMotionKey}
           scopeMotionDir={scopeMotionDir}
+          onPlotDoubleClick={
+            canCommand || controlMode ? toggleControlModeFromPlot : undefined
+          }
           onScaleEdgeDrag={
             controlMode
               ? thermoDragEnabled

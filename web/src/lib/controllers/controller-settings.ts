@@ -193,8 +193,16 @@ export function buildThermoSettingsFromReadings(
     }
     const parsed = thermoFromDecoded(r.thermo);
     if (!parsed) continue;
-    const key = thermoSettingsKey(r.farmKey, r.moduleUid, r.controllerKey);
-    assignLiveThermo(out, key, parsed, r.receivedAt);
+    // slim list-tier: root thermo = channel A flat fields (channels[] 생략).
+    // :A에도 넣어 채널 명령 키와 merge·resolve가 맞물리게 함.
+    const baseKey = thermoSettingsKey(r.farmKey, r.moduleUid, r.controllerKey);
+    assignLiveThermo(out, baseKey, parsed, r.receivedAt);
+    assignLiveThermo(
+      out,
+      thermoSettingsKey(r.farmKey, r.moduleUid, r.controllerKey, "A"),
+      parsed,
+      r.receivedAt,
+    );
   }
   return out;
 }
