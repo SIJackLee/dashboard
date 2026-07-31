@@ -241,6 +241,55 @@ export function clearDescendantScopeOverrides(
   return { settings: { ...settings, byScope: next }, cleared };
 }
 
+function clearStallTyCodeOverrides(
+  settings: AlarmSettings,
+  stallTyCodes: Iterable<string>
+): { settings: AlarmSettings; cleared: number } {
+  let next = settings;
+  let cleared = 0;
+  for (const raw of stallTyCodes) {
+    const sp = normalizeStallTyCode(raw);
+    if (sp === "UNK" || !next.byStallTyCode[sp]) continue;
+    const byStallTyCode = { ...next.byStallTyCode };
+    delete byStallTyCode[sp];
+    next = { ...next, byStallTyCode };
+    cleared += 1;
+  }
+  return { settings: next, cleared };
+}
+
+/**
+ * 차트·일괄 공통 — 해당 scope에 임계값 저장 + 하위 override cascade 제거.
+ * farm/sp 적용 시 legacy byStallTyCode도 정리해 하위가 동일 값을 상속.
+ */
+export function applyScopeAlarmThresholdsWithCascade(
+  settings: AlarmSettings,
+  scopeKey: string,
+  thresholds: AlarmThresholds,
+  opts?: { stallTyCodesToClear?: Iterable<string> }
+): { settings: AlarmSettings; clearedOverrides: number } {
+  const clearedDesc = clearDescendantScopeOverrides(settings, scopeKey);
+  let next = clearedDesc.settings;
+  let clearedOverrides = clearedDesc.cleared;
+
+  const parts = parseAlarmScopeKey(scopeKey);
+  const stallTyCodes = new Set<string>();
+  if (opts?.stallTyCodesToClear) {
+    for (const sp of opts.stallTyCodesToClear) stallTyCodes.add(sp);
+  } else if (parts?.sp && !parts.stall && !parts.controllerKey) {
+    stallTyCodes.add(parts.sp);
+  }
+
+  if (stallTyCodes.size > 0) {
+    const clearedTy = clearStallTyCodeOverrides(next, stallTyCodes);
+    next = clearedTy.settings;
+    clearedOverrides += clearedTy.cleared;
+  }
+
+  next = mergeScopeThreshold(next, scopeKey, thresholds);
+  return { settings: next, clearedOverrides };
+}
+
 export type BulkSpAlarmApplyResult = {
   settings: AlarmSettings;
   spScopeKeys: string[];
@@ -270,18 +319,13 @@ export function applyBulkSpAlarmThresholds(
     seen.add(scopeKey);
     spScopeKeys.push(scopeKey);
 
-    const clearedDesc = clearDescendantScopeOverrides(next, scopeKey);
-    next = clearedDesc.settings;
-    clearedOverrides += clearedDesc.cleared;
-
-    if (next.byStallTyCode[sp]) {
-      const byStallTyCode = { ...next.byStallTyCode };
-      delete byStallTyCode[sp];
-      next = { ...next, byStallTyCode };
-      clearedOverrides += 1;
-    }
-
-    next = mergeScopeThreshold(next, scopeKey, thresholds);
+    const applied = applyScopeAlarmThresholdsWithCascade(
+      next,
+      scopeKey,
+      thresholds
+    );
+    next = applied.settings;
+    clearedOverrides += applied.clearedOverrides;
   }
 
   return { settings: next, spScopeKeys, clearedOverrides };

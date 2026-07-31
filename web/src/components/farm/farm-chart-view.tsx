@@ -150,7 +150,7 @@ export function FarmChartView({
 
   /**
    * B안 — 현재 기간 추이 이탈로 색칠 (LIVE 아님).
-   * 임계는 농장 전체 차트 알람선과 동일. 통신 두절만 LIVE.
+   * 임계는 농장 전체 차트 알람선과 동일(해당 스코프 저장 시 하위 오버라이드 cascade). 통신 두절만 LIVE.
    */
   const alarmTones = useMemo(() => {
     const settings = alarmSettings ?? DEFAULT_ALARM_SETTINGS;

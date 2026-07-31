@@ -21,7 +21,7 @@ import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-action
 import { sendBulkThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import {
-  mergeScopeThreshold,
+  applyScopeAlarmThresholdsWithCascade,
   resolveThresholdsForScope,
 } from "@/lib/data/alarm-scope";
 import type { AlarmSettings, AlarmThresholds } from "@/lib/data/alarms";
@@ -31,6 +31,7 @@ import {
   validateAlarmThresholds,
 } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import type {
   TrendControllerPeriodData,
   TrendPeriodId,
@@ -42,7 +43,6 @@ import {
   resolveReadingAlarmThresholds,
   resolveReadingThermo,
 } from "@/lib/farm/controller-summary-display";
-import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
   alarmScopeKeyFromFarmChartScope,
   type FarmChartScope,
@@ -631,10 +631,21 @@ export function UnifiedBarnTrendPanel({
       return;
     }
     const previous = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
-    const nextSettings = mergeScopeThreshold(
+    /** farm/sp 저장 시 하위·legacy 유형 오버라이드 제거 — 설정모드 제어 일괄과 동일하게 스코프 상속 */
+    const cascadeStallTy =
+      !alarmScopeKey.includes("|stall:") &&
+      !alarmScopeKey.includes("|ctrl:");
+    const { settings: nextSettings } = applyScopeAlarmThresholdsWithCascade(
       previous,
       alarmScopeKey,
       nextDraft,
+      cascadeStallTy
+        ? {
+            stallTyCodesToClear: scopedReadings
+              .map((r) => normalizeStallTyCode(r.stallTyCode))
+              .filter((sp) => sp !== "UNK"),
+          }
+        : undefined,
     );
     setAlarmSaving(true);
     setAlarmSaveError(null);
