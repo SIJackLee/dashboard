@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
 import type { AlarmSettings } from "@/lib/data/alarms";
+import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { BarnReading } from "@/lib/data/iot";
 import type {
   TrendControllerPeriodData,
@@ -27,10 +28,12 @@ type Props = {
   scope: FarmChartScope;
   onScopeChange?: (scope: FarmChartScope) => void;
   alarmSettings?: AlarmSettings;
-  /** 조회 전용이면 알람선 드래그 비활성 */
+  /** LIVE/명령 반영 제어값 */
+  thermoSettings?: Record<string, ControllerThermoSettings>;
+  /** 조회 전용이면 알람·설정모드 비활성 */
   canCommand?: boolean;
   isMobileStack?: boolean;
-  /** 차트 탭 활성 — ScopeBar 레이어 툴바 enter/exit */
+  /** 차트 탭 활성 — TopBar 레이어 툴바 enter/exit */
   layersToolbarActive?: boolean;
   className?: string;
 };
@@ -47,6 +50,7 @@ export function FarmChartView({
   scope,
   onScopeChange,
   alarmSettings,
+  thermoSettings,
   canCommand = false,
   isMobileStack = false,
   layersToolbarActive = true,
@@ -118,6 +122,7 @@ export function FarmChartView({
           period={period}
           onPeriodChange={onPeriodChange}
           alarmSettings={alarmSettings}
+          thermoSettings={thermoSettings}
           chartScope={scope}
           canCommand={canCommand}
           isMobileStack={isMobileStack}

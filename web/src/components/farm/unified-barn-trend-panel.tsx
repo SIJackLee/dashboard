@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   TrendChart,
@@ -10,7 +10,11 @@ import {
 } from "@/components/trends/trend-chart";
 import { UnifiedTrendPeriodBrush } from "@/components/farm/unified-trend-period-brush";
 import { UnifiedTrendLayerToolbar } from "@/components/farm/unified-trend-layer-toolbar";
+import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
+import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
+import { sendBulkThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
+import { isReadingOnline } from "@/lib/data/reading-display";
 import {
   mergeScopeThreshold,
   resolveThresholdsForScope,
@@ -34,6 +38,24 @@ import {
   alarmScopeKeyFromFarmChartScope,
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
+import {
+  CHART_THERMO_CONTROL_COLOR,
+  CHART_THERMO_EDGE_IDS,
+  isChartThermoEdgeId,
+  type ChartThermoDraft,
+} from "@/lib/farm/chart-thermo-control";
+import {
+  buildBulkThermoCommands,
+  BULK_CHANNEL_OPTIONS,
+} from "@/components/farm/farm-map-bulk-apply-parts";
+import {
+  clampMenuValue,
+  EDIT_START_DRAFT,
+} from "@/lib/controllers/controller-panel-map";
+import {
+  resolveThermoSettings,
+  type ControllerThermoSettings,
+} from "@/lib/controllers/controller-settings";
 import {
   downsampleTrendAxis,
   tickEveryForDisplayBars,
@@ -139,14 +161,16 @@ type Props = {
   period: TrendPeriodId;
   onPeriodChange?: (period: TrendPeriodId) => void;
   alarmSettings?: AlarmSettings;
+  /** LIVE/명령 반영 제어값 — 설정모드 초깃값 */
+  thermoSettings?: Record<string, ControllerThermoSettings>;
   /** 차트 집계 범위 — 알람 저장 계층과 동일 */
   chartScope: FarmChartScope;
-  /** 조회 전용(뷰어)이면 알람선 드래그 비활성 */
+  /** 조회 전용(뷰어)이면 알람·제어 편집 비활성 */
   canCommand?: boolean;
   isMobileStack?: boolean;
   /** 미지정 시 모바일 220 / 데스크톱 340 */
   chartHeight?: number;
-  /** 차트 탭 활성 시에만 ScopeBar 레이어 툴바 표시 */
+  /** 차트 탭 활성 시에만 TopBar 레이어 툴바 표시 */
   layersToolbarActive?: boolean;
   className?: string;
 };
@@ -161,6 +185,7 @@ export function UnifiedBarnTrendPanel({
   period,
   onPeriodChange,
   alarmSettings,
+  thermoSettings = {},
   chartScope,
   canCommand = false,
   isMobileStack = false,
@@ -170,11 +195,7 @@ export function UnifiedBarnTrendPanel({
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
-  /** 온도/습도/모터 하위 옵션 펼침 */
-  const [tempMenuOpen, setTempMenuOpen] = useState(false);
-  const [humMenuOpen, setHumMenuOpen] = useState(false);
-  const [motorMenuOpen, setMotorMenuOpen] = useState(false);
-  /** M2 — ScopeBar 슬롯 observe · 없으면 인라인 폴백 */
+  /** TopBar 슬롯 observe · 없으면 인라인 폴백 */
   const layersSlot = useFarmChartLayersSlot();
   const [toolbarActiveSeen, setToolbarActiveSeen] = useState(layersToolbarActive);
   const [layersToolbarMounted, setLayersToolbarMounted] = useState(
@@ -196,6 +217,12 @@ export function UnifiedBarnTrendPanel({
   const [alarmSaveError, setAlarmSaveError] = useState<string | null>(null);
   const draftRef = useRef<AlarmThresholds | null>(null);
   const freezeRef = useRef<AlarmThresholds | null>(null);
+  /** view=줌·알람 · control=설정온도·편차 */
+  const [chartMode, setChartMode] = useState<"view" | "control">("view");
+  const [thermoDraft, setThermoDraft] = useState<ChartThermoDraft | null>(null);
+  const [thermoApplying, setThermoApplying] = useState(false);
+  const [thermoApplyError, setThermoApplyError] = useState<string | null>(null);
+  const thermoDraftRef = useRef<ChartThermoDraft | null>(null);
   const [scopeMotionKey, setScopeMotionKey] = useState(0);
   const [scopeMotionDir, setScopeMotionDir] = useState<"in" | "out">("in");
   const bumpScopeMotion = (dir: "in" | "out") => {
@@ -211,9 +238,6 @@ export function UnifiedBarnTrendPanel({
       setLayersAnimKey((k) => k + 1);
     } else {
       setLayersToolbarPhase("exit");
-      setTempMenuOpen(false);
-      setHumMenuOpen(false);
-      setMotorMenuOpen(false);
     }
   }
 
@@ -224,6 +248,15 @@ export function UnifiedBarnTrendPanel({
         .filter((r): r is BarnReading => r != null),
     [controllers],
   );
+
+  const onThermoRefreshLive = useCallback(() => {
+    void liveRefresh?.revalidateFarmLive();
+  }, [liveRefresh]);
+  const liveTracker = useBulkCommandPipelineTracker({
+    thermoSettings,
+    readings: scopedReadings,
+    onRefreshLive: onThermoRefreshLive,
+  });
 
   const alarmScopeKey = useMemo(
     () => alarmScopeKeyFromFarmChartScope(scopedReadings, chartScope),
@@ -251,6 +284,40 @@ export function UnifiedBarnTrendPanel({
   const thresholds = draftThresholds ?? baseThresholds;
   /** 드래그 중 Y 도메인 고정 — 선이 커서를 따라가게 */
   const mappingThresholds = dragFreeze ?? thresholds;
+
+  const baseThermo: ChartThermoDraft = (() => {
+    for (const c of controllers) {
+      const r = c.reading;
+      if (!r) continue;
+      const hit = resolveThermoSettings(
+        thermoSettings,
+        r.farmKey,
+        r.moduleUid,
+        r.controllerKey,
+      );
+      if (hit) {
+        return {
+          setpointTemp: hit.setpointTemp,
+          tempDeviation: hit.tempDeviation,
+        };
+      }
+    }
+    return {
+      setpointTemp: EDIT_START_DRAFT.setpointTemp,
+      tempDeviation: EDIT_START_DRAFT.tempDeviation,
+    };
+  })();
+
+  const thermo = thermoDraft ?? baseThermo;
+  const controlMode = chartMode === "control";
+  const onlineScopedReadings = scopedReadings.filter((r) =>
+    isReadingOnline(r.status),
+  );
+  const thermoDirty =
+    controlMode &&
+    thermoDraft != null &&
+    (Math.abs(thermoDraft.setpointTemp - baseThermo.setpointTemp) > 0.05 ||
+      Math.abs(thermoDraft.tempDeviation - baseThermo.tempDeviation) > 0.05);
 
   const layerVisibility = useMemo(
     () => splitYVisibilityFromLayers(layers),
@@ -521,7 +588,12 @@ export function UnifiedBarnTrendPanel({
   };
 
   const alarmDragEnabled =
-    canCommand && Boolean(alarmScopeKey) && !alarmSaving;
+    canCommand &&
+    Boolean(alarmScopeKey) &&
+    !alarmSaving &&
+    chartMode === "view";
+  const thermoDragEnabled =
+    canCommand && controlMode && !thermoApplying;
 
   const persistAlarmDraft = (nextDraft: AlarmThresholds) => {
     if (!alarmScopeKey || !canCommand) return;
@@ -565,6 +637,51 @@ export function UnifiedBarnTrendPanel({
   };
 
   const onScaleEdgeDrag = (event: ScaleEdgeDragEvent) => {
+    if (controlMode) {
+      if (!thermoDragEnabled && event.phase !== "cancel") return;
+      if (!isChartThermoEdgeId(event.id)) return;
+      const mapLo = mappingThresholds.tempLow;
+      const mapHi = mappingThresholds.tempHigh;
+
+      if (event.phase === "start") {
+        const base = thermoDraftRef.current ?? baseThermo;
+        setThermoDraft(base);
+        thermoDraftRef.current = base;
+        setThermoApplyError(null);
+        return;
+      }
+      if (event.phase === "cancel") {
+        setThermoDraft(null);
+        thermoDraftRef.current = null;
+        return;
+      }
+      if (event.phase === "move") {
+        const cur = thermoDraftRef.current ?? baseThermo;
+        const rawC = unmapTempCFromSplitY(event.value, mapLo, mapHi, layout);
+        if (rawC == null || !Number.isFinite(rawC)) return;
+        let next: ChartThermoDraft = cur;
+        if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
+          next = {
+            ...cur,
+            setpointTemp: clampMenuValue("setpoint", rawC),
+          };
+        } else if (event.id === CHART_THERMO_EDGE_IDS.maxVent) {
+          next = {
+            ...cur,
+            tempDeviation: clampMenuValue(
+              "deviation",
+              Math.max(0, rawC - cur.setpointTemp),
+            ),
+          };
+        }
+        thermoDraftRef.current = next;
+        setThermoDraft(next);
+        return;
+      }
+      // end — draft kept until apply / exit
+      return;
+    }
+
     if (!canCommand || !alarmScopeKey) return;
     if (alarmSaving && event.phase !== "cancel") return;
     const key = ALARM_EDGE_KEY[event.id];
@@ -636,6 +753,29 @@ export function UnifiedBarnTrendPanel({
   };
 
   const onScaleEdgeNumericCommit = (event: ScaleEdgeNumericCommitEvent) => {
+    if (controlMode) {
+      if (!thermoDragEnabled || !isChartThermoEdgeId(event.id)) return;
+      const cur = thermoDraftRef.current ?? baseThermo;
+      let next: ChartThermoDraft = cur;
+      if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
+        next = {
+          ...cur,
+          setpointTemp: clampMenuValue("setpoint", event.value),
+        };
+      } else if (event.id === CHART_THERMO_EDGE_IDS.maxVent) {
+        next = {
+          ...cur,
+          tempDeviation: clampMenuValue(
+            "deviation",
+            Math.max(0, event.value - cur.setpointTemp),
+          ),
+        };
+      }
+      setThermoDraft(next);
+      thermoDraftRef.current = next;
+      setThermoApplyError(null);
+      return;
+    }
     if (!canCommand || !alarmScopeKey || alarmSaving) return;
     const key = ALARM_EDGE_KEY[event.id];
     if (!key) return;
@@ -655,6 +795,117 @@ export function UnifiedBarnTrendPanel({
     persistAlarmDraft(next);
   };
 
+  const enterControlMode = () => {
+    if (!canCommand) return;
+    setChartMode("control");
+    setThermoDraft(baseThermo);
+    thermoDraftRef.current = baseThermo;
+    setThermoApplyError(null);
+    setXScopeStack([]);
+    setDraftThresholds(null);
+    setDragFreeze(null);
+    draftRef.current = null;
+    freezeRef.current = null;
+  };
+
+  const exitControlMode = () => {
+    setChartMode("view");
+    setThermoDraft(null);
+    thermoDraftRef.current = null;
+    setThermoApplyError(null);
+  };
+
+  const applyThermoDraft = useCallback(() => {
+    if (!canCommand) {
+      setThermoApplyError("명령 권한이 없습니다.");
+      return;
+    }
+    if (thermoApplying) return;
+    const draftValues = thermoDraftRef.current ?? thermoDraft;
+    if (!draftValues) {
+      setThermoApplyError("적용할 설정값이 없습니다.");
+      return;
+    }
+    if (onlineScopedReadings.length === 0) {
+      setThermoApplyError("적용할 온라인 컨트롤러가 없습니다.");
+      return;
+    }
+    const draft = {
+      applyTemp: true,
+      applyVent: false,
+      setpoint: draftValues.setpointTemp,
+      deviation: draftValues.tempDeviation,
+      minVent: EDIT_START_DRAFT.minVentPct,
+      maxVent: EDIT_START_DRAFT.maxVentPct,
+      selectedChannels: [...BULK_CHANNEL_OPTIONS],
+    };
+    const commands = buildBulkThermoCommands(
+      onlineScopedReadings,
+      thermoSettings,
+      draft,
+    );
+    if (commands.length === 0) {
+      setThermoApplyError("적용할 제어 대상이 없습니다.");
+      return;
+    }
+    setThermoApplying(true);
+    setThermoApplyError(null);
+    void (async () => {
+      try {
+        const result = await sendBulkThermoCommandAction(commands);
+        if (result.sentItems.length > 0) {
+          for (const item of result.sentItems) {
+            liveRefresh?.patchThermoFromCommand(item.command);
+          }
+          liveTracker.startSession(result.sentItems);
+          void liveRefresh?.revalidateFarmLive();
+        }
+        if (!result.ok && result.sent === 0) {
+          setThermoApplyError(
+            result.error === "forbidden"
+              ? "명령 권한이 없습니다."
+              : result.error === "unauthorized"
+                ? "로그인이 필요합니다."
+                : result.error === "no_targets"
+                  ? "적용할 제어 대상이 없습니다."
+                  : "제어값 적용에 실패했습니다.",
+          );
+          return;
+        }
+        if (result.failed.length > 0 && result.sent === 0) {
+          setThermoApplyError(
+            result.failed[0]?.error ?? "제어값 적용에 실패했습니다.",
+          );
+          return;
+        }
+        if (result.sent > 0 && result.failed.length > 0) {
+          setThermoApplyError(
+            `${result.sent}대 전송 · ${result.failed.length}대 실패`,
+          );
+        }
+        setThermoDraft(null);
+        thermoDraftRef.current = null;
+        setChartMode("view");
+      } catch (e) {
+        setThermoApplyError(
+          e instanceof Error
+            ? `적용 중 오류: ${e.message}`
+            : "적용 중 오류가 발생했습니다. 네트워크를 확인하세요.",
+        );
+      } finally {
+        setThermoApplying(false);
+      }
+    })();
+  }, [
+    canCommand,
+    thermoApplying,
+    thermoDraft,
+    onlineScopedReadings,
+    thermoSettings,
+    liveRefresh,
+    liveTracker.startSession,
+  ]);
+
   /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 알람 고정 스케일. */
   const scaleEdgeLabels = useMemo((): TrendScaleEdgeLabel[] => {
     if (!built) return [];
@@ -673,6 +924,12 @@ export function UnifiedBarnTrendPanel({
       showLine: boolean,
       draggable = false,
       editValue?: number,
+      opts?: {
+        labelLane?: "outer" | "inner";
+        lineStrokeWidth?: number;
+        lineDasharray?: string;
+        showApplyActions?: boolean;
+      },
     ) => {
       if (chartY == null || !Number.isFinite(chartY)) return;
       out.push({
@@ -687,6 +944,10 @@ export function UnifiedBarnTrendPanel({
         showLine,
         draggable,
         editValue,
+        labelLane: opts?.labelLane,
+        lineStrokeWidth: opts?.lineStrokeWidth,
+        lineDasharray: opts?.lineDasharray,
+        showApplyActions: opts?.showApplyActions,
       });
     };
 
@@ -733,6 +994,44 @@ export function UnifiedBarnTrendPanel({
         alarmDragEnabled,
         thresholds.tempLow,
       );
+      if (controlMode && scopeVisibility.showTemp) {
+        const sp = thermo.setpointTemp;
+        const dev = thermo.tempDeviation;
+        // 설정+편차 = 최고환기 / 설정온도 = 최저환기 (편차는 위쪽만)
+        push(
+          CHART_THERMO_EDGE_IDS.maxVent,
+          mapTempCToSplitY(sp + dev, mapLo, mapHi, layout),
+          `+${dev}℃`,
+          CHART_THERMO_CONTROL_COLOR,
+          "overline",
+          "최고환기 (설정+편차)",
+          true,
+          thermoDragEnabled,
+          sp + dev,
+          {
+            labelLane: "inner",
+            lineStrokeWidth: 0.55,
+            lineDasharray: "2 2",
+          },
+        );
+        push(
+          CHART_THERMO_EDGE_IDS.setpoint,
+          mapTempCToSplitY(sp, mapLo, mapHi, layout),
+          `${sp}℃`,
+          CHART_THERMO_CONTROL_COLOR,
+          "overline",
+          "설정온도 (최저환기)",
+          true,
+          thermoDragEnabled,
+          sp,
+          {
+            labelLane: "inner",
+            lineStrokeWidth: 1.15,
+            lineDasharray: "solid",
+            showApplyActions: thermoDirty,
+          },
+        );
+      }
     }
     if (
       scopeVisibility.showHum &&
@@ -782,6 +1081,10 @@ export function UnifiedBarnTrendPanel({
     layout,
     scopeVisibility,
     alarmDragEnabled,
+    controlMode,
+    thermo,
+    thermoDragEnabled,
+    thermoDirty,
   ]);
 
   const toggleLayer = (id: UnifiedLayerId) => {
@@ -846,7 +1149,7 @@ export function UnifiedBarnTrendPanel({
         className={cn(
           "flex min-w-0 items-center overflow-visible",
           layersSlot
-            ? "border-l border-border/50 pl-2 sm:pl-3"
+            ? "p-0"
             : "w-full border-t border-border/40 pt-2 sm:ml-auto sm:w-auto sm:border-l sm:border-t-0 sm:pt-0 sm:pl-2",
           layersToolbarPhase === "enter"
             ? motionClass.farmChartLayersEnter
@@ -859,24 +1162,16 @@ export function UnifiedBarnTrendPanel({
         <UnifiedTrendLayerToolbar
           layers={layers}
           available={built.available}
-          tempMenuOpen={tempMenuOpen}
-          humMenuOpen={humMenuOpen}
-          motorMenuOpen={motorMenuOpen}
-          onTempMenuOpenChange={setTempMenuOpen}
-          onHumMenuOpenChange={setHumMenuOpen}
-          onMotorMenuOpenChange={setMotorMenuOpen}
           onToggleLayer={toggleLayer}
           onEnableGroupAll={enableGroupAll}
+          placement={layersSlot ? "hub" : "inline"}
         />
       </div>
     ) : null;
 
   return (
     <div
-      className={cn(
-        "mt-2 space-y-2 rounded-md border bg-background p-2.5 sm:p-3",
-        className,
-      )}
+      className={cn("mt-2 space-y-2", className)}
       data-tour-id="farm-chart-unified-trend"
     >
       {layerToolbar && layersSlot
@@ -885,69 +1180,95 @@ export function UnifiedBarnTrendPanel({
 
       <div
         className={cn(
-          "flex flex-col items-start gap-1",
+          "flex w-full flex-col items-stretch gap-1",
           "sm:flex-row sm:flex-wrap sm:items-center sm:gap-2",
         )}
       >
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className="text-xs font-semibold">통합 추이</span>
-          <span className="text-[0.7rem] leading-snug text-muted-foreground">
-            {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
-            {trendPeriodLabel(period)}
-            {picked?.trimmed ? " · 실데이터 구간" : ""}
-          </span>
-        </div>
-        {layerToolbar && !layersSlot ? layerToolbar : null}
-        {xScope != null && picked ? (
-          <div
-            key={`scope-chip-${scopeMotionKey}`}
-            className={cn(
-              "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-sky-500/40 bg-sky-50/80 px-2 py-1 text-[0.65rem] font-medium text-sky-900 dark:bg-sky-950/50 dark:text-sky-100",
-              "sm:ml-auto",
-              motionClass.farmChartScopeChipIn,
-            )}
-          >
-            <span className="shrink-0">구간 줌</span>
-            {xScope.yBands?.length ? (
-              <span className="shrink-0 rounded bg-sky-500/15 px-1 py-px">
-                {xScope.yBands.map((b) => UNIFIED_Y_BAND_LABEL[b]).join("+")}
-              </span>
-            ) : null}
-            {xScopeStack.length > 1 ? (
-              <span className="shrink-0 tabular-nums text-sky-700/80 dark:text-sky-300/80">
-                ×{xScopeStack.length}
-              </span>
-            ) : null}
-            <span className="min-w-0 truncate tabular-nums text-sky-800/90 dark:text-sky-200/90">
-              {picked.categories[xScope.start] ?? "…"}
-              {" → "}
-              {picked.categories[xScope.end] ?? "…"}
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-xs font-semibold">통합 추이</span>
+            <span className="text-[0.7rem] leading-snug text-muted-foreground">
+              {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
+              {trendPeriodLabel(period)}
+              {picked?.trimmed ? " · 실데이터 구간" : ""}
             </span>
-            <button
-              type="button"
-              aria-label="한 단계 뒤로"
-              title="한 단계 뒤로"
-              onClick={popXScope}
+          </div>
+          {layerToolbar && !layersSlot ? layerToolbar : null}
+          {xScope != null && picked ? (
+            <div
+              key={`scope-chip-${scopeMotionKey}`}
               className={cn(
-                "inline-flex h-5 shrink-0 items-center justify-center rounded border border-sky-500/30 px-1",
-                "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
-                motionClass.microHover,
+                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-sky-500/40 bg-sky-50/80 px-2 py-1 text-[0.65rem] font-medium text-sky-900 dark:bg-sky-950/50 dark:text-sky-100",
+                motionClass.farmChartScopeChipIn,
               )}
             >
-              ←
-            </button>
+              <span className="shrink-0">구간 줌</span>
+              {xScope.yBands?.length ? (
+                <span className="shrink-0 rounded bg-sky-500/15 px-1 py-px">
+                  {xScope.yBands.map((b) => UNIFIED_Y_BAND_LABEL[b]).join("+")}
+                </span>
+              ) : null}
+              {xScopeStack.length > 1 ? (
+                <span className="shrink-0 tabular-nums text-sky-700/80 dark:text-sky-300/80">
+                  ×{xScopeStack.length}
+                </span>
+              ) : null}
+              <span className="min-w-0 truncate tabular-nums text-sky-800/90 dark:text-sky-200/90">
+                {picked.categories[xScope.start] ?? "…"}
+                {" → "}
+                {picked.categories[xScope.end] ?? "…"}
+              </span>
+              <button
+                type="button"
+                aria-label="한 단계 뒤로"
+                title="한 단계 뒤로"
+                onClick={popXScope}
+                className={cn(
+                  "inline-flex h-5 shrink-0 items-center justify-center rounded border border-sky-500/30 px-1",
+                  "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
+                  motionClass.microHover,
+                )}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                aria-label="구간 줌 전체 해제"
+                onClick={clearXScope}
+                className={cn(
+                  "inline-flex size-5 shrink-0 items-center justify-center rounded border border-sky-500/30",
+                  "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
+                  motionClass.microHover,
+                )}
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {canCommand ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
             <button
               type="button"
-              aria-label="구간 줌 전체 해제"
-              onClick={clearXScope}
               className={cn(
-                "inline-flex size-5 shrink-0 items-center justify-center rounded border border-sky-500/30",
-                "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
-                motionClass.microHover,
+                "rounded-md border px-2.5 py-1 text-[0.7rem] font-medium",
+                controlMode
+                  ? "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted/50",
               )}
+              aria-pressed={controlMode}
+              onClick={() => {
+                if (controlMode) exitControlMode();
+                else enterControlMode();
+              }}
             >
-              ×
+              {controlMode ? "설정모드 종료" : "설정모드"}
             </button>
+            {controlMode ? (
+              <span className="text-[0.65rem] text-muted-foreground">
+                보라선=설정온도(최저환기)·설정+편차(최고환기) · 체크=명령 전송
+              </span>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -1029,17 +1350,42 @@ export function UnifiedBarnTrendPanel({
           layerClipWipe
           splitBandGuides={splitBandGuides}
           scaleEdgeLabels={scaleEdgeLabels}
-          xScopeSelect
-          onXScopeCommit={commitXScope}
-          onXScopeBack={popXScope}
+          xScopeSelect={!controlMode}
+          onXScopeCommit={controlMode ? undefined : commitXScope}
+          onXScopeBack={controlMode ? undefined : popXScope}
           scopeMotionKey={scopeMotionKey}
           scopeMotionDir={scopeMotionDir}
           onScaleEdgeDrag={
-            canCommand && alarmScopeKey ? onScaleEdgeDrag : undefined
+            controlMode
+              ? thermoDragEnabled
+                ? onScaleEdgeDrag
+                : undefined
+              : canCommand && alarmScopeKey
+                ? onScaleEdgeDrag
+                : undefined
           }
           onScaleEdgeNumericCommit={
-            canCommand && alarmScopeKey ? onScaleEdgeNumericCommit : undefined
+            controlMode
+              ? thermoDragEnabled
+                ? onScaleEdgeNumericCommit
+                : undefined
+              : canCommand && alarmScopeKey
+                ? onScaleEdgeNumericCommit
+                : undefined
           }
+          onScaleEdgeApply={
+            controlMode && thermoDirty ? applyThermoDraft : undefined
+          }
+          onScaleEdgeRevert={
+            controlMode && thermoDirty
+              ? () => {
+                  setThermoDraft(baseThermo);
+                  thermoDraftRef.current = baseThermo;
+                }
+              : undefined
+          }
+          scaleEdgeApplyBusy={thermoApplying}
+          scaleEdgeApplyDisabled={onlineScopedReadings.length === 0}
         />
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">
@@ -1057,6 +1403,18 @@ export function UnifiedBarnTrendPanel({
           {alarmSaveError}
         </p>
       ) : null}
+
+      {thermoApplyError ? (
+        <p className="text-[0.65rem] text-destructive" role="alert">
+          {thermoApplyError}
+        </p>
+      ) : null}
+
+      <BulkLiveProgressBanner
+        progress={liveTracker.progress}
+        visible={liveTracker.bannerVisible}
+        onDismiss={liveTracker.dismissBanner}
+      />
 
       {onPeriodChange ? (
         <UnifiedTrendPeriodBrush

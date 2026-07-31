@@ -67,8 +67,8 @@ npm run measure:live
 
 | RPC | When loaded | Cache tag | Typical rows (24h) |
 | --- | --- | --- | --- |
-| `farm_trend_history` | Client idle (grid heatmap hydrate) | `live:trend:{scope}` | SP × stall × 96 buckets |
-| `farm_trend_history_by_controller` | Client lazy (list graph) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets |
+| `farm_trend_history` | Client idle (grid heatmap hydrate) | `live:trend:{scope}` | SP × stall × 96 buckets · **`mesure_at` bin** |
+| `farm_trend_history_by_controller` | Client lazy (list graph) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets · **`mesure_at` bin** |
 
 - Bucket policy (source → display via `binWorst` / avg downsample): 24h = 15 min × 96 → 24, 7d = 1 h × 168 → 28, 30d = 1 h × 720 → 30 (`farm-trend-types.ts` + `GRAPH_BARS`)
 - Map tab SSR skips stall trend + controller-trend (Phase B idle hydrate / P4 lazy)

@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
-import { RefreshActionButton } from "@/components/common/refresh-action-button";
 import { FarmSwitcher } from "@/components/layout/farm-switcher";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
@@ -25,9 +24,6 @@ export type ScopeBarProps = {
   stallOptions?: ScopeChipOption[];
   activeStall?: string;
   onStallChange?: (stallKey: string) => void;
-  onRefresh?: () => void;
-  refreshBusy?: boolean;
-  refreshShowSpinner?: boolean;
   /** Admin — TopBar FarmSwitcher → ScopeBar 통합 (alarms 등 farm-only 페이지) */
   adminFarmSwitcher?: {
     farmOptions: FarmKey[];
@@ -78,26 +74,7 @@ function ScopeChip({
   );
 }
 
-function ScopeRefreshButton({
-  onRefresh,
-  refreshBusy,
-  refreshShowSpinner,
-}: {
-  onRefresh: () => void;
-  refreshBusy: boolean;
-  refreshShowSpinner: boolean;
-}) {
-  return (
-    <RefreshActionButton
-      onClick={onRefresh}
-      loading={refreshBusy}
-      showSpinner={refreshShowSpinner}
-      className="shrink-0"
-    />
-  );
-}
-
-/** farm · SP · stall · Refresh — controllers / alarms / farm 공통 */
+/** farm · SP · stall — controllers / alarms / farm 공통 (새로고침·레이어는 TopBar) */
 export function ScopeBar({
   sticky = false,
   lsindRegistNo,
@@ -111,25 +88,19 @@ export function ScopeBar({
   stallOptions = [],
   activeStall = "",
   onStallChange,
-  onRefresh,
-  refreshBusy = false,
-  refreshShowSpinner = false,
   adminFarmSwitcher,
 }: ScopeBarProps) {
   const [pendingChip, setPendingChip] = useState<PendingChip | null>(null);
   const [chipPending, startChipTransition] = useTransition();
 
-  if (pendingChip != null) {
-    if (pendingChip.kind === "farm" && activeFarm === pendingChip.value) {
-      setPendingChip(null);
-    } else if (pendingChip.kind === "sp" && activeSp === pendingChip.value) {
-      setPendingChip(null);
-    } else if (
-      pendingChip.kind === "stall" &&
-      activeStall === pendingChip.value
-    ) {
-      setPendingChip(null);
-    }
+  // 선택 반영되면 busy 칩 해제
+  if (
+    pendingChip &&
+    ((pendingChip.kind === "farm" && activeFarm === pendingChip.value) ||
+      (pendingChip.kind === "sp" && activeSp === pendingChip.value) ||
+      (pendingChip.kind === "stall" && activeStall === pendingChip.value))
+  ) {
+    setPendingChip(null);
   }
 
   // active prop이 안 바뀌는 경우(동일 값·외부 동기화 지연) busy 고착 방지
@@ -160,28 +131,9 @@ export function ScopeBar({
     (lsindRegistNo || stallTypeLabel) &&
     !showSpChips;
 
-  const refreshSlot =
-    onRefresh != null ? (
-      <ScopeRefreshButton
-        onRefresh={onRefresh}
-        refreshBusy={refreshBusy}
-        refreshShowSpinner={refreshShowSpinner}
-      />
-    ) : null;
-
-  const chartLayersSlot = (className?: string) => (
-    <div
-      data-farm-chart-layers-slot
-      className={cn(
-        "relative flex min-w-0 shrink-0 items-center overflow-visible empty:hidden",
-        className,
-      )}
-    />
-  );
-
   const titleRow =
     adminFarmSwitcher != null ? (
-      /* 모바일: 농장 / 토글 2행. 레이어는 refresh와 함께 우측 끝 */
+      /* 모바일: 농장 / 토글 2행 */
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
         <div className="min-w-0 shrink">
           <FarmSwitcher
@@ -215,7 +167,6 @@ export function ScopeBar({
             }}
           />
         ))}
-        {chartLayersSlot("ml-auto")}
       </div>
     ) : showFarmMeta ? (
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -236,16 +187,6 @@ export function ScopeBar({
             </>
           ) : null}
         </p>
-        {chartLayersSlot("ml-auto")}
-      </div>
-    ) : null;
-
-  const rightTools =
-    adminFarmSwitcher != null || refreshSlot != null ? (
-      <div className="flex shrink-0 items-start gap-1.5">
-        {refreshSlot}
-        {/* Admin: 차트 레이어 — ScopeBar 우측 끝 (모바일 포함) */}
-        {adminFarmSwitcher != null ? chartLayersSlot() : null}
       </div>
     ) : null;
 
@@ -257,14 +198,9 @@ export function ScopeBar({
       )}
     >
       <div className={cn("min-w-0 space-y-3", dashboardUi.body)}>
-        {titleRow || rightTools ? (
+        {titleRow ? (
           <div className="flex items-start justify-between gap-2">
-            {titleRow ? (
-              <div className="min-w-0 flex-1">{titleRow}</div>
-            ) : (
-              <div className="min-w-0 flex-1" />
-            )}
-            {rightTools}
+            <div className="min-w-0 flex-1">{titleRow}</div>
           </div>
         ) : null}
 

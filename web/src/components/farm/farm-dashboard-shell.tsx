@@ -8,7 +8,6 @@ import {
   AdminHubGridSkeleton,
   FarmContentSkeleton,
 } from "@/components/common/loading-skeletons";
-import { RefreshScopeShell } from "@/components/common/refresh-scope-shell";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
 import { ScopeBar } from "@/components/layout/scope-bar";
 import { NavContentReadyMarker } from "@/components/layout/nav-content-ready-marker";
@@ -26,7 +25,6 @@ import {
   useFarmLiveRefresh,
   type FarmLiveSlice,
 } from "@/lib/navigation/farm-live-refresh";
-import { useSoftRefresh } from "@/lib/ui/use-soft-refresh";
 
 export type FarmDashboardShellProps = {
   readings: BarnReading[];
@@ -66,7 +64,7 @@ function sliceFromAdminPanel(
   };
 }
 
-function AdminScopeBarWithRefresh({
+function AdminScopeBar({
   farmOptions,
   activeFarmKey,
   farmSummaries,
@@ -75,34 +73,16 @@ function AdminScopeBarWithRefresh({
   activeFarmKey: FarmKey | null;
   farmSummaries: FarmSummaryRow[];
 }) {
-  const { revalidateFarmLive, revalidating, isStale } = useFarmLiveRefresh();
-  const onScopeRefresh = useCallback(() => {
-    return revalidateFarmLive();
-  }, [revalidateFarmLive]);
-  const {
-    run: refreshScope,
-    busy: scopeRefreshBusy,
-    showProgress: scopeRefreshVisible,
-  } = useSoftRefresh(onScopeRefresh);
-
   return (
-    <RefreshScopeShell
-      busy={scopeRefreshBusy || revalidating}
-      showProgress={scopeRefreshVisible || isStale}
-    >
-      <ScopeBar
-        sticky
-        adminFarmSwitcher={{
-          farmOptions,
-          activeFarmKey,
-          farmSummaries,
-          compact: true,
-        }}
-        onRefresh={refreshScope}
-        refreshBusy={scopeRefreshBusy || revalidating}
-        refreshShowSpinner={scopeRefreshVisible || isStale}
-      />
-    </RefreshScopeShell>
+    <ScopeBar
+      sticky
+      adminFarmSwitcher={{
+        farmOptions,
+        activeFarmKey,
+        farmSummaries,
+        compact: true,
+      }}
+    />
   );
 }
 
@@ -362,7 +342,7 @@ export function FarmDashboardShell({
       <NavContentReadyMarker />
       <div className="space-y-4 md:space-y-5">
         {showAdminScope ? (
-          <AdminScopeBarWithRefresh
+          <AdminScopeBar
             farmOptions={farmOptions}
             activeFarmKey={scopeActiveFarmKey}
             farmSummaries={farmSummaries}

@@ -1,6 +1,6 @@
 import { AppHeaderAccount } from "@/components/layout/app-header-account";
 import { AppHeaderBrand } from "@/components/layout/app-header-brand";
-import { HeaderToolsMenu } from "@/components/layout/header-tools-menu";
+import { HubWidgetFab } from "@/components/layout/hub-widget-fab";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmOverview } from "@/lib/data/iot";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
@@ -45,9 +45,9 @@ export function TopBar({
         <div className="ml-auto flex shrink-0 items-center justify-end gap-1 md:gap-3">
           <div
             data-tour-id="header-actions"
-            className="flex shrink-0 items-center gap-1 md:gap-3"
+            className="flex shrink-0 items-center gap-4 md:gap-3"
           >
-            <HeaderToolsMenu
+            <HubWidgetFab
               overview={overview}
               alarms={alarms}
               isAdmin={isAdmin}

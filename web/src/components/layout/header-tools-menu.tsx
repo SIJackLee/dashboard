@@ -25,12 +25,6 @@ import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { AppNavLink } from "@/components/layout/app-nav-link";
 import { DailyReportButton } from "@/components/layout/daily-report-button";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { AlarmRow } from "@/lib/data/alarms";
 import { alarmControlHref } from "@/lib/data/alarms";
 import type { FarmKey } from "@/lib/data/farm-key";
@@ -42,6 +36,8 @@ import { monitoringHref } from "@/lib/monitoring/monitoring-tabs";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { motionDuration } from "@/lib/ui/motion-tokens";
+import { useOpenPresence } from "@/lib/ui/use-clip-presence";
 import {
   getViewportPreference,
   getViewportPreviewMode,
@@ -58,13 +54,34 @@ import {
 } from "@/lib/onboarding/tour-timing";
 import { cn } from "@/lib/utils";
 
+/** CSS --tools-cascade-ms 와 동일: moderate + max*stagger */
+const TOOLS_STAGGER_MS = 45;
+function toolsCascadeExitMs(toolsMax: number) {
+  return motionDuration.moderate + toolsMax * TOOLS_STAGGER_MS;
+}
 const emptySubscribe = () => () => {};
+
+export type HubWidgetPattern = "design" | "function" | "mode" | "all";
 
 type Props = {
   overview?: FarmOverview;
   alarms?: AlarmRow[];
   isAdmin?: boolean;
   farmKey?: FarmKey | null;
+  /** header: TopBar ⋯ · hub-panel: 통합 FAB 본문 */
+  variant?: "header" | "hub-panel";
+  /** hub-panel 전용 — 디자인/기능/모드/전체 */
+  hubPattern?: HubWidgetPattern;
+  /** hub-panel 레이아웃 */
+  hubLayout?: "list" | "rail" | "radial3";
+  /** rail 펼침 방향 */
+  hubRailDir?: "up" | "down" | "left" | "right";
+  /** rail 애니 단계 */
+  hubRailPhase?: "enter" | "exit";
+  /** radial3 — 디자인/기능/알람 각도(deg, 0=오른쪽·시계방향+) */
+  hubFanDegs?: [number, number, number];
+  /** radial3 — 링 반지름(px) */
+  hubOrbitRadii?: number[];
 };
 
 type DetailId = "connectivity" | "alarms" | "report";
@@ -152,7 +169,15 @@ export function HeaderToolsMenu({
   alarms = [],
   isAdmin = false,
   farmKey = null,
+  variant = "header",
+  hubPattern = "function",
+  hubLayout = "list",
+  hubRailDir = "up",
+  hubRailPhase = "enter",
+  hubFanDegs = [210, 270, 330],
+  hubOrbitRadii = [96, 168, 240],
 }: Props) {
+  const isHub = variant === "hub-panel";
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const viewportCompact = useHydrationSafeDashboardCompact();
   const { navigate } = useAppNavigate();
@@ -231,6 +256,10 @@ export function HeaderToolsMenu({
       : `PC 레이아웃${viewportPref === "auto" ? " (자동)" : ""} → 모바일`;
 
   const toolsMax = isAdmin ? 5 : 4;
+  const { mounted: toolsRailMounted, phase: toolsRailPhase } = useOpenPresence(
+    menuOpen && !viewportCompact,
+    toolsCascadeExitMs(toolsMax),
+  );
   const iTheme = 0;
   const iViewport = 1;
   const iReport = 2;
@@ -266,28 +295,15 @@ export function HeaderToolsMenu({
     setTheme(next);
   };
 
-  const toolbarIcons = (opts: { vertical: boolean; asMenuItems: boolean }) => {
-    const { vertical, asMenuItems } = opts;
-    const themeBtn = asMenuItems ? (
-      <DropdownMenuItem
-        closeOnClick={false}
-        className={cn(
-          dashboardUi.topHeaderActionBtn,
-          "cursor-pointer p-0 data-highlighted:bg-muted",
-        )}
-        data-tour-id="header-theme"
-        data-theme-ready={themeReady || undefined}
-        aria-label={themeIsDark ? "라이트 모드" : "다크 모드"}
-        title={themeIsDark ? "라이트 모드" : "다크 모드"}
-        onClick={toggleTheme}
-      >
-        {themeIsDark ? (
-          <Sun className="size-4 md:size-5" aria-hidden />
-        ) : (
-          <Moon className="size-4 md:size-5" aria-hidden />
-        )}
-      </DropdownMenuItem>
-    ) : (
+  const toolbarIcons = (opts: {
+    vertical: boolean;
+    /** hub radial — 래퍼 없이 노드 배열만 */
+    asNodes?: boolean;
+    /** hub 그룹 필터 */
+    group?: "design" | "function" | "alarm" | "all";
+  }): ReactNode => {
+    const { vertical, asNodes, group = "all" } = opts;
+    const themeBtn = (
       <ToolsIconBtn
         Icon={themeIsDark ? Sun : Moon}
         data-tour-id="header-theme"
@@ -298,22 +314,7 @@ export function HeaderToolsMenu({
       />
     );
 
-    const viewportBtn = asMenuItems ? (
-      <DropdownMenuItem
-        closeOnClick={false}
-        className={cn(
-          dashboardUi.topHeaderActionBtn,
-          "cursor-pointer p-0 data-highlighted:bg-muted",
-          viewportIsMobile && "border-primary/60 bg-primary/5 text-primary",
-        )}
-        data-tour-id="viewport-preview-toggle"
-        aria-label={viewportTitle}
-        title={viewportTitle}
-        onClick={() => setViewportPreviewMode(nextViewport)}
-      >
-        <ViewportIcon className="size-4 md:size-5" aria-hidden />
-      </DropdownMenuItem>
-    ) : (
+    const viewportBtn = (
       <ToolsIconBtn
         Icon={ViewportIcon}
         active={viewportIsMobile}
@@ -399,12 +400,30 @@ export function HeaderToolsMenu({
       </ToolsIconWrap>
     );
 
-    /* 세로: 트리거 바로 아래 테마 → … → 연결 / 가로: 연결 … 테마(트리거 쪽) */
+    /* 1·2 디자인 · 3 기능 · 4 운영 · 5 알람류(알림+연결) */
+    const hubItems =
+      group === "design"
+        ? [themeEl, viewport]
+        : group === "function"
+          ? [report, ops]
+          : group === "alarm"
+            ? [bell, cpu]
+            : hubPattern === "design"
+              ? [themeEl, viewport]
+              : hubPattern === "mode"
+                ? [ops]
+                : hubPattern === "all"
+                  ? [themeEl, viewport, report, ops, bell, cpu]
+                  : [report, bell, cpu];
     const items = (
-      vertical
-        ? [themeEl, viewport, report, ops, bell, cpu]
-        : [cpu, bell, ops, report, viewport, themeEl]
+      isHub
+        ? hubItems
+        : vertical
+          ? [themeEl, viewport, report, ops, bell, cpu]
+          : [cpu, bell, ops, report, viewport, themeEl]
     ).filter(Boolean);
+
+    if (asNodes) return items;
 
     return (
       <div
@@ -421,47 +440,114 @@ export function HeaderToolsMenu({
     );
   };
 
+  const railAxis =
+    hubRailDir === "left" || hubRailDir === "right"
+      ? ({ dx: hubRailDir === "left" ? 1 : -1, dy: 0 } as const)
+      : ({ dx: 0, dy: hubRailDir === "up" ? 1 : -1 } as const);
+
+  const detailAlert =
+    (detail === "connectivity" && offline > 0) ||
+    (detail === "alarms" && alarmCount > 0);
+
+  /** 캡슐이 FAB 왼쪽이면 노치=오른쪽(end), FAB 오른쪽이면 노치=왼쪽(start) */
+  const capsuleNotchEnd =
+    hubLayout !== "radial3" || hubRailDir !== "left";
+
   const detailPanel = detail ? (
     <div
       className={cn(
-        "w-[min(100vw-2rem,20rem)] overflow-hidden",
-        viewportCompact
-          ? "rounded-lg border border-border/80 bg-background"
-          : "rounded-lg border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
-        motionClass.enterFade,
+        isHub
+          ? cn(
+              dashboardUi.hubDetailPopover,
+              detailAlert && dashboardUi.hubDetailPopoverAlert,
+              motionClass.hubWidgetDetailIn,
+            )
+          : cn(
+              "w-[min(100vw-2rem,20rem)] overflow-hidden",
+              viewportCompact
+                ? "rounded-lg border border-border/80 bg-background"
+                : "rounded-lg border bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
+              motionClass.enterFade,
+            ),
       )}
       data-tour-id={`header-tools-detail-${detail}`}
+      data-hub-detail-capsule={isHub ? "" : undefined}
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      {isHub ? (
+        <span
+          className={cn(
+            dashboardUi.hubDetailNotch,
+            capsuleNotchEnd
+              ? dashboardUi.hubDetailNotchEnd
+              : dashboardUi.hubDetailNotchStart,
+            detailAlert && dashboardUi.hubDetailNotchAlert,
+          )}
+          aria-hidden
+        />
+      ) : null}
+
       {detail === "connectivity" ? (
         <div
           className={cn(
-            dashboardUi.headerToolsCard,
-            "mx-0 mb-0 w-full",
-            offline > 0 && dashboardUi.headerToolsCardAlert,
+            isHub
+              ? dashboardUi.hubDetailRow
+              : cn(
+                  dashboardUi.headerToolsCard,
+                  "mx-0 mb-0 w-full",
+                  offline > 0 && dashboardUi.headerToolsCardAlert,
+                ),
           )}
         >
           <span
             className={cn(
-              dashboardUi.headerToolsCardIcon,
-              offline > 0 && dashboardUi.headerToolsCardIconAlert,
+              isHub
+                ? dashboardUi.hubDetailLeadIcon
+                : dashboardUi.headerToolsCardIcon,
+              offline > 0 &&
+                (isHub
+                  ? dashboardUi.hubDetailLeadIconAlert
+                  : dashboardUi.headerToolsCardIconAlert),
             )}
             aria-hidden
           >
             <Cpu className="size-4 md:size-5" />
           </span>
-          <div className={dashboardUi.headerToolsCardBody}>
-            <div className={dashboardUi.headerToolsCardTitle}>
+          <div
+            className={
+              isHub ? dashboardUi.hubDetailBody : dashboardUi.headerToolsCardBody
+            }
+          >
+            <div
+              className={
+                isHub
+                  ? dashboardUi.hubDetailTitle
+                  : dashboardUi.headerToolsCardTitle
+              }
+            >
               <span>컨트롤러 연결</span>
-              {registered !== undefined ? (
+              {!isHub && registered !== undefined ? (
                 <span className="ml-auto tabular-nums text-muted-foreground">
                   {registered}
                 </span>
               ) : null}
             </div>
-            <p className={dashboardUi.headerToolsCardMeta}>{connTitle}</p>
-            {offline > 0 ? (
+            <p
+              className={cn(
+                isHub
+                  ? dashboardUi.hubDetailMeta
+                  : dashboardUi.headerToolsCardMeta,
+                isHub && offline > 0 && "font-medium text-red-600 dark:text-red-400",
+              )}
+            >
+              {isHub
+                ? offline > 0
+                  ? `${connTitle} · 오프라인 ${offline}`
+                  : connTitle
+                : connTitle}
+            </p>
+            {!isHub && offline > 0 ? (
               <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">
                 오프라인 {offline}개
               </p>
@@ -473,24 +559,43 @@ export function HeaderToolsMenu({
       {detail === "alarms" ? (
         <div
           className={cn(
-            dashboardUi.headerToolsCard,
-            "mx-0 mb-0 w-full",
-            alarmCount > 0 && dashboardUi.headerToolsCardAlert,
+            isHub
+              ? dashboardUi.hubDetailRow
+              : cn(
+                  dashboardUi.headerToolsCard,
+                  "mx-0 mb-0 w-full",
+                  alarmCount > 0 && dashboardUi.headerToolsCardAlert,
+                ),
           )}
         >
           <span
             className={cn(
-              dashboardUi.headerToolsCardIcon,
-              alarmCount > 0 && dashboardUi.headerToolsCardIconAlert,
+              isHub
+                ? dashboardUi.hubDetailLeadIcon
+                : dashboardUi.headerToolsCardIcon,
+              alarmCount > 0 &&
+                (isHub
+                  ? dashboardUi.hubDetailLeadIconAlert
+                  : dashboardUi.headerToolsCardIconAlert),
             )}
             aria-hidden
           >
             <Bell className="size-4 md:size-5" />
           </span>
-          <div className={dashboardUi.headerToolsCardBody}>
-            <div className={dashboardUi.headerToolsCardTitle}>
+          <div
+            className={
+              isHub ? dashboardUi.hubDetailBody : dashboardUi.headerToolsCardBody
+            }
+          >
+            <div
+              className={
+                isHub
+                  ? dashboardUi.hubDetailTitle
+                  : dashboardUi.headerToolsCardTitle
+              }
+            >
               <span>센서 알림</span>
-              {alarmCount > 0 ? (
+              {!isHub && alarmCount > 0 ? (
                 <Badge
                   variant="destructive"
                   className="ml-auto h-5 min-h-0 px-1.5 text-[0.65rem]"
@@ -499,8 +604,42 @@ export function HeaderToolsMenu({
                 </Badge>
               ) : null}
             </div>
-            {alarmPreview.length === 0 ? (
-              <p className={dashboardUi.headerToolsCardMeta}>센서 알림 없음</p>
+            {isHub ? (
+              <>
+                <p
+                  className={cn(
+                    dashboardUi.hubDetailMeta,
+                    alarmCount > 0 &&
+                      "font-medium text-red-600 dark:text-red-400",
+                  )}
+                >
+                  {alarmCount > 0
+                    ? `활성 ${alarmCount}건`
+                    : "센서 알림 없음"}
+                </p>
+                {alarmCount > 0 ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      dashboardUi.hubDetailAction,
+                      "text-emerald-700 dark:text-emerald-400",
+                    )}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setDetail(null);
+                      navigate(monitoringHref("ops"), {
+                        message: "이상 탭으로 이동 중…",
+                      });
+                    }}
+                  >
+                    이상 탭으로
+                  </button>
+                ) : null}
+              </>
+            ) : alarmPreview.length === 0 ? (
+              <p className={dashboardUi.headerToolsCardMeta}>
+                센서 알림 없음
+              </p>
             ) : (
               <ul className="mt-1.5 space-y-1">
                 {alarmPreview.map((a) => (
@@ -508,7 +647,7 @@ export function HeaderToolsMenu({
                     <button
                       type="button"
                       className={cn(
-                        "w-full rounded-md border border-transparent px-1.5 py-1.5 text-left hover:border-border hover:bg-muted/80",
+                        "w-full rounded-xl border border-transparent px-1.5 py-1.5 text-left hover:border-border hover:bg-muted/80",
                         motionClass.microInteractive,
                       )}
                       onClick={() =>
@@ -542,7 +681,7 @@ export function HeaderToolsMenu({
                 ))}
               </ul>
             )}
-            {alarmCount > 0 ? (
+            {!isHub && alarmCount > 0 ? (
               <button
                 type="button"
                 className="mt-1.5 flex w-full justify-center rounded-lg border px-2 py-1.5 text-xs font-medium text-emerald-700"
@@ -564,16 +703,166 @@ export function HeaderToolsMenu({
       ) : null}
 
       {detail === "report" ? (
-        <div className="p-1">
+        isHub ? (
           <DailyReportButton
             farmKey={farmKey}
             alarmCount={alarms.length}
-            presentation="tools-card"
+            presentation="hub-detail"
           />
-        </div>
+        ) : (
+          <div className="p-1">
+            <DailyReportButton
+              farmKey={farmKey}
+              alarmCount={alarms.length}
+              presentation="tools-card"
+            />
+          </div>
+        )
       ) : null}
     </div>
   ) : null;
+
+  if (isHub) {
+    if (hubLayout === "radial3") {
+      const rays: {
+        id: "design" | "function" | "alarm";
+        label: string;
+        deg: number;
+        rayI: number;
+      }[] = [
+        { id: "design", label: "디자인", deg: hubFanDegs[0], rayI: 0 },
+        { id: "function", label: "기능", deg: hubFanDegs[1], rayI: 1 },
+        { id: "alarm", label: "알람", deg: hubFanDegs[2], rayI: 2 },
+      ];
+      const itemMotion =
+        hubRailPhase === "exit"
+          ? motionClass.hubWidgetOrbitItemExit
+          : motionClass.hubWidgetOrbitItemEnter;
+
+      const detailSide =
+        hubRailDir === "right"
+          ? "left-1/2 top-1/2 z-[8] -translate-x-[calc(100%+14px)] -translate-y-1/2"
+          : hubRailDir === "left"
+            ? "left-1/2 top-1/2 z-[8] translate-x-[14px] -translate-y-1/2"
+            : hubRailDir === "down"
+              ? "left-1/2 top-1/2 z-[8] -translate-x-[calc(100%+14px)] -translate-y-1/2"
+              : "left-1/2 top-1/2 z-[8] -translate-x-[calc(100%+14px)] -translate-y-1/2";
+
+      return (
+        <>
+          {rays.map((ray) => {
+            const nodes = (
+              toolbarIcons({
+                vertical: true,
+                asNodes: true,
+                group: ray.id,
+              }) as ReactNode[]
+            ).filter(Boolean);
+            const rad = (ray.deg * Math.PI) / 180;
+            return nodes.map((node, ringI) => {
+              const radius =
+                hubOrbitRadii[Math.min(ringI, hubOrbitRadii.length - 1)] ?? 96;
+              const ox = Math.cos(rad) * radius;
+              const oy = Math.sin(rad) * radius;
+              return (
+                <div
+                  key={`hub-orbit-${ray.id}-${ringI}`}
+                  className={cn(
+                    "pointer-events-auto absolute z-[7] flex size-11 items-center justify-center",
+                    "[&_button]:rounded-full [&_a]:rounded-full",
+                    "[&_.header-tools-icon]:contents",
+                    itemMotion,
+                  )}
+                  style={
+                    {
+                      left: ox,
+                      top: oy,
+                      ["--hub-ox" as string]: `${ox}px`,
+                      ["--hub-oy" as string]: `${oy}px`,
+                      ["--hub-orbit-ray" as string]: ray.rayI,
+                      ["--hub-orbit-ring" as string]: ringI,
+                    } as CSSProperties
+                  }
+                  data-hub-orbit-tool=""
+                  data-hub-orbit-group={ray.id}
+                  aria-label={ray.label}
+                >
+                  {node}
+                </div>
+              );
+            });
+          })}
+          {detailPanel ? (
+            <div
+              className={cn("pointer-events-auto absolute", detailSide)}
+              data-hub-rail-detail=""
+            >
+              {detailPanel}
+            </div>
+          ) : null}
+        </>
+      );
+    }
+
+    if (hubLayout === "rail") {
+      const nodes = (
+        toolbarIcons({ vertical: true, asNodes: true }) as ReactNode[]
+      ).filter(Boolean);
+      const n = nodes.length;
+      const itemMotion =
+        hubRailPhase === "exit"
+          ? motionClass.hubWidgetRailItemExit
+          : motionClass.hubWidgetRailItemEnter;
+      return (
+        <>
+          {nodes.map((node, i) => (
+            <div
+              key={`hub-rail-${hubPattern}-${i}`}
+              className={cn(
+                "pointer-events-auto shrink-0",
+                "[&_button]:rounded-full [&_a]:rounded-full",
+                "[&_.header-tools-icon]:contents",
+                itemMotion,
+              )}
+              style={
+                {
+                  ["--hub-rail-i" as string]: i,
+                  ["--hub-rail-n" as string]: String(Math.max(n, 1)),
+                  ["--hub-rail-dx" as string]: railAxis.dx,
+                  ["--hub-rail-dy" as string]: railAxis.dy,
+                } as CSSProperties
+              }
+              data-hub-rail-tool=""
+            >
+              {node}
+            </div>
+          ))}
+          {detailPanel ? (
+            <div
+              className={cn(
+                "pointer-events-auto absolute z-[8]",
+                /* 세로 레일: 레일 왼쪽(우하단 FAB 기준 화면 안쪽) */
+                hubRailDir === "up" || hubRailDir === "down"
+                  ? "bottom-0 right-[calc(100%+10px)]"
+                  : /* 가로 레일: FAB가 보통 하단 → 카드는 레일 위 */
+                    "left-0 bottom-[calc(100%+10px)]",
+              )}
+              data-hub-rail-detail=""
+            >
+              {detailPanel}
+            </div>
+          ) : null}
+        </>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-stretch gap-2">
+        {toolbarIcons({ vertical: true })}
+        {detailPanel}
+      </div>
+    );
+  }
 
   if (!mounted) {
     return (
@@ -614,7 +903,8 @@ export function HeaderToolsMenu({
             className={cn(
               motionClass.headerToolsPanel,
               "header-tools-cascade-card absolute right-0 top-0 z-[45] flex flex-col items-end gap-1.5",
-              "rounded-xl border !bg-popover p-2 -m-2 text-popover-foreground !shadow-md ring-1 ring-foreground/10",
+              /* -ml 금지 — 왼쪽 차트 레이어 버튼과 겹치지 않게 */
+              "rounded-xl border !bg-popover p-2 -mt-2 -mr-2 -mb-2 text-popover-foreground !shadow-md ring-1 ring-foreground/10",
             )}
             data-cascade="vertical"
             data-open=""
@@ -627,7 +917,7 @@ export function HeaderToolsMenu({
               className="pointer-events-none size-9 shrink-0 opacity-0 md:size-11"
               aria-hidden
             />
-            {toolbarIcons({ vertical: true, asMenuItems: false })}
+            {toolbarIcons({ vertical: true })}
             {detailPanel}
           </div>
         ) : null}
@@ -651,40 +941,64 @@ export function HeaderToolsMenu({
     );
   }
 
+  /* PC: in-flow 가로 레일 — 폭 애니와 함께 차트 레이어가 밀림/당겨짐 */
   return (
-    <DropdownMenu open={menuOpen} onOpenChange={setOpen}>
-      <DropdownMenuTrigger
-        className={cn(
-          dashboardUi.topHeaderActionBtn,
-          alert && dashboardUi.topHeaderActionBtnAlert,
-        )}
-        data-tour-id="header-tools"
-        aria-label="헤더 도구"
-        title="헤더 도구"
-      >
-        {trigger}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        side="left"
-        sideOffset={8}
-        alignOffset={0}
-        data-tour-id="header-tools-panel"
-        data-header-tools-cascade=""
-        data-cascade="horizontal"
-        style={{ ["--tools-max" as string]: toolsMax } as CSSProperties}
-        className={cn(
-          motionClass.headerToolsPanel,
-          "h-auto max-h-none min-w-0 w-auto overflow-visible border-0 bg-transparent p-0 shadow-none ring-0",
-          "animate-none data-open:animate-none data-closed:animate-none",
-          "data-open:zoom-in-100 data-closed:zoom-out-100",
-        )}
-      >
-        <div className="flex flex-col items-end gap-2">
-          {toolbarIcons({ vertical: false, asMenuItems: true })}
-          {detailPanel}
+    <div className="relative flex shrink-0 items-center">
+      {menuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 cursor-default bg-transparent"
+          aria-label="도구 메뉴 닫기"
+          onClick={() => setOpen(false)}
+        />
+      ) : null}
+      {toolsRailMounted ? (
+        <div
+          className={cn(motionClass.headerToolsPanel, "relative z-[45]")}
+          data-cascade="horizontal"
+          data-open={toolsRailPhase === "enter" ? "" : undefined}
+          data-ending-style={toolsRailPhase === "exit" ? "" : undefined}
+          data-header-tools-cascade=""
+          data-tour-id="header-tools-panel"
+          style={{ ["--tools-max" as string]: toolsMax } as CSSProperties}
+          aria-hidden={toolsRailPhase === "exit"}
+        >
+          <div className="header-tools-rail-inner">
+            <div className="flex items-center gap-1.5">
+              {toolbarIcons({ vertical: false })}
+            </div>
+          </div>
         </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      ) : null}
+      <div className="relative shrink-0">
+        <button
+          type="button"
+          className={cn(
+            "relative z-50",
+            dashboardUi.topHeaderActionBtn,
+            alert && dashboardUi.topHeaderActionBtnAlert,
+          )}
+          data-tour-id="header-tools"
+          aria-label="헤더 도구"
+          title="헤더 도구"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          onClick={() => setOpen(!menuOpen)}
+        >
+          {trigger}
+        </button>
+        {menuOpen && detailPanel ? (
+          <div
+            className={cn(
+              "absolute right-0 top-[calc(100%+8px)] z-[45] min-w-[12rem]",
+              "rounded-xl border bg-popover p-2 text-popover-foreground shadow-md ring-1 ring-foreground/10",
+            )}
+            data-tour-id="header-tools-detail-panel"
+          >
+            {detailPanel}
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }

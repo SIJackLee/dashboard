@@ -22,8 +22,8 @@ type Props = {
   /** SSR PageShell 값 — shallow 농장 전환 시 stale 할 수 있음 */
   farmKey: FarmKey | null;
   alarmCount?: number;
-  /** icon = 헤더 단독 버튼 · row/tools-card = 도구 메뉴 행 */
-  presentation?: "icon" | "row" | "tools-card";
+  /** icon = 헤더 단독 · row = 간단 행 · tools-card = 헤더 카드 · hub-detail = FAB 상세 */
+  presentation?: "icon" | "row" | "tools-card" | "hub-detail";
 };
 
 const NO_FARM_TOAST =
@@ -142,17 +142,22 @@ export function DailyReportButton({
                 "w-full",
                 needsFarm && "opacity-40",
               )
-            : presentation === "row"
+            : presentation === "hub-detail"
               ? cn(
-                  "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
-                  dashboardUi.topHeaderActionBtnReport,
+                  dashboardUi.hubDetailActionRow,
                   needsFarm && "opacity-40",
                 )
-              : cn(
-                  dashboardUi.topHeaderActionBtn,
-                  dashboardUi.topHeaderActionBtnReport,
-                  needsFarm && "opacity-40",
-                ),
+              : presentation === "row"
+                ? cn(
+                    "flex w-full items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60",
+                    dashboardUi.topHeaderActionBtnReport,
+                    needsFarm && "opacity-40",
+                  )
+                : cn(
+                    dashboardUi.topHeaderActionBtn,
+                    dashboardUi.topHeaderActionBtnReport,
+                    needsFarm && "opacity-40",
+                  ),
         )}
         data-tour-id="header-daily-report"
         aria-label={
@@ -190,6 +195,28 @@ export function DailyReportButton({
               </div>
               <p className={dashboardUi.headerToolsCardMeta}>
                 PDF 다운로드
+              </p>
+            </div>
+          </>
+        ) : presentation === "hub-detail" ? (
+          <>
+            <span
+              className={cn(
+                dashboardUi.hubDetailLeadIcon,
+                dashboardUi.hubDetailLeadIconReport,
+              )}
+              aria-hidden
+            >
+              {busy ? (
+                <Loader2 className="size-4 animate-spin md:size-5" />
+              ) : (
+                <FileText className="size-4 md:size-5" />
+              )}
+            </span>
+            <div className={dashboardUi.hubDetailBody}>
+              <div className={dashboardUi.hubDetailTitle}>오늘의 리포트</div>
+              <p className={dashboardUi.hubDetailMeta}>
+                {needsFarm ? "농장 선택 후 다운로드" : "PDF 다운로드"}
               </p>
             </div>
           </>

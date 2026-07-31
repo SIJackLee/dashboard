@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 export const FARM_CHART_LAYERS_SLOT_SEL = "[data-farm-chart-layers-slot]";
 
 /**
- * ScopeBar 차트 레이어 툴바 portal 슬롯.
- * M2 — 마운트 1회 조회만 하지 않고, 등장/제거를 observe. 없으면 null → 인라인 폴백.
+ * TopBar 차트 레이어 툴바 portal 슬롯 (`data-farm-chart-layers-slot`).
+ * 마운트 1회 조회만 하지 않고, 등장/제거를 observe. 없으면 null → 인라인 폴백.
  */
 export function useFarmChartLayersSlot(): Element | null {
   const [slot, setSlot] = useState<Element | null>(null);

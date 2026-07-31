@@ -50,6 +50,7 @@ import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+import { registerFarmLiveRefreshHandler } from "@/lib/navigation/farm-live-refresh-bridge";
 
 /** Phase C — 신규 SP 좌표 idle persist (read path write 대체) */
 function schedulePersistLayouts(layouts?: BarnLayoutsToPersist): void {
@@ -505,6 +506,11 @@ export function FarmLiveRefreshProvider({
     },
     [farmKey, router],
   );
+
+  useEffect(() => {
+    registerFarmLiveRefreshHandler(() => revalidateFarmLive());
+    return () => registerFarmLiveRefreshHandler(null);
+  }, [revalidateFarmLive]);
 
   const mergedSlice = useMemo(() => {
     if (!slice.controller) return slice;

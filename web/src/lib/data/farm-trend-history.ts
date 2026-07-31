@@ -38,6 +38,8 @@ export { TREND_PERIODS, DEFAULT_TREND_PERIOD } from "@/lib/data/farm-trend-types
 /** Cache/query alignment slot — keeps `now` stable for 5 minutes. */
 const CACHE_SLOT_MS = 5 * 60 * 1000;
 
+/** RPC buckets by mesure_at (sensor time); live card freshness stays on received_at. */
+
 type RpcRow = {
   bucket_at: string;
   stall_ty_code: string | null;

@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
@@ -119,6 +120,16 @@ export type TrendScaleEdgeLabel = {
   draggable?: boolean;
   /** 우클릭 숫자 입력용 원단위 값 (없으면 text에서 파싱) */
   editValue?: number;
+  /** 가이드 선 굵기 (viewBox strokeWidth). 기본 0.45 */
+  lineStrokeWidth?: number;
+  /** 미지정=점선, "" 또는 "solid"=실선 */
+  lineDasharray?: string;
+  /**
+   * 우측 라벨 레인 — outer=알람(바깥), inner=제어값(그래프에 가까운 쪽).
+   */
+  labelLane?: "outer" | "inner";
+  /** true면 라벨 우측에 적용·되돌리기 아이콘 버튼 */
+  showApplyActions?: boolean;
 };
 
 export type ScaleEdgeDragEvent = {
@@ -213,6 +224,12 @@ type TrendChartProps = {
   onScaleEdgeDrag?: (event: ScaleEdgeDragEvent) => void;
   /** 우클릭 숫자 입력 확정 */
   onScaleEdgeNumericCommit?: (event: ScaleEdgeNumericCommitEvent) => void;
+  /** showApplyActions 라벨 — 적용 */
+  onScaleEdgeApply?: () => void;
+  /** showApplyActions 라벨 — 되돌리기 */
+  onScaleEdgeRevert?: () => void;
+  scaleEdgeApplyBusy?: boolean;
+  scaleEdgeApplyDisabled?: boolean;
 };
 
 const PAD_X = 6;
@@ -486,6 +503,8 @@ type EdgeBandLabel = {
   mark?: "overline" | "underline";
   draggable?: boolean;
   editValue?: number;
+  labelLane?: "outer" | "inner";
+  showApplyActions?: boolean;
 };
 
 /** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
@@ -569,6 +588,10 @@ export function TrendChart({
   scopeMotionDir = "in",
   onScaleEdgeDrag,
   onScaleEdgeNumericCommit,
+  onScaleEdgeApply,
+  onScaleEdgeRevert,
+  scaleEdgeApplyBusy = false,
+  scaleEdgeApplyDisabled = false,
 }: TrendChartProps) {
   void _layoutKey;
   const clipWipeEnabled = layerClipWipe ?? animate;
@@ -1388,6 +1411,8 @@ export function TrendChart({
         mark: guide.mark,
         draggable: Boolean(guide.draggable),
         editValue: guide.editValue,
+        labelLane: guide.labelLane ?? "outer",
+        showApplyActions: Boolean(guide.showApplyActions),
       });
     }
     return nudgeEdgeLabelTops(out, 5.5);
@@ -1825,6 +1850,11 @@ export function TrendChart({
             const y = yFor(guide.value, guide.axis ?? "left");
             if (!Number.isFinite(y)) return null;
             const dragging = edgeDragId === guide.id;
+            const baseW = guide.lineStrokeWidth ?? 0.45;
+            const dash =
+              guide.lineDasharray === "solid" || guide.lineDasharray === ""
+                ? undefined
+                : (guide.lineDasharray ?? "1.5 2");
             return (
               <line
                 key={`scale-guide-${guide.id}`}
@@ -1833,10 +1863,10 @@ export function TrendChart({
                 y1={y}
                 y2={y}
                 stroke={guide.color}
-                strokeWidth={dragging ? 0.85 : 0.45}
-                strokeDasharray="1.5 2"
+                strokeWidth={dragging ? baseW + 0.35 : baseW}
+                strokeDasharray={dash}
                 vectorEffect="non-scaling-stroke"
-                opacity={dragging ? 0.95 : 0.55}
+                opacity={dragging ? 0.95 : 0.7}
                 pointerEvents="none"
               />
             );
@@ -2145,18 +2175,32 @@ export function TrendChart({
 
       {edgeBandLabels.map((label) => {
         const editing = edgeEdit?.id === label.id;
+        const showActions =
+          Boolean(label.showApplyActions) &&
+          (onScaleEdgeApply != null || onScaleEdgeRevert != null);
         return (
           <span
             key={label.id}
             className={cn(
               "absolute z-[2] -translate-y-1/2 rounded-sm bg-background/85 px-0.5 text-[9px] leading-none tabular-nums",
+              showActions && "inline-flex items-center gap-0.5 pr-0",
               label.draggable && !editing
                 ? "pointer-events-auto cursor-ns-resize select-none"
-                : editing
+                : editing || showActions
                   ? "pointer-events-auto"
                   : "pointer-events-none",
               label.side === "left" && "left-0.5 text-left",
-              label.side === "right" && "right-0.5 text-right",
+              label.side === "right" &&
+                label.labelLane === "inner" &&
+                !showActions &&
+                "right-11 text-right",
+              label.side === "right" &&
+                label.labelLane === "inner" &&
+                showActions &&
+                "right-1 text-right",
+              label.side === "right" &&
+                label.labelLane !== "inner" &&
+                "right-0.5 text-right",
               !editing && label.mark === "overline" && "border-t border-current pt-px",
               !editing && label.mark === "underline" && "border-b border-current pb-px",
               edgeDragId === label.id && "ring-1 ring-current/40",
@@ -2227,6 +2271,62 @@ export function TrendChart({
             ) : (
               label.text
             )}
+            {showActions ? (
+              <span
+                className="ml-0.5 inline-flex items-center gap-0.5"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {onScaleEdgeApply ? (
+                  <button
+                    type="button"
+                    aria-label="설정값 적용"
+                    title="적용 (명령 전송)"
+                    disabled={scaleEdgeApplyBusy || scaleEdgeApplyDisabled}
+                    className={cn(
+                      "inline-flex size-5 items-center justify-center rounded border border-current/35 bg-background/95",
+                      "hover:bg-current/10 disabled:opacity-40",
+                    )}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (scaleEdgeApplyBusy || scaleEdgeApplyDisabled) return;
+                      onScaleEdgeApply();
+                    }}
+                  >
+                    <Check className="size-3" strokeWidth={2.5} aria-hidden />
+                  </button>
+                ) : null}
+                {onScaleEdgeRevert ? (
+                  <button
+                    type="button"
+                    aria-label="설정값 되돌리기"
+                    title="되돌리기"
+                    disabled={scaleEdgeApplyBusy}
+                    className={cn(
+                      "inline-flex size-5 items-center justify-center rounded border border-current/35 bg-background/95",
+                      "hover:bg-current/10 disabled:opacity-40",
+                    )}
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (scaleEdgeApplyBusy) return;
+                      onScaleEdgeRevert();
+                    }}
+                  >
+                    <RotateCcw className="size-3" strokeWidth={2.5} aria-hidden />
+                  </button>
+                ) : null}
+              </span>
+            ) : null}
           </span>
         );
       })}

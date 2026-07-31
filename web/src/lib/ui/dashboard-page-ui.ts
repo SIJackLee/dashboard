@@ -167,7 +167,7 @@ export const dashboardUi = {
   headerAccountRole: "text-lg text-muted-foreground",
 
   topBar:
-    "flex min-h-14 flex-nowrap items-center justify-between gap-2 border-b bg-background px-3 py-2 max-md:pt-safe md:min-h-[5.5rem] md:flex-wrap md:gap-4 md:px-6 md:py-3",
+    "relative z-30 flex min-h-14 flex-nowrap items-center justify-between gap-2 border-b bg-background px-3 py-2 max-md:pt-safe md:min-h-[5.5rem] md:flex-wrap md:gap-4 md:px-6 md:py-3",
   pageTitle: "text-[length:var(--density-page-title-md)] font-bold",
   topBadge:
     "!h-auto min-h-[2.25rem] gap-2 px-4 py-1.5 text-[length:var(--density-badge-md)] font-medium leading-none",
@@ -237,6 +237,37 @@ export const dashboardUi = {
   headerToolsCardBody: "min-w-0 flex-1",
   headerToolsCardTitle: "flex items-center gap-2 text-sm font-medium leading-tight",
   headerToolsCardMeta: "mt-0.5 text-xs leading-snug text-muted-foreground",
+  /**
+   * 통합 FAB 상세 — F 궤도 캡슐.
+   * 라운드풀 셸 + 원형 리드. FAB 쪽 노치는 래퍼에서 부착.
+   */
+  hubDetailPopover:
+    "relative w-[min(92vw,17.5rem)] overflow-visible rounded-full border border-border/80 bg-popover py-2.5 pl-2.5 pr-3.5 text-popover-foreground shadow-sm",
+  hubDetailPopoverAlert:
+    "border-red-300/60 dark:border-red-900/40",
+  /** FAB/궤도 쪽을 가리키는 작은 원형 노치 */
+  hubDetailNotch:
+    "pointer-events-none absolute top-1/2 size-3 -translate-y-1/2 rounded-full border border-border/80 bg-popover",
+  hubDetailNotchEnd: "right-0 translate-x-1/2",
+  hubDetailNotchStart: "left-0 -translate-x-1/2",
+  hubDetailNotchAlert:
+    "border-red-300/60 dark:border-red-900/40",
+  hubDetailLeadIcon:
+    "relative inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/80 bg-background text-muted-foreground",
+  hubDetailLeadIconAlert:
+    "border-red-300/60 bg-red-50/80 text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400",
+  hubDetailLeadIconReport:
+    "border-red-300/70 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400",
+  hubDetailBody: "min-w-0 flex-1 self-center",
+  hubDetailTitle:
+    "flex min-h-5 items-center gap-2 text-sm font-medium leading-tight tracking-tight",
+  hubDetailMeta: "mt-0.5 text-xs leading-snug text-muted-foreground",
+  hubDetailAction:
+    "mt-1 text-left text-xs font-medium text-primary transition-colors hover:underline",
+  hubDetailRow: "flex items-center gap-2.5",
+  /** hub 캡슐 안 액션 행(리포트) */
+  hubDetailActionRow:
+    "flex w-full items-center gap-2.5 rounded-full text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/40",
   topBellIcon: "size-7",
   /** 컨트롤러 · 알람 bell 아이콘 (배지 오버레이용) */
   topHeaderOverlayIcon: "size-7",
@@ -396,7 +427,7 @@ export const dashboardUi = {
   refreshBtn:
     "rounded-lg border px-4 py-2.5 text-[length:var(--density-refresh)] font-medium",
 
-  /* ScopeBar — Phase 2 통합 (farm · SP · stall · Refresh) */
+  /* ScopeBar — farm · SP · stall (새로고침·레이어는 TopBar) */
   scopeBar:
     "relative overflow-visible rounded-xl border bg-muted/40 px-4 py-3 md:px-5 md:py-4",
   scopeBarSticky:

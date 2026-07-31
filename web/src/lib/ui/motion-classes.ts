@@ -138,6 +138,15 @@ export const motionClass = {
   /** 헤더 도구 패널 — 버튼 왼쪽 슬라이드 */
   headerToolsPanel: "header-tools-panel",
 
+  /** 통합 FAB 일자 레일 — 펼침/접힘 */
+  hubWidgetRail: "hub-widget-rail",
+  hubWidgetRailItemEnter: "hub-widget-rail-item-enter",
+  hubWidgetRailItemExit: "hub-widget-rail-item-exit",
+  /** 통합 FAB 3방향 원형 방사 */
+  hubWidgetOrbitItemEnter: "hub-widget-orbit-item-enter",
+  hubWidgetOrbitItemExit: "hub-widget-orbit-item-exit",
+  hubWidgetDetailIn: "hub-widget-detail-in",
+
   /** 그리드 상세 — 컨트롤러 캐러셀 enter/exit */
   detailCarousel: "farm-detail-carousel",
   detailCarouselLayer: "farm-detail-carousel-layer",

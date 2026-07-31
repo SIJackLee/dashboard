@@ -79,9 +79,11 @@ flowchart TB
 ### 페이로드·파싱 가정
 
 - 디코드 결과의 컨트롤러 배열 · 시계열 → UI 현재값은 보통 **마지막 원소**
-- 통신상태 ≈ 수신 시각 신선도 (약 15분 / 60분 / 그 외)
-- **REPLAY UI** = **미구현** (`v_iot_replay_*` view만)
-- 구 테이블 `iot_room_state_decoded` 는 RLS·이력 참고용일 수 있음. **출고 LIVE 읽기 정본은 위 view**
+- 통신상태 ≈ **수신 시각(`received_at`)** 신선도 (약 15분 / 60분 / 그 외)
+- 추이 차트·리포트 시계열 ≈ **측정 시각(`mesure_at`)** — 재연결 시 컨트롤러 버퍼를 짧은 주기로 올려도 샘플 자체는 기존 5분 측정 간격. LIVE/REPLAY 플래그 구분 없이 `farm_trend_history*`에 포함 (`live`/`history`/`replay`)
+- **통합 위젯 FAB (B안):** 헤더 ⋯·차트 레이어를 자유 플로트 뱃지로 통합. 탭=디자인|기능|모드, 드래그 위치=`localStorage` (`hub-widget-fab-pos-v1`)
+- 구 **REPLAY 전용 UI** (`/replay`, `/logs`) = 미구현·비목표 (정책상 모드 분리 없음). `v_iot_replay_*` view는 레거시
+- 구 테이블 `iot_room_state_decoded` 는 RLS·이력 참고용일 수 있음. **출고 LIVE 읽기 정본은 위 view** (카드 최신값은 여전히 live 스냅샷 + `received_at`)
 
 ### 데이터 모듈
 
@@ -129,7 +131,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 | `/farm` 허브 — 그리드 · 목록 · 차트 · ARIA | 완료 (ARIA는 PoC) |
 | 일괄적용 · 컨트롤러 설정 · 명령 insert | 완료 |
 | LIVE view 경로 (`dashboard_list` / `decoded_latest`) | 완료 — §5 |
-| REPLAY UI (`/replay`, `/logs`) | **미구현** (DB view만) |
+| REPLAY 전용 UI (`/replay`, `/logs`) | **비목표** — 재연결 백필은 추이(`mesure_at`)로 흡수 |
 | 명령 downlink Agent (`pending` → MQTT → `sent`) | 미구현 (대시보드는 insert만) |
 | 사용설명서 차트·ARIA 절 | 완료 — `user-manual/11` · `12` |
 
@@ -171,7 +173,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - 설정: `/settings?tab=barn` → 전송 데이터에 나타난 stallNo 중 **지도 위치·이름만** 지정 (`saveBarnMetasAction`)
 - 집계: `aggregateByBarn(readings, barnMetas)` — `(farmUid, moduleUid, stallNo)` 매칭, 평균값·최악 상태
 - 지도: `FarmMapView` — 4×4 CSS Grid, 게이트웨이 placeholder(중앙 상단), 축사 카드, 범례
-- **그래프 기간:** `?trendPeriod=24h|7d|30d` (기본 24h) — 그리드·목록 탭 공유. 그리드 히트맵=축사 평균(`farm_trend_history`), 목록/상세=TrendChart 컨트롤러 단위(`farm_trend_history_by_controller`).
+- **그래프 기간:** `?trendPeriod=24h|7d|30d` (기본 24h) — 그리드·목록 탭 공유. 그리드 히트맵=축사 평균(`farm_trend_history`), 목록/상세=TrendChart 컨트롤러 단위(`farm_trend_history_by_controller`). 버킷 기준 **`mesure_at`** (없으면 `received_at`).
 - **오늘의 리포트 PDF:** 헤더 `DailyReportButton` (`data-tour-id="header-daily-report"`) — 활성 농장 기준 브라우저 생성. 축사(stall) 단위로 KPI → 24h/7d/30d 온도·습도·모터 그래프 → 상세표. 시계열은 `farm_trend_history_by_controller`를 축사 평균으로 집계 (`buildDailyReportPayload`). 렌더 `buildAndDownloadDailyReportPdf` (jspdf + canvas).
 - 클릭: `/farm?tab=ops&…` 딥링크 (레거시 `/controllers`는 redirect)
 - 빈 상태: 축사 미설정 시 설정 탭 CTA
