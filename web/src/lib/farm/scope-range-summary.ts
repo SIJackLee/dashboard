@@ -195,6 +195,8 @@ export function buildScopeSummaryFromColumns(
     humDevRaw: [],
     tempDevOpacity: [],
     humDevOpacity: [],
+    tempSpreadExtremes: { high: [], low: [] },
+    humSpreadExtremes: { high: [], low: [] },
     tempRangeLabel: "",
     humidityRangeLabel: "",
   } satisfies UnifiedBarnTrendRaw;

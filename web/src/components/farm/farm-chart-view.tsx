@@ -62,6 +62,18 @@ const SCOPE_TONE_RANK: Record<ScopeAlarmTone, number> = {
 
 function worseScopeTone(
   a: ScopeAlarmTone | null | undefined,
+  b: ScopeAlarmTone,
+): ScopeAlarmTone;
+function worseScopeTone(
+  a: ScopeAlarmTone,
+  b: ScopeAlarmTone | null | undefined,
+): ScopeAlarmTone;
+function worseScopeTone(
+  a: ScopeAlarmTone | null | undefined,
+  b: ScopeAlarmTone | null | undefined,
+): ScopeAlarmTone | null;
+function worseScopeTone(
+  a: ScopeAlarmTone | null | undefined,
   b: ScopeAlarmTone | null | undefined,
 ): ScopeAlarmTone | null {
   if (a == null) return b ?? null;
