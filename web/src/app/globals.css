@@ -2787,28 +2787,28 @@ html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[da
   from {
     opacity: 0;
     transform: translate3d(
-        calc(var(--hub-rail-dx, 0) * var(--motion-distance-lg)),
-        calc(var(--hub-rail-dy, 0) * var(--motion-distance-lg)),
+        calc(-50% + var(--hub-rail-dx, 0) * var(--motion-distance-lg)),
+        calc(-50% + var(--hub-rail-dy, 0) * var(--motion-distance-lg)),
         0
       )
       scale(0.72);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(-50%, -50%, 0) scale(1);
   }
 }
 
 @keyframes hub-widget-rail-item-exit {
   from {
     opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(-50%, -50%, 0) scale(1);
   }
   to {
     opacity: 0;
     transform: translate3d(
-        calc(var(--hub-rail-dx, 0) * var(--motion-distance-lg)),
-        calc(var(--hub-rail-dy, 0) * var(--motion-distance-lg)),
+        calc(-50% + var(--hub-rail-dx, 0) * var(--motion-distance-lg)),
+        calc(-50% + var(--hub-rail-dy, 0) * var(--motion-distance-lg)),
         0
       )
       scale(0.72);
@@ -2911,6 +2911,8 @@ html[data-viewport-preview="mobile"] [data-farm-tour-root] .farm-tour-tooltip[da
   .hub-widget-detail-in {
     animation: none;
   }
+  .hub-widget-rail-item-enter,
+  .hub-widget-rail-item-exit,
   .hub-widget-orbit-item-enter,
   .hub-widget-orbit-item-exit {
     transform: translate(-50%, -50%);

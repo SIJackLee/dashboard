@@ -12,6 +12,13 @@ import {
 import { createPortal } from "react-dom";
 import { Settings } from "lucide-react";
 import { HeaderToolsMenu } from "@/components/layout/header-tools-menu";
+import {
+  RAIL_GROUP_GAP_DEFAULT,
+  RAIL_PITCH_BASE,
+  hubRailToolDistances,
+  railOffset,
+  type HubRailDir,
+} from "@/components/layout/hub-rail-layout";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmOverview } from "@/lib/data/iot";
@@ -21,6 +28,7 @@ import {
   dispatchTourGridActionDone,
   waitForTourTarget,
 } from "@/lib/onboarding/tour-timing";
+import { useShellAlarms } from "@/lib/navigation/shell-live-alarms-store";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionDuration } from "@/lib/ui/motion-tokens";
@@ -31,13 +39,21 @@ const STORAGE_KEY = "hub-widget-fab-pos-v1";
 const FAB_SIZE = 48;
 const MARGIN = 12;
 const DRAG_THRESHOLD_PX = 8;
-const ORBIT_STAGGER_MS = 55;
-/** 디자인 · 기능 · 알람 링 반지름 */
-const ORBIT_RADII = [96, 168, 240];
+const RAIL_STAGGER_MS = 55;
+const RAIL_PITCH_MIN = 40;
+const RAIL_GROUP_GAP = RAIL_GROUP_GAP_DEFAULT;
+/** 레일 끝 · 화면 가장자리 여유 */
+const RAIL_EDGE_PAD = 28;
 const emptySubscribe = () => () => {};
 
 type Pos = { left: number; top: number };
-export type HubRailDir = "up" | "down" | "left" | "right";
+export type { HubRailDir };
+
+type LinearRailLayout = {
+  dir: HubRailDir;
+  pitch: number;
+  detailOpenLeft: boolean;
+};
 
 type Props = {
   overview?: FarmOverview;
@@ -82,64 +98,93 @@ function readStoredPos(): Pos | null {
   }
 }
 
-/** 여유 공간 → 방사 기준 방향 */
-function preferRailDir(pos: Pos): HubRailDir {
-  if (typeof window === "undefined") return "up";
-  const cx = pos.left + FAB_SIZE / 2;
-  const cy = pos.top + FAB_SIZE / 2;
-  const spaceUp = cy;
-  const spaceDown = window.innerHeight - cy;
-  const spaceLeft = cx;
-  const spaceRight = window.innerWidth - cx;
+/** 레일 길이(아이템·그룹갭·끝 여유) */
+function railNeedLen(itemCount: number, pitch: number): number {
+  const groupGaps = 2;
+  return itemCount * pitch + groupGaps * RAIL_GROUP_GAP + RAIL_EDGE_PAD;
+}
 
-  const TOP_BAND = 168;
-  const BOTTOM_BAND = 120;
-  if (pos.top < TOP_BAND) return "down";
-  if (pos.top + FAB_SIZE > window.innerHeight - BOTTOM_BAND) return "up";
-
-  const maxV = Math.max(spaceUp, spaceDown);
-  const maxH = Math.max(spaceLeft, spaceRight);
-  if (maxV >= maxH * 0.85) {
-    return spaceUp >= spaceDown ? "up" : "down";
-  }
-  return spaceLeft >= spaceRight ? "left" : "right";
+function spaceAlong(
+  dir: HubRailDir,
+  spaceUp: number,
+  spaceDown: number,
+  spaceLeft: number,
+  spaceRight: number,
+): number {
+  if (dir === "up") return spaceUp;
+  if (dir === "down") return spaceDown;
+  if (dir === "left") return spaceLeft;
+  return spaceRight;
 }
 
 /**
- * 3방향 부채꼴 각도(deg, 0=오른쪽 · 시계방향+).
- * [디자인, 기능, 알람] — 약 100° 간격으로 또렷이 분리
+ * FAB 위치 → 선형 레일 방향·피치·상세 팝오버 측.
+ * 여유 공간으로만 펼치고, 짧으면 피치만 축소한다.
  */
-function radialFanDegs(dir: HubRailDir): [number, number, number] {
-  switch (dir) {
-    case "down":
-      return [20, 90, 160];
-    case "left":
-      return [110, 180, 250];
-    case "right":
-      return [290, 0, 70];
-    case "up":
-    default:
-      return [200, 270, 340];
+function fitLinearRailLayout(pos: Pos, itemCount: number): LinearRailLayout {
+  if (typeof window === "undefined") {
+    return { dir: "up", pitch: RAIL_PITCH_BASE, detailOpenLeft: true };
   }
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const cx = pos.left + FAB_SIZE / 2;
+  const cy = pos.top + FAB_SIZE / 2;
+  const spaceUp = cy;
+  const spaceDown = vh - cy;
+  const spaceLeft = cx;
+  const spaceRight = vw - cx;
+  const need = railNeedLen(itemCount, RAIL_PITCH_BASE);
+
+  const ranked: HubRailDir[] = (
+    [
+      ["up", spaceUp],
+      ["down", spaceDown],
+      ["left", spaceLeft],
+      ["right", spaceRight],
+    ] as const
+  )
+    .slice()
+    .sort((a, b) => b[1] - a[1])
+    .map(([d]) => d);
+
+  let dir = ranked[0] ?? "up";
+  /* 기본 피치가 들어가는 축을 우선, 없으면 최대 여유 축 */
+  for (const d of ranked) {
+    if (spaceAlong(d, spaceUp, spaceDown, spaceLeft, spaceRight) >= need * 0.92) {
+      dir = d;
+      break;
+    }
+  }
+
+  const available = Math.max(
+    0,
+    spaceAlong(dir, spaceUp, spaceDown, spaceLeft, spaceRight) -
+      RAIL_EDGE_PAD -
+      2 * RAIL_GROUP_GAP,
+  );
+  const pitch = Math.round(
+    Math.min(
+      RAIL_PITCH_BASE,
+      Math.max(RAIL_PITCH_MIN, available / Math.max(itemCount, 1)),
+    ),
+  );
+  const detailOpenLeft = spaceLeft >= spaceRight;
+
+  return { dir, pitch, detailOpenLeft };
 }
 
 function layersFlyoutSide(dir: HubRailDir): "up" | "down" {
   return dir === "down" ? "down" : "up";
 }
 
-function orbitExitMs(itemCount: number) {
+function railExitMs(itemCount: number) {
   return (
-    motionDuration.exit + Math.max(0, itemCount - 1) * ORBIT_STAGGER_MS * 0.28
+    motionDuration.exit + Math.max(0, itemCount - 1) * RAIL_STAGGER_MS * 0.28
   );
 }
 
-function orbitOffset(deg: number, radius: number) {
-  const rad = (deg * Math.PI) / 180;
-  return { ox: Math.cos(rad) * radius, oy: Math.sin(rad) * radius };
-}
-
 /**
- * 통합 위젯 FAB — 3방향 원형 방사 (디자인 / 기능·운영 / 알람).
+ * 통합 위젯 FAB — 선형 스피드 다이얼 (여유 방향 일직선 레일).
  */
 export function HubWidgetFab({
   overview,
@@ -148,6 +193,7 @@ export function HubWidgetFab({
   farmKey = null,
 }: Props) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const liveAlarms = useShellAlarms(alarms);
   const [pos, setPos] = useState<Pos>(defaultPos);
   const [open, setOpen] = useState(false);
   const dragRef = useRef<{
@@ -160,18 +206,25 @@ export function HubWidgetFab({
   } | null>(null);
 
   const offline = overview?.offlineCount ?? 0;
-  const alarmCount = alarms.filter((a) => a.status === "active").length;
-  const alert = offline > 0 || alarmCount > 0;
-  const badgeCount = alarmCount > 0 ? alarmCount : offline > 0 ? offline : 0;
+  const alarmCount = liveAlarms.filter((a) => a.status === "active").length;
+  const alert = alarmCount > 0 || offline > 0;
+  const badgeCount = alarmCount;
 
-  const railDir = preferRailDir(pos);
-  const fanDegs = radialFanDegs(railDir);
+  /** 디자인2 + 기능(1~2) + 이상상황1 + 차트1 */
+  const toolIconCount = 2 + (isAdmin ? 2 : 1) + 1;
+  const slotCount = toolIconCount + 1;
+  const layout = fitLinearRailLayout(pos, slotCount);
+  const railDir = layout.dir;
+  const pitch = layout.pitch;
   const flyoutSide = layersFlyoutSide(railDir);
-  /** 디자인2 + 기능(1~2) + 알람2 + 차트1 */
-  const toolCount = 2 + (isAdmin ? 2 : 1) + 2 + 1;
+  const toolDistances = hubRailToolDistances(toolIconCount, pitch, isAdmin);
+  const chartDistance =
+    (toolDistances[toolDistances.length - 1] ?? pitch) + pitch;
+  const chartOrbit = railOffset(railDir, chartDistance);
+
   const { mounted: railMounted, phase: railPhase } = useOpenPresence(
     open,
-    orbitExitMs(toolCount),
+    railExitMs(slotCount),
   );
 
   useEffect(() => {
@@ -269,17 +322,15 @@ export function HubWidgetFab({
 
   if (!mounted) return null;
 
-  /* 알람 레이: 알림·연결 다음 링에 차트 */
-  const alarmRing = 2;
-  const alarmDeg = fanDegs[2];
-  const chartOrbit = orbitOffset(
-    alarmDeg,
-    ORBIT_RADII[Math.min(alarmRing, ORBIT_RADII.length - 1)] ?? 168,
-  );
+  const railAxis =
+    railDir === "left" || railDir === "right"
+      ? ({ dx: railDir === "left" ? 1 : -1, dy: 0 } as const)
+      : ({ dx: 0, dy: railDir === "up" ? 1 : -1 } as const);
+
   const layerMotion =
     railPhase === "exit"
-      ? motionClass.hubWidgetOrbitItemExit
-      : motionClass.hubWidgetOrbitItemEnter;
+      ? motionClass.hubWidgetRailItemExit
+      : motionClass.hubWidgetRailItemEnter;
 
   return createPortal(
     <div
@@ -334,7 +385,7 @@ export function HubWidgetFab({
             ) : null}
           </button>
 
-          {/* FAB 중심 기준 3방향 방사 + 차트 슬롯 */}
+          {/* FAB 중심 기준 선형 레일 + 차트 슬롯 */}
           <div
             className={cn(
               "absolute left-1/2 top-1/2 z-[6] size-0",
@@ -343,7 +394,7 @@ export function HubWidgetFab({
             data-tour-id={railMounted ? "header-tools-panel" : undefined}
             data-hub-widget-panel={railMounted ? "" : undefined}
             data-hub-rail-dir={railDir}
-            data-hub-layout="radial3"
+            data-hub-layout="rail"
             data-hub-layers-flyout={flyoutSide}
             data-phase={railMounted ? railPhase : undefined}
             role={railMounted ? "dialog" : undefined}
@@ -356,14 +407,15 @@ export function HubWidgetFab({
             {railMounted ? (
               <HeaderToolsMenu
                 variant="hub-panel"
-                hubLayout="radial3"
+                hubLayout="rail"
                 hubPattern="all"
                 hubRailDir={railDir}
                 hubRailPhase={railPhase}
-                hubFanDegs={fanDegs}
-                hubOrbitRadii={ORBIT_RADII}
+                hubRailPitch={pitch}
+                hubRailGroupGap={RAIL_GROUP_GAP}
+                hubDetailOpenLeft={layout.detailOpenLeft}
                 overview={overview}
-                alarms={alarms}
+                alarms={liveAlarms}
                 isAdmin={isAdmin}
                 farmKey={farmKey}
               />
@@ -385,14 +437,14 @@ export function HubWidgetFab({
                 {
                   left: chartOrbit.ox,
                   top: chartOrbit.oy,
-                  ["--hub-ox" as string]: `${chartOrbit.ox}px`,
-                  ["--hub-oy" as string]: `${chartOrbit.oy}px`,
-                  ["--hub-orbit-ray" as string]: 2,
-                  ["--hub-orbit-ring" as string]: alarmRing,
+                  ["--hub-rail-i" as string]: toolIconCount,
+                  ["--hub-rail-n" as string]: String(slotCount),
+                  ["--hub-rail-dx" as string]: railAxis.dx,
+                  ["--hub-rail-dy" as string]: railAxis.dy,
                 } as CSSProperties
               }
               data-hub-chart-layers-wrap=""
-              data-hub-orbit-group="alarm"
+              data-hub-rail-tool=""
             >
               <div
                 data-farm-chart-layers-slot

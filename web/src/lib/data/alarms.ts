@@ -1,8 +1,15 @@
 import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
 import type { FarmKey } from "@/lib/data/farm-key";
+import { appendFarmKeyParams } from "@/lib/data/farm-key";
 import { buildControllerHref } from "@/lib/auth/farm-access";
 import { compareReadings } from "@/lib/data/reading-hierarchy";
 import { resolveThresholdsForReading } from "@/lib/data/alarm-scope";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import {
+  applyFarmChartScopeParams,
+  type FarmChartScope,
+} from "@/lib/farm/farm-chart-scope";
+import { applyChartViewParams } from "@/lib/farm/farm-view-url";
 
 export type AlarmSeverity = "warning" | "critical";
 
@@ -163,9 +170,44 @@ export function summarizeAlarms(alarms: AlarmRow[]) {
 }
 
 /**
- * TopBar bell → 컨트롤러 deep link.
- * 레거시 map 드릴(FarmMapGraphStage) 제거 — 목록 뷰(ControllerSummaryGaugeRow)로 진입해
- * 해당 controllerKey 카드로 스크롤·하이라이트한다.
+ * TopBar / FAB 알림 행 → 차트 탭 + 해당 컨트롤러(가능하면) 스코프.
+ * stall/유형이 부족하면 상위 스코프로 완화.
+ */
+export function alarmChartHref(
+  alarm: Pick<
+    AlarmRow,
+    "farmKey" | "stallTyCode" | "stallNo" | "controllerKey" | "id"
+  >,
+): string {
+  const params = new URLSearchParams();
+  appendFarmKeyParams(params, alarm.farmKey);
+  applyChartViewParams(params);
+
+  const sp = alarm.stallTyCode
+    ? normalizeStallTyCode(alarm.stallTyCode)
+    : "";
+  const stall = alarm.stallNo?.trim() ?? "";
+  let scope: FarmChartScope = { level: "farm" };
+  if (sp && stall && alarm.controllerKey) {
+    scope = {
+      level: "controller",
+      stallTyCode: sp,
+      stallNo: stall,
+      controllerKey: alarm.controllerKey,
+    };
+  } else if (sp && stall) {
+    scope = { level: "stall", stallTyCode: sp, stallNo: stall };
+  } else if (sp) {
+    scope = { level: "sp", stallTyCode: sp };
+  }
+  applyFarmChartScopeParams(params, scope);
+  if (alarm.id) params.set("alarm", alarm.id);
+  return `/farm?${params.toString()}`;
+}
+
+/**
+ * @deprecated 알림 행 1차는 {@link alarmChartHref}. 목록 뷰 포커스가 필요할 때만 사용.
+ * TopBar bell → 컨트롤러 deep link (목록 뷰).
  */
 export function alarmControlHref(
   alarm: Pick<

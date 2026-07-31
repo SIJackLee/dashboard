@@ -2,7 +2,6 @@
 
 import {
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   type ComponentType,
@@ -10,16 +9,14 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Activity,
-  AreaChart,
-  ArrowUpDown,
+  Check,
   CheckCheck,
   ChevronDown,
   Droplets,
   Fan,
-  Layers2,
   LineChart,
   Thermometer,
+  X,
 } from "lucide-react";
 import {
   Tooltip,
@@ -37,37 +34,117 @@ import { motionDuration } from "@/lib/ui/motion-tokens";
 import { useOpenPresence } from "@/lib/ui/use-clip-presence";
 import { cn } from "@/lib/utils";
 
-type LayerChip = {
-  id: UnifiedLayerId;
-  label: string;
-  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-};
-
 type Tone = "root" | "temp" | "hum" | "motor" | "neutral";
 
-const TEMP_SUB_CHIPS: LayerChip[] = [
-  { id: "ema", label: "EMA", Icon: Activity },
-  { id: "dev", label: "편차", Icon: ArrowUpDown },
-  { id: "band", label: "산포", Icon: AreaChart },
-];
+export type LayerGroupId = "temp" | "hum" | "motor";
 
-const HUM_SUB_CHIPS: LayerChip[] = [
-  { id: "humEma", label: "EMA", Icon: Activity },
-  { id: "humDev", label: "편차", Icon: ArrowUpDown },
-  { id: "humBand", label: "산포", Icon: AreaChart },
-];
-
-const MOTOR_SUB_CHIPS: LayerChip[] = [
-  { id: "motorCh", label: "채널 A/B/C", Icon: Layers2 },
-];
+/** 그룹 토글 사이클: 전체 → 본선만 → 끔 → 전체 */
+export type LayerGroupCycleMode = "all" | "base" | "off";
 
 export type UnifiedTrendLayerAvailable = Record<UnifiedLayerId, boolean>;
+
+const GROUP_MAIN: Record<LayerGroupId, UnifiedLayerId> = {
+  temp: "temp",
+  hum: "hum",
+  motor: "motors",
+};
+
+const GROUP_SUBS: Record<LayerGroupId, readonly UnifiedLayerId[]> = {
+  /* 전체 = 본선 + 편차 + 산포 + EMA5 */
+  temp: ["ema", "dev", "band"],
+  hum: ["humEma", "humDev", "humBand"],
+  motor: ["motorCh"],
+};
+
+const GROUP_META: Record<
+  LayerGroupId,
+  {
+    tone: Tone;
+    Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+    baseLabel: string;
+  }
+> = {
+  temp: { tone: "temp", Icon: Thermometer, baseLabel: "온도" },
+  hum: { tone: "hum", Icon: Droplets, baseLabel: "습도" },
+  motor: { tone: "motor", Icon: Fan, baseLabel: "모터" },
+};
+
+function availableSubs(
+  group: LayerGroupId,
+  available: UnifiedTrendLayerAvailable,
+): UnifiedLayerId[] {
+  return GROUP_SUBS[group].filter((id) => available[id]);
+}
+
+export function detectLayerGroupMode(
+  layers: UnifiedLayerFlags,
+  available: UnifiedTrendLayerAvailable,
+  group: LayerGroupId,
+): LayerGroupCycleMode {
+  const main = GROUP_MAIN[group];
+  const subs = availableSubs(group, available);
+  const mainOn = layers[main];
+  const onSubs = subs.filter((id) => layers[id]);
+  const allSubsOn = subs.length === 0 || onSubs.length === subs.length;
+  const noSubsOn = onSubs.length === 0;
+
+  if (!mainOn && noSubsOn) return "off";
+  if (mainOn && allSubsOn) return "all";
+  if (mainOn && noSubsOn) return "base";
+  /* 본선+일부 상세 → 끔으로 정리 유도(다음 클릭에서 전체로) */
+  if (mainOn) return "off";
+  return "off";
+}
+
+export function nextLayerGroupMode(
+  mode: LayerGroupCycleMode,
+): LayerGroupCycleMode {
+  if (mode === "all") return "base";
+  if (mode === "base") return "off";
+  return "all";
+}
+
+export function applyLayerGroupMode(
+  prev: UnifiedLayerFlags,
+  group: LayerGroupId,
+  mode: LayerGroupCycleMode,
+  available: UnifiedTrendLayerAvailable,
+): UnifiedLayerFlags {
+  const next = { ...prev };
+  const main = GROUP_MAIN[group];
+  const subs = availableSubs(group, available);
+
+  if (mode === "all") {
+    next[main] = true;
+    for (const id of subs) next[id] = true;
+    return next;
+  }
+  if (mode === "base") {
+    next[main] = true;
+    for (const id of GROUP_SUBS[group]) next[id] = false;
+    return next;
+  }
+  // off — 그룹 그래프 전부
+  next[main] = false;
+  for (const id of GROUP_SUBS[group]) next[id] = false;
+  return next;
+}
+
+function modeTooltip(group: LayerGroupId, mode: LayerGroupCycleMode): string {
+  const name = GROUP_META[group].baseLabel;
+  if (mode === "all") return `${name} 전체 적용`;
+  if (mode === "base") return `${name}만`;
+  return `${name} 그래프 끔`;
+}
+
+function nextModeHint(group: LayerGroupId, mode: LayerGroupCycleMode): string {
+  return `다음: ${modeTooltip(group, nextLayerGroupMode(mode))}`;
+}
 
 type Props = {
   layers: UnifiedLayerFlags;
   available: UnifiedTrendLayerAvailable;
-  onToggleLayer: (id: UnifiedLayerId) => void;
-  onEnableGroupAll: (group: "temp" | "hum" | "motor") => void;
+  onCycleGroup: (group: LayerGroupId) => void;
   className?: string;
   /** hub FAB portal · inline 차트 헤더 */
   placement?: "hub" | "inline";
@@ -88,20 +165,6 @@ function toneActiveClass(tone: Tone): string {
   }
 }
 
-function badgeToneClass(tone: Tone): string {
-  switch (tone) {
-    case "temp":
-      return dashboardUi.chartLayerBadgeTemp;
-    case "hum":
-      return dashboardUi.chartLayerBadgeHum;
-    case "motor":
-      return dashboardUi.chartLayerBadgeMotor;
-    default:
-      return dashboardUi.chartLayerBadge;
-  }
-}
-
-/** 헤더 도구 버튼(size-9 / md:size-11) + 고유색 border 패턴 */
 function iconBtnClass(active: boolean, muted: boolean, tone: Tone) {
   return cn(
     "relative inline-flex size-9 shrink-0 items-center justify-center overflow-visible rounded-lg border md:size-11",
@@ -161,97 +224,35 @@ function IconTipButton({
   );
 }
 
-function LayerCountBadge({
-  count,
-  tone = "root",
-}: {
-  count: number;
-  tone?: Tone;
-}) {
-  if (count <= 0) return null;
+function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
+  const Icon =
+    mode === "all" ? CheckCheck : mode === "base" ? Check : X;
   return (
     <span
-      key={count}
+      key={mode}
       className={cn(
-        dashboardUi.topHeaderCountBadge,
-        badgeToneClass(tone),
-        "pointer-events-none z-[2]",
+        "pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex size-4 items-center justify-center rounded-full border bg-background shadow-sm",
+        mode === "off"
+          ? "border-muted-foreground/40 text-muted-foreground"
+          : "border-current/30 text-current",
         motionClass.farmChartLayerBadgePop,
       )}
+      aria-hidden
     >
-      {count > 99 ? "99+" : count}
+      <Icon className="size-2.5 md:size-3" strokeWidth={2.5} />
     </span>
   );
 }
 
-/** 그룹 한 줄 — 우측 정렬, 메인→전체→하위가 왼쪽으로 */
-function LayerIconRow({
-  id,
-  label,
-  staggerIndex,
-  phase,
-  items,
-}: {
-  id: string;
-  label: string;
-  staggerIndex: number;
-  phase: "enter" | "exit";
-  items: ReactNode[];
-}) {
-  const nodes = useMemo(() => items.filter((n) => n != null), [items]);
-  const itemEnter = motionClass.farmChartLayerFlyoutRtlItemEnter;
-  const itemExit = motionClass.farmChartLayerFlyoutRtlItemExit;
-
-  return (
-    <div
-      id={id}
-      role="group"
-      aria-label={label}
-      className={cn(
-        "flex flex-row-reverse items-center gap-1 overflow-visible p-0.5",
-        phase === "enter"
-          ? motionClass.farmChartLayerIconEnter
-          : motionClass.farmChartLayerIconExit,
-      )}
-      style={
-        {
-          ["--farm-layer-icon-i" as string]: String(staggerIndex),
-          ["--farm-layer-group-i" as string]: String(staggerIndex),
-        } as CSSProperties
-      }
-      data-farm-layer-row=""
-    >
-      {nodes.map((node, i) => (
-        <div
-          key={i}
-          className={cn(
-            phase === "enter" ? itemEnter : itemExit,
-            "relative overflow-visible",
-          )}
-          style={
-            {
-              ["--farm-layer-flyout-i" as string]: String(i),
-              ["--farm-layer-flyout-n" as string]: String(nodes.length),
-            } as CSSProperties
-          }
-        >
-          {node}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /**
- * 차트 레이어 툴바 — TopBar(헤더 도구 왼쪽).
- * 루트(차트 아이콘) → 아래 온도/습도/모터 아이콘 행(우측 정렬).
- * 모바일: 헤더 도구와 같이 카드로 감싸 펼침.
+ * 차트 레이어 툴바 — 온도·습도·모터 대표 3버튼.
+ * 각 버튼 클릭: 전체적용 → 본선만 → 끔 → 전체적용.
+ * 오버레이: 중첩체크 / 체크 / 엑스
  */
 export function UnifiedTrendLayerToolbar({
   layers,
   available,
-  onToggleLayer,
-  onEnableGroupAll,
+  onCycleGroup,
   className,
   placement = "inline",
 }: Props) {
@@ -269,45 +270,23 @@ export function UnifiedTrendLayerToolbar({
     setFlyUp(side !== "down");
   }, [placement, rootOpen]);
 
-  const tempCount = TEMP_SUB_CHIPS.filter(
-    (c) => available[c.id] && layers[c.id],
-  ).length;
-  const humCount = HUM_SUB_CHIPS.filter(
-    (c) => available[c.id] && layers[c.id],
-  ).length;
-  const motorCount = MOTOR_SUB_CHIPS.filter(
-    (c) => available[c.id] && layers[c.id],
-  ).length;
-  const totalActive =
-    (available.temp && layers.temp ? 1 + tempCount : 0) +
-    (available.hum && layers.hum ? 1 + humCount : 0) +
-    (available.motors && layers.motors ? 1 + motorCount : 0);
-
-  const renderSub = (chip: LayerChip, tone: Tone) => {
-    if (!available[chip.id]) return null;
-    const on = layers[chip.id];
-    const Icon = chip.Icon;
-    return (
-      <IconTipButton
-        key={chip.id}
-        label={chip.label}
-        pressed={on}
-        on={on}
-        tone={tone}
-        onClick={() => onToggleLayer(chip.id)}
-      >
-        <Icon className="size-4 md:size-5" aria-hidden />
-      </IconTipButton>
-    );
-  };
-
-  const groupOrder = (
+  const groups = (
     [
       available.temp ? "temp" : null,
       available.hum ? "hum" : null,
-      available.motors ? "motors" : null,
+      available.motors ? "motor" : null,
     ] as const
-  ).filter((g): g is "temp" | "hum" | "motors" => g != null);
+  ).filter((g): g is LayerGroupId => g != null);
+
+  const totalActive = groups.reduce((n, g) => {
+    const main = GROUP_MAIN[g];
+    const subs = availableSubs(g, available);
+    return (
+      n +
+      (layers[main] ? 1 : 0) +
+      subs.filter((id) => layers[id]).length
+    );
+  }, 0);
 
   const { mounted: rootMounted, phase: rootPhase } = useOpenPresence(
     rootOpen,
@@ -337,7 +316,18 @@ export function UnifiedTrendLayerToolbar({
           onClick={() => setRootOpen((v) => !v)}
         >
           <LineChart className="size-4 md:size-5" aria-hidden />
-          <LayerCountBadge count={totalActive} tone="root" />
+          {totalActive > 0 ? (
+            <span
+              className={cn(
+                dashboardUi.topHeaderCountBadge,
+                dashboardUi.chartLayerBadge,
+                "pointer-events-none z-[2]",
+                motionClass.farmChartLayerBadgePop,
+              )}
+            >
+              {totalActive > 99 ? "99+" : totalActive}
+            </span>
+          ) : null}
           <ChevronDown
             className={cn(
               "pointer-events-none absolute bottom-0.5 size-2.5 opacity-50 transition-transform duration-[var(--motion-duration-fast)]",
@@ -362,7 +352,7 @@ export function UnifiedTrendLayerToolbar({
               "absolute z-[90] flex flex-col gap-1.5 overflow-visible",
               placement === "hub"
                 ? cn(
-                    "left-1/2 -translate-x-1/2 items-center rounded-2xl border border-border/80 bg-popover p-2 shadow-md ring-1 ring-foreground/10",
+                    "left-1/2 -translate-x-1/2 items-center",
                     flyUp
                       ? "bottom-[calc(100%+12px)]"
                       : "top-[calc(100%+12px)]",
@@ -384,133 +374,47 @@ export function UnifiedTrendLayerToolbar({
             style={
               {
                 ["--farm-layer-icon-n" as string]: String(
-                  Math.max(1, groupOrder.length),
+                  Math.max(1, groups.length),
                 ),
               } as CSSProperties
             }
           >
-            {available.temp ? (
-              <LayerIconRow
-                id="unified-temp-sublayers"
-                label="온도 레이어"
-                staggerIndex={groupOrder.indexOf("temp")}
-                phase={rootPhase}
-                items={[
-                  <IconTipButton
-                    key="temp-main"
-                    label={
-                      layers.temp ? "온도 그래프 끄기" : "온도 그래프 켜기"
-                    }
-                    pressed={layers.temp}
-                    on={layers.temp}
-                    tone="temp"
-                    onClick={() => onToggleLayer("temp")}
-                  >
-                    <Thermometer className="size-4 md:size-5" aria-hidden />
-                    {layers.temp ? (
-                      <LayerCountBadge count={tempCount} tone="temp" />
-                    ) : null}
-                  </IconTipButton>,
-                  <IconTipButton
-                    key="temp-all"
-                    label="온도 전체 적용"
-                    on={
-                      layers.temp &&
-                      TEMP_SUB_CHIPS.every(
-                        (c) => !available[c.id] || layers[c.id],
-                      )
-                    }
-                    tone="temp"
-                    onClick={() => onEnableGroupAll("temp")}
-                  >
-                    <CheckCheck className="size-4 md:size-5" aria-hidden />
-                  </IconTipButton>,
-                  ...TEMP_SUB_CHIPS.map((c) => renderSub(c, "temp")),
-                ]}
-              />
-            ) : null}
+            {groups.map((group, staggerIndex) => {
+              const meta = GROUP_META[group];
+              const Icon = meta.Icon;
+              const mode = detectLayerGroupMode(layers, available, group);
+              const on = mode !== "off";
+              const tip = `${modeTooltip(group, mode)} · ${nextModeHint(group, mode)}`;
 
-            {available.hum ? (
-              <LayerIconRow
-                id="unified-hum-sublayers"
-                label="습도 레이어"
-                staggerIndex={groupOrder.indexOf("hum")}
-                phase={rootPhase}
-                items={[
+              return (
+                <div
+                  key={group}
+                  className={cn(
+                    rootPhase === "enter"
+                      ? motionClass.farmChartLayerIconEnter
+                      : motionClass.farmChartLayerIconExit,
+                    "relative overflow-visible",
+                  )}
+                  style={
+                    {
+                      ["--farm-layer-icon-i" as string]: String(staggerIndex),
+                    } as CSSProperties
+                  }
+                >
                   <IconTipButton
-                    key="hum-main"
-                    label={
-                      layers.hum ? "습도 그래프 끄기" : "습도 그래프 켜기"
-                    }
-                    pressed={layers.hum}
-                    on={layers.hum}
-                    tone="hum"
-                    onClick={() => onToggleLayer("hum")}
+                    label={tip}
+                    pressed={on}
+                    on={on}
+                    muted={!on}
+                    tone={meta.tone}
+                    onClick={() => onCycleGroup(group)}
                   >
-                    <Droplets className="size-4 md:size-5" aria-hidden />
-                    {layers.hum ? (
-                      <LayerCountBadge count={humCount} tone="hum" />
-                    ) : null}
-                  </IconTipButton>,
-                  <IconTipButton
-                    key="hum-all"
-                    label="습도 전체 적용"
-                    on={
-                      layers.hum &&
-                      HUM_SUB_CHIPS.every(
-                        (c) => !available[c.id] || layers[c.id],
-                      )
-                    }
-                    tone="hum"
-                    onClick={() => onEnableGroupAll("hum")}
-                  >
-                    <CheckCheck className="size-4 md:size-5" aria-hidden />
-                  </IconTipButton>,
-                  ...HUM_SUB_CHIPS.map((c) => renderSub(c, "hum")),
-                ]}
-              />
-            ) : null}
-
-            {available.motors ? (
-              <LayerIconRow
-                id="unified-motor-sublayers"
-                label="모터 레이어"
-                staggerIndex={groupOrder.indexOf("motors")}
-                phase={rootPhase}
-                items={[
-                  <IconTipButton
-                    key="motor-main"
-                    label={
-                      layers.motors ? "모터 그래프 끄기" : "모터 그래프 켜기"
-                    }
-                    pressed={layers.motors}
-                    on={layers.motors}
-                    tone="motor"
-                    onClick={() => onToggleLayer("motors")}
-                  >
-                    <Fan className="size-4 md:size-5" aria-hidden />
-                    {layers.motors ? (
-                      <LayerCountBadge count={motorCount} tone="motor" />
-                    ) : null}
-                  </IconTipButton>,
-                  <IconTipButton
-                    key="motor-all"
-                    label="모터 전체 적용"
-                    on={
-                      layers.motors &&
-                      MOTOR_SUB_CHIPS.every(
-                        (c) => !available[c.id] || layers[c.id],
-                      )
-                    }
-                    tone="motor"
-                    onClick={() => onEnableGroupAll("motor")}
-                  >
-                    <CheckCheck className="size-4 md:size-5" aria-hidden />
-                  </IconTipButton>,
-                  ...MOTOR_SUB_CHIPS.map((c) => renderSub(c, "motor")),
-                ]}
-              />
-            ) : null}
+                    <Icon className="size-4 md:size-5" aria-hidden />
+                    <ModeOverlay mode={mode} />
+                  </IconTipButton>
+                </div>
+              );
+            })}
           </div>
         ) : null}
       </div>

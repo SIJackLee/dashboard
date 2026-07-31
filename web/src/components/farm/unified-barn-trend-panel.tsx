@@ -9,7 +9,12 @@ import {
   type TrendScaleEdgeLabel,
 } from "@/components/trends/trend-chart";
 import { UnifiedTrendPeriodBrush } from "@/components/farm/unified-trend-period-brush";
-import { UnifiedTrendLayerToolbar } from "@/components/farm/unified-trend-layer-toolbar";
+import {
+  UnifiedTrendLayerToolbar,
+  applyLayerGroupMode,
+  detectLayerGroupMode,
+  nextLayerGroupMode,
+} from "@/components/farm/unified-trend-layer-toolbar";
 import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
 import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
@@ -32,16 +37,22 @@ import type {
 } from "@/lib/data/farm-trend-types";
 import {
   findControllerTrendSeries,
+  formatControllerHeaderPrimary,
+  formatControllerHeaderSecondary,
   resolveReadingAlarmThresholds,
   resolveReadingThermo,
 } from "@/lib/farm/controller-summary-display";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
   alarmScopeKeyFromFarmChartScope,
   type FarmChartScope,
+  scopesEqual,
 } from "@/lib/farm/farm-chart-scope";
 import {
   CHART_THERMO_CONTROL_COLOR,
   CHART_THERMO_EDGE_IDS,
+  clampChartVentDraft,
+  isChartMotorVentEdgeId,
   isChartThermoEdgeId,
   type ChartThermoDraft,
 } from "@/lib/farm/chart-thermo-control";
@@ -76,9 +87,9 @@ import {
   maskLayersForYBands,
   UNIFIED_Y_BAND_LABEL,
   unmapHumPctFromSplitY,
+  unmapMotorPctFromSplitY,
   unmapTempCFromSplitY,
   type UnifiedLayerFlags,
-  type UnifiedLayerId,
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
 import { envComfortScore } from "@/lib/farm/env-comfort-score";
@@ -163,6 +174,8 @@ type Props = {
   thermoSettings?: Record<string, ControllerThermoSettings>;
   /** 차트 집계 범위 — 알람 저장 계층과 동일 */
   chartScope: FarmChartScope;
+  /** 한계 이탈 tip 우클릭 → 컨트롤러 스코프 */
+  onScopeChange?: (scope: FarmChartScope) => void;
   /** 조회 전용(뷰어)이면 알람·제어 편집 비활성 */
   canCommand?: boolean;
   isMobileStack?: boolean;
@@ -185,6 +198,7 @@ export function UnifiedBarnTrendPanel({
   alarmSettings,
   thermoSettings = {},
   chartScope,
+  onScopeChange,
   canCommand = false,
   isMobileStack = false,
   chartHeight,
@@ -294,12 +308,16 @@ export function UnifiedBarnTrendPanel({
         return {
           setpointTemp: hit.setpointTemp,
           tempDeviation: hit.tempDeviation,
+          minVentPct: hit.minVentPct,
+          maxVentPct: hit.maxVentPct,
         };
       }
     }
     return {
       setpointTemp: EDIT_START_DRAFT.setpointTemp,
       tempDeviation: EDIT_START_DRAFT.tempDeviation,
+      minVentPct: EDIT_START_DRAFT.minVentPct,
+      maxVentPct: EDIT_START_DRAFT.maxVentPct,
     };
   })();
 
@@ -312,7 +330,9 @@ export function UnifiedBarnTrendPanel({
     controlMode &&
     thermoDraft != null &&
     (Math.abs(thermoDraft.setpointTemp - baseThermo.setpointTemp) > 0.05 ||
-      Math.abs(thermoDraft.tempDeviation - baseThermo.tempDeviation) > 0.05);
+      Math.abs(thermoDraft.tempDeviation - baseThermo.tempDeviation) > 0.05 ||
+      thermoDraft.minVentPct !== baseThermo.minVentPct ||
+      thermoDraft.maxVentPct !== baseThermo.maxVentPct);
 
   const layerVisibility = useMemo(
     () => splitYVisibilityFromLayers(layers),
@@ -410,13 +430,22 @@ export function UnifiedBarnTrendPanel({
       .map((c) => {
         const r = c.reading;
         if (!r) return null;
-        return findControllerTrendSeries(
+        const series = findControllerTrendSeries(
           controllerTrendByPeriod,
           period,
           r.stallTyCode,
           r.stallNo,
           r.controllerKey,
         );
+        if (!series) return null;
+        return {
+          ...series,
+          zoneLabel: formatControllerHeaderPrimary(r),
+          equipmentLabel: formatControllerHeaderSecondary(r),
+          stallTyCode: r.stallTyCode
+            ? normalizeStallTyCode(r.stallTyCode)
+            : undefined,
+        };
       })
       .filter((s): s is NonNullable<typeof s> => s != null);
 
@@ -652,22 +681,44 @@ export function UnifiedBarnTrendPanel({
       }
       if (event.phase === "move") {
         const cur = thermoDraftRef.current ?? baseThermo;
-        const rawC = unmapTempCFromSplitY(event.value, mapLo, mapHi, layout);
-        if (rawC == null || !Number.isFinite(rawC)) return;
         let next: ChartThermoDraft = cur;
-        if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
-          next = {
-            ...cur,
-            setpointTemp: clampMenuValue("setpoint", rawC),
-          };
-        } else if (event.id === CHART_THERMO_EDGE_IDS.maxVent) {
-          next = {
-            ...cur,
-            tempDeviation: clampMenuValue(
-              "deviation",
-              Math.max(0, rawC - cur.setpointTemp),
-            ),
-          };
+        if (isChartMotorVentEdgeId(event.id)) {
+          const rawPct = unmapMotorPctFromSplitY(event.value, layout);
+          if (rawPct == null || !Number.isFinite(rawPct)) return;
+          if (event.id === CHART_THERMO_EDGE_IDS.minVentPct) {
+            next = clampChartVentDraft(
+              {
+                ...cur,
+                minVentPct: clampMenuValue("minVent", rawPct),
+              },
+              "minVentPct",
+            );
+          } else {
+            next = clampChartVentDraft(
+              {
+                ...cur,
+                maxVentPct: clampMenuValue("maxVent", rawPct),
+              },
+              "maxVentPct",
+            );
+          }
+        } else {
+          const rawC = unmapTempCFromSplitY(event.value, mapLo, mapHi, layout);
+          if (rawC == null || !Number.isFinite(rawC)) return;
+          if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
+            next = {
+              ...cur,
+              setpointTemp: clampMenuValue("setpoint", rawC),
+            };
+          } else if (event.id === CHART_THERMO_EDGE_IDS.highVentTemp) {
+            next = {
+              ...cur,
+              tempDeviation: clampMenuValue(
+                "deviation",
+                Math.max(0, rawC - cur.setpointTemp),
+              ),
+            };
+          }
         }
         thermoDraftRef.current = next;
         setThermoDraft(next);
@@ -757,14 +808,27 @@ export function UnifiedBarnTrendPanel({
           ...cur,
           setpointTemp: clampMenuValue("setpoint", event.value),
         };
-      } else if (event.id === CHART_THERMO_EDGE_IDS.maxVent) {
+      } else if (event.id === CHART_THERMO_EDGE_IDS.highVentTemp) {
         next = {
           ...cur,
-          tempDeviation: clampMenuValue(
-            "deviation",
-            Math.max(0, event.value - cur.setpointTemp),
-          ),
+          tempDeviation: clampMenuValue("deviation", Math.max(0, event.value)),
         };
+      } else if (event.id === CHART_THERMO_EDGE_IDS.minVentPct) {
+        next = clampChartVentDraft(
+          {
+            ...cur,
+            minVentPct: clampMenuValue("minVent", event.value),
+          },
+          "minVentPct",
+        );
+      } else if (event.id === CHART_THERMO_EDGE_IDS.maxVentPct) {
+        next = clampChartVentDraft(
+          {
+            ...cur,
+            maxVentPct: clampMenuValue("maxVent", event.value),
+          },
+          "maxVentPct",
+        );
       }
       setThermoDraft(next);
       thermoDraftRef.current = next;
@@ -801,6 +865,8 @@ export function UnifiedBarnTrendPanel({
     setDragFreeze(null);
     draftRef.current = null;
     freezeRef.current = null;
+    // 환기%는 모터 밴드에 표시 — 꺼져 있으면 켠다
+    setLayers((prev) => (prev.motors ? prev : { ...prev, motors: true }));
   };
 
   const exitControlMode = () => {
@@ -810,12 +876,9 @@ export function UnifiedBarnTrendPanel({
     setThermoApplyError(null);
   };
 
-  const toggleControlModeFromPlot = () => {
-    if (controlMode) {
-      exitControlMode();
-      return;
-    }
-    if (!canCommand) return;
+  /** 더블클릭 — 설정모드 진입만 (종료는 빈 플롯 우클릭) */
+  const enterControlModeFromPlot = () => {
+    if (controlMode || !canCommand) return;
     enterControlMode();
   };
 
@@ -836,11 +899,11 @@ export function UnifiedBarnTrendPanel({
     }
     const draft = {
       applyTemp: true,
-      applyVent: false,
+      applyVent: true,
       setpoint: draftValues.setpointTemp,
       deviation: draftValues.tempDeviation,
-      minVent: EDIT_START_DRAFT.minVentPct,
-      maxVent: EDIT_START_DRAFT.maxVentPct,
+      minVent: draftValues.minVentPct,
+      maxVent: draftValues.maxVentPct,
       selectedChannels: [...BULK_CHANNEL_OPTIONS],
     };
     const commands = buildBulkThermoCommands(
@@ -956,24 +1019,61 @@ export function UnifiedBarnTrendPanel({
     };
 
     if (scopeVisibility.showMotors && layers.motors && built.available.motors) {
-      push(
-        "motor-hi",
-        mapMotorPctToSplitY(100, layout),
-        "100%",
-        "#64748b",
-        "overline",
-        "모터 상한",
-        false,
-      );
-      push(
-        "motor-lo",
-        mapMotorPctToSplitY(0, layout),
-        "0%",
-        "#64748b",
-        "underline",
-        "모터 하한",
-        false,
-      );
+      if (controlMode) {
+        const minV = thermo.minVentPct;
+        const maxV = thermo.maxVentPct;
+        push(
+          CHART_THERMO_EDGE_IDS.maxVentPct,
+          mapMotorPctToSplitY(maxV, layout),
+          `${maxV}%`,
+          CHART_THERMO_CONTROL_COLOR,
+          "overline",
+          "최고환기량",
+          true,
+          thermoDragEnabled,
+          maxV,
+          {
+            labelLane: "inner",
+            lineStrokeWidth: 0.55,
+            lineDasharray: "2 2",
+          },
+        );
+        push(
+          CHART_THERMO_EDGE_IDS.minVentPct,
+          mapMotorPctToSplitY(minV, layout),
+          `${minV}%`,
+          CHART_THERMO_CONTROL_COLOR,
+          "underline",
+          "최저환기량",
+          true,
+          thermoDragEnabled,
+          minV,
+          {
+            labelLane: "inner",
+            lineStrokeWidth: 1.15,
+            lineDasharray: "solid",
+          },
+        );
+      } else {
+        push(
+          "motor-hi",
+          mapMotorPctToSplitY(100, layout),
+          "100%",
+          "#64748b",
+          "overline",
+          "모터 상한",
+          false,
+        );
+        push(
+          "motor-lo",
+          mapMotorPctToSplitY(0, layout),
+          "0%",
+          "#64748b",
+          "underline",
+          "모터 하한",
+          false,
+        );
+      }
     }
     if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
       push(
@@ -1001,17 +1101,18 @@ export function UnifiedBarnTrendPanel({
       if (controlMode && scopeVisibility.showTemp) {
         const sp = thermo.setpointTemp;
         const dev = thermo.tempDeviation;
-        // 설정+편차 = 최고환기 / 설정온도 = 최저환기 (편차는 위쪽만)
+        const highT = sp + dev;
+        // 온도 밴드 = 기점만 / 최저·최고 환기량(%)은 모터 밴드
         push(
-          CHART_THERMO_EDGE_IDS.maxVent,
-          mapTempCToSplitY(sp + dev, mapLo, mapHi, layout),
+          CHART_THERMO_EDGE_IDS.highVentTemp,
+          mapTempCToSplitY(highT, mapLo, mapHi, layout),
           `+${dev}℃`,
           CHART_THERMO_CONTROL_COLOR,
           "overline",
-          "최고환기 (설정+편차)",
+          "온도편차 (설정+편차)",
           true,
           thermoDragEnabled,
-          sp + dev,
+          dev,
           {
             labelLane: "inner",
             lineStrokeWidth: 0.55,
@@ -1024,7 +1125,7 @@ export function UnifiedBarnTrendPanel({
           `${sp}℃`,
           CHART_THERMO_CONTROL_COLOR,
           "overline",
-          "설정온도 (최저환기)",
+          "설정온도",
           true,
           thermoDragEnabled,
           sp,
@@ -1091,50 +1192,12 @@ export function UnifiedBarnTrendPanel({
     thermoDirty,
   ]);
 
-  const toggleLayer = (id: UnifiedLayerId) => {
-    setLayers((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
-      if (id === "motorCh" && next.motorCh) next.motors = true;
-      if (id === "temp" && !next.temp) {
-        next.ema = false;
-        next.dev = false;
-        next.band = false;
-      }
-      if (id === "hum" && !next.hum) {
-        next.humEma = false;
-        next.humDev = false;
-        next.humBand = false;
-      }
-      if (id === "motors" && !next.motors) next.motorCh = false;
-      if (id === "ema" || id === "dev" || id === "band") {
-        if (next[id]) next.temp = true;
-      }
-      if (id === "humEma" || id === "humDev" || id === "humBand") {
-        if (next[id]) next.hum = true;
-      }
-      return next;
-    });
-  };
-
-  const enableGroupAll = (group: "temp" | "hum" | "motor") => {
+  const cycleGroupLayers = (group: "temp" | "hum" | "motor") => {
     if (!built) return;
     setLayers((prev) => {
-      const next = { ...prev };
-      if (group === "temp") {
-        next.temp = true;
-        if (built.available.ema) next.ema = true;
-        if (built.available.dev) next.dev = true;
-        if (built.available.band) next.band = true;
-      } else if (group === "hum") {
-        next.hum = true;
-        if (built.available.humEma) next.humEma = true;
-        if (built.available.humDev) next.humDev = true;
-        if (built.available.humBand) next.humBand = true;
-      } else {
-        next.motors = true;
-        if (built.available.motorCh) next.motorCh = true;
-      }
-      return next;
+      const mode = detectLayerGroupMode(prev, built.available, group);
+      const nextMode = nextLayerGroupMode(mode);
+      return applyLayerGroupMode(prev, group, nextMode, built.available);
     });
   };
 
@@ -1166,8 +1229,7 @@ export function UnifiedBarnTrendPanel({
         <UnifiedTrendLayerToolbar
           layers={layers}
           available={built.available}
-          onToggleLayer={toggleLayer}
-          onEnableGroupAll={enableGroupAll}
+          onCycleGroup={cycleGroupLayers}
           placement={layersSlot ? "hub" : "inline"}
         />
       </div>
@@ -1360,7 +1422,24 @@ export function UnifiedBarnTrendPanel({
           scopeMotionKey={scopeMotionKey}
           scopeMotionDir={scopeMotionDir}
           onPlotDoubleClick={
-            canCommand || controlMode ? toggleControlModeFromPlot : undefined
+            canCommand && !controlMode ? enterControlModeFromPlot : undefined
+          }
+          onPlotBackgroundContextMenu={
+            controlMode ? exitControlMode : undefined
+          }
+          onBreachEquipmentNavigate={
+            onScopeChange
+              ? (target) => {
+                  const next: FarmChartScope = {
+                    level: "controller",
+                    stallTyCode: target.stallTyCode,
+                    stallNo: target.stallNo,
+                    controllerKey: target.controllerKey,
+                  };
+                  if (scopesEqual(chartScope, next)) return;
+                  onScopeChange(next);
+                }
+              : undefined
           }
           onScaleEdgeDrag={
             controlMode

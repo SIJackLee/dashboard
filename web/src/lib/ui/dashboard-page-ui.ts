@@ -238,13 +238,18 @@ export const dashboardUi = {
   headerToolsCardTitle: "flex items-center gap-2 text-sm font-medium leading-tight",
   headerToolsCardMeta: "mt-0.5 text-xs leading-snug text-muted-foreground",
   /**
-   * 통합 FAB 상세 — F 궤도 캡슐.
-   * 라운드풀 셸 + 원형 리드. FAB 쪽 노치는 래퍼에서 부착.
+   * 통합 FAB 상세 — 짧은 요약용 캡슐 (리포트 등 1줄).
    */
   hubDetailPopover:
     "relative w-[min(92vw,17.5rem)] overflow-visible rounded-full border border-border/80 bg-popover py-2.5 pl-2.5 pr-3.5 text-popover-foreground shadow-sm",
+  /** 이상상황 — 접힘/펼침 공통 카드 (캡슐 대신) */
+  hubDetailPopoverAlarm:
+    "relative flex max-h-[min(70dvh,28rem)] w-[min(92vw,18.5rem)] flex-col overflow-hidden rounded-2xl border border-border/80 bg-popover px-3 py-2.5 text-popover-foreground shadow-md",
+  /** @deprecated 펼침 전용 — hubDetailPopoverAlarm 사용 */
+  hubDetailPopoverList:
+    "relative flex max-h-[min(70dvh,28rem)] w-[min(92vw,20rem)] flex-col overflow-hidden rounded-2xl border border-border/80 bg-popover py-2.5 pl-2.5 pr-3 text-popover-foreground shadow-sm",
   hubDetailPopoverAlert:
-    "border-red-300/60 dark:border-red-900/40",
+    "border-red-300/70 shadow-red-500/5 dark:border-red-900/50",
   /** FAB/궤도 쪽을 가리키는 작은 원형 노치 */
   hubDetailNotch:
     "pointer-events-none absolute top-1/2 size-3 -translate-y-1/2 rounded-full border border-border/80 bg-popover",
@@ -259,12 +264,17 @@ export const dashboardUi = {
   hubDetailLeadIconReport:
     "border-red-300/70 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400",
   hubDetailBody: "min-w-0 flex-1 self-center",
+  hubDetailBodyList: "flex min-h-0 min-w-0 flex-1 flex-col self-stretch gap-1",
   hubDetailTitle:
     "flex min-h-5 items-center gap-2 text-sm font-medium leading-tight tracking-tight",
   hubDetailMeta: "mt-0.5 text-xs leading-snug text-muted-foreground",
   hubDetailAction:
     "mt-1 text-left text-xs font-medium text-primary transition-colors hover:underline",
+  /** 이상상황 카드 CTA — 칩 버튼 */
+  hubDetailAlarmToggle:
+    "mt-1.5 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-border/70 bg-muted/30 px-2 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/60",
   hubDetailRow: "flex items-center gap-2.5",
+  hubDetailRowList: "flex min-h-0 flex-1 items-start gap-2.5",
   /** hub 캡슐 안 액션 행(리포트) */
   hubDetailActionRow:
     "flex w-full items-center gap-2.5 rounded-full text-left outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring/40",

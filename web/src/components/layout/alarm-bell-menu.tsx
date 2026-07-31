@@ -14,8 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmControlHref } from "@/lib/data/alarms";
-import { monitoringHref } from "@/lib/monitoring/monitoring-tabs";
+import { alarmChartHref } from "@/lib/data/alarms";
 import { formatKst } from "@/lib/datetime/kst";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
@@ -35,9 +34,9 @@ export function AlarmBellMenu({ alarms }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const active = alarms.filter((a) => a.status === "active");
   const count = active.length;
-  const preview = active.slice(0, 6);
+  const preview = active.slice(0, 12);
 
-  const triggerLabel = count > 0 ? `알림 ${count}건` : "알림";
+  const triggerLabel = count > 0 ? `이상상황 ${count}건` : "이상상황";
 
   const countBadge = count > 0 ? (
     <span
@@ -91,7 +90,7 @@ export function AlarmBellMenu({ alarms }: Props) {
             )}
           >
             <span className="flex w-full items-center justify-between gap-3">
-              <span>센서 알림</span>
+              <span>이상상황</span>
               {count > 0 ? (
                 <Badge variant="destructive" className={dashboardUi.badgeMd}>
                   {count}건
@@ -109,7 +108,7 @@ export function AlarmBellMenu({ alarms }: Props) {
               "max-md:rounded-xl max-md:bg-muted/20 max-md:py-3 max-md:text-sm"
             )}
           >
-            센서 알림 없음
+            활성 이상상황 없음
           </p>
         ) : (
           preview.map((a) => (
@@ -120,8 +119,8 @@ export function AlarmBellMenu({ alarms }: Props) {
                 "max-md:mb-1.5 max-md:rounded-xl max-md:border max-md:border-border/50 max-md:bg-muted/20 max-md:px-3 max-md:py-2.5 max-md:text-sm last:max-md:mb-0"
               )}
               onClick={() =>
-                navigate(alarmControlHref(a), {
-                  message: "컨트롤러 제어로 이동 중…",
+                navigate(alarmChartHref(a), {
+                  message: "그래프로 이동 중…",
                 })
               }
             >
@@ -152,24 +151,12 @@ export function AlarmBellMenu({ alarms }: Props) {
           ))
         )}
 
-        {count > 0 ? (
+        {count > preview.length ? (
           <>
             <DropdownMenuSeparator className="my-2" />
-            <DropdownMenuItem
-              className={cn(
-                dashboardUi.alarmMenuFooter,
-                "max-md:rounded-xl max-md:bg-emerald-50/80 max-md:py-2.5 max-md:text-sm"
-              )}
-              onClick={() =>
-                navigate(monitoringHref("ops"), {
-                  message: "이상 탭으로 이동 중…",
-                })
-              }
-            >
-              {count > preview.length
-                ? `센서 알림 ${count}건 보기`
-                : "이상 탭으로 이동"}
-            </DropdownMenuItem>
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              외 {count - preview.length}건 — 행을 눌러 그래프로 이동합니다
+            </p>
           </>
         ) : null}
       </DropdownMenuContent>

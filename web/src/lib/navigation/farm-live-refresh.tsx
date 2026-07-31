@@ -19,6 +19,10 @@ import {
 import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AlarmSettings } from "@/lib/data/alarms";
+import {
+  DEFAULT_ALARM_SETTINGS,
+  deriveAlarmsFromReadings,
+} from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import {
@@ -51,6 +55,10 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { registerFarmLiveRefreshHandler } from "@/lib/navigation/farm-live-refresh-bridge";
+import {
+  clearShellAlarms,
+  publishShellAlarms,
+} from "@/lib/navigation/shell-live-alarms-store";
 
 /** Phase C — 신규 SP 좌표 idle persist (read path write 대체) */
 function schedulePersistLayouts(layouts?: BarnLayoutsToPersist): void {
@@ -532,6 +540,20 @@ export function FarmLiveRefreshProvider({
       },
     };
   }, [alarmPatch, thermoPatch, slice]);
+
+  /** TopBar/FAB — 설정·LIVE 반영 알람 (SSR 스냅샷 대체) */
+  useEffect(() => {
+    const readings = mergedSlice.readings;
+    if (readings.length === 0) {
+      clearShellAlarms();
+      return;
+    }
+    const settings =
+      mergedSlice.controller?.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
+    publishShellAlarms(deriveAlarmsFromReadings(readings, settings));
+  }, [mergedSlice]);
+
+  useEffect(() => () => clearShellAlarms(), []);
 
   const value = useMemo(
     (): FarmLiveRefreshContextValue => ({

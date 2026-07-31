@@ -48,6 +48,42 @@ export type TrendSeries = {
   hoverSecondaryUnit?: string;
   /** 호버 카드 알람 트랙용 (원단위 lo–hi). 차트 Y와 무관. */
   hoverAlarmBand?: { lo: number; hi: number; unit: string };
+  /** 산포 상·하단 기여자 (임계 초과 시 tip 표시). */
+  hoverSpreadExtremes?: TrendSpreadExtremes;
+};
+
+/** 산포 min/max를 만든 구역·장비 (호버 카드용). */
+export type TrendSpreadContributor = {
+  zoneLabel: string;
+  equipmentLabel: string;
+  value: number;
+  /** 해당 시점 임계 상한/하한 접촉·초과 */
+  breached?: boolean;
+  /** 스코프 이동용 — tip 문구에 노출하지 않음 */
+  stallTyCode?: string;
+  stallNo?: string;
+  controllerKey?: string;
+};
+
+/** 한계 이탈 tip → 컨트롤러 차트 이동 대상 */
+export type TrendBreachNavTarget = {
+  stallTyCode: string;
+  stallNo: string;
+  controllerKey: string;
+  zoneLabel: string;
+  equipmentLabel: string;
+};
+
+export type TrendSpreadExtremes = {
+  high: (TrendSpreadContributor | null)[];
+  low: (TrendSpreadContributor | null)[];
+};
+
+/** 임계 코리도 — 인덱스 공간(소수 허용) 폴리라인 점 */
+export type TrendEnvelopePolyPoint = {
+  x: number;
+  high: number;
+  low: number;
 };
 
 /** 두 곡선 사이 면(이목 클라우드·온도 산포 등). */
@@ -59,6 +95,13 @@ export type TrendEnvelope = {
   fillOpacity?: number;
   /** 범례 라벨 (없으면 숨김). */
   legendLabel?: string;
+  /** 산포 상·하단 기여자 (인덱스 정렬). */
+  hoverExtremes?: TrendSpreadExtremes;
+  /**
+   * 임계 코리도 등 — 교차 보간 포함 연속 면.
+   * 있으면 high/low 샘플 배열 대신 이 경로로 채움.
+   */
+  polys?: TrendEnvelopePolyPoint[][];
 };
 
 /** MACD형 편차 막대 / 거래량형 바 — baseline↔value. */
@@ -218,8 +261,18 @@ type TrendChartProps = {
   /** 스코프 스택 변경 시 줌 인/아웃 모션 키 */
   scopeMotionKey?: number;
   scopeMotionDir?: "in" | "out";
-  /** 빈 플롯 더블클릭 — 설정모드 토글 등 */
+  /** 빈 플롯 더블클릭 — 설정모드 진입 등 */
   onPlotDoubleClick?: () => void;
+  /**
+   * 빈 플롯 우클릭 (스케일 라벨 hit 아님).
+   * 설정모드 종료 등 — onXScopeBack과 동시에 쓰지 말 것(호출측에서 모드별 분리).
+   */
+  onPlotBackgroundContextMenu?: () => void;
+  /**
+   * 한계 이탈 데이터 카드가 떠 있을 때만 우클릭 → 해당 장비 차트.
+   * 스코프 줌 뒤로가기(onXScopeBack)보다 우선, 카드 없으면 호출되지 않음.
+   */
+  onBreachEquipmentNavigate?: (target: TrendBreachNavTarget) => void;
   /**
    * draggable scaleEdgeLabels — 세로 드래그로 domain Y 조절.
    * X스코프와 충돌 시 가이드 hit이 우선.
@@ -262,6 +315,61 @@ export function inferHoverMetricGroup(label: string): HoverMetricGroup {
   if (/습도/.test(label)) return "hum";
   if (/모터|채널|^[ABC]$/.test(label)) return "motor";
   return "temp";
+}
+
+function contributorToNav(
+  c: TrendSpreadContributor,
+): TrendBreachNavTarget | null {
+  const stallTyCode = c.stallTyCode?.trim();
+  const stallNo = c.stallNo?.trim();
+  const controllerKey = c.controllerKey?.trim();
+  if (!stallTyCode || !stallNo || !controllerKey) return null;
+  return {
+    stallTyCode,
+    stallNo,
+    controllerKey,
+    zoneLabel: c.zoneLabel,
+    equipmentLabel: c.equipmentLabel,
+  };
+}
+
+/**
+ * 한계 이탈 데이터 카드가 보이는 조건과 동일할 때만 이동 대상 반환.
+ * 상·하단 장비가 다르면 상한(상단) 우선.
+ */
+export function resolveBreachNavTarget(opts: {
+  series: TrendSeries[];
+  envelopes: TrendEnvelope[];
+  hoverIdx: number;
+  hoverSeriesName: string | null;
+}): TrendBreachNavTarget | null {
+  const { series, envelopes, hoverIdx, hoverSeriesName } = opts;
+  if (hoverIdx < 0 || hoverSeriesName == null) return null;
+  const group = inferHoverMetricGroup(hoverSeriesName);
+  if (group !== "temp" && group !== "hum") return null;
+
+  const tipSeries = series.filter(
+    (s) => inferHoverMetricGroup(s.name) === group,
+  );
+  const extremes =
+    tipSeries.find((s) => s.hoverSpreadExtremes)?.hoverSpreadExtremes ??
+    envelopes.find(
+      (e) =>
+        e.hoverExtremes &&
+        e.legendLabel === (group === "temp" ? "온도 산포" : "습도 산포"),
+    )?.hoverExtremes;
+  if (!extremes) return null;
+
+  const hi = extremes.high[hoverIdx] ?? null;
+  const lo = extremes.low[hoverIdx] ?? null;
+  if (!hi?.breached && !lo?.breached) return null;
+
+  if (hi?.breached) {
+    const nav = contributorToNav(hi);
+    if (nav) return nav;
+  }
+  if (lo?.breached) return contributorToNav(lo);
+  return null;
 }
 
 const HOVER_GROUP_LABEL: Record<HoverMetricGroup, string> = {
@@ -376,24 +484,68 @@ function AlarmTrack({
   color: string;
 }) {
   const span = hi - lo;
-  const pct =
-    value != null && Number.isFinite(value) && span > 0
-      ? Math.max(0, Math.min(100, ((value - lo) / span) * 100))
-      : null;
   const outside =
     value != null && Number.isFinite(value) && (value < lo || value > hi);
+  const breachSide =
+    value != null && Number.isFinite(value)
+      ? value > hi
+        ? ("high" as const)
+        : value < lo
+          ? ("low" as const)
+          : null
+      : null;
+  const breachDelta =
+    value != null && Number.isFinite(value) && breachSide === "high"
+      ? value - hi
+      : value != null && Number.isFinite(value) && breachSide === "low"
+        ? lo - value
+        : null;
+  const breachDeltaText =
+    breachDelta != null && breachSide != null
+      ? formatLimitBreachDelta(breachDelta, unit, breachSide)
+      : null;
+  const thresholdEdge =
+    breachSide === "high" ? hi : breachSide === "low" ? lo : null;
+
+  /** 구간 안: 위치 핀. 이탈: 해당 한계 끝단에 고정 */
+  const pct =
+    value != null && Number.isFinite(value) && span > 0
+      ? outside
+        ? breachSide === "high"
+          ? 100
+          : 0
+        : Math.max(0, Math.min(100, ((value - lo) / span) * 100))
+      : null;
+
   return (
     <div className="mt-1.5 border-t border-border/60 pt-1.5">
       <div className="mb-0.5 flex items-center justify-between gap-2 text-[9px] text-muted-foreground">
-        <span className="tabular-nums">
-          {formatTrendBandEdge(lo, unit)}
-        </span>
-        <span className={outside ? "font-medium text-amber-600 dark:text-amber-400" : undefined}>
-          {outside ? "한계 이탈" : "알람 구간"}
-        </span>
-        <span className="tabular-nums">
-          {formatTrendBandEdge(hi, unit)}
-        </span>
+        {outside && thresholdEdge != null && breachDeltaText ? (
+          <>
+            <span className="tabular-nums" title="임계값">
+              {formatTrendBandEdge(thresholdEdge, unit)}
+            </span>
+            <span className="font-medium text-amber-600 dark:text-amber-400">
+              한계 이탈
+            </span>
+            <span
+              className="tabular-nums font-medium text-amber-600 dark:text-amber-400"
+              title="이탈량"
+            >
+              {breachDeltaText}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="tabular-nums">
+              {formatTrendBandEdge(lo, unit)}
+            </span>
+            <span>알람 구간</span>
+            <span className="tabular-nums">
+              {formatTrendBandEdge(hi, unit)}
+            </span>
+          </>
+        )}
       </div>
       <div className="relative h-1.5 rounded-sm bg-muted/80">
         {pct != null ? (
@@ -494,6 +646,20 @@ export function formatTrendBandEdge(value: number, unit: string): string {
   return `${rounded}${unit}`;
 }
 
+/** 임계 대비 이탈량 — 상한 +n / 하한 −n */
+export function formatLimitBreachDelta(
+  absDelta: number,
+  unit: string,
+  side: "high" | "low",
+): string {
+  if (!Number.isFinite(absDelta) || absDelta < 0) return "";
+  const mag =
+    Math.abs(absDelta - Math.round(absDelta)) < 1e-6
+      ? String(Math.round(absDelta))
+      : absDelta.toFixed(1);
+  return side === "high" ? `+${mag}${unit}` : `−${mag}${unit}`;
+}
+
 type EdgeBandLabel = {
   id: string;
   side: "left" | "right";
@@ -590,6 +756,8 @@ export function TrendChart({
   scopeMotionKey = 0,
   scopeMotionDir = "in",
   onPlotDoubleClick,
+  onPlotBackgroundContextMenu,
+  onBreachEquipmentNavigate,
   onScaleEdgeDrag,
   onScaleEdgeNumericCommit,
   onScaleEdgeApply,
@@ -1217,6 +1385,34 @@ export function TrendChart({
         return;
       }
     }
+    /**
+     * 한계 이탈 데이터 카드가 떠 있을 때만 장비 바로가기.
+     * 카드가 없으면 스코프 뒤로가기·설정모드 종료로 통과.
+     */
+    if (onBreachEquipmentNavigate) {
+      const idx = hoverIdxRef.current;
+      if (idx != null) {
+        const target = resolveBreachNavTarget({
+          series,
+          envelopes,
+          hoverIdx: idx,
+          hoverSeriesName: hoverSeriesRef.current,
+        });
+        if (target) {
+          e.preventDefault();
+          e.stopPropagation();
+          onBreachEquipmentNavigate(target);
+          return;
+        }
+      }
+    }
+    // 설정모드 종료 등 — 스코프 뒤로가기와 분리 (동시 등록하지 않음)
+    if (onPlotBackgroundContextMenu) {
+      e.preventDefault();
+      e.stopPropagation();
+      onPlotBackgroundContextMenu();
+      return;
+    }
     if (xScopeSelect && onXScopeBack) onXScopeContextMenu(e);
   };
 
@@ -1502,12 +1698,36 @@ export function TrendChart({
     flush(n - 1);
   }
 
-  const envelopePath = (env: TrendEnvelope): string | null => {
+  const envelopePaths = (env: TrendEnvelope): string[] => {
     const axis = env.axis ?? "left";
+    if (env.polys?.length) {
+      const paths: string[] = [];
+      for (const run of env.polys) {
+        if (run.length < 2) continue;
+        const top = run.map(
+          (p) =>
+            `${xFor(p.x).toFixed(2)},${yFor(p.high, axis).toFixed(2)}`,
+        );
+        const bot = run.map(
+          (p) =>
+            `${xFor(p.x).toFixed(2)},${yFor(p.low, axis).toFixed(2)}`,
+        );
+        paths.push(`M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`);
+      }
+      return paths;
+    }
     const len = Math.min(env.high.length, env.low.length, n);
-    if (len < 2) return null;
-    const top: string[] = [];
-    const bot: string[] = [];
+    if (len < 2) return [];
+    const paths: string[] = [];
+    let top: string[] = [];
+    let bot: string[] = [];
+    const flush = () => {
+      if (top.length >= 2) {
+        paths.push(`M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`);
+      }
+      top = [];
+      bot = [];
+    };
     for (let i = 0; i < len; i++) {
       const hi = env.high[i];
       const lo = env.low[i];
@@ -1517,13 +1737,14 @@ export function TrendChart({
         !Number.isFinite(hi) ||
         !Number.isFinite(lo)
       ) {
+        flush();
         continue;
       }
       top.push(`${xFor(i).toFixed(2)},${yFor(hi, axis).toFixed(2)}`);
       bot.push(`${xFor(i).toFixed(2)},${yFor(lo, axis).toFixed(2)}`);
     }
-    if (top.length < 2) return null;
-    return `M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`;
+    flush();
+    return paths;
   };
 
   return (
@@ -1790,18 +2011,24 @@ export function TrendChart({
           : null}
         {mode === "line"
           ? envelopePresence.map(({ item: env, key: envKey, phase }) => {
-              const d = envelopePath(env);
-              if (!d) return null;
+              const paths = envelopePaths(env);
+              if (!paths.length) return null;
               return (
-                <path
+                <g
                   key={envKey}
-                  d={d}
-                  fill={env.fill}
-                  fillOpacity={env.fillOpacity ?? 0.22}
-                  stroke="none"
                   className={clipWipeClass(phase)}
                   data-clip-phase={phase}
-                />
+                >
+                  {paths.map((d, pi) => (
+                    <path
+                      key={`${envKey}-p${pi}`}
+                      d={d}
+                      fill={env.fill}
+                      fillOpacity={env.fillOpacity ?? 0.22}
+                      stroke="none"
+                    />
+                  ))}
+                </g>
               );
             })
           : null}
@@ -2222,7 +2449,7 @@ export function TrendChart({
             style={{ top: `${label.topPct}%`, color: label.color }}
             title={
               label.draggable
-                ? `${label.title} · 드래그 조절 · 우클릭 숫자 입력`
+                ? `${label.title} · 드래그 조절 · 더블클릭·우클릭 숫자 입력`
                 : label.title
             }
             onPointerDown={
@@ -2243,6 +2470,15 @@ export function TrendChart({
                       pointerId: e.pointerId,
                     };
                     clearHover();
+                  }
+                : undefined
+            }
+            onDoubleClick={
+              label.draggable && onScaleEdgeNumericCommit
+                ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    beginScaleEdgeEdit(label.id);
                   }
                 : undefined
             }
@@ -2348,7 +2584,7 @@ export function TrendChart({
       {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
         <div
           ref={tipRef}
-          className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[14rem]"
+          className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"
           style={{ opacity: 0, willChange: "transform" }}
           aria-live="polite"
           data-tour-id="trend-chart-hover-card"
@@ -2507,6 +2743,61 @@ export function TrendChart({
                   ? tipSeries.find((s) => s.hoverAlarmBand)?.hoverAlarmBand
                   : undefined;
 
+              const spreadExtremes =
+                group === "temp" || group === "hum"
+                  ? (tipSeries.find((s) => s.hoverSpreadExtremes)
+                      ?.hoverSpreadExtremes ??
+                    envelopes.find(
+                      (e) =>
+                        e.hoverExtremes &&
+                        e.legendLabel ===
+                          (group === "temp" ? "온도 산포" : "습도 산포"),
+                    )?.hoverExtremes)
+                  : undefined;
+              const spreadHigh = spreadExtremes?.high[hoverIdx] ?? null;
+              const spreadLow = spreadExtremes?.low[hoverIdx] ?? null;
+              const showSpreadHigh = Boolean(spreadHigh?.breached);
+              const showSpreadLow = Boolean(spreadLow?.breached);
+              const spreadSame =
+                showSpreadHigh &&
+                showSpreadLow &&
+                spreadHigh != null &&
+                spreadLow != null &&
+                spreadHigh.zoneLabel === spreadLow.zoneLabel &&
+                spreadHigh.equipmentLabel === spreadLow.equipmentLabel;
+              const spreadUnit = group === "temp" ? "℃" : "%";
+              const formatSpreadRow = (
+                side: "high" | "low",
+                c: NonNullable<typeof spreadHigh>,
+              ) => {
+                const delta =
+                  alarmMeta != null
+                    ? side === "high"
+                      ? c.value - alarmMeta.hi
+                      : alarmMeta.lo - c.value
+                    : null;
+                const deltaText =
+                  delta != null && delta >= -1e-9
+                    ? formatLimitBreachDelta(Math.max(0, delta), spreadUnit, side)
+                    : null;
+                return (
+                  <>
+                    {c.zoneLabel}
+                    <span className="text-muted-foreground"> · </span>
+                    {c.equipmentLabel}
+                    <span className="ml-1 tabular-nums text-muted-foreground">
+                      {c.value.toFixed(1)}
+                      {spreadUnit}
+                    </span>
+                    {deltaText ? (
+                      <span className="ml-1 tabular-nums font-medium text-amber-600 dark:text-amber-400">
+                        {deltaText}
+                      </span>
+                    ) : null}
+                  </>
+                );
+              };
+
               const secondarySeries = tipSeries.filter((s) => s.name !== heroKey);
               const secondaryHists = tipHists.filter((h) => {
                 const lab = h.legendLabel ?? "";
@@ -2644,6 +2935,44 @@ export function TrendChart({
                       channels={motorChannels}
                       hoverIdx={hoverIdx}
                     />
+                  ) : null}
+
+                  {showSpreadHigh || showSpreadLow ? (
+                    <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5">
+                      <div className="text-[9px] font-medium text-muted-foreground">
+                        임계 초과 구간
+                      </div>
+                      {onBreachEquipmentNavigate ? (
+                        <div className="text-[9px] text-muted-foreground/90">
+                          우클릭 · 해당 장비 차트
+                        </div>
+                      ) : null}
+                      {spreadSame && spreadHigh ? (
+                        <div className="text-[10px] leading-snug text-foreground/90">
+                          <span className="text-muted-foreground">산포 · </span>
+                          {formatSpreadRow("high", spreadHigh)}
+                        </div>
+                      ) : (
+                        <>
+                          {showSpreadHigh && spreadHigh ? (
+                            <div className="text-[10px] leading-snug text-foreground/90">
+                              <span className="text-muted-foreground">
+                                상단 ·{" "}
+                              </span>
+                              {formatSpreadRow("high", spreadHigh)}
+                            </div>
+                          ) : null}
+                          {showSpreadLow && spreadLow ? (
+                            <div className="text-[10px] leading-snug text-foreground/90">
+                              <span className="text-muted-foreground">
+                                하단 ·{" "}
+                              </span>
+                              {formatSpreadRow("low", spreadLow)}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
                   ) : null}
 
                   {alarmMeta ? (

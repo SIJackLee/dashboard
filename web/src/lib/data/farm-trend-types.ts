@@ -98,6 +98,12 @@ export function hasStallTrendByPeriod(
 export type TrendControllerSeries = TrendStallSeries & {
   controllerKey: string;
   eqpmnNo: string;
+  /** 호버용 구역 표시명 (축사유형). */
+  zoneLabel?: string;
+  /** 호버용 장비 표시명 (N번 축사 M). */
+  equipmentLabel?: string;
+  /** 스코프 이동용 축사유형 코드 (UI 미표시). */
+  stallTyCode?: string;
 };
 
 export type TrendControllerStallGroup = {

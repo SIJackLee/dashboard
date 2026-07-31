@@ -1,10 +1,14 @@
 import type {
   TrendEnvelope,
+  TrendEnvelopePolyPoint,
   TrendHistogram,
   TrendSeries,
+  TrendSpreadContributor,
+  TrendSpreadExtremes,
 } from "@/components/trends/trend-chart";
 import type { AlarmThresholds } from "@/lib/data/alarms";
 import type { TrendControllerSeries } from "@/lib/data/farm-trend-types";
+import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   formatHumidityAlarmRange,
@@ -25,6 +29,178 @@ export const HUM_DEV_HIST_COLOR_UP = "#38bdf8";
 export const HUM_DEV_HIST_COLOR_DOWN = "#818cf8";
 export const HUM_EMA_SHORT_COLOR = "#7dd3fc";
 export const HUM_EMA_LONG_COLOR = "#0284c7";
+
+/** A안 — 임계 접촉 코리도 채움 */
+export const UNIFIED_TEMP_BREACH_HI_FILL = "#ef4444";
+export const UNIFIED_TEMP_BREACH_LO_FILL = "#fb7185";
+export const UNIFIED_HUM_BREACH_HI_FILL = "#0ea5e9";
+export const UNIFIED_HUM_BREACH_LO_FILL = "#818cf8";
+
+/** 닿음 허용 (부동소수) */
+const BREACH_TOUCH_EPS = 1e-6;
+
+function isBreachedRaw(
+  raw: number,
+  thresholdRaw: number,
+  side: "high" | "low",
+): boolean {
+  return side === "high"
+    ? raw >= thresholdRaw - BREACH_TOUCH_EPS
+    : raw <= thresholdRaw + BREACH_TOUCH_EPS;
+}
+
+function corridorPoint(
+  x: number,
+  plotY: number,
+  thresholdPlot: number,
+): TrendEnvelopePolyPoint {
+  return {
+    x,
+    high: Math.max(plotY, thresholdPlot),
+    low: Math.min(plotY, thresholdPlot),
+  };
+}
+
+function appendCorridorPoint(
+  run: TrendEnvelopePolyPoint[],
+  point: TrendEnvelopePolyPoint,
+) {
+  const last = run[run.length - 1];
+  if (last && Math.abs(last.x - point.x) < 1e-9) {
+    last.high = point.high;
+    last.low = point.low;
+    return;
+  }
+  run.push(point);
+}
+
+/**
+ * 본선이 상한/하한에 닿거나 넘는 구간에 본선↔임계 사이 면채움.
+ * 샘플 사이 교차는 보간해 초과 구간 전체를 채운다.
+ */
+export function buildThresholdBreachCorridor(opts: {
+  seriesPlot: (number | null)[];
+  seriesRaw: (number | null)[] | null;
+  thresholdRaw: number;
+  thresholdPlot: number;
+  side: "high" | "low";
+  fill: string;
+  fillOpacity?: number;
+  legendLabel?: string;
+}): TrendEnvelope | null {
+  const {
+    seriesPlot,
+    seriesRaw,
+    thresholdRaw,
+    thresholdPlot,
+    side,
+    fill,
+    fillOpacity = 0.2,
+    legendLabel,
+  } = opts;
+  if (
+    !seriesRaw?.length ||
+    !Number.isFinite(thresholdRaw) ||
+    !Number.isFinite(thresholdPlot)
+  ) {
+    return null;
+  }
+  const n = Math.min(seriesPlot.length, seriesRaw.length);
+  if (n < 2) return null;
+
+  const high: (number | null)[] = Array.from({ length: n }, () => null);
+  const low: (number | null)[] = Array.from({ length: n }, () => null);
+  const polys: TrendEnvelopePolyPoint[][] = [];
+  let run: TrendEnvelopePolyPoint[] = [];
+  let any = false;
+
+  const flushRun = () => {
+    if (run.length >= 2) polys.push(run);
+    run = [];
+  };
+
+  for (let i = 0; i < n; i++) {
+    const raw = seriesRaw[i];
+    const plot = seriesPlot[i];
+    if (
+      raw == null ||
+      plot == null ||
+      !Number.isFinite(raw) ||
+      !Number.isFinite(plot)
+    ) {
+      continue;
+    }
+    if (!isBreachedRaw(raw, thresholdRaw, side)) continue;
+    high[i] = Math.max(plot, thresholdPlot);
+    low[i] = Math.min(plot, thresholdPlot);
+    any = true;
+  }
+
+  for (let i = 0; i < n - 1; i++) {
+    const r0 = seriesRaw[i];
+    const r1 = seriesRaw[i + 1];
+    const p0 = seriesPlot[i];
+    const p1 = seriesPlot[i + 1];
+    if (
+      r0 == null ||
+      r1 == null ||
+      p0 == null ||
+      p1 == null ||
+      !Number.isFinite(r0) ||
+      !Number.isFinite(r1) ||
+      !Number.isFinite(p0) ||
+      !Number.isFinite(p1)
+    ) {
+      flushRun();
+      continue;
+    }
+
+    const b0 = isBreachedRaw(r0, thresholdRaw, side);
+    const b1 = isBreachedRaw(r1, thresholdRaw, side);
+    if (!b0 && !b1) {
+      flushRun();
+      continue;
+    }
+
+    if (b0 && b1) {
+      appendCorridorPoint(run, corridorPoint(i, p0, thresholdPlot));
+      appendCorridorPoint(run, corridorPoint(i + 1, p1, thresholdPlot));
+      continue;
+    }
+
+    const denom = r1 - r0;
+    const t =
+      Math.abs(denom) < 1e-12
+        ? 0.5
+        : Math.max(0, Math.min(1, (thresholdRaw - r0) / denom));
+    const xCross = i + t;
+    const pCross = p0 + t * (p1 - p0);
+    const cross = corridorPoint(xCross, pCross, thresholdPlot);
+
+    if (b0 && !b1) {
+      appendCorridorPoint(run, corridorPoint(i, p0, thresholdPlot));
+      appendCorridorPoint(run, cross);
+      flushRun();
+    } else {
+      /* !b0 && b1 — 새 런 시작 */
+      flushRun();
+      appendCorridorPoint(run, cross);
+      appendCorridorPoint(run, corridorPoint(i + 1, p1, thresholdPlot));
+    }
+  }
+  flushRun();
+
+  if (!any && polys.length === 0) return null;
+  return {
+    high,
+    low,
+    axis: "left",
+    fill,
+    fillOpacity,
+    legendLabel,
+    polys: polys.length ? polys : undefined,
+  };
+}
 
 export type SplitYLayout = {
   motorLo: number;
@@ -184,18 +360,18 @@ export type UnifiedLayerId =
 
 export type UnifiedLayerFlags = Record<UnifiedLayerId, boolean>;
 
-/** 기본: 온도·습도 본선 + 모터(max). 편차 등은 하위 메뉴에서 */
+/** 기본: 온도·습도 본선 + 산포·편차·EMA5 + 모터(max) */
 export const DEFAULT_UNIFIED_LAYERS: UnifiedLayerFlags = {
   motors: true,
   motorCh: false,
   temp: true,
   hum: true,
-  band: false,
+  band: true,
   dev: true,
-  ema: false,
-  humBand: false,
-  humDev: false,
-  humEma: false,
+  ema: true,
+  humBand: true,
+  humDev: true,
+  humEma: true,
 };
 
 /** 습도 밴드가 필요한지 (본선·편차·산포·EMA) */
@@ -500,6 +676,14 @@ export function mapMotorPctToSplitY(
   return layout.motorLo + t * (layout.motorHi - layout.motorLo);
 }
 
+/** 모터 밴드 Y → % (드래그 역매핑) */
+export function unmapMotorPctFromSplitY(
+  splitY: number,
+  layout: SplitYLayout = SPLIT_Y_WITH_HUM,
+): number | null {
+  return unmapFromValueBand(splitY, 0, 100, layout.motorLo, layout.motorHi);
+}
+
 /** 습도% → 습도 밴드 (알람±여유) */
 export function mapHumPctToSplitY(
   value: number | null | undefined,
@@ -653,25 +837,105 @@ function avgColumns(
   return out;
 }
 
+function contributorLabel(c: TrendControllerSeries): {
+  zoneLabel: string;
+  equipmentLabel: string;
+} {
+  const eq = normalizeEqpmnNo(c.eqpmnNo ?? "01");
+  const stall = (c.stallNo ?? "").trim() || "—";
+  return {
+    zoneLabel: c.zoneLabel?.trim() || "구역",
+    equipmentLabel: c.equipmentLabel?.trim() || `${stall}번 축사 ${eq}`,
+  };
+}
+
+function toContributor(
+  c: TrendControllerSeries,
+  value: number,
+  breached?: boolean,
+): TrendSpreadContributor {
+  const labels = contributorLabel(c);
+  const stallNo = (c.stallNo ?? "").trim();
+  const stallTyCode = (c.stallTyCode ?? "").trim();
+  return {
+    zoneLabel: labels.zoneLabel,
+    equipmentLabel: labels.equipmentLabel,
+    value,
+    breached,
+    stallTyCode: stallTyCode || undefined,
+    stallNo: stallNo || undefined,
+    controllerKey: c.controllerKey || undefined,
+  };
+}
+
 function minMaxColumns(
   seriesList: TrendControllerSeries[],
   pick: (c: TrendControllerSeries) => (number | null)[],
   len: number,
-): { min: (number | null)[]; max: (number | null)[] } {
+): {
+  min: (number | null)[];
+  max: (number | null)[];
+  minAt: (TrendSpreadContributor | null)[];
+  maxAt: (TrendSpreadContributor | null)[];
+} {
   const min = new Array<number | null>(len).fill(null);
   const max = new Array<number | null>(len).fill(null);
+  const minAt = new Array<TrendSpreadContributor | null>(len).fill(null);
+  const maxAt = new Array<TrendSpreadContributor | null>(len).fill(null);
   for (let i = 0; i < len; i++) {
-    const slot: number[] = [];
+    let minV: number | null = null;
+    let maxV: number | null = null;
+    let minC: TrendControllerSeries | null = null;
+    let maxC: TrendControllerSeries | null = null;
     for (const c of seriesList) {
       const v = pick(c)[i];
-      if (v != null && Number.isFinite(v)) slot.push(v);
+      if (v == null || !Number.isFinite(v)) continue;
+      if (minV == null || v < minV) {
+        minV = v;
+        minC = c;
+      }
+      if (maxV == null || v > maxV) {
+        maxV = v;
+        maxC = c;
+      }
     }
-    if (slot.length) {
-      min[i] = Math.min(...slot);
-      max[i] = Math.max(...slot);
+    if (minV != null && minC) {
+      min[i] = minV;
+      minAt[i] = toContributor(minC, minV);
+    }
+    if (maxV != null && maxC) {
+      max[i] = maxV;
+      maxAt[i] = toContributor(maxC, maxV);
     }
   }
-  return { min, max };
+  return { min, max, minAt, maxAt };
+}
+
+/** 임계 접촉·초과 플래그 부여 */
+function markSpreadBreaches(
+  high: (TrendSpreadContributor | null)[],
+  low: (TrendSpreadContributor | null)[],
+  thresholdHigh: number,
+  thresholdLow: number,
+): TrendSpreadExtremes {
+  return {
+    high: high.map((c) =>
+      c == null
+        ? null
+        : {
+            ...c,
+            breached: c.value >= thresholdHigh - BREACH_TOUCH_EPS,
+          },
+    ),
+    low: low.map((c) =>
+      c == null
+        ? null
+        : {
+            ...c,
+            breached: c.value <= thresholdLow + BREACH_TOUCH_EPS,
+          },
+    ),
+  };
 }
 
 function hasFinite(data: (number | null)[]): boolean {
@@ -747,6 +1011,10 @@ export type UnifiedBarnTrendRaw = {
   tempMax: (number | null)[];
   humMin: (number | null)[];
   humMax: (number | null)[];
+  /** 시점별 온도 산포 상·하단 기여자 */
+  tempSpreadExtremes: TrendSpreadExtremes;
+  /** 시점별 습도 산포 상·하단 기여자 */
+  humSpreadExtremes: TrendSpreadExtremes;
   emaShortRaw: (number | null)[];
   emaLongRaw: (number | null)[];
   humEmaShortRaw: (number | null)[];
@@ -783,6 +1051,18 @@ export function aggregateUnifiedBarnTrendRaw(
     controllerSeriesList,
     (c) => c.humidity,
     len,
+  );
+  const tempSpreadExtremes = markSpreadBreaches(
+    tempSpread.maxAt,
+    tempSpread.minAt,
+    tempHigh,
+    tempLow,
+  );
+  const humSpreadExtremes = markSpreadBreaches(
+    humSpread.maxAt,
+    humSpread.minAt,
+    humidityHigh,
+    humidityLow,
   );
 
   const emaShortRaw = computeEmaSeries(tempAvg, EMA_SHORT_PERIOD);
@@ -839,6 +1119,8 @@ export function aggregateUnifiedBarnTrendRaw(
     tempMax: tempSpread.max,
     humMin: humSpread.min,
     humMax: humSpread.max,
+    tempSpreadExtremes,
+    humSpreadExtremes,
     emaShortRaw,
     emaLongRaw,
     humEmaShortRaw,
@@ -914,6 +1196,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
         hi: tempHigh,
         unit: "℃",
       },
+      hoverSpreadExtremes: raw.tempSpreadExtremes,
     };
   }
   if (hasFinite(humPlot)) {
@@ -929,6 +1212,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
         hi: humidityHigh,
         unit: "%",
       },
+      hoverSpreadExtremes: raw.humSpreadExtremes,
     };
   }
   if (hasFinite(emaShortPlot)) {
@@ -1059,6 +1343,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
           fill: UNIFIED_TEMP_BAND_FILL,
           fillOpacity: 0.12,
           legendLabel: "온도 산포",
+          hoverExtremes: raw.tempSpreadExtremes,
         }
       : null;
 
@@ -1071,6 +1356,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
           fill: UNIFIED_HUM_BAND_FILL,
           fillOpacity: 0.14,
           legendLabel: "습도 산포",
+          hoverExtremes: raw.humSpreadExtremes,
         }
       : null;
 
@@ -1131,10 +1417,10 @@ export function mapUnifiedBarnTrendRawToSplitY(
       hum: Boolean(seriesByKey.hum),
       band: Boolean(envelopesBand),
       dev: Boolean(histogramDev),
-      ema: Boolean(seriesByKey.emaShort || seriesByKey.emaLong),
+      ema: Boolean(seriesByKey.emaShort),
       humBand: Boolean(envelopesHumBand),
       humDev: Boolean(histogramHumDev),
-      humEma: Boolean(seriesByKey.humEmaShort || seriesByKey.humEmaLong),
+      humEma: Boolean(seriesByKey.humEmaShort),
     },
   };
 }
@@ -1178,12 +1464,10 @@ export function pickUnifiedTrendLayers(
   if (layers.temp && built.seriesByKey.temp) series.push(built.seriesByKey.temp);
   if (layers.temp && layers.ema) {
     if (built.seriesByKey.emaShort) series.push(built.seriesByKey.emaShort);
-    if (built.seriesByKey.emaLong) series.push(built.seriesByKey.emaLong);
   }
   if (layers.hum && built.seriesByKey.hum) series.push(built.seriesByKey.hum);
   if (layers.hum && layers.humEma) {
     if (built.seriesByKey.humEmaShort) series.push(built.seriesByKey.humEmaShort);
-    if (built.seriesByKey.humEmaLong) series.push(built.seriesByKey.humEmaLong);
   }
 
   const envelopes: TrendEnvelope[] = [];
@@ -1192,6 +1476,93 @@ export function pickUnifiedTrendLayers(
   }
   if (layers.hum && layers.humBand && built.envelopesHumBand) {
     envelopes.push(built.envelopesHumBand);
+  }
+  /* A안 — 임계 접촉 코리도 (본선↔상·하한) */
+  if (layers.temp && built.seriesByKey.temp) {
+    const raw = built.seriesByKey.temp.hoverSecondary ?? null;
+    const plot = built.seriesByKey.temp.data;
+    const { tempLow, tempHigh } = built.thresholds;
+    const hiPlot = mapTempCToSplitY(
+      tempHigh,
+      tempLow,
+      tempHigh,
+      built.layout,
+    );
+    const loPlot = mapTempCToSplitY(
+      tempLow,
+      tempLow,
+      tempHigh,
+      built.layout,
+    );
+    if (hiPlot != null) {
+      const hiEnv = buildThresholdBreachCorridor({
+        seriesPlot: plot,
+        seriesRaw: raw,
+        thresholdRaw: tempHigh,
+        thresholdPlot: hiPlot,
+        side: "high",
+        fill: UNIFIED_TEMP_BREACH_HI_FILL,
+        fillOpacity: 0.2,
+        legendLabel: "온도 상한 접촉",
+      });
+      if (hiEnv) envelopes.push(hiEnv);
+    }
+    if (loPlot != null) {
+      const loEnv = buildThresholdBreachCorridor({
+        seriesPlot: plot,
+        seriesRaw: raw,
+        thresholdRaw: tempLow,
+        thresholdPlot: loPlot,
+        side: "low",
+        fill: UNIFIED_TEMP_BREACH_LO_FILL,
+        fillOpacity: 0.18,
+        legendLabel: "온도 하한 접촉",
+      });
+      if (loEnv) envelopes.push(loEnv);
+    }
+  }
+  if (layers.hum && built.seriesByKey.hum) {
+    const raw = built.seriesByKey.hum.hoverSecondary ?? null;
+    const plot = built.seriesByKey.hum.data;
+    const { humidityLow, humidityHigh } = built.thresholds;
+    const hiPlot = mapHumPctToSplitY(
+      humidityHigh,
+      humidityLow,
+      humidityHigh,
+      built.layout,
+    );
+    const loPlot = mapHumPctToSplitY(
+      humidityLow,
+      humidityLow,
+      humidityHigh,
+      built.layout,
+    );
+    if (hiPlot != null) {
+      const hiEnv = buildThresholdBreachCorridor({
+        seriesPlot: plot,
+        seriesRaw: raw,
+        thresholdRaw: humidityHigh,
+        thresholdPlot: hiPlot,
+        side: "high",
+        fill: UNIFIED_HUM_BREACH_HI_FILL,
+        fillOpacity: 0.2,
+        legendLabel: "습도 상한 접촉",
+      });
+      if (hiEnv) envelopes.push(hiEnv);
+    }
+    if (loPlot != null) {
+      const loEnv = buildThresholdBreachCorridor({
+        seriesPlot: plot,
+        seriesRaw: raw,
+        thresholdRaw: humidityLow,
+        thresholdPlot: loPlot,
+        side: "low",
+        fill: UNIFIED_HUM_BREACH_LO_FILL,
+        fillOpacity: 0.18,
+        legendLabel: "습도 하한 접촉",
+      });
+      if (loEnv) envelopes.push(loEnv);
+    }
   }
 
   const histograms: TrendHistogram[] = [];
@@ -1210,6 +1581,60 @@ export function pickUnifiedTrendLayers(
   }
 
   return { series, envelopes, histograms };
+}
+
+/** X스코프/트림 시 코리도 폴리 x를 [lo,hi]로 자르고 0 기준으로 재배치 */
+function sliceEnvelopePolys(
+  polys: TrendEnvelope["polys"] | undefined,
+  lo: number,
+  hi: number,
+): TrendEnvelope["polys"] | undefined {
+  if (!polys?.length) return polys;
+  const out: TrendEnvelopePolyPoint[][] = [];
+
+  const lerp = (
+    a: TrendEnvelopePolyPoint,
+    b: TrendEnvelopePolyPoint,
+    x: number,
+  ): TrendEnvelopePolyPoint => {
+    const t = Math.abs(b.x - a.x) < 1e-12 ? 0 : (x - a.x) / (b.x - a.x);
+    return {
+      x,
+      high: a.high + t * (b.high - a.high),
+      low: a.low + t * (b.low - a.low),
+    };
+  };
+
+  for (const run of polys) {
+    if (run.length < 2) continue;
+    const clipped: TrendEnvelopePolyPoint[] = [];
+    for (let i = 0; i < run.length; i++) {
+      const p = run[i]!;
+      const prev = i > 0 ? run[i - 1]! : null;
+      if (p.x >= lo && p.x <= hi) {
+        if (clipped.length === 0 && prev && prev.x < lo) {
+          clipped.push(lerp(prev, p, lo));
+        }
+        clipped.push(p);
+      } else if (prev && prev.x <= hi && p.x > hi) {
+        if (clipped.length === 0 && prev.x < lo) {
+          clipped.push(lerp(prev, p, lo));
+        } else if (clipped.length === 0 && prev.x >= lo && prev.x <= hi) {
+          clipped.push(prev);
+        }
+        clipped.push(lerp(prev, p, hi));
+      }
+    }
+    if (clipped.length < 2) continue;
+    out.push(
+      clipped.map((p) => ({
+        x: p.x - lo,
+        high: p.high,
+        low: p.low,
+      })),
+    );
+  }
+  return out.length ? out : undefined;
 }
 
 /** 유한값이 있는 첫·끝 인덱스 */
@@ -1274,6 +1699,15 @@ export function trimPickedUnifiedTrend(
 
   const sliceCol = <T,>(arr: (T | null)[] | undefined): (T | null)[] | undefined =>
     arr ? arr.slice(start, end + 1) : arr;
+  const sliceExtremes = (
+    ex: TrendSeries["hoverSpreadExtremes"] | TrendEnvelope["hoverExtremes"],
+  ) =>
+    ex
+      ? {
+          high: ex.high.slice(start, end + 1),
+          low: ex.low.slice(start, end + 1),
+        }
+      : ex;
 
   return {
     categories: categories.slice(start, end + 1),
@@ -1281,11 +1715,14 @@ export function trimPickedUnifiedTrend(
       ...s,
       data: s.data.slice(start, end + 1),
       hoverSecondary: sliceCol(s.hoverSecondary),
+      hoverSpreadExtremes: sliceExtremes(s.hoverSpreadExtremes),
     })),
     envelopes: picked.envelopes.map((e) => ({
       ...e,
       high: e.high.slice(start, end + 1),
       low: e.low.slice(start, end + 1),
+      hoverExtremes: sliceExtremes(e.hoverExtremes),
+      polys: sliceEnvelopePolys(e.polys, start, end),
     })),
     histograms: picked.histograms.map((h) => ({
       ...h,
@@ -1331,6 +1768,15 @@ export function sliceUnifiedTrendByIndex(
 
   const sliceCol = <T,>(arr: (T | null)[] | undefined): (T | null)[] | undefined =>
     arr ? arr.slice(lo, hi + 1) : arr;
+  const sliceExtremes = (
+    ex: TrendSeries["hoverSpreadExtremes"] | TrendEnvelope["hoverExtremes"],
+  ) =>
+    ex
+      ? {
+          high: ex.high.slice(lo, hi + 1),
+          low: ex.low.slice(lo, hi + 1),
+        }
+      : ex;
 
   return {
     categories: categories.slice(lo, hi + 1),
@@ -1338,11 +1784,14 @@ export function sliceUnifiedTrendByIndex(
       ...s,
       data: s.data.slice(lo, hi + 1),
       hoverSecondary: sliceCol(s.hoverSecondary),
+      hoverSpreadExtremes: sliceExtremes(s.hoverSpreadExtremes),
     })),
     envelopes: picked.envelopes.map((e) => ({
       ...e,
       high: e.high.slice(lo, hi + 1),
       low: e.low.slice(lo, hi + 1),
+      hoverExtremes: sliceExtremes(e.hoverExtremes),
+      polys: sliceEnvelopePolys(e.polys, lo, hi),
     })),
     histograms: picked.histograms.map((h) => ({
       ...h,

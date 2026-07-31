@@ -10,7 +10,8 @@ import {
 } from "react";
 import {
   Bell,
-  Cpu,
+  ChevronDown,
+  ChevronUp,
   EllipsisVertical,
   FileText,
   Monitor,
@@ -24,15 +25,20 @@ import { usePathname } from "next/navigation";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { AppNavLink } from "@/components/layout/app-nav-link";
 import { DailyReportButton } from "@/components/layout/daily-report-button";
+import {
+  RAIL_GROUP_GAP_DEFAULT,
+  RAIL_PITCH_BASE,
+  hubRailToolDistances,
+  railOffset,
+} from "@/components/layout/hub-rail-layout";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmControlHref } from "@/lib/data/alarms";
+import { alarmChartHref } from "@/lib/data/alarms";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmOverview } from "@/lib/data/iot";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { formatKst } from "@/lib/datetime/kst";
 import { isAdminOpsNavPath } from "@/lib/dashboard-sections";
-import { monitoringHref } from "@/lib/monitoring/monitoring-tabs";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -78,13 +84,19 @@ type Props = {
   hubRailDir?: "up" | "down" | "left" | "right";
   /** rail 애니 단계 */
   hubRailPhase?: "enter" | "exit";
+  /** rail — 아이콘 중심 간 간격(px) */
+  hubRailPitch?: number;
+  /** rail — 그룹 사이 추가 간격(px) */
+  hubRailGroupGap?: number;
   /** radial3 — 디자인/기능/알람 각도(deg, 0=오른쪽·시계방향+) */
   hubFanDegs?: [number, number, number];
   /** radial3 — 링 반지름(px) */
   hubOrbitRadii?: number[];
+  /** 상세 캡슐을 FAB 왼쪽(여유 공간 쪽)으로 */
+  hubDetailOpenLeft?: boolean;
 };
 
-type DetailId = "connectivity" | "alarms" | "report";
+type DetailId = "alarms" | "report";
 
 function connectivityMessage(overview?: FarmOverview): string {
   const registered = overview?.controllerCount;
@@ -174,8 +186,11 @@ export function HeaderToolsMenu({
   hubLayout = "list",
   hubRailDir = "up",
   hubRailPhase = "enter",
+  hubRailPitch = RAIL_PITCH_BASE,
+  hubRailGroupGap = RAIL_GROUP_GAP_DEFAULT,
   hubFanDegs = [210, 270, 330],
   hubOrbitRadii = [96, 168, 240],
+  hubDetailOpenLeft = true,
 }: Props) {
   const isHub = variant === "hub-panel";
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
@@ -183,13 +198,13 @@ export function HeaderToolsMenu({
   const { navigate } = useAppNavigate();
   const pathname = usePathname();
 
-  const registered = overview?.controllerCount;
   const offline = overview?.offlineCount ?? 0;
   const activeAlarms = alarms.filter((a) => a.status === "active");
   const alarmCount = activeAlarms.length;
-  const alarmPreview = activeAlarms.slice(0, 4);
-  const alert = offline > 0 || alarmCount > 0;
-  const badgeCount = alarmCount > 0 ? alarmCount : offline > 0 ? offline : 0;
+  const alarmList = activeAlarms.slice(0, 12);
+  /** 통신 두절은 알람에 포함 — 배지는 활성 이상상황 건수 */
+  const alert = alarmCount > 0 || offline > 0;
+  const badgeCount = alarmCount;
 
   const onOps = isAdminOpsNavPath(pathname);
   const opsHref = onOps ? "/farm" : "/admin/ops";
@@ -212,6 +227,7 @@ export function HeaderToolsMenu({
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [detail, setDetail] = useState<DetailId | null>(null);
+  const [alarmListOpen, setAlarmListOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const [themeReady, setThemeReady] = useState(false);
 
@@ -265,10 +281,13 @@ export function HeaderToolsMenu({
   const iReport = 2;
   const iOps = 3;
   const iBell = isAdmin ? 4 : 3;
-  const iCpu = isAdmin ? 5 : 4;
 
   const toggleDetail = (id: DetailId) => {
     setDetail((prev) => (prev === id ? null : id));
+    /* 이상상황 상세를 닫거나 다른 상세로 바꿀 때 리스트 접기 */
+    if (id !== "alarms" || detail === id) {
+      setAlarmListOpen(false);
+    }
   };
 
   const trigger = (
@@ -325,34 +344,19 @@ export function HeaderToolsMenu({
       />
     );
 
-    const cpu = (
-      <ToolsIconWrap key="cpu" toolsI={iCpu}>
-        <ToolsIconBtn
-          Icon={Cpu}
-          alert={offline > 0}
-          active={detail === "connectivity"}
-          badge={offline > 0 ? offline : undefined}
-          data-tour-id="header-connectivity"
-          aria-label="컨트롤러 연결"
-          aria-pressed={detail === "connectivity"}
-          title="컨트롤러 연결"
-          onClick={() => toggleDetail("connectivity")}
-        />
-      </ToolsIconWrap>
-    );
     const bell = (
       <ToolsIconWrap key="bell" toolsI={iBell}>
         <ToolsIconBtn
           Icon={Bell}
-          alert={alarmCount > 0}
+          alert={alert}
           active={detail === "alarms"}
           badge={alarmCount > 0 ? alarmCount : undefined}
           data-tour-id="header-alarms"
           aria-label={
-            alarmCount > 0 ? `센서 알림 ${alarmCount}건` : "센서 알림"
+            alarmCount > 0 ? `이상상황 ${alarmCount}건` : "이상상황"
           }
           aria-pressed={detail === "alarms"}
-          title="센서 알림"
+          title="이상상황"
           onClick={() => toggleDetail("alarms")}
         />
       </ToolsIconWrap>
@@ -400,27 +404,27 @@ export function HeaderToolsMenu({
       </ToolsIconWrap>
     );
 
-    /* 1·2 디자인 · 3 기능 · 4 운영 · 5 알람류(알림+연결) */
+    /* 1·2 디자인 · 3 기능 · 4 운영 · 5 이상상황(통신 두절 포함) */
     const hubItems =
       group === "design"
         ? [themeEl, viewport]
         : group === "function"
           ? [report, ops]
           : group === "alarm"
-            ? [bell, cpu]
+            ? [bell]
             : hubPattern === "design"
               ? [themeEl, viewport]
               : hubPattern === "mode"
                 ? [ops]
                 : hubPattern === "all"
-                  ? [themeEl, viewport, report, ops, bell, cpu]
-                  : [report, bell, cpu];
+                  ? [themeEl, viewport, report, ops, bell]
+                  : [report, bell];
     const items = (
       isHub
         ? hubItems
         : vertical
-          ? [themeEl, viewport, report, ops, bell, cpu]
-          : [cpu, bell, ops, report, viewport, themeEl]
+          ? [themeEl, viewport, report, ops, bell]
+          : [bell, ops, report, viewport, themeEl]
     ).filter(Boolean);
 
     if (asNodes) return items;
@@ -445,20 +449,38 @@ export function HeaderToolsMenu({
       ? ({ dx: hubRailDir === "left" ? 1 : -1, dy: 0 } as const)
       : ({ dx: 0, dy: hubRailDir === "up" ? 1 : -1 } as const);
 
-  const detailAlert =
-    (detail === "connectivity" && offline > 0) ||
-    (detail === "alarms" && alarmCount > 0);
+  const detailAlert = detail === "alarms" && alert;
+  const isAlarmDetail = detail === "alarms";
 
   /** 캡슐이 FAB 왼쪽이면 노치=오른쪽(end), FAB 오른쪽이면 노치=왼쪽(start) */
   const capsuleNotchEnd =
-    hubLayout !== "radial3" || hubRailDir !== "left";
+    hubLayout === "list" || hubDetailOpenLeft;
+
+  /** 이상상황 카드는 FAB에 붙여 화면 안쪽으로 성장 (중앙 정렬 → top 잘림 방지) */
+  const hubDetailSideClass = (() => {
+    const side = hubDetailOpenLeft
+      ? "right-[calc(100%+14px)]"
+      : "left-[calc(100%+14px)]";
+    if (isAlarmDetail) {
+      const fromBottom =
+        hubRailDir === "up" ||
+        hubRailDir === "left" ||
+        hubRailDir === "right";
+      return cn("z-[8]", side, fromBottom ? "bottom-0" : "top-0");
+    }
+    return hubDetailOpenLeft
+      ? "left-1/2 top-1/2 z-[8] -translate-x-[calc(100%+14px)] -translate-y-1/2"
+      : "left-1/2 top-1/2 z-[8] translate-x-[14px] -translate-y-1/2";
+  })();
 
   const detailPanel = detail ? (
     <div
       className={cn(
         isHub
           ? cn(
-              dashboardUi.hubDetailPopover,
+              isAlarmDetail
+                ? dashboardUi.hubDetailPopoverAlarm
+                : dashboardUi.hubDetailPopover,
               detailAlert && dashboardUi.hubDetailPopoverAlert,
               motionClass.hubWidgetDetailIn,
             )
@@ -475,7 +497,7 @@ export function HeaderToolsMenu({
       onClick={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {isHub ? (
+      {isHub && !isAlarmDetail ? (
         <span
           className={cn(
             dashboardUi.hubDetailNotch,
@@ -488,83 +510,15 @@ export function HeaderToolsMenu({
         />
       ) : null}
 
-      {detail === "connectivity" ? (
-        <div
-          className={cn(
-            isHub
-              ? dashboardUi.hubDetailRow
-              : cn(
-                  dashboardUi.headerToolsCard,
-                  "mx-0 mb-0 w-full",
-                  offline > 0 && dashboardUi.headerToolsCardAlert,
-                ),
-          )}
-        >
-          <span
-            className={cn(
-              isHub
-                ? dashboardUi.hubDetailLeadIcon
-                : dashboardUi.headerToolsCardIcon,
-              offline > 0 &&
-                (isHub
-                  ? dashboardUi.hubDetailLeadIconAlert
-                  : dashboardUi.headerToolsCardIconAlert),
-            )}
-            aria-hidden
-          >
-            <Cpu className="size-4 md:size-5" />
-          </span>
-          <div
-            className={
-              isHub ? dashboardUi.hubDetailBody : dashboardUi.headerToolsCardBody
-            }
-          >
-            <div
-              className={
-                isHub
-                  ? dashboardUi.hubDetailTitle
-                  : dashboardUi.headerToolsCardTitle
-              }
-            >
-              <span>컨트롤러 연결</span>
-              {!isHub && registered !== undefined ? (
-                <span className="ml-auto tabular-nums text-muted-foreground">
-                  {registered}
-                </span>
-              ) : null}
-            </div>
-            <p
-              className={cn(
-                isHub
-                  ? dashboardUi.hubDetailMeta
-                  : dashboardUi.headerToolsCardMeta,
-                isHub && offline > 0 && "font-medium text-red-600 dark:text-red-400",
-              )}
-            >
-              {isHub
-                ? offline > 0
-                  ? `${connTitle} · 오프라인 ${offline}`
-                  : connTitle
-                : connTitle}
-            </p>
-            {!isHub && offline > 0 ? (
-              <p className="mt-0.5 text-xs font-medium text-red-600 dark:text-red-400">
-                오프라인 {offline}개
-              </p>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
       {detail === "alarms" ? (
         <div
           className={cn(
             isHub
-              ? dashboardUi.hubDetailRow
+              ? dashboardUi.hubDetailRowList
               : cn(
                   dashboardUi.headerToolsCard,
                   "mx-0 mb-0 w-full",
-                  alarmCount > 0 && dashboardUi.headerToolsCardAlert,
+                  alert && dashboardUi.headerToolsCardAlert,
                 ),
           )}
         >
@@ -573,7 +527,7 @@ export function HeaderToolsMenu({
               isHub
                 ? dashboardUi.hubDetailLeadIcon
                 : dashboardUi.headerToolsCardIcon,
-              alarmCount > 0 &&
+              alert &&
                 (isHub
                   ? dashboardUi.hubDetailLeadIconAlert
                   : dashboardUi.headerToolsCardIconAlert),
@@ -584,7 +538,9 @@ export function HeaderToolsMenu({
           </span>
           <div
             className={
-              isHub ? dashboardUi.hubDetailBody : dashboardUi.headerToolsCardBody
+              isHub
+                ? dashboardUi.hubDetailBodyList
+                : dashboardUi.headerToolsCardBody
             }
           >
             <div
@@ -594,8 +550,8 @@ export function HeaderToolsMenu({
                   : dashboardUi.headerToolsCardTitle
               }
             >
-              <span>센서 알림</span>
-              {!isHub && alarmCount > 0 ? (
+              <span>이상상황</span>
+              {alarmCount > 0 ? (
                 <Badge
                   variant="destructive"
                   className="ml-auto h-5 min-h-0 px-1.5 text-[0.65rem]"
@@ -604,57 +560,80 @@ export function HeaderToolsMenu({
                 </Badge>
               ) : null}
             </div>
-            {isHub ? (
-              <>
-                <p
-                  className={cn(
-                    dashboardUi.hubDetailMeta,
-                    alarmCount > 0 &&
-                      "font-medium text-red-600 dark:text-red-400",
-                  )}
-                >
-                  {alarmCount > 0
-                    ? `활성 ${alarmCount}건`
-                    : "센서 알림 없음"}
-                </p>
-                {alarmCount > 0 ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      dashboardUi.hubDetailAction,
-                      "text-emerald-700 dark:text-emerald-400",
-                    )}
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setDetail(null);
-                      navigate(monitoringHref("ops"), {
-                        message: "이상 탭으로 이동 중…",
-                      });
-                    }}
-                  >
-                    이상 탭으로
-                  </button>
-                ) : null}
-              </>
-            ) : alarmPreview.length === 0 ? (
-              <p className={dashboardUi.headerToolsCardMeta}>
-                센서 알림 없음
-              </p>
+            <p
+              className={cn(
+                isHub
+                  ? dashboardUi.hubDetailMeta
+                  : dashboardUi.headerToolsCardMeta,
+                offline > 0 &&
+                  "font-medium text-red-600 dark:text-red-400",
+              )}
+            >
+              {offline > 0
+                ? `${connTitle} · 오프라인 ${offline}`
+                : connTitle}
+            </p>
+            {alarmCount > 0 ? (
+              <button
+                type="button"
+                className={cn(
+                  isHub
+                    ? dashboardUi.hubDetailAlarmToggle
+                    : "mt-1.5 flex w-full items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium",
+                  !isHub && "text-emerald-700 dark:text-emerald-400",
+                )}
+                aria-expanded={alarmListOpen}
+                onClick={() => setAlarmListOpen((v) => !v)}
+              >
+                {alarmListOpen ? (
+                  <>
+                    접기
+                    <ChevronUp className="size-3.5 shrink-0" aria-hidden />
+                  </>
+                ) : (
+                  <>
+                    상세 보기
+                    <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+                  </>
+                )}
+              </button>
             ) : (
-              <ul className="mt-1.5 space-y-1">
-                {alarmPreview.map((a) => (
+              <p
+                className={
+                  isHub
+                    ? dashboardUi.hubDetailMeta
+                    : dashboardUi.headerToolsCardMeta
+                }
+              >
+                활성 이상상황 없음
+              </p>
+            )}
+            {alarmListOpen && alarmList.length > 0 ? (
+              <ul
+                className={cn(
+                  "min-h-0 space-y-1 overflow-y-auto overscroll-contain",
+                  isHub
+                    ? "mt-1 flex-1 border-t border-border/50 pt-1.5 pr-0.5"
+                    : "mt-1.5 max-h-[min(50dvh,16rem)]",
+                )}
+                aria-label="이상상황 목록"
+              >
+                {alarmList.map((a) => (
                   <li key={a.id}>
                     <button
                       type="button"
                       className={cn(
-                        "w-full rounded-xl border border-transparent px-1.5 py-1.5 text-left hover:border-border hover:bg-muted/80",
+                        "w-full rounded-xl border border-border/60 bg-muted/20 px-1.5 py-1.5 text-left hover:bg-muted/80",
                         motionClass.microInteractive,
                       )}
-                      onClick={() =>
-                        navigate(alarmControlHref(a), {
-                          message: "컨트롤러 제어로 이동 중…",
-                        })
-                      }
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setDetail(null);
+                        setAlarmListOpen(false);
+                        navigate(alarmChartHref(a), {
+                          message: "그래프로 이동 중…",
+                        });
+                      }}
                     >
                       <span className="flex items-center justify-between gap-2 text-xs font-medium">
                         <span className="truncate">{a.alarmType}</span>
@@ -679,24 +658,13 @@ export function HeaderToolsMenu({
                     </button>
                   </li>
                 ))}
+                {alarmCount > alarmList.length ? (
+                  <li className="px-1 py-1 text-[0.65rem] text-muted-foreground">
+                    외 {alarmCount - alarmList.length}건 — 행을 눌러 그래프로
+                    이동합니다
+                  </li>
+                ) : null}
               </ul>
-            )}
-            {!isHub && alarmCount > 0 ? (
-              <button
-                type="button"
-                className="mt-1.5 flex w-full justify-center rounded-lg border px-2 py-1.5 text-xs font-medium text-emerald-700"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setDetail(null);
-                  navigate(monitoringHref("ops"), {
-                    message: "이상 탭으로 이동 중…",
-                  });
-                }}
-              >
-                {alarmCount > alarmPreview.length
-                  ? `센서 알림 ${alarmCount}건 보기`
-                  : "이상 탭으로 이동"}
-              </button>
             ) : null}
           </div>
         </div>
@@ -739,14 +707,7 @@ export function HeaderToolsMenu({
           ? motionClass.hubWidgetOrbitItemExit
           : motionClass.hubWidgetOrbitItemEnter;
 
-      const detailSide =
-        hubRailDir === "right"
-          ? "left-1/2 top-1/2 z-[8] -translate-x-[calc(100%+14px)] -translate-y-1/2"
-          : hubRailDir === "left"
-            ? "left-1/2 top-1/2 z-[8] translate-x-[14px] -translate-y-1/2"
-            : hubRailDir === "down"
-              ? "left-1/2 top-1/2 z-[8] -translate-x-[calc(100%+14px)] -translate-y-1/2"
-              : "left-1/2 top-1/2 z-[8] -translate-x-[calc(100%+14px)] -translate-y-1/2";
+      const detailSide = hubDetailSideClass;
 
       return (
         <>
@@ -809,44 +770,54 @@ export function HeaderToolsMenu({
         toolbarIcons({ vertical: true, asNodes: true }) as ReactNode[]
       ).filter(Boolean);
       const n = nodes.length;
+      /* 차트 슬롯이 FAB에서 +1 — stagger 역순에 맞춤 */
+      const slotN = n + 1;
+      const distances = hubRailToolDistances(
+        n,
+        hubRailPitch,
+        isAdmin,
+        hubRailGroupGap,
+      );
       const itemMotion =
         hubRailPhase === "exit"
           ? motionClass.hubWidgetRailItemExit
           : motionClass.hubWidgetRailItemEnter;
+      const detailSide = hubDetailSideClass;
       return (
         <>
-          {nodes.map((node, i) => (
-            <div
-              key={`hub-rail-${hubPattern}-${i}`}
-              className={cn(
-                "pointer-events-auto shrink-0",
-                "[&_button]:rounded-full [&_a]:rounded-full",
-                "[&_.header-tools-icon]:contents",
-                itemMotion,
-              )}
-              style={
-                {
-                  ["--hub-rail-i" as string]: i,
-                  ["--hub-rail-n" as string]: String(Math.max(n, 1)),
-                  ["--hub-rail-dx" as string]: railAxis.dx,
-                  ["--hub-rail-dy" as string]: railAxis.dy,
-                } as CSSProperties
-              }
-              data-hub-rail-tool=""
-            >
-              {node}
-            </div>
-          ))}
+          {nodes.map((node, i) => {
+            const { ox, oy } = railOffset(
+              hubRailDir,
+              distances[i] ?? (i + 1) * hubRailPitch,
+            );
+            return (
+              <div
+                key={`hub-rail-${hubPattern}-${i}`}
+                className={cn(
+                  "pointer-events-auto absolute z-[7] flex size-11 items-center justify-center",
+                  "[&_button]:rounded-full [&_a]:rounded-full",
+                  "[&_.header-tools-icon]:contents",
+                  itemMotion,
+                )}
+                style={
+                  {
+                    left: ox,
+                    top: oy,
+                    ["--hub-rail-i" as string]: i,
+                    ["--hub-rail-n" as string]: String(slotN),
+                    ["--hub-rail-dx" as string]: railAxis.dx,
+                    ["--hub-rail-dy" as string]: railAxis.dy,
+                  } as CSSProperties
+                }
+                data-hub-rail-tool=""
+              >
+                {node}
+              </div>
+            );
+          })}
           {detailPanel ? (
             <div
-              className={cn(
-                "pointer-events-auto absolute z-[8]",
-                /* 세로 레일: 레일 왼쪽(우하단 FAB 기준 화면 안쪽) */
-                hubRailDir === "up" || hubRailDir === "down"
-                  ? "bottom-0 right-[calc(100%+10px)]"
-                  : /* 가로 레일: FAB가 보통 하단 → 카드는 레일 위 */
-                    "left-0 bottom-[calc(100%+10px)]",
-              )}
+              className={cn("pointer-events-auto absolute", detailSide)}
               data-hub-rail-detail=""
             >
               {detailPanel}
