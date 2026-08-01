@@ -589,25 +589,40 @@ export const dashboardAriaShell = {
     "text-[length:var(--density-meta)] text-muted-foreground md:text-[length:var(--density-meta-md)]",
   warnMeta: "text-[length:var(--density-meta)] text-status-warn md:text-[length:var(--density-meta-md)]",
   hint:
-    "mt-4 max-w-sm text-center text-[length:var(--density-meta)] leading-relaxed text-muted-foreground md:text-[length:var(--density-meta-md)]",
+    "mt-2 max-w-[20rem] shrink-0 px-3 text-center text-[length:var(--density-meta)] leading-snug text-muted-foreground break-keep text-balance md:max-w-none md:text-[length:var(--density-meta-md)]",
   orbZone: "relative z-[1] flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-2 pt-2",
-  dockSlot: "relative z-[1] shrink-0 px-3 pb-3 pt-1 md:px-4 md:pb-4",
+  dockSlot:
+    "pointer-events-none absolute inset-x-0 bottom-0 z-[3] px-3 pb-3 pt-1 md:px-4 md:pb-4",
   /** 하단 입력 도크 */
   dock:
     "rounded-2xl border border-primary/25 bg-card/90 p-3 shadow-[var(--surface-shadow-tile)] ring-1 ring-primary/15 backdrop-blur-md dark:border-primary/20 dark:bg-card/90 md:p-4",
+  /** 도크 드래그 핸들 */
+  dockDragHandle:
+    "mb-1.5 flex w-full cursor-grab items-center justify-center rounded-md py-1 text-muted-foreground/70 hover:bg-muted/40 hover:text-muted-foreground active:cursor-grabbing",
   stageBody:
     "relative z-[1] flex min-h-0 flex-1 flex-col gap-2 px-3 pb-1 pt-1 md:flex-row md:items-stretch md:gap-3 md:px-4",
+  /** 입력 도크 오버레이와 겹치지 않게 스테이지 하단 예약 */
+  stageBodyDockClear:
+    "pb-[var(--aria-dock-clearance,17rem)]",
   metricsSlot: "aria-stage-metrics order-2 min-h-0 md:order-1",
   metricsSlotHidden: "aria-stage-metrics-collapsed",
   metricsSlotRail:
     "aria-stage-metrics-rail w-full shrink-0 md:w-[min(38%,17rem)] md:self-center",
+  /** 결과면 — 우측 축소 오브만 피함(하단 도크는 stageBodyDockClear) */
   metricsSlotHero:
-    "aria-stage-metrics-hero flex min-h-[9rem] flex-1 flex-col md:min-h-0 md:w-auto",
+    "aria-stage-metrics-hero flex min-h-[9rem] min-w-0 flex-1 flex-col pr-[5.5rem] md:min-h-0 md:w-auto md:pr-[6.5rem]",
   orbSlot:
-    "aria-stage-orb order-1 flex flex-col items-center justify-center md:order-2",
-  orbSlotCenter: "aria-stage-orb-center min-h-0 flex-1 w-full",
+    "aria-stage-orb flex flex-col items-center justify-center gap-0",
+  orbSlotCenter:
+    "aria-stage-orb-center order-1 min-h-0 w-full flex-1 md:order-2 md:flex-1",
+  /** speak/결과면 — 도크 예약 위·우측 */
+  orbSlotCorner:
+    "aria-stage-orb-corner absolute right-2 z-[4] w-[5.25rem] shrink-0 md:right-3 md:w-[6rem] bottom-[calc(var(--aria-dock-clearance,17rem)+0.5rem)] md:bottom-[calc(var(--aria-dock-clearance,17rem)+0.75rem)]",
+  /** @deprecated 코너 앵커로 대체 · 호환용 */
   orbSlotSide:
     "aria-stage-orb-side w-full shrink-0 md:w-[7.5rem] md:shrink-0 md:self-center",
+  /** 오브+상태+힌트를 한 덩어리로 중앙 정렬 */
+  orbStack: "flex w-full max-w-lg flex-col items-center justify-center gap-2 px-2",
   metricsPanel:
     "aria-stage-metrics-panel flex h-full min-h-0 flex-col rounded-xl border border-primary/20 bg-card/80 p-3 shadow-[var(--surface-shadow-tile)] backdrop-blur-sm md:p-3.5",
   metricsEyebrow:

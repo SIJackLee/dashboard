@@ -56,7 +56,7 @@ export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
   },
 };
 
-export const DEFAULT_TREND_PERIOD: TrendPeriodId = "24h";
+export const DEFAULT_TREND_PERIOD: TrendPeriodId = "7d";
 
 /** One barn (stall_no) aligned series across the full continuous time axis. */
 export type TrendStallSeries = {

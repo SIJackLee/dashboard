@@ -11,6 +11,20 @@ import type {
   VoiceAskSuccess,
   VoiceUsageSnapshot,
 } from "@/lib/voice-report/types";
+import {
+  applyFarmChartScopeParams,
+  applyFarmChartZoomParams,
+} from "@/lib/farm/farm-chart-scope";
+import {
+  applyChartViewParams,
+  currentFarmSearchParams,
+  replaceFarmUrlShallow,
+  requestFarmHubViewResync,
+} from "@/lib/farm/farm-view-url";
+import {
+  zoomHintFromDelinHandoff,
+  type DelinChartHandoff,
+} from "@/lib/voice-report/delin-chart-handoff";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { dashboardAriaShell } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -18,6 +32,13 @@ import { cn } from "@/lib/utils";
 const MAX_RECORD_SEC = 15;
 const MIN_RECORD_SEC = 0.8;
 const emptySubscribe = () => () => {};
+
+/** U1 — 첫 화면 CTA 보조. 프로토콜 트리거와 맞춘 짧은 칩 */
+const DELIN_SUGGESTION_CHIPS = [
+  { label: "농장 어때?", ask: "오늘 농장 상황 어때?" },
+  { label: "위험만", ask: "위험만 알려줘" },
+  { label: "환기는?", ask: "환기는 어떻게 하면 돼?" },
+] as const;
 
 type Props = {
   currentFarm: FarmKey;
@@ -27,12 +48,25 @@ type Props = {
   layout?: "fab" | "dock";
   /** fab 레이아웃 — 진입 시 패널 펼침 */
   defaultOpen?: boolean;
+  /**
+   * true — 도크/패널 안 답변 카드·차트 CTA 숨김
+   * (스테이지 AriaAnswerStage가 결과면 소유)
+   */
+  suppressAnswerSurface?: boolean;
   onStatusChange?: (
     status: VoiceReportStatus,
     meta: { micTesting: boolean },
   ) => void;
   /** 0~100 — 녹음·마이크 테스트 RMS */
   onMicLevelChange?: (levelPct: number) => void;
+  /** 차트 딥링크 CTA 직후 (모바일 시트 닫기 등) */
+  onChartHandoffComplete?: () => void;
+  /** 스테이지 결과면 — 답변 extras */
+  onAnswerReady?: (payload: {
+    text: string;
+    evidenceChips: string[];
+    chartHandoff: NonNullable<VoiceAskSuccess["chartHandoff"]> | null;
+  }) => void;
   className?: string;
 };
 
@@ -44,8 +78,11 @@ export function VoiceReportFab({
   compact = false,
   layout = "fab",
   defaultOpen = false,
+  suppressAnswerSurface = false,
   onStatusChange,
   onMicLevelChange,
+  onChartHandoffComplete,
+  onAnswerReady,
   className,
 }: Props) {
   const isDock = layout === "dock";
@@ -53,6 +90,10 @@ export function VoiceReportFab({
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [meta, setMeta] = useState<string | null>(null);
+  const [evidenceChips, setEvidenceChips] = useState<string[]>([]);
+  const [chartHandoff, setChartHandoff] = useState<
+    NonNullable<VoiceAskSuccess["chartHandoff"]> | null
+  >(null);
   const [usage, setUsage] = useState<VoiceUsageSnapshot | null>(null);
   const [status, setStatus] = useState<VoiceReportStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +107,8 @@ export function VoiceReportFab({
   const [micTesting, setMicTesting] = useState(false);
   const [soundBlocked, setSoundBlocked] = useState(false);
   const [deviceToolsOpen, setDeviceToolsOpen] = useState(false);
+  const [textAskOpen, setTextAskOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [ariaSession, setAriaSession] = useState<
     VoiceAskSuccess["ariaSession"] | null
   >(null);
@@ -318,6 +361,8 @@ export function VoiceReportFab({
       setError(null);
       setAnswer(null);
       setMeta(null);
+      setEvidenceChips([]);
+      setChartHandoff(null);
       setTtsHint(null);
       setNeedsTapToPlay(false);
       clearAudioUrl();
@@ -371,6 +416,13 @@ export function VoiceReportFab({
         if (data.question) setQuestion(data.question);
         setAnswer(data.text);
         setUsage(data.usage);
+        setEvidenceChips(data.evidenceChips ?? []);
+        setChartHandoff(data.chartHandoff ?? null);
+        onAnswerReady?.({
+          text: data.text,
+          evidenceChips: data.evidenceChips ?? [],
+          chartHandoff: data.chartHandoff ?? null,
+        });
         if (data.ariaSession) setAriaSession(data.ariaSession);
         const sourceLabel =
           data.source === "protocol" || data.source === "protocol_heuristic"
@@ -382,7 +434,7 @@ export function VoiceReportFab({
                 : "템플릿";
         const routeLabel = data.ariaRoute ? ` · ${data.ariaRoute}` : "";
         setMeta(
-          `${data.farmLabel} · ${sourceLabel}${routeLabel} · ${data.mode === "audio" ? "음성" : "텍스트"}${data.audioBase64 ? " · TTS" : ""}`,
+          `${data.farmLabel} · ${sourceLabel}${routeLabel}${data.audioBase64 ? " · TTS" : ""}`,
         );
 
         if (data.audioBase64) {
@@ -416,6 +468,7 @@ export function VoiceReportFab({
       clearAudioUrl,
       currentFarm.itemCode,
       currentFarm.lsindRegistNo,
+      onAnswerReady,
       playBase64,
       ttsEnabled,
     ],
@@ -537,6 +590,24 @@ export function VoiceReportFab({
             ? "읽는 중…"
             : null;
 
+  const openChartHandoff = useCallback(
+    (handoff: DelinChartHandoff) => {
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      applyChartViewParams(params);
+      applyFarmChartScopeParams(params, handoff.scope);
+      applyFarmChartZoomParams(params, zoomHintFromDelinHandoff(handoff));
+      replaceFarmUrlShallow(params);
+      requestFarmHubViewResync();
+      onChartHandoffComplete?.();
+    },
+    [onChartHandoffComplete],
+  );
+
+  const showSuggestionChips =
+    !busy &&
+    !micTesting &&
+    (status === "idle" || status === "error" || status === "speaking");
+
   const panelControls = (
     <>
       <div className={cn("mb-2 flex gap-1.5", isDock && "mb-3")}>
@@ -562,7 +633,7 @@ export function VoiceReportFab({
               "inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl",
               "bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground",
               "disabled:opacity-50",
-              isDock && "py-3 shadow-sm",
+              isDock && "py-3.5 text-base shadow-sm",
             )}
           >
             {status === "uploading" ||
@@ -570,7 +641,7 @@ export function VoiceReportFab({
             status === "speaking" ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              <Mic className="size-4" />
+              <Mic className={cn("size-4", isDock && "size-5")} />
             )}
             말하기
           </button>
@@ -595,135 +666,222 @@ export function VoiceReportFab({
         </div>
       ) : null}
 
-      <label className="mb-2 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={ttsEnabled}
-          disabled={busy}
-          onChange={(e) => {
-            const on = e.target.checked;
-            setTtsEnabled(on);
-            if (on && typeof Audio !== "undefined") {
-              try {
-                const unlock = new Audio(
-                  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
-                );
-                void unlock.play().then(() => {
-                  unlock.pause();
-                });
-              } catch {
-                /* ignore */
-              }
-            }
-          }}
-          className="size-3"
-        />
-        음성으로 읽어주기 (TTS)
-      </label>
+      {showSuggestionChips ? (
+        <div
+          className="mb-2 flex flex-wrap justify-center gap-1.5"
+          role="group"
+          aria-label="추천 질문"
+        >
+          {DELIN_SUGGESTION_CHIPS.map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setQuestion(chip.ask);
+                void submitAsk({ text: chip.ask });
+              }}
+              className={cn(
+                "rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1",
+                "text-[11px] font-medium text-foreground/90",
+                "hover:border-primary/40 hover:bg-primary/10",
+                "disabled:opacity-50",
+              )}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mb-2">
         <button
           type="button"
-          disabled={busy && !micTesting}
-          aria-expanded={deviceToolsOpen || soundBlocked || micTesting}
-          onClick={() => setDeviceToolsOpen((v) => !v)}
+          disabled={busy}
+          aria-expanded={textAskOpen}
+          onClick={() => setTextAskOpen((v) => !v)}
           className={cn(
-            "inline-flex w-full items-center justify-between gap-1 rounded-lg px-1 py-1",
-            "text-[10px] font-medium text-muted-foreground hover:text-foreground",
+            "inline-flex w-full items-center justify-center gap-1 rounded-lg px-2 py-1.5",
+            "text-[11px] font-medium text-muted-foreground",
+            "hover:bg-muted/40 hover:text-foreground",
             "disabled:opacity-50",
+            textAskOpen && "bg-muted/30 text-foreground",
           )}
+          data-testid="delin-text-ask-toggle"
         >
-          <span>장치 테스트</span>
+          글로 묻기
           <ChevronDown
             className={cn(
-              "size-3.5 shrink-0 transition-transform duration-motion-fast",
-              (deviceToolsOpen || soundBlocked || micTesting) && "rotate-180",
+              "size-3.5 transition-transform duration-motion-fast",
+              textAskOpen && "rotate-180",
+            )}
+          />
+        </button>
+        {textAskOpen ? (
+          <div className="mt-2 space-y-2">
+            <textarea
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              rows={isDock ? 2 : 2}
+              maxLength={200}
+              disabled={busy}
+              autoFocus
+              className={cn(
+                "w-full resize-none rounded-lg border border-border/70 bg-background px-2 py-1.5",
+                "text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              )}
+              placeholder="질문을 입력하세요…"
+              aria-label="텍스트 질문"
+            />
+            <button
+              type="button"
+              disabled={busy || !question.trim()}
+              onClick={() => void submitAsk({ text: question })}
+              className={cn(
+                "inline-flex w-full items-center justify-center gap-1.5 rounded-lg",
+                "bg-secondary px-2 py-2 text-xs font-medium text-secondary-foreground",
+                "disabled:opacity-50",
+              )}
+            >
+              보내기
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mb-1 border-t border-border/30 pt-1.5">
+        <button
+          type="button"
+          disabled={busy && !micTesting}
+          aria-expanded={optionsOpen || deviceToolsOpen || soundBlocked || micTesting}
+          onClick={() => setOptionsOpen((v) => !v)}
+          className={cn(
+            "inline-flex w-full items-center justify-center gap-1 rounded-md px-1 py-0.5",
+            "text-[10px] text-muted-foreground/60 hover:text-muted-foreground/90",
+            "disabled:opacity-50",
+          )}
+          data-testid="delin-options-toggle"
+        >
+          옵션
+          <ChevronDown
+            className={cn(
+              "size-3 shrink-0 transition-transform duration-motion-fast",
+              (optionsOpen || deviceToolsOpen || soundBlocked || micTesting) &&
+                "rotate-180",
             )}
           />
         </button>
 
-        {deviceToolsOpen || soundBlocked || micTesting ? (
-          <div className="mt-1.5 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-2">
-            <div className="flex gap-1.5">
-              <button
-                type="button"
+        {optionsOpen || deviceToolsOpen || soundBlocked || micTesting ? (
+          <div className="mt-1.5 space-y-2 px-0.5">
+            <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground/80">
+              <input
+                type="checkbox"
+                checked={ttsEnabled}
                 disabled={busy}
-                onClick={() => void runSoundCheck()}
-                className={cn(
-                  "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
-                  "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
-                )}
-              >
-                <Volume2 className="size-3" />
-                사운드 체크
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  setDeviceToolsOpen(true);
-                  void runMicTest();
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setTtsEnabled(on);
+                  if (on && typeof Audio !== "undefined") {
+                    try {
+                      const unlock = new Audio(
+                        "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQAAAAA=",
+                      );
+                      void unlock.play().then(() => {
+                        unlock.pause();
+                      });
+                    } catch {
+                      /* ignore */
+                    }
+                  }
                 }}
-                className={cn(
-                  "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/80",
-                  "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
-                )}
-              >
-                <Mic className="size-3" />
-                {micTesting ? "테스트 중…" : "마이크 테스트"}
-              </button>
-            </div>
-            {soundBlocked ? (
+                className="size-3"
+              />
+              읽어주기
+            </label>
+
+            <div>
               <button
                 type="button"
-                className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-medium text-primary-foreground"
-                onClick={() => void runSoundCheck()}
+                disabled={busy && !micTesting}
+                aria-expanded={deviceToolsOpen || soundBlocked || micTesting}
+                onClick={() => setDeviceToolsOpen((v) => !v)}
+                className={cn(
+                  "inline-flex w-full items-center justify-between gap-1 rounded-lg px-0.5 py-0.5",
+                  "text-[10px] text-muted-foreground/70 hover:text-muted-foreground",
+                  "disabled:opacity-50",
+                )}
               >
-                <Volume2 className="size-3" />
-                비프 다시 재생
+                <span>장치 테스트</span>
+                <ChevronDown
+                  className={cn(
+                    "size-3.5 shrink-0 transition-transform duration-motion-fast",
+                    (deviceToolsOpen || soundBlocked || micTesting) &&
+                      "rotate-180",
+                  )}
+                />
               </button>
-            ) : null}
-            {deviceMsg ? (
-              <p className="text-[10px] text-muted-foreground" role="status">
-                {deviceMsg}
-              </p>
-            ) : null}
+
+              {deviceToolsOpen || soundBlocked || micTesting ? (
+                <div className="mt-1.5 space-y-1.5 rounded-lg border border-border/40 bg-muted/10 p-2">
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void runSoundCheck()}
+                      className={cn(
+                        "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/70",
+                        "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+                      )}
+                    >
+                      <Volume2 className="size-3" />
+                      사운드
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        setDeviceToolsOpen(true);
+                        void runMicTest();
+                      }}
+                      className={cn(
+                        "inline-flex flex-1 items-center justify-center gap-1 rounded-lg border border-border/70",
+                        "bg-background px-2 py-1.5 text-[10px] font-medium disabled:opacity-50",
+                      )}
+                    >
+                      <Mic className="size-3" />
+                      {micTesting ? "테스트 중…" : "마이크"}
+                    </button>
+                  </div>
+                  {soundBlocked ? (
+                    <button
+                      type="button"
+                      className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-primary px-2 py-1.5 text-[10px] font-medium text-primary-foreground"
+                      onClick={() => void runSoundCheck()}
+                    >
+                      <Volume2 className="size-3" />
+                      비프 다시 재생
+                    </button>
+                  ) : null}
+                  {deviceMsg ? (
+                    <p className="text-[10px] text-muted-foreground" role="status">
+                      {deviceMsg}
+                    </p>
+                  ) : null}
+                </div>
+              ) : deviceMsg ? (
+                <p className="mt-1 text-[10px] text-muted-foreground" role="status">
+                  {deviceMsg}
+                </p>
+              ) : null}
+            </div>
           </div>
-        ) : deviceMsg ? (
-          <p className="mt-1 text-[10px] text-muted-foreground" role="status">
-            {deviceMsg}
-          </p>
         ) : null}
       </div>
 
-      <textarea
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-        rows={2}
-        maxLength={200}
-        disabled={busy}
-        className={cn(
-          "mb-2 w-full resize-none rounded-lg border border-border/70 bg-background px-2 py-1.5",
-          "text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        )}
-        placeholder="또는 텍스트: 오늘 농장 상황 어때?"
-      />
-      <button
-        type="button"
-        disabled={busy || !question.trim()}
-        onClick={() => void submitAsk({ text: question })}
-        className={cn(
-          "mb-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg",
-          "border border-border/80 bg-background px-2 py-1.5 text-xs font-medium",
-          "disabled:opacity-50",
-        )}
-      >
-        텍스트로 요약
-      </button>
-
       {error ? (
         <p
-          className={cn("text-[11px] text-destructive", motionClass.ariaReplyIn)}
+          className={cn("mt-2 text-[11px] text-destructive", motionClass.ariaReplyIn)}
           role="alert"
         >
           {error}
@@ -732,7 +890,7 @@ export function VoiceReportFab({
       {ttsHint ? (
         <p
           className={cn(
-            "mb-2 text-[11px] text-amber-700 dark:text-amber-300",
+            "mb-2 mt-2 text-[11px] text-amber-700 dark:text-amber-300",
             motionClass.ariaReplyIn,
           )}
           role="status"
@@ -740,25 +898,50 @@ export function VoiceReportFab({
           {ttsHint}
         </p>
       ) : null}
-      {answer ? (
+      {answer && !suppressAnswerSurface ? (
         <div
           key={answer.slice(0, 48)}
           className={cn(
-            "mt-1 max-h-40 overflow-y-auto rounded-lg bg-muted/50 p-2",
+            "mt-2 max-h-[min(40vh,16rem)] overflow-y-auto rounded-xl border border-primary/20 bg-card/80 p-3",
             motionClass.ariaReplyIn,
           )}
+          data-testid="delin-answer-card"
         >
-          {meta ? (
-            <p className="mb-1 text-[10px] text-muted-foreground">{meta}</p>
+          <p className="text-sm leading-relaxed text-foreground">{answer}</p>
+          {evidenceChips.length > 0 ? (
+            <div
+              className="mt-2 flex flex-wrap gap-1"
+              aria-label="답변 근거"
+            >
+              {evidenceChips.map((chip) => (
+                <span
+                  key={chip}
+                  className="rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground"
+                >
+                  {chip}
+                </span>
+              ))}
+            </div>
           ) : null}
-          <p className="text-xs leading-relaxed text-foreground">{answer}</p>
+          {chartHandoff ? (
+            <button
+              type="button"
+              className={cn(
+                "mt-2.5 inline-flex w-full items-center justify-center gap-1.5 rounded-lg",
+                "bg-primary px-2.5 py-2 text-xs font-medium text-primary-foreground",
+              )}
+              onClick={() => openChartHandoff(chartHandoff)}
+            >
+              {chartHandoff.ctaLabel}
+            </button>
+          ) : null}
           {audioUrl ? (
             <button
               type="button"
               className={cn(
                 "mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium",
                 needsTapToPlay
-                  ? "bg-primary text-primary-foreground"
+                  ? "border border-primary/30 text-primary"
                   : "text-primary",
               )}
               onClick={() => {
@@ -770,6 +953,9 @@ export function VoiceReportFab({
               <Volume2 className="size-3.5" />
               {needsTapToPlay ? "탭하여 듣기" : "다시 듣기"}
             </button>
+          ) : null}
+          {meta ? (
+            <p className="mt-2 text-[10px] text-muted-foreground/80">{meta}</p>
           ) : null}
         </div>
       ) : null}
@@ -786,7 +972,7 @@ export function VoiceReportFab({
     return (
       <div
         className={cn(
-          "pointer-events-auto mx-auto w-full max-w-lg",
+          "pointer-events-auto w-full max-w-lg",
           dashboardAriaShell.dock,
           motionClass.ariaDockIn,
           className,
@@ -795,9 +981,6 @@ export function VoiceReportFab({
         role="region"
         aria-label={`${DELIN_NAME} 입력`}
       >
-        <p className="mb-2 text-center text-[10px] text-muted-foreground">
-          {farmShortLabel(currentFarm)}
-        </p>
         {panelControls}
       </div>
     );

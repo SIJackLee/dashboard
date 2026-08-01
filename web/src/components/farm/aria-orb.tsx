@@ -16,31 +16,28 @@ type Props = {
   announce?: boolean;
 };
 
-const RING_BARS = 32;
+const RING_BARS = 28;
 
 function clamp01(n: number) {
   return Math.max(0, Math.min(1, n));
 }
 
+/** speak/think 보조 바 — listen은 외곽 링 RMS가 주인공 */
 function barHeight(
   mode: AriaOrbMode,
   index: number,
   level: number,
 ): number {
   const phase = index / RING_BARS;
-  if (mode === "idle" || mode === "error") return 0;
-  if (mode === "think") return 5 + (index % 4) * 1.2;
-  const amp = 0.4 + level * 0.6;
-  if (mode === "listen") {
-    return (10 + Math.abs(Math.sin(phase * Math.PI * 5)) * 26) * amp;
-  }
+  if (mode === "idle" || mode === "error" || mode === "listen") return 0;
+  if (mode === "think") return 4 + (index % 4) * 1.1;
+  const amp = 0.35 + level * 0.55;
   const peak = Math.abs(Math.sin(phase * Math.PI * 7 + index * 0.31));
-  return (8 + peak * peak * 32) * amp;
+  return (7 + peak * peak * 28) * amp;
 }
 
 /**
- * ARIA 중심 오브 — 호흡·청취·분석·발화.
- * level로 실시간 파동 진폭 (P2).
+ * DELIN 오브 — idle 위상 호흡 · listen 외곽 링←RMS.
  */
 export function AriaOrb({
   mode,
@@ -51,8 +48,7 @@ export function AriaOrb({
   const cx = 100;
   const cy = 100;
   const lv = clamp01(level);
-  const showWave = mode === "listen" || mode === "speak" || mode === "think";
-  /* idle/listen/speak=primary · think=channel-info · error=destructive */
+  const showWave = mode === "speak" || mode === "think";
   const accentClass =
     mode === "error"
       ? "text-destructive"
@@ -63,12 +59,21 @@ export function AriaOrb({
   const bars = useMemo(() => {
     if (!showWave) return [] as number[];
     return Array.from({ length: RING_BARS }, (_, i) =>
-      barHeight(mode, i, mode === "think" ? 0.55 : lv),
+      barHeight(mode, i, mode === "think" ? 0.5 : lv),
     );
   }, [mode, lv, showWave]);
 
-  const listenBoost =
-    mode === "listen" || mode === "speak" ? 1 + lv * 0.12 : 1;
+  /** listen: 전체 scale 대신 외곽 링만 키움 — 중심 안정 */
+  const ringMidR = mode === "listen" ? 70 + lv * 5 : 68;
+  const ringOuterR = mode === "listen" ? 84 + lv * 10 : 82;
+  const ringFarR = mode === "listen" ? 98 + lv * 16 : 96;
+  const ringMidOp = mode === "listen" ? 0.32 + lv * 0.4 : 0.4;
+  const ringOuterOp = mode === "listen" ? 0.16 + lv * 0.5 : 0.22;
+  const ringFarOp = mode === "listen" ? 0.08 + lv * 0.55 : 0.12;
+  const ringFarWidth = mode === "listen" ? 0.75 + lv * 1.1 : 0.75;
+
+  const heroScale =
+    mode === "speak" ? 1 + lv * 0.06 : mode === "listen" ? 1 + lv * 0.02 : 1;
 
   return (
     <div
@@ -83,89 +88,211 @@ export function AriaOrb({
           motionClass.ariaOrbHero,
         )}
         aria-hidden
-        style={{ transform: `scale(${listenBoost})` }}
+        style={{ transform: `scale(${heroScale})` }}
       >
         <svg
           viewBox="0 0 200 200"
           className="size-full overflow-visible"
           role="presentation"
         >
-          {/* layered breath rings */}
-          <g
-            className={cn(
-              motionClass.ariaOrbRings,
-              mode === "idle" && motionClass.ariaOrbBreathe,
-              mode === "listen" && motionClass.ariaOrbPulseListen,
-              mode === "speak" && motionClass.ariaOrbPulseSpeak,
-              mode === "think" && motionClass.ariaOrbSpin,
-              mode === "error" && motionClass.ariaOrbStatic,
-            )}
-            style={{ transformOrigin: `${cx}px ${cy}px` }}
-          >
-            <circle
-              cx={cx}
-              cy={cy}
-              r={68}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.25}
-              opacity={0.4}
-            />
-            <circle
-              cx={cx}
-              cy={cy}
-              r={82}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1}
-              opacity={0.22}
-            />
-            <circle
-              cx={cx}
-              cy={cy}
-              r={96}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={0.75}
-              opacity={0.12}
-            />
-          </g>
-
           {mode === "idle" ? (
+            <>
+              <g
+                className={cn(motionClass.ariaOrbRings, motionClass.ariaOrbBreathe)}
+                style={{ transformOrigin: `${cx}px ${cy}px` }}
+              >
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={68}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.25}
+                  opacity={0.42}
+                />
+              </g>
+              <g
+                className={cn(
+                  motionClass.ariaOrbRings,
+                  motionClass.ariaOrbBreatheAlt,
+                )}
+                style={{ transformOrigin: `${cx}px ${cy}px` }}
+              >
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={82}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1}
+                  opacity={0.24}
+                />
+              </g>
+              <g
+                className={cn(
+                  motionClass.ariaOrbRings,
+                  motionClass.ariaOrbBreatheLag,
+                )}
+                style={{ transformOrigin: `${cx}px ${cy}px` }}
+              >
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={96}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={0.75}
+                  opacity={0.14}
+                />
+              </g>
+              <g
+                className={motionClass.ariaOrbBreatheAlt}
+                style={{ transformOrigin: `${cx}px ${cy}px` }}
+              >
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={54}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1}
+                  opacity={0.26}
+                />
+              </g>
+            </>
+          ) : null}
+
+          {mode === "listen" ? (
             <g
-              className={motionClass.ariaOrbBreatheAlt}
+              className={motionClass.ariaOrbListenAmbient}
               style={{ transformOrigin: `${cx}px ${cy}px` }}
             >
               <circle
                 cx={cx}
                 cy={cy}
-                r={54}
+                r={ringMidR}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.35}
+                opacity={ringMidOp}
+                style={{
+                  transition:
+                    "r 80ms linear, opacity 80ms linear, stroke-width 80ms linear",
+                }}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={ringOuterR}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.1}
+                opacity={ringOuterOp}
+                style={{
+                  transition:
+                    "r 80ms linear, opacity 80ms linear, stroke-width 80ms linear",
+                }}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={ringFarR}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={ringFarWidth}
+                opacity={ringFarOp}
+                style={{
+                  transition:
+                    "r 80ms linear, opacity 80ms linear, stroke-width 80ms linear",
+                }}
+              />
+            </g>
+          ) : null}
+
+          {mode === "speak" || mode === "think" || mode === "error" ? (
+            <g
+              className={cn(
+                motionClass.ariaOrbRings,
+                mode === "speak" && motionClass.ariaOrbPulseSpeak,
+                mode === "think" && motionClass.ariaOrbSpin,
+                mode === "error" && motionClass.ariaOrbStatic,
+              )}
+              style={{ transformOrigin: `${cx}px ${cy}px` }}
+            >
+              <circle
+                cx={cx}
+                cy={cy}
+                r={68}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.25}
+                opacity={0.4}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={82}
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1}
-                opacity={0.28}
+                opacity={0.22}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={96}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={0.75}
+                opacity={0.12}
               />
             </g>
           ) : null}
 
           {mode === "think" ? (
-            <g
-              className={motionClass.ariaOrbSpin}
-              style={{ transformOrigin: `${cx}px ${cy}px` }}
-            >
-              {[0, 60, 120, 180, 240, 300].map((deg) => {
-                const rad = (deg * Math.PI) / 180;
-                return (
-                  <circle
-                    key={deg}
-                    cx={cx + Math.cos(rad) * 64}
-                    cy={cy + Math.sin(rad) * 64}
-                    r={2.75}
-                    fill="currentColor"
-                    opacity={0.9}
-                  />
-                );
-              })}
+            <g className="aria-orb-think-morph">
+              <g className="aria-orb-analyze-ring">
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={74}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  strokeDasharray="12 52"
+                  opacity={0.55}
+                />
+              </g>
+              <g className="aria-orb-analyze-ring-rev">
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={88}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1}
+                  strokeDasharray="8 28"
+                  opacity={0.28}
+                />
+              </g>
+              <g
+                className={motionClass.ariaOrbSpin}
+                style={{ transformOrigin: `${cx}px ${cy}px` }}
+              >
+                {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
+                  const rad = (deg * Math.PI) / 180;
+                  return (
+                    <circle
+                      key={deg}
+                      cx={cx + Math.cos(rad) * 64}
+                      cy={cy + Math.sin(rad) * 64}
+                      r={deg % 90 === 0 ? 3.1 : 2.2}
+                      fill="currentColor"
+                      opacity={deg % 90 === 0 ? 0.95 : 0.55}
+                    />
+                  );
+                })}
+              </g>
             </g>
           ) : null}
 
@@ -183,9 +310,9 @@ export function AriaOrb({
                     x2={cx + Math.cos(angle) * (inner + h)}
                     y2={cy + Math.sin(angle) * (inner + h)}
                     stroke="currentColor"
-                    strokeWidth={2.4}
+                    strokeWidth={2.2}
                     strokeLinecap="round"
-                    opacity={0.45 + (h / 45) * 0.5}
+                    opacity={0.4 + (h / 40) * 0.45}
                   />
                 );
               })}

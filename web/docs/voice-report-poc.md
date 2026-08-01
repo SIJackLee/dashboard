@@ -32,8 +32,8 @@ Flag: `ARIA_PROTOCOL_V1` 기본 **on**. `false`/`0`/`off` → 레거시 Chat 요
 
 ## UI (P1 · A안)
 - 중앙 **AriaOrb** — 호흡 강화, 청취 시 마이크 RMS 파동
-- 하단 **도크** (`layout="dock"`) — FAB 제거, 말하기 CTA 중앙
-- Full Name은 타이틀 `title` 툴팁만
+- 하단 **도크** (`layout="dock"`) — FAB 제거, **말하기** CTA 중앙 · 추천 칩 3개 · 장치 테스트 접기
+- Full Name은 타이틀 `title` 툴팁만 (본문 eyebrow는 「델린」)
 - VoiceReport 상태 → 오브 모드 (`lib/aria/aria-mode.ts`)
 - `prefers-reduced-motion` 시 애니메이션 정지
 

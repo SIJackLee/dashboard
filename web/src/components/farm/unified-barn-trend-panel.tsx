@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   TrendChart,
@@ -45,6 +45,7 @@ import {
 } from "@/lib/farm/controller-summary-display";
 import {
   alarmScopeKeyFromFarmChartScope,
+  type ChartTrendZoomHint,
   type FarmChartScope,
   scopesEqual,
 } from "@/lib/farm/farm-chart-scope";
@@ -82,6 +83,7 @@ import {
   sliceUnifiedTrendByIndex,
   splitYVisibilityFromLayers,
   countSplitYBands,
+  hitSplitYBand,
   resolveYScopeBands,
   visibilityForYBands,
   maskLayersForYBands,
@@ -104,6 +106,11 @@ import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionDuration } from "@/lib/ui/motion-tokens";
+import {
+  humanizeGuidedScopeRect,
+  type GuidedScopeRect,
+} from "@/lib/ui/delin-guided-scope-jitter";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 const TEMP_STEP = 0.5;
@@ -176,6 +183,25 @@ type Props = {
   chartScope: FarmChartScope;
   /** 한계 이탈 tip 우클릭 → 컨트롤러 스코프 */
   onScopeChange?: (scope: FarmChartScope) => void;
+  /** P2 — URL/DELIN handoff 초기 Y밴드·X구간 */
+  initialZoom?: ChartTrendZoomHint | null;
+  /**
+   * DELIN — 실제 X스코프 UI로 클릭→드래그→커밋 시연.
+   * token 증가 시 재생. CSS 오버레이 아님.
+   */
+  guidedXScopeGesture?: {
+    token: number;
+    startRatio: number;
+    endRatio: number;
+    startIndex?: number;
+    endIndex?: number;
+    /** plot 상단=0 · 하단=1. yStart/yEnd 미지정 시 온도 레인 직사각형 */
+    yRatio?: number;
+    yStartRatio?: number;
+    yEndRatio?: number;
+    durationMs?: number;
+  } | null;
+  onGuidedXScopeComplete?: () => void;
   /** 조회 전용(뷰어)이면 알람·제어 편집 비활성 */
   canCommand?: boolean;
   isMobileStack?: boolean;
@@ -199,6 +225,9 @@ export function UnifiedBarnTrendPanel({
   thermoSettings = {},
   chartScope,
   onScopeChange,
+  initialZoom = null,
+  guidedXScopeGesture = null,
+  onGuidedXScopeComplete,
   canCommand = false,
   isMobileStack = false,
   chartHeight,
@@ -241,6 +270,7 @@ export function UnifiedBarnTrendPanel({
     setScopeMotionDir(dir);
     setScopeMotionKey((k) => k + 1);
   };
+  const initialZoomKeyRef = useRef<string>("");
 
   if (layersToolbarActive !== toolbarActiveSeen) {
     setToolbarActiveSeen(layersToolbarActive);
@@ -539,6 +569,67 @@ export function UnifiedBarnTrendPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [xScopeStack.length]);
 
+  /** P2 — URL/DELIN 줌 힌트 1회 적용 (온도 레인 포커스 등) */
+  useEffect(() => {
+    if (!initialZoom) {
+      initialZoomKeyRef.current = "";
+      return;
+    }
+    if (!picked) return;
+    const n = picked.categories.length;
+    if (n < 3) return;
+    const key = [
+      period,
+      initialZoom.yBands.join("+"),
+      initialZoom.startRatio.toFixed(3),
+      initialZoom.endRatio.toFixed(3),
+      String(n),
+    ].join("|");
+    if (initialZoomKeyRef.current === key) return;
+    let start: number;
+    let end: number;
+    if (
+      initialZoom.startIndex != null &&
+      initialZoom.endIndex != null &&
+      Number.isFinite(initialZoom.startIndex) &&
+      Number.isFinite(initialZoom.endIndex)
+    ) {
+      start = Math.max(
+        0,
+        Math.min(
+          n - 1,
+          Math.round(Math.min(initialZoom.startIndex, initialZoom.endIndex)),
+        ),
+      );
+      end = Math.max(
+        0,
+        Math.min(
+          n - 1,
+          Math.round(Math.max(initialZoom.startIndex, initialZoom.endIndex)),
+        ),
+      );
+    } else {
+      const i0 = Math.round(initialZoom.startRatio * (n - 1));
+      const i1 = Math.round(initialZoom.endRatio * (n - 1));
+      start = Math.max(0, Math.min(i0, i1));
+      end = Math.min(n - 1, Math.max(i0, i1));
+    }
+    if (end - start < 2) {
+      if (end < n - 1) end = Math.min(n - 1, start + 2);
+      else start = Math.max(0, end - 2);
+    }
+    if (end - start < 2) return;
+    initialZoomKeyRef.current = key;
+    setXScopeStack([
+      {
+        start,
+        end,
+        yBands: initialZoom.yBands as UnifiedYBandId[],
+      },
+    ]);
+    bumpScopeMotion("in");
+  }, [initialZoom, picked, period]);
+
   const scoped = useMemo(() => {
     if (!picked) return null;
     if (!xScope) {
@@ -570,12 +661,15 @@ export function UnifiedBarnTrendPanel({
 
   const chartCategories = scoped?.categories ?? [];
 
-  const commitXScope = (range: {
-    start: number;
-    end: number;
-    yStartRatio: number;
-    yEndRatio: number;
-  }) => {
+  const commitXScope = (
+    range: {
+      start: number;
+      end: number;
+      yStartRatio: number;
+      yEndRatio: number;
+    },
+    mode: "push" | "replace" = "push",
+  ) => {
     if (!picked) return;
     const domain = built?.leftDomain ?? ([0, 100] as [number, number]);
     const span = domain[1] - domain[0] || 1;
@@ -583,16 +677,38 @@ export function UnifiedBarnTrendPanel({
     const domainY1 = domain[1] - range.yEndRatio * span;
     const multi = countSplitYBands(layerVisibility) > 1;
     const detected =
-      xScope?.yBands == null && multi
-        ? resolveYScopeBands(domainY0, domainY1, layerLayout, layerVisibility)
-        : null;
-    const yBands = xScope?.yBands ?? detected;
+      mode === "replace"
+        ? null
+        : xScope?.yBands == null && multi
+          ? resolveYScopeBands(domainY0, domainY1, layerLayout, layerVisibility)
+          : null;
+    /** P2 — 드래그 중심이 온도 레인이면 온도만 확장 */
+    let yBands = mode === "replace" ? (["temp"] as UnifiedYBandId[]) : (xScope?.yBands ?? detected);
+    if (mode !== "replace" && xScope?.yBands == null && multi) {
+      const centerY = (domainY0 + domainY1) / 2;
+      if (
+        hitSplitYBand(centerY, layerLayout, layerVisibility) === "temp"
+      ) {
+        yBands = ["temp"];
+      }
+    }
+    /** replace=가이드 시연 — 전체 축 절대 인덱스(중첩 금지) */
     const next: ScopeEntry = {
-      start: xScope == null ? range.start : xScope.start + range.start,
-      end: xScope == null ? range.end : xScope.start + range.end,
+      start:
+        mode === "replace" || xScope == null
+          ? range.start
+          : xScope.start + range.start,
+      end:
+        mode === "replace" || xScope == null
+          ? range.end
+          : xScope.start + range.end,
       yBands,
     };
-    setXScopeStack((stack) => [...stack, next]);
+    if (mode === "replace") {
+      setXScopeStack([next]);
+    } else {
+      setXScopeStack((stack) => [...stack, next]);
+    }
     bumpScopeMotion("in");
   };
 
@@ -618,6 +734,117 @@ export function UnifiedBarnTrendPanel({
     chartMode === "view";
   const thermoDragEnabled =
     canCommand && controlMode && !thermoApplying;
+
+  const guidedJitterCacheRef = useRef<{
+    token: number;
+    rect: GuidedScopeRect;
+  } | null>(null);
+  /** 가이드 제스처 전 스택 비운 뒤에만 TrendChart에 전달 */
+  const [guideReadyToken, setGuideReadyToken] = useState(0);
+
+  useLayoutEffect(() => {
+    if (!guidedXScopeGesture) {
+      setGuideReadyToken(0);
+      return;
+    }
+    const t = guidedXScopeGesture.token;
+    setXScopeStack([]);
+    initialZoomKeyRef.current = "";
+    setGuideReadyToken(t);
+  }, [guidedXScopeGesture?.token]);
+
+  const resolvedGuidedXScope = useMemo(() => {
+    if (!guidedXScopeGesture || !built) return null;
+    const domain = built.leftDomain;
+    const span = domain[1] - domain[0] || 1;
+    const bandH = Math.max(0, layerLayout.tempHi - layerLayout.tempLo);
+    /** 온도 레인 안 넉넉한 직사각형 — 가장자리 ~10% 여백 */
+    const inset = Math.max(bandH * 0.1, 1);
+    let domainYTop = layerLayout.tempHi - inset;
+    let domainYBot = layerLayout.tempLo + inset;
+    if (domainYTop < domainYBot) {
+      const mid = (layerLayout.tempLo + layerLayout.tempHi) / 2;
+      domainYTop = mid + bandH * 0.35;
+      domainYBot = mid - bandH * 0.35;
+    }
+    const toPlotRatio = (domainY: number) =>
+      Math.min(1, Math.max(0, (domain[1] - domainY) / span));
+
+    let y0: number;
+    let y1: number;
+    if (
+      guidedXScopeGesture.yStartRatio != null &&
+      guidedXScopeGesture.yEndRatio != null
+    ) {
+      y0 = Math.min(
+        guidedXScopeGesture.yStartRatio,
+        guidedXScopeGesture.yEndRatio,
+      );
+      y1 = Math.max(
+        guidedXScopeGesture.yStartRatio,
+        guidedXScopeGesture.yEndRatio,
+      );
+    } else if (guidedXScopeGesture.yRatio != null) {
+      const m = guidedXScopeGesture.yRatio;
+      y0 = Math.max(0, m - 0.08);
+      y1 = Math.min(1, m + 0.08);
+    } else {
+      y0 = toPlotRatio(domainYTop);
+      y1 = toPlotRatio(domainYBot);
+    }
+    if (y1 - y0 < 0.05) {
+      const mid = (y0 + y1) / 2;
+      y0 = Math.max(0, mid - 0.04);
+      y1 = Math.min(1, mid + 0.04);
+    }
+
+    const base: GuidedScopeRect = {
+      startRatio: guidedXScopeGesture.startRatio,
+      endRatio: guidedXScopeGesture.endRatio,
+      yStartRatio: y0,
+      yEndRatio: y1,
+      durationMs: guidedXScopeGesture.durationMs,
+    };
+
+    const token = guidedXScopeGesture.token;
+    if (guidedJitterCacheRef.current?.token !== token) {
+      guidedJitterCacheRef.current = {
+        token,
+        rect: humanizeGuidedScopeRect(base),
+      };
+    }
+    const human = guidedJitterCacheRef.current.rect;
+    /** X는 초과 인덱스 기준 비율 고정(좌표 드리프트 방지). Y만 humanize */
+    const startRatio = guidedXScopeGesture.startRatio;
+    const endRatio = guidedXScopeGesture.endRatio;
+
+    return {
+      token,
+      startRatio,
+      endRatio,
+      startIndex: guidedXScopeGesture.startIndex,
+      endIndex: guidedXScopeGesture.endIndex,
+      yStartRatio: human.yStartRatio,
+      yEndRatio: human.yEndRatio,
+      durationMs: human.durationMs ?? guidedXScopeGesture.durationMs,
+    };
+  }, [
+    guidedXScopeGesture,
+    built,
+    layerLayout.tempLo,
+    layerLayout.tempHi,
+  ]);
+
+  /**
+   * 스택이 비워진 뒤에만 시연 — 기존 X스코프 위에서 비율을 쓰면
+   * 잘린 카테고리 기준으로 엉뚱한 구간이 커밋됨.
+   */
+  const activeGuidedXScope =
+    resolvedGuidedXScope &&
+    guideReadyToken === resolvedGuidedXScope.token &&
+    xScopeStack.length === 0
+      ? resolvedGuidedXScope
+      : null;
 
   const persistAlarmDraft = (nextDraft: AlarmThresholds) => {
     if (!alarmScopeKey || !canCommand) return;
@@ -1250,6 +1477,14 @@ export function UnifiedBarnTrendPanel({
     <div
       className={cn("mt-2 space-y-2", className)}
       data-tour-id="farm-chart-unified-trend"
+      data-farm-chart-y-bands={
+        xScope?.yBands?.length ? xScope.yBands.join("+") : "all"
+      }
+      data-farm-chart-temp-focus={
+        xScope?.yBands?.length === 1 && xScope.yBands[0] === "temp"
+          ? "true"
+          : "false"
+      }
     >
       {layerToolbar && layersSlot
         ? createPortal(layerToolbar, layersSlot)
@@ -1275,22 +1510,36 @@ export function UnifiedBarnTrendPanel({
             <div
               key={`scope-chip-${scopeMotionKey}`}
               className={cn(
-                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border border-sky-500/40 bg-sky-50/80 px-2 py-1 text-[0.65rem] font-medium text-sky-900 dark:bg-sky-950/50 dark:text-sky-100",
+                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[0.65rem] font-medium",
+                xScope.yBands?.length === 1 && xScope.yBands[0] === "temp"
+                  ? dashboardUi.channelTintTemp
+                  : dashboardUi.channelTintInfo,
                 motionClass.farmChartScopeChipIn,
               )}
             >
-              <span className="shrink-0">구간 줌</span>
+              <span className="shrink-0">
+                {xScope.yBands?.length === 1 && xScope.yBands[0] === "temp"
+                  ? "온도 스코프"
+                  : "구간 줌"}
+              </span>
               {xScope.yBands?.length ? (
-                <span className="shrink-0 rounded bg-sky-500/15 px-1 py-px">
+                <span
+                  className={cn(
+                    "shrink-0 rounded px-1 py-px",
+                    xScope.yBands.length === 1 && xScope.yBands[0] === "temp"
+                      ? "bg-channel-temp/15"
+                      : "bg-channel-info/15",
+                  )}
+                >
                   {xScope.yBands.map((b) => UNIFIED_Y_BAND_LABEL[b]).join("+")}
                 </span>
               ) : null}
               {xScopeStack.length > 1 ? (
-                <span className="shrink-0 tabular-nums text-sky-700/80 dark:text-sky-300/80">
+                <span className="shrink-0 tabular-nums opacity-80">
                   ×{xScopeStack.length}
                 </span>
               ) : null}
-              <span className="min-w-0 truncate tabular-nums text-sky-800/90 dark:text-sky-200/90">
+              <span className="min-w-0 truncate tabular-nums opacity-90">
                 {picked.categories[xScope.start] ?? "…"}
                 {" → "}
                 {picked.categories[xScope.end] ?? "…"}
@@ -1301,8 +1550,8 @@ export function UnifiedBarnTrendPanel({
                 title="한 단계 뒤로"
                 onClick={popXScope}
                 className={cn(
-                  "inline-flex h-5 shrink-0 items-center justify-center rounded border border-sky-500/30 px-1",
-                  "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
+                  "inline-flex h-5 shrink-0 items-center justify-center rounded border border-current/30 px-1",
+                  "hover:bg-black/5 dark:hover:bg-white/10",
                   motionClass.microHover,
                 )}
               >
@@ -1313,8 +1562,8 @@ export function UnifiedBarnTrendPanel({
                 aria-label="구간 줌 전체 해제"
                 onClick={clearXScope}
                 className={cn(
-                  "inline-flex size-5 shrink-0 items-center justify-center rounded border border-sky-500/30",
-                  "text-sky-800 hover:bg-sky-100 dark:text-sky-100 dark:hover:bg-sky-900/60",
+                  "inline-flex size-5 shrink-0 items-center justify-center rounded border border-current/30",
+                  "hover:bg-black/5 dark:hover:bg-white/10",
                   motionClass.microHover,
                 )}
               >
@@ -1353,14 +1602,23 @@ export function UnifiedBarnTrendPanel({
       {scopeSummary ? (
         <div
           className={cn(
-            "flex flex-wrap gap-x-3 gap-y-1.5 rounded-md border border-sky-500/25 bg-sky-50/40 px-2.5 py-1.5",
-            "dark:bg-sky-950/30",
+            "flex flex-wrap gap-x-3 gap-y-1.5 rounded-md border px-2.5 py-1.5",
+            xScope?.yBands?.length === 1 && xScope.yBands[0] === "temp"
+              ? "border-channel-temp/30 bg-channel-temp/5"
+              : "border-channel-info/30 bg-channel-info/5",
             motionClass.farmChartScopeChipIn,
           )}
           data-farm-chart-scope-summary=""
           aria-label="선택 구간 요약"
         >
-          <span className="self-center text-[0.65rem] font-semibold text-sky-900 dark:text-sky-100">
+          <span
+            className={cn(
+              "self-center text-[0.65rem] font-semibold",
+              xScope?.yBands?.length === 1 && xScope.yBands[0] === "temp"
+                ? "text-channel-temp"
+                : "text-channel-info",
+            )}
+          >
             구간 요약
           </span>
           {scopeSummary.metrics.map((m) => {
@@ -1368,9 +1626,9 @@ export function UnifiedBarnTrendPanel({
             return (
               <div
                 key={m.id}
-                className="min-w-0 text-[0.65rem] tabular-nums text-sky-950/90 dark:text-sky-100/90"
+                className="min-w-0 text-[0.65rem] tabular-nums text-foreground/90"
               >
-                <span className="font-medium text-sky-800 dark:text-sky-200">
+                <span className="font-medium text-foreground/80">
                   {m.label}
                 </span>
                 <span className="text-muted-foreground"> avg </span>
@@ -1390,8 +1648,8 @@ export function UnifiedBarnTrendPanel({
                       className={cn(
                         "font-semibold",
                         (m.breachRate ?? 0) > 0.2
-                          ? "text-rose-600 dark:text-rose-400"
-                          : "text-sky-800 dark:text-sky-200",
+                          ? "text-destructive"
+                          : "text-foreground/80",
                       )}
                     >
                       {breach}
@@ -1428,7 +1686,16 @@ export function UnifiedBarnTrendPanel({
           splitBandGuides={splitBandGuides}
           scaleEdgeLabels={scaleEdgeLabels}
           xScopeSelect={!controlMode}
-          onXScopeCommit={controlMode ? undefined : commitXScope}
+          onXScopeCommit={
+            controlMode
+              ? undefined
+              : (range) =>
+                  commitXScope(range, activeGuidedXScope ? "replace" : "push")
+          }
+          guidedXScopeGesture={controlMode ? null : activeGuidedXScope}
+          onGuidedXScopeComplete={
+            controlMode ? undefined : onGuidedXScopeComplete
+          }
           onXScopeBack={controlMode ? undefined : popXScope}
           scopeMotionKey={scopeMotionKey}
           scopeMotionDir={scopeMotionDir}
@@ -1527,12 +1794,12 @@ export function UnifiedBarnTrendPanel({
       {built ? (
         <>
           <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
-            드래그=시간 줌 · 우측 알람 숫자 드래그/우클릭=임계값 · 걸친 밴드만 표시 ·
-            한 밴드=확대 · 빈 곳 우클릭/Esc=뒤로 · ×=전체 해제
+            온도 레인 드래그=시간·밴드 스코프(온도만 확장) · 하단=기간(24h/7d/30d)
+            선택 · 우측 알람 숫자 드래그/우클릭=임계값 · 빈 곳 우클릭/Esc=뒤로 ·
+            ×=전체 해제
           </p>
           <p className="text-[0.65rem] leading-snug text-muted-foreground lg:hidden">
-            차트 드래그=구간 줌 · 우측 알람 숫자 드래그·우클릭=임계값 · 한 밴드만
-            걸치면 확대 · 뒤로/×=해제
+            차트(온도 레인) 드래그=스코프 · 하단=기간 선택 · 뒤로/×=해제
           </p>
         </>
       ) : null}

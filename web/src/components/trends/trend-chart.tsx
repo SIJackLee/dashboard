@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useState,
   useRef,
@@ -256,6 +257,23 @@ type TrendChartProps = {
     yStartRatio: number;
     yEndRatio: number;
   }) => void;
+  /**
+   * DELIN 등 — 실제 X스코프 UI와 동일 경로로 클릭→드래그→커밋 시연.
+   * token 증가 시 재생. CSS 오버레이가 아님.
+   */
+  guidedXScopeGesture?: {
+    token: number;
+    startRatio: number;
+    endRatio: number;
+    /** 카테고리 절대 인덱스 — 있으면 커밋 시 비율 재변환 생략 */
+    startIndex?: number;
+    endIndex?: number;
+    yRatio?: number;
+    yStartRatio?: number;
+    yEndRatio?: number;
+    durationMs?: number;
+  } | null;
+  onGuidedXScopeComplete?: () => void;
   /** 우클릭 — 줌 한 단계 뒤로 (스택 pop). 있으면 컨텍스트 메뉴 억제 */
   onXScopeBack?: () => void;
   /** 스코프 스택 변경 시 줌 인/아웃 모션 키 */
@@ -752,6 +770,8 @@ export function TrendChart({
   showNullGaps = false,
   xScopeSelect = false,
   onXScopeCommit,
+  guidedXScopeGesture = null,
+  onGuidedXScopeComplete,
   onXScopeBack,
   scopeMotionKey = 0,
   scopeMotionDir = "in",
@@ -794,6 +814,8 @@ export function TrendChart({
   const plotEnterKey = animate ? String(period ?? "p") : "static";
   const xScopeOriginRef = useRef<{ x: number; y: number } | null>(null);
   const xScopeDraggingRef = useRef(false);
+  const guidedScopeActiveRef = useRef(false);
+  const guidedTokenSeenRef = useRef(0);
   const xDraftRef = useRef<{
     a: number;
     b: number;
@@ -1141,6 +1163,143 @@ export function TrendChart({
     return Math.min(1, Math.max(0, (yView - PAD_TOP) / innerH));
   };
 
+  const xViewFromRatio = (r: number) =>
+    PAD_X + Math.min(1, Math.max(0, r)) * innerW;
+  const yViewFromRatio = (r: number) =>
+    PAD_TOP + Math.min(1, Math.max(0, r)) * innerH;
+
+  const commitXScopeFromViews = (
+    a: number,
+    b: number,
+    y0: number,
+    y1: number,
+  ) => {
+    if (!onXScopeCommit || n < 2) return;
+    let start = indexFromXView(Math.min(a, b));
+    let end = indexFromXView(Math.max(a, b));
+    if (end - start < X_SCOPE_MIN_SPAN) {
+      const mid = Math.round((start + end) / 2);
+      start = Math.max(0, mid - Math.floor(X_SCOPE_MIN_SPAN / 2));
+      end = Math.min(n - 1, start + X_SCOPE_MIN_SPAN);
+      start = Math.max(0, end - X_SCOPE_MIN_SPAN);
+    }
+    onXScopeCommit({
+      start,
+      end,
+      yStartRatio: yCenterRatioFromView(y0),
+      yEndRatio: yCenterRatioFromView(y1),
+    });
+  };
+
+  /**
+   * 실제 X스코프 draft UI로 클릭→드래그→커밋 (DELIN 시연).
+   */
+  useEffect(() => {
+    const g = guidedXScopeGesture;
+    if (!g || !onXScopeCommit || n < 2) return;
+    if (g.token === guidedTokenSeenRef.current) return;
+    guidedTokenSeenRef.current = g.token;
+
+    const hasIdx =
+      g.startIndex != null &&
+      g.endIndex != null &&
+      Number.isFinite(g.startIndex) &&
+      Number.isFinite(g.endIndex);
+    let commitStart = 0;
+    let commitEnd = n - 1;
+    let x0: number;
+    let x1: number;
+    if (hasIdx) {
+      commitStart = Math.max(
+        0,
+        Math.min(n - 1, Math.round(Math.min(g.startIndex!, g.endIndex!))),
+      );
+      commitEnd = Math.max(
+        0,
+        Math.min(n - 1, Math.round(Math.max(g.startIndex!, g.endIndex!))),
+      );
+      if (commitEnd - commitStart < X_SCOPE_MIN_SPAN) {
+        /** 최소 폭은 왼쪽(과거)으로만 확장 — 오른쪽 정상 봉 유입 방지 */
+        commitStart = Math.max(0, commitEnd - X_SCOPE_MIN_SPAN);
+      }
+      x0 = xViewFromRatio(n <= 1 ? 0 : commitStart / (n - 1));
+      x1 = xViewFromRatio(n <= 1 ? 1 : commitEnd / (n - 1));
+    } else {
+      x0 = xViewFromRatio(Math.min(g.startRatio, g.endRatio));
+      x1 = xViewFromRatio(Math.max(g.startRatio, g.endRatio));
+    }
+
+    const yTopR =
+      g.yStartRatio ??
+      g.yEndRatio ??
+      g.yRatio ??
+      0.35;
+    const yBotR =
+      g.yEndRatio ??
+      g.yStartRatio ??
+      g.yRatio ??
+      0.55;
+    const y0 = yViewFromRatio(Math.min(yTopR, yBotR));
+    const y1 = yViewFromRatio(Math.max(yTopR, yBotR));
+    /** 클릭은 좌상단, 드래그는 우하단으로 직사각형 확장 */
+    const duration = Math.max(1200, g.durationMs ?? 2800);
+    const t0 = performance.now();
+    let raf = 0;
+    guidedScopeActiveRef.current = true;
+    clearHover();
+
+    const easeInOut = (t: number) =>
+      t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+
+    const tick = (now: number) => {
+      const u = Math.min(1, (now - t0) / duration);
+      /** 0–12% 클릭 홀드 · 12–82% 대각 드래그 · 82–100% 확정 전 홀드 */
+      if (u < 0.12) {
+        const next = { a: x0, b: x0, y0, y: y0 };
+        xDraftRef.current = next;
+        setXDraft(next);
+      } else if (u < 0.82) {
+        const dragT = easeInOut((u - 0.12) / 0.7);
+        const bx = x0 + (x1 - x0) * dragT;
+        const by = y0 + (y1 - y0) * dragT;
+        const next = { a: x0, b: bx, y0, y: by };
+        xDraftRef.current = next;
+        setXDraft(next);
+      } else {
+        const next = { a: x0, b: x1, y0, y: y1 };
+        xDraftRef.current = next;
+        setXDraft(next);
+      }
+
+      if (u < 1) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+
+      xDraftRef.current = null;
+      setXDraft(null);
+      guidedScopeActiveRef.current = false;
+      if (hasIdx) {
+        onXScopeCommit({
+          start: commitStart,
+          end: commitEnd,
+          yStartRatio: yCenterRatioFromView(y0),
+          yEndRatio: yCenterRatioFromView(y1),
+        });
+      } else {
+        commitXScopeFromViews(x0, x1, y0, y1);
+      }
+      onGuidedXScopeComplete?.();
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      guidedScopeActiveRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- token-driven replay
+  }, [guidedXScopeGesture?.token, n, onXScopeCommit]);
+
   const domainValueFromYView = (yView: number, axis: TrendAxis): number => {
     const [mn, mx] = axis === "right" ? [rMin, rMax] : [lMin, lMax];
     if (innerH <= 0) return (mn + mx) / 2;
@@ -1290,6 +1449,7 @@ export function TrendChart({
   };
 
   const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (guidedScopeActiveRef.current) return;
     if (!xScopeSelect || !onXScopeCommit || e.button !== 0 || n < 2) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     xScopeOriginRef.current = { x: e.clientX, y: e.clientY };
@@ -1304,6 +1464,7 @@ export function TrendChart({
   };
 
   const onXScopePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (guidedScopeActiveRef.current) return;
     if (!xScopeSelect || xDraftRef.current == null || !xScopeOriginRef.current) {
       return;
     }
@@ -1327,6 +1488,7 @@ export function TrendChart({
   };
 
   const onXScopePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (guidedScopeActiveRef.current) return;
     if (!xScopeSelect || xDraftRef.current == null) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = xViewFromClient(e.clientX, rect);
