@@ -17,6 +17,7 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { FarmChartView } from "@/components/farm/farm-chart-view";
 import { FarmAriaView } from "@/components/farm/farm-aria-view";
+import { DelinChartCompanion } from "@/components/farm/delin-chart-companion";
 import { BarnTable } from "@/components/farm/barn-table";
 import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
 import {
@@ -31,7 +32,9 @@ import {
 } from "@/lib/farm/farm-view-url";
 import {
   applyFarmChartScopeParams,
+  clearFarmChartZoomParams,
   resolveFarmChartScope,
+  resolveFarmChartZoomHint,
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
 import { isFarmHubPanelLiveActive } from "@/lib/farm/farm-hub-keepalive";
@@ -202,12 +205,16 @@ export function FarmPageContent({
   /** LIVE 안정 후 idle — 활성 탭에 맞는 stall·controller 추이·list enrich만 */
   useEffect(() => {
     if (!gridFarmKey || tourActive) return;
-    if (view === "aria") return;
     let cancelled = false;
     let idleId = 0;
     const run = () => {
       if (cancelled) return;
-      if (view === "map" || view === "chart" || view === "list") {
+      if (
+        view === "map" ||
+        view === "chart" ||
+        view === "list" ||
+        view === "aria"
+      ) {
         void prefetchFarmControllerTrend(gridFarmKey);
         void prefetchFarmStallTrend(gridFarmKey).then((trend) => {
           if (cancelled) return;
@@ -301,7 +308,10 @@ export function FarmPageContent({
       farmKey: gridFarmKey,
       enabled:
         Boolean(gridFarmKey) &&
-        (view === "map" || view === "chart" || view === "list"),
+        (view === "map" ||
+          view === "chart" ||
+          view === "list" ||
+          view === "aria"),
     });
 
   const shallowParams = useMemo(() => {
@@ -327,11 +337,16 @@ export function FarmPageContent({
     () => resolveFarmChartScope(shallowParams),
     [shallowParams],
   );
+  const chartZoomHint = useMemo(
+    () => resolveFarmChartZoomHint(shallowParams),
+    [shallowParams],
+  );
 
   const onTrendPeriodChange = useCallback(
     (period: TrendPeriodId) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
       setTrendPeriodParam(params, period);
+      clearFarmChartZoomParams(params);
       pinFarmHubViewParam(params, view);
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
@@ -343,6 +358,7 @@ export function FarmPageContent({
     (scope: FarmChartScope) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
       applyFarmChartScopeParams(params, scope);
+      clearFarmChartZoomParams(params);
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
@@ -554,19 +570,34 @@ export function FarmPageContent({
             data-farm-view-panel="chart"
             data-farm-view-active={view === "chart"}
           >
-            <FarmChartView
-              readings={readings}
-              controllerTrendByPeriod={gridControllerTrend}
-              period={trendPeriod}
-              onPeriodChange={onTrendPeriodChange}
-              scope={chartScope}
-              onScopeChange={onChartScopeChange}
-              alarmSettings={alarmSettings}
-              thermoSettings={thermoSettings}
-              canCommand={controller?.canCommand ?? false}
-              isMobileStack={viewportCompact}
-              layersToolbarActive={view === "chart"}
-            />
+            <div className="relative min-h-0">
+              <FarmChartView
+                readings={readings}
+                controllerTrendByPeriod={gridControllerTrend}
+                period={trendPeriod}
+                onPeriodChange={onTrendPeriodChange}
+                scope={chartScope}
+                onScopeChange={onChartScopeChange}
+                initialZoom={chartZoomHint}
+                alarmSettings={alarmSettings}
+                thermoSettings={thermoSettings}
+                canCommand={controller?.canCommand ?? false}
+                isMobileStack={viewportCompact}
+                layersToolbarActive={view === "chart"}
+              />
+              {!viewportCompact ? (
+                <DelinChartCompanion
+                  currentFarm={ariaFarm}
+                  panelLiveActive={view === "chart"}
+                />
+              ) : (
+                <DelinChartCompanion
+                  currentFarm={ariaFarm}
+                  panelLiveActive={view === "chart"}
+                  mobileSheet
+                />
+              )}
+            </div>
           </div>
         ) : null}
 
@@ -581,6 +612,14 @@ export function FarmPageContent({
               currentFarm={ariaFarm}
               isMobileStack={viewportCompact}
               panelLiveActive={isFarmHubPanelLiveActive(view, "aria")}
+              readings={readings}
+              controllerTrendByPeriod={gridControllerTrend}
+              trendLoading={gridTrendLoading && !gridControllerTrend}
+              trendPeriod={trendPeriod}
+              onTrendPeriodChange={onTrendPeriodChange}
+              alarmSettings={alarmSettings}
+              thermoSettings={thermoSettings}
+              canCommand={controller?.canCommand ?? false}
             />
           </div>
         ) : null}

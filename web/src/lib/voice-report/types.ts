@@ -71,6 +71,25 @@ export type VoiceAskSuccess = {
     lastRoute: "CHAT" | "FARM" | "CTRL" | null;
   };
   ariaRoute?: "CHAT" | "FARM" | "CTRL";
+  /** U2 — 답변 근거 칩 (최대 3) */
+  evidenceChips?: string[];
+  /** U2 — 차트 탭 딥링크 (CHAT면 없음) */
+  chartHandoff?: {
+    ctaLabel: string;
+    scope:
+      | { level: "farm" }
+      | { level: "sp"; stallTyCode: string }
+      | { level: "stall"; stallTyCode: string; stallNo: string }
+      | {
+          level: "controller";
+          stallTyCode: string;
+          stallNo: string;
+          controllerKey: string;
+        };
+    /** P2 — 온도 등 Y밴드 포커스 */
+    focusMetric?: "temp" | "hum" | "motor";
+    xRange?: { startRatio: number; endRatio: number };
+  } | null;
 };
 
 export type VoiceAskErrorCode =

@@ -129,6 +129,8 @@ export const motionClass = {
   ariaOrbCoreListen: "aria-orb-core-listen",
   ariaOrbCoreSpeak: "aria-orb-core-speak",
   ariaOrbBreatheAlt: "aria-orb-breathe-alt",
+  ariaOrbBreatheLag: "aria-orb-breathe-lag",
+  ariaOrbListenAmbient: "aria-orb-listen-ambient",
   ariaOrbHero: "aria-orb-hero",
   ariaDockIn: "aria-dock-in",
   /** 응답·상태 메시지 등장 */

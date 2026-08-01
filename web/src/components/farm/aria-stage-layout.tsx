@@ -5,7 +5,7 @@ import type { AriaOrbMode } from "@/lib/aria/aria-mode";
 import { dashboardAriaShell } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
-/** 스테이지 포커스 — speak 때 지표 전면, 그 외 오브 중심 */
+/** 스테이지 포커스 — speak/결과면이면 지표 전면, 그 외 오브 중심 */
 export type AriaStageFocus = "orb" | "metrics";
 
 export function ariaStageFocusFromOrbMode(mode: AriaOrbMode): AriaStageFocus {
@@ -24,7 +24,7 @@ type Props = {
 
 /**
  * ARIA 스테이지 — 오브 ↔ 지표 포커스 전환.
- * 모션: `.aria-stage-*` (globals.css). 디자인 Agent 조정 지점.
+ * speak: 오브 하단 도크 우측 축소·이동 + 결과면 중앙 scale-up (P1).
  */
 export function AriaStageLayout({
   focus,
@@ -42,6 +42,9 @@ export function AriaStageLayout({
       className={cn(dashboardAriaShell.stageBody, className)}
       data-aria-stage-focus={focus}
       data-aria-metrics={showMetrics ? "1" : "0"}
+      data-aria-dock={metricsFocus ? "dock" : "center"}
+      data-aria-reveal={metricsFocus ? "scale-up" : "none"}
+      data-aria-answer-mode={metricsFocus ? "metrics" : "orb"}
       data-testid="aria-stage-layout"
     >
       <div
@@ -63,13 +66,20 @@ export function AriaStageLayout({
         className={cn(
           dashboardAriaShell.orbSlot,
           metricsFocus
-            ? dashboardAriaShell.orbSlotSide
+            ? dashboardAriaShell.orbSlotCorner
             : dashboardAriaShell.orbSlotCenter,
         )}
         data-aria-slot="orb"
       >
-        {orb}
-        {!metricsFocus && hint ? hint : null}
+        <div
+          className={cn(
+            dashboardAriaShell.orbStack,
+            metricsFocus && "max-w-none gap-1 px-0",
+          )}
+        >
+          {orb}
+          {!metricsFocus && hint ? hint : null}
+        </div>
       </div>
     </div>
   );

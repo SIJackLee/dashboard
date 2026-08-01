@@ -23,6 +23,7 @@ import {
   chartScopeLabel,
   filterReadingsByChartScope,
   scopesEqual,
+  type ChartTrendZoomHint,
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -36,6 +37,8 @@ type Props = {
   /** URL 딥링크 집계 범위 (제어 컴포넌트) */
   scope: FarmChartScope;
   onScopeChange?: (scope: FarmChartScope) => void;
+  /** P2 — URL chartYBand/chartX* → 온도 레인 등 초기 줌 */
+  initialZoom?: ChartTrendZoomHint | null;
   alarmSettings?: AlarmSettings;
   /** LIVE/명령 반영 제어값 */
   thermoSettings?: Record<string, ControllerThermoSettings>;
@@ -120,6 +123,7 @@ export function FarmChartView({
   onPeriodChange,
   scope,
   onScopeChange,
+  initialZoom = null,
   alarmSettings,
   thermoSettings,
   canCommand = false,
@@ -255,6 +259,7 @@ export function FarmChartView({
           thermoSettings={thermoSettings}
           chartScope={scope}
           onScopeChange={onScopeChange}
+          initialZoom={initialZoom}
           canCommand={canCommand}
           isMobileStack={isMobileStack}
           chartHeight={chartHeight}

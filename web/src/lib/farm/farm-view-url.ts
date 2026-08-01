@@ -6,9 +6,13 @@ import {
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
   clearFarmChartScopeParams,
+  clearFarmChartZoomParams,
   CHART_CTRL_PARAM,
   CHART_SP_PARAM,
   CHART_STALL_PARAM,
+  CHART_Y_BAND_PARAM,
+  CHART_X0_PARAM,
+  CHART_X1_PARAM,
 } from "@/lib/farm/farm-chart-scope";
 
 export const TREND_PERIOD_PARAM = "trendPeriod";
@@ -24,7 +28,7 @@ export function resolveTrendPeriodParam(params: URLSearchParams): TrendPeriodId 
   return parseTrendPeriodParam(params.get(TREND_PERIOD_PARAM));
 }
 
-/** 기본 period(24h)면 URL에서 생략. */
+/** 기본 period(7d)면 URL에서 생략. */
 export function setTrendPeriodParam(
   params: URLSearchParams,
   period: TrendPeriodId,
@@ -105,9 +109,10 @@ export function applyListViewParams(params: URLSearchParams): void {
   params.delete("stall");
   params.delete("mapLevel");
   clearFarmChartScopeParams(params);
+  clearFarmChartZoomParams(params);
 }
 
-/** 차트 탭 — 전폭 통합 추이. chart* 딥링크는 유지 */
+/** 차트 탭 — 전폭 통합 추이. chart* 딥링크·줌 힌트는 유지 */
 export function applyChartViewParams(params: URLSearchParams): void {
   params.set("view", "chart");
   params.delete("listMode");
@@ -122,6 +127,7 @@ export function applyAriaViewParams(params: URLSearchParams): void {
   params.delete("stall");
   params.delete("mapLevel");
   clearFarmChartScopeParams(params);
+  clearFarmChartZoomParams(params);
 }
 
 /** 지도 탭 — 그리드 진입(드릴 쿼리 제거) */
@@ -130,6 +136,7 @@ export function applyMapGridParams(params: URLSearchParams): void {
   params.delete("listMode");
   clearMapDrillParams(params);
   clearFarmChartScopeParams(params);
+  clearFarmChartZoomParams(params);
 }
 
 export function clearMapDrillParams(params: URLSearchParams): void {
@@ -206,6 +213,7 @@ export function clearHubFarmDrillParams(params: URLSearchParams): void {
   params.delete("ctrl");
   params.delete("alarm");
   clearFarmChartScopeParams(params);
+  clearFarmChartZoomParams(params);
 }
 
 /**
@@ -246,7 +254,12 @@ export function buildFarmMonitoringHomeParams(
   if (lsind) next.set("lsind", lsind);
   if (item) next.set("item", item);
   const trend = source.get(TREND_PERIOD_PARAM);
-  if (trend === "7d" || trend === "30d") next.set(TREND_PERIOD_PARAM, trend);
+  if (
+    (trend === "24h" || trend === "7d" || trend === "30d") &&
+    trend !== DEFAULT_TREND_PERIOD
+  ) {
+    next.set(TREND_PERIOD_PARAM, trend);
+  }
   return next;
 }
 
@@ -268,7 +281,10 @@ export function isFarmMonitoringSoftHome(params: URLSearchParams): boolean {
   if (
     params.get(CHART_SP_PARAM) ||
     params.get(CHART_STALL_PARAM) ||
-    params.get(CHART_CTRL_PARAM)
+    params.get(CHART_CTRL_PARAM) ||
+    params.get(CHART_Y_BAND_PARAM) ||
+    params.get(CHART_X0_PARAM) ||
+    params.get(CHART_X1_PARAM)
   ) {
     return false;
   }

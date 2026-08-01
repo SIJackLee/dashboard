@@ -16,6 +16,7 @@ import {
   canReadFarm,
   factsToPromptJson,
 } from "@/lib/voice-report/build-farm-facts";
+import { buildDelinAnswerExtras } from "@/lib/voice-report/delin-chart-handoff";
 import { estimateAskCostUsd } from "@/lib/voice-report/estimate-cost";
 import {
   VOICE_LIMITS,
@@ -422,6 +423,13 @@ export async function POST(request: Request) {
     });
   }
 
+  const extras = buildDelinAnswerExtras({
+    route: ariaRoute ?? null,
+    facts: facts ?? null,
+    focusStallType: ariaSessionOut?.focusStallType,
+    focusStallNo: ariaSessionOut?.focusStallNo,
+  });
+
   const ok: VoiceAskSuccess = {
     ok: true,
     text,
@@ -437,6 +445,8 @@ export async function POST(request: Request) {
     ttsSkipped,
     ariaSession: ariaSessionOut,
     ariaRoute,
+    evidenceChips: extras.evidenceChips,
+    chartHandoff: extras.chartHandoff,
   };
   return NextResponse.json(ok);
 }

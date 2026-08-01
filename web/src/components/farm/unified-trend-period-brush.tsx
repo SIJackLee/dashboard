@@ -6,6 +6,7 @@ import { TREND_PERIODS } from "@/lib/data/farm-trend-types";
 import { comfortScoreToColor } from "@/lib/farm/env-comfort-score";
 import { downsampleTrendValues } from "@/lib/farm/trend-display-buckets";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 /** 30d 컨텍스트 기준 — 우측(now) 정렬 윈도우 비율 (API 기간과 동일) */
@@ -116,6 +117,7 @@ export function UnifiedTrendPeriodBrush({
     <div
       className={cn("space-y-2", className)}
       data-tour-id="unified-trend-period-brush"
+      data-farm-chart-period-nav=""
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <div
@@ -133,7 +135,7 @@ export function UnifiedTrendPeriodBrush({
                 "rounded-md border px-2.5 py-1 text-[0.7rem] font-medium",
                 motionClass.microHover,
                 period === id
-                  ? "border-sky-500/60 bg-sky-50 text-sky-800 dark:bg-sky-950/40 dark:text-sky-200"
+                  ? dashboardUi.headerActionBtnActive
                   : "border-border bg-muted/20 text-muted-foreground",
               )}
             >
@@ -155,7 +157,7 @@ export function UnifiedTrendPeriodBrush({
             주의
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="size-2 rounded-sm bg-rose-500" />
+            <span className="size-2 rounded-sm bg-destructive/80" />
             이탈
           </span>
           {avgScore != null ? (
@@ -166,15 +168,15 @@ export function UnifiedTrendPeriodBrush({
         </div>
       </div>
 
-      <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
-        막대 = 온·습 적정 점수 · 드래그{" "}
-        <span className="font-medium text-foreground/80">폭</span>
-        =24h/7d/30d 프리셋 · 차트는 항상{" "}
-        <span className="font-medium text-foreground/80">최근</span> 구간 ·
-        세밀 줌은 위 차트 드래그 · 모터 제외
-      </p>
-      <p className="text-[0.65rem] leading-snug text-muted-foreground lg:hidden">
-        막대=온·습 점수 · 드래그 폭으로 24h/7d/30d · 세밀 줌은 위 차트
+      <p className="text-[0.65rem] leading-snug text-muted-foreground">
+        <span className="hidden lg:inline">
+          기간 프리셋(24h/7d/30d) · 세밀 구간 줌은{" "}
+          <span className="font-medium text-foreground/80">위 차트 온도 레인</span>
+          드래그 · 막대=온·습 점수
+        </span>
+        <span className="lg:hidden">
+          기간 선택 · 구간 줌은 위 차트(온도 레인) 드래그
+        </span>
       </p>
 
       <div
@@ -291,7 +293,7 @@ export function UnifiedTrendPeriodBrush({
         {/* 드래그 중: 사용자 궤적(점선) + 적용 예정 최근 윈도우(실선) */}
         {draftWin != null ? (
           <div
-            className="pointer-events-none absolute inset-y-1 rounded-sm border border-dashed border-sky-400/70 bg-sky-500/10"
+            className="pointer-events-none absolute inset-y-1 rounded-sm border border-dashed border-primary/50 bg-primary/10"
             style={{
               left: `${draftWin.start * 100}%`,
               width: `${draftWin.width * 100}%`,
@@ -302,10 +304,10 @@ export function UnifiedTrendPeriodBrush({
 
         <div
           className={cn(
-            "pointer-events-none absolute inset-y-0 border-y-2 border-sky-500/90 bg-sky-500/15",
-            "shadow-[inset_0_0_0_1px_rgba(14,165,233,0.4),0_0_24px_-8px_rgba(14,165,233,0.45)]",
+            "pointer-events-none absolute inset-y-0 border-y-2 border-primary/80 bg-primary/15",
+            "shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)]",
             motionClass.farmChartBrushWindow,
-            draft && "border-sky-400",
+            draft && "border-primary",
           )}
           style={{
             left: `${(draft ? snapWin : win).start * 100}%`,
@@ -313,11 +315,11 @@ export function UnifiedTrendPeriodBrush({
           }}
         >
           <span
-            className="absolute inset-y-2 left-0 w-1 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]"
+            className="absolute inset-y-2 left-0 w-1 rounded-full bg-primary/80"
             aria-hidden
           />
           <span
-            className="absolute inset-y-2 right-0 w-1 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.7)]"
+            className="absolute inset-y-2 right-0 w-1 rounded-full bg-primary/80"
             aria-hidden
           />
         </div>
@@ -325,8 +327,8 @@ export function UnifiedTrendPeriodBrush({
         <span
           className={cn(
             "pointer-events-none absolute bottom-1.5 z-[2] -translate-x-1/2",
-            "whitespace-nowrap rounded bg-sky-950/55 px-1.5 py-0.5",
-            "text-[0.68rem] font-semibold tracking-wide text-sky-50 backdrop-blur-sm",
+            "whitespace-nowrap rounded bg-primary/90 px-1.5 py-0.5",
+            "text-[0.68rem] font-semibold tracking-wide text-primary-foreground backdrop-blur-sm",
           )}
           style={{
             left: `clamp(3.25rem, ${((draft ? snapWin : win).start + (draft ? snapWin : win).width / 2) * 100}%, calc(100% - 3.25rem))`,
@@ -341,8 +343,8 @@ export function UnifiedTrendPeriodBrush({
           전체 30일 맥락
         </span>
         {draft ? (
-          <span className="pointer-events-none absolute right-2 top-1.5 rounded border border-sky-500/40 bg-sky-950/50 px-1.5 py-0.5 text-[0.6rem] font-medium text-sky-100 backdrop-blur-sm">
-            폭→프리셋 · 위치≠임의 구간
+          <span className="pointer-events-none absolute right-2 top-1.5 rounded border border-primary/40 bg-primary/90 px-1.5 py-0.5 text-[0.6rem] font-medium text-primary-foreground backdrop-blur-sm">
+            폭→기간 프리셋 · 세밀 줌은 위 차트
           </span>
         ) : null}
       </div>

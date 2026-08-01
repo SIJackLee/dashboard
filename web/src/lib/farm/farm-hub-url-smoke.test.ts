@@ -70,7 +70,9 @@ function clone(q: string) {
   const home = buildFarmMonitoringHomeParams(source);
   assert.equal(home.get("lsind"), "FARM01");
   assert.equal(home.get("item"), "P00");
-  assert.equal(home.get("trendPeriod"), "7d");
+  /** 7d = 기본 → soft home URL에서 생략 */
+  assert.equal(home.get("trendPeriod"), null);
+  assert.equal(resolveTrendPeriodParam(home), "7d");
   assert.equal(home.get("view"), null);
   assert.equal(home.get("chartSp"), null);
   assert.equal(home.get("chartStall"), null);
@@ -78,6 +80,13 @@ function clone(q: string) {
   assert.equal(resolveFarmHubView(home.get("view")), "map");
   assert.equal(resolveFarmChartScope(home).level, "farm");
   assert.equal(isFarmMonitoringSoftHome(home), true);
+
+  const keep24 = buildFarmMonitoringHomeParams(
+    clone(
+      "lsind=FARM01&item=P00&view=chart&trendPeriod=24h&chartSp=SP03",
+    ),
+  );
+  assert.equal(keep24.get("trendPeriod"), "24h");
 
   // 그리드 탭 전환도 chart* 정리
   const leaveChart = clone(source.toString());
@@ -105,11 +114,11 @@ function clone(q: string) {
     }),
   );
 
-  // 24h = URL에서 trendPeriod 생략해도 탭·범위 유지
-  setTrendPeriodParam(params, "24h");
+  // 7d = 기본 → URL에서 trendPeriod 생략해도 탭·범위 유지
+  setTrendPeriodParam(params, "7d");
   pinFarmHubViewParam(params, "chart");
   assert.equal(params.get("trendPeriod"), null);
-  assert.equal(resolveTrendPeriodParam(params), "24h");
+  assert.equal(resolveTrendPeriodParam(params), "7d");
   assert.equal(resolveFarmHubView(params.get("view")), "chart");
   assert.equal(params.get("chartSp"), "SP02");
   console.log("smoke 3: period change keeps chart view+scope — ok");
