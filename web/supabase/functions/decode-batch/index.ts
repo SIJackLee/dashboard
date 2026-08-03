@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  decodeErrorPacketFromDb,
   decodeV0cPayloadFromDb,
   fanPctFromChannels,
   parseOptionalPct,
@@ -84,6 +85,7 @@ Deno.serve(async (req: Request) => {
       ok: true,
       processed: 0,
       decoded: 0,
+      alarms: 0,
       skipped: 0,
       failed: 0,
       last_raw_id: lastRawId,
@@ -91,12 +93,58 @@ Deno.serve(async (req: Request) => {
   }
 
   let decoded = 0;
+  let alarms = 0;
   let skipped = 0;
   let failed = 0;
   let maxRawId = lastRawId;
 
   for (const row of rows) {
     maxRawId = row.id;
+
+    const alarm = decodeErrorPacketFromDb(row.payload_bytea, {
+      allowUnknown: true,
+    });
+    if (alarm) {
+      const { error: alarmErr } = await supabase.from("farm_module_alarm").upsert(
+        {
+          raw_id: row.id,
+          lsind_regist_no: row.lsind_regist_no,
+          item_code: row.item_code,
+          module_uid: row.module_uid,
+          topic: row.topic,
+          wire_ver: alarm.wireVer,
+          err_code: alarm.errCode,
+          err_label: alarm.errLabel,
+          status: "active",
+          received_at: row.received_at,
+          decoded_json: alarm,
+        },
+        { onConflict: "raw_id" },
+      );
+
+      if (alarmErr) {
+        failed += 1;
+        await supabase.from("iot_room_state_decode_failed").upsert(
+          {
+            raw_id: row.id,
+            wire_ver: alarm.wireVer,
+            error_code: "ALARM_UPSERT_FAILED",
+            error_detail: alarmErr.message,
+            attempted_at: new Date().toISOString(),
+          },
+          { onConflict: "raw_id" },
+        );
+        continue;
+      }
+
+      alarms += 1;
+      await supabase
+        .from("iot_room_state_decode_failed")
+        .delete()
+        .eq("raw_id", row.id);
+      continue;
+    }
+
     const payload = decodeV0cPayloadFromDb(row.payload_bytea);
 
     if (!payload) {
@@ -171,6 +219,7 @@ Deno.serve(async (req: Request) => {
         error: "cursor_update_failed",
         detail: cursorUpdateErr.message,
         decoded,
+        alarms,
         skipped,
         failed,
       },
@@ -182,6 +231,7 @@ Deno.serve(async (req: Request) => {
     ok: true,
     processed: rows.length,
     decoded,
+    alarms,
     skipped,
     failed,
     last_raw_id: maxRawId,

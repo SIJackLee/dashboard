@@ -17,7 +17,8 @@ import {
 import type { ThermoCommand } from "@/lib/data/commands";
 import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
 import { getAlarmSettings } from "@/lib/data/alarm-settings";
-import type { AlarmSettings } from "@/lib/data/alarms";
+import type { AlarmRow, AlarmSettings } from "@/lib/data/alarms";
+import { fetchActiveModuleAlarms } from "@/lib/data/module-alarms";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
@@ -46,6 +47,8 @@ export type FarmScopedLiveData = {
   gridCols: number;
   gridRows: number;
   layoutsToPersist?: BarnLayoutsToPersist;
+  /** 모듈 경보 View — 셸 이상상황 정본 */
+  moduleAlarms: AlarmRow[];
 };
 
 function buildScopedBarnMap(
@@ -89,11 +92,12 @@ export async function loadFarmScopedLiveData(params: {
   layoutPrefs?: BarnLayoutPrefs;
 }): Promise<FarmScopedLiveData> {
   const { farmKey } = params;
-  const [readings, layoutPrefs] = await Promise.all([
+  const [readings, layoutPrefs, moduleAlarms] = await Promise.all([
     getLiveReadings({ farmKey, slim: true }),
     params.layoutPrefs
       ? Promise.resolve(params.layoutPrefs)
       : getBarnLayoutPrefs(),
+    fetchActiveModuleAlarms(farmKey),
   ]);
 
   const map = buildScopedBarnMap(farmKey, readings, layoutPrefs);
@@ -107,6 +111,7 @@ export async function loadFarmScopedLiveData(params: {
       Object.keys(map.layoutsToPersist).length > 0
         ? map.layoutsToPersist
         : undefined,
+    moduleAlarms,
   };
 }
 

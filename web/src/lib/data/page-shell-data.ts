@@ -7,8 +7,7 @@ import {
   type FarmQueryParams,
 } from "@/lib/auth/farm-access";
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
-import { deriveAlarmsFromReadings } from "@/lib/data/alarms";
-import { getAlarmSettings } from "@/lib/data/alarm-settings";
+import { fetchActiveModuleAlarms } from "@/lib/data/module-alarms";
 import {
   summarizeControllers,
   toFarmOverview,
@@ -42,10 +41,7 @@ export type PageShellContext = {
 
 export const getPageShellContext = cache(
   async (searchParams: FarmQueryParams = {}): Promise<PageShellContext> => {
-    const [alarmSettings, user] = await Promise.all([
-      getAlarmSettings(),
-      getCurrentUser(),
-    ]);
+    const user = await getCurrentUser();
 
     const activeFarmKey = user ? resolveActiveFarmKey(user, searchParams) : null;
     const isAdmin = Boolean(user?.isAdmin);
@@ -69,15 +65,15 @@ export const getPageShellContext = cache(
 
     /** Admin 단일 농장 — global v_iot_farm_overview(타임아웃) 대신 hub 캐시 + scoped LIVE */
     if (isAdmin && activeFarmKey) {
-      const [hub, readings] = await Promise.all([
+      const [hub, readings, alarms] = await Promise.all([
         getAdminHubOverviewContext(),
         fetchLiveReadings({ farmKey: activeFarmKey }),
+        fetchActiveModuleAlarms(activeFarmKey),
       ]);
       const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
       const overview = toFarmOverview(
         summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
       );
-      const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
 
       return {
         readings,
@@ -100,7 +96,7 @@ export const getPageShellContext = cache(
     const overview = toFarmOverview(
       summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
     );
-    const alarms = deriveAlarmsFromReadings(scopedReadings, alarmSettings);
+    const alarms = await fetchActiveModuleAlarms(activeFarmKey);
 
     let farmLocationOptions: EditableFarmOption[] = [];
     const canEditLocation = user ? canCommand(user) : false;

@@ -28,7 +28,16 @@ export type AlarmRow = {
   status: "active" | "resolved";
   detail: string;
   controllerStatus: ControllerStatus;
+  /** Shell 정본 — 모듈 업링크. 미설정이면 레거시(임계 파생) */
+  source?: "module" | "derived";
+  /** 모듈 경보 View의 농장 표시명 */
+  farmName?: string | null;
 };
+
+/** 이상상황 목록 — 모듈 경보면 농장 표시명 중심 */
+export function isModuleAlarmRow(a: AlarmRow): boolean {
+  return a.source === "module";
+}
 
 export type AlarmThresholds = {
   tempHigh: number;
@@ -157,6 +166,7 @@ function makeAlarm(
     status: r.status === "offline" ? "active" : "active",
     detail,
     controllerStatus: r.status,
+    source: "derived",
   };
 }
 

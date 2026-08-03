@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import {
+  fetchActiveModuleAlarmsAction,
   fetchFarmScopedLiveDataAction,
   persistBarnLayoutsQuietAction,
   revalidateFarmLiveAction,
@@ -19,10 +20,6 @@ import {
 import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AlarmSettings } from "@/lib/data/alarms";
-import {
-  DEFAULT_ALARM_SETTINGS,
-  deriveAlarmsFromReadings,
-} from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import {
@@ -240,6 +237,7 @@ function applyLivePatch({ farmKey, data, setSlice }: ApplyLiveArgs): void {
     return next;
   });
   schedulePersistLayouts(data.layoutsToPersist);
+  publishShellAlarms(data.moduleAlarms);
 }
 
 type ProviderProps = {
@@ -500,6 +498,9 @@ export function FarmLiveRefreshProvider({
             setAlarmPatch,
             setThermoPatch,
           });
+          const moduleAlarms = await fetchActiveModuleAlarmsAction(farmKey);
+          if (seq !== revalidateSeq.current) return;
+          publishShellAlarms(moduleAlarms);
           return;
         }
         const live = await fetchFarmLiveShared(farmKey);
@@ -541,17 +542,24 @@ export function FarmLiveRefreshProvider({
     };
   }, [alarmPatch, thermoPatch, slice]);
 
-  /** TopBar/FAB — 설정·LIVE 반영 알람 (SSR 스냅샷 대체) */
+  /** TopBar/FAB — 모듈 경보 View (LIVE soft refresh와 별도 최초·농장 전환) */
   useEffect(() => {
-    const readings = mergedSlice.readings;
-    if (readings.length === 0) {
+    if (!farmKey) {
       clearShellAlarms();
       return;
     }
-    const settings =
-      mergedSlice.controller?.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
-    publishShellAlarms(deriveAlarmsFromReadings(readings, settings));
-  }, [mergedSlice]);
+    let cancelled = false;
+    void fetchActiveModuleAlarmsAction(farmKey)
+      .then((rows) => {
+        if (!cancelled) publishShellAlarms(rows);
+      })
+      .catch(() => {
+        if (!cancelled) clearShellAlarms();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [farmKey]);
 
   useEffect(() => () => clearShellAlarms(), []);
 

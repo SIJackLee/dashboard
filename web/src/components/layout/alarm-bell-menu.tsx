@@ -7,18 +7,18 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmChartHref } from "@/lib/data/alarms";
+import { alarmChartHref, isModuleAlarmRow } from "@/lib/data/alarms";
 import { formatKst } from "@/lib/datetime/kst";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
+import { ModuleAlarmAckButton } from "@/components/layout/module-alarm-ack-button";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,20 @@ const emptySubscribe = () => () => {};
 type Props = {
   alarms: AlarmRow[];
 };
+
+function alarmMetaLine(a: AlarmRow): string {
+  if (isModuleAlarmRow(a)) {
+    return a.farmName?.trim() || a.detail?.trim() || "모듈 경보";
+  }
+  return [
+    a.stallTyCode ? formatStallTypeLabel(a.stallTyCode) : "—",
+    formatControllerSlotLabel({
+      stallNo: a.stallNo,
+      eqpmnNo: a.eqpmnNo,
+      idx: a.idx,
+    }),
+  ].join(" · ");
+}
 
 export function AlarmBellMenu({ alarms }: Props) {
   const { navigate } = useAppNavigate();
@@ -112,42 +126,58 @@ export function AlarmBellMenu({ alarms }: Props) {
           </p>
         ) : (
           preview.map((a) => (
-            <DropdownMenuItem
+            <div
               key={a.id}
               className={cn(
                 dashboardUi.alarmMenuItem,
-                "max-md:mb-1.5 max-md:rounded-xl max-md:border max-md:border-border/50 max-md:bg-muted/20 max-md:px-3 max-md:py-2.5 max-md:text-sm last:max-md:mb-0"
+                "max-md:mb-1.5 max-md:rounded-xl max-md:border max-md:border-border/50 max-md:bg-muted/20 max-md:px-3 max-md:py-2.5 max-md:text-sm last:max-md:mb-0",
               )}
-              onClick={() =>
-                navigate(alarmChartHref(a), {
-                  message: "그래프로 이동 중…",
-                })
-              }
             >
-              <span className="flex w-full items-center justify-between gap-3">
-                <span className="font-medium">{a.alarmType}</span>
-                <Badge
-                  variant={a.severity === "critical" ? "destructive" : "secondary"}
-                  className={cn(dashboardUi.badgeMd, "shrink-0")}
-                >
-                  {a.severity === "critical" ? "심각" : "주의"}
-                </Badge>
-              </span>
-              <span className={dashboardUi.alarmMenuMeta}>
-                {a.stallTyCode ? formatStallTypeLabel(a.stallTyCode) : "—"} ·{" "}
-                {formatControllerSlotLabel({
-                  stallNo: a.stallNo,
-                  eqpmnNo: a.eqpmnNo,
-                  idx: a.idx,
-                })}
-              </span>
-              <span className={cn(dashboardUi.alarmMenuMeta, "w-full truncate")}>
-                {a.detail}
-              </span>
-              <span className={dashboardUi.alarmMenuTime}>
-                {formatKst(a.occurredAt, "short")}
-              </span>
-            </DropdownMenuItem>
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() =>
+                  navigate(alarmChartHref(a), {
+                    message: isModuleAlarmRow(a)
+                      ? "농장 차트로 이동 중…"
+                      : "그래프로 이동 중…",
+                  })
+                }
+              >
+                <span className="flex w-full items-center justify-between gap-3">
+                  <span className="font-medium">{a.alarmType}</span>
+                  <Badge
+                    variant={
+                      a.severity === "critical" ? "destructive" : "secondary"
+                    }
+                    className={cn(dashboardUi.badgeMd, "shrink-0")}
+                  >
+                    {a.severity === "critical" ? "심각" : "주의"}
+                  </Badge>
+                </span>
+                <span className={dashboardUi.alarmMenuMeta}>
+                  {alarmMetaLine(a)}
+                </span>
+                {!isModuleAlarmRow(a) && a.detail ? (
+                  <span
+                    className={cn(
+                      dashboardUi.alarmMenuMeta,
+                      "w-full truncate",
+                    )}
+                  >
+                    {a.detail}
+                  </span>
+                ) : null}
+                <span className={dashboardUi.alarmMenuTime}>
+                  {formatKst(a.occurredAt, "short")}
+                </span>
+              </button>
+              {isModuleAlarmRow(a) ? (
+                <div className="mt-1.5 flex justify-end">
+                  <ModuleAlarmAckButton alarm={a} list={active} />
+                </div>
+              ) : null}
+            </div>
           ))
         )}
 
@@ -155,7 +185,7 @@ export function AlarmBellMenu({ alarms }: Props) {
           <>
             <DropdownMenuSeparator className="my-2" />
             <p className="px-2 py-1.5 text-xs text-muted-foreground">
-              외 {count - preview.length}건 — 행을 눌러 그래프로 이동합니다
+              외 {count - preview.length}건 — 행을 눌러 차트로 이동합니다
             </p>
           </>
         ) : null}

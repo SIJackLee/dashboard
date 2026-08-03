@@ -1,4 +1,4 @@
-/** v0x0C wire decode — port of dashboard/web/src/lib/data/wire-decode-v0c.ts */
+/** v0x0C wire decode - port of dashboard/web/src/lib/data/wire-decode-v0c.ts */
 
 const VER_V0C = 0x0c;
 const HEADER_SIZE = 2;
@@ -8,6 +8,20 @@ const CHANNEL_BLOCK = 19;
 const CHANNEL_LABELS = ["A", "B", "C"] as const;
 const NA_TEMP = 0xffff;
 const NA_FAN = 0xff;
+const KIND_ERROR_V0C = 0x02;
+const ERROR_BODY_SIZE = 3;
+const ERROR_PACKET_SIZE = 5;
+
+/** Formal labels - docs/wire-v00c-error-uplink.md */
+export const ERROR_CODE_LABELS_V0C: Record<number, string> = {
+  0x11: "A 라인 고온 경보",
+  0x12: "A 라인 저온 경보",
+  0x21: "B 라인 고온 경보",
+  0x22: "B 라인 저온 경보",
+  0x31: "C 라인 고온 경보",
+  0x32: "C 라인 저온 경보",
+  0x41: "정전",
+};
 
 export type DecodedThermo = {
   setpointTemp: string | null;
@@ -39,8 +53,31 @@ export type DecodedV0cPayload = {
   channels: DecodedV0cChannel[];
 };
 
+export type DecodedV0cError = {
+  schema_version: "v0c-error-1";
+  wireVer: number;
+  kind: number;
+  errCode: number;
+  errCodeHex: string;
+  errLabel: string;
+  crcOk: true;
+};
+
 function readU16LE(buf: Uint8Array, off: number): number {
   return buf[off]! | (buf[off + 1]! << 8);
+}
+
+/** CRC16-CCITT-FALSE (poly 0x1021, init 0xFFFF) - matches Python wire_decode. */
+export function crc16CcittFalse(data: Uint8Array): number {
+  let crc = 0xffff;
+  for (let i = 0; i < data.length; i++) {
+    crc ^= data[i]! << 8;
+    for (let b = 0; b < 8; b++) {
+      if (crc & 0x8000) crc = ((crc << 1) ^ 0x1021) & 0xffff;
+      else crc = (crc << 1) & 0xffff;
+    }
+  }
+  return crc & 0xffff;
 }
 
 function readU32LE(buf: Uint8Array, off: number): number {
@@ -198,12 +235,67 @@ export function decodeV0cPayload(wire: Uint8Array): DecodedV0cPayload | null {
   };
 }
 
+export function isErrorPacketV0c(wire: Uint8Array): boolean {
+  return (
+    wire.length === ERROR_PACKET_SIZE &&
+    wire[0] === VER_V0C &&
+    wire[1] === KIND_ERROR_V0C
+  );
+}
+
+export function encodeErrorPacketV0c(errcode: number): Uint8Array {
+  const body = new Uint8Array([VER_V0C, KIND_ERROR_V0C, errcode & 0xff]);
+  const crc = crc16CcittFalse(body);
+  const out = new Uint8Array(ERROR_PACKET_SIZE);
+  out.set(body, 0);
+  out[3] = crc & 0xff;
+  out[4] = (crc >> 8) & 0xff;
+  return out;
+}
+
+export function decodeErrorPacketV0c(
+  wire: Uint8Array,
+  opts?: { allowUnknown?: boolean },
+): DecodedV0cError | null {
+  if (!isErrorPacketV0c(wire)) return null;
+  const body = wire.subarray(0, ERROR_BODY_SIZE);
+  const crcRecv = readU16LE(wire, ERROR_BODY_SIZE);
+  const crcCalc = crc16CcittFalse(body);
+  if (crcRecv !== crcCalc) return null;
+
+  const errCode = wire[2]!;
+  let errLabel = ERROR_CODE_LABELS_V0C[errCode];
+  if (errLabel == null) {
+    if (!opts?.allowUnknown) return null;
+    errLabel = `미정의 경보(0x${errCode.toString(16).toUpperCase().padStart(2, "0")})`;
+  }
+
+  return {
+    schema_version: "v0c-error-1",
+    wireVer: VER_V0C,
+    kind: KIND_ERROR_V0C,
+    errCode,
+    errCodeHex: `0x${errCode.toString(16).padStart(2, "0")}`,
+    errLabel,
+    crcOk: true,
+  };
+}
+
 export function decodeV0cPayloadFromDb(
   payloadBytea: unknown,
 ): DecodedV0cPayload | null {
   const wire = parsePayloadBytea(payloadBytea);
   if (!wire) return null;
   return decodeV0cPayload(wire);
+}
+
+export function decodeErrorPacketFromDb(
+  payloadBytea: unknown,
+  opts?: { allowUnknown?: boolean },
+): DecodedV0cError | null {
+  const wire = parsePayloadBytea(payloadBytea);
+  if (!wire) return null;
+  return decodeErrorPacketV0c(wire, opts);
 }
 
 export function primaryTempC(tempsC: (string | null)[]): number | null {

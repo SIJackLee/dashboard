@@ -171,8 +171,8 @@ const HEADER_ICON_ITEMS = [
   },
   {
     key: "alarms",
-    label: "센서 알림",
-    desc: "미확인 건수 배지. 누르면 이상 목록으로 이동합니다.",
+    label: "이상상황",
+    desc: "모듈이 올린 활성 경보 건수. 누르면 목록으로 이동합니다.",
     Icon: Bell,
   },
   {

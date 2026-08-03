@@ -33,13 +33,14 @@ import {
 } from "@/components/layout/hub-rail-layout";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmChartHref } from "@/lib/data/alarms";
+import { alarmChartHref, isModuleAlarmRow } from "@/lib/data/alarms";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmOverview } from "@/lib/data/iot";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { formatKst } from "@/lib/datetime/kst";
 import { isAdminOpsNavPath } from "@/lib/dashboard-sections";
 import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
+import { ModuleAlarmAckButton } from "@/components/layout/module-alarm-ack-button";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionDuration } from "@/lib/ui/motion-tokens";
@@ -620,47 +621,64 @@ export function HeaderToolsMenu({
               >
                 {alarmList.map((a) => (
                   <li key={a.id}>
-                    <button
-                      type="button"
+                    <div
                       className={cn(
-                        "w-full rounded-xl border border-border/60 bg-muted/20 px-1.5 py-1.5 text-left hover:bg-muted/80",
-                        motionClass.microInteractive,
+                        "w-full rounded-xl border border-border/60 bg-muted/20 px-1.5 py-1.5",
                       )}
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setDetail(null);
-                        setAlarmListOpen(false);
-                        navigate(alarmChartHref(a), {
-                          message: "그래프로 이동 중…",
-                        });
-                      }}
                     >
-                      <span className="flex items-center justify-between gap-2 text-xs font-medium">
-                        <span className="truncate">{a.alarmType}</span>
-                        <span className="shrink-0 text-[0.65rem] text-muted-foreground">
-                          {a.severity === "critical" ? "심각" : "주의"}
+                      <button
+                        type="button"
+                        className={cn(
+                          "w-full text-left hover:bg-muted/80 rounded-lg px-0.5 py-0.5",
+                          motionClass.microInteractive,
+                        )}
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setDetail(null);
+                          setAlarmListOpen(false);
+                          navigate(alarmChartHref(a), {
+                            message: isModuleAlarmRow(a)
+                              ? "농장 차트로 이동 중…"
+                              : "그래프로 이동 중…",
+                          });
+                        }}
+                      >
+                        <span className="flex items-center justify-between gap-2 text-xs font-medium">
+                          <span className="truncate">{a.alarmType}</span>
+                          <span className="shrink-0 text-[0.65rem] text-muted-foreground">
+                            {a.severity === "critical" ? "심각" : "주의"}
+                          </span>
                         </span>
-                      </span>
-                      <span className="block truncate text-[0.65rem] text-muted-foreground">
-                        {a.stallTyCode
-                          ? formatStallTypeLabel(a.stallTyCode)
-                          : "—"}{" "}
-                        ·{" "}
-                        {formatControllerSlotLabel({
-                          stallNo: a.stallNo,
-                          eqpmnNo: a.eqpmnNo,
-                          idx: a.idx,
-                        })}
-                      </span>
-                      <span className="block text-[0.65rem] text-muted-foreground">
-                        {formatKst(a.occurredAt, "short")}
-                      </span>
-                    </button>
+                        <span className="block truncate text-[0.65rem] text-muted-foreground">
+                          {isModuleAlarmRow(a)
+                            ? a.farmName?.trim() ||
+                              a.detail?.trim() ||
+                              "모듈 경보"
+                            : `${
+                                a.stallTyCode
+                                  ? formatStallTypeLabel(a.stallTyCode)
+                                  : "—"
+                              } · ${formatControllerSlotLabel({
+                                stallNo: a.stallNo,
+                                eqpmnNo: a.eqpmnNo,
+                                idx: a.idx,
+                              })}`}
+                        </span>
+                        <span className="block text-[0.65rem] text-muted-foreground">
+                          {formatKst(a.occurredAt, "short")}
+                        </span>
+                      </button>
+                      {isModuleAlarmRow(a) ? (
+                        <div className="mt-1 flex justify-end">
+                          <ModuleAlarmAckButton alarm={a} list={activeAlarms} />
+                        </div>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
                 {alarmCount > alarmList.length ? (
                   <li className="px-1 py-1 text-[0.65rem] text-muted-foreground">
-                    외 {alarmCount - alarmList.length}건 — 행을 눌러 그래프로
+                    외 {alarmCount - alarmList.length}건 — 행을 눌러 차트로
                     이동합니다
                   </li>
                 ) : null}

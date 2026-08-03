@@ -19,6 +19,16 @@ export function publishShellAlarms(next: AlarmRow[]): void {
   emit();
 }
 
+/** 확인(ack) 직후 낙관적 제거 — 배지·목록 즉시 반영 */
+export function removeShellAlarm(id: string, fromList?: AlarmRow[]): void {
+  const base = published ?? fromList;
+  if (base == null) return;
+  const next = base.filter((a) => a.id !== id);
+  if (published != null && next.length === published.length) return;
+  published = next;
+  emit();
+}
+
 /** Provider unmount · farm 이탈 시 SSR props로 되돌림 */
 export function clearShellAlarms(): void {
   if (published == null) return;
