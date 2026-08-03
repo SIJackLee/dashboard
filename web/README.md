@@ -11,3 +11,5 @@ npm test && npm run verify:design && npm run build
 ```
 
 배포 기준: [`docs/CLOUD_DEPLOY.md`](docs/CLOUD_DEPLOY.md) (`commit → push → main → Vercel`)
+
+Android 푸시(Capacitor+FCM): [`docs/android-push.md`](docs/android-push.md)
