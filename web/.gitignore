@@ -58,6 +58,8 @@ android/app/google-services.json
 google-services.json
 *-firebase-adminsdk-*.json
 firebase-adminsdk*.json
+client_secret*.json
+**/client_secret*.json
 fcm-service-account.oneline.txt
 android/local.properties
 android/.gradle/

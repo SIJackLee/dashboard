@@ -109,6 +109,30 @@ export async function signInWithKakao() {
   await signInWithOAuthProvider("kakao");
 }
 
+/**
+ * 네이티브 SDK → signInWithIdToken 후 쿠키 세션이 잡힌 뒤 호출.
+ * 이메일 로그인과 동일하게 /farm | /pending 을 결정한다.
+ */
+export async function finalizeNativeOAuthLogin(): Promise<SignInResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "auth" };
+  }
+
+  const { nextPath, isAdmin } = await resolvePostLoginPath(supabase);
+  if (
+    nextPath === "/farm" &&
+    isAdmin &&
+    process.env.SKIP_ADMIN_HUB_WARM !== "1"
+  ) {
+    await warmAdminHubOverviewCache();
+  }
+  return { ok: true, nextPath };
+}
+
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();

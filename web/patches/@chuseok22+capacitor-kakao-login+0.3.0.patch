@@ -1,0 +1,87 @@
+diff --git a/node_modules/@chuseok22/capacitor-kakao-login/android/src/main/java/com/capacitorkakaologin/KakaoLoginPlugin.kt b/node_modules/@chuseok22/capacitor-kakao-login/android/src/main/java/com/capacitorkakaologin/KakaoLoginPlugin.kt
+index d4569a8..5c56af8 100644
+--- a/node_modules/@chuseok22/capacitor-kakao-login/android/src/main/java/com/capacitorkakaologin/KakaoLoginPlugin.kt
++++ b/node_modules/@chuseok22/capacitor-kakao-login/android/src/main/java/com/capacitorkakaologin/KakaoLoginPlugin.kt
+@@ -38,12 +38,21 @@ class KakaoLoginPlugin : Plugin() {
+         }
+ 
+         // OAuthToken 콜백 — 앱/계정 로그인 공통 처리
+-        val callback: (OAuthToken?, Throwable?) -> Unit = callback@{ _, error ->
++        // OpenID Connect 활성 시 token.idToken 이 발급되며 Supabase signInWithIdToken 에 사용한다.
++        val callback: (OAuthToken?, Throwable?) -> Unit = callback@{ token, error ->
+             if (error != null) {
+                 call.reject("카카오 로그인 실패: ${error.message}")
+                 return@callback
+             }
+ 
++            val idToken = token?.idToken
++            if (idToken.isNullOrBlank()) {
++                call.reject(
++                    "카카오 ID 토큰이 없습니다. 개발자 콘솔에서 OpenID Connect를 켜 주세요.",
++                )
++                return@callback
++            }
++
+             UserApiClient.instance.me { user, meError ->
+                 if (meError != null) {
+                     call.reject("사용자 정보 조회 실패: ${meError.message}")
+@@ -61,6 +70,7 @@ class KakaoLoginPlugin : Plugin() {
+ 
+                 val result = JSObject()
+                 result.put("socialId", userId.toString())
++                result.put("idToken", idToken)
+                 profile?.nickname?.let           { result.put("nickname", it) }
+                 profile?.profileImageUrl?.let    { result.put("profileImageUrl", it) }
+                 profile?.thumbnailImageUrl?.let  { result.put("thumbnailImageUrl", it) }
+diff --git a/node_modules/@chuseok22/capacitor-kakao-login/dist/esm/definitions.d.ts b/node_modules/@chuseok22/capacitor-kakao-login/dist/esm/definitions.d.ts
+index 64c8c8e..beb67c6 100644
+--- a/node_modules/@chuseok22/capacitor-kakao-login/dist/esm/definitions.d.ts
++++ b/node_modules/@chuseok22/capacitor-kakao-login/dist/esm/definitions.d.ts
+@@ -10,6 +10,8 @@ export interface KakaoLoginPlugin {
+ export interface KakaoLoginResult {
+     /** 카카오 회원 고유 ID. 서버에 전달하여 사용자 식별에 사용한다. */
+     socialId: string;
++    /** OpenID Connect ID Token (JWT). Supabase signInWithIdToken 용. */
++    idToken: string;
+     /** 닉네임. 카카오 개발자 콘솔에서 profile 동의 항목 활성화 필요. */
+     nickname?: string;
+     /** 프로필 이미지 URL. profile 동의 항목 활성화 필요. */
+diff --git a/node_modules/@chuseok22/capacitor-kakao-login/ios/Sources/Chuseok22CapacitorKakaoLogin/KakaoLoginPlugin.swift b/node_modules/@chuseok22/capacitor-kakao-login/ios/Sources/Chuseok22CapacitorKakaoLogin/KakaoLoginPlugin.swift
+index 9a29737..cdcd28b 100644
+--- a/node_modules/@chuseok22/capacitor-kakao-login/ios/Sources/Chuseok22CapacitorKakaoLogin/KakaoLoginPlugin.swift
++++ b/node_modules/@chuseok22/capacitor-kakao-login/ios/Sources/Chuseok22CapacitorKakaoLogin/KakaoLoginPlugin.swift
+@@ -59,7 +59,7 @@ public class KakaoLoginPlugin: CAPPlugin, CAPBridgedPlugin {
+         }
+     }
+ 
+-    private func handleLoginResult(call: CAPPluginCall, oauthToken _: OAuthToken?, error: Error?) {
++    private func handleLoginResult(call: CAPPluginCall, oauthToken: OAuthToken?, error: Error?) {
+         if let error = error {
+             DispatchQueue.main.async {
+                 call.reject("카카오 로그인 실패", nil, error)
+@@ -67,6 +67,13 @@ public class KakaoLoginPlugin: CAPPlugin, CAPBridgedPlugin {
+             return
+         }
+ 
++        guard let idToken = oauthToken?.idToken, !idToken.isEmpty else {
++            DispatchQueue.main.async {
++                call.reject("카카오 ID 토큰이 없습니다. 개발자 콘솔에서 OpenID Connect를 켜 주세요.")
++            }
++            return
++        }
++
+         UserApi.shared.me { user, error in
+             DispatchQueue.main.async {
+                 if let error = error {
+@@ -81,7 +88,10 @@ public class KakaoLoginPlugin: CAPPlugin, CAPBridgedPlugin {
+                 let account = user?.kakaoAccount
+                 let profile = account?.profile
+ 
+-                var result: [String: Any] = ["socialId": String(userId)]
++                var result: [String: Any] = [
++                    "socialId": String(userId),
++                    "idToken": idToken,
++                ]
+                 if let v = profile?.nickname           { result["nickname"] = v }
+                 if let v = profile?.profileImageUrl    { result["profileImageUrl"] = v.absoluteString }
+                 if let v = profile?.thumbnailImageUrl  { result["thumbnailImageUrl"] = v.absoluteString }

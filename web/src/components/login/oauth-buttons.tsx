@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import {
+  finalizeNativeOAuthLogin,
   getOAuthSignInUrl,
   type OAuthProvider,
 } from "@/app/auth/actions";
 import { isGoogleOAuthBlockedBrowser } from "@/lib/auth/oauth-browser";
+import {
+  shouldUseNativeOAuth,
+  signInWithNativeOAuth,
+} from "@/lib/auth/native-oauth";
 
 const emptySubscribe = () => () => {};
 
@@ -18,14 +24,16 @@ function loginPageHref(): string {
 }
 
 export function OAuthButtons() {
+  const router = useRouter();
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const googleBlocked = mounted && isGoogleOAuthBlockedBrowser();
+  const nativeOAuth = mounted && shouldUseNativeOAuth();
   const [busy, setBusy] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const startOAuth = async (provider: OAuthProvider) => {
     if (busy) return;
-    if (provider === "google" && isGoogleOAuthBlockedBrowser()) {
+    if (provider === "google" && !nativeOAuth && isGoogleOAuthBlockedBrowser()) {
       setError(
         "이 창에서는 Google 로그인이 차단됩니다. 카카오를 쓰거나 Chrome/Edge에서 열어 주세요.",
       );
@@ -34,6 +42,19 @@ export function OAuthButtons() {
     setError(null);
     setBusy(provider);
     try {
+      if (shouldUseNativeOAuth()) {
+        await signInWithNativeOAuth(provider);
+        await router.refresh();
+        const result = await finalizeNativeOAuthLogin();
+        if (!result.ok) {
+          setError("로그인에 실패했습니다. 다시 시도해 주세요.");
+          setBusy(null);
+          return;
+        }
+        router.push(`/auth/enter?next=${result.nextPath}`);
+        return;
+      }
+
       const result = await getOAuthSignInUrl(provider);
       if (!result.ok) {
         setError("로그인 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.");
@@ -42,8 +63,12 @@ export function OAuthButtons() {
       }
       /* 사용자 제스처 직후 top-level 이동 — 서버 redirect보다 임베드/프리뷰에 안전 */
       window.location.assign(result.url);
-    } catch {
-      setError("로그인 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message.trim()
+          ? err.message
+          : "로그인 연결에 실패했습니다. 잠시 후 다시 시도해 주세요.";
+      setError(message);
       setBusy(null);
     }
   };
@@ -59,7 +84,7 @@ export function OAuthButtons() {
         </div>
       </div>
 
-      {googleBlocked ? (
+      {googleBlocked && !nativeOAuth ? (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
           Cursor·IDE 내장 브라우저에서는 Google 로그인이 막힙니다. 카카오는
           이 창에서도 가능하고, Google은 Chrome/Edge에서{" "}
@@ -82,7 +107,7 @@ export function OAuthButtons() {
 
       <button
         type="button"
-        disabled={busy != null || googleBlocked}
+        disabled={busy != null || (googleBlocked && !nativeOAuth)}
         onClick={() => void startOAuth("google")}
         className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-input bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-60"
       >

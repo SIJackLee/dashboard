@@ -35,7 +35,8 @@
     "verify:hub": "node scripts/verify-hub.mjs",
     "smoke:hub-url": "node scripts/farm-hub-url-manual-smoke.mjs",
     "cap:sync": "npx cap sync android",
-    "cap:open": "npx cap open android"
+    "cap:open": "npx cap open android",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -43,6 +44,8 @@
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.0",
     "@capacitor/push-notifications": "^8.1.2",
+    "@capgo/capacitor-social-login": "^8.3.39",
+    "@chuseok22/capacitor-kakao-login": "^0.3.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.108.0",
     "class-variance-authority": "^0.7.1",
@@ -66,6 +69,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "knip": "^5.88.1",
+    "patch-package": "^8.0.1",
     "playwright": "^1.50.0",
     "postcss": "^8",
     "shadcn": "^4.11.0",
