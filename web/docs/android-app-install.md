@@ -40,7 +40,7 @@ Play 스토어 없이 **도메인 링크 + APK 사이드로드**용입니다.
 
 ## 관련 코드
 
-- `src/app/app/page.tsx` — 설치 UI (`/public/app_logo2.png` 앱 아이콘)
+- `src/app/app/page.tsx` — 설치 UI (`/public/app_logo3.png` 앱 아이콘)
 - `src/app/app/download/route.ts`
 - `src/lib/app-install/gate.ts`
 - 미인증 공개: `src/lib/supabase/middleware.ts` 의 `/app`

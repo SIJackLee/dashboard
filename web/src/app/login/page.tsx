@@ -43,6 +43,12 @@ export default async function LoginPage({
         <CardContent className="space-y-4">
           <LoginFormWithNav initialError={message} />
           <OAuthButtons />
+          <a
+            href="/app"
+            className="flex h-10 w-full items-center justify-center rounded-md border border-input bg-background text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            앱 설치하러 가기
+          </a>
           <p className="text-center text-xs text-muted-foreground">
             계정이 없거나 접근 권한이 필요하면 관리자에게 문의하세요.
           </p>

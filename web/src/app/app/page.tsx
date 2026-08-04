@@ -40,7 +40,7 @@ export default async function AppInstallPage({
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <Image
-            src="/app_logo2.png"
+            src="/app_logo3.png"
             alt="SUNG-IL"
             width={96}
             height={96}
