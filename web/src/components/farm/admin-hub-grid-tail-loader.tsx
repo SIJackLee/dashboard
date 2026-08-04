@@ -83,6 +83,10 @@ export function AdminHubGridTailLoader() {
 
     return () => {
       cancelled = true;
+      // hydrate wipe 후 같은 키로 재시작 가능하도록
+      if (startedKeyRef.current === runKey) {
+        startedKeyRef.current = "";
+      }
     };
   }, [tailFarmKeys, appendPanels, setTailFarmKeys, takePriorityFarmKeys]);
 

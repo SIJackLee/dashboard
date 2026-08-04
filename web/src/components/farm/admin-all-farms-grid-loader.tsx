@@ -3,13 +3,16 @@ import { AdminHubGridTailLoader } from "@/components/farm/admin-hub-grid-tail-lo
 import { AdminHubPanelsHydrator } from "@/components/farm/admin-hub-panels-hydrator";
 import { ADMIN_HUB_MAX_FARMS } from "@/lib/data/admin-hub-live";
 import type { FarmKey } from "@/lib/data/farm-key";
+import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 
 type Props = {
   farmOptions: FarmKey[];
 };
 
+const EMPTY_PANELS: AdminFarmGridPanel[] = [];
+
 /**
- * Hub 그리드는 SSR에서 LIVE를 치지 않고, TailLoader가 전부 hydrate (cold TTFB).
+ * Hub 그리드는 SSR에서 LIVE를 치지 않고, TailLoader가 클라이언트로 hydrate (cold TTFB).
  * overview·farmOptions만 서버에서 채운 뒤 그리드는 클라이언트로 넘긴다.
  *
  * TailLoader는 hubClientNav 전환 전(children)에도 마운트되어야 한다.
@@ -20,12 +23,12 @@ export function AdminAllFarmsGridLoader({ farmOptions }: Props) {
 
   return (
     <AdminHubPanelsHydrator
-      panels={[]}
+      panels={EMPTY_PANELS}
       tailFarmKeys={keys}
       hubFarmKeys={keys}
     >
       <AdminAllFarmsGridPanels
-        panels={[]}
+        panels={EMPTY_PANELS}
         liveFromContext
         consideredFarmCount={keys.length}
       />
