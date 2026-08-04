@@ -12,6 +12,7 @@ import {
   pinFarmHubViewParam,
   resolveFarmHubView,
   resolveListViewMode,
+  resolveTrendPeriodParam,
   setListViewMode,
   setTrendPeriodParam,
 } from "./farm-view-url";
@@ -21,7 +22,9 @@ import {
   setTrendPeriodParam(params, "7d");
   pinFarmHubViewParam(params, "chart");
   assert.equal(params.get("view"), "chart");
-  assert.equal(params.get("trendPeriod"), "7d");
+  // 기본 7d는 URL에서 생략
+  assert.equal(params.get("trendPeriod"), null);
+  assert.equal(resolveTrendPeriodParam(params), "7d");
   assert.equal(params.get("lsind"), "FARM01");
 }
 
@@ -48,7 +51,8 @@ import {
   const home = buildFarmMonitoringHomeParams(source);
   assert.equal(home.get("lsind"), "FARM01");
   assert.equal(home.get("item"), "P00");
-  assert.equal(home.get("trendPeriod"), "7d");
+  // soft home도 기본 7d는 쿼리에서 제거
+  assert.equal(home.get("trendPeriod"), null);
   assert.equal(home.get("view"), null);
   assert.equal(home.get("sp"), null);
   assert.equal(home.get("ctrl"), null);
@@ -56,7 +60,7 @@ import {
   assert.equal(isFarmMonitoringSoftHome(source), false);
   assert.equal(
     buildFarmMonitoringHomePath(source),
-    "/farm?lsind=FARM01&item=P00&trendPeriod=7d",
+    "/farm?lsind=FARM01&item=P00",
   );
 }
 
@@ -67,6 +71,7 @@ import {
   clearHubFarmDrillParams(params);
   assert.equal(params.get("view"), null);
   assert.equal(params.get("sp"), null);
+  // clearHub는 trendPeriod를 건드리지 않음 — 소스에 있던 7d는 잔존 가능
   assert.equal(params.get("trendPeriod"), "7d");
   assert.equal(params.get("lsind"), "FARM01");
 }

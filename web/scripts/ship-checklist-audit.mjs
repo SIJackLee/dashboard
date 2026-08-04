@@ -47,19 +47,19 @@ async function smokeAdmin(page) {
     email: TEST_ACCOUNTS.admin.email,
     password: passwordForEmail(TEST_ACCOUNTS.admin.email),
   });
-  await page.goto(`${BASE}/farm`, { waitUntil: "load" });
+  await page.goto(`${BASE}/farm?lsind=FARM01&item=P00`, {
+    waitUntil: "load",
+  });
   await page.waitForTimeout(2500);
   assert(await hasLiveBarns(page), "admin /farm: LIVE 축사(임신/분만/자돈) 없음");
 
-  // 헤더 tools — 운영은 AppNavLink 버튼 (레거시 단독 링크 제거)
+  // 헤더 도구는 상시 아이콘 — 운영은 펼침 없이 노출
   const tools = page.locator('[data-tour-id="header-tools"]').first();
   assert(await tools.isVisible().catch(() => false), "admin: 헤더 도구 없음");
-  await tools.click();
-  await page.waitForTimeout(400);
   const opsBtn = page.locator('[data-tour-id="header-ops"]').first();
   assert(
     await opsBtn.isVisible().catch(() => false),
-    "admin: 헤더 도구 내 운영 진입점 없음",
+    "admin: 헤더 운영 진입점 없음",
   );
 
   await page.goto(`${BASE}/admin/ops`, { waitUntil: "load" });

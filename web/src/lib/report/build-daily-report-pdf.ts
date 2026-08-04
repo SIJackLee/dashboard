@@ -26,6 +26,31 @@ const FONT =
 /** 본문 하단(푸터 위) */
 const CONTENT_BOTTOM = PAGE_H - 36;
 
+/** KPI/판정 색 — 정상·주의·위험 구분 (전부 빨강이면 차별 없음) */
+type KpiTone = "neutral" | "ok" | "caution" | "danger";
+
+const KPI_TONE: Record<
+  KpiTone,
+  { bg: string; border: string; value: string }
+> = {
+  neutral: { bg: "#F9FAFB", border: "#E5E7EB", value: INK },
+  ok: { bg: "#ECFDF5", border: "#A7F3D0", value: "#047857" },
+  caution: { bg: "#FFFBEB", border: "#FDE68A", value: "#B45309" },
+  danger: { bg: "#FEF2F2", border: "#FECACA", value: "#B91C1C" },
+};
+
+function toneFromControllerStatus(status: string): KpiTone {
+  if (status === "offline") return "danger";
+  if (status === "caution") return "caution";
+  return "ok";
+}
+
+function toneFromJudge(judge: string): KpiTone {
+  if (judge === "통신 두절") return "danger";
+  if (judge === "수신 지연") return "caution";
+  return "ok";
+}
+
 function fmt(n: number | null | undefined, digits = 1): string {
   if (n == null || Number.isNaN(n)) return "—";
   return n.toFixed(digits);
@@ -429,12 +454,14 @@ function kpiBox(
   value: string,
   label: string,
   h = 36,
+  tone: KpiTone = "neutral",
 ) {
-  ctx.fillStyle = "#FEF2F2";
+  const t = KPI_TONE[tone];
+  ctx.fillStyle = t.bg;
   ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = "#FECACA";
+  ctx.strokeStyle = t.border;
   ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = INK;
+  ctx.fillStyle = t.value;
   ctx.font = `bold 12px ${FONT}`;
   ctx.fillText(value, x + 6, y + 15);
   ctx.fillStyle = MUTED;
@@ -448,9 +475,9 @@ function tableHeaderBar(
   headers: string[],
   cols: number[],
 ) {
-  ctx.fillStyle = "#FEE2E2";
+  ctx.fillStyle = "#F3F4F6";
   ctx.fillRect(MARGIN, y - 11, PAGE_W - MARGIN * 2, 16);
-  ctx.fillStyle = ACCENT;
+  ctx.fillStyle = INK;
   ctx.font = `bold 8px ${FONT}`;
   headers.forEach((h, i) => ctx.fillText(h, cols[i]!, y));
 }
@@ -521,14 +548,18 @@ export async function buildAndDownloadDailyReportPdf(
     let y = MARGIN + 48;
     const boxW = (PAGE_W - MARGIN * 2 - 18) / 4;
     const ov = payload.overview;
-    const kpis: [string, string][] = [
+    const kpis: [string, string, KpiTone?][] = [
       [String(ov.barnCount), "축사"],
       [String(ov.controllerCount), "컨트롤러"],
-      [String(ov.onlineCount), "온라인"],
-      [String(ov.alarmCount), "이상상황"],
+      [String(ov.onlineCount), "온라인", "ok"],
+      [
+        String(ov.alarmCount),
+        "이상상황",
+        ov.alarmCount > 0 ? "danger" : "ok",
+      ],
     ];
-    kpis.forEach(([v, l], i) => {
-      kpiBox(ctx, MARGIN + i * (boxW + 6), y, boxW, v, l, 34);
+    kpis.forEach(([v, l, tone], i) => {
+      kpiBox(ctx, MARGIN + i * (boxW + 6), y, boxW, v, l, 34, tone);
     });
     y += 44;
 
@@ -561,11 +592,13 @@ export async function buildAndDownloadDailyReportPdf(
     ctx.font = `9px ${FONT}`;
     for (const b of payload.barns) {
       if (y > CONTENT_BOTTOM - 120) break;
+      ctx.fillStyle = INK;
       ctx.fillText(`${b.stallLabel} ${b.stallNo}`, indexCols[0]!, y);
       ctx.fillText(b.stallTyCode, indexCols[1]!, y);
       ctx.fillText(String(b.kpi.total), indexCols[2]!, y);
       ctx.fillText(`${fmt(b.kpi.tempNow)}℃`, indexCols[3]!, y);
       ctx.fillText(`${fmt(b.kpi.humNow)}%`, indexCols[4]!, y);
+      ctx.fillStyle = KPI_TONE[toneFromJudge(b.kpi.judge)].value;
       ctx.fillText(b.kpi.judge, indexCols[5]!, y);
       y += 13;
     }
@@ -731,8 +764,8 @@ export async function buildAndDownloadDailyReportPdf(
 
     let y = MARGIN + 46;
 
-    // KPI — 한 줄 8칸
-    const kpiItems: [string, string][] = [
+    // KPI — 한 줄 8칸 (판정만 상태색)
+    const kpiItems: [string, string, KpiTone?][] = [
       [`${fmt(barn.kpi.tempNow)}℃`, "온도"],
       [`${fmt(barn.kpi.humNow)}%`, "습도"],
       [`${fmt(barn.kpi.motorA, 0)}%`, "모터A"],
@@ -743,12 +776,12 @@ export async function buildAndDownloadDailyReportPdf(
       [`${fmt(barn.kpi.tMin24)}℃`, "24h↓"],
       [`${fmt(barn.kpi.tMax24)}℃`, "24h↑"],
       [`${barn.kpi.online}/${barn.kpi.total}`, "온라인"],
-      [barn.kpi.judge, "판정"],
+      [barn.kpi.judge, "판정", toneFromJudge(barn.kpi.judge)],
     ];
     const kpiGap = 4;
     const kpiW = (PAGE_W - MARGIN * 2 - kpiGap * 7) / 8;
-    kpiItems.forEach(([v, l], i) => {
-      kpiBox(ctx, MARGIN + i * (kpiW + kpiGap), y, kpiW, v, l, 32);
+    kpiItems.forEach(([v, l, tone], i) => {
+      kpiBox(ctx, MARGIN + i * (kpiW + kpiGap), y, kpiW, v, l, 32, tone);
     });
     y += 40;
 
@@ -869,7 +902,7 @@ export async function buildAndDownloadDailyReportPdf(
 
     const kpiGap = 4;
     const kpiW = (PAGE_W - MARGIN * 2 - kpiGap * 5) / 6;
-    const kpis: [string, string][] = [
+    const kpis: [string, string, KpiTone?][] = [
       [`${fmt(item.ctrl.tempC)}℃`, "온도"],
       [`${fmt(item.ctrl.humidityPct)}%`, "습도"],
       [
@@ -884,10 +917,14 @@ export async function buildAndDownloadDailyReportPdf(
         item.ctrl.motorC == null ? "—" : `${fmt(item.ctrl.motorC, 0)}%`,
         "채널 C",
       ],
-      [statusLabel(item.ctrl.status), "상태"],
+      [
+        statusLabel(item.ctrl.status),
+        "상태",
+        toneFromControllerStatus(item.ctrl.status),
+      ],
     ];
-    kpis.forEach(([v, l], idx) => {
-      kpiBox(ctx, MARGIN + idx * (kpiW + kpiGap), y, kpiW, v, l, 32);
+    kpis.forEach(([v, l, tone], idx) => {
+      kpiBox(ctx, MARGIN + idx * (kpiW + kpiGap), y, kpiW, v, l, 32, tone);
     });
     y += 40;
 
