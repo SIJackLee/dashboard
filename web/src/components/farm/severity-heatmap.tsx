@@ -8,6 +8,7 @@ import { METRIC_ID_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   SEV_COLOR,
   SEV_LABEL,
+  heatmapSevOpacity,
   severityScore,
   sevOfScore,
   type Band,
@@ -95,7 +96,7 @@ function HeatCells({
               className={cn(
                 labelMode === "text" && "text-[0.6rem] leading-none",
                 active
-                  ? "font-semibold text-sky-600 dark:text-sky-400"
+                  ? "font-semibold text-primary"
                   : labelMode === "text"
                     ? "text-muted-foreground"
                     : undefined,
@@ -150,9 +151,12 @@ function HeatCells({
                   aria-label={`${r.metric.label} ${SEV_LABEL[sev]}`}
                   className={cn(
                     "min-w-0 flex-1 rounded-[1px] transition-opacity hover:opacity-100",
-                    selected === r.metric.id && "ring-1 ring-inset ring-sky-500/50"
+                    selected === r.metric.id && "ring-1 ring-inset ring-primary/50"
                   )}
-                  style={{ background: SEV_COLOR[sev], opacity: sev === "normal" ? 0.18 : 0.9 }}
+                  style={{
+                    background: SEV_COLOR[sev],
+                    opacity: heatmapSevOpacity(sev),
+                  }}
                 />
               ) : (
                 <div
@@ -170,9 +174,12 @@ function HeatCells({
                   })}
                   className={cn(
                     "min-w-0 flex-1 rounded-[1px]",
-                    selected === r.metric.id && "ring-1 ring-inset ring-sky-500/40"
+                    selected === r.metric.id && "ring-1 ring-inset ring-primary/40"
                   )}
-                  style={{ background: SEV_COLOR[sev], opacity: sev === "normal" ? 0.18 : 0.9 }}
+                  style={{
+                    background: SEV_COLOR[sev],
+                    opacity: heatmapSevOpacity(sev),
+                  }}
                 />
               )
             )}
@@ -284,6 +291,14 @@ export function MetricLineChart({
   if (cur.length > 1) segments.push(cur.join(" "));
   const bandTop = band ? y(band.hi) : null;
   const bandBot = band ? y(band.lo) : null;
+  let lastValidIdx = -1;
+  for (let j = values.length - 1; j >= 0; j--) {
+    const xv = values[j];
+    if (xv != null && Number.isFinite(xv)) {
+      lastValidIdx = j;
+      break;
+    }
+  }
   return (
     <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="지표 상세 추이" style={{ display: "block" }}>
       {band && bandTop != null && bandBot != null ? (
@@ -295,12 +310,22 @@ export function MetricLineChart({
       {segments.map((pts, i) => (
         <polyline key={i} points={pts} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
       ))}
-      {values.map((v, i) => {
-        if (v == null || !Number.isFinite(v)) return null;
-        const sev = sevOfScore(severityScore(v, band));
-        if (sev === "normal") return null;
-        return <circle key={i} cx={x(i)} cy={y(v)} r={2.6} fill={SEV_COLOR[sev]} />;
-      })}
+      {lastValidIdx >= 0
+        ? (() => {
+            const v = values[lastValidIdx]!;
+            const sev = sevOfScore(severityScore(v, band));
+            if (sev === "normal" || sev === "neutral") return null;
+            return (
+              <circle
+                key={lastValidIdx}
+                cx={x(lastValidIdx)}
+                cy={y(v)}
+                r={2.6}
+                fill={SEV_COLOR[sev]}
+              />
+            );
+          })()
+        : null}
     </svg>
   );
 }
@@ -333,7 +358,8 @@ type Props = {
 };
 
 /**
- * 심각도 히트맵 — 지표(행) × 시간(열), 색 = 심각도(구간 최악).
+ * 심각도 히트맵 — 지표(행) × 시간(열).
+ * 최신 열만 현재 알람 밴드로 채점하고, 과거 열은 미채점(neutral).
  * 이상 셀/행 클릭 시 하단에서 컨트롤러별 미니 히트맵이 인라인 모프로 확대된다.
  * (컨트롤러 데이터가 없으면 집계 라인 차트로 폴백)
  */

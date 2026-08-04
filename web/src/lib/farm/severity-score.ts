@@ -10,6 +10,9 @@
  *
  *   정상: s <= 0.85 · 주의: 0.85 < s <= 1 · 경고: s > 1
  *
+ * 히트맵 정책: 현재 알람 밴드로 **최신 구간(맨 오른쪽 열)만** 채점한다.
+ * 과거 열은 미채점(`neutral`) — 상·하한 변경이 이력을 소급 재단하지 않는다.
+ *
  * 밴드 소스:
  *   온도 = 알람 tempLow ~ tempHigh (점선) — 녹색 fill은 기간 관측 min~max
  *   습도 = 알람 humidityLow ~ humidityHigh (점선)
@@ -20,7 +23,8 @@
 import type { AlarmThresholds } from "@/lib/data/alarms";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 
-export type Sev = "normal" | "caution" | "warning";
+/** neutral = 히트맵 과거 구간 미채점(현재 알람으로 소급하지 않음) */
+export type Sev = "neutral" | "normal" | "caution" | "warning";
 
 export const S_CAUTION = 0.85;
 export const S_WARNING = 1.0;
@@ -51,6 +55,7 @@ export function sevOfScore(s: number | null): Sev {
 export function worstSev(sevs: Sev[]): Sev {
   let w: Sev = "normal";
   for (const s of sevs) {
+    if (s === "neutral") continue;
     if (s === "warning") return "warning";
     if (s === "caution") w = "caution";
   }
@@ -134,13 +139,20 @@ export function statBand(values: (number | null | undefined)[]): Band | null {
 
 /** 심각도 색 — STATUS_ACCENT(emerald/amber/red)와 동일 팔레트. */
 export const SEV_COLOR: Record<Sev, string> = {
+  neutral: "#94a3b8",
   normal: "#10b981",
   caution: "#f59e0b",
   warning: "#ef4444",
 };
 
 export const SEV_LABEL: Record<Sev, string> = {
+  neutral: "이력",
   normal: "정상",
   caution: "주의",
   warning: "경고",
 };
+
+/** 히트맵 셀 투명도 — 미채점·정상은 옅게, 주의·경고는 진하게. */
+export function heatmapSevOpacity(sev: Sev): number {
+  return sev === "neutral" || sev === "normal" ? 0.18 : 0.9;
+}

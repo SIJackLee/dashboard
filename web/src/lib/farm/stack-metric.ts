@@ -44,6 +44,10 @@ export type StackMetricRowWithValues = StackMetricRow & {
   binnedValues: (number | null)[];
 };
 
+/**
+ * 히트맵 행 계산.
+ * 심각도는 **최신 bin만** 현재 밴드로 채점하고, 과거 bin은 `neutral`(미채점).
+ */
 export function computeStackMetricRows(
   metrics: StackMetric[],
   bars?: number,
@@ -51,9 +55,10 @@ export function computeStackMetricRows(
   return metrics.map((m) => {
     const scores = m.values.map((v) => severityScore(v, m.band));
     const binned = bars ? binWorst(scores, bars) : scores;
+    const last = binned.length - 1;
     return {
       metric: m,
-      sevs: binned.map((s) => sevOfScore(s)),
+      sevs: binned.map((s, i) => (i === last ? sevOfScore(s) : "neutral")),
       binnedValues: computeBinnedMetricValues(m.values, bars),
     };
   });
@@ -63,9 +68,10 @@ export function worstStackMetricSev(rows: StackMetricRow[]): Sev {
   return worstSev(rows.flatMap((r) => r.sevs));
 }
 
+/** 시계열 최신 유효값만 현재 밴드로 채점(이력 소급 없음). */
 export function worstSingleStackMetric(metric: StackMetric): Sev {
-  return worstSev(
-    metric.values.map((v) => sevOfScore(severityScore(v, metric.band))),
+  return sevOfScore(
+    severityScore(currentStackMetricValue(metric.values), metric.band),
   );
 }
 
