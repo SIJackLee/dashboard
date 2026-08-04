@@ -94,10 +94,11 @@ export default async function FarmPage({
     view: params.view,
   };
 
-  /** Admin hub — farmOptions는 shell과 병렬 후 확정. 스코프 defer는 activeFarmKey만으로 판단 */
-  const adminScopedFarmDefer = isAdmin && activeFarmKey != null;
+  /** Admin hub는 그리드만 클라이언트 hydrate. 단건 농장 선택은 SSR에서 LIVE 패널을 채운다.
+   *  (이전 adminScopedFarmDefer는 Capacitor에서 빈 허브 문구로 남는 경우가 있었음)
+   */
   const likelyAdminHub = isAdmin && !activeFarmKey;
-  const needsPanelData = Boolean(activeFarmKey) && !adminScopedFarmDefer;
+  const needsPanelData = Boolean(activeFarmKey);
   const needsHistory = needsPanelData || !likelyAdminHub;
 
   const [shellCtx, panelBundle] = await Promise.all([
