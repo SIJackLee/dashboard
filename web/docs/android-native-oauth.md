@@ -56,10 +56,17 @@ KAKAO_NATIVE_APP_KEY=<네이티브앱키>
 2. **카카오 로그인 ON** + **OpenID Connect ON** (id_token 발급 필수).
 3. 동의 항목: 닉네임 / 이메일(선택).
 4. 네이티브 앱 키를 `KAKAO_NATIVE_APP_KEY`에 설정.
-5. Supabase Kakao provider:  
-   - 웹 OAuth용 REST API 키는 기존 유지.  
-   - **네이티브 `signInWithIdToken`의 `aud`는 네이티브 앱 키**와 맞아야 한다.  
-     실패 시 Dashboard Client ID를 네이티브 앱 키로 맞추거나, 웹/앱 키 정책을 분리해 검토한다 ([supabase/auth#1755](https://github.com/supabase/auth/issues/1755)).
+5. Supabase Dashboard → Auth → Providers → Kakao **Client ID**:  
+   - 네이티브 `signInWithIdToken`의 `aud`는 **네이티브 앱 키**다.  
+   - Client ID에 네이티브 앱 키를 넣거나, 웹 REST 키와 함께 쓰려면  
+     `REST_API_KEY,NATIVE_APP_KEY` 형태(쉼표 구분)를 시도한다.  
+   - `Unacceptable audience in id_token: [<네이티브앱키>]` → Client ID에 해당 키가 없음 ([supabase/auth#1755](https://github.com/supabase/auth/issues/1755)).
+
+### Google Android 주의
+
+- `SocialLogin.login`에 `scopes`를 넘기지 않는다.  
+  넘기면 `You CANNOT use scopes without modifying the main activity` 가 난다.  
+  email/profile/openid는 플러그인 기본값으로 충분하다.
 
 ## 빌드
 

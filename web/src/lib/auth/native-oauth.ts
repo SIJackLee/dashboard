@@ -36,11 +36,11 @@ async function ensureGoogleInitialized(): Promise<void> {
 
 async function signInWithGoogleIdToken(): Promise<void> {
   await ensureGoogleInitialized();
+  // scopes를 넘기면 Capgo가 ModifiedMainActivity를 요구함.
+  // email/profile/openid는 Android 플러그인 기본값으로 이미 포함됨.
   const login = await SocialLogin.login({
     provider: "google",
-    options: {
-      scopes: ["email", "profile"],
-    },
+    options: {},
   });
 
   const idToken =
