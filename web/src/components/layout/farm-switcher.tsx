@@ -132,13 +132,18 @@ function FarmSwitcherBody({
 
     const query = params.toString();
     const href = query ? `${pathname}?${query}` : pathname;
-    // Capacitor WebView에서는 shallow replaceState가 선택 URL과 어긋날 수 있어
-    // 네이티브는 항상 full navigate로 농장 스코프를 확정한다.
+    // Capacitor WebView: router.push/shallow는 window.location·RSC 스코프가
+    // 어긋나 허브 빈 문구("표시할 농장 그리드가 없습니다")로 남는 경우가 있다.
+    // 네이티브는 document 로드로 SSR 단건 패널을 확정한다.
+    if (Capacitor.isNativePlatform()) {
+      window.location.assign(href);
+      return;
+    }
+
     const useShallow =
       pathname === "/farm" &&
       hubPanels?.ready === true &&
-      hubPanels.panels.length > 0 &&
-      !Capacitor.isNativePlatform();
+      hubPanels.panels.length > 0;
 
     if (useShallow) {
       startShallowTransition(() => {

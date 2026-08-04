@@ -159,10 +159,12 @@ function AdminHubBody({
 
   const clientActiveFarmKey = useMemo((): FarmKey | null => {
     if (!hubClientNav) return serverActiveFarmKey;
-    return parseFarmKeyFromQuery(
+    const fromWindow = parseFarmKeyFromQuery(
       currentFarmSearchParams().get("lsind"),
       currentFarmSearchParams().get("item"),
     );
+    // window URL이 비었는데 SSR만 농장 스코프면 서버 값을 따른다 (네이티브 soft-nav 잔여)
+    return fromWindow ?? serverActiveFarmKey;
   // hubUrlEpoch/ctxEpoch: URL shallow 변경 시 재파싱 트리거
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 포함
   }, [hubClientNav, serverActiveFarmKey, hubUrlEpoch, ctxEpoch]);
@@ -268,10 +270,11 @@ export function FarmDashboardShell({
 
   const clientActiveFarmKey = useMemo((): FarmKey | null => {
     if (!hubClientNav) return serverActiveFarmKey;
-    return parseFarmKeyFromQuery(
+    const fromWindow = parseFarmKeyFromQuery(
       currentFarmSearchParams().get("lsind"),
       currentFarmSearchParams().get("item"),
     );
+    return fromWindow ?? serverActiveFarmKey;
   // hubUrlEpoch: shallow URL 변경 시 재파싱 트리거
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 포함
   }, [hubClientNav, serverActiveFarmKey, hubUrlEpoch]);

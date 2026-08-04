@@ -79,11 +79,12 @@ export function AdminAllFarmsGridPanels({
     liveFromContext &&
     hub != null &&
     (hub.tailFarmKeys.length > 0 ||
-      (hub.hubFarmKeys.length > 0 && !hub.ready && livePanels.length === 0));
+      !hub.ready ||
+      (hub.hubFarmKeys.length > 0 && livePanels.length === 0 && pendingKeys.length > 0));
   const placeholderKeys =
     pendingKeys.length > 0
       ? pendingKeys
-      : stillHydrating && hub
+      : stillHydrating && hub && hub.hubFarmKeys.length > 0
         ? hub.hubFarmKeys
         : [];
   const hidden =
@@ -99,6 +100,23 @@ export function AdminAllFarmsGridPanels({
   );
 
   if (livePanels.length === 0 && placeholderKeys.length === 0) {
+    // hydrate seed(useLayoutEffect) 전·진행 중에는 빈 문구 대신 로딩
+    if (liveFromContext && hub && (!hub.ready || hub.tailFarmKeys.length > 0)) {
+      return (
+        <div
+          className={cn(
+            "flex min-h-[16rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed bg-muted/20 px-6 py-12 text-center",
+            dashboardUi.body,
+          )}
+          aria-busy
+        >
+          <p className="font-medium text-foreground">그리드 불러오는 중…</p>
+          <p className="text-sm text-muted-foreground md:text-base">
+            농장 LIVE 축사 그리드를 준비하고 있습니다.
+          </p>
+        </div>
+      );
+    }
     return (
       <div
         className={cn(

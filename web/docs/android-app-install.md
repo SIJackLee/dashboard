@@ -46,4 +46,5 @@ Play 스토어 없이 **도메인 링크 + APK 사이드로드**용입니다.
 - 미인증 공개: `src/lib/supabase/middleware.ts` 의 `/app`
 
 홈 화면 아이콘은 APK 리소스(`android/.../mipmap-*`)에 포함된다.  
-`/app`에서 받는 APK를 새 아이콘으로 맞추려면 release 빌드 후 Storage `sungil-iot.apk`를 다시 업로드한다.
+`scripts/generate-app-icon.py`가 `app_logo3.png`를 **safe zone(~62%)** 안에 배치해 스쿼클/원형 마스크에 글자·로고가 잘리지 않게 한다.  
+`/app`에서 받는 APK를 새 아이콘으로 맞추려면 스크립트 실행 → release/debug 빌드 후 Storage `sungil-iot.apk`를 다시 업로드한다.

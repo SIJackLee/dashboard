@@ -48,19 +48,75 @@ KAKAO_NATIVE_APP_KEY=<네이티브앱키>
 4. Firebase에 SHA-1 등록 후 `google-services.json` 재다운로드 (현재 `oauth_client`가 비어 있음).
 5. Supabase Dashboard → Auth → Providers → Google: Web client ID / secret 확인.
 
-### 카카오 개발자
+### 카카오 — 웹(모바일 브라우저) + 네이티브 앱 동시 사용
 
-1. [developers.kakao.com](https://developers.kakao.com) → 앱 → **플랫폼 → Android**  
-   - 패키지: `com.autofankorea.dashboard`  
-   - 키 해시 (디버그): `fppO0dBbnuvvZpEHVMZXo6I45U8=`
-2. **카카오 로그인 ON** + **OpenID Connect ON** (id_token 발급 필수).
-3. 동의 항목: 닉네임 / 이메일(선택).
-4. 네이티브 앱 키를 `KAKAO_NATIVE_APP_KEY`에 설정.
-5. Supabase Dashboard → Auth → Providers → Kakao **Client ID**:  
-   - 네이티브 `signInWithIdToken`의 `aud`는 **네이티브 앱 키**다.  
-   - Client ID에 네이티브 앱 키를 넣거나, 웹 REST 키와 함께 쓰려면  
-     `REST_API_KEY,NATIVE_APP_KEY` 형태(쉼표 구분)를 시도한다.  
-   - `Unacceptable audience in id_token: [<네이티브앱키>]` → Client ID에 해당 키가 없음 ([supabase/auth#1755](https://github.com/supabase/auth/issues/1755)).
+코드는 이미 플랫폼별로 갈라진다 (`oauth-buttons.tsx`).
+
+| 환경 | 경로 | 쓰는 키 |
+|------|------|---------|
+| PC/모바일 **브라우저** (`/login`) | Supabase `signInWithOAuth` → 카카오 인가 페이지 | **REST API 키** |
+| **Android 앱** (Capacitor) | 카카오 SDK → `signInWithIdToken` | **네이티브 앱 키** (`aud`) |
+
+한 Supabase 프로젝트에서 둘 다 쓰려면 Client ID에 **쉼표로 두 키**를 넣는다.
+
+#### 1) 카카오 디벨로퍼스 (앱: Dashboard / SUN 등)
+
+**공통**
+1. [제품 설정] → **카카오 로그인** → 사용 **ON**
+2. **OpenID Connect** **ON** (앱 id_token 필수)
+3. 동의 항목: 닉네임, (선택) 계정 이메일
+
+**REST API 키** (웹 OAuth용)
+1. [앱] → [플랫폼 키] → **REST API 키** 선택
+2. **카카오 로그인 Redirect URI**에 등록 (한 줄, 끝 슬래시 없이):
+   ```
+   https://ompufmezugftzoergdbn.supabase.co/auth/v1/callback
+   ```
+3. **카카오 로그인 Client Secret** 발급 후 상태 **ON**  
+   → 이 값이 Supabase **Client Secret**이다. (네이티브 앱 키가 아님)
+
+**네이티브 앱 키** (Android SDK용)
+1. [앱] → [플랫폼 키] → **네이티브 앱 키** (또는 Android 플랫폼)
+2. 패키지: `com.autofankorea.dashboard`
+3. 키 해시  
+   - 디버그: `fppO0dBbnuvvZpEHVMZXo6I45U8=`  
+   - 릴리즈/Play 서명 SHA면 해당 키 해시 추가
+4. 로컬·Vercel·`android/local.properties`에  
+   `KAKAO_NATIVE_APP_KEY` / `NEXT_PUBLIC_KAKAO_NATIVE_APP_KEY` = 네이티브 앱 키
+
+#### 2) Supabase Dashboard
+
+[Authentication] → [Providers] → **Kakao** → Enabled ON
+
+| 필드 | 넣을 값 |
+|------|---------|
+| Client ID (REST API Key 칸) | `REST_API_키,네이티브_앱_키`  
+  예: `60f68834…e4ddab,098088d3…57391c`  
+  **앞=웹 OAuth, 뒤=앱 id_token aud** (순서 권장: REST 먼저) |
+| Client Secret | REST 키 화면의 **카카오 로그인 Client Secret 코드만** |
+| Allow users without an email | ON 권장 (비즈 앱이 아니거나 이메일 미동의 시) |
+
+잘못된 예:
+- Client Secret에 네이티브 앱 키를 넣음 → 웹 OAuth 실패
+- Client ID에 네이티브만 넣음 → 웹 KOE033 / 브라우저 로그인 불가
+- Client ID에 REST만 넣음 → 앱 `Unacceptable audience in id_token`
+
+Callback URL(복사만, 카카오에 이미 등록):  
+`https://ompufmezugftzoergdbn.supabase.co/auth/v1/callback`
+
+#### 3) 검증 체크리스트
+
+1. **PC Chrome** `https://smart.autofankorea.com/login` → 카카오 → 동의 → `/farm` 또는 `/pending`
+2. **휴대폰 브라우저** 동일 URL → 동일 (웹 OAuth, REST 키)
+3. **설치 앱** → 카카오 → 카톡 있으면 앱 로그인, 없으면 계정 웹뷰 → 대시보드  
+   - `Unacceptable audience` → Supabase Client ID에 네이티브 키 누락  
+   - KOE033(웹만) → Client ID가 네이티브만 있거나 Redirect URI 불일치
+4. 같은 카카오 계정이면 웹·앱 모두 같은 Supabase user로 이어지는 경우가 많다 (이메일/식별자 정책에 따름)
+
+#### 4) 로컬 개발
+
+- 웹: `npm run dev` → `http://localhost:3000/login` (카카오 Redirect는 여전히 **Supabase callback**이라 REST URI 추가 등록 불필요)
+- 앱: Capacitor `server.url`이 프로덕션이면 배포 JS·env를 따름. 네이티브 키는 `cap sync` + APK에 포함
 
 ### Google Android 주의
 
