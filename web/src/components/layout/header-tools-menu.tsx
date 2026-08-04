@@ -12,7 +12,6 @@ import {
   Bell,
   ChevronDown,
   ChevronUp,
-  EllipsisVertical,
   FileText,
   Monitor,
   Moon,
@@ -43,13 +42,12 @@ import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import { ModuleAlarmAckButton } from "@/components/layout/module-alarm-ack-button";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { motionDuration } from "@/lib/ui/motion-tokens";
-import { useOpenPresence } from "@/lib/ui/use-clip-presence";
 import {
   getViewportPreference,
   getViewportPreviewMode,
   setViewportPreviewMode,
   subscribeViewportPreview,
+  VIEWPORT_MOBILE_MEDIA_QUERY,
   type ViewportPreviewMode,
 } from "@/lib/ui/viewport-preview-store";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
@@ -61,12 +59,20 @@ import {
 } from "@/lib/onboarding/tour-timing";
 import { cn } from "@/lib/utils";
 
-/** CSS --tools-cascade-ms 와 동일: moderate + max*stagger */
-const TOOLS_STAGGER_MS = 45;
-function toolsCascadeExitMs(toolsMax: number) {
-  return motionDuration.moderate + toolsMax * TOOLS_STAGGER_MS;
-}
 const emptySubscribe = () => () => {};
+
+/** 미리보기가 Tailwind `md`를 꺼도, 실제 창 너비로 토글 노출 여부 판단 */
+function subscribeRealDesktopWidth(onChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const mq = window.matchMedia(VIEWPORT_MOBILE_MEDIA_QUERY);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+function getRealDesktopWidth(): boolean {
+  if (typeof window === "undefined") return true;
+  return !window.matchMedia(VIEWPORT_MOBILE_MEDIA_QUERY).matches;
+}
 
 export type HubWidgetPattern = "design" | "function" | "mode" | "all";
 
@@ -75,7 +81,7 @@ type Props = {
   alarms?: AlarmRow[];
   isAdmin?: boolean;
   farmKey?: FarmKey | null;
-  /** header: TopBar ⋯ · hub-panel: 통합 FAB 본문 */
+  /** header: TopBar 상시 아이콘 · hub-panel: (레거시) 통합 FAB 본문 */
   variant?: "header" | "hub-panel";
   /** hub-panel 전용 — 디자인/기능/모드/전체 */
   hubPattern?: HubWidgetPattern;
@@ -205,7 +211,6 @@ export function HeaderToolsMenu({
   const alarmList = activeAlarms.slice(0, 12);
   /** 통신 두절은 알람에 포함 — 배지는 활성 이상상황 건수 */
   const alert = alarmCount > 0 || offline > 0;
-  const badgeCount = alarmCount;
 
   const onOps = isAdminOpsNavPath(pathname);
   const opsHref = onOps ? "/farm" : "/admin/ops";
@@ -220,13 +225,18 @@ export function HeaderToolsMenu({
     getViewportPreference,
     () => "auto" as const,
   );
+  /** 실기기 좁은 폭에서는 숨김. 모바일 *미리보기* 중에도 PC 창이면 유지 */
+  const showViewportToggle = useSyncExternalStore(
+    subscribeRealDesktopWidth,
+    getRealDesktopWidth,
+    () => true,
+  );
   const viewportIsMobile = viewportMode === "mobile";
   const ViewportIcon = viewportIsMobile ? Monitor : Smartphone;
   const nextViewport: ViewportPreviewMode = viewportIsMobile
     ? "desktop"
     : "mobile";
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const [detail, setDetail] = useState<DetailId | null>(null);
   const [alarmListOpen, setAlarmListOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -236,8 +246,7 @@ export function HeaderToolsMenu({
     const onTourAction = (e: Event) => {
       const action = (e as CustomEvent<{ action?: string }>).detail?.action;
       if (action === "open-header-tools") {
-        // 이미 열린 경우에도 done을 보내야 투어가 타임아웃(2s)에 안 걸림.
-        setMenuOpen(true);
+        // 상시 노출 툴바 — 패널 타깃만 확인
         void (async () => {
           await afterFrames(2);
           await waitForTourTarget('[data-tour-id="header-tools-panel"]');
@@ -246,8 +255,8 @@ export function HeaderToolsMenu({
         return;
       }
       if (action === "close-header-tools") {
-        setMenuOpen(false);
         setDetail(null);
+        setAlarmListOpen(false);
         dispatchTourGridActionDone("close-header-tools");
       }
     };
@@ -272,16 +281,11 @@ export function HeaderToolsMenu({
       ? `모바일 레이아웃${viewportPref === "auto" ? " (자동)" : ""} → PC`
       : `PC 레이아웃${viewportPref === "auto" ? " (자동)" : ""} → 모바일`;
 
-  const toolsMax = isAdmin ? 5 : 4;
-  const { mounted: toolsRailMounted, phase: toolsRailPhase } = useOpenPresence(
-    menuOpen && !viewportCompact,
-    toolsCascadeExitMs(toolsMax),
-  );
-  const iTheme = 0;
-  const iViewport = 1;
+  const iBell = 0;
+  const iOps = 1;
   const iReport = 2;
-  const iOps = 3;
-  const iBell = isAdmin ? 4 : 3;
+  const iTheme = 3;
+  const iViewport = 4;
 
   const toggleDetail = (id: DetailId) => {
     setDetail((prev) => (prev === id ? null : id));
@@ -291,22 +295,10 @@ export function HeaderToolsMenu({
     }
   };
 
-  const trigger = (
-    <>
-      <EllipsisVertical className="size-4 md:size-5" aria-hidden />
-      {badgeCount > 0 ? (
-        <span
-          className={cn(
-            dashboardUi.topHeaderCountBadge,
-            dashboardUi.topHeaderCountBadgeAlert,
-          )}
-          suppressHydrationWarning
-        >
-          {badgeCount > 99 ? "99+" : badgeCount}
-        </span>
-      ) : null}
-    </>
-  );
+  const closePanels = () => {
+    setDetail(null);
+    setAlarmListOpen(false);
+  };
 
   const toggleTheme = () => {
     const next = themeIsDark ? "light" : "dark";
@@ -394,18 +386,19 @@ export function HeaderToolsMenu({
         />
       </ToolsIconWrap>
     );
-    const viewport = (
-      <ToolsIconWrap key="viewport" toolsI={iViewport}>
-        {viewportBtn}
-      </ToolsIconWrap>
-    );
+    const viewport =
+      isHub || showViewportToggle ? (
+        <ToolsIconWrap key="viewport" toolsI={iViewport}>
+          {viewportBtn}
+        </ToolsIconWrap>
+      ) : null;
     const themeEl = (
       <ToolsIconWrap key="theme" toolsI={iTheme}>
         {themeBtn}
       </ToolsIconWrap>
     );
 
-    /* 1·2 디자인 · 3 기능 · 4 운영 · 5 이상상황(통신 두절 포함) */
+    /* hub: 그룹별 · header: 이상상황 → 운영 → 리포트 → 테마 → (md+) 뷰포트 */
     const hubItems =
       group === "design"
         ? [themeEl, viewport]
@@ -423,9 +416,7 @@ export function HeaderToolsMenu({
     const items = (
       isHub
         ? hubItems
-        : vertical
-          ? [themeEl, viewport, report, ops, bell]
-          : [bell, ops, report, viewport, themeEl]
+        : [bell, ops, report, themeEl, viewport]
     ).filter(Boolean);
 
     if (asNodes) return items;
@@ -633,9 +624,7 @@ export function HeaderToolsMenu({
                           motionClass.microInteractive,
                         )}
                         onClick={() => {
-                          setMenuOpen(false);
-                          setDetail(null);
-                          setAlarmListOpen(false);
+                          closePanels();
                           navigate(alarmChartHref(a), {
                             message: isModuleAlarmRow(a)
                               ? "농장 차트로 이동 중…"
@@ -853,139 +842,42 @@ export function HeaderToolsMenu({
 
   if (!mounted) {
     return (
-      <button
-        type="button"
-        className={cn(
-          dashboardUi.topHeaderActionBtn,
-          alert && dashboardUi.topHeaderActionBtnAlert,
-        )}
+      <div
+        className="flex h-9 shrink-0 items-center gap-1.5 md:h-11"
         data-tour-id="header-tools"
-        aria-label="헤더 도구"
-        title="헤더 도구"
-      >
-        {trigger}
-      </button>
+        aria-hidden
+      />
     );
   }
 
-  const setOpen = (open: boolean) => {
-    setMenuOpen(open);
-    if (!open) setDetail(null);
-  };
-
-  /* 모바일: ⋯는 고정, 배경 카드만 트리거를 감싸며 아래로 펼침 */
-  if (viewportCompact) {
-    return (
-      <div className="relative size-9 shrink-0 md:size-11">
-        {menuOpen ? (
-          <button
-            type="button"
-            className="fixed inset-0 z-40 cursor-default bg-transparent"
-            aria-label="도구 메뉴 닫기"
-            onClick={() => setOpen(false)}
-          />
-        ) : null}
-        {menuOpen ? (
-          <div
-            className={cn(
-              motionClass.headerToolsPanel,
-              "header-tools-cascade-card absolute right-0 top-0 z-[45] flex flex-col items-end gap-1.5",
-              /* -ml 금지 — 왼쪽 차트 레이어 버튼과 겹치지 않게 */
-              "rounded-xl border !bg-popover p-2 -mt-2 -mr-2 -mb-2 text-popover-foreground !shadow-md ring-1 ring-foreground/10",
-            )}
-            data-cascade="vertical"
-            data-open=""
-            data-header-tools-cascade=""
-            data-tour-id="header-tools-panel"
-            style={{ ["--tools-max" as string]: toolsMax } as CSSProperties}
-          >
-            {/* 트리거 자리만 확보 — 실제 ⋯는 형제(z-50)로 고정 */}
-            <div
-              className="pointer-events-none size-9 shrink-0 opacity-0 md:size-11"
-              aria-hidden
-            />
-            {toolbarIcons({ vertical: true })}
-            {detailPanel}
-          </div>
-        ) : null}
-        <button
-          type="button"
-          className={cn(
-            "relative z-50",
-            dashboardUi.topHeaderActionBtn,
-            alert && dashboardUi.topHeaderActionBtnAlert,
-          )}
-          data-tour-id="header-tools"
-          aria-label="헤더 도구"
-          title="헤더 도구"
-          aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          onClick={() => setOpen(!menuOpen)}
-        >
-          {trigger}
-        </button>
-      </div>
-    );
-  }
-
-  /* PC: in-flow 가로 레일 — 폭 애니와 함께 차트 레이어가 밀림/당겨짐 */
+  /* TopBar 상시 가로 아이콘 — ⋯ / FAB 레일 없음 */
   return (
-    <div className="relative flex shrink-0 items-center">
-      {menuOpen ? (
+    <div
+      className="relative flex shrink-0 items-center"
+      data-tour-id="header-tools"
+    >
+      {detail ? (
         <button
           type="button"
           className="fixed inset-0 z-40 cursor-default bg-transparent"
-          aria-label="도구 메뉴 닫기"
-          onClick={() => setOpen(false)}
+          aria-label="도구 패널 닫기"
+          onClick={closePanels}
         />
       ) : null}
-      {toolsRailMounted ? (
+      <div
+        className="relative z-[45] flex items-center gap-1.5"
+        data-tour-id="header-tools-panel"
+      >
+        {toolbarIcons({ vertical: false })}
+      </div>
+      {detailPanel ? (
         <div
-          className={cn(motionClass.headerToolsPanel, "relative z-[45]")}
-          data-cascade="horizontal"
-          data-open={toolsRailPhase === "enter" ? "" : undefined}
-          data-ending-style={toolsRailPhase === "exit" ? "" : undefined}
-          data-header-tools-cascade=""
-          data-tour-id="header-tools-panel"
-          style={{ ["--tools-max" as string]: toolsMax } as CSSProperties}
-          aria-hidden={toolsRailPhase === "exit"}
+          className="absolute right-0 top-[calc(100%+8px)] z-[45] min-w-[12rem]"
+          data-tour-id="header-tools-detail-panel"
         >
-          <div className="header-tools-rail-inner">
-            <div className="flex items-center gap-1.5">
-              {toolbarIcons({ vertical: false })}
-            </div>
-          </div>
+          {detailPanel}
         </div>
       ) : null}
-      <div className="relative shrink-0">
-        <button
-          type="button"
-          className={cn(
-            "relative z-50",
-            dashboardUi.topHeaderActionBtn,
-            alert && dashboardUi.topHeaderActionBtnAlert,
-          )}
-          data-tour-id="header-tools"
-          aria-label="헤더 도구"
-          title="헤더 도구"
-          aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          onClick={() => setOpen(!menuOpen)}
-        >
-          {trigger}
-        </button>
-        {menuOpen && detailPanel ? (
-          <div
-            className={cn(
-              "absolute right-0 top-[calc(100%+8px)] z-[45] min-w-[12rem]",
-              "rounded-xl border bg-popover p-2 text-popover-foreground shadow-md ring-1 ring-foreground/10",
-            )}
-            data-tour-id="header-tools-detail-panel"
-          >
-            {detailPanel}
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }

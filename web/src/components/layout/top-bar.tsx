@@ -1,6 +1,6 @@
 import { AppHeaderAccount } from "@/components/layout/app-header-account";
 import { AppHeaderBrand } from "@/components/layout/app-header-brand";
-import { HubWidgetFab } from "@/components/layout/hub-widget-fab";
+import { HeaderToolsMenu } from "@/components/layout/header-tools-menu";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmOverview } from "@/lib/data/iot";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
@@ -50,11 +50,12 @@ export function TopBar({
             data-tour-id="header-actions"
             className="flex shrink-0 items-center gap-4 md:gap-3"
           >
-            <HubWidgetFab
+            <HeaderToolsMenu
               overview={overview}
               alarms={alarms}
               isAdmin={isAdmin}
               farmKey={activeFarmKey}
+              variant="header"
             />
             <AppHeaderAccount
               user={user}
