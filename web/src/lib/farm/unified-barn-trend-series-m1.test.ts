@@ -12,6 +12,7 @@ import {
   buildUnifiedBarnTrendSeries,
   mapUnifiedBarnTrendRawToSplitY,
   resolveSplitYLayout,
+  SPLIT_Y_BAND_GAP,
 } from "./unified-barn-trend-series";
 
 function sampleCtrl(
@@ -61,6 +62,19 @@ const layoutTempOnly = resolveSplitYLayout({
   showMotors: false,
 });
 
+{
+  /** 밴드 사이 갭 — 상·하한 라벨 분리 */
+  assert.ok(
+    layoutFull.humLo - layoutFull.motorHi >= SPLIT_Y_BAND_GAP - 1e-6,
+    "motor↔hum gap",
+  );
+  assert.ok(
+    layoutFull.tempLo - layoutFull.humHi >= SPLIT_Y_BAND_GAP - 1e-6,
+    "hum↔temp gap",
+  );
+  assert.equal(layoutTempOnly.tempLo, 0);
+  assert.equal(layoutTempOnly.tempHi, 100);
+}
 {
   const raw = aggregateUnifiedBarnTrendRaw(list, categories, thresholds);
   assert.ok(raw, "raw aggregate");

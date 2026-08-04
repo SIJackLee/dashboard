@@ -30,6 +30,7 @@ export async function PageShell({
         farmLocationOptions={ctx.farmLocationOptions}
         farmOptions={ctx.farmOptions}
         activeFarmKey={ctx.activeFarmKey}
+        farmSummaries={ctx.farmSummaries}
         canEditLocation={ctx.canEditLocation}
         user={{
           displayName: user?.displayName ?? null,

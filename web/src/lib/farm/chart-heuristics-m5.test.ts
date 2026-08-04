@@ -73,12 +73,12 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   assert.equal(
     resolveYScopeBands(50, 55, layoutAll, ALL_VIS),
     null,
-    "밴드 경계 모호 → null(레이어 유지)",
+    "습·온 사이 갭 → null(레이어 유지)",
   );
   assert.equal(
     resolveYScopeBands(20, 22, layoutAll, ALL_VIS),
     null,
-    "모터/습 경계 모호 → null",
+    "모터·습 사이 갭 → null",
   );
 }
 

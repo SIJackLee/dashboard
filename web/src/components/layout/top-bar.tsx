@@ -5,6 +5,7 @@ import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmOverview } from "@/lib/data/iot";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
 import type { FarmKey } from "@/lib/data/farm-key";
+import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 
 type Role = "admin" | "operator" | "viewer";
@@ -16,6 +17,7 @@ type TopBarProps = {
   farmLocationOptions?: EditableFarmOption[];
   farmOptions?: FarmKey[];
   activeFarmKey?: FarmKey | null;
+  farmSummaries?: FarmSummaryRow[];
   canEditLocation?: boolean;
   user: {
     displayName: string | null;
@@ -30,6 +32,7 @@ export function TopBar({
   farmLocationOptions = [],
   farmOptions = [],
   activeFarmKey = null,
+  farmSummaries = [],
   canEditLocation = false,
   user,
 }: TopBarProps) {
@@ -58,6 +61,8 @@ export function TopBar({
               receipts={overview?.receipts}
               farmLocationOptions={farmLocationOptions}
               farmOptions={farmOptions}
+              activeFarmKey={activeFarmKey}
+              farmSummaries={farmSummaries}
               canEditLocation={canEditLocation}
             />
           </div>

@@ -212,31 +212,6 @@ export type SplitYLayout = {
   domain: [number, number];
 };
 
-/** 습도 ON — 모터 ~20% · 습도 ~30% · 온도 ~50% */
-export const SPLIT_Y_WITH_HUM: SplitYLayout = {
-  motorLo: 0,
-  motorHi: 20,
-  humLo: 20,
-  humHi: 50,
-  tempLo: 50,
-  tempHi: 100,
-  domain: [0, 100],
-};
-
-/** 습도 OFF — 온도가 습도 자리를 회수 (~80%) */
-export const SPLIT_Y_TEMP_EXPANDED: SplitYLayout = {
-  motorLo: 0,
-  motorHi: 20,
-  humLo: 20,
-  humHi: 20,
-  tempLo: 20,
-  tempHi: 100,
-  domain: [0, 100],
-};
-
-/** @deprecated 습도 포함 레이아웃 별칭 */
-export const SPLIT_Y = SPLIT_Y_WITH_HUM;
-
 export type SplitYVisibility = {
   showTemp: boolean;
   showHum: boolean;
@@ -244,8 +219,15 @@ export type SplitYVisibility = {
 };
 
 /**
+ * 밴드 사이 여백 (domain 0–100).
+ * 모바일 ~320px 기준 ≈26px — 상·하한 라벨 칩 충돌 완화.
+ */
+export const SPLIT_Y_BAND_GAP = 8;
+
+/**
  * 활성 밴드만 가중치로 0–100 분배.
  * 모터:습도:온도 ≈ 1 : 1.5 : 2.5 (단독이면 전폭).
+ * 밴드 사이에는 {@link SPLIT_Y_BAND_GAP} 만큼 빈 구간.
  */
 export function resolveSplitYLayout(
   visibility: boolean | SplitYVisibility,
@@ -277,15 +259,19 @@ export function resolveSplitYLayout(
   }
 
   const sum = parts.reduce((a, p) => a + p.w, 0);
+  const gapTotal = Math.max(0, parts.length - 1) * SPLIT_Y_BAND_GAP;
+  const usable = Math.max(0, 100 - gapTotal);
   let cursor = 0;
   const bands: Record<"motor" | "hum" | "temp", { lo: number; hi: number }> = {
     motor: { lo: 0, hi: 0 },
     hum: { lo: 0, hi: 0 },
     temp: { lo: 0, hi: 0 },
   };
-  for (const p of parts) {
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]!;
+    if (i > 0) cursor += SPLIT_Y_BAND_GAP;
     const lo = cursor;
-    cursor += (p.w / sum) * 100;
+    cursor += (p.w / sum) * usable;
     bands[p.key] = { lo, hi: cursor };
   }
 
@@ -299,6 +285,23 @@ export function resolveSplitYLayout(
     domain: [0, 100],
   };
 }
+
+/** 습도 ON — 모터 · 습도 · 온도 (밴드 사이 갭 포함) */
+export const SPLIT_Y_WITH_HUM: SplitYLayout = resolveSplitYLayout({
+  showTemp: true,
+  showHum: true,
+  showMotors: true,
+});
+
+/** 습도 OFF — 모터 · 온도 (밴드 사이 갭 포함) */
+export const SPLIT_Y_TEMP_EXPANDED: SplitYLayout = resolveSplitYLayout({
+  showTemp: true,
+  showHum: false,
+  showMotors: true,
+});
+
+/** @deprecated 습도 포함 레이아웃 별칭 */
+export const SPLIT_Y = SPLIT_Y_WITH_HUM;
 
 function lerpNum(a: number, b: number, t: number): number {
   return a + (b - a) * t;

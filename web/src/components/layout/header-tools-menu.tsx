@@ -788,8 +788,6 @@ export function HeaderToolsMenu({
         toolbarIcons({ vertical: true, asNodes: true }) as ReactNode[]
       ).filter(Boolean);
       const n = nodes.length;
-      /* 차트 슬롯이 FAB에서 +1 — stagger 역순에 맞춤 */
-      const slotN = n + 1;
       const distances = hubRailToolDistances(
         n,
         hubRailPitch,
@@ -822,7 +820,7 @@ export function HeaderToolsMenu({
                     left: ox,
                     top: oy,
                     ["--hub-rail-i" as string]: i,
-                    ["--hub-rail-n" as string]: String(slotN),
+                    ["--hub-rail-n" as string]: String(n),
                     ["--hub-rail-dx" as string]: railAxis.dx,
                     ["--hub-rail-dy" as string]: railAxis.dy,
                   } as CSSProperties

@@ -1,9 +1,6 @@
 "use client";
 
 import {
-  useLayoutEffect,
-  useRef,
-  useState,
   type ComponentType,
   type CSSProperties,
   type ReactNode,
@@ -11,10 +8,8 @@ import {
 import {
   Check,
   CheckCheck,
-  ChevronDown,
   Droplets,
   Fan,
-  LineChart,
   Thermometer,
   X,
 } from "lucide-react";
@@ -30,11 +25,9 @@ import type {
 } from "@/lib/farm/unified-barn-trend-series";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { motionDuration } from "@/lib/ui/motion-tokens";
-import { useOpenPresence } from "@/lib/ui/use-clip-presence";
 import { cn } from "@/lib/utils";
 
-type Tone = "root" | "temp" | "hum" | "motor" | "neutral";
+type Tone = "temp" | "hum" | "motor" | "neutral";
 
 export type LayerGroupId = "temp" | "hum" | "motor";
 
@@ -124,7 +117,7 @@ export function applyLayerGroupMode(
     for (const id of GROUP_SUBS[group]) next[id] = false;
     return next;
   }
-  // off — 그룹 그래프 전부
+  // off — 그룹 그래프 해제
   next[main] = false;
   for (const id of GROUP_SUBS[group]) next[id] = false;
   return next;
@@ -146,14 +139,12 @@ type Props = {
   available: UnifiedTrendLayerAvailable;
   onCycleGroup: (group: LayerGroupId) => void;
   className?: string;
-  /** hub FAB portal · inline 차트 헤더 */
+  /** @deprecated 헤더 인라인만 사용. hub 무시 */
   placement?: "hub" | "inline";
 };
 
 function toneActiveClass(tone: Tone): string {
   switch (tone) {
-    case "root":
-      return dashboardUi.chartLayerActionBtn;
     case "temp":
       return dashboardUi.chartLayerGroupTemp;
     case "hum":
@@ -167,7 +158,7 @@ function toneActiveClass(tone: Tone): string {
 
 function iconBtnClass(active: boolean, muted: boolean, tone: Tone) {
   return cn(
-    "relative inline-flex size-9 shrink-0 items-center justify-center overflow-visible rounded-lg border md:size-11",
+    "relative inline-flex size-8 shrink-0 items-center justify-center overflow-visible rounded-md border",
     motionClass.microInteractive,
     active
       ? toneActiveClass(tone)
@@ -181,8 +172,6 @@ function IconTipButton({
   label,
   on,
   pressed,
-  expanded,
-  controls,
   muted,
   tone = "neutral",
   onClick,
@@ -193,8 +182,6 @@ function IconTipButton({
   label: string;
   on?: boolean;
   pressed?: boolean;
-  expanded?: boolean;
-  controls?: string;
   muted?: boolean;
   tone?: Tone;
   onClick: () => void;
@@ -202,22 +189,20 @@ function IconTipButton({
   className?: string;
   style?: CSSProperties;
 }) {
-  const active = Boolean(on ?? pressed ?? expanded);
+  const active = Boolean(on ?? pressed);
   return (
     <Tooltip>
       <TooltipTrigger
         type="button"
         aria-label={label}
         aria-pressed={pressed}
-        aria-expanded={expanded}
-        aria-controls={controls}
         onClick={onClick}
         className={cn(iconBtnClass(active, Boolean(muted), tone), className)}
         style={style}
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent side="bottom" sideOffset={10} className="z-[80]">
+      <TooltipContent side="bottom" sideOffset={8} className="z-[80]">
         {label}
       </TooltipContent>
     </Tooltip>
@@ -231,7 +216,7 @@ function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
     <span
       key={mode}
       className={cn(
-        "pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex size-4 items-center justify-center rounded-full border bg-background shadow-sm",
+        "pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex size-3.5 items-center justify-center rounded-full border bg-background shadow-sm",
         mode === "off"
           ? "border-muted-foreground/40 text-muted-foreground"
           : "border-current/30 text-current",
@@ -239,37 +224,21 @@ function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
       )}
       aria-hidden
     >
-      <Icon className="size-2.5 md:size-3" strokeWidth={2.5} />
+      <Icon className="size-2.5" strokeWidth={2.5} />
     </span>
   );
 }
 
 /**
- * 차트 레이어 툴바 — 온도·습도·모터 대표 3버튼.
+ * 차트 레이어 툴바 — 온도·습도·모터 가로 3버튼 (헤더용).
  * 각 버튼 클릭: 전체적용 → 본선만 → 끔 → 전체적용.
- * 오버레이: 중첩체크 / 체크 / 엑스
  */
 export function UnifiedTrendLayerToolbar({
   layers,
   available,
   onCycleGroup,
   className,
-  placement = "inline",
 }: Props) {
-  const [rootOpen, setRootOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [flyUp, setFlyUp] = useState(placement === "hub");
-
-  useLayoutEffect(() => {
-    if (placement !== "hub") {
-      setFlyUp(false);
-      return;
-    }
-    const panel = rootRef.current?.closest("[data-hub-layers-flyout]");
-    const side = panel?.getAttribute("data-hub-layers-flyout");
-    setFlyUp(side !== "down");
-  }, [placement, rootOpen]);
-
   const groups = (
     [
       available.temp ? "temp" : null,
@@ -278,145 +247,43 @@ export function UnifiedTrendLayerToolbar({
     ] as const
   ).filter((g): g is LayerGroupId => g != null);
 
-  const totalActive = groups.reduce((n, g) => {
-    const main = GROUP_MAIN[g];
-    const subs = availableSubs(g, available);
-    return (
-      n +
-      (layers[main] ? 1 : 0) +
-      subs.filter((id) => layers[id]).length
-    );
-  }, 0);
-
-  const { mounted: rootMounted, phase: rootPhase } = useOpenPresence(
-    rootOpen,
-    motionDuration.exit + 100,
-  );
-
-  const rootAccent = rootOpen || totalActive > 0;
+  if (groups.length === 0) return null;
 
   return (
     <TooltipProvider delay={200}>
       <div
-        ref={rootRef}
         className={cn(
-          "relative inline-flex size-9 items-center justify-center overflow-visible md:size-11",
+          "inline-flex items-center gap-1 overflow-visible",
           className,
         )}
         data-tour-id="unified-trend-layer-toolbar"
-        data-placement={placement}
+        data-placement="inline"
+        role="group"
         aria-label="통합 추이 레이어"
       >
-        <IconTipButton
-          label="차트 레이어"
-          on={rootAccent}
-          expanded={rootOpen}
-          controls="unified-layer-groups"
-          tone="root"
-          onClick={() => setRootOpen((v) => !v)}
-        >
-          <LineChart className="size-4 md:size-5" aria-hidden />
-          {totalActive > 0 ? (
-            <span
-              className={cn(
-                dashboardUi.topHeaderCountBadge,
-                dashboardUi.chartLayerBadge,
-                "pointer-events-none z-[2]",
-                motionClass.farmChartLayerBadgePop,
-              )}
-            >
-              {totalActive > 99 ? "99+" : totalActive}
-            </span>
-          ) : null}
-          <ChevronDown
-            className={cn(
-              "pointer-events-none absolute bottom-0.5 size-2.5 opacity-50 transition-transform duration-[var(--motion-duration-fast)]",
-              flyUp
-                ? rootOpen
-                  ? "rotate-0"
-                  : "rotate-180"
-                : rootOpen && "rotate-180",
-            )}
-            aria-hidden
-          />
-        </IconTipButton>
+        {groups.map((group) => {
+          const meta = GROUP_META[group];
+          const Icon = meta.Icon;
+          const mode = detectLayerGroupMode(layers, available, group);
+          const on = mode !== "off";
+          const tip = `${modeTooltip(group, mode)} · ${nextModeHint(group, mode)}`;
 
-        {rootMounted ? (
-          <div
-            id="unified-layer-groups"
-            role="group"
-            aria-label="레이어"
-            data-farm-layer-column=""
-            data-phase={rootPhase}
-            className={cn(
-              "absolute z-[90] flex flex-col gap-1.5 overflow-visible",
-              placement === "hub"
-                ? cn(
-                    "left-1/2 -translate-x-1/2 items-center",
-                    flyUp
-                      ? "bottom-[calc(100%+12px)]"
-                      : "top-[calc(100%+12px)]",
-                  )
-                : cn(
-                    "right-0 items-end p-1",
-                    flyUp
-                      ? "bottom-[calc(100%+8px)]"
-                      : "top-[calc(100%+8px)]",
-                    "max-md:rounded-xl max-md:border max-md:bg-popover max-md:p-2 max-md:shadow-md max-md:ring-1 max-md:ring-foreground/10",
-                  ),
-              rootPhase === "enter"
-                ? motionClass.farmChartLayerColumnEnter
-                : motionClass.farmChartLayerColumnExit,
-            )}
-            aria-hidden={rootPhase === "exit"}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            style={
-              {
-                ["--farm-layer-icon-n" as string]: String(
-                  Math.max(1, groups.length),
-                ),
-              } as CSSProperties
-            }
-          >
-            {groups.map((group, staggerIndex) => {
-              const meta = GROUP_META[group];
-              const Icon = meta.Icon;
-              const mode = detectLayerGroupMode(layers, available, group);
-              const on = mode !== "off";
-              const tip = `${modeTooltip(group, mode)} · ${nextModeHint(group, mode)}`;
-
-              return (
-                <div
-                  key={group}
-                  className={cn(
-                    rootPhase === "enter"
-                      ? motionClass.farmChartLayerIconEnter
-                      : motionClass.farmChartLayerIconExit,
-                    "relative overflow-visible",
-                  )}
-                  style={
-                    {
-                      ["--farm-layer-icon-i" as string]: String(staggerIndex),
-                    } as CSSProperties
-                  }
-                >
-                  <IconTipButton
-                    label={tip}
-                    pressed={on}
-                    on={on}
-                    muted={!on}
-                    tone={meta.tone}
-                    onClick={() => onCycleGroup(group)}
-                  >
-                    <Icon className="size-4 md:size-5" aria-hidden />
-                    <ModeOverlay mode={mode} />
-                  </IconTipButton>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
+          return (
+            <div key={group} className="relative overflow-visible">
+              <IconTipButton
+                label={tip}
+                pressed={on}
+                on={on}
+                muted={!on}
+                tone={meta.tone}
+                onClick={() => onCycleGroup(group)}
+              >
+                <Icon className="size-4" aria-hidden />
+                <ModeOverlay mode={mode} />
+              </IconTipButton>
+            </div>
+          );
+        })}
       </div>
     </TooltipProvider>
   );

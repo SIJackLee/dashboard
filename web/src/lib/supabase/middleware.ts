@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { legacyAdminHealthRedirectUrl } from "@/lib/admin/health/legacy-health-redirect";
 
 // 공개 경로(미인증 허용)
-const PUBLIC_PATHS = ["/login", "/auth"];
+const PUBLIC_PATHS = ["/login", "/auth", "/app"];
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
@@ -15,8 +14,6 @@ import { HeaderToolsMenu } from "@/components/layout/header-tools-menu";
 import {
   RAIL_GROUP_GAP_DEFAULT,
   RAIL_PITCH_BASE,
-  hubRailToolDistances,
-  railOffset,
   type HubRailDir,
 } from "@/components/layout/hub-rail-layout";
 import type { AlarmRow } from "@/lib/data/alarms";
@@ -98,10 +95,9 @@ function readStoredPos(): Pos | null {
   }
 }
 
-/** 레일 길이(아이템·그룹갭·끝 여유) */
+/** 레일 길이(아이템·끝 여유) — 등간격 */
 function railNeedLen(itemCount: number, pitch: number): number {
-  const groupGaps = 2;
-  return itemCount * pitch + groupGaps * RAIL_GROUP_GAP + RAIL_EDGE_PAD;
+  return itemCount * pitch + RAIL_EDGE_PAD;
 }
 
 function spaceAlong(
@@ -158,9 +154,7 @@ function fitLinearRailLayout(pos: Pos, itemCount: number): LinearRailLayout {
 
   const available = Math.max(
     0,
-    spaceAlong(dir, spaceUp, spaceDown, spaceLeft, spaceRight) -
-      RAIL_EDGE_PAD -
-      2 * RAIL_GROUP_GAP,
+    spaceAlong(dir, spaceUp, spaceDown, spaceLeft, spaceRight) - RAIL_EDGE_PAD,
   );
   const pitch = Math.round(
     Math.min(
@@ -171,10 +165,6 @@ function fitLinearRailLayout(pos: Pos, itemCount: number): LinearRailLayout {
   const detailOpenLeft = spaceLeft >= spaceRight;
 
   return { dir, pitch, detailOpenLeft };
-}
-
-function layersFlyoutSide(dir: HubRailDir): "up" | "down" {
-  return dir === "down" ? "down" : "up";
 }
 
 function railExitMs(itemCount: number) {
@@ -210,17 +200,12 @@ export function HubWidgetFab({
   const alert = alarmCount > 0 || offline > 0;
   const badgeCount = alarmCount;
 
-  /** 디자인2 + 기능(1~2) + 이상상황1 + 차트1 */
+  /** 디자인2 + 기능(1~2) + 이상상황1 */
   const toolIconCount = 2 + (isAdmin ? 2 : 1) + 1;
-  const slotCount = toolIconCount + 1;
+  const slotCount = toolIconCount;
   const layout = fitLinearRailLayout(pos, slotCount);
   const railDir = layout.dir;
   const pitch = layout.pitch;
-  const flyoutSide = layersFlyoutSide(railDir);
-  const toolDistances = hubRailToolDistances(toolIconCount, pitch, isAdmin);
-  const chartDistance =
-    (toolDistances[toolDistances.length - 1] ?? pitch) + pitch;
-  const chartOrbit = railOffset(railDir, chartDistance);
 
   const { mounted: railMounted, phase: railPhase } = useOpenPresence(
     open,
@@ -322,16 +307,6 @@ export function HubWidgetFab({
 
   if (!mounted) return null;
 
-  const railAxis =
-    railDir === "left" || railDir === "right"
-      ? ({ dx: railDir === "left" ? 1 : -1, dy: 0 } as const)
-      : ({ dx: 0, dy: railDir === "up" ? 1 : -1 } as const);
-
-  const layerMotion =
-    railPhase === "exit"
-      ? motionClass.hubWidgetRailItemExit
-      : motionClass.hubWidgetRailItemEnter;
-
   return createPortal(
     <div
       className="pointer-events-none fixed inset-0 z-[60]"
@@ -395,7 +370,6 @@ export function HubWidgetFab({
             data-hub-widget-panel={railMounted ? "" : undefined}
             data-hub-rail-dir={railDir}
             data-hub-layout="rail"
-            data-hub-layers-flyout={flyoutSide}
             data-phase={railMounted ? railPhase : undefined}
             role={railMounted ? "dialog" : undefined}
             aria-label={railMounted ? "통합 위젯 설정" : undefined}
@@ -420,37 +394,6 @@ export function HubWidgetFab({
                 farmKey={farmKey}
               />
             ) : null}
-
-            <div
-              className={cn(
-                "absolute z-[7] flex items-center justify-center overflow-visible",
-                "[&:has([data-farm-chart-layers-shell])]:size-11",
-                "[&:not(:has([data-farm-chart-layers-shell]))]:pointer-events-none",
-                railMounted && "pointer-events-auto",
-                "[&_button]:rounded-full",
-                "[&_[data-farm-chart-layers-shell]]:border-0 [&_[data-farm-chart-layers-shell]]:p-0 [&_[data-farm-chart-layers-shell]]:pl-0",
-                "[&_[data-farm-chart-layers-shell].farm-chart-layers-enter]:!animate-none",
-                "[&_[data-farm-chart-layers-shell].farm-chart-layers-exit]:!animate-none",
-                railMounted && layerMotion,
-              )}
-              style={
-                {
-                  left: chartOrbit.ox,
-                  top: chartOrbit.oy,
-                  ["--hub-rail-i" as string]: toolIconCount,
-                  ["--hub-rail-n" as string]: String(slotCount),
-                  ["--hub-rail-dx" as string]: railAxis.dx,
-                  ["--hub-rail-dy" as string]: railAxis.dy,
-                } as CSSProperties
-              }
-              data-hub-chart-layers-wrap=""
-              data-hub-rail-tool=""
-            >
-              <div
-                data-farm-chart-layers-slot
-                className="relative z-[1] flex size-full items-center justify-center overflow-visible empty:hidden"
-              />
-            </div>
           </div>
         </div>
       </div>

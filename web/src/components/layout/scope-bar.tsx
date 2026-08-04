@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { FarmSwitcher } from "@/components/layout/farm-switcher";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -90,6 +91,7 @@ export function ScopeBar({
   onStallChange,
   adminFarmSwitcher,
 }: ScopeBarProps) {
+  const compact = useHydrationSafeDashboardCompact();
   const [pendingChip, setPendingChip] = useState<PendingChip | null>(null);
   const [chipPending, startChipTransition] = useTransition();
 
@@ -133,18 +135,23 @@ export function ScopeBar({
 
   const titleRow =
     adminFarmSwitcher != null ? (
-      /* 모바일: 농장 / 토글 2행 */
+      /* 모바일: 농장 선택은 계정 메뉴 · 여기엔 보기 토글만 */
       <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <div className="min-w-0 shrink">
-          <FarmSwitcher
-            {...adminFarmSwitcher}
-            compact={adminFarmSwitcher.compact}
-          />
-        </div>
+        {!compact ? (
+          <div className="min-w-0 shrink">
+            <FarmSwitcher
+              {...adminFarmSwitcher}
+              compact={adminFarmSwitcher.compact}
+            />
+          </div>
+        ) : null}
         {/* FarmPageContent 보기 토글(그리드/목록/차트) portal 대상 */}
         <div
           data-farm-view-toggle-slot
-          className="flex min-w-0 shrink-0 items-center sm:ml-auto"
+          className={cn(
+            "flex min-w-0 shrink-0 items-center",
+            compact ? "w-full" : "sm:ml-auto",
+          )}
         />
       </div>
     ) : multiFarm && onFarmChange ? (

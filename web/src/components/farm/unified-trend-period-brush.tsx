@@ -168,15 +168,10 @@ export function UnifiedTrendPeriodBrush({
         </div>
       </div>
 
-      <p className="text-[0.65rem] leading-snug text-muted-foreground">
-        <span className="hidden lg:inline">
-          기간 프리셋(24h/7d/30d) · 세밀 구간 줌은{" "}
-          <span className="font-medium text-foreground/80">위 차트 온도 레인</span>
-          드래그 · 막대=온·습 점수
-        </span>
-        <span className="lg:hidden">
-          기간 선택 · 구간 줌은 위 차트(온도 레인) 드래그
-        </span>
+      <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
+        기간 프리셋(24h/7d/30d) · 세밀 구간 줌은{" "}
+        <span className="font-medium text-foreground/80">위 차트 온도 레인</span>
+        드래그 · 막대=온·습 점수
       </p>
 
       <div

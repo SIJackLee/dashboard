@@ -2,7 +2,6 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { DashboardViewportProvider } from "@/components/layout/dashboard-viewport-context";
 import { PushDeviceRegistrar } from "@/components/layout/push-device-registrar";
 import {
@@ -17,11 +16,12 @@ type Role = "admin" | "operator" | "viewer";
 
 type Props = {
   children: React.ReactNode;
-  role: Role | null;
+  /** @deprecated 하단 단일 탭 제거 — 호환용으로 유지 */
+  role?: Role | null;
 };
 
-/** 토글 기준 compact 레이아웃 + 하단 네비 (브라우저 너비·비율 무관) */
-export function DashboardViewportShell({ children, role }: Props) {
+/** 토글 기준 compact 레이아웃 (브라우저 너비·비율 무관). 하단 네비는 미사용. */
+export function DashboardViewportShell({ children }: Props) {
   const previewMode = useSyncExternalStore(
     subscribeViewportPreview,
     getViewportPreviewMode,
@@ -50,18 +50,14 @@ export function DashboardViewportShell({ children, role }: Props) {
           data-mobile-preview-frame={compact || undefined}
           className={cn(
             "relative flex min-h-0 w-full flex-col overflow-hidden bg-background",
-            compact ? "shadow-xl ring-1 ring-border/60" : "h-full",
+            compact
+              ? "pb-[env(safe-area-inset-bottom,0px)] shadow-xl ring-1 ring-border/60"
+              : "h-full",
           )}
         >
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-              compact && "pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]",
-            )}
-          >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {children}
           </div>
-          {compact ? <MobileBottomNav role={role} docked /> : null}
         </div>
       </div>
     </DashboardViewportProvider>

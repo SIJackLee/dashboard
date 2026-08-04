@@ -15,23 +15,18 @@ export function railOffset(
 }
 
 /**
- * 도구 아이템 축 거리(차트 제외).
- * 순서: 테마·뷰포트 | 리포트·운영 | 이상상황(벨)
+ * 도구 아이템 축 거리(등간격).
+ * 거리 = (i+1) * pitch — FAB 중심에서 바깥으로.
  */
 export function hubRailToolDistances(
   toolCount: number,
   pitch: number,
-  isAdmin: boolean,
-  groupGap = RAIL_GROUP_GAP_DEFAULT,
+  _isAdmin?: boolean,
+  _groupGap = RAIL_GROUP_GAP_DEFAULT,
 ): number[] {
   const distances: number[] = [];
-  let d = 0;
   for (let i = 0; i < toolCount; i++) {
-    d += pitch;
-    distances.push(d);
-    const afterDesign = i === 1;
-    const afterFunction = isAdmin ? i === 3 : i === 2;
-    if (afterDesign || afterFunction) d += groupGap;
+    distances.push((i + 1) * pitch);
   }
   return distances;
 }

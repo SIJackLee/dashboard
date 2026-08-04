@@ -7,6 +7,7 @@ import { signOut } from "@/app/auth/actions";
 import { AccountMenu } from "@/components/account/account-menu";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
 import type { FarmKey } from "@/lib/data/farm-key";
+import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { ModuleReceipt } from "@/lib/data/iot";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ type Props = {
   receipts?: ModuleReceipt[];
   farmLocationOptions?: EditableFarmOption[];
   farmOptions?: FarmKey[];
+  activeFarmKey?: FarmKey | null;
+  farmSummaries?: FarmSummaryRow[];
   canEditLocation?: boolean;
 };
 
@@ -60,6 +63,8 @@ export function AppHeaderAccount({
   receipts = [],
   farmLocationOptions = [],
   farmOptions = [],
+  activeFarmKey = null,
+  farmSummaries = [],
   canEditLocation = false,
 }: Props) {
   return (
@@ -69,6 +74,8 @@ export function AppHeaderAccount({
         receipts={receipts}
         farmLocationOptions={farmLocationOptions}
         farmOptions={farmOptions}
+        activeFarmKey={activeFarmKey}
+        farmSummaries={farmSummaries}
         canEditLocation={canEditLocation}
       />
       <form action={signOut} className="hidden shrink-0 md:block">

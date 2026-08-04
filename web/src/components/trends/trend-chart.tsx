@@ -11,7 +11,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Check, RotateCcw } from "lucide-react";
+import { Check, GripHorizontal, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
@@ -154,7 +154,8 @@ export type TrendScaleEdgeLabel = {
   /** 차트 domain Y */
   value: number;
   axis?: TrendAxis;
-  side?: "left" | "right";
+  /** center = 설정값 등 플롯 중앙 */
+  side?: "left" | "right" | "center";
   text: string;
   color: string;
   title?: string;
@@ -171,6 +172,7 @@ export type TrendScaleEdgeLabel = {
   lineDasharray?: string;
   /**
    * 우측 라벨 레인 — outer=알람(바깥), inner=제어값(그래프에 가까운 쪽).
+   * side=center 일 때는 무시.
    */
   labelLane?: "outer" | "inner";
   /** true면 라벨 우측에 적용·되돌리기 아이콘 버튼 */
@@ -214,6 +216,18 @@ type TrendChartProps = {
   period?: TrendPeriodId;
   /** false면 시리즈 범례 행 숨김 (sheet compact 등). */
   showLegend?: boolean;
+  /**
+   * full: 전 시리즈·산포·편차
+   * core: 모바일용 — 온도·습도·모터만 (EMA/산포/편차는 호버)
+   */
+  legendDensity?: "full" | "core";
+  /** 설정모드 스케일 가이드 세로 hit(px). 기본 10 · 모바일 권장 22 */
+  scaleEdgeHitPx?: number;
+  /**
+   * 모바일 — 플롯을 왼쪽으로 좁히고 우측에 스케일 라벨 거터.
+   * viewBox 기준 우측 여백 ~20.
+   */
+  labelGutter?: boolean;
   /**
    * bar 모드 — 바 1개의 최대 너비(차트 폭 % 단위, 0~100).
    * 카테고리 수가 적을 때 통짜 바가 되지 않게 상한을 두고 슬롯 중앙에 정렬한다.
@@ -626,6 +640,52 @@ function MotorChannelMatrix({
   );
 }
 
+
+const MAX_PINNED_TIPS = 5;
+const PIN_CLICK_SLOP_PX = 10;
+/** 모바일 — 설정값 라벨 롱프레스 → 숫자 입력 */
+const SCALE_EDGE_LONG_PRESS_MS = 480;
+const SCALE_EDGE_TAP_SLOP_PX = 12;
+
+type PinnedTip = {
+  id: string;
+  idx: number;
+  seriesKey: string;
+  /** plot 상대 좌표 0~1 (ellipse 앵커) */
+  nx: number;
+  ny: number;
+  /** 기본 배치 대비 사용자 드래그 오프셋(px) */
+  ox: number;
+  oy: number;
+};
+
+function tipPinId(idx: number, seriesKey: string): string {
+  const g = inferHoverMetricGroup(seriesKey);
+  return `${idx}::${g}`;
+}
+
+/** 앵커 기준 카드 left/top (px) — 플롯 안·포인터 가리지 않게 */
+function computeTipPlacement(
+  anchorX: number,
+  anchorY: number,
+  plotW: number,
+  plotH: number,
+  tipW = 168,
+  tipH = 88,
+): { left: number; top: number } {
+  const gap = 14;
+  const pad = 4;
+  const spaceRight = plotW - anchorX - pad;
+  const spaceLeft = anchorX - pad;
+  const preferRight = spaceRight >= tipW + gap || spaceRight >= spaceLeft;
+  let left = preferRight ? anchorX + gap : anchorX - tipW - gap;
+  left = Math.min(Math.max(pad, left), Math.max(pad, plotW - tipW - pad));
+  const preferAbove = anchorY - pad >= tipH + gap;
+  let top = preferAbove ? anchorY - tipH - gap : anchorY + gap;
+  top = Math.min(Math.max(pad, top), Math.max(pad, plotH - tipH - pad));
+  return { left: Math.round(left), top: Math.round(top) };
+}
+
 function clipWipeClass(phase: ClipPhase): string | undefined {
   if (phase === "enter") return motionClass.farmChartClipWipeIn;
   if (phase === "exit") return motionClass.farmChartClipWipeOut;
@@ -680,7 +740,7 @@ export function formatLimitBreachDelta(
 
 type EdgeBandLabel = {
   id: string;
-  side: "left" | "right";
+  side: "left" | "right" | "center";
   /** 0~100, 차트 영역 기준 top % */
   topPct: number;
   text: string;
@@ -696,12 +756,13 @@ type EdgeBandLabel = {
 
 /** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
 function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBandLabel[] {
-  const bySide: Record<"left" | "right", EdgeBandLabel[]> = {
+  const bySide: Record<"left" | "right" | "center", EdgeBandLabel[]> = {
     left: [],
     right: [],
+    center: [],
   };
   for (const l of labels) bySide[l.side].push({ ...l });
-  for (const side of ["left", "right"] as const) {
+  for (const side of ["left", "right", "center"] as const) {
     const list = bySide[side].sort((a, b) => a.topPct - b.topPct);
     for (let i = 1; i < list.length; i++) {
       const prev = list[i - 1]!;
@@ -712,7 +773,7 @@ function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBan
     }
     bySide[side] = list;
   }
-  return [...bySide.left, ...bySide.right];
+  return [...bySide.left, ...bySide.right, ...bySide.center];
 }
 
 function finiteValues(series: TrendSeries[], axis: TrendAxis | undefined): number[] {
@@ -742,6 +803,422 @@ function domainFor(
   return [min - pad, max + pad];
 }
 
+
+function TrendPointCardBody({
+  idx,
+  seriesKey,
+  categories,
+  series,
+  envelopes,
+  histograms,
+  leftUnit,
+  rightUnit,
+  onBreachEquipmentNavigate,
+}: {
+  idx: number;
+  seriesKey: string | null;
+  categories: string[];
+  series: TrendSeries[];
+  envelopes: TrendEnvelope[];
+  histograms: TrendHistogram[];
+  leftUnit: string;
+  rightUnit: string;
+  onBreachEquipmentNavigate?: (target: TrendBreachNavTarget) => void;
+}) {
+
+              const group = seriesKey
+                ? inferHoverMetricGroup(seriesKey)
+                : null;
+              const tipSeries = series.filter(
+                (s) =>
+                  group == null ||
+                  inferHoverMetricGroup(s.name) === group,
+              );
+              const tipHists = histograms.filter((h) => {
+                const label = h.legendLabel ?? "편차";
+                return (
+                  group == null || inferHoverMetricGroup(label) === group
+                );
+              });
+              const sparkSeries =
+                tipSeries.find((s) => s.name === seriesKey) ?? tipSeries[0];
+              const sparkHist =
+                tipHists.find((h) => (h.legendLabel ?? "") === seriesKey) ??
+                tipHists[0];
+              const sparkColor =
+                sparkSeries?.color ??
+                sparkHist?.colorUp ??
+                "#94a3b8";
+              const sparkSrc =
+                sparkSeries?.hoverSecondary ??
+                sparkSeries?.data ??
+                sparkHist?.hoverSecondary ??
+                sparkHist?.values ??
+                [];
+              const sparkSlice = sparkSrc.slice(
+                Math.max(0, idx - 7),
+                idx + 1,
+              );
+
+              const heroSeries =
+                tipSeries.find((s) => s.name === seriesKey) ??
+                tipSeries.find((s) =>
+                  group === "temp"
+                    ? s.name === "온도"
+                    : group === "hum"
+                      ? s.name === "습도"
+                      : false,
+                ) ??
+                (group === "motor" ? undefined : tipSeries[0]);
+
+              const motorChannels: NonNullable<
+                TrendHistogram["hoverChannels"]
+              > = (() => {
+                if (group !== "motor") return [];
+                const fromMeta =
+                  tipHists.find((h) => h.hoverChannels?.length)?.hoverChannels ??
+                  [];
+                if (fromMeta.length) return fromMeta;
+                return tipHists
+                  .filter((h) => {
+                    const lab = h.legendLabel ?? "";
+                    return lab === "A" || lab === "B" || lab === "C";
+                  })
+                  .map((h) => ({
+                    label: h.legendLabel!,
+                    color: h.colorUp,
+                    values: h.hoverSecondary ?? h.values,
+                  }));
+              })();
+
+              const showMotorMatrix =
+                group === "motor" && motorChannels.length > 0;
+
+              let heroHist =
+                tipHists.find((h) => (h.legendLabel ?? "") === seriesKey) ??
+                tipHists.find((h) => (h.legendLabel ?? "") === "모터") ??
+                (group === "motor" ? tipHists[0] : undefined);
+              if (group === "motor") {
+                heroHist =
+                  tipHists.find((h) => (h.legendLabel ?? "") === "모터") ??
+                  tipHists.find((h) => h.hoverChannels?.length) ??
+                  tipHists[0];
+              }
+
+              let heroLabel = group ? HOVER_GROUP_LABEL[group] : "데이터";
+              let heroText = "–";
+              let heroUnit = "";
+              let heroNum: number | null = null;
+              let heroColor = sparkColor;
+
+              if (group === "motor" && showMotorMatrix) {
+                const vals = motorChannels
+                  .map((ch) => ch.values[idx])
+                  .filter((v): v is number => v != null && Number.isFinite(v));
+                if (vals.length) {
+                  heroNum = Math.max(...vals);
+                  heroUnit = "%";
+                  heroText = `${Math.round(heroNum)}%`;
+                  heroLabel = "모터 max";
+                  heroColor =
+                    tipHists.find((h) => (h.legendLabel ?? "") === "모터")
+                      ?.colorUp ??
+                    motorChannels[0]?.color ??
+                    sparkColor;
+                }
+              } else if (heroSeries) {
+                const unit =
+                  (heroSeries.axis ?? "left") === "right"
+                    ? rightUnit
+                    : leftUnit;
+                const sec = heroSeries.hoverSecondary?.[idx];
+                const v = heroSeries.data[idx];
+                if (
+                  sec != null &&
+                  Number.isFinite(sec) &&
+                  heroSeries.hoverSecondaryUnit
+                ) {
+                  heroNum = sec;
+                  heroUnit = heroSeries.hoverSecondaryUnit;
+                  heroText = formatTrendHoverValue(
+                    sec,
+                    heroSeries.hoverSecondaryUnit,
+                    heroSeries.name,
+                  );
+                } else if (v != null && Number.isFinite(v)) {
+                  heroNum = v;
+                  heroUnit = unit;
+                  heroText = formatTrendHoverValue(v, unit, heroSeries.name);
+                }
+                heroLabel = heroSeries.name;
+                heroColor = heroSeries.color;
+              } else if (heroHist) {
+                const sec = heroHist.hoverSecondary?.[idx];
+                heroText = formatHistHoverDisplay(heroHist, idx);
+                if (sec != null && Number.isFinite(sec)) {
+                  heroNum = sec;
+                  heroUnit = heroHist.hoverSecondaryUnit ?? "";
+                }
+                heroLabel =
+                  group === "motor" || heroHist.legendLabel === "모터"
+                    ? "모터 max"
+                    : (heroHist.legendLabel ?? "값");
+                heroColor = heroHist.colorUp;
+              }
+
+              const heroKey = heroSeries?.name ?? heroHist?.legendLabel ?? "";
+
+              const alarmMeta =
+                group === "temp" || group === "hum"
+                  ? tipSeries.find((s) => s.hoverAlarmBand)?.hoverAlarmBand
+                  : undefined;
+
+              const spreadExtremes =
+                group === "temp" || group === "hum"
+                  ? (tipSeries.find((s) => s.hoverSpreadExtremes)
+                      ?.hoverSpreadExtremes ??
+                    envelopes.find(
+                      (e) =>
+                        e.hoverExtremes &&
+                        e.legendLabel ===
+                          (group === "temp" ? "온도 산포" : "습도 산포"),
+                    )?.hoverExtremes)
+                  : undefined;
+              const spreadHigh = spreadExtremes?.high[idx] ?? null;
+              const spreadLow = spreadExtremes?.low[idx] ?? null;
+              const showSpreadHigh = Boolean(spreadHigh?.breached);
+              const showSpreadLow = Boolean(spreadLow?.breached);
+              const spreadSame =
+                showSpreadHigh &&
+                showSpreadLow &&
+                spreadHigh != null &&
+                spreadLow != null &&
+                spreadHigh.zoneLabel === spreadLow.zoneLabel &&
+                spreadHigh.equipmentLabel === spreadLow.equipmentLabel;
+              const spreadUnit = group === "temp" ? "℃" : "%";
+              const formatSpreadRow = (
+                side: "high" | "low",
+                c: NonNullable<typeof spreadHigh>,
+              ) => {
+                const delta =
+                  alarmMeta != null
+                    ? side === "high"
+                      ? c.value - alarmMeta.hi
+                      : alarmMeta.lo - c.value
+                    : null;
+                const deltaText =
+                  delta != null && delta >= -1e-9
+                    ? formatLimitBreachDelta(Math.max(0, delta), spreadUnit, side)
+                    : null;
+                return (
+                  <>
+                    {c.zoneLabel}
+                    <span className="text-muted-foreground"> · </span>
+                    {c.equipmentLabel}
+                    <span className="ml-1 tabular-nums text-muted-foreground">
+                      {c.value.toFixed(1)}
+                      {spreadUnit}
+                    </span>
+                    {deltaText ? (
+                      <span className="ml-1 tabular-nums font-medium text-amber-600 dark:text-amber-400">
+                        {deltaText}
+                      </span>
+                    ) : null}
+                  </>
+                );
+              };
+
+              const secondarySeries = tipSeries.filter((s) => s.name !== heroKey);
+              const secondaryHists = tipHists.filter((h) => {
+                const lab = h.legendLabel ?? "";
+                if (lab === heroKey) return false;
+                if (showMotorMatrix && (lab === "모터" || /^[ABC]$/.test(lab))) {
+                  return false;
+                }
+                return true;
+              });
+
+              const heroMain = heroText.replace(
+                new RegExp(`${heroUnit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
+                "",
+              );
+
+              return (
+                <>
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <span className="rounded-sm bg-muted/80 px-1 py-px text-[9px] font-semibold tracking-tight text-foreground/90">
+                      {group ? HOVER_GROUP_LABEL[group] : "데이터"}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {categories[idx]}
+                    </span>
+                    <div className="ml-auto">
+                      <MiniSpark
+                        values={sparkSlice}
+                        color={sparkColor}
+                        variant={group === "motor" ? "bars" : "line"}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    className={cn(
+                      "flex items-baseline gap-0.5",
+                      motionClass.farmChartTipHero,
+                    )}
+                    key={`hero-${heroKey}-${idx}`}
+                  >
+                    <span
+                      className="text-[18px] font-semibold leading-none tabular-nums tracking-tight"
+                      style={{ color: heroColor }}
+                    >
+                      {heroMain || "–"}
+                    </span>
+                    {heroUnit ? (
+                      <span className="text-[10px] font-medium text-muted-foreground">
+                        {heroUnit}
+                        {heroLabel === "모터 max" ? " max" : ""}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {(secondarySeries.length > 0 || secondaryHists.length > 0) &&
+                  !showMotorMatrix ? (
+                    <div className="mt-1.5 space-y-0.5">
+                      {secondarySeries.map((s) => {
+                        const unit =
+                          (s.axis ?? "left") === "right"
+                            ? rightUnit
+                            : leftUnit;
+                        const sec = s.hoverSecondary?.[idx];
+                        const v = s.data[idx];
+                        const mappedPrimary =
+                          v == null || !Number.isFinite(v)
+                            ? "–"
+                            : formatTrendHoverValue(v, unit, s.name);
+                        const display =
+                          sec != null &&
+                          Number.isFinite(sec) &&
+                          s.hoverSecondaryUnit
+                            ? formatTrendHoverValue(
+                                sec,
+                                s.hoverSecondaryUnit,
+                                s.name,
+                              )
+                            : mappedPrimary;
+                        return (
+                          <div
+                            key={s.name}
+                            className="flex items-center justify-between gap-2 text-[10px]"
+                          >
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <span
+                                className="inline-block h-1.5 w-1.5 shrink-0 rounded-sm"
+                                style={{ backgroundColor: s.color }}
+                              />
+                              <span className="truncate text-muted-foreground">
+                                {s.name}
+                              </span>
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                              {display}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      {secondaryHists.map((h, hi) => {
+                        const chartV = h.values[idx];
+                        const up =
+                          chartV != null && Number.isFinite(chartV)
+                            ? chartV >= h.baseline
+                            : true;
+                        return (
+                          <div
+                            key={`hist-tip-${hi}`}
+                            className="flex items-center justify-between gap-2 text-[10px]"
+                          >
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <span
+                                className="inline-block h-1.5 w-1.5 shrink-0 rounded-sm"
+                                style={{
+                                  backgroundColor:
+                                    h.style === "volume" || up
+                                      ? h.colorUp
+                                      : h.colorDown,
+                                }}
+                              />
+                              <span className="truncate text-muted-foreground">
+                                {h.legendLabel ?? "편차"}
+                              </span>
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                              {formatHistHoverDisplay(h, idx)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  {showMotorMatrix ? (
+                    <MotorChannelMatrix
+                      channels={motorChannels}
+                      hoverIdx={idx}
+                    />
+                  ) : null}
+
+                  {showSpreadHigh || showSpreadLow ? (
+                    <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5">
+                      <div className="text-[9px] font-medium text-muted-foreground">
+                        임계 초과 구간
+                      </div>
+                      {onBreachEquipmentNavigate ? (
+                        <div className="text-[9px] text-muted-foreground/90">
+                          우클릭 · 해당 장비 차트
+                        </div>
+                      ) : null}
+                      {spreadSame && spreadHigh ? (
+                        <div className="text-[10px] leading-snug text-foreground/90">
+                          <span className="text-muted-foreground">산포 · </span>
+                          {formatSpreadRow("high", spreadHigh)}
+                        </div>
+                      ) : (
+                        <>
+                          {showSpreadHigh && spreadHigh ? (
+                            <div className="text-[10px] leading-snug text-foreground/90">
+                              <span className="text-muted-foreground">
+                                상단 ·{" "}
+                              </span>
+                              {formatSpreadRow("high", spreadHigh)}
+                            </div>
+                          ) : null}
+                          {showSpreadLow && spreadLow ? (
+                            <div className="text-[10px] leading-snug text-foreground/90">
+                              <span className="text-muted-foreground">
+                                하단 ·{" "}
+                              </span>
+                              {formatSpreadRow("low", spreadLow)}
+                            </div>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {alarmMeta ? (
+                    <AlarmTrack
+                      lo={alarmMeta.lo}
+                      hi={alarmMeta.hi}
+                      value={heroNum}
+                      unit={alarmMeta.unit}
+                      color={heroColor}
+                    />
+                  ) : null}
+                </>
+              );
+            
+}
+
 export function TrendChart({
   mode,
   categories,
@@ -760,6 +1237,9 @@ export function TrendChart({
   period,
   barWidthCapPct,
   showLegend = true,
+  legendDensity = "full",
+  scaleEdgeHitPx = SCALE_EDGE_HIT_PX,
+  labelGutter = false,
   showMarkers = true,
   markerDensity = "all",
   markerRadiusPx = 3,
@@ -790,6 +1270,8 @@ export function TrendChart({
   /** 호버 — 인덱스 변경 시에만 setState (mousemove 전량 리렌더 방지) */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [hoverSeries, setHoverSeries] = useState<string | null>(null);
+  /** 클릭으로 고정한 비교용 데이터 카드 (다중) */
+  const [pinnedTips, setPinnedTips] = useState<PinnedTip[]>([]);
   const [xDraft, setXDraft] = useState<{
     a: number;
     b: number;
@@ -808,6 +1290,12 @@ export function TrendChart({
   const tipRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const plotRef = useRef<HTMLDivElement | null>(null);
+  const chartRootRef = useRef<HTMLDivElement | null>(null);
+  const pinClickArmRef = useRef<{
+    x: number;
+    y: number;
+    pointerId: number;
+  } | null>(null);
   const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
   const glowFilterId = `tc-glow-${useId().replace(/:/g, "")}`;
   /** 기간 변경 시만 plot wipe — 카테고리 trim/X스코프는 remount 금지 */
@@ -822,6 +1310,30 @@ export function TrendChart({
     y0: number;
     y: number;
   } | null>(null);
+
+  /** 설정모드 등 — 스코프 끔 시 드래프트 즉시 폐기 */
+  useEffect(() => {
+    if (xScopeSelect) return;
+    xDraftRef.current = null;
+    xScopeOriginRef.current = null;
+    xScopeDraggingRef.current = false;
+    setXDraft(null);
+  }, [xScopeSelect]);
+
+  /** 차트 밖 클릭 — 고정 데이터 카드 전부 해제 */
+  useEffect(() => {
+    const onDocPointerDown = (e: PointerEvent) => {
+      const root = chartRootRef.current;
+      if (!root) return;
+      const t = e.target;
+      if (t instanceof Node && root.contains(t)) return;
+      setPinnedTips((prev) => (prev.length ? [] : prev));
+    };
+    document.addEventListener("pointerdown", onDocPointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", onDocPointerDown, true);
+  }, []);
+
   const edgeDragRef = useRef<{
     id: string;
     axis: TrendAxis;
@@ -833,6 +1345,17 @@ export function TrendChart({
     x: number;
     y: number;
     pointerId: number;
+    pointerType: string;
+  } | null>(null);
+  const scaleEdgeLongPressRef = useRef<number | null>(null);
+  const scaleEdgeLongPressFiredRef = useRef(false);
+  const pinCardDragRef = useRef<{
+    id: string;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    origOx: number;
+    origOy: number;
   } | null>(null);
 
   const seriesPresence = useClipPresence(series, (s) => s.name, {
@@ -882,9 +1405,17 @@ export function TrendChart({
     histograms.some((h) => h.values.some((v) => v != null));
   const n = categories.length;
 
+  /** 기간·데이터 바뀌면 고정 카드 초기화 */
+  useEffect(() => {
+    setPinnedTips([]);
+  }, [period, n]);
+
   const axisH = 16;
   const chartH = height - axisH;
-  const innerW = VIEW_W - PAD_X * 2;
+  /** 좌측 정렬 플롯 + (선택) 우측 라벨 거터 */
+  const padL = labelGutter ? 4 : PAD_X;
+  const padR = labelGutter ? 20 : PAD_X;
+  const innerW = VIEW_W - padL - padR;
   const innerH = chartH - PAD_TOP * 2;
 
   /** preserveAspectRatio=none 에서 원이 옆으로 퍼지지 않도록 viewBox rx/ry 보정 */
@@ -903,8 +1434,8 @@ export function TrendChart({
   };
 
   const xFor = (i: number): number => {
-    if (n <= 1) return PAD_X + innerW / 2;
-    return PAD_X + (i / (n - 1)) * innerW;
+    if (n <= 1) return padL + innerW / 2;
+    return padL + (i / (n - 1)) * innerW;
   };
 
   const barGroupW = n > 0 ? innerW / n : innerW;
@@ -918,7 +1449,7 @@ export function TrendChart({
   const barCenterCluster = mode === "bar" && n > 0 && n <= 4;
 
   const xForBar = (i: number): number => {
-    const center = PAD_X + innerW / 2;
+    const center = padL + innerW / 2;
     if (n <= 1) return center;
     if (!barCenterCluster) return xFor(i);
     const spacing = Math.min(
@@ -961,20 +1492,15 @@ export function TrendChart({
     if (!el) return;
     const tipW = el.offsetWidth || 168;
     const tipH = el.offsetHeight || 72;
-    const gap = 14;
-    const pad = 4;
-
-    const spaceRight = plotW - anchorX - pad;
-    const spaceLeft = anchorX - pad;
-    const preferRight = spaceRight >= tipW + gap || spaceRight >= spaceLeft;
-    let left = preferRight ? anchorX + gap : anchorX - tipW - gap;
-    left = Math.min(Math.max(pad, left), Math.max(pad, plotW - tipW - pad));
-
-    const preferAbove = anchorY - pad >= tipH + gap;
-    let top = preferAbove ? anchorY - tipH - gap : anchorY + gap;
-    top = Math.min(Math.max(pad, top), Math.max(pad, plotH - tipH - pad));
-
-    el.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    const { left, top } = computeTipPlacement(
+      anchorX,
+      anchorY,
+      plotW,
+      plotH,
+      tipW,
+      tipH,
+    );
+    el.style.transform = `translate(${left}px, ${top}px)`;
     el.style.opacity = "1";
   };
 
@@ -1053,7 +1579,7 @@ export function TrendChart({
       const h = histograms[hi]!;
       const key = h.legendLabel ?? `hist-${hi}`;
       const slot =
-        n > 1 ? (VIEW_W - 2 * PAD_X) / (n - 1) : VIEW_W - 2 * PAD_X;
+        n > 1 ? (innerW) / (n - 1) : innerW;
       const isVolume = h.style === "volume";
       const isOverlay = h.style === "overlay";
       const gs = Math.max(1, h.groupSize ?? 1);
@@ -1130,7 +1656,7 @@ export function TrendChart({
 
   const indexFromXView = (xView: number): number => {
     if (n <= 1) return 0;
-    const u = (xView - PAD_X) / innerW;
+    const u = (xView - padL) / innerW;
     return Math.round(Math.min(1, Math.max(0, u)) * (n - 1));
   };
 
@@ -1138,11 +1664,11 @@ export function TrendChart({
     clientX: number,
     rect: DOMRect,
   ): number => {
-    if (rect.width <= 0) return PAD_X;
+    if (rect.width <= 0) return padL;
     const xPx = clientX - rect.left;
     return Math.min(
-      VIEW_W - PAD_X,
-      Math.max(PAD_X, (xPx / rect.width) * VIEW_W),
+      VIEW_W - padR,
+      Math.max(padL, (xPx / rect.width) * VIEW_W),
     );
   };
 
@@ -1164,7 +1690,7 @@ export function TrendChart({
   };
 
   const xViewFromRatio = (r: number) =>
-    PAD_X + Math.min(1, Math.max(0, r)) * innerW;
+    padL + Math.min(1, Math.max(0, r)) * innerW;
   const yViewFromRatio = (r: number) =>
     PAD_TOP + Math.min(1, Math.max(0, r)) * innerH;
 
@@ -1322,7 +1848,7 @@ export function TrendChart({
       if (!Number.isFinite(y)) continue;
       const screenY = (y / chartH) * rect.height;
       const d = Math.abs(yPx - screenY);
-      if (d > SCALE_EDGE_HIT_PX) continue;
+      if (d > scaleEdgeHitPx) continue;
       if (!best || d < best.d) {
         best = { id: guide.id, axis, value: guide.value, d };
       }
@@ -1342,6 +1868,10 @@ export function TrendChart({
     if (!onScaleEdgeNumericCommit) return;
     const guide = scaleEdgeLabels.find((g) => g.id === guideId);
     if (!guide?.draggable) return;
+    if (scaleEdgeLongPressRef.current != null) {
+      window.clearTimeout(scaleEdgeLongPressRef.current);
+      scaleEdgeLongPressRef.current = null;
+    }
     if (edgeDragRef.current) {
       endScaleEdgeDrag("cancel");
     }
@@ -1351,6 +1881,13 @@ export function TrendChart({
       text: parseScaleEdgeEditSeed(guide),
     });
     clearHover();
+  };
+
+  const clearScaleEdgeLongPress = () => {
+    if (scaleEdgeLongPressRef.current != null) {
+      window.clearTimeout(scaleEdgeLongPressRef.current);
+      scaleEdgeLongPressRef.current = null;
+    }
   };
 
   const cancelScaleEdgeEdit = () => {
@@ -1384,18 +1921,40 @@ export function TrendChart({
   const onPlotPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     if (edgeEdit) return;
+    pinClickArmRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      pointerId: e.pointerId,
+    };
     /** 플롯 본문은 시간 줌 우선 — 알람선 전체폭 hit로 X스코프를 가로채지 않음.
      *  알람 세로 조절은 우측 숫자 라벨 드래그 / 우클릭 숫자 입력. */
     if (xScopeSelect) onXScopePointerDown(e);
   };
 
   const onPlotPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const pinDrag = pinCardDragRef.current;
+    if (pinDrag && pinDrag.pointerId === e.pointerId) {
+      const dx = e.clientX - pinDrag.startX;
+      const dy = e.clientY - pinDrag.startY;
+      setPinnedTips((prev) =>
+        prev.map((p) =>
+          p.id === pinDrag.id
+            ? { ...p, ox: pinDrag.origOx + dx, oy: pinDrag.origOy + dy }
+            : p,
+        ),
+      );
+      return;
+    }
+
     const arm = labelDragArmRef.current;
     if (arm && !edgeDragRef.current) {
       const dx = Math.abs(e.clientX - arm.x);
       const dy = Math.abs(e.clientY - arm.y);
       if (dx >= SCALE_EDGE_LABEL_DRAG_PX || dy >= SCALE_EDGE_LABEL_DRAG_PX) {
+        clearScaleEdgeLongPress();
+        scaleEdgeLongPressFiredRef.current = false;
         labelDragArmRef.current = null;
+        pinClickArmRef.current = null;
         edgeDragRef.current = { id: arm.id, axis: arm.axis };
         setEdgeDragId(arm.id);
         clearHover();
@@ -1419,6 +1978,43 @@ export function TrendChart({
   };
 
   const onPlotPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (
+      pinCardDragRef.current &&
+      pinCardDragRef.current.pointerId === e.pointerId
+    ) {
+      pinCardDragRef.current = null;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    const pinArm = pinClickArmRef.current;
+    pinClickArmRef.current = null;
+
+    const labelArm = labelDragArmRef.current;
+    const longPressFired = scaleEdgeLongPressFiredRef.current;
+    clearScaleEdgeLongPress();
+    scaleEdgeLongPressFiredRef.current = false;
+
+    if (labelArm && labelArm.pointerId === e.pointerId && !edgeDragRef.current) {
+      labelDragArmRef.current = null;
+      const dist = Math.hypot(e.clientX - labelArm.x, e.clientY - labelArm.y);
+      const isTouchLike =
+        labelArm.pointerType === "touch" || labelArm.pointerType === "pen";
+      if (
+        isTouchLike &&
+        !longPressFired &&
+        dist <= SCALE_EDGE_TAP_SLOP_PX &&
+        onScaleEdgeNumericCommit
+      ) {
+        beginScaleEdgeEdit(labelArm.id);
+      }
+      return;
+    }
+
     if (labelDragArmRef.current) {
       labelDragArmRef.current = null;
       return;
@@ -1427,10 +2023,48 @@ export function TrendChart({
       endScaleEdgeDrag("end");
       return;
     }
+
+    const wasScopeDrag = xScopeDraggingRef.current;
     if (xScopeSelect) onXScopePointerUp(e);
+
+    if (wasScopeDrag) return;
+    if (!pinArm || pinArm.pointerId !== e.pointerId) return;
+    const dist = Math.hypot(e.clientX - pinArm.x, e.clientY - pinArm.y);
+    if (dist > PIN_CLICK_SLOP_PX) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const hit = findDataPointHit(
+      e.clientX - rect.left,
+      e.clientY - rect.top,
+      rect.width,
+      rect.height,
+    );
+    if (!hit) return;
+
+    const id = tipPinId(hit.idx, hit.seriesKey);
+    setPinnedTips((prev) => {
+      if (prev.some((p) => p.id === id)) {
+        return prev.filter((p) => p.id !== id);
+      }
+      const next: PinnedTip = {
+        id,
+        idx: hit.idx,
+        seriesKey: hit.seriesKey,
+        nx: hit.xView / VIEW_W,
+        ny: hit.yView / chartH,
+        ox: 0,
+        oy: 0,
+      };
+      return [...prev, next].slice(-MAX_PINNED_TIPS);
+    });
   };
 
   const onPlotPointerCancel = () => {
+    pinCardDragRef.current = null;
+    pinClickArmRef.current = null;
+    clearScaleEdgeLongPress();
+    scaleEdgeLongPressFiredRef.current = false;
     labelDragArmRef.current = null;
     if (edgeDragRef.current) {
       endScaleEdgeDrag("cancel");
@@ -1595,8 +2229,8 @@ export function TrendChart({
 
     /** 십자선 — 플롯 위에서는 마우스 기준 항상 표시 */
     const xView = Math.min(
-      VIEW_W - PAD_X,
-      Math.max(PAD_X, (xPx / rect.width) * VIEW_W),
+      VIEW_W - padR,
+      Math.max(padL, (xPx / rect.width) * VIEW_W),
     );
     const yView = Math.min(
       PAD_TOP + innerH,
@@ -1910,10 +2544,20 @@ export function TrendChart({
   };
 
   return (
-    <div className={showLegend ? "space-y-1.5" : "space-y-1"}>
+    <div
+      ref={chartRootRef}
+      className={showLegend ? "space-y-1.5" : "space-y-1"}
+      data-trend-chart-root=""
+    >
       {showLegend ? (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {series.map((s) => (
+        {series
+          .filter((s) =>
+            legendDensity === "full"
+              ? true
+              : s.name === "온도" || s.name === "습도",
+          )
+          .map((s) => (
           <span key={s.name} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
             <span
               className="inline-block w-3 border-t-2"
@@ -1931,7 +2575,8 @@ export function TrendChart({
             {(s.axis ?? "left") === "right" && usesRight ? <span className="opacity-60">(우)</span> : null}
           </span>
         ))}
-        {envelopes.map((env, idx) =>
+        {legendDensity === "full"
+          ? envelopes.map((env, idx) =>
           env.legendLabel ? (
             <span
               key={`env-leg-${idx}`}
@@ -1948,8 +2593,15 @@ export function TrendChart({
               {env.legendLabel}
             </span>
           ) : null,
-        )}
-        {histograms.map((h, idx) =>
+        )
+          : null}
+        {histograms
+          .filter((h) =>
+            legendDensity === "full"
+              ? Boolean(h.legendLabel)
+              : h.legendLabel === "모터",
+          )
+          .map((h, idx) =>
           h.legendLabel ? (
             <span
               key={`hist-leg-${idx}`}
@@ -1987,7 +2639,11 @@ export function TrendChart({
         ref={plotRef}
         className={cn(
           "relative touch-none",
-          edgeDragId ? "cursor-ns-resize" : "cursor-crosshair",
+          edgeDragId
+            ? "cursor-ns-resize"
+            : xScopeSelect
+              ? "cursor-crosshair"
+              : "cursor-default",
         )}
         onMouseMove={onMove}
         onMouseLeave={() => {
@@ -2037,9 +2693,9 @@ export function TrendChart({
           const x0 = xFor(g.i0);
           const x1 = xFor(g.i1);
           const slot =
-            n > 1 ? (VIEW_W - 2 * PAD_X) / (n - 1) : VIEW_W - 2 * PAD_X;
-          const left = Math.max(PAD_X, x0 - slot / 2);
-          const right = Math.min(VIEW_W - PAD_X, x1 + slot / 2);
+            n > 1 ? (innerW) / (n - 1) : innerW;
+          const left = Math.max(padL, x0 - slot / 2);
+          const right = Math.min(VIEW_W - padR, x1 + slot / 2);
           return (
             <rect
               key={`null-gap-${g.i0}-${g.i1}`}
@@ -2060,8 +2716,8 @@ export function TrendChart({
           return (
             <line
               key={`band-guide-${gi}-${gy}`}
-              x1={PAD_X}
-              x2={VIEW_W - PAD_X}
+              x1={padL}
+              x2={VIEW_W - padR}
               y1={y}
               y2={y}
               stroke="currentColor"
@@ -2077,7 +2733,7 @@ export function TrendChart({
           ? histPresence.map(({ item: h, key: histKey, phase }) => {
               const yBase = yFor(h.baseline, "left");
               const slot =
-                n > 1 ? (VIEW_W - 2 * PAD_X) / (n - 1) : VIEW_W - 2 * PAD_X;
+                n > 1 ? (innerW) / (n - 1) : innerW;
               const isVolume = h.style === "volume";
               const isOverlay = h.style === "overlay";
               const gs = Math.max(1, h.groupSize ?? 1);
@@ -2106,8 +2762,8 @@ export function TrendChart({
                 >
                   {(!isVolume || gi === 0) && !isOverlay ? (
                     <line
-                      x1={PAD_X}
-                      x2={VIEW_W - PAD_X}
+                      x1={padL}
+                      x2={VIEW_W - padR}
                       y1={yBase}
                       y2={yBase}
                       stroke="#94a3b8"
@@ -2119,8 +2775,8 @@ export function TrendChart({
                   ) : null}
                   {isOverlay ? (
                     <line
-                      x1={PAD_X}
-                      x2={VIEW_W - PAD_X}
+                      x1={padL}
+                      x2={VIEW_W - padR}
                       y1={yBase}
                       y2={yBase}
                       stroke="#f87171"
@@ -2202,8 +2858,8 @@ export function TrendChart({
               return (
                 <g key={`alarm-${idx}`}>
                   <line
-                    x1={PAD_X}
-                    x2={VIEW_W - PAD_X}
+                    x1={padL}
+                    x2={VIEW_W - padR}
                     y1={yTop}
                     y2={yTop}
                     stroke={SEV_COLOR.warning}
@@ -2213,8 +2869,8 @@ export function TrendChart({
                     vectorEffect="non-scaling-stroke"
                   />
                   <line
-                    x1={PAD_X}
-                    x2={VIEW_W - PAD_X}
+                    x1={padL}
+                    x2={VIEW_W - padR}
                     y1={yBot}
                     y2={yBot}
                     stroke={SEV_COLOR.warning}
@@ -2234,8 +2890,8 @@ export function TrendChart({
           return (
             <line
               key={`ref-${idx}`}
-              x1={PAD_X}
-              x2={VIEW_W - PAD_X}
+              x1={padL}
+              x2={VIEW_W - padR}
               y1={y}
               y2={y}
               stroke={ref.color}
@@ -2261,8 +2917,8 @@ export function TrendChart({
             return (
               <line
                 key={`scale-guide-${guide.id}`}
-                x1={PAD_X}
-                x2={VIEW_W - PAD_X}
+                x1={padL}
+                x2={VIEW_W - padR}
                 y1={y}
                 y2={y}
                 stroke={guide.color}
@@ -2448,13 +3104,51 @@ export function TrendChart({
               );
             })
           : null}
+        {/* 고정 핀 강조 */}
+        {mode === "line"
+          ? pinnedTips.map((pin) => {
+              if (pin.idx < 0 || pin.idx >= n) return null;
+              const group = inferHoverMetricGroup(pin.seriesKey);
+              return series.map((s) => {
+                if (inferHoverMetricGroup(s.name) !== group) return null;
+                const v = s.data[pin.idx];
+                if (v == null || !Number.isFinite(v)) return null;
+                const axis = s.axis ?? "left";
+                const cx = xFor(pin.idx);
+                const cy = yFor(v, axis);
+                return (
+                  <g key={`pin-${pin.id}-${s.name}`}>
+                    <ellipse
+                      cx={cx}
+                      cy={cy}
+                      rx={markerRx(markerRadiusPx + 6)}
+                      ry={markerRy(markerRadiusPx + 6)}
+                      fill="none"
+                      stroke={s.color}
+                      strokeWidth={1.35}
+                      vectorEffect="non-scaling-stroke"
+                      opacity={0.95}
+                    />
+                    <ellipse
+                      cx={cx}
+                      cy={cy}
+                      rx={markerRx(markerRadiusPx + 2)}
+                      ry={markerRy(markerRadiusPx + 2)}
+                      fill={s.color}
+                      opacity={1}
+                    />
+                  </g>
+                );
+              });
+            })
+          : null}
         </g>
 
         {/* 마우스 기준 회색 십자선 — DOM 직접 갱신(리렌더 최소화) */}
         <line
           ref={crossVRef}
-          x1={PAD_X}
-          x2={PAD_X}
+          x1={padL}
+          x2={padL}
           y1={PAD_TOP}
           y2={PAD_TOP + innerH}
           stroke="#94a3b8"
@@ -2467,8 +3161,8 @@ export function TrendChart({
         />
         <line
           ref={crossHRef}
-          x1={PAD_X}
-          x2={VIEW_W - PAD_X}
+          x1={padL}
+          x2={VIEW_W - padR}
           y1={PAD_TOP}
           y2={PAD_TOP}
           stroke="#94a3b8"
@@ -2585,7 +3279,10 @@ export function TrendChart({
           <span
             key={label.id}
             className={cn(
-              "absolute z-[2] -translate-y-1/2 rounded-sm bg-background/85 px-0.5 text-[9px] leading-none tabular-nums",
+              "absolute z-[2] -translate-y-1/2 rounded-sm bg-background/85 leading-none tabular-nums",
+              labelGutter
+                ? "min-h-7 px-1.5 py-1 text-xs font-semibold"
+                : "px-0.5 text-[9px]",
               showActions && "inline-flex items-center gap-0.5 pr-0",
               label.draggable && !editing
                 ? "pointer-events-auto cursor-ns-resize select-none"
@@ -2593,25 +3290,35 @@ export function TrendChart({
                   ? "pointer-events-auto"
                   : "pointer-events-none",
               label.side === "left" && "left-0.5 text-left",
+              label.side === "center" &&
+                "left-1/2 z-[3] -translate-x-1/2 text-center shadow-sm ring-1 ring-current/20",
+              /** 모바일 거터 — 우측 단일 열(큰 칩). PC는 기존 inner/outer 레인 */
+              label.side === "right" && labelGutter && "right-1 max-w-[4.75rem] text-right",
               label.side === "right" &&
+                !labelGutter &&
                 label.labelLane === "inner" &&
                 !showActions &&
                 "right-11 text-right",
               label.side === "right" &&
+                !labelGutter &&
                 label.labelLane === "inner" &&
                 showActions &&
                 "right-1 text-right",
               label.side === "right" &&
+                !labelGutter &&
                 label.labelLane !== "inner" &&
                 "right-0.5 text-right",
               !editing && label.mark === "overline" && "border-t border-current pt-px",
               !editing && label.mark === "underline" && "border-b border-current pb-px",
-              edgeDragId === label.id && "ring-1 ring-current/40",
+              edgeDragId === label.id &&
+                (labelGutter || label.side === "center"
+                  ? "min-h-9 text-sm ring-2 ring-current/45"
+                  : "ring-1 ring-current/40"),
             )}
             style={{ top: `${label.topPct}%`, color: label.color }}
             title={
               label.draggable
-                ? `${label.title} · 드래그 조절 · 더블클릭·우클릭 숫자 입력`
+                ? `${label.title} · 드래그 조절 · 탭·롱프레스(모바일)·더블클릭·우클릭 숫자 입력`
                 : label.title
             }
             onPointerDown={
@@ -2623,6 +3330,8 @@ export function TrendChart({
                     const guide = scaleEdgeLabels.find((g) => g.id === label.id);
                     if (!guide?.draggable) return;
                     plotRef.current.setPointerCapture(e.pointerId);
+                    clearScaleEdgeLongPress();
+                    scaleEdgeLongPressFiredRef.current = false;
                     labelDragArmRef.current = {
                       id: guide.id,
                       axis: guide.axis ?? "left",
@@ -2630,7 +3339,19 @@ export function TrendChart({
                       x: e.clientX,
                       y: e.clientY,
                       pointerId: e.pointerId,
+                      pointerType: e.pointerType,
                     };
+                    const isTouchLike =
+                      e.pointerType === "touch" || e.pointerType === "pen";
+                    if (isTouchLike && onScaleEdgeNumericCommit) {
+                      const guideId = guide.id;
+                      scaleEdgeLongPressRef.current = window.setTimeout(() => {
+                        scaleEdgeLongPressRef.current = null;
+                        scaleEdgeLongPressFiredRef.current = true;
+                        labelDragArmRef.current = null;
+                        beginScaleEdgeEdit(guideId);
+                      }, SCALE_EDGE_LONG_PRESS_MS);
+                    }
                     clearHover();
                   }
                 : undefined
@@ -2660,7 +3381,12 @@ export function TrendChart({
                 type="text"
                 inputMode="decimal"
                 aria-label={`${label.title} 숫자 입력`}
-                className="h-4 w-10 rounded-sm border border-current/40 bg-background px-0.5 text-center text-[9px] tabular-nums outline-none"
+                className={cn(
+                  "rounded-sm border border-current/40 bg-background text-center tabular-nums outline-none",
+                  labelGutter
+                    ? "h-7 w-14 px-1 text-xs font-semibold"
+                    : "h-4 w-10 px-0.5 text-[9px]",
+                )}
                 style={{ color: label.color }}
                 value={edgeEdit.text}
                 onChange={(e) =>
@@ -2743,7 +3469,123 @@ export function TrendChart({
         );
       })}
 
-      {hoverIdx != null && hoverIdx >= 0 && hoverIdx < n ? (
+      {pinnedTips.length > 0 ? (
+        <svg
+          className="pointer-events-none absolute inset-0 z-[15] h-full w-full overflow-visible"
+          aria-hidden
+        >
+          {pinnedTips.map((pin) => {
+            if (pin.idx < 0 || pin.idx >= n) return null;
+            const plotW = plotPx.w || 1;
+            const plotH = plotPx.h || 1;
+            const anchorX = pin.nx * plotW;
+            const anchorY = pin.ny * plotH;
+            const base = computeTipPlacement(anchorX, anchorY, plotW, plotH);
+            const left = base.left + pin.ox;
+            const top = base.top + pin.oy;
+            const attachX = left + 84;
+            const attachY = top + 6;
+            return (
+              <g key={`pin-link-${pin.id}`}>
+                <line
+                  x1={anchorX}
+                  y1={anchorY}
+                  x2={attachX}
+                  y2={attachY}
+                  stroke="hsl(var(--primary) / 0.55)"
+                  strokeWidth={1.25}
+                  strokeDasharray="4 3"
+                />
+                <circle
+                  cx={anchorX}
+                  cy={anchorY}
+                  r={3}
+                  fill="hsl(var(--primary) / 0.75)"
+                />
+              </g>
+            );
+          })}
+        </svg>
+      ) : null}
+
+      {pinnedTips.map((pin) => {
+        if (pin.idx < 0 || pin.idx >= n) return null;
+        const plotW = plotPx.w || 1;
+        const plotH = plotPx.h || 1;
+        const anchorX = pin.nx * plotW;
+        const anchorY = pin.ny * plotH;
+        const base = computeTipPlacement(anchorX, anchorY, plotW, plotH);
+        const left = base.left + pin.ox;
+        const top = base.top + pin.oy;
+        return (
+          <div
+            key={pin.id}
+            className={cn(
+              "pointer-events-auto absolute z-20 w-max max-w-[16rem]",
+              motionClass.farmChartTipIn,
+            )}
+            style={{ left, top }}
+            data-tour-id="trend-chart-pinned-card"
+            data-pin-id={pin.id}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="overflow-hidden rounded-md border border-primary/35 bg-popover/95 text-popover-foreground shadow-lg ring-1 ring-primary/15 backdrop-blur-sm">
+              <button
+                type="button"
+                aria-label="데이터 카드 위치 이동"
+                title="드래그하여 배치"
+                className={cn(
+                  "flex w-full cursor-grab items-center justify-center gap-1 border-b border-border/60 bg-muted/40 px-2 py-1",
+                  "active:cursor-grabbing touch-none select-none",
+                )}
+                onPointerDown={(e) => {
+                  if (e.button !== 0 || !plotRef.current) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  plotRef.current.setPointerCapture(e.pointerId);
+                  pinCardDragRef.current = {
+                    id: pin.id,
+                    pointerId: e.pointerId,
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origOx: pin.ox,
+                    origOy: pin.oy,
+                  };
+                }}
+              >
+                <GripHorizontal
+                  className="size-3.5 text-muted-foreground"
+                  aria-hidden
+                />
+                <span className="text-[9px] font-medium text-muted-foreground">
+                  이동
+                </span>
+              </button>
+              <div className="px-2.5 py-1.5">
+                <TrendPointCardBody
+                  idx={pin.idx}
+                  seriesKey={pin.seriesKey}
+                  categories={categories}
+                  series={series}
+                  envelopes={envelopes}
+                  histograms={histograms}
+                  leftUnit={leftUnit}
+                  rightUnit={rightUnit}
+                  onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {hoverIdx != null &&
+      hoverIdx >= 0 &&
+      hoverIdx < n &&
+      !(
+        hoverSeries != null &&
+        pinnedTips.some((p) => p.id === tipPinId(hoverIdx, hoverSeries))
+      ) ? (
         <div
           ref={tipRef}
           className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"
@@ -2757,398 +3599,17 @@ export function TrendChart({
               motionClass.farmChartTipIn,
             )}
           >
-            {(() => {
-              const group = hoverSeries
-                ? inferHoverMetricGroup(hoverSeries)
-                : null;
-              const tipSeries = series.filter(
-                (s) =>
-                  group == null ||
-                  inferHoverMetricGroup(s.name) === group,
-              );
-              const tipHists = histograms.filter((h) => {
-                const label = h.legendLabel ?? "편차";
-                return (
-                  group == null || inferHoverMetricGroup(label) === group
-                );
-              });
-              const sparkSeries =
-                tipSeries.find((s) => s.name === hoverSeries) ?? tipSeries[0];
-              const sparkHist =
-                tipHists.find((h) => (h.legendLabel ?? "") === hoverSeries) ??
-                tipHists[0];
-              const sparkColor =
-                sparkSeries?.color ??
-                sparkHist?.colorUp ??
-                "#94a3b8";
-              const sparkSrc =
-                sparkSeries?.hoverSecondary ??
-                sparkSeries?.data ??
-                sparkHist?.hoverSecondary ??
-                sparkHist?.values ??
-                [];
-              const sparkSlice = sparkSrc.slice(
-                Math.max(0, hoverIdx - 7),
-                hoverIdx + 1,
-              );
-
-              const heroSeries =
-                tipSeries.find((s) => s.name === hoverSeries) ??
-                tipSeries.find((s) =>
-                  group === "temp"
-                    ? s.name === "온도"
-                    : group === "hum"
-                      ? s.name === "습도"
-                      : false,
-                ) ??
-                (group === "motor" ? undefined : tipSeries[0]);
-
-              const motorChannels: NonNullable<
-                TrendHistogram["hoverChannels"]
-              > = (() => {
-                if (group !== "motor") return [];
-                const fromMeta =
-                  tipHists.find((h) => h.hoverChannels?.length)?.hoverChannels ??
-                  [];
-                if (fromMeta.length) return fromMeta;
-                return tipHists
-                  .filter((h) => {
-                    const lab = h.legendLabel ?? "";
-                    return lab === "A" || lab === "B" || lab === "C";
-                  })
-                  .map((h) => ({
-                    label: h.legendLabel!,
-                    color: h.colorUp,
-                    values: h.hoverSecondary ?? h.values,
-                  }));
-              })();
-
-              const showMotorMatrix =
-                group === "motor" && motorChannels.length > 0;
-
-              let heroHist =
-                tipHists.find((h) => (h.legendLabel ?? "") === hoverSeries) ??
-                tipHists.find((h) => (h.legendLabel ?? "") === "모터") ??
-                (group === "motor" ? tipHists[0] : undefined);
-              if (group === "motor") {
-                heroHist =
-                  tipHists.find((h) => (h.legendLabel ?? "") === "모터") ??
-                  tipHists.find((h) => h.hoverChannels?.length) ??
-                  tipHists[0];
-              }
-
-              let heroLabel = group ? HOVER_GROUP_LABEL[group] : "데이터";
-              let heroText = "–";
-              let heroUnit = "";
-              let heroNum: number | null = null;
-              let heroColor = sparkColor;
-
-              if (group === "motor" && showMotorMatrix) {
-                const vals = motorChannels
-                  .map((ch) => ch.values[hoverIdx])
-                  .filter((v): v is number => v != null && Number.isFinite(v));
-                if (vals.length) {
-                  heroNum = Math.max(...vals);
-                  heroUnit = "%";
-                  heroText = `${Math.round(heroNum)}%`;
-                  heroLabel = "모터 max";
-                  heroColor =
-                    tipHists.find((h) => (h.legendLabel ?? "") === "모터")
-                      ?.colorUp ??
-                    motorChannels[0]?.color ??
-                    sparkColor;
-                }
-              } else if (heroSeries) {
-                const unit =
-                  (heroSeries.axis ?? "left") === "right"
-                    ? rightUnit
-                    : leftUnit;
-                const sec = heroSeries.hoverSecondary?.[hoverIdx];
-                const v = heroSeries.data[hoverIdx];
-                if (
-                  sec != null &&
-                  Number.isFinite(sec) &&
-                  heroSeries.hoverSecondaryUnit
-                ) {
-                  heroNum = sec;
-                  heroUnit = heroSeries.hoverSecondaryUnit;
-                  heroText = formatTrendHoverValue(
-                    sec,
-                    heroSeries.hoverSecondaryUnit,
-                    heroSeries.name,
-                  );
-                } else if (v != null && Number.isFinite(v)) {
-                  heroNum = v;
-                  heroUnit = unit;
-                  heroText = formatTrendHoverValue(v, unit, heroSeries.name);
-                }
-                heroLabel = heroSeries.name;
-                heroColor = heroSeries.color;
-              } else if (heroHist) {
-                const sec = heroHist.hoverSecondary?.[hoverIdx];
-                heroText = formatHistHoverDisplay(heroHist, hoverIdx);
-                if (sec != null && Number.isFinite(sec)) {
-                  heroNum = sec;
-                  heroUnit = heroHist.hoverSecondaryUnit ?? "";
-                }
-                heroLabel =
-                  group === "motor" || heroHist.legendLabel === "모터"
-                    ? "모터 max"
-                    : (heroHist.legendLabel ?? "값");
-                heroColor = heroHist.colorUp;
-              }
-
-              const heroKey = heroSeries?.name ?? heroHist?.legendLabel ?? "";
-
-              const alarmMeta =
-                group === "temp" || group === "hum"
-                  ? tipSeries.find((s) => s.hoverAlarmBand)?.hoverAlarmBand
-                  : undefined;
-
-              const spreadExtremes =
-                group === "temp" || group === "hum"
-                  ? (tipSeries.find((s) => s.hoverSpreadExtremes)
-                      ?.hoverSpreadExtremes ??
-                    envelopes.find(
-                      (e) =>
-                        e.hoverExtremes &&
-                        e.legendLabel ===
-                          (group === "temp" ? "온도 산포" : "습도 산포"),
-                    )?.hoverExtremes)
-                  : undefined;
-              const spreadHigh = spreadExtremes?.high[hoverIdx] ?? null;
-              const spreadLow = spreadExtremes?.low[hoverIdx] ?? null;
-              const showSpreadHigh = Boolean(spreadHigh?.breached);
-              const showSpreadLow = Boolean(spreadLow?.breached);
-              const spreadSame =
-                showSpreadHigh &&
-                showSpreadLow &&
-                spreadHigh != null &&
-                spreadLow != null &&
-                spreadHigh.zoneLabel === spreadLow.zoneLabel &&
-                spreadHigh.equipmentLabel === spreadLow.equipmentLabel;
-              const spreadUnit = group === "temp" ? "℃" : "%";
-              const formatSpreadRow = (
-                side: "high" | "low",
-                c: NonNullable<typeof spreadHigh>,
-              ) => {
-                const delta =
-                  alarmMeta != null
-                    ? side === "high"
-                      ? c.value - alarmMeta.hi
-                      : alarmMeta.lo - c.value
-                    : null;
-                const deltaText =
-                  delta != null && delta >= -1e-9
-                    ? formatLimitBreachDelta(Math.max(0, delta), spreadUnit, side)
-                    : null;
-                return (
-                  <>
-                    {c.zoneLabel}
-                    <span className="text-muted-foreground"> · </span>
-                    {c.equipmentLabel}
-                    <span className="ml-1 tabular-nums text-muted-foreground">
-                      {c.value.toFixed(1)}
-                      {spreadUnit}
-                    </span>
-                    {deltaText ? (
-                      <span className="ml-1 tabular-nums font-medium text-amber-600 dark:text-amber-400">
-                        {deltaText}
-                      </span>
-                    ) : null}
-                  </>
-                );
-              };
-
-              const secondarySeries = tipSeries.filter((s) => s.name !== heroKey);
-              const secondaryHists = tipHists.filter((h) => {
-                const lab = h.legendLabel ?? "";
-                if (lab === heroKey) return false;
-                if (showMotorMatrix && (lab === "모터" || /^[ABC]$/.test(lab))) {
-                  return false;
-                }
-                return true;
-              });
-
-              const heroMain = heroText.replace(
-                new RegExp(`${heroUnit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`),
-                "",
-              );
-
-              return (
-                <>
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <span className="rounded-sm bg-muted/80 px-1 py-px text-[9px] font-semibold tracking-tight text-foreground/90">
-                      {group ? HOVER_GROUP_LABEL[group] : "데이터"}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
-                      {categories[hoverIdx]}
-                    </span>
-                    <div className="ml-auto">
-                      <MiniSpark
-                        values={sparkSlice}
-                        color={sparkColor}
-                        variant={group === "motor" ? "bars" : "line"}
-                      />
-                    </div>
-                  </div>
-
-                  <div
-                    className={cn(
-                      "flex items-baseline gap-0.5",
-                      motionClass.farmChartTipHero,
-                    )}
-                    key={`hero-${heroKey}-${hoverIdx}`}
-                  >
-                    <span
-                      className="text-[18px] font-semibold leading-none tabular-nums tracking-tight"
-                      style={{ color: heroColor }}
-                    >
-                      {heroMain || "–"}
-                    </span>
-                    {heroUnit ? (
-                      <span className="text-[10px] font-medium text-muted-foreground">
-                        {heroUnit}
-                        {heroLabel === "모터 max" ? " max" : ""}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {(secondarySeries.length > 0 || secondaryHists.length > 0) &&
-                  !showMotorMatrix ? (
-                    <div className="mt-1.5 space-y-0.5">
-                      {secondarySeries.map((s) => {
-                        const unit =
-                          (s.axis ?? "left") === "right"
-                            ? rightUnit
-                            : leftUnit;
-                        const sec = s.hoverSecondary?.[hoverIdx];
-                        const v = s.data[hoverIdx];
-                        const mappedPrimary =
-                          v == null || !Number.isFinite(v)
-                            ? "–"
-                            : formatTrendHoverValue(v, unit, s.name);
-                        const display =
-                          sec != null &&
-                          Number.isFinite(sec) &&
-                          s.hoverSecondaryUnit
-                            ? formatTrendHoverValue(
-                                sec,
-                                s.hoverSecondaryUnit,
-                                s.name,
-                              )
-                            : mappedPrimary;
-                        return (
-                          <div
-                            key={s.name}
-                            className="flex items-center justify-between gap-2 text-[10px]"
-                          >
-                            <span className="inline-flex min-w-0 items-center gap-1">
-                              <span
-                                className="inline-block h-1.5 w-1.5 shrink-0 rounded-sm"
-                                style={{ backgroundColor: s.color }}
-                              />
-                              <span className="truncate text-muted-foreground">
-                                {s.name}
-                              </span>
-                            </span>
-                            <span className="shrink-0 tabular-nums">
-                              {display}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      {secondaryHists.map((h, hi) => {
-                        const chartV = h.values[hoverIdx];
-                        const up =
-                          chartV != null && Number.isFinite(chartV)
-                            ? chartV >= h.baseline
-                            : true;
-                        return (
-                          <div
-                            key={`hist-tip-${hi}`}
-                            className="flex items-center justify-between gap-2 text-[10px]"
-                          >
-                            <span className="inline-flex min-w-0 items-center gap-1">
-                              <span
-                                className="inline-block h-1.5 w-1.5 shrink-0 rounded-sm"
-                                style={{
-                                  backgroundColor:
-                                    h.style === "volume" || up
-                                      ? h.colorUp
-                                      : h.colorDown,
-                                }}
-                              />
-                              <span className="truncate text-muted-foreground">
-                                {h.legendLabel ?? "편차"}
-                              </span>
-                            </span>
-                            <span className="shrink-0 tabular-nums">
-                              {formatHistHoverDisplay(h, hoverIdx)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-
-                  {showMotorMatrix ? (
-                    <MotorChannelMatrix
-                      channels={motorChannels}
-                      hoverIdx={hoverIdx}
-                    />
-                  ) : null}
-
-                  {showSpreadHigh || showSpreadLow ? (
-                    <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5">
-                      <div className="text-[9px] font-medium text-muted-foreground">
-                        임계 초과 구간
-                      </div>
-                      {onBreachEquipmentNavigate ? (
-                        <div className="text-[9px] text-muted-foreground/90">
-                          우클릭 · 해당 장비 차트
-                        </div>
-                      ) : null}
-                      {spreadSame && spreadHigh ? (
-                        <div className="text-[10px] leading-snug text-foreground/90">
-                          <span className="text-muted-foreground">산포 · </span>
-                          {formatSpreadRow("high", spreadHigh)}
-                        </div>
-                      ) : (
-                        <>
-                          {showSpreadHigh && spreadHigh ? (
-                            <div className="text-[10px] leading-snug text-foreground/90">
-                              <span className="text-muted-foreground">
-                                상단 ·{" "}
-                              </span>
-                              {formatSpreadRow("high", spreadHigh)}
-                            </div>
-                          ) : null}
-                          {showSpreadLow && spreadLow ? (
-                            <div className="text-[10px] leading-snug text-foreground/90">
-                              <span className="text-muted-foreground">
-                                하단 ·{" "}
-                              </span>
-                              {formatSpreadRow("low", spreadLow)}
-                            </div>
-                          ) : null}
-                        </>
-                      )}
-                    </div>
-                  ) : null}
-
-                  {alarmMeta ? (
-                    <AlarmTrack
-                      lo={alarmMeta.lo}
-                      hi={alarmMeta.hi}
-                      value={heroNum}
-                      unit={alarmMeta.unit}
-                      color={heroColor}
-                    />
-                  ) : null}
-                </>
-              );
-            })()}
+            <TrendPointCardBody
+              idx={hoverIdx}
+              seriesKey={hoverSeries}
+              categories={categories}
+              series={series}
+              envelopes={envelopes}
+              histograms={histograms}
+              leftUnit={leftUnit}
+              rightUnit={rightUnit}
+              onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+            />
           </div>
         </div>
       ) : null}
@@ -3170,12 +3631,17 @@ export function TrendChart({
               className={cn(
                 "pointer-events-none absolute top-1 text-[9px] leading-none text-muted-foreground",
                 align === "left" && "left-0 max-w-[30%] truncate text-left",
-                align === "right" && "right-0 max-w-[30%] truncate text-right",
+                align === "right" &&
+                  !labelGutter &&
+                  "right-0 max-w-[30%] truncate text-right",
+                align === "right" &&
+                  labelGutter &&
+                  "max-w-[30%] -translate-x-full truncate text-right",
                 align === "center" &&
                   "max-w-[22%] -translate-x-1/2 truncate text-center",
               )}
               style={
-                align === "center"
+                align === "center" || (align === "right" && labelGutter)
                   ? { left: `${(xAtIndex(i) / VIEW_W) * 100}%` }
                   : undefined
               }

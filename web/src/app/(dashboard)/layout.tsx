@@ -23,7 +23,7 @@ export default async function DashboardLayout({
         isAdmin={user.isAdmin}
         fixedFarmKey={resolveFixedFarmKey(user)}
       >
-        <DashboardViewportShell role={user.role}>
+        <DashboardViewportShell>
           <Suspense fallback={<FarmContentSkeleton />}>{children}</Suspense>
         </DashboardViewportShell>
       </FarmScopeProvider>

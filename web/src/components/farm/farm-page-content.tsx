@@ -17,7 +17,6 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { FarmChartView } from "@/components/farm/farm-chart-view";
 import { FarmAriaView } from "@/components/farm/farm-aria-view";
-import { DelinChartCompanion } from "@/components/farm/delin-chart-companion";
 import { BarnTable } from "@/components/farm/barn-table";
 import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
 import {
@@ -585,18 +584,6 @@ export function FarmPageContent({
                 isMobileStack={viewportCompact}
                 layersToolbarActive={view === "chart"}
               />
-              {!viewportCompact ? (
-                <DelinChartCompanion
-                  currentFarm={ariaFarm}
-                  panelLiveActive={view === "chart"}
-                />
-              ) : (
-                <DelinChartCompanion
-                  currentFarm={ariaFarm}
-                  panelLiveActive={view === "chart"}
-                  mobileSheet
-                />
-              )}
             </div>
           </div>
         ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
 import { resolveThresholdsForScope } from "@/lib/data/alarm-scope";
 import {
@@ -136,6 +137,7 @@ export function FarmChartView({
     {},
   );
   const [expandScopeKey, setExpandScopeKey] = useState("");
+  const [scopePanelOpen, setScopePanelOpen] = useState(false);
 
   const tree = useMemo(() => buildFarmChartTree(readings), [readings]);
   const scopedReadings = useMemo(
@@ -212,7 +214,7 @@ export function FarmChartView({
   }, [readings, alarmSettings, controllerTrendByPeriod, period]);
 
   const label = chartScopeLabel(scope, readings);
-  const chartHeight = isMobileStack ? 280 : 420;
+  const chartHeight = isMobileStack ? 320 : 420;
 
   const stallExpandKey = (ty: string, stallNo: string) => `${ty}::${stallNo}`;
 
@@ -238,155 +240,225 @@ export function FarmChartView({
 
   const selectScope = (next: FarmChartScope) => {
     onScopeChange?.(next);
+    if (isMobileStack) setScopePanelOpen(false);
   };
 
+  const scopeTree = (
+    <nav
+      className="space-y-0.5 text-sm"
+      aria-label="집계 범위 트리"
+    >
+      <ScopeRow
+        selected={scopesEqual(scope, { level: "farm" })}
+        onSelect={() => selectScope({ level: "farm" })}
+        depth={0}
+        label="농장 전체"
+        meta={`${readings.length}대`}
+        tone={alarmTones.farm}
+        touchFriendly={isMobileStack}
+      />
+
+      {tree.map((sp) => {
+        const spOpen = expandedSp[sp.stallTyCode] ?? true;
+        const spScope: FarmChartScope = {
+          level: "sp",
+          stallTyCode: sp.stallTyCode,
+        };
+        return (
+          <div key={sp.stallTyCode} role="group" aria-label={sp.label}>
+            <ScopeRow
+              selected={scopesEqual(scope, spScope)}
+              onSelect={() => selectScope(spScope)}
+              depth={0}
+              label={sp.label}
+              meta={`${sp.controllerCount}대`}
+              tone={alarmTones.bySp.get(sp.stallTyCode) ?? null}
+              expandable
+              expanded={spOpen}
+              onToggleExpand={() =>
+                setExpandedSp((prev) => ({
+                  ...prev,
+                  [sp.stallTyCode]: !spOpen,
+                }))
+              }
+              touchFriendly={isMobileStack}
+            />
+            {spOpen
+              ? sp.stalls.map((stall) => {
+                  const sk = stallExpandKey(sp.stallTyCode, stall.stallNo);
+                  const stallOpen = expandedStall[sk] ?? false;
+                  const stallScope: FarmChartScope = {
+                    level: "stall",
+                    stallTyCode: sp.stallTyCode,
+                    stallNo: stall.stallNo,
+                  };
+                  return (
+                    <div key={sk}>
+                      <ScopeRow
+                        selected={scopesEqual(scope, stallScope)}
+                        onSelect={() => selectScope(stallScope)}
+                        depth={1}
+                        label={stall.label}
+                        meta={`${stall.controllers.length}대`}
+                        tone={
+                          alarmTones.byStall.get(
+                            stallToneKey(sp.stallTyCode, stall.stallNo),
+                          ) ?? null
+                        }
+                        expandable={stall.controllers.length > 0}
+                        expanded={stallOpen}
+                        onToggleExpand={() =>
+                          setExpandedStall((prev) => ({
+                            ...prev,
+                            [sk]: !stallOpen,
+                          }))
+                        }
+                        touchFriendly={isMobileStack}
+                      />
+                      {stallOpen
+                        ? stall.controllers.map((c) => {
+                            const ctrlScope: FarmChartScope = {
+                              level: "controller",
+                              stallTyCode: sp.stallTyCode,
+                              stallNo: stall.stallNo,
+                              controllerKey: c.controllerKey,
+                            };
+                            return (
+                              <ScopeRow
+                                key={c.controllerKey}
+                                selected={scopesEqual(scope, ctrlScope)}
+                                onSelect={() => selectScope(ctrlScope)}
+                                depth={2}
+                                label={c.label}
+                                tone={
+                                  alarmTones.byCtrl.get(c.controllerKey) ?? null
+                                }
+                                touchFriendly={isMobileStack}
+                              />
+                            );
+                          })
+                        : null}
+                    </div>
+                  );
+                })
+              : null}
+          </div>
+        );
+      })}
+    </nav>
+  );
+
   return (
-    <div className={cn("relative min-h-0", className)} data-tour-id="farm-chart-view">
+    <div
+      className={cn("relative min-h-0", className)}
+      data-tour-id="farm-chart-view"
+    >
       <div
         className={cn(
           "flex min-h-0 flex-col gap-3 lg:flex-row lg:items-stretch",
           motionClass.farmChartScopeShell,
         )}
       >
-      <div className="min-w-0 flex-1">
-        <UnifiedBarnTrendPanel
-          label={label}
-          controllers={controllers}
-          controllerTrendByPeriod={controllerTrendByPeriod}
-          period={period}
-          onPeriodChange={onPeriodChange}
-          alarmSettings={alarmSettings}
-          thermoSettings={thermoSettings}
-          chartScope={scope}
-          onScopeChange={onScopeChange}
-          initialZoom={initialZoom}
-          canCommand={canCommand}
-          isMobileStack={isMobileStack}
-          chartHeight={chartHeight}
-          layersToolbarActive={layersToolbarActive}
-          className="mt-0"
-        />
-      </div>
-
-      <aside
-        className={cn(
-          "w-full shrink-0 rounded-xl border bg-card p-3 lg:w-64 xl:w-72",
-          "lg:max-h-[min(70dvh,36rem)] lg:overflow-y-auto",
-          motionClass.farmChartPanelShell,
-        )}
-        data-tour-id="farm-chart-scope-panel"
-        aria-label="차트 집계 범위"
-      >
-        <p className="mb-2 text-xs font-semibold">집계 범위</p>
-        <p className="mb-3 text-[0.65rem] leading-snug text-muted-foreground">
-          <span className="lg:hidden">농장 전체 기본. 유형·축사·컨트롤러로 좁히기.</span>
-          <span className="hidden lg:inline">
-            기본은 농장 전체. 유형·축사·컨트롤러를 골라 좁힙니다.
-          </span>
-        </p>
-
-        <nav className="space-y-0.5 text-sm" aria-label="집계 범위 트리">
-          <ScopeRow
-            selected={scopesEqual(scope, { level: "farm" })}
-            onSelect={() => selectScope({ level: "farm" })}
-            depth={0}
-            label="농장 전체"
-            meta={`${readings.length}대`}
-            tone={alarmTones.farm}
-          />
-
-          {tree.map((sp) => {
-            const spOpen = expandedSp[sp.stallTyCode] ?? true;
-            const spScope: FarmChartScope = {
-              level: "sp",
-              stallTyCode: sp.stallTyCode,
-            };
-            return (
-              <div
-                key={sp.stallTyCode}
-                role="group"
-                aria-label={sp.label}
-              >
-                <ScopeRow
-                  selected={scopesEqual(scope, spScope)}
-                  onSelect={() => selectScope(spScope)}
-                  depth={0}
-                  label={sp.label}
-                  meta={`${sp.controllerCount}대`}
-                  tone={alarmTones.bySp.get(sp.stallTyCode) ?? null}
-                  expandable
-                  expanded={spOpen}
-                  onToggleExpand={() =>
-                    setExpandedSp((prev) => ({
-                      ...prev,
-                      [sp.stallTyCode]: !spOpen,
-                    }))
+        <div className="min-w-0 flex-1">
+          <UnifiedBarnTrendPanel
+            label={label}
+            controllers={controllers}
+            controllerTrendByPeriod={controllerTrendByPeriod}
+            period={period}
+            onPeriodChange={onPeriodChange}
+            alarmSettings={alarmSettings}
+            thermoSettings={thermoSettings}
+            chartScope={scope}
+            onScopeChange={onScopeChange}
+            initialZoom={initialZoom}
+            canCommand={canCommand}
+            isMobileStack={isMobileStack}
+            chartHeight={chartHeight}
+            layersToolbarActive={layersToolbarActive}
+            mobileScopeHandle={
+              isMobileStack
+                ? {
+                    open: scopePanelOpen,
+                    onOpen: () => setScopePanelOpen(true),
                   }
-                />
-                {spOpen
-                  ? sp.stalls.map((stall) => {
-                      const sk = stallExpandKey(sp.stallTyCode, stall.stallNo);
-                      const stallOpen = expandedStall[sk] ?? false;
-                      const stallScope: FarmChartScope = {
-                        level: "stall",
-                        stallTyCode: sp.stallTyCode,
-                        stallNo: stall.stallNo,
-                      };
-                      return (
-                        <div key={sk}>
-                          <ScopeRow
-                            selected={scopesEqual(scope, stallScope)}
-                            onSelect={() => selectScope(stallScope)}
-                            depth={1}
-                            label={stall.label}
-                            meta={`${stall.controllers.length}대`}
-                            tone={
-                              alarmTones.byStall.get(
-                                stallToneKey(sp.stallTyCode, stall.stallNo),
-                              ) ?? null
-                            }
-                            expandable={stall.controllers.length > 0}
-                            expanded={stallOpen}
-                            onToggleExpand={() =>
-                              setExpandedStall((prev) => ({
-                                ...prev,
-                                [sk]: !stallOpen,
-                              }))
-                            }
-                          />
-                          {stallOpen
-                            ? stall.controllers.map((c) => {
-                                const ctrlScope: FarmChartScope = {
-                                  level: "controller",
-                                  stallTyCode: sp.stallTyCode,
-                                  stallNo: stall.stallNo,
-                                  controllerKey: c.controllerKey,
-                                };
-                                return (
-                                  <ScopeRow
-                                    key={c.controllerKey}
-                                    selected={scopesEqual(scope, ctrlScope)}
-                                    onSelect={() => selectScope(ctrlScope)}
-                                    depth={2}
-                                    label={c.label}
-                                    tone={
-                                      alarmTones.byCtrl.get(c.controllerKey) ??
-                                      null
-                                    }
-                                  />
-                                );
-                              })
-                            : null}
-                        </div>
-                      );
-                    })
-                  : null}
-              </div>
-            );
-          })}
-        </nav>
-      </aside>
+                : null
+            }
+            className="mt-0"
+          />
+        </div>
+
+        {!isMobileStack ? (
+          <aside
+            className={cn(
+              "w-full shrink-0 rounded-xl border bg-card p-3 lg:w-64 xl:w-72",
+              "lg:max-h-[min(70dvh,36rem)] lg:overflow-y-auto",
+              motionClass.farmChartPanelShell,
+            )}
+            data-tour-id="farm-chart-scope-panel"
+            aria-label="차트 집계 범위"
+          >
+            <p className="mb-2 text-xs font-semibold">집계 범위</p>
+            <p className="mb-3 text-[0.65rem] leading-snug text-muted-foreground">
+              기본은 농장 전체. 유형·축사·컨트롤러를 골라 좁힙니다.
+            </p>
+            {scopeTree}
+          </aside>
+        ) : null}
       </div>
+
+      {isMobileStack && scopePanelOpen ? (
+        <div
+          className="absolute inset-0 z-30"
+          data-tour-id="farm-chart-scope-overlay"
+        >
+          <button
+            type="button"
+            className={cn(
+              "absolute inset-0 border-0",
+              "bg-background/40 backdrop-blur-sm dark:bg-black/40",
+              motionClass.enterFade,
+            )}
+            aria-label="집계 범위 닫기"
+            onClick={() => setScopePanelOpen(false)}
+          />
+          <aside
+            className={cn(
+              "absolute inset-y-0 right-0 z-[1] flex w-[min(100%,20rem)] flex-col",
+              "border-l border-border/80 bg-card/95 backdrop-blur-md",
+              motionClass.farmChartPanelShell,
+              motionClass.enterFade,
+            )}
+            data-tour-id="farm-chart-scope-panel"
+            aria-label="차트 집계 범위"
+          >
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold">집계 범위</p>
+                <p className="truncate text-[0.65rem] text-muted-foreground">
+                  {label}
+                </p>
+              </div>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex size-9 shrink-0 items-center justify-center rounded-md",
+                  "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                )}
+                aria-label="집계 범위 닫기"
+                onClick={() => setScopePanelOpen(false)}
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+              <p className="mb-3 px-1 text-[0.65rem] leading-snug text-muted-foreground">
+                유형·축사·컨트롤러로 좁힙니다.
+              </p>
+              {scopeTree}
+            </div>
+          </aside>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -401,6 +473,7 @@ function ScopeRow({
   expandable,
   expanded,
   onToggleExpand,
+  touchFriendly = false,
 }: {
   selected: boolean;
   onSelect: () => void;
@@ -411,6 +484,7 @@ function ScopeRow({
   expandable?: boolean;
   expanded?: boolean;
   onToggleExpand?: () => void;
+  touchFriendly?: boolean;
 }) {
   const toneLabel =
     tone === "critical"
@@ -431,7 +505,8 @@ function ScopeRow({
           type="button"
           aria-label={expanded ? "접기" : "펼치기"}
           className={cn(
-            "flex h-6 w-6 shrink-0 items-center justify-center rounded text-[0.65rem] text-muted-foreground",
+            "flex shrink-0 items-center justify-center rounded text-[0.65rem] text-muted-foreground",
+            touchFriendly ? "h-10 w-10" : "h-6 w-6",
             motionClass.microHover,
           )}
           onClick={(e) => {
@@ -442,7 +517,10 @@ function ScopeRow({
           {expanded ? "▾" : "▸"}
         </button>
       ) : (
-        <span className="inline-block w-6 shrink-0" aria-hidden />
+        <span
+          className={cn("inline-block shrink-0", touchFriendly ? "w-10" : "w-6")}
+          aria-hidden
+        />
       )}
       <button
         type="button"
@@ -450,7 +528,8 @@ function ScopeRow({
         title={toneLabel ? `${label} · ${toneLabel}` : undefined}
         aria-label={toneLabel ? `${label}, ${toneLabel}` : undefined}
         className={cn(
-          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-[0.8rem]",
+          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 text-left text-[0.8rem]",
+          touchFriendly ? "min-h-11 py-2.5" : "py-1",
           motionClass.microHover,
           selected
             ? "bg-channel-info/10 font-medium dark:bg-channel-info/15"

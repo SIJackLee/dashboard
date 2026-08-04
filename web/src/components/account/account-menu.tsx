@@ -14,11 +14,15 @@ import {
   FARM_TOUR_RESTART_FLAG,
   buildFarmTourPath,
 } from "@/lib/onboarding/tour-steps";
-import { parseFarmKeyFromQuery, DEFAULT_FARM } from "@/lib/data/farm-key";
+import { parseFarmKeyFromQuery, DEFAULT_FARM, type FarmKey } from "@/lib/data/farm-key";
 import { RecentActivityMenuSection } from "@/components/account/recent-activity-menu-section";
 import { FarmAddressInput } from "@/components/settings/farm-address-input";
+import { FarmSwitcher } from "@/components/layout/farm-switcher";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
-import type { FarmKey } from "@/lib/data/farm-key";
+import {
+  farmShortLabel,
+  type FarmSummaryRow,
+} from "@/lib/data/farm-summaries";
 import type { ModuleReceipt } from "@/lib/data/iot";
 import { farmOptionId } from "@/lib/settings/farm-location-client";
 import { signOut } from "@/app/auth/actions";
@@ -45,6 +49,8 @@ type Props = {
   receipts?: ModuleReceipt[];
   farmLocationOptions?: EditableFarmOption[];
   farmOptions?: FarmKey[];
+  activeFarmKey?: FarmKey | null;
+  farmSummaries?: FarmSummaryRow[];
   canEditLocation?: boolean;
 };
 
@@ -53,6 +59,8 @@ export function AccountMenu({
   receipts = [],
   farmLocationOptions = [],
   farmOptions = [],
+  activeFarmKey = null,
+  farmSummaries = [],
   canEditLocation = false,
 }: Props) {
   const router = useRouter();
@@ -154,6 +162,29 @@ export function AccountMenu({
             </p>
           ) : null}
         </div>
+
+        {mobile && farmOptions.length > 0 ? (
+          <div
+            className="border-b"
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <p className="px-4 pt-3 text-[11px] font-medium text-muted-foreground">
+              농장
+              {activeFarmKey
+                ? ` · ${farmShortLabel(activeFarmKey)}`
+                : ` · 전체 ${farmOptions.length}개`}
+            </p>
+            <FarmSwitcher
+              farmOptions={farmOptions}
+              activeFarmKey={activeFarmKey}
+              farmSummaries={farmSummaries}
+              compact
+              variant="inline"
+              onNavigated={() => setOpen(false)}
+            />
+          </div>
+        ) : null}
 
         <div className="p-1.5">
           <DropdownMenuItem className="gap-2 rounded-lg px-3 py-2" onClick={restartTour}>

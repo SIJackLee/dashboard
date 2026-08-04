@@ -36,6 +36,13 @@ type FarmSwitcherProps = {
   farmSummaries?: FarmSummaryRow[];
   /** OpsScopeBar — compact pill trigger */
   compact?: boolean;
+  /**
+   * dropdown: 기본 트리거+메뉴
+   * inline: 계정 메뉴 등 부모 드롭다운 안에 목록만 (중첩 메뉴 방지)
+   */
+  variant?: "dropdown" | "inline";
+  /** inline 선택 후 부모 메뉴 닫기 등 */
+  onNavigated?: () => void;
 };
 
 /** useSearchParams — 클라이언트 마운트 후 렌더로 hydration 불일치 방지 */
@@ -43,6 +50,11 @@ export function FarmSwitcher(props: FarmSwitcherProps) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   if (!mounted) {
+    if (props.variant === "inline") {
+      return (
+        <div className="min-h-8 px-3 py-2" aria-hidden data-tour-id="farm-switcher" />
+      );
+    }
     return (
       <div
         className={cn(
@@ -63,6 +75,8 @@ function FarmSwitcherBody({
   activeFarmKey,
   farmSummaries = [],
   compact = false,
+  variant = "dropdown",
+  onNavigated,
 }: FarmSwitcherProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -98,6 +112,7 @@ function FarmSwitcherBody({
   }, [farmOptions, liveByFarmId]);
 
   const navigate = (farmKey: FarmKey | null) => {
+    onNavigated?.();
     // /farm shallow는 window URL 기준 — useSearchParams는 탭·기간 desync됨.
     const params =
       pathname === "/farm"
@@ -140,6 +155,93 @@ function FarmSwitcherBody({
       ? `전체 ${farmOptions.length}개 농장`
       : farmShortLabel(activeFarmKey);
 
+  const itemClass = (active: boolean) =>
+    cn(
+      compact
+        ? dashboardUi.scopePillMenuItem
+        : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[length:var(--density-meta-md)]",
+      active && dashboardUi.menuItemActive,
+    );
+
+  const farmRows = (
+    <>
+      <button
+        type="button"
+        onClick={() => navigate(null)}
+        className={cn(
+          "flex w-full cursor-default items-center rounded-sm px-3 py-2 text-left outline-none select-none hover:bg-muted",
+          itemClass(activeId === null),
+        )}
+      >
+        <span className="flex-1 font-medium">
+          전체 {farmOptions.length}개 농장
+        </span>
+      </button>
+      {orderedFarmOptions.map((farmKey) => {
+        const id = farmKeyId(farmKey);
+        const alarms = alarmByFarmId.get(id);
+        const hasLiveSummary = liveByFarmId.has(id);
+        const isLive = liveByFarmId.get(id) === true;
+        return (
+          <button
+            type="button"
+            key={id}
+            onClick={() => navigate(farmKey)}
+            className={cn(
+              "flex w-full cursor-default items-center rounded-sm px-3 py-2 text-left outline-none select-none hover:bg-muted",
+              itemClass(activeId === id),
+            )}
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="truncate">{farmShortLabel(farmKey)}</span>
+              {hasLiveSummary ? (
+                isLive ? (
+                  <span className={dashboardUi.brandChip}>LIVE</span>
+                ) : (
+                  <span className="shrink-0 rounded border border-amber-500/40 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                    위치만
+                  </span>
+                )
+              ) : null}
+            </span>
+            {alarms !== undefined ? (
+              <span
+                className={cn(
+                  "tabular-nums font-semibold",
+                  "text-sm leading-snug md:text-[length:var(--density-meta-md)]",
+                  alarms > 0
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-muted-foreground",
+                )}
+              >
+                {alarms}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </>
+  );
+
+  if (variant === "inline") {
+    return (
+      <div
+        className="max-h-[min(50vh,20rem)] overflow-y-auto p-1.5"
+        data-tour-id="farm-switcher"
+        aria-busy={switchPending || undefined}
+        aria-label="농장 선택"
+      >
+        {switchPending ? (
+          <p className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            전환 중…
+          </p>
+        ) : null}
+        {farmRows}
+      </div>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -150,15 +252,15 @@ function FarmSwitcherBody({
             ? cn(
                 dashboardUi.scopePill,
                 dashboardUi.scopePillText,
-                dashboardUi.scopePillActive
+                dashboardUi.scopePillActive,
               )
             : cn(
                 "gap-3 rounded-xl px-5 py-2",
                 dashboardUi.body,
                 activeId === null
                   ? cn(dashboardUi.menuItemActive, "text-foreground")
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              ),
         )}
         aria-label={switchPending ? "농장 전환 중" : "농장 선택"}
         data-tour-id="farm-switcher"
@@ -170,7 +272,7 @@ function FarmSwitcherBody({
           <Loader2
             className={cn(
               "shrink-0 animate-spin opacity-70",
-              compact ? "size-6" : "size-8"
+              compact ? "size-6" : "size-8",
             )}
             aria-hidden
           />
@@ -178,7 +280,7 @@ function FarmSwitcherBody({
           <ChevronDown
             className={cn(
               "shrink-0 opacity-70",
-              compact ? "size-6" : "size-8"
+              compact ? "size-6" : "size-8",
             )}
             aria-hidden
           />
@@ -190,17 +292,12 @@ function FarmSwitcherBody({
         className={cn(
           compact
             ? cn(dashboardUi.scopePillMenu, "!w-auto min-w-[var(--anchor-width)]")
-            : "min-w-[28rem] rounded-xl p-2 text-sm leading-snug md:text-[length:var(--density-meta-md)] !w-auto"
+            : "min-w-[28rem] rounded-xl p-2 text-sm leading-snug md:text-[length:var(--density-meta-md)] !w-auto",
         )}
       >
         <DropdownMenuItem
           onClick={() => navigate(null)}
-          className={cn(
-            compact
-              ? dashboardUi.scopePillMenuItem
-              : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[length:var(--density-meta-md)]",
-            activeId === null && dashboardUi.menuItemActive
-          )}
+          className={itemClass(activeId === null)}
         >
           <span className="flex-1 font-medium">
             전체 {farmOptions.length}개 농장
@@ -215,20 +312,13 @@ function FarmSwitcherBody({
             <DropdownMenuItem
               key={id}
               onClick={() => navigate(farmKey)}
-              className={cn(
-                compact
-                  ? dashboardUi.scopePillMenuItem
-                  : "gap-3 rounded-lg px-3 py-2.5 text-sm leading-snug md:text-[length:var(--density-meta-md)]",
-                activeId === id && dashboardUi.menuItemActive
-              )}
+              className={itemClass(activeId === id)}
             >
               <span className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate">{farmShortLabel(farmKey)}</span>
                 {hasLiveSummary ? (
                   isLive ? (
-                    <span className={dashboardUi.brandChip}>
-                      LIVE
-                    </span>
+                    <span className={dashboardUi.brandChip}>LIVE</span>
                   ) : (
                     <span className="shrink-0 rounded border border-amber-500/40 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
                       위치만
@@ -243,7 +333,7 @@ function FarmSwitcherBody({
                     "text-sm leading-snug md:text-[length:var(--density-meta-md)]",
                     alarms > 0
                       ? "text-amber-700 dark:text-amber-400"
-                      : "text-muted-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
                   {alarms}
