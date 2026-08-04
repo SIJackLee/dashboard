@@ -40,12 +40,12 @@ export default async function AppInstallPage({
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
           <Image
-            src="/logo.png"
-            alt=""
-            width={240}
+            src="/app_logo2.png"
+            alt="SUNG-IL"
+            width={96}
             height={96}
             priority
-            className="mb-2 h-12 w-auto"
+            className="mb-3 size-20 rounded-2xl"
           />
           <CardTitle className="text-2xl">SUNG-IL IoT 앱 설치</CardTitle>
           <p className="text-sm text-muted-foreground">

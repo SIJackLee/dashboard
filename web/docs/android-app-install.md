@@ -40,7 +40,10 @@ Play 스토어 없이 **도메인 링크 + APK 사이드로드**용입니다.
 
 ## 관련 코드
 
-- `src/app/app/page.tsx`
+- `src/app/app/page.tsx` — 설치 UI (`/public/app_logo2.png` 앱 아이콘)
 - `src/app/app/download/route.ts`
 - `src/lib/app-install/gate.ts`
 - 미인증 공개: `src/lib/supabase/middleware.ts` 의 `/app`
+
+홈 화면 아이콘은 APK 리소스(`android/.../mipmap-*`)에 포함된다.  
+`/app`에서 받는 APK를 새 아이콘으로 맞추려면 release 빌드 후 Storage `sungil-iot.apk`를 다시 업로드한다.
