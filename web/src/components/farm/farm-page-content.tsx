@@ -57,6 +57,7 @@ import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { DELIN_NAME } from "@/lib/aria/aria-mode";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 
 type Props = {
@@ -480,16 +481,18 @@ export function FarmPageContent({
         <LineChart className={dashboardUi.iconSm} aria-hidden />
         차트
       </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "aria"}
-        className={viewTabBtn(view === "aria")}
-        onClick={() => setView("aria")}
-      >
-        <Bot className={dashboardUi.iconSm} aria-hidden />
-        {DELIN_NAME}
-      </button>
+      {delinEnabled() ? (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "aria"}
+          className={viewTabBtn(view === "aria")}
+          onClick={() => setView("aria")}
+        >
+          <Bot className={dashboardUi.iconSm} aria-hidden />
+          {DELIN_NAME}
+        </button>
+      ) : null}
     </div>
   ) : null;
 
@@ -588,7 +591,7 @@ export function FarmPageContent({
           </div>
         ) : null}
 
-        {ariaEverOpened ? (
+        {delinEnabled() && ariaEverOpened ? (
           <div
             className={panelMotionClass("aria")}
             aria-hidden={view !== "aria"}

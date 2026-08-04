@@ -64,6 +64,8 @@ export type DailyReportAlarmRow = {
   alarmType: string;
   severity: "warning" | "critical";
   detail: string;
+  /** 모듈 에러 vs 통신두절 (임계 파생 없음) */
+  source: "module" | "offline";
 };
 
 export type DailyReportPayload = {
@@ -75,9 +77,10 @@ export type DailyReportPayload = {
     controllerCount: number;
     onlineCount: number;
     offlineCount: number;
+    /** 이상상황 건수 = 모듈 에러 + 통신두절 */
     alarmCount: number;
   };
   barns: DailyReportBarn[];
-  /** LIVE 기준 활성 알람 (임계값 초과·미만) */
+  /** LIVE 기준 이상상황 (모듈 에러코드 + 통신두절) */
   alarms: DailyReportAlarmRow[];
 };

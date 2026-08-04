@@ -173,7 +173,7 @@ export function ControllerSummaryHeader({
               dashboardTypography.meta,
             )}
           >
-            {offline ? "오프라인" : "알람"}
+            {offline ? "오프라인" : "수신 지연"}
           </span>
         ) : null}
       </div>
@@ -244,7 +244,7 @@ export function MetricValue({
   unit?: string;
   accentClass?: string;
   muted?: boolean;
-  /** 해당 측정값(온도/습도)의 알람 상·하한 */
+  /** 해당 측정값(온도/습도)의 임계 가이드 상·하한 */
   alarmRange?: string;
   alarmBreached?: boolean;
 }) {
@@ -276,7 +276,7 @@ export function MetricValue({
               : "text-muted-foreground"
           )}
         >
-          알람 {alarmRange}
+          임계 {alarmRange}
         </div>
       ) : null}
     </div>

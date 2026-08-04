@@ -20,6 +20,7 @@ import {
 import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import type { AlarmSettings } from "@/lib/data/alarms";
+import { mergeSituationAlarms } from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import {
@@ -237,7 +238,9 @@ function applyLivePatch({ farmKey, data, setSlice }: ApplyLiveArgs): void {
     return next;
   });
   schedulePersistLayouts(data.layoutsToPersist);
-  publishShellAlarms(data.moduleAlarms);
+  publishShellAlarms(
+    mergeSituationAlarms(data.moduleAlarms, data.readings ?? []),
+  );
 }
 
 type ProviderProps = {
@@ -500,7 +503,9 @@ export function FarmLiveRefreshProvider({
           });
           const moduleAlarms = await fetchActiveModuleAlarmsAction(farmKey);
           if (seq !== revalidateSeq.current) return;
-          publishShellAlarms(moduleAlarms);
+          publishShellAlarms(
+            mergeSituationAlarms(moduleAlarms, fresh.readings ?? []),
+          );
           return;
         }
         const live = await fetchFarmLiveShared(farmKey);
@@ -542,24 +547,45 @@ export function FarmLiveRefreshProvider({
     };
   }, [alarmPatch, thermoPatch, slice]);
 
-  /** TopBar/FAB — 모듈 경보 View (LIVE soft refresh와 별도 최초·농장 전환) */
+  const moduleAlarmsRef = useRef<
+    Awaited<ReturnType<typeof fetchActiveModuleAlarmsAction>>
+  >([]);
+
+  /** TopBar/FAB — 모듈 에러(농장 전환 시 fetch) + 통신두절(LIVE readings merge) */
   useEffect(() => {
     if (!farmKey) {
+      moduleAlarmsRef.current = [];
       clearShellAlarms();
       return;
     }
     let cancelled = false;
     void fetchActiveModuleAlarmsAction(farmKey)
       .then((rows) => {
-        if (!cancelled) publishShellAlarms(rows);
+        if (cancelled) return;
+        moduleAlarmsRef.current = rows;
+        publishShellAlarms(
+          mergeSituationAlarms(rows, slice.readings ?? []),
+        );
       })
       .catch(() => {
-        if (!cancelled) clearShellAlarms();
+        if (!cancelled) {
+          moduleAlarmsRef.current = [];
+          clearShellAlarms();
+        }
       });
     return () => {
       cancelled = true;
     };
+    // readings는 아래 effect에서 merge
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- farmKey only for fetch
   }, [farmKey]);
+
+  useEffect(() => {
+    if (!farmKey) return;
+    publishShellAlarms(
+      mergeSituationAlarms(moduleAlarmsRef.current, slice.readings ?? []),
+    );
+  }, [farmKey, slice.readings]);
 
   useEffect(() => () => clearShellAlarms(), []);
 

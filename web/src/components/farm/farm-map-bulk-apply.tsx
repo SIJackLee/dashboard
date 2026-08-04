@@ -462,7 +462,7 @@ export function FarmMapBulkApply({
         }
       }
 
-      // 2) 알람 임계값 — farm+sp override + 하위 stall·controller override cascade
+      // 2) 임계 가이드 — farm+sp override + 하위 stall·controller override cascade
       if (applyAlarm) {
         setApplyPhase("alarm");
         const base = controller.alarmSettings ?? DEFAULT_ALARM_SETTINGS;
@@ -641,7 +641,7 @@ export function FarmMapBulkApply({
             aria-hidden
           />
         }
-        label="알람 임계값 (온·습 상하한)"
+        label="임계 가이드 (온·습 상하한)"
       />
       <div
         className={cn(
@@ -886,7 +886,7 @@ export function FarmMapBulkApply({
                 ) : null}
                 {result.alarm ? (
                   <li>
-                    알람 임계값:{" "}
+                    임계 가이드:{" "}
                     {result.alarm.ok
                       ? `유형 ${result.alarm.spCount}개 갱신${
                           (result.alarm.clearedOverrides ?? 0) > 0
@@ -966,7 +966,7 @@ export function FarmMapBulkApply({
               </p>
               <p className={cn("leading-snug", bulkModalMeta)}>
                 {applyPhase === "alarm"
-                  ? "알람 임계값을 저장하고 있습니다."
+                  ? "임계 가이드를 저장하고 있습니다."
                   : applyPhase === "control"
                     ? `제어 명령을 전송하고 있습니다. (${previewCommands.length || onlineTargets.length}건)`
                     : "적용을 준비하고 있습니다."}

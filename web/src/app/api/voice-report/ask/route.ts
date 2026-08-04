@@ -22,6 +22,7 @@ import {
   VOICE_LIMITS,
   voiceReportEnabled,
 } from "@/lib/voice-report/limits";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 import {
   openaiConfigured,
   summarizeFarmWithOpenAI,
@@ -154,8 +155,8 @@ async function parseAskRequest(request: Request): Promise<ParsedAsk | { parseErr
  * 텍스트 또는 음성 질문 → ARIA 프로토콜(또는 레거시 요약) (+선택 TTS).
  */
 export async function POST(request: Request) {
-  if (!voiceReportEnabled()) {
-    return err(503, "disabled", "음성 AI 리포팅이 비활성화되어 있습니다.");
+  if (!delinEnabled() || !voiceReportEnabled()) {
+    return err(503, "disabled", "델린(DELIN)이 비활성화되어 있습니다.");
   }
 
   const user = await getCurrentUser();

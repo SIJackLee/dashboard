@@ -91,7 +91,8 @@ type Case = {
 };
 
 const cases: Case[] = [
-  { q: "안녕", route: "CHAT", includes: /ARIA/ },
+  { q: "안녕", route: "CHAT", includes: /델린|DELIN/ },
+  { q: "도움", route: "CHAT", includes: /상황 어때/ },
   { q: "날씨 어때", route: "CHAT", includes: /날씨|기상/, excludes: /연동 여지/ },
   { q: "괜찮니", route: "CHAT", includes: /정상|괜찮|문제없/ },
   { q: "지금 어때", route: "CHAT", includes: /상황 어때|안부/ },

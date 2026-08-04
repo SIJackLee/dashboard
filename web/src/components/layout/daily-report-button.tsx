@@ -21,7 +21,6 @@ import { cn } from "@/lib/utils";
 type Props = {
   /** SSR PageShell 값 — shallow 농장 전환 시 stale 할 수 있음 */
   farmKey: FarmKey | null;
-  alarmCount?: number;
   /** icon = 헤더 단독 · row = 간단 행 · tools-card = 헤더 카드 · hub-detail = FAB 상세 */
   presentation?: "icon" | "row" | "tools-card" | "hub-detail";
 };
@@ -37,7 +36,6 @@ function resolveReportFarmKey(serverFarmKey: FarmKey | null): FarmKey | null {
 
 export function DailyReportButton({
   farmKey: serverFarmKey,
-  alarmCount = 0,
   presentation = "icon",
 }: Props) {
   const [pending, startTransition] = useTransition();
@@ -88,9 +86,7 @@ export function DailyReportButton({
     startTransition(() => {
       void (async () => {
         try {
-          const payload = await fetchDailyReportPayloadAction(key, {
-            alarmCount,
-          });
+          const payload = await fetchDailyReportPayloadAction(key);
           if (!payload.barns.length) {
             throw new Error("출력할 축사 데이터가 없습니다.");
           }

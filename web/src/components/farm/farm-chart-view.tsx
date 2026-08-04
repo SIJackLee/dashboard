@@ -7,7 +7,6 @@ import { resolveThresholdsForScope } from "@/lib/data/alarm-scope";
 import {
   DEFAULT_ALARM_SETTINGS,
   type AlarmSettings,
-  type AlarmSeverity,
   type AlarmThresholds,
 } from "@/lib/data/alarms";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
@@ -43,7 +42,7 @@ type Props = {
   alarmSettings?: AlarmSettings;
   /** LIVE/명령 반영 제어값 */
   thermoSettings?: Record<string, ControllerThermoSettings>;
-  /** 조회 전용이면 알람·설정모드 비활성 */
+  //** 조회 전용이면 임계 가이드·설정모드 비활성 */
   canCommand?: boolean;
   isMobileStack?: boolean;
   /** 차트 탭 활성 — TopBar 레이어 툴바 enter/exit */
@@ -52,34 +51,34 @@ type Props = {
 };
 
 /**
- * 집계 트리 톤
- * - critical: 경고(빨강) · warning: 주의(주황) · offline: 통신 두절(회색)
- * 롤업 우선: 경고 > 주의 > 통신 두절
+ * 집계 트리 톤 (이상상황 ≠ 임계 가이드)
+ * - offline: 통신 두절 (정책상 이상상황)
+ * - guide: 온·습 임계 이탈 (표시 가이드, 알람 아님)
+ * 롤업 우선: 통신 두절 > 임계 이탈
  */
-type ScopeAlarmTone = Extract<AlarmSeverity, "warning" | "critical"> | "offline";
+type ScopeTreeTone = "offline" | "guide";
 
-const SCOPE_TONE_RANK: Record<ScopeAlarmTone, number> = {
-  offline: 1,
-  warning: 2,
-  critical: 3,
+const SCOPE_TONE_RANK: Record<ScopeTreeTone, number> = {
+  guide: 1,
+  offline: 2,
 };
 
 function worseScopeTone(
-  a: ScopeAlarmTone | null | undefined,
-  b: ScopeAlarmTone,
-): ScopeAlarmTone;
+  a: ScopeTreeTone | null | undefined,
+  b: ScopeTreeTone,
+): ScopeTreeTone;
 function worseScopeTone(
-  a: ScopeAlarmTone,
-  b: ScopeAlarmTone | null | undefined,
-): ScopeAlarmTone;
+  a: ScopeTreeTone,
+  b: ScopeTreeTone | null | undefined,
+): ScopeTreeTone;
 function worseScopeTone(
-  a: ScopeAlarmTone | null | undefined,
-  b: ScopeAlarmTone | null | undefined,
-): ScopeAlarmTone | null;
+  a: ScopeTreeTone | null | undefined,
+  b: ScopeTreeTone | null | undefined,
+): ScopeTreeTone | null;
 function worseScopeTone(
-  a: ScopeAlarmTone | null | undefined,
-  b: ScopeAlarmTone | null | undefined,
-): ScopeAlarmTone | null {
+  a: ScopeTreeTone | null | undefined,
+  b: ScopeTreeTone | null | undefined,
+): ScopeTreeTone | null {
   if (a == null) return b ?? null;
   if (b == null) return a;
   return SCOPE_TONE_RANK[a] >= SCOPE_TONE_RANK[b] ? a : b;
@@ -89,28 +88,23 @@ function stallToneKey(stallTyCode: string, stallNo: string): string {
   return `${normalizeStallTyCode(stallTyCode)}::${stallNo.trim()}`;
 }
 
-/** 선택 기간 추이 시리즈가 농장 알람 구간을 이탈했는지 */
-function toneFromPeriodSeries(
+/** 선택 기간 추이가 임계 가이드 구간을 이탈했는지 (알람 아님) */
+function guideToneFromPeriodSeries(
   temp: (number | null)[] | undefined,
   humidity: (number | null)[] | undefined,
   thresholds: AlarmThresholds,
-): ScopeAlarmTone | null {
-  let tone: ScopeAlarmTone | null = null;
+): ScopeTreeTone | null {
   for (const t of temp ?? []) {
     if (t == null || !Number.isFinite(t)) continue;
-    if (t >= thresholds.tempHigh) {
-      tone = worseScopeTone(tone, "critical");
-    } else if (t <= thresholds.tempLow) {
-      tone = worseScopeTone(tone, "warning");
-    }
+    if (t >= thresholds.tempHigh || t <= thresholds.tempLow) return "guide";
   }
   for (const h of humidity ?? []) {
     if (h == null || !Number.isFinite(h)) continue;
     if (h >= thresholds.humidityHigh || h <= thresholds.humidityLow) {
-      tone = worseScopeTone(tone, "warning");
+      return "guide";
     }
   }
-  return tone;
+  return null;
 }
 
 /**
@@ -156,9 +150,9 @@ export function FarmChartView({
 
   /**
    * B안 — 현재 기간 추이 이탈로 색칠 (LIVE 아님).
-   * 임계는 농장 전체 차트 알람선과 동일(해당 스코프 저장 시 하위 오버라이드 cascade). 통신 두절만 LIVE.
+   * 집계 트리: 통신 두절(LIVE) + 임계 가이드 이탈(기간 추이). 임계 이탈은 이상상황과 분리.
    */
-  const alarmTones = useMemo(() => {
+  const scopeTones = useMemo(() => {
     const settings = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
     const farmScopeKey = alarmScopeKeyFromFarmChartScope(readings, {
       level: "farm",
@@ -167,16 +161,16 @@ export function FarmChartView({
       ? resolveThresholdsForScope(settings, farmScopeKey)
       : settings.global;
 
-    const byCtrl = new Map<string, ScopeAlarmTone>();
-    const byStall = new Map<string, ScopeAlarmTone>();
-    const bySp = new Map<string, ScopeAlarmTone>();
-    let farm: ScopeAlarmTone | null = null;
+    const byCtrl = new Map<string, ScopeTreeTone>();
+    const byStall = new Map<string, ScopeTreeTone>();
+    const bySp = new Map<string, ScopeTreeTone>();
+    let farm: ScopeTreeTone | null = null;
 
     for (const r of readings) {
       const ctrlKey = r.controllerKey?.trim();
       if (!ctrlKey) continue;
 
-      let tone: ScopeAlarmTone | null = null;
+      let tone: ScopeTreeTone | null = null;
       if (r.status === "offline") {
         tone = "offline";
       }
@@ -191,7 +185,7 @@ export function FarmChartView({
       if (series) {
         tone = worseScopeTone(
           tone,
-          toneFromPeriodSeries(series.temp, series.humidity, thresholds),
+          guideToneFromPeriodSeries(series.temp, series.humidity, thresholds),
         );
       }
 
@@ -254,7 +248,7 @@ export function FarmChartView({
         depth={0}
         label="농장 전체"
         meta={`${readings.length}대`}
-        tone={alarmTones.farm}
+        tone={scopeTones.farm}
         touchFriendly={isMobileStack}
       />
 
@@ -272,7 +266,7 @@ export function FarmChartView({
               depth={0}
               label={sp.label}
               meta={`${sp.controllerCount}대`}
-              tone={alarmTones.bySp.get(sp.stallTyCode) ?? null}
+              tone={scopeTones.bySp.get(sp.stallTyCode) ?? null}
               expandable
               expanded={spOpen}
               onToggleExpand={() =>
@@ -301,7 +295,7 @@ export function FarmChartView({
                         label={stall.label}
                         meta={`${stall.controllers.length}대`}
                         tone={
-                          alarmTones.byStall.get(
+                          scopeTones.byStall.get(
                             stallToneKey(sp.stallTyCode, stall.stallNo),
                           ) ?? null
                         }
@@ -331,7 +325,7 @@ export function FarmChartView({
                                 depth={2}
                                 label={c.label}
                                 tone={
-                                  alarmTones.byCtrl.get(c.controllerKey) ?? null
+                                  scopeTones.byCtrl.get(c.controllerKey) ?? null
                                 }
                                 touchFriendly={isMobileStack}
                               />
@@ -480,20 +474,18 @@ function ScopeRow({
   depth: number;
   label: string;
   meta?: string;
-  tone?: ScopeAlarmTone | null;
+  tone?: ScopeTreeTone | null;
   expandable?: boolean;
   expanded?: boolean;
   onToggleExpand?: () => void;
   touchFriendly?: boolean;
 }) {
   const toneLabel =
-    tone === "critical"
-      ? "경고"
-      : tone === "warning"
-        ? "주의"
-        : tone === "offline"
-          ? "통신 두절"
-          : undefined;
+    tone === "guide"
+      ? "임계 이탈"
+      : tone === "offline"
+        ? "통신 두절"
+        : undefined;
 
   return (
     <div
@@ -535,14 +527,12 @@ function ScopeRow({
             ? "bg-channel-info/10 font-medium dark:bg-channel-info/15"
             : "hover:bg-muted/50",
           !selected && !tone && "text-foreground",
-          !selected && tone === "warning" && "text-amber-700 dark:text-amber-400",
-          !selected && tone === "critical" && "text-destructive",
+          !selected && tone === "guide" && "text-amber-700 dark:text-amber-400",
           !selected && tone === "offline" && "text-muted-foreground",
           selected && !tone && "text-channel-info dark:text-channel-info",
           selected &&
-            tone === "warning" &&
+            tone === "guide" &&
             "text-amber-800 dark:text-amber-300",
-          selected && tone === "critical" && "text-destructive",
           selected && tone === "offline" && "text-muted-foreground",
         )}
         aria-current={selected ? "true" : undefined}
@@ -552,8 +542,7 @@ function ScopeRow({
             <span
               className={cn(
                 "inline-block size-1.5 shrink-0 rounded-full",
-                tone === "critical" && "bg-destructive",
-                tone === "warning" && "bg-amber-500",
+                tone === "guide" && "bg-amber-500",
                 tone === "offline" && "bg-muted-foreground/70",
               )}
               aria-hidden
@@ -565,11 +554,9 @@ function ScopeRow({
           <span
             className={cn(
               "shrink-0 text-[0.65rem]",
-              tone === "critical"
-                ? "text-destructive/80"
-                : tone === "warning"
-                  ? "text-amber-700/80 dark:text-amber-400/80"
-                  : "text-muted-foreground",
+              tone === "guide"
+                ? "text-amber-700/80 dark:text-amber-400/80"
+                : "text-muted-foreground",
             )}
           >
             {meta}

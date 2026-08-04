@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { voiceReportEnabled } from "@/lib/voice-report/limits";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { getVoiceUsage } from "@/lib/voice-report/usage-store";
 
 export async function GET() {
-  if (!voiceReportEnabled()) {
+  if (!delinEnabled() || !voiceReportEnabled()) {
     return NextResponse.json(
       { error: "disabled" },
       { status: 503 },

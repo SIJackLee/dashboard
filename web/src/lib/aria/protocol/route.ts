@@ -50,6 +50,8 @@ const CHAT_RE =
 
   /^(안녕|안녕하세요|하이|헬로|고마워|감사|뭐야|누구|소개|잘\s*자|바이)/i;
 
+const HELP_RE = /도움|help|할\s*수\s*있|뭐\s*물어|어떻게\s*쓰/i;
+
 const BARE_RECOMMEND_RE = /^(추천해\s*줘|추천해줘|추천)$/;
 
 const CRITICAL_ONLY_RE = /위험\s*만|크리티컬\s*만/;
@@ -136,6 +138,8 @@ export function routeByRules(question: string): AriaRoute {
   if (WELLBEING_RE.test(q)) return "CHAT";
 
   if (AMBIG_HOW_RE.test(q)) return "CHAT";
+
+  if (HELP_RE.test(q)) return "CHAT";
 
   if (CHAT_RE.test(q) && !ALARM_RE.test(q) && !FARM_STATUS_RE.test(q)) {
 

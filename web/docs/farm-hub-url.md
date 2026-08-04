@@ -12,8 +12,8 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `aria` \| (`jarvis`→aria) | **없음 = 그리드(map)** | 상단 탭. `aria` UI 표기 **델린** |
-| `trendPeriod` | `7d` \| `30d` | **없음 = 24h** | 그리드·목록·차트 공유 기간. `24h`는 URL 생략 |
+| `view` | `list` \| `chart` \| `aria` \| (`jarvis`→aria) | **없음 = 그리드(map)** | 상단 탭. `aria` UI 표기 **델린**. DELIN 플래그 off면 `aria`/`jarvis` → 그리드로 정규화 |
+| `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
 | `stall` | 축사번호 | — | 그리드 컨트롤러 포커스 |
@@ -120,6 +120,11 @@ flowchart LR
 ---
 
 ## 탭 keep-alive (패널 마운트)
+
+### 목록 카드 로컬 기간 (`panelPeriodOverrides`)
+
+목록 탭에서 개별 카드가 공유 `trendPeriod`와 **다른** 기간을 잠깐 볼 수 있다(URL에 쓰지 않음).  
+공유 기간 변경·목록 탭 언마운트 시 로컬 override는 초기화된다.
 
 그리드(`map`)는 **항상** 마운트. 목록·차트·ARIA는 첫 방문 후 DOM에 남겨 재진입을 빠르게 하고, 이탈 후 TTL이 지나면 언마운트한다.
 

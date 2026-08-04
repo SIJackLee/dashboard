@@ -209,7 +209,7 @@ export function HeaderToolsMenu({
   const activeAlarms = alarms.filter((a) => a.status === "active");
   const alarmCount = activeAlarms.length;
   const alarmList = activeAlarms.slice(0, 12);
-  /** 통신 두절은 알람에 포함 — 배지는 활성 이상상황 건수 */
+  /** 배지 = 모듈 에러 + 통신두절 행 수 (임계 파생 제외) */
   const alert = alarmCount > 0 || offline > 0;
 
   const onOps = isAdminOpsNavPath(pathname);
@@ -681,14 +681,12 @@ export function HeaderToolsMenu({
         isHub ? (
           <DailyReportButton
             farmKey={farmKey}
-            alarmCount={alarms.length}
             presentation="hub-detail"
           />
         ) : (
           <div className="p-1">
             <DailyReportButton
               farmKey={farmKey}
-              alarmCount={alarms.length}
               presentation="tools-card"
             />
           </div>

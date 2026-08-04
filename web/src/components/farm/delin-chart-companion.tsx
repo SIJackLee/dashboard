@@ -6,6 +6,7 @@ import { FarmAriaView } from "@/components/farm/farm-aria-view";
 import { BarnPanelBottomSheet } from "@/components/farm/barn-panel-bottom-sheet";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { DELIN_NAME, DELIN_NAME_KO } from "@/lib/aria/aria-mode";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,24 @@ type Props = {
  * PC: 우측 드로어 · 모바일: 바텀시트 + FAB.
  */
 export function DelinChartCompanion({
+  currentFarm,
+  panelLiveActive,
+  mobileSheet = false,
+  className,
+}: Props) {
+  if (!delinEnabled()) return null;
+
+  return (
+    <DelinChartCompanionInner
+      currentFarm={currentFarm}
+      panelLiveActive={panelLiveActive}
+      mobileSheet={mobileSheet}
+      className={className}
+    />
+  );
+}
+
+function DelinChartCompanionInner({
   currentFarm,
   panelLiveActive,
   mobileSheet = false,

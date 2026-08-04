@@ -32,13 +32,17 @@ function fmt(n: number | null | undefined, digits = 1): string {
 }
 
 function statusLabel(status: string): string {
-  if (status === "offline") return "오프라인";
-  if (status === "caution") return "주의";
+  if (status === "offline") return "통신 두절";
+  if (status === "caution") return "수신 지연";
   return "정상";
 }
 
 function severityLabel(severity: "warning" | "critical"): string {
   return severity === "critical" ? "심각" : "경고";
+}
+
+function situationSourceLabel(source: "module" | "offline"): string {
+  return source === "module" ? "모듈" : "통신두절";
 }
 
 /** 축사 시리즈 슬롯 평균 → 농장 대표 시리즈 */
@@ -521,7 +525,7 @@ export async function buildAndDownloadDailyReportPdf(
       [String(ov.barnCount), "축사"],
       [String(ov.controllerCount), "컨트롤러"],
       [String(ov.onlineCount), "온라인"],
-      [String(ov.alarmCount), "알람"],
+      [String(ov.alarmCount), "이상상황"],
     ];
     kpis.forEach(([v, l], i) => {
       kpiBox(ctx, MARGIN + i * (boxW + 6), y, boxW, v, l, 34);
@@ -567,15 +571,15 @@ export async function buildAndDownloadDailyReportPdf(
     }
     y += 10;
 
-    // 2) 주의·오프라인 컨트롤러
+    // 2) 수신 지연·통신 두절 컨트롤러 (연결 상태)
     if (y + 40 < CONTENT_BOTTOM) {
       const attention = collectAttentionRows(payload.barns);
       ctx.fillStyle = INK;
       ctx.font = `bold 11px ${FONT}`;
       ctx.fillText(
         attention.length
-          ? `주의·오프라인 컨트롤러 (${attention.length})`
-          : "주의·오프라인 컨트롤러",
+          ? `수신 지연·통신 두절 (${attention.length})`
+          : "수신 지연·통신 두절",
         MARGIN,
         y,
       );
@@ -584,7 +588,11 @@ export async function buildAndDownloadDailyReportPdf(
       if (attention.length === 0) {
         ctx.fillStyle = MUTED;
         ctx.font = `9px ${FONT}`;
-        ctx.fillText("이상 없음 — 주의·오프라인 장치가 없습니다.", MARGIN, y);
+        ctx.fillText(
+          "해당 없음 — 수신 지연·통신 두절 장치가 없습니다.",
+          MARGIN,
+          y,
+        );
         y += 14;
       } else {
         const aCols = [
@@ -625,13 +633,15 @@ export async function buildAndDownloadDailyReportPdf(
       }
     }
 
-    // 3) 활성 알람 (임계값 초과·미만)
+    // 3) 이상상황 (모듈 에러 + 통신두절)
     if (y + 40 < CONTENT_BOTTOM) {
       const alarms = payload.alarms;
       ctx.fillStyle = INK;
       ctx.font = `bold 11px ${FONT}`;
       ctx.fillText(
-        alarms.length ? `활성 알람 (${alarms.length})` : "활성 알람",
+        alarms.length
+          ? `이상상황 · 모듈 에러·통신 두절 (${alarms.length})`
+          : "이상상황 · 모듈 에러·통신 두절",
         MARGIN,
         y,
       );
@@ -640,23 +650,28 @@ export async function buildAndDownloadDailyReportPdf(
       if (alarms.length === 0) {
         ctx.fillStyle = MUTED;
         ctx.font = `9px ${FONT}`;
-        ctx.fillText("이상 없음 — 임계값 초과·미만 알람이 없습니다.", MARGIN, y);
+        ctx.fillText(
+          "이상 없음 — 모듈 에러·통신 두절이 없습니다.",
+          MARGIN,
+          y,
+        );
         y += 14;
       } else {
         const maxRows = 8;
         const shown = alarms.slice(0, maxRows);
         const aCols = [
           MARGIN + 4,
-          MARGIN + 90,
-          MARGIN + 130,
-          MARGIN + 220,
+          MARGIN + 80,
+          MARGIN + 115,
+          MARGIN + 175,
+          MARGIN + 230,
           MARGIN + 280,
-          MARGIN + 330,
+          MARGIN + 340,
         ];
         tableHeaderBar(
           ctx,
           y,
-          ["축사", "번호", "유형", "심각도", "상세"],
+          ["축사", "번호", "출처", "유형", "심각도", "상세"],
           aCols,
         );
         y += 12;
@@ -671,18 +686,19 @@ export async function buildAndDownloadDailyReportPdf(
           ctx.fillStyle = INK;
           ctx.fillText(`${row.stallLabel} ${row.stallNo}`, aCols[0]!, y);
           ctx.fillText(row.eqpmnNo, aCols[1]!, y);
-          ctx.fillText(row.alarmType.slice(0, 12), aCols[2]!, y);
+          ctx.fillText(situationSourceLabel(row.source), aCols[2]!, y);
+          ctx.fillText(row.alarmType.slice(0, 10), aCols[3]!, y);
           ctx.fillStyle = row.severity === "critical" ? "#B91C1C" : "#B45309";
-          ctx.fillText(severityLabel(row.severity), aCols[3]!, y);
+          ctx.fillText(severityLabel(row.severity), aCols[4]!, y);
           ctx.fillStyle = INK;
-          ctx.fillText(row.detail.slice(0, 28), aCols[4]!, y);
+          ctx.fillText(row.detail.slice(0, 24), aCols[5]!, y);
           y += 12;
         }
         if (alarms.length > maxRows) {
           ctx.fillStyle = MUTED;
           ctx.font = `8px ${FONT}`;
           ctx.fillText(
-            `외 ${alarms.length - maxRows}건 — 대시보드 알람 메뉴에서 전체 확인`,
+            `외 ${alarms.length - maxRows}건 — 헤더 이상상황에서 전체 확인`,
             MARGIN,
             y + 2,
           );

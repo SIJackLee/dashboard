@@ -30,12 +30,16 @@ async function main() {
     });
 
     await page.goto(ARIA, { waitUntil: "load", timeout: 30000 });
-    await page.getByRole("heading", { name: "ARIA" }).waitFor({
+    await page.getByRole("heading", { name: /DELIN|델린|ARIA/ }).waitFor({
       state: "visible",
       timeout: 20000,
     });
 
-    const tts = page.getByRole("checkbox", { name: /음성으로 읽어주기/ });
+    // 옵션 패널을 펼친 뒤 TTS(읽어주기) 끄기
+    const optionsToggle = page.getByTestId("delin-options-toggle");
+    await optionsToggle.waitFor({ state: "visible", timeout: 15000 });
+    await optionsToggle.click();
+    const tts = page.getByRole("checkbox", { name: /읽어주기/ });
     await tts.waitFor({ state: "visible", timeout: 10000 });
     if (await tts.isChecked()) {
       await tts.uncheck();
@@ -44,9 +48,14 @@ async function main() {
       throw new Error("TTS 체크를 끄지 못했습니다");
     }
 
-    const box = page.getByPlaceholder(/오늘 농장 상황/);
+    // 텍스트 입력: 「글로 묻기」 펼친 뒤 textarea + 보내기
+    const textToggle = page.getByTestId("delin-text-ask-toggle");
+    await textToggle.waitFor({ state: "visible", timeout: 15000 });
+    await textToggle.click();
+    const box = page.getByLabel("텍스트 질문");
+    await box.waitFor({ state: "visible", timeout: 10000 });
     await box.fill("상황 어때");
-    await page.getByRole("button", { name: "텍스트로 요약" }).click();
+    await page.getByRole("button", { name: "보내기" }).click();
 
     await page.getByText("분석 중").waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
 
@@ -72,7 +81,7 @@ async function main() {
             (l) =>
               /(농장|이상상황|이상|위험|주의|온라인|활성)/.test(l) &&
               l.length > 12 &&
-              !/말로 묻거나|텍스트로 요약|사운드 체크/.test(l),
+              !/말로 묻거나|텍스트로 요약|질문을 입력|글로 묻기|사운드 체크/.test(l),
           ) ?? "";
         if (answer) break;
       }

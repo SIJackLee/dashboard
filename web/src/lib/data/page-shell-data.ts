@@ -8,13 +8,13 @@ import {
 } from "@/lib/auth/farm-access";
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { fetchActiveModuleAlarms } from "@/lib/data/module-alarms";
+import { mergeSituationAlarms, type AlarmRow } from "@/lib/data/alarms";
 import {
   summarizeControllers,
   toFarmOverview,
 } from "@/lib/data/dashboard-summary";
 import { getAdminHubOverviewContext } from "@/lib/data/admin-hub-shell-data";
 import { FIRMWARE_CTRL_COUNT } from "@/lib/data/iot-firmware";
-import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnReading, FarmOverview } from "@/lib/data/iot";
@@ -47,14 +47,17 @@ export const getPageShellContext = cache(
     const isAdmin = Boolean(user?.isAdmin);
 
     if (isAdmin && !activeFarmKey) {
-      const hub = await getAdminHubOverviewContext();
+      const [hub, alarms] = await Promise.all([
+        getAdminHubOverviewContext(),
+        fetchActiveModuleAlarms(null, { limit: 100 }),
+      ]);
 
       return {
         readings: [],
         activeFarmKey,
         scopedReadings: [],
         overview: hub.overview,
-        alarms: [],
+        alarms,
         farmOptions: hub.farmOptions,
         farmSummaries: hub.farmSummaries,
         isAdmin: true,
@@ -65,7 +68,7 @@ export const getPageShellContext = cache(
 
     /** Admin 단일 농장 — global v_iot_farm_overview(타임아웃) 대신 hub 캐시 + scoped LIVE */
     if (isAdmin && activeFarmKey) {
-      const [hub, readings, alarms] = await Promise.all([
+      const [hub, readings, moduleAlarms] = await Promise.all([
         getAdminHubOverviewContext(),
         fetchLiveReadings({ farmKey: activeFarmKey }),
         fetchActiveModuleAlarms(activeFarmKey),
@@ -74,6 +77,7 @@ export const getPageShellContext = cache(
       const overview = toFarmOverview(
         summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
       );
+      const alarms = mergeSituationAlarms(moduleAlarms, scopedReadings);
 
       return {
         readings,
@@ -96,7 +100,8 @@ export const getPageShellContext = cache(
     const overview = toFarmOverview(
       summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
     );
-    const alarms = await fetchActiveModuleAlarms(activeFarmKey);
+    const moduleAlarms = await fetchActiveModuleAlarms(activeFarmKey);
+    const alarms = mergeSituationAlarms(moduleAlarms, scopedReadings);
 
     let farmLocationOptions: EditableFarmOption[] = [];
     const canEditLocation = user ? canCommand(user) : false;

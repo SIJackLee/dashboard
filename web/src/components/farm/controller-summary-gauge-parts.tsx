@@ -288,7 +288,7 @@ export function CardMetricGauge({
           value={lowStr}
           unit={unit}
           accentClass={accent}
-          ariaLabel={`알람 하한 ${low}${unit}`}
+          ariaLabel={`임계 하한 ${low}${unit}`}
           compact={compact}
         />
         <div
@@ -332,7 +332,7 @@ export function CardMetricGauge({
           value={highStr}
           unit={unit}
           accentClass={accent}
-          ariaLabel={`알람 상한 ${high}${unit}`}
+          ariaLabel={`임계 상한 ${high}${unit}`}
           compact={compact}
         />
       </div>

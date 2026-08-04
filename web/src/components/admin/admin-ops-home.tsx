@@ -5,6 +5,7 @@ import { AriaTurnLogPanel } from "@/components/admin/aria-turn-log-panel";
 import { CommandHistorySlim } from "@/components/controllers/command-history-slim";
 import { AdminOpsTabContentSkeleton } from "@/components/admin/admin-ops-loading-skeleton";
 import { listAriaTurnLogs } from "@/lib/aria/protocol/turn-log";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { listManagedUsers } from "@/lib/admin/list-users";
 import { getEditableFarmLocationOptions } from "@/lib/data/farm-location";
 import { getThermoCommandHistory } from "@/lib/data/commands";
@@ -111,9 +112,11 @@ export async function AdminOpsHome() {
       <Suspense fallback={<AdminOpsTabContentSkeleton label="명령" />}>
         <CommandsSection />
       </Suspense>
-      <Suspense fallback={<AdminOpsTabContentSkeleton label="ARIA 로그" />}>
-        <AriaLogsSection />
-      </Suspense>
+      {delinEnabled() ? (
+        <Suspense fallback={<AdminOpsTabContentSkeleton label="ARIA 로그" />}>
+          <AriaLogsSection />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

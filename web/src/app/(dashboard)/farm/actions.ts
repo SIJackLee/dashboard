@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { canCommand, getCurrentUser } from "@/lib/auth/get-current-user";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { canEditFarmScope } from "@/lib/auth/farm-access";
 import type { FarmKey } from "@/lib/data/farm-key";
 import {
   getFarmControllerTrendAllPeriods,
@@ -63,12 +64,9 @@ export async function fetchFarmTrendAllPeriodsAction(
 /** 오늘의 리포트 PDF — 축사 단위 페이로드 (브라우저 생성용). */
 export async function fetchDailyReportPayloadAction(
   farmKey: FarmKey,
-  options?: { alarmCount?: number },
 ): Promise<DailyReportPayload> {
   await assertFarmReadAccess(farmKey);
-  return buildDailyReportPayload(farmKey, {
-    alarmCount: options?.alarmCount,
-  });
+  return buildDailyReportPayload(farmKey);
 }
 
 /** Admin hub — progressive grid hydrate (클라이언트 batch). */
@@ -114,7 +112,7 @@ export async function fetchFarmScopedPanelDataAction(
   const user = await assertFarmReadAccess(farmKey);
   return loadFarmScopedPanelData({
     farmKey,
-    canCommand: canCommand(user),
+    canCommand: canEditFarmScope(user, farmKey),
   });
 }
 

@@ -15,11 +15,16 @@ Cursor 규칙: 워크스페이스 `.cursor/rules/voice-protocol.mdc`.
 - 슬로건: 축사를 이해하고, 농장을 지키는 AI — DELIN
 - 허브 탭 UI 표기: **델린** (`view=aria` 호환)
 
+## 출시 게이트
+정식 RELEASE(그리드·목록·차트)에서는 **기본 숨김**.  
+`src/lib/aria/delin-enabled.ts` — 로컬 `development` · Vercel `preview` 기본 on, Production 기본 off.  
+강제: `NEXT_PUBLIC_DELIN_ENABLED=true|false`.
+
 ## 목적
 농장 허브 **델린** 탭에서 **단일 농장** 환경 요약을  
 마이크 질문 → STT → **판단 프로토콜** → 서버 UNPACK 문장 → TTS 음성 안내.
 
-탭 구성: 그리드 · 목록 · 차트 · **델린**. URL 계약은 [`farm-hub-url.md`](./farm-hub-url.md).
+탭 구성: 그리드 · 목록 · 차트 · **델린**(플래그 on 시). URL 계약은 [`farm-hub-url.md`](./farm-hub-url.md).
 
 ## 판단 프로토콜
 

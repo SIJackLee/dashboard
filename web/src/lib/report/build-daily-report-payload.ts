@@ -8,11 +8,14 @@ import type {
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import { fetchLiveReadings } from "@/lib/data/iot-live-fetch";
-import { deriveAlarmsFromReadings } from "@/lib/data/alarms";
-import { getAlarmSettings } from "@/lib/data/alarm-settings";
+import { mergeSituationAlarms } from "@/lib/data/alarms";
+import { fetchActiveModuleAlarms } from "@/lib/data/module-alarms";
 import { getStallTypeName } from "@/lib/data/stall-type";
+import {
+  barnJudgeFromControllerStatuses,
+  toDailyReportAlarmRows,
+} from "@/lib/report/daily-report-alarms";
 import type {
-  DailyReportAlarmRow,
   DailyReportBarn,
   DailyReportControllerRow,
   DailyReportPayload,
@@ -209,27 +212,16 @@ function countFinite(values: (number | null)[]): number {
 
 export async function buildDailyReportPayload(
   farmKey: FarmKey,
-  _options?: { alarmCount?: number },
 ): Promise<DailyReportPayload> {
-  const [trends, readings, alarmSettings] = await Promise.all([
+  const [trends, readings, moduleAlarms] = await Promise.all([
     getFarmControllerTrendAllPeriods({ farmKey }),
     fetchLiveReadings({ farmKey }),
-    getAlarmSettings(),
+    fetchActiveModuleAlarms(farmKey),
   ]);
 
-  const derivedAlarms = deriveAlarmsFromReadings(readings, alarmSettings).filter(
-    (a) => a.status === "active",
+  const alarms = toDailyReportAlarmRows(
+    mergeSituationAlarms(moduleAlarms, readings),
   );
-  const alarms: DailyReportAlarmRow[] = derivedAlarms.map((a) => ({
-    stallLabel: a.stallTyCode ? getStallTypeName(a.stallTyCode) : "—",
-    stallNo: a.stallNo ?? "—",
-    stallTyCode: a.stallTyCode,
-    eqpmnNo: a.eqpmnNo,
-    controllerKey: a.controllerKey,
-    alarmType: a.alarmType,
-    severity: a.severity,
-    detail: a.detail,
-  }));
 
   const barnKeys = new Map<string, { stallTyCode: string; stallNo: string }>();
   for (const period of PERIODS) {
@@ -316,9 +308,6 @@ export async function buildDailyReportPayload(
       });
 
       const online = controllers.filter((c) => c.status !== "offline").length;
-      const hasCaution = controllers.some(
-        (c) => c.status === "caution" || c.status === "offline",
-      );
       const s24 = periods["24h"];
       const { min: tMin24, max: tMax24 } = minMax(s24.temp);
 
@@ -345,7 +334,9 @@ export async function buildDailyReportPayload(
           tMax24,
           online,
           total: controllers.length,
-          judge: hasCaution ? "주의" : "정상",
+          judge: barnJudgeFromControllerStatuses(
+            controllers.map((c) => c.status),
+          ),
         },
         controllers,
         periods,

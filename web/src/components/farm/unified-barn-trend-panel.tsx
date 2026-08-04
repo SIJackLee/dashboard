@@ -883,7 +883,7 @@ export function UnifiedBarnTrendPanel({
       try {
         const result = await saveAlarmSettingsInlineAction(formData);
         if (!result.ok) {
-          setAlarmSaveError(result.error ?? "알람값 저장에 실패했습니다.");
+          setAlarmSaveError(result.error ?? "임계 가이드 저장에 실패했습니다.");
           setDraftThresholds(null);
           draftRef.current = null;
           return;
@@ -1322,7 +1322,7 @@ export function UnifiedBarnTrendPanel({
         `${thresholds.tempHigh}℃`,
         TREND_CHART_COLORS.temp,
         "overline",
-        "온도 상한(알람)",
+        "온도 상한(가이드)",
         true,
         alarmDragEnabled,
         thresholds.tempHigh,
@@ -1333,7 +1333,7 @@ export function UnifiedBarnTrendPanel({
         `${thresholds.tempLow}℃`,
         TREND_CHART_COLORS.temp,
         "underline",
-        "온도 하한(알람)",
+        "온도 하한(가이드)",
         true,
         alarmDragEnabled,
         thresholds.tempLow,
@@ -1394,7 +1394,7 @@ export function UnifiedBarnTrendPanel({
           `${thresholds.humidityHigh}%`,
           TREND_CHART_COLORS.humidity,
           "overline",
-          "습도 상한(알람)",
+          "습도 상한(가이드)",
           true,
           alarmDragEnabled,
           thresholds.humidityHigh,
@@ -1410,7 +1410,7 @@ export function UnifiedBarnTrendPanel({
           `${thresholds.humidityLow}%`,
           TREND_CHART_COLORS.humidity,
           "underline",
-          "습도 하한(알람)",
+          "습도 하한(가이드)",
           true,
           alarmDragEnabled,
           thresholds.humidityLow,
@@ -1827,7 +1827,7 @@ export function UnifiedBarnTrendPanel({
       {built ? (
         <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
           온도 레인 드래그=시간·밴드 스코프(온도만 확장) · 하단=기간(24h/7d/30d)
-          선택 · 우측 알람 숫자 드래그/우클릭=임계값 · 빈 곳 우클릭/Esc=뒤로 ·
+          선택 · 우측 가이드 숫자 드래그/우클릭=임계값 · 빈 곳 우클릭/Esc=뒤로 ·
           ×=전체 해제
         </p>
       ) : null}

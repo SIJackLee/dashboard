@@ -14,6 +14,7 @@ import {
   CHART_X0_PARAM,
   CHART_X1_PARAM,
 } from "@/lib/farm/farm-chart-scope";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 
 export const TREND_PERIOD_PARAM = "trendPeriod";
 
@@ -99,7 +100,9 @@ export function resolveFarmHubView(
 ): FarmHubView {
   if (raw === "list") return "list";
   if (raw === "chart") return "chart";
-  if (raw === "aria" || raw === "jarvis") return "aria";
+  if (raw === "aria" || raw === "jarvis") {
+    return delinEnabled() ? "aria" : "map";
+  }
   return "map";
 }
 
@@ -120,8 +123,12 @@ export function applyChartViewParams(params: URLSearchParams): void {
   params.delete("mapLevel");
 }
 
-/** 델린 탭 — DELIN (URL view=aria 호환) */
+/** 델린 탭 — DELIN (URL view=aria 호환). 플래그 off면 no-op. */
 export function applyAriaViewParams(params: URLSearchParams): void {
+  if (!delinEnabled()) {
+    applyMapGridParams(params);
+    return;
+  }
   params.set("view", "aria");
   params.delete("listMode");
   params.delete("stall");

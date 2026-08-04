@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { canCommand, getCurrentUser } from "@/lib/auth/get-current-user";
+import { canEditFarmScope } from "@/lib/auth/farm-access";
 import { upsertControllerDisplayName } from "@/lib/data/controller-meta";
 import {
   getThermoCommandById,
@@ -26,6 +27,7 @@ export async function sendThermoCommandAction(
 ): Promise<SendThermoCommandResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "unauthorized" };
+  if (!canCommand(user)) return { ok: false, error: "forbidden" };
 
   const lsindRegistNo = String(formData.get("lsind_regist_no") ?? "").trim();
   const itemCode = String(formData.get("item_code") ?? "").trim();
@@ -57,6 +59,15 @@ export async function sendThermoCommandAction(
     !/^(0[1-9]|[12][0-9]|3[0-2])$/.test(stallNo)
   ) {
     return { ok: false, error: "invalid_target" };
+  }
+
+  if (
+    !canEditFarmScope(user, {
+      lsindRegistNo,
+      itemCode,
+    })
+  ) {
+    return { ok: false, error: "forbidden" };
   }
 
   if (
@@ -222,6 +233,16 @@ export async function sendBulkThermoCommandAction(
       !/^(0[1-9]|[12][0-9]|3[0-2])$/.test(stallNo)
     ) {
       failed.push({ key: failKey, error: "invalid_target" });
+      continue;
+    }
+
+    if (
+      !canEditFarmScope(user, {
+        lsindRegistNo,
+        itemCode,
+      })
+    ) {
+      failed.push({ key: failKey, error: "forbidden" });
       continue;
     }
 

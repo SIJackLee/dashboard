@@ -6,7 +6,7 @@ import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
 import { AdminAllFarmsGridLoader } from "@/components/farm/admin-all-farms-grid-loader";
 import { FarmContentSkeleton } from "@/components/common/loading-skeletons";
 import { AdminHubPanelsProvider } from "@/lib/navigation/admin-hub-panels-context";
-import { resolveActiveFarmKey } from "@/lib/auth/farm-access";
+import { resolveActiveFarmKey, canEditFarmScope } from "@/lib/auth/farm-access";
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
 import { loadFarmScopedPanelData } from "@/lib/farm/load-farm-scoped-panel-data";
@@ -126,7 +126,7 @@ export default async function FarmPage({
           farmKey: activeFarmKey,
           commandThermoMap: thermoSettings,
           history: historyRes,
-          canCommand: canCommand(user),
+          canCommand: canEditFarmScope(user, activeFarmKey),
         });
       }
       return {
@@ -176,7 +176,9 @@ export default async function FarmPage({
                 readings: [],
                 thermoSettings,
                 commands: history,
-                canCommand: canCommand(user),
+                canCommand: activeFarmKey
+                  ? canEditFarmScope(user, activeFarmKey)
+                  : canCommand(user),
               }
             }
             allFarmGrids={adminAllFarmsMode ? null : undefined}

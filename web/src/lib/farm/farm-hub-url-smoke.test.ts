@@ -3,6 +3,7 @@
  * 실행: npx tsx src/lib/farm/farm-hub-url-smoke.test.ts
  */
 import assert from "node:assert/strict";
+import { delinEnabled } from "../aria/delin-enabled";
 import {
   applyFarmChartScopeParams,
   resolveFarmChartScope,
@@ -130,7 +131,9 @@ function clone(q: string) {
   const order: FarmHubView[] = ["list", "chart", "aria", "map"];
   for (const v of order) {
     applyHubScopedViewParams(params, v);
-    assert.equal(resolveFarmHubView(params.get("view")), v);
+    const expected =
+      v === "aria" && !delinEnabled() ? ("map" as FarmHubView) : v;
+    assert.equal(resolveFarmHubView(params.get("view")), expected);
   }
   // map 홈: view 없음 · 드릴 제거 · 농장 유지
   assert.equal(params.get("view"), null);
@@ -138,8 +141,11 @@ function clone(q: string) {
   assert.equal(params.get("stall"), null);
   assert.equal(params.get("lsind"), "FARM01");
   assert.equal(params.get("item"), "P00");
-  // jarvis → aria
-  assert.equal(resolveFarmHubView("jarvis"), "aria");
+  // jarvis → aria (게이트 on) / map (게이트 off · Production)
+  assert.equal(
+    resolveFarmHubView("jarvis"),
+    delinEnabled() ? "aria" : "map",
+  );
   console.log("smoke 4: tab roundtrip URL helpers — ok");
 }
 

@@ -2,6 +2,7 @@
  * 실행: npx tsx src/lib/aria/protocol/protocol.test.ts
  */
 import assert from "node:assert/strict";
+import { chatHeuristicReply } from "./chat-heuristic";
 import { packFarmProtocol } from "./pack";
 import {
   heuristicCtrlJudge,
@@ -115,6 +116,16 @@ const sampleFacts: VoiceFarmFacts = {
   assert.equal(routeByRules("환기 어떻게"), "CTRL");
   assert.equal(routeByRules("추천해줘"), "CTRL");
   assert.equal(routeByRules("알람 상한 낮춰줘"), "CTRL");
+}
+
+{
+  assert.match(chatHeuristicReply("안녕"), /델린/);
+  assert.match(chatHeuristicReply("도움"), /상황 어때/);
+  assert.match(chatHeuristicReply("hi"), /델린/);
+  assert.doesNotMatch(
+    chatHeuristicReply("델린 뭐야"),
+    /Agricultural Reporting/,
+  );
 }
 
 {

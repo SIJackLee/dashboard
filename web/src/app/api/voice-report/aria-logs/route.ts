@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { listAriaTurnLogs } from "@/lib/aria/protocol/turn-log";
 
 /**
@@ -7,6 +8,9 @@ import { listAriaTurnLogs } from "@/lib/aria/protocol/turn-log";
  * GET /api/voice-report/aria-logs?limit=50&route=FARM
  */
 export async function GET(request: Request) {
+  if (!delinEnabled()) {
+    return NextResponse.json({ ok: false, error: "disabled" }, { status: 503 });
+  }
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });

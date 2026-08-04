@@ -15,6 +15,7 @@ import {
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import {
   applyHubScopedViewParams,
+  applyMapGridParams,
   currentFarmSearchParams,
   normalizeLegacyListModeParam,
   replaceFarmUrlShallow,
@@ -22,6 +23,7 @@ import {
   subscribeFarmHubViewResync,
   type FarmHubView,
 } from "@/lib/farm/farm-view-url";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
 import {
   canUnmountKeepAlivePanel,
   FARM_HUB_KEEPALIVE_PANELS,
@@ -97,7 +99,7 @@ export function useFarmHubViewShell({
     bootstrapView === "chart",
   );
   const [ariaEverOpened, setAriaEverOpened] = useState(
-    bootstrapView === "aria",
+    bootstrapView === "aria" && delinEnabled(),
   );
   const [panelInactiveSince, setPanelInactiveSince] = useState<
     Partial<Record<FarmHubKeepAlivePanel, number>>
@@ -129,7 +131,15 @@ export function useFarmHubViewShell({
     }) => {
       if (hubMode && opts?.viewRaw === undefined) {
         const params = currentFarmSearchParams();
-        if (normalizeLegacyListModeParam(params)) {
+        let rewritten = normalizeLegacyListModeParam(params);
+        if (!delinEnabled()) {
+          const raw = params.get("view");
+          if (raw === "aria" || raw === "jarvis") {
+            applyMapGridParams(params);
+            rewritten = true;
+          }
+        }
+        if (rewritten) {
           replaceFarmUrlShallow(params);
           setUrlTick((n) => n + 1);
         }
@@ -149,7 +159,7 @@ export function useFarmHubViewShell({
       });
       if (next === "list") setListEverOpened(true);
       if (next === "chart") setChartEverOpened(true);
-      if (next === "aria") setAriaEverOpened(true);
+      if (next === "aria" && delinEnabled()) setAriaEverOpened(true);
       if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
     },
     [beginViewSlide, hubMode],
@@ -194,7 +204,7 @@ export function useFarmHubViewShell({
     setChartEverOpened(true);
   }
   if (view === "aria" && !ariaEverOpened) {
-    setAriaEverOpened(true);
+    if (delinEnabled()) setAriaEverOpened(true);
   }
 
   useEffect(() => {
@@ -233,23 +243,25 @@ export function useFarmHubViewShell({
 
   const applyViewChange = useCallback(
     (next: FarmHubView) => {
-      if (next === "list") {
+      const target =
+        next === "aria" && !delinEnabled() ? ("map" as FarmHubView) : next;
+      if (target === "list") {
         setListEverOpened(true);
         onOpenListRef.current?.();
       }
-      if (next === "chart") {
+      if (target === "chart") {
         setChartEverOpened(true);
       }
-      if (next === "aria") {
+      if (target === "aria") {
         setAriaEverOpened(true);
       }
-      beginViewSlide(view, next);
-      setViewState(next);
+      beginViewSlide(view, target);
+      setViewState(target);
       if (hubMode) {
         const params = new URLSearchParams(
           currentFarmSearchParams().toString(),
         );
-        applyHubScopedViewParams(params, next);
+        applyHubScopedViewParams(params, target);
         replaceFarmUrlShallow(params);
         onHubUrlChange?.();
         setUrlTick((n) => n + 1);
@@ -257,12 +269,12 @@ export function useFarmHubViewShell({
       }
       const params = new URLSearchParams(currentFarmSearchParams().toString());
       params.delete("tab");
-      if (next === "list") {
+      if (target === "list") {
         params.set("view", "list");
-      } else if (next === "chart") {
+      } else if (target === "chart") {
         params.set("view", "chart");
         params.delete("listMode");
-      } else if (next === "aria") {
+      } else if (target === "aria") {
         params.set("view", "aria");
         params.delete("listMode");
       } else {

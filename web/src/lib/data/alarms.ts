@@ -170,6 +170,36 @@ function makeAlarm(
   };
 }
 
+/** LIVE offline → 이상상황 행 (모듈 에러와 함께 헤더 목록에 표시) */
+export function offlineReadingsToAlarmRows(
+  readings: BarnReading[],
+): AlarmRow[] {
+  const rows: AlarmRow[] = [];
+  for (const r of readings) {
+    if (r.status !== "offline") continue;
+    rows.push(makeAlarm(r, "통신 두절", "critical", "15분 이상 미수신"));
+  }
+  return rows;
+}
+
+/**
+ * 이상상황 = 모듈 에러코드 + 통신두절.
+ * 온·습 임계 파생 알람은 포함하지 않음.
+ */
+export function mergeSituationAlarms(
+  moduleAlarms: AlarmRow[],
+  readings: BarnReading[],
+): AlarmRow[] {
+  const offline = offlineReadingsToAlarmRows(readings);
+  const seen = new Set(
+    moduleAlarms.map((a) => `${a.controllerKey}\0${a.alarmType}`),
+  );
+  const extras = offline.filter(
+    (o) => !seen.has(`${o.controllerKey}\0${o.alarmType}`),
+  );
+  return [...moduleAlarms, ...extras];
+}
+
 export function summarizeAlarms(alarms: AlarmRow[]) {
   return {
     total: alarms.length,

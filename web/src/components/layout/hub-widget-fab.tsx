@@ -198,6 +198,7 @@ export function HubWidgetFab({
   const offline = overview?.offlineCount ?? 0;
   const alarmCount = liveAlarms.filter((a) => a.status === "active").length;
   const alert = alarmCount > 0 || offline > 0;
+  /** 배지 = 모듈 에러 + 통신두절 (임계 파생 제외) */
   const badgeCount = alarmCount;
 
   /** 디자인2 + 기능(1~2) + 이상상황1 */
