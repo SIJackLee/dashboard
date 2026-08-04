@@ -75,6 +75,17 @@ export function AdminAllFarmsGridPanels({
     liveFromContext && hub
       ? hub.hubFarmKeys.filter((k) => !loadedIds.has(farmKeyId(k)))
       : [];
+  const stillHydrating =
+    liveFromContext &&
+    hub != null &&
+    (hub.tailFarmKeys.length > 0 ||
+      (hub.hubFarmKeys.length > 0 && !hub.ready && livePanels.length === 0));
+  const placeholderKeys =
+    pendingKeys.length > 0
+      ? pendingKeys
+      : stillHydrating && hub
+        ? hub.hubFarmKeys
+        : [];
   const hidden =
     consideredFarmCount != null
       ? Math.max(0, consideredFarmCount - livePanels.length - pendingKeys.length)
@@ -87,7 +98,7 @@ export function AdminAllFarmsGridPanels({
     [requestPriorityFarmKeys],
   );
 
-  if (livePanels.length === 0 && pendingKeys.length === 0) {
+  if (livePanels.length === 0 && placeholderKeys.length === 0) {
     return (
       <div
         className={cn(
@@ -129,7 +140,7 @@ export function AdminAllFarmsGridPanels({
           />
         </section>
       ))}
-      {pendingKeys.map((farmKey) => (
+      {placeholderKeys.map((farmKey) => (
         <HubFarmPlaceholder
           key={farmKeyId(farmKey)}
           farmKey={farmKey}

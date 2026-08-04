@@ -2,6 +2,7 @@
 
 import { useMemo, useSyncExternalStore, useTransition } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 import { ChevronDown, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
@@ -131,10 +132,13 @@ function FarmSwitcherBody({
 
     const query = params.toString();
     const href = query ? `${pathname}?${query}` : pathname;
+    // Capacitor WebView에서는 shallow replaceState가 선택 URL과 어긋날 수 있어
+    // 네이티브는 항상 full navigate로 농장 스코프를 확정한다.
     const useShallow =
       pathname === "/farm" &&
       hubPanels?.ready === true &&
-      hubPanels.panels.length > 0;
+      hubPanels.panels.length > 0 &&
+      !Capacitor.isNativePlatform();
 
     if (useShallow) {
       startShallowTransition(() => {

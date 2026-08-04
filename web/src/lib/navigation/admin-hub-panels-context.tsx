@@ -46,7 +46,8 @@ export function AdminHubPanelsProvider({ children }: { children: ReactNode }) {
 
   const setPanels = useCallback((next: AdminFarmGridPanel[]) => {
     setPanelsState(next);
-    setReady(next.length > 0);
+    // 빈 배열로 ready를 내리면 hub 전환·그리드가 한꺼번에 리셋된다.
+    if (next.length > 0) setReady(true);
   }, []);
 
   const appendPanels = useCallback((incoming: AdminFarmGridPanel[]) => {
