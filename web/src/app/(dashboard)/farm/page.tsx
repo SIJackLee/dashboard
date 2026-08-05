@@ -126,7 +126,9 @@ export default async function FarmPage({
           farmKey: activeFarmKey,
           commandThermoMap: thermoSettings,
           history: historyRes,
-          canCommand: canEditFarmScope(user, activeFarmKey),
+          canCommand: user
+            ? canEditFarmScope(user, activeFarmKey)
+            : false,
         });
       }
       return {
@@ -177,7 +179,9 @@ export default async function FarmPage({
                 thermoSettings,
                 commands: history,
                 canCommand: activeFarmKey
-                  ? canEditFarmScope(user, activeFarmKey)
+                  ? user
+                    ? canEditFarmScope(user, activeFarmKey)
+                    : false
                   : canCommand(user),
               }
             }

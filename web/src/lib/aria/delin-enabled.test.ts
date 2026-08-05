@@ -11,16 +11,22 @@ const prev = {
   node: process.env.NODE_ENV,
 };
 
+function setNodeEnv(value: string | undefined) {
+  const env = process.env as Record<string, string | undefined>;
+  if (value === undefined) delete env.NODE_ENV;
+  else env.NODE_ENV = value;
+}
+
 function restore() {
   for (const [k, v] of Object.entries({
     NEXT_PUBLIC_DELIN_ENABLED: prev.flag,
     VERCEL_ENV: prev.vercel,
     NEXT_PUBLIC_VERCEL_ENV: prev.vercelPub,
-    NODE_ENV: prev.node,
   })) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
+  setNodeEnv(prev.node);
 }
 
 try {
@@ -37,7 +43,7 @@ try {
 
   process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
   process.env.VERCEL_ENV = "production";
-  process.env.NODE_ENV = "production";
+  setNodeEnv("production");
   assert.equal(delinEnabled(), false);
 
   console.log("delin-enabled.test.ts: ok");

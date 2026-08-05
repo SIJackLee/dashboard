@@ -52,7 +52,7 @@ const moduleRow: AlarmRow = {
   severity: "critical",
   status: "active",
   detail: "모듈 에러",
-  controllerStatus: "ok",
+  controllerStatus: "normal",
   source: "module",
 };
 
@@ -60,7 +60,7 @@ const moduleRow: AlarmRow = {
   const merged = mergeSituationAlarms(
     [moduleRow],
     [
-      reading({ controllerKey: "c1", status: "ok" }),
+      reading({ controllerKey: "c1", status: "normal" }),
       reading({ controllerKey: "c2", status: "offline" }),
       reading({
         controllerKey: "c3",

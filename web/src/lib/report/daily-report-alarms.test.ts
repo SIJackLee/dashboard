@@ -55,7 +55,7 @@ const moduleRow: AlarmRow = {
   severity: "critical",
   status: "active",
   detail: "모듈 에러",
-  controllerStatus: "ok",
+  controllerStatus: "normal",
   source: "module",
 };
 
@@ -63,7 +63,7 @@ const moduleRow: AlarmRow = {
   const merged = mergeSituationAlarms(
     [moduleRow],
     [
-      reading({ controllerKey: "c1", status: "ok", tempC: 99 }),
+      reading({ controllerKey: "c1", status: "normal", tempC: 99 }),
       reading({ controllerKey: "c2", status: "offline" }),
       reading({ controllerKey: "c3", status: "caution", tempC: 40 }),
     ],
@@ -78,9 +78,9 @@ const moduleRow: AlarmRow = {
 }
 
 {
-  assert.equal(barnJudgeFromControllerStatuses(["ok", "ok"]), "정상");
+  assert.equal(barnJudgeFromControllerStatuses(["normal", "normal"]), "정상");
   assert.equal(
-    barnJudgeFromControllerStatuses(["ok", "caution"]),
+    barnJudgeFromControllerStatuses(["normal", "caution"]),
     "수신 지연",
   );
   assert.equal(
