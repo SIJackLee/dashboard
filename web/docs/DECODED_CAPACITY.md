@@ -1,26 +1,36 @@
 # decoded 용량 트랙 (iot_room_state_decoded)
 
-> **실측:** iot-cloud · 2026-08-05 (Sprint A/B/C 푸시 직후 MCP)  
-> **원칙:** 인덱스 DROP·파티션·DELETE는 별도 승인. 본 문서는 실측·판단·다음 후보.
+> **실측:** iot-cloud · **2026-08-05 17:40 KST** (D1·slim·thermo flat 이후)  
+> **원칙:** 인덱스 DROP은 별도 승인. 본 문서는 실측·판단·다음 후보.
 
 ---
 
-## 1. 용량 실측
+## 1. 용량 실측 (최신)
 
 | 항목 | 값 |
 |------|-----|
-| **total** | **34 MB** |
-| heap | ~9.0 MB (26%) |
-| **indexes** | **~25 MB (74%)** |
-| toast | ~8 KB |
-| rows | 8,789 |
-| avg row | ~931 B |
-| `decoded_json` avg | ~731 B (**행의 78.6%**) |
-| dead tuples | 1 (autovacuum 정상) |
+| **decoded 파티션 합계** | **~27 MB** |
+| **raw total** | **~22 MB** |
+| decoded 행 | ~9,005 |
+| raw 행 | ~9,031 |
+| `decoded_json` avg | **~504 B** (전원 `v0c-slim-1`) |
+| slim 이전(당일 초) | decoded ~34 MB · json avg ~731 B |
 
-raw 비교: total ~21 MB (indexes ~81%).
+| 비교 | 당일 초(단일 테이블) | 지금 |
+|------|---------------------|------|
+| decoded | ~34 MB | ~27 MB (파티션+thermo flat 후) |
+| raw | ~21 MB | ~22 MB |
+| legacy 복제 | (D1 직후 ~34 MB) | **없음(DROP)** |
 
-관련: [`DECODED_JSON_SLIM.md`](./DECODED_JSON_SLIM.md) (channels 유지 · flat 중복 키 제거)
+관련: [`DECODED_JSON_SLIM.md`](./DECODED_JSON_SLIM.md) · [`IOT_ARCHIVE_AND_THERMO_FLAT.md`](./IOT_ARCHIVE_AND_THERMO_FLAT.md) · [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md)
+
+### LIVE/list 스모크 (2026-08-05)
+
+| 검사 | 결과 |
+|------|------|
+| `v_iot_dashboard_list` | 15행 · setpoint 15/15 · exhaust 12 · intake 13 · **supply 0** |
+| `v_iot_farm_overview` | 2농장 |
+| decode cursor | 전진 · fail 1h = 0 |
 
 ---
 
@@ -45,11 +55,23 @@ raw 비교: total ~21 MB (indexes ~81%).
 | ID | 내용 | 용량 효과 | 상태 |
 |----|------|-----------|------|
 | **D0** | 실측·사용률·본 문서 | — | **완료** |
-| **D-slim A** | DROP `session_id`,`chunk_seq`,`lut_ver`,`crc_ok` | 스키마 정리 | **완료 (2026-08-05)** |
-| **D-slim B+C** | topic→농장키 · `controller_key`→stall/eqpmn 트리거 | 중복 쓰기 제거(컬럼 유지) | **완료 (2026-08-05)** |
-| **D1** | 시간 파티션 · HOT=**30일** | 운영 힙·인덱스 | 합의됨 · SQL 미작성 |
-| **D3 희소** | Edge 절대값+heartbeat(ε_t=0.2, ε_f=2, hb=30m) | 행 증가율↓ | 합의됨 · PoC 미착수 |
-| **D4 retention** | **30일** 초과 detach→archive | total 상한 | 합의됨 · job 미착수 |
+| **D-slim A** | DROP unused 컬럼 | 스키마 정리 | **완료** |
+| **D-slim B+C** | topic/controller 채움 트리거 | 중복 쓰기↓ | **완료** |
+| **D1** | 월 파티션 · HOT 30일 | 운영 분리 | **완료** |
+| **D3 희소** | Edge ε+heartbeat | 행 증가율↓ | **PoC on** · 관측 대기 |
+| **D4 retention** | 30d detach + archive 30d DROP | total 상한 | **완료(cron)** |
+| **JSON slim** | v0c-slim-1 | json −30% | **완료+backfill** |
+| **thermo flat** | setpoint 등 컬럼 | list JSON 비의존 | **완료** |
+| **drop decoded_at** | Edge 기록 시각 제거 | 스키마 정리 | **완료** |
+
+### 시각 컬럼 (decoded)
+
+| 컬럼 | 역할 | 상태 |
+|------|------|------|
+| `mesure_at` | 측정 시각(timestamptz) · 파티션·UNIQUE·trend | **정본 유지** |
+| `mesure_dt` | 측정 시각(KST text) · UI/LIVE | 유지(동일 순간 표현) |
+| `received_at` | 클라우드 수신 · LIVE/오프라인 | 유지 |
+| `decoded_at` | Edge 기록 시각 | **DROP** (`20260805193000_…`) |
 
 ### D-slim A 적용
 
@@ -65,17 +87,15 @@ raw 비교: total ~21 MB (indexes ~81%).
 
 ---
 
-## 4. 행 수 · D(flat) 의논 메모 (미적용)
+## 4. 행 수 · 시계열 과다
 
-### 행 수 (시계열 과다)
+### HOT flat 시계열 (차트 RPC가 버킷하는 메트릭)
 
-| 옵션 | 요지 | 장점 | 리스크 |
-|------|------|------|--------|
-| **희소 절대값** | ε/heartbeat일 때만 INSERT | 행·인덱스↓ 큼 | Edge 게이트 · 차트 버킷 의미 QA |
-| **파티션 D1** | HOT만 인덱스 유지 | 운영 VACUUM↓ · 삭제 없이도 분리 | 마이그레이션 잠금 |
-| **retention D4** | N일 후 DELETE/archive | total 직접↓ | 승인·복구 정책 |
+실측(2일): **temp·humidity·exhaust·intake**는 거의 항상 값 있음 · **`fan_supply_pct`는 0건(EC01 미사용)**.
 
-권장 묶음: **파티션(HOT 경량) + 희소(쓰기↓)** · retention은 데이터 수명 합의 후.
+차트 `TrendStallSeries`는 5본선(온도·습도·급기·배기·흡기) → **실데이터 기준 유효 4 + 빈 급기 1**.
+
+해소 방안은 채팅/후속 문서에서 옵션으로 제시.
 
 ### D — flat ↔ json
 
@@ -88,20 +108,10 @@ raw 비교: total ~21 MB (indexes ~81%).
 
 ---
 
-## 5. D1 스케치 (미적용)
-
-- `mesure_at` RANGE 파티션(월 단위 권장)
-- LIVE·latest는 HOT만 스캔
-- trend RPC는 `*_all` 뷰
-- detach ≠ DELETE
-
-적용 전: 잠금·다운타임·Free tier 파티션 수 검토 후 **명시 승인**.
-
----
-
 ## 5. 관련
 
 - [`RAW_STORAGE_CHANGE.md`](./RAW_STORAGE_CHANGE.md) — raw Phase 1~4
 - [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md)
+- [`IOT_ARCHIVE_AND_THERMO_FLAT.md`](./IOT_ARCHIVE_AND_THERMO_FLAT.md)
 - [`LIVE_HOT_VIEW_RULES.md`](./LIVE_HOT_VIEW_RULES.md)
-- canvas: decoded-compression-options (현황→적용)
+- D1 파티션·retention·월 파티션 cron은 **적용 완료** (본 §3 표)
