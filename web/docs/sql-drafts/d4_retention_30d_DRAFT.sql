@@ -1,31 +1,19 @@
 -- =============================================================================
--- RETENTION DRAFT — DO NOT schedule until explicit approval
--- decoded + raw: keep 30 days; older → detach/archive (decoded) / DELETE dry-run (raw)
--- See docs/DECODED_ROWCOUNT_PLAN.md · IOT_RETENTION_OPTIONS.md
+-- RETENTION — applied 2026-08-05 (schedule ON)
+-- Function: public.cleanup_iot_retention_30d(days, raw_batch)
+-- Cron: cleanup-iot-retention-30d-daily @ 30 18 * * * (03:30 KST)
+-- See docs/DECODED_ROWCOUNT_PLAN.md · migration 20260805170000_*
 -- =============================================================================
 
--- A) Decoded: after D1 partitions exist, detach months fully older than 30 days
--- Example (replace partition name after D1):
--- ALTER TABLE public.iot_room_state_decoded
---   DETACH PARTITION public.iot_room_state_decoded_p_2026_06;
--- ALTER TABLE public.iot_room_state_decoded_p_2026_06
---   SET SCHEMA archive;  -- or ATTACH to archive parent
+-- Manual run:
+-- SELECT public.cleanup_iot_retention_30d(30, 10000);
 
--- B) Dry-run counts (safe SELECT)
--- SELECT count(*) FROM public.iot_room_state_decoded
--- WHERE mesure_at < now() - interval '30 days';
---
--- SELECT count(*) FROM public.iot_room_state_raw
--- WHERE received_at < now() - interval '30 days';
+-- Behavior:
+-- 1) Detach decoded month partitions whose UPPER bound <= now()-30d
+--    → schema archive, drop raw FK, rename *_archived
+-- 2) DELETE raw WHERE received_at < cutoff LIMIT batch (default 10000)
+-- 3) Never DROP partitions in v1
 
--- C) Raw retention (agreed: 30 days same as decoded) — DELETE only after approval
--- BEGIN;
--- DELETE FROM public.iot_room_state_raw
--- WHERE received_at < now() - interval '30 days';
--- -- review row count / RETURNING id LIMIT 5
--- ROLLBACK;
-
--- D) Suggested daily job (pseudo):
--- 1. SELECT partitions where upper bound < now() - 30 days
--- 2. DETACH each → rename into archive schema
--- 3. Log counts; never DROP in v1
+-- Dry-run counts:
+-- SELECT count(*) FROM public.iot_room_state_decoded WHERE mesure_at < now() - interval '30 days';
+-- SELECT count(*) FROM public.iot_room_state_raw WHERE received_at < now() - interval '30 days';
