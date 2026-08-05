@@ -1,0 +1,124 @@
+# 희소(sparse) 관측 체크 쿼리
+
+> **대상:** iot-cloud · allowlist `FARM01/P00`, `FARM02/P00`  
+> **기간:** PoC 3~7일 · 전 농장(`[]`) 확대 전  
+> **관련:** [`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md)
+
+---
+
+## 성공 기준 (권장)
+
+| 지표 | 기대 |
+|------|------|
+| allowlist 농장 `decoded_n / raw_n` | 대략 **&lt; 70%**(변동·heartbeat에 따라 다름) |
+| LIVE / trend | 이상 없음 · 사용자 체감 OK |
+| `decode_failed` (UPSERT) | 지속 증가 없음 |
+| slim JSON | 신규 행 `v0c-slim-1` 비율 증가 |
+
+---
+
+## 1) 설정 확인
+
+```sql
+SELECT sparse_enabled, sparse_farm_keys,
+       sparse_eps_temp, sparse_eps_fan, sparse_heartbeat_sec
+FROM public.iot_decode_config
+WHERE id = 1;
+```
+
+## 2) 일별 raw vs decoded (농장별) — 핵심
+
+```sql
+WITH bounds AS (
+  SELECT now() - interval '7 days' AS since
+),
+raw_d AS (
+  SELECT
+    (received_at AT TIME ZONE 'Asia/Seoul')::date AS day_kst,
+    lsind_regist_no || '/' || item_code AS farm,
+    count(*)::int AS raw_n
+  FROM public.iot_room_state_raw, bounds
+  WHERE received_at >= bounds.since
+  GROUP BY 1, 2
+),
+dec_d AS (
+  SELECT
+    (received_at AT TIME ZONE 'Asia/Seoul')::date AS day_kst,
+    lsind_regist_no || '/' || item_code AS farm,
+    count(*)::int AS decoded_n
+  FROM public.iot_room_state_decoded, bounds
+  WHERE received_at >= bounds.since
+  GROUP BY 1, 2
+)
+SELECT
+  coalesce(r.day_kst, d.day_kst) AS day_kst,
+  coalesce(r.farm, d.farm) AS farm,
+  coalesce(r.raw_n, 0) AS raw_n,
+  coalesce(d.decoded_n, 0) AS decoded_n,
+  round(
+    100.0 * coalesce(d.decoded_n, 0) / nullif(r.raw_n, 0),
+    1
+  ) AS decoded_pct_of_raw
+FROM raw_d r
+FULL OUTER JOIN dec_d d
+  ON r.day_kst = d.day_kst AND r.farm = d.farm
+ORDER BY 1 DESC, 2;
+```
+
+## 3) last_value · 실패 · slim 비율
+
+```sql
+SELECT count(*)::int AS last_value_rows
+FROM public.iot_decoded_last_value;
+
+SELECT error_code, count(*)::int AS n
+FROM public.iot_room_state_decode_failed
+WHERE attempted_at > now() - interval '24 hours'
+GROUP BY 1
+ORDER BY 2 DESC;
+
+SELECT
+  decoded_json->>'schema_version' AS ver,
+  count(*)::int AS n,
+  round(avg(pg_column_size(decoded_json))) AS avg_json_b
+FROM public.iot_room_state_decoded
+WHERE received_at > now() - interval '2 days'
+GROUP BY 1
+ORDER BY 2 DESC;
+```
+
+## 4) 파티션·용량 스냅샷
+
+```sql
+SELECT
+  inhrelid::regclass::text AS partition,
+  pg_size_pretty(pg_total_relation_size(inhrelid)) AS total
+FROM pg_inherits
+WHERE inhparent = 'public.iot_room_state_decoded'::regclass
+ORDER BY 1;
+
+SELECT
+  (SELECT count(*) FROM public.iot_room_state_decoded)::int AS decoded_n,
+  (SELECT count(*) FROM public.iot_room_state_raw)::int AS raw_n,
+  (SELECT pg_size_pretty(sum(pg_total_relation_size(inhrelid)))
+   FROM pg_inherits
+   WHERE inhparent = 'public.iot_room_state_decoded'::regclass) AS decoded_parts;
+```
+
+## 5) 판정 메모
+
+- `decoded_pct_of_raw`가 allowlist에서 계속 ~100%면 heartbeat만 쓰이거나 eps가 너무 큼 → ε/heartbeat 재검토  
+- 다른 농장이 생기면 allowlist 밖은 ~100%가 정상(희소 미적용)  
+- 확대: `UPDATE iot_decode_config SET sparse_farm_keys = '{}'::text[]` (빈 배열 = 전체)
+
+---
+
+## 베이스라인 (2026-08-05 실행)
+
+| day_kst | farm | raw_n | decoded_n | decoded_pct |
+|---------|------|-------|-----------|-------------|
+| 2026-08-05 | FARM01/P00 | 1538 | 1533 | **99.7%** |
+| 2026-08-05 | FARM02/P00 | 3 | 3 | 100% |
+| 2026-08-04 | FARM01/P00 | 1297 | 1296 | 99.9% |
+
+→ 당일까지는 희소 효과가 일 집계에 거의 안 보임(값 변동·재처리·PoC 직후). **3~7일 동일 쿼리 재실행** 후 ε/heartbeat 조정 여부 판단.
