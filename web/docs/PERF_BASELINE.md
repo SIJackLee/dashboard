@@ -171,3 +171,12 @@ npm run measure:hub-ttfb
 # SKIP_ADMIN_HUB_WARM=1 npm run dev
 # TTFB_PHASE=strict-only npm run measure:hub-ttfb
 ```
+
+## Storage capacity (iot-cloud · 2026-08-05)
+
+| Table | total | heap | indexes | note |
+| --- | --- | --- | --- | --- |
+| `iot_room_state_raw` | 21 MB | ~3.9 MB | ~17 MB (81%) | Phase 4 후 · [`RAW_STORAGE_CHANGE.md`](./RAW_STORAGE_CHANGE.md) §10 |
+| `iot_room_state_decoded` | 34 MB | ~9 MB | ~25 MB (74%) | 인덱스 전부 활성 · [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) |
+
+decoded: index DROP 비권장(실측 idx_scan 높음). 다음 용량 ROI = 파티션(D1) / retention(별도 승인).

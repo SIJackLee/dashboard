@@ -25,6 +25,7 @@
 | [`LIVE_HOT_VIEW_RULES.md`](./LIVE_HOT_VIEW_RULES.md) | HOT list 뷰 thin 규칙·PR 체크리스트 |
 | [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) | 보존(retention) 옵션 비교 · **승인 전 미실행** |
 | [`RAW_STORAGE_CHANGE.md`](./RAW_STORAGE_CHANGE.md) | raw passthrough 축소 Phase 1~4 · 용량 실측 |
+| [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) | decoded 용량·인덱스 실측 · D0~D4 트랙 |
 | [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) | 허브 안정화 P0 게이트·체크리스트 |
 | [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md) | 운영 메모(스냅샷) |
 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) | 작업 맥락·스키마 참고 |
