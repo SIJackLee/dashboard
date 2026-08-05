@@ -15,6 +15,8 @@
 |------|------|
 | [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) | 배포 정본 |
 | [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) | push 전 게이트 |
+| [`QA_PRE_RELEASE.md`](./QA_PRE_RELEASE.md) | 출고 전 전수 품질 검수 체계(0~14) |
+| [`QA_SHIP_GATE.md`](./QA_SHIP_GATE.md) | 출고마다·메이저·분기 실행 축소판 |
 | [`SHIP_CHECKLIST.md`](./SHIP_CHECKLIST.md) | 출고 스모크 |
 | [`GITLAB_CI.md`](./GITLAB_CI.md) | GitLab / GitHub Actions |
 | [`SCRIPTS.md`](./SCRIPTS.md) | npm test · verify · 스모크 스크립트 |
