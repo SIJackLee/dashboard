@@ -4,9 +4,9 @@
 > **전략:** ① 파티션 HOT 경량화 → ② 희소 쓰기(추천안) → ③ 30일 초과 retention  
 > **합의 확정:** 2026-08-05 (아래 §합의)  
 > **실행 상태 (2026-08-05):**  
-> ① D1 SQL **초안만** (`docs/sql-drafts/d1_partition_decoded_DRAFT.sql`) — 운영 미적용  
-> ② 희소 PoC **적용** — `iot_decoded_last_value` + config + `decode-batch` v14 (farm allowlist)  
-> ③ raw=decoded **30일** 합의 + retention **초안** (`docs/sql-drafts/d4_retention_30d_DRAFT.sql`) — DELETE/cron 미적용
+> ① D1 파티션 **운영 적용** (월 RANGE · legacy 보관)  
+> ② 희소 PoC **적용** — `iot_decoded_last_value` + config + `decode-batch`  
+> ③ raw=decoded **30일** 합의 + retention **초안** — DELETE/cron 미적용
 
 실측(2026-08-05): ~8.8k행 · 34MB(indexes 74%) · 컨트롤러 간격 ≈ **5분** · 일 ~1.4k행.
 
@@ -166,8 +166,8 @@ skip 시에도 decode cursor는 전진(raw 보존 · 재디코드는 cursor rewi
 
 | # | 항목 | 상태 |
 |---|------|------|
-| 1 | D1 파티션 SQL 초안 | ✅ 초안 · ❌ 운영 적용(유지보수 창+UNIQUE/FK 확정 필요) |
+| 1 | D1 파티션 SQL 초안 | ✅ **운영 적용** (2026-08-05) · legacy 테이블 보관 |
 | 2 | 희소 PoC | ✅ DB+Edge · 관측 기간 진행 |
 | 3 | raw 30일 + retention 초안 | ✅ 합의·초안 · ❌ DELETE/cron |
 
-다음 승인 후보: **D1 운영 적용** / **희소 allowlist 확대** / **retention cron**.
+D1 적용 메모: `UNIQUE(raw_id,mesure_at)` · Edge upsert 동일 · `mesure_at`은 Edge가 전송(파티션 이동 트리거 제거) · 롤백은 `iot_room_state_decoded_legacy` rename 스왑.

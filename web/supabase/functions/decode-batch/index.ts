@@ -226,6 +226,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const decodedJson = payload;
+    // Partition key must be present on INSERT (BEFORE trigger on parent only fills if null).
+    const mesureAt = new Date(
+      `${payload.mesureDt.replace(" ", "T")}+09:00`,
+    ).toISOString();
     const insertRow = {
       raw_id: row.id,
       lsind_regist_no: row.lsind_regist_no,
@@ -240,6 +244,7 @@ Deno.serve(async (req: Request) => {
       stall_ty_code: payload.stallTyCode,
       stall_no: payload.stallNo,
       mesure_dt: payload.mesureDt,
+      mesure_at: mesureAt,
       run_mode: payload.runMode,
       temp_c: tempC,
       humidity_pct: parseOptionalPct(payload.humidityPct),
@@ -252,9 +257,10 @@ Deno.serve(async (req: Request) => {
       received_at: row.received_at,
     };
 
+    // D1 partitioned UNIQUE(raw_id, mesure_at)
     const { error: upsertErr } = await supabase
       .from("iot_room_state_decoded")
-      .upsert(insertRow, { onConflict: "raw_id" });
+      .upsert(insertRow, { onConflict: "raw_id,mesure_at" });
 
     if (upsertErr) {
       failed += 1;
