@@ -1311,13 +1311,17 @@ export function TrendChart({
     y: number;
   } | null>(null);
 
-  /** 설정모드 등 — 스코프 끔 시 드래프트 즉시 폐기 */
+  /** Prop sync during render — 스코프 끔 시 드래프트 즉시 폐기 */
+  const [prevXScopeSelect, setPrevXScopeSelect] = useState(xScopeSelect);
+  if (xScopeSelect !== prevXScopeSelect) {
+    setPrevXScopeSelect(xScopeSelect);
+    if (!xScopeSelect) setXDraft(null);
+  }
   useEffect(() => {
     if (xScopeSelect) return;
     xDraftRef.current = null;
     xScopeOriginRef.current = null;
     xScopeDraggingRef.current = false;
-    setXDraft(null);
   }, [xScopeSelect]);
 
   /** 차트 밖 클릭 — 고정 데이터 카드 전부 해제 */
@@ -1405,10 +1409,13 @@ export function TrendChart({
     histograms.some((h) => h.values.some((v) => v != null));
   const n = categories.length;
 
-  /** 기간·데이터 바뀌면 고정 카드 초기화 */
-  useEffect(() => {
+  /** Prop sync during render — 기간·데이터 바뀌면 고정 카드 초기화 */
+  const pinResetKey = `${period ?? ""}|${n}`;
+  const [prevPinResetKey, setPrevPinResetKey] = useState(pinResetKey);
+  if (pinResetKey !== prevPinResetKey) {
+    setPrevPinResetKey(pinResetKey);
     setPinnedTips([]);
-  }, [period, n]);
+  }
 
   const axisH = 16;
   const chartH = height - axisH;
@@ -1769,7 +1776,7 @@ export function TrendChart({
     const y1 = yViewFromRatio(Math.max(yTopR, yBotR));
     /** 클릭은 좌상단, 드래그는 우하단으로 직사각형 확장 */
     const duration = Math.max(1200, g.durationMs ?? 2800);
-    const t0 = performance.now();
+    let t0: number | null = null;
     let raf = 0;
     guidedScopeActiveRef.current = true;
     clearHover();
@@ -1778,6 +1785,7 @@ export function TrendChart({
       t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 
     const tick = (now: number) => {
+      if (t0 == null) t0 = now;
       const u = Math.min(1, (now - t0) / duration);
       /** 0–12% 클릭 홀드 · 12–82% 대각 드래그 · 82–100% 확정 전 홀드 */
       if (u < 0.12) {

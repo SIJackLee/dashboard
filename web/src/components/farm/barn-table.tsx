@@ -300,11 +300,12 @@ export function BarnTable({
   const [panelPeriodOverrides, setPanelPeriodOverrides] = useState<
     Record<string, TrendPeriodId>
   >({});
-
-  /** 카드 로컬 기간 peek — 공유 URL `trendPeriod` 변경·목록 탭 이탈 시 초기화 */
-  useEffect(() => {
+  /** Prop sync during render — 공유 URL `trendPeriod` 변경 시 카드 peek 초기화 */
+  const [prevBulkPeriod, setPrevBulkPeriod] = useState(bulkPeriod);
+  if (bulkPeriod !== prevBulkPeriod) {
+    setPrevBulkPeriod(bulkPeriod);
     setPanelPeriodOverrides({});
-  }, [bulkPeriod]);
+  }
 
   useEffect(() => {
     return () => {

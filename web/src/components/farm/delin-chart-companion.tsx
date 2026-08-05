@@ -55,18 +55,27 @@ function DelinChartCompanionInner({
   const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
+  /** localStorage는 외부 시스템 — effect 콜백(rAF)에서만 setState */
   useEffect(() => {
-    if (mobileSheet) {
+    let cancelled = false;
+    const raf = requestAnimationFrame(() => {
+      if (cancelled) return;
+      if (mobileSheet) {
+        setHydrated(true);
+        return;
+      }
+      try {
+        const raw = window.localStorage.getItem(STORAGE_KEY_PC);
+        if (raw === "1") setOpen(true);
+      } catch {
+        /* ignore */
+      }
       setHydrated(true);
-      return;
-    }
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY_PC);
-      if (raw === "1") setOpen(true);
-    } catch {
-      /* ignore */
-    }
-    setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
   }, [mobileSheet]);
 
   const setOpenPersist = useCallback(

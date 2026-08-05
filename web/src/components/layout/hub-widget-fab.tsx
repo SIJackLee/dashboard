@@ -27,7 +27,6 @@ import {
 } from "@/lib/onboarding/tour-timing";
 import { useShellAlarms } from "@/lib/navigation/shell-live-alarms-store";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
-import { motionClass } from "@/lib/ui/motion-classes";
 import { motionDuration } from "@/lib/ui/motion-tokens";
 import { useOpenPresence } from "@/lib/ui/use-clip-presence";
 import { cn } from "@/lib/utils";

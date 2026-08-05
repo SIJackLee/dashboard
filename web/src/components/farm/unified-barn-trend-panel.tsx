@@ -736,25 +736,21 @@ export function UnifiedBarnTrendPanel({
   const thermoDragEnabled =
     canCommand && controlMode && !thermoApplying;
 
-  const guidedJitterCacheRef = useRef<{
-    token: number;
-    rect: GuidedScopeRect;
-  } | null>(null);
-  /** 가이드 제스처 전 스택 비운 뒤에만 TrendChart에 전달 */
+  /** 가이드 제스처 토큰 변경 시 스택 비움 — TrendChart 전달은 비운 뒤 */
+  const gestureToken = guidedXScopeGesture?.token ?? 0;
+  const [prevGestureToken, setPrevGestureToken] = useState(0);
   const [guideReadyToken, setGuideReadyToken] = useState(0);
+  if (gestureToken !== prevGestureToken) {
+    setPrevGestureToken(gestureToken);
+    setXScopeStack([]);
+    setGuideReadyToken(gestureToken);
+  }
 
   useLayoutEffect(() => {
-    if (!guidedXScopeGesture) {
-      setGuideReadyToken(0);
-      return;
-    }
-    const t = guidedXScopeGesture.token;
-    setXScopeStack([]);
     initialZoomKeyRef.current = "";
-    setGuideReadyToken(t);
-  }, [guidedXScopeGesture?.token]);
+  }, [gestureToken]);
 
-  const resolvedGuidedXScope = useMemo(() => {
+  const guidedScopeBase = useMemo(() => {
     if (!guidedXScopeGesture || !built) return null;
     const domain = built.leftDomain;
     const span = domain[1] - domain[0] || 1;
@@ -807,27 +803,14 @@ export function UnifiedBarnTrendPanel({
       durationMs: guidedXScopeGesture.durationMs,
     };
 
-    const token = guidedXScopeGesture.token;
-    if (guidedJitterCacheRef.current?.token !== token) {
-      guidedJitterCacheRef.current = {
-        token,
-        rect: humanizeGuidedScopeRect(base),
-      };
-    }
-    const human = guidedJitterCacheRef.current.rect;
-    /** X는 초과 인덱스 기준 비율 고정(좌표 드리프트 방지). Y만 humanize */
-    const startRatio = guidedXScopeGesture.startRatio;
-    const endRatio = guidedXScopeGesture.endRatio;
-
     return {
-      token,
-      startRatio,
-      endRatio,
+      token: guidedXScopeGesture.token,
+      startRatio: guidedXScopeGesture.startRatio,
+      endRatio: guidedXScopeGesture.endRatio,
       startIndex: guidedXScopeGesture.startIndex,
       endIndex: guidedXScopeGesture.endIndex,
-      yStartRatio: human.yStartRatio,
-      yEndRatio: human.yEndRatio,
-      durationMs: human.durationMs ?? guidedXScopeGesture.durationMs,
+      durationMs: guidedXScopeGesture.durationMs,
+      base,
     };
   }, [
     guidedXScopeGesture,
@@ -835,6 +818,44 @@ export function UnifiedBarnTrendPanel({
     layerLayout.tempLo,
     layerLayout.tempHi,
   ]);
+
+  /** token당 humanize 1회 — render sync (ref 캐시 금지) */
+  const [guidedJitterCache, setGuidedJitterCache] = useState<{
+    token: number;
+    rect: GuidedScopeRect;
+  } | null>(null);
+  if (guidedScopeBase) {
+    if (guidedJitterCache?.token !== guidedScopeBase.token) {
+      setGuidedJitterCache({
+        token: guidedScopeBase.token,
+        rect: humanizeGuidedScopeRect(guidedScopeBase.base),
+      });
+    }
+  } else if (guidedJitterCache !== null) {
+    setGuidedJitterCache(null);
+  }
+
+  const resolvedGuidedXScope = useMemo(() => {
+    if (
+      !guidedScopeBase ||
+      !guidedJitterCache ||
+      guidedJitterCache.token !== guidedScopeBase.token
+    ) {
+      return null;
+    }
+    const human = guidedJitterCache.rect;
+    /** X는 초과 인덱스 기준 비율 고정(좌표 드리프트 방지). Y만 humanize */
+    return {
+      token: guidedScopeBase.token,
+      startRatio: guidedScopeBase.startRatio,
+      endRatio: guidedScopeBase.endRatio,
+      startIndex: guidedScopeBase.startIndex,
+      endIndex: guidedScopeBase.endIndex,
+      yStartRatio: human.yStartRatio,
+      yEndRatio: human.yEndRatio,
+      durationMs: human.durationMs ?? guidedScopeBase.durationMs,
+    };
+  }, [guidedScopeBase, guidedJitterCache]);
 
   /**
    * 스택이 비워진 뒤에만 시연 — 기존 X스코프 위에서 비율을 쓰면
@@ -1209,7 +1230,7 @@ export function UnifiedBarnTrendPanel({
     onlineScopedReadings,
     thermoSettings,
     liveRefresh,
-    liveTracker.startSession,
+    liveTracker,
   ]);
 
   /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 알람 고정 스케일. */

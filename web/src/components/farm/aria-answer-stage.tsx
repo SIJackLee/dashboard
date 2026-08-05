@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AriaMetricsSnapshot } from "@/app/(dashboard)/farm/aria-metrics-actions";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
 import type { AlarmSettings } from "@/lib/data/alarms";
@@ -222,20 +222,26 @@ export function AriaAnswerStage({
     zoomHint != null &&
     zoomHint.endRatio - zoomHint.startRatio < 0.98;
 
-  const scopeGestureTokenRef = useRef(0);
   const [scopeGestureToken, setScopeGestureToken] = useState(0);
   const [guidedScopeCommitted, setGuidedScopeCommitted] = useState(false);
-
-  useEffect(() => {
-    if (revealBeat !== "scopeDemo") return;
-    setGuidedScopeCommitted(false);
-    if (!runGuidedScope) {
-      /** 드래그할 구간 없음 — ready로 (initialZoom으로 온도 레인) */
-      onScopeDemoComplete?.();
-      return;
+  /** Prop sync during render — avoid setState-in-effect */
+  const scopeDemoSyncKey = `${revealBeat}|${runGuidedScope ? 1 : 0}`;
+  const [prevScopeDemoSyncKey, setPrevScopeDemoSyncKey] =
+    useState(scopeDemoSyncKey);
+  if (scopeDemoSyncKey !== prevScopeDemoSyncKey) {
+    setPrevScopeDemoSyncKey(scopeDemoSyncKey);
+    if (revealBeat === "scopeDemo") {
+      setGuidedScopeCommitted(false);
+      if (runGuidedScope) {
+        setScopeGestureToken((t) => t + 1);
+      }
     }
-    scopeGestureTokenRef.current += 1;
-    setScopeGestureToken(scopeGestureTokenRef.current);
+  }
+
+  /** 드래그할 구간 없음 — ready로 (initialZoom으로 온도 레인) */
+  useEffect(() => {
+    if (revealBeat !== "scopeDemo" || runGuidedScope) return;
+    onScopeDemoComplete?.();
   }, [revealBeat, runGuidedScope, onScopeDemoComplete]);
 
   const guidedXScopeGesture =

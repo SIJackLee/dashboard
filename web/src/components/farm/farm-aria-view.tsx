@@ -73,10 +73,6 @@ import { cn } from "@/lib/utils";
 
 const METRICS_POLL_MS = 30_000;
 
-function farmKeyId(farm: FarmKey): string {
-  return `${farm.lsindRegistNo}/${farm.itemCode}`;
-}
-
 type Props = {
   currentFarm?: FarmKey | null;
   isMobileStack?: boolean;
@@ -285,10 +281,13 @@ export function FarmAriaView({
     origY: number;
   } | null>(null);
 
-  /** 대기 화면으로 돌아오면 도크를 기본 하단으로 */
-  useEffect(() => {
+  /** Prop sync during render — 대기 화면으로 돌아오면 도크를 기본 하단으로 */
+  const [prevHasResultSurface, setPrevHasResultSurface] =
+    useState(hasResultSurface);
+  if (hasResultSurface !== prevHasResultSurface) {
+    setPrevHasResultSurface(hasResultSurface);
     if (!hasResultSurface) setDockOffset({ x: 0, y: 0 });
-  }, [hasResultSurface]);
+  }
 
   const onDockHandlePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLButtonElement>) => {

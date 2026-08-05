@@ -75,6 +75,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Capacitor Android project + generated bridge (not app source)
+    "android/**",
   ]),
 ]);
 

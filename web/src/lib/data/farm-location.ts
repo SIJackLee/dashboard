@@ -26,7 +26,6 @@ import {
   type EditableFarmOption,
   type FarmLocationBatchResult,
   type FarmLocationRow,
-  type FarmLocationSaveResult,
   type SaveFarmLocationInput,
 } from "@/lib/data/farm-location-shared";
 
