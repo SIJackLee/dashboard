@@ -181,7 +181,7 @@ export function ControllerSummaryGaugeRow({
     expandedChannel ? "overflow-visible" : "overflow-hidden",
     !toolbarSheetSelected && statusRingClass(reading.status),
     toolbarSheetSelected && "ring-2 ring-emerald-500/70",
-    !toolbarSheetSelected && graphExpanded && "ring-2 ring-sky-500/40",
+    !toolbarSheetSelected && graphExpanded && "ring-2 ring-primary/40",
     !toolbarSheetSelected && settingsExpanded && "ring-2 ring-violet-500/40",
     onCardActivate && "cursor-pointer",
     className,

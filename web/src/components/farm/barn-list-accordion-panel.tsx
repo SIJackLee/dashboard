@@ -346,7 +346,7 @@ export function BarnListAccordionPanel({
         title="환기"
         icon={
           <span
-            className="inline-flex size-4 items-center justify-center text-sm font-bold text-sky-600"
+            className="inline-flex size-4 items-center justify-center text-sm font-bold text-channel-info"
             aria-hidden
           >
             %
@@ -360,7 +360,7 @@ export function BarnListAccordionPanel({
         unit="%"
         lowLabel="최저환기"
         highLabel="최고환기"
-        accentClass="bg-sky-500/35"
+        accentClass="bg-channel-info/35"
         axisMode="editable"
         axisInputSize="compact"
         compact

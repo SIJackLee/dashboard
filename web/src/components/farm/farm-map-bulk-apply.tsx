@@ -579,7 +579,7 @@ export function FarmMapBulkApply({
           <span
             className={cn(
               dashboardUi.iconSm,
-              "inline-flex items-center justify-center font-bold text-sky-600",
+              "inline-flex items-center justify-center font-bold text-channel-info",
             )}
             aria-hidden
           >
@@ -595,7 +595,7 @@ export function FarmMapBulkApply({
             <span
               className={cn(
                 dashboardUi.iconSm,
-                "inline-flex items-center justify-center font-bold text-sky-600",
+                "inline-flex items-center justify-center font-bold text-channel-info",
               )}
               aria-hidden
             >
@@ -610,7 +610,7 @@ export function FarmMapBulkApply({
           unit="%"
           lowLabel="최저환기"
           highLabel="최고환기"
-          accentClass="bg-sky-500/35"
+          accentClass="bg-channel-info/35"
           axisMode="editable"
           axisInputSize="dashboard"
           bare
@@ -687,7 +687,7 @@ export function FarmMapBulkApply({
           low={alarm.humidityLow}
           high={alarm.humidityHigh}
           unit="%"
-          accentClass="bg-sky-500/35"
+          accentClass="bg-channel-info/35"
           axisMode="editable"
           axisInputSize="dashboard"
           bare
@@ -913,7 +913,7 @@ export function FarmMapBulkApply({
                     "mt-4 rounded-lg border px-3 py-2.5",
                     liveTracker.progress.allLive
                       ? "border-emerald-200/80 bg-emerald-50/60 dark:bg-emerald-950/30"
-                      : "border-sky-200/70 bg-sky-50/50 dark:bg-sky-950/20",
+                      : "border-channel-info/30 bg-channel-info/5",
                   )}
                 >
                   <p className={cn("font-semibold leading-snug", bulkModalSectionTitle)}>

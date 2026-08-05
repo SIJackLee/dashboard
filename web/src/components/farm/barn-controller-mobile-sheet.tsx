@@ -233,7 +233,7 @@ export function BarnControllerMobileSheet({
                 "inline-flex min-h-8 flex-1 items-center justify-center rounded-full border px-2 text-xs font-semibold",
                 motionClass.microInteractive,
                 viewPage === p.id
-                  ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
+                  ? "border-channel-info bg-channel-info/10 text-channel-info"
                   : "border-border bg-background text-muted-foreground hover:bg-muted",
               )}
             >

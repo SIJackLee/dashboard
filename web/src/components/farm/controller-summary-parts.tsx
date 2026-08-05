@@ -44,7 +44,7 @@ const headerTogglePillClass =
   );
 
 const headerTogglePillActiveClass = {
-  channelTrend: "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300",
+  channelTrend: "border-channel-info bg-channel-info/10 text-channel-info",
   settings: "border-violet-500 bg-violet-500/10 text-violet-800 dark:text-violet-300",
 } as const;
 
@@ -199,7 +199,7 @@ export function ControllerSummaryHeader({
                 headerTogglePillClass,
                 "px-2.5",
                 !cardBodyCollapsed
-                  ? "border-sky-500 bg-sky-500/10 text-sky-800 dark:text-sky-300"
+                  ? "border-channel-info bg-channel-info/10 text-channel-info"
                   : "border-border bg-background text-muted-foreground hover:bg-muted",
               )}
             >
@@ -395,7 +395,7 @@ function ChannelCell({
     "relative min-h-[3rem] rounded-md border bg-background/80 sm:min-h-[3.25rem]",
     compact ? "p-1.5 sm:p-2" : "p-2 sm:p-2.5",
     expanded &&
-      "border-sky-500/60 bg-sky-500/5 ring-1 ring-sky-500/30",
+      "border-channel-info/60 bg-channel-info/5 ring-1 ring-channel-info/30",
     interactive &&
       cn(
         "cursor-pointer hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -411,7 +411,7 @@ function ChannelCell({
           compact
             ? dashboardUi.gridCellMetaCompact
             : "text-[10px] sm:text-[11px]",
-          "text-sky-700 dark:text-sky-300",
+          "text-channel-info",
         )}
       >
         {slot}
@@ -427,7 +427,7 @@ function ChannelCell({
       </div>
       {expanded && interactive ? (
         <span
-          className="absolute right-1.5 bottom-1 text-[10px] font-semibold text-sky-600 dark:text-sky-400"
+          className="absolute right-1.5 bottom-1 text-[10px] font-semibold text-channel-info"
           aria-hidden
         >
           ▼

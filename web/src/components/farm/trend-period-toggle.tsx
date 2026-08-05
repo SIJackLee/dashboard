@@ -79,7 +79,7 @@ export function TrendPeriodToggle({
                 ? "px-2.5 py-1"
                 : "shrink-0 px-2.5 py-1.5 text-xs sm:px-3 sm:text-sm",
               value === p || periodBusy
-                ? "bg-sky-50 text-sky-700"
+                ? "bg-channel-info/10 text-channel-info"
                 : "text-muted-foreground hover:bg-muted",
             )}
           >

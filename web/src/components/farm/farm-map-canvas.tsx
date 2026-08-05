@@ -544,7 +544,7 @@ export function FarmMapCanvas({
                 motionClass.easeEnter,
                 isTarget && "rounded-lg ring-2 ring-emerald-400 ring-offset-1",
                 expanded?.barnId === b.meta.id &&
-                  "rounded-lg ring-2 ring-sky-500/50 ring-offset-1",
+                  "rounded-lg ring-2 ring-primary/50 ring-offset-1",
                 isDragging && "pointer-events-none",
                 isThisDragging && "z-30 opacity-60"
               )}

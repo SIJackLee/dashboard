@@ -125,7 +125,7 @@ export function CommandPipelineOverlay({
           show ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-95 opacity-0",
           phase === "success" && "border-emerald-200/80",
           phase === "error" && "border-red-200/80",
-          phase === "info" && "border-sky-200/60",
+          phase === "info" && "border-channel-info/40",
         )}
       >
         <Icon
@@ -134,7 +134,7 @@ export function CommandPipelineOverlay({
             phase === "loading" && "animate-spin text-muted-foreground",
             phase === "success" && "text-emerald-600 dark:text-emerald-400",
             phase === "error" && "text-red-600 dark:text-red-400",
-            phase === "info" && "text-sky-600 dark:text-sky-400",
+            phase === "info" && "text-channel-info",
           )}
           aria-hidden
         />

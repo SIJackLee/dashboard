@@ -44,7 +44,7 @@ export function GridMetricLabel({
   if (id === "H") {
     return (
       <Droplets
-        className={cn(iconClassName, "text-sky-500", className)}
+        className={cn(iconClassName, "text-channel-info", className)}
         aria-hidden
       />
     );
@@ -53,7 +53,7 @@ export function GridMetricLabel({
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-full border border-sky-500/40 bg-sky-500/10 font-bold leading-none text-sky-700 dark:text-sky-300",
+          "inline-flex shrink-0 items-center justify-center rounded-full border border-channel-info/40 bg-channel-info/10 font-bold leading-none text-channel-info",
           "size-3 text-[8px] sm:size-3.5 sm:text-[9px]",
           iconClassName,
           className,

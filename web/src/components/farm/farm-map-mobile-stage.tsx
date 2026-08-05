@@ -232,7 +232,7 @@ export function FarmMapMobileStage({
               className={cn(
                 "flex min-w-0 flex-col",
                 motionClass.surfaceRing,
-                isExpanded && "rounded-lg ring-2 ring-sky-500/50 ring-offset-1",
+                isExpanded && "rounded-lg ring-2 ring-primary/50 ring-offset-1",
               )}
             >
               <FarmMapCard

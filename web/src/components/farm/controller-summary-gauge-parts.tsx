@@ -24,12 +24,12 @@ type GaugeMetricProps = {
 
 const TEXT_ACCENT = {
   온도: "text-orange-600 dark:text-orange-400",
-  습도: "text-sky-600 dark:text-sky-400",
+  습도: "text-channel-hum",
 } as const;
 
 const FILL_ACCENT = {
   온도: "bg-orange-500",
-  습도: "bg-sky-500",
+  습도: "bg-channel-hum",
 } as const;
 
 /** 안3 — value pill + icon watermark (overlay 폐기) */
@@ -113,7 +113,7 @@ function PercentEdgeBadge({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-md border border-border bg-muted/60 font-bold tabular-nums leading-none text-sky-600 dark:text-sky-400",
+        "flex shrink-0 items-center justify-center rounded-md border border-border bg-muted/60 font-bold tabular-nums leading-none text-channel-hum",
         compact ? "h-5 min-w-8 px-0.5 text-[10px]" : "h-[22px] min-w-8 px-1 text-[11px]",
       )}
       aria-label={ariaLabel}
@@ -154,7 +154,7 @@ export function VentGaugeV1({
         aria-label={`환기 ${min}–${max}%`}
       >
         <div
-          className="absolute inset-y-0 rounded-full bg-sky-500/45"
+          className="absolute inset-y-0 rounded-full bg-channel-hum/45"
           style={{ left: `${min}%`, width: `${span}%` }}
           aria-hidden
         />

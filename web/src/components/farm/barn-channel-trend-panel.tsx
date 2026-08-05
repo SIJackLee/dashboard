@@ -103,7 +103,7 @@ function ChannelSlotTrendChart({
   return (
     <div
       className={cn(
-        "rounded-lg border border-sky-500/20 bg-sky-500/5 px-2.5 py-2",
+        "rounded-lg border border-channel-info/20 bg-channel-info/5 px-2.5 py-2",
         compact && "py-1.5"
       )}
     >
@@ -111,7 +111,7 @@ function ChannelSlotTrendChart({
         <p className={cn("font-semibold", compact ? "text-[0.65rem]" : "text-xs")}>
           채널 {slot}
         </p>
-        <span className="shrink-0 rounded-full border border-sky-500/30 bg-background px-2 py-0.5 text-[0.65rem] font-semibold tabular-nums sm:text-xs">
+        <span className="shrink-0 rounded-full border border-channel-info/30 bg-background px-2 py-0.5 text-[0.65rem] font-semibold tabular-nums sm:text-xs">
           {pct}
           {pct !== "—" ? "%" : ""}
         </span>
@@ -267,7 +267,7 @@ export function BarnChannelTrendPanel({
   return (
     <div
       className={cn(
-        "rounded-lg border border-sky-500/20 bg-sky-500/5 px-2.5 py-2",
+        "rounded-lg border border-channel-info/20 bg-channel-info/5 px-2.5 py-2",
         compact && "py-1.5",
         className,
       )}

@@ -46,7 +46,7 @@ export function BulkLiveProgressBanner({
         "ui-motion-toast fixed bottom-4 left-1/2 flex max-w-[min(100vw-2rem,28rem)] -translate-x-1/2 items-start gap-2.5 rounded-lg border bg-background px-3.5 py-2.5 text-sm shadow-lg",
         allLive && "border-emerald-200/80",
         timedOut && !allLive && "border-amber-200/80",
-        !complete && "border-sky-200/70",
+        !complete && "border-channel-info/30",
       )}
       style={{ zIndex: FEEDBACK_Z.liveBanner }}
       data-mobile-viewport-toast
@@ -62,7 +62,7 @@ export function BulkLiveProgressBanner({
         <Loader2
           className={cn(
             "mt-0.5 size-4 shrink-0",
-            timedOut ? "text-amber-600" : "animate-spin text-sky-600",
+            timedOut ? "text-amber-600" : "animate-spin text-channel-info",
           )}
           aria-hidden
         />

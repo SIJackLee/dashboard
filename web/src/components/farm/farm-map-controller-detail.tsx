@@ -509,7 +509,7 @@ export function FarmMapControllerDetail({
                   "flex min-w-[2rem] items-center justify-center px-2 py-1 font-medium",
                   motionClass.microHover,
                   effectiveMetricId === t.id
-                    ? "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
+                    ? "bg-channel-info/10 text-channel-info"
                     : "text-muted-foreground hover:bg-muted",
                 )}
               >
@@ -570,9 +570,9 @@ export function FarmMapControllerDetail({
                     }
                     onClick={() => selectController(row.key)}
                     className={cn(
-                      "inline-flex min-w-0 items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-left text-[0.7rem] hover:border-sky-400",
+                      "inline-flex min-w-0 items-center gap-1.5 rounded-md border bg-muted/20 px-2 py-1 text-left text-[0.7rem] hover:border-channel-info",
                       motionClass.microHover,
-                      isSel && "border-sky-500 ring-2 ring-sky-500/30",
+                      isSel && "border-primary ring-2 ring-primary/30",
                       !isSel && row.worst === "warning" && "border-red-500/50",
                       !isSel && row.worst === "caution" && "border-amber-500/50",
                     )}

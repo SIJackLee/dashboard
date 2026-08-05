@@ -42,7 +42,7 @@ export function SettingsCollapsibleSection({
         <span className="text-xs font-semibold">{title}</span>
         {changed ? (
           <span
-            className="size-1.5 shrink-0 rounded-full bg-sky-500"
+            className="size-1.5 shrink-0 rounded-full bg-channel-info"
             aria-label="변경됨"
           />
         ) : null}
