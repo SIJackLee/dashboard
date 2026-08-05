@@ -244,10 +244,9 @@ GROUP BY lsind_regist_no, item_code;
 
 GRANT SELECT ON public.v_iot_farm_overview TO anon, authenticated, service_role;
 
-CREATE TABLE IF NOT EXISTS public.iot_room_state_decoded_archive (
-  LIKE public.iot_room_state_decoded INCLUDING DEFAULTS
-);
+-- public.iot_room_state_decoded_archive stub removed in 20260805171000
+-- (retention uses schema archive via cleanup_iot_retention_30d)
 
 COMMENT ON TABLE public.iot_room_state_decoded IS
-  'D1 partitioned by mesure_at (monthly). UNIQUE(raw_id, mesure_at). Legacy: iot_room_state_decoded_legacy.';
--- NOTE: trg_iot_decoded_mesure_at removed in 20260805162000 (Edge sends mesure_at).
+  'D1 partitioned by mesure_at (monthly). UNIQUE(raw_id, mesure_at).';
+
