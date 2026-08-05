@@ -6,6 +6,7 @@ import {
   fanPctFromChannels,
   parseOptionalPct,
   primaryTempC,
+  toSlimDecodedJson,
 } from "./wire-decode-v0c.ts";
 import {
   shouldWriteSparse,
@@ -225,7 +226,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const decodedJson = payload;
+    const decodedJson = toSlimDecodedJson(payload);
     // Partition key must be present on INSERT (BEFORE trigger on parent only fills if null).
     const mesureAt = new Date(
       `${payload.mesureDt.replace(" ", "T")}+09:00`,

@@ -20,6 +20,8 @@
 
 raw 비교: total ~21 MB (indexes ~81%).
 
+관련: [`DECODED_JSON_SLIM.md`](./DECODED_JSON_SLIM.md) (channels 유지 · flat 중복 키 제거)
+
 ---
 
 ## 2. 인덱스 사용률 (DROP 후보 없음)

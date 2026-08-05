@@ -327,3 +327,18 @@ export function fanPctFromChannels(
   }
   return max;
 }
+
+/** HOT decoded_json: keep channels (+ motor outputs) and tempsC; drop flat duplicates. */
+export type SlimDecodedV0cJson = {
+  schema_version: "v0c-slim-1";
+  tempsC: (string | null)[];
+  channels: DecodedV0cChannel[];
+};
+
+export function toSlimDecodedJson(payload: DecodedV0cPayload): SlimDecodedV0cJson {
+  return {
+    schema_version: "v0c-slim-1",
+    tempsC: payload.tempsC,
+    channels: payload.channels,
+  };
+}
