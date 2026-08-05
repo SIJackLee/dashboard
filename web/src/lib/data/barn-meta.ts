@@ -1,6 +1,13 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { createRlsClient, getAccessTokenOrNull } from "@/lib/supabase/rls-client";
+import { cachedLiveQuery } from "@/lib/data/live-cache";
+import {
+  PROFILE_UI_META_REVALIDATE_SECONDS,
+  PROFILE_UI_META_TAG,
+  revalidateProfileUiMetaCache,
+} from "@/lib/data/profile-ui-meta-cache";
 
 import { barnCatalogKey } from "@/lib/data/barn-catalog";
 import { resolveBarnGridCollisions } from "@/lib/data/barn-grid";
@@ -214,37 +221,45 @@ function migrateLegacyBarnsToLayouts(
   return layouts;
 }
 
-/** 지도 레이아웃·별칭 (자동 축사 카드용) */
+/** 지도 레이아웃·별칭 (자동 축사 카드용) — cross-request 60s cache */
 export async function getBarnLayoutPrefs(): Promise<BarnLayoutPrefs> {
-  const supabase = await createClient();
+  const empty: BarnLayoutPrefs = { layouts: {}, aliases: {}, legacyBarns: [] };
+  const accessToken = await getAccessTokenOrNull();
+  if (!accessToken) return empty;
+
+  const supabaseAuth = await createClient();
   const {
     data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { layouts: {}, aliases: {}, legacyBarns: [] };
-  }
+  } = await supabaseAuth.auth.getUser();
+  if (!user) return empty;
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("ui_config")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  return cachedLiveQuery(
+    ["barn-layout-prefs", user.id],
+    [PROFILE_UI_META_TAG, `${PROFILE_UI_META_TAG}:${user.id}`],
+    async () => {
+      const supabase = createRlsClient(accessToken);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("ui_config")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-  if (error || !data) {
-    return { layouts: {}, aliases: {}, legacyBarns: [] };
-  }
+      if (error || !data) return empty;
 
-  const cfg = parseUiConfig(data.ui_config);
-  const legacyBarns = resolveBarnGridCollisions(cfg.barns);
-  const layouts = {
-    ...migrateLegacyBarnsToLayouts(legacyBarns),
-    ...(cfg.barnLayouts ?? {}),
-  };
-  return {
-    layouts,
-    aliases: cfg.barnAliases ?? {},
-    legacyBarns,
-  };
+      const cfg = parseUiConfig(data.ui_config);
+      const legacyBarns = resolveBarnGridCollisions(cfg.barns);
+      const layouts = {
+        ...migrateLegacyBarnsToLayouts(legacyBarns),
+        ...(cfg.barnLayouts ?? {}),
+      };
+      return {
+        layouts,
+        aliases: cfg.barnAliases ?? {},
+        legacyBarns,
+      };
+    },
+    { revalidate: PROFILE_UI_META_REVALIDATE_SECONDS },
+  );
 }
 
 /** catalogKey 기준 그리드 위치 저장 */
@@ -286,6 +301,7 @@ export async function saveBarnLayouts(
     .eq("user_id", user.id);
 
   if (error) return { ok: false, error: error.message };
+  revalidateProfileUiMetaCache(user.id);
   return { ok: true };
 }
 
@@ -342,6 +358,7 @@ export async function patchBarnLayouts(
     .eq("user_id", user.id);
 
   if (error) return { ok: false, error: error.message };
+  revalidateProfileUiMetaCache(user.id);
   return { ok: true };
 }
 
@@ -378,5 +395,6 @@ export async function clearBarnLayouts(): Promise<{ ok: boolean; error?: string 
     .eq("user_id", user.id);
 
   if (error) return { ok: false, error: error.message };
+  revalidateProfileUiMetaCache(user.id);
   return { ok: true };
 }

@@ -53,6 +53,7 @@ import {
   bulkModalBtn,
   bulkModalSection,
   bulkModalTrackShell,
+  readingNeedsChannelsHydration,
 } from "@/components/farm/farm-map-bulk-apply-parts";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
@@ -304,8 +305,27 @@ export function FarmMapBulkApply({
     [targets]
   );
   const offlineCount = targets.length - onlineTargets.length;
+  const awaitingChannelHydration = useMemo(
+    () => onlineTargets.some(readingNeedsChannelsHydration),
+    [onlineTargets],
+  );
+
+  /* enrich 완료 후 채널 hydration 안내 문구 해제 */
+  if (
+    open &&
+    !awaitingChannelHydration &&
+    error?.includes("채널 정보")
+  ) {
+    setError(null);
+  }
 
   const openSettingsWithCurrent = useCallback(() => {
+    const needsHydration = targets.some(
+      (r) => isReadingOnline(r.status) && readingNeedsChannelsHydration(r),
+    );
+    if (needsHydration) {
+      void liveRefresh?.revalidateFarmLive({ mode: "full" });
+    }
     const thermo = bulkThermoDraftSeed(targets, controller.thermoSettings);
     setSetpoint(thermo.setpoint);
     setDeviation(thermo.deviation);
@@ -318,7 +338,11 @@ export function FarmMapBulkApply({
         controller.alarmSettings,
       ),
     );
-    setError(null);
+    setError(
+      needsHydration
+        ? "채널 정보를 불러오는 중입니다. 잠시 후 다시 적용하세요."
+        : null,
+    );
     setResult(null);
     setOpen(true);
   }, [
@@ -326,6 +350,7 @@ export function FarmMapBulkApply({
     controller.thermoSettings,
     controller.alarmSettings,
     selectedSps,
+    liveRefresh,
   ]);
 
   const nothingSelected = !applyTemp && !applyVent && !applyAlarm;
@@ -403,6 +428,14 @@ export function FarmMapBulkApply({
     setError(null);
     if (nothingSelected) {
       setError("적용할 항목을 1개 이상 선택하세요.");
+      return;
+    }
+    const needsHydration = onlineTargets.some(readingNeedsChannelsHydration);
+    if (wantedControl && needsHydration) {
+      void liveRefresh?.revalidateFarmLive({ mode: "full" });
+      setError(
+        "채널 정보가 아직 없습니다. 불러온 뒤 다시 적용하세요.",
+      );
       return;
     }
     if (

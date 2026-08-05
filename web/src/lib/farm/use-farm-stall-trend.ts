@@ -3,18 +3,29 @@
 import { fetchFarmTrendAllPeriodsAction } from "@/app/(dashboard)/farm/actions";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import {
+  invalidateTimedCache,
+  readTimedCache,
+  writeTimedCache,
+  type TimedCacheEntry,
+} from "@/lib/farm/client-trend-cache";
 
 type StallTrendBundle = Record<TrendPeriodId, TrendPeriodData>;
 
-/** map idle prefetch 공유 — SSR 이탈 후 클라이언트 hydrate */
-const stallTrendCache = new Map<string, StallTrendBundle>();
+/** map idle prefetch 공유 — SSR 이탈 후 클라이언트 hydrate · TTL 90s */
+const stallTrendCache = new Map<string, TimedCacheEntry<StallTrendBundle>>();
 const stallTrendInflight = new Map<string, Promise<StallTrendBundle>>();
 const stallTrendApplyGen = new Map<string, number>();
 
 export function peekFarmStallTrendCache(
   farmKey: FarmKey,
 ): StallTrendBundle | null {
-  return stallTrendCache.get(farmKeyId(farmKey)) ?? null;
+  return readTimedCache(stallTrendCache, farmKeyId(farmKey));
+}
+
+/** 농장 전환·강제 갱신 시 해당 scope 클라 캐시 제거 */
+export function invalidateFarmStallTrendCache(farmKey: FarmKey): void {
+  invalidateTimedCache(stallTrendCache, farmKeyId(farmKey));
 }
 
 function bumpApplyGen(scopeId: string): number {
@@ -25,7 +36,7 @@ function bumpApplyGen(scopeId: string): number {
 
 function fetchStallTrendShared(farmKey: FarmKey): Promise<StallTrendBundle> {
   const scopeId = farmKeyId(farmKey);
-  const cached = stallTrendCache.get(scopeId);
+  const cached = readTimedCache(stallTrendCache, scopeId);
   if (cached) return Promise.resolve(cached);
   const pending = stallTrendInflight.get(scopeId);
   if (pending) return pending;
@@ -33,7 +44,7 @@ function fetchStallTrendShared(farmKey: FarmKey): Promise<StallTrendBundle> {
   const applyGen = bumpApplyGen(scopeId);
   const req = fetchFarmTrendAllPeriodsAction(farmKey).then((result) => {
     if (stallTrendApplyGen.get(scopeId) === applyGen) {
-      stallTrendCache.set(scopeId, result);
+      writeTimedCache(stallTrendCache, scopeId, result);
     }
     return result;
   });

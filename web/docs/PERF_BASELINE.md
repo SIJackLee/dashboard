@@ -33,6 +33,8 @@ npm run measure:live
 
 판정: **출고 경로(farm-scoped / detail) p95 &lt; 300 ms 충족.** global list·overview p95는 remote RTT/cold에 민감 — 참고용.
 
+Sprint A 재측정 (2026-08-05 · `npm run measure:live`): List farm-scoped p50/p95 **40.4 / 57.0 ms**, Detail **32.1 / 35.4 ms** — 목표 유지·개선. Admin hub TTFB Playwright는 미재실행(slim은 클라이언트 TailLoader 배치에만 영향).
+
 동일 세션 직전 1회 샘플(참고): list 116/1348 · legacy 60/85 · overview 57/82 · farm-scoped 56/75 · detail 44/53.
 
 ## Baseline (pre-optimization placeholder)
@@ -85,6 +87,45 @@ npm run measure:live
 
 Soft refresh no longer reloads settings or trend in the same round-trip as LIVE. Slim soft merge keeps prior `channels[]` when omitted.
 
+## LIVE callers (Sprint A audit)
+
+| Caller | slim? | Source |
+| --- | --- | --- |
+| `loadFarmScopedLiveData` | yes | soft refresh / ACK LIVE |
+| `buildFarmFacts` (ARIA) | yes | voice facts |
+| `loadAdminFarmGridPanels*` | **yes (Sprint A)** | admin hub overview cards |
+| `loadFarmScopedPanelData` | no | cold bootstrap / panel enrich / bulk channels |
+
+Admin hub grid is overview-only. Farm drill-in uses full panel (or enrich). Bulk apply blocks control when modern controllers lack `channels[]` and triggers `revalidateFarmLive({ mode: "full" })`.
+
+## Client trend cache (Sprint A)
+
+| Layer | TTL / key | Notes |
+| --- | --- | --- |
+| Server `cachedLiveQuery` | 300 s · `[farm-trend, userId, scope, period, toMs]` | tags `live`, `trend:{scope}` |
+| Client Map (stall + controller) | **90 s** · `farmKeyId` | `client-trend-cache.ts` · farm leave invalidates previous scope |
+
+## Profile UI meta cache (Sprint B)
+
+| Read | TTL | Invalidate |
+| --- | --- | --- |
+| `getBarnLayoutPrefs` | 60 s · tag `profile-ui-meta` | save/patch/clear barn layouts |
+| `getAlarmSettings` | 60 s · same tag | `saveAlarmSettings` |
+
+`user_access` / 권한은 캐시하지 않음. Soft LIVE fingerprint short-circuit는 도입하지 않음 (mergeLiveReadings 유지).
+
+## ARIA metrics (Sprint B)
+
+- Initial: `fetchAriaFarmMetricsAction` → slim LIVE + settings (server)
+- Soft poll: hub `readings`로 `assembleFarmFacts` (DB 생략) · `document.hidden` skip · 이상 없으면 60s / 있으면 30s
+- cmd-poll / alarm-single 읽기 경로: 현행 유지 (완료 고정)
+
+## HOT view · retention (Sprint C)
+
+- Thin list 규칙: [`LIVE_HOT_VIEW_RULES.md`](./LIVE_HOT_VIEW_RULES.md) · 가드 `live-read-select.ts` + unit test
+- Retention: [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) — **설계만**, DELETE/cron 미실행
+- cmd-poll ids 배칭: 백로그 (현행 조건부 폴링 유지)
+
 ## Follow-ups (M1–M5 / L1–L2)
 
 | Item | Change | Status |
@@ -95,6 +136,9 @@ Soft refresh no longer reloads settings or trend in the same round-trip as LIVE.
 | L1 | `staggerMount` only when `readings.length > STAGGER_MOUNT_MIN_READINGS` (8) | **done** (2026-07-22) |
 | L2 | `FarmMapCanvas` / `FarmMapMobileStage` / `FarmMapBulkApply` via `next/dynamic` | **done** (2026-07-22) |
 | Phase C | Hub visible-first LIVE · Ops Scan client defer · `mergeBarnLayouts` off read path | **done** |
+| Sprint A | Admin hub grid slim LIVE · client trend TTL 90s · bulk channels hydration guard | **done** (2026-08-05) |
+| Sprint B | ARIA metrics visibility/idle poll · soft facts from hub LIVE · profile ui_config 60s cache + tag invalidate | **done** (2026-08-05) |
+| Sprint C | HOT list thin guard + docs · retention options doc (no SQL) | **done** (2026-08-05) |
 
 ## Admin hub TTFB
 

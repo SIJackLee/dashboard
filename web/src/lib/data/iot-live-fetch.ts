@@ -22,6 +22,14 @@ import {
   liveReadTier,
   LIVE_FARM_ROW_LIMIT,
 } from "@/lib/data/live-config";
+import {
+  LIVE_LEGACY_COLS,
+  LIVE_LEGACY_SOURCE,
+  LIVE_LIST_COLS,
+  LIVE_LIST_COLS_CORE,
+  LIVE_LIST_SOURCE,
+  assertLiveListSelectIsThin,
+} from "@/lib/data/live-read-select";
 import { isLivePacketMode } from "@/lib/data/iot-live-merge";
 import {
   legacyFieldsFromChannels,
@@ -40,19 +48,15 @@ export type LiveReadingsScope = {
   slim?: boolean;
 };
 
-const LEGACY_SOURCE = "v_iot_decoded_latest" as const;
-const LIST_SOURCE = "v_iot_dashboard_list" as const;
+const LEGACY_SOURCE = LIVE_LEGACY_SOURCE;
+const LIST_SOURCE = LIVE_LIST_SOURCE;
 
-const LEGACY_COLS =
-  "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, mesure_dt, decoded_json, received_at";
+const LEGACY_COLS = LIVE_LEGACY_COLS;
+const LIST_COLS_CORE = LIVE_LIST_COLS_CORE;
+const LIST_COLS = LIVE_LIST_COLS;
 
-const LIST_COLS_CORE =
-  "raw_id, lsind_regist_no, item_code, module_uid, controller_key, eqpmn_no, stall_ty_code, stall_no, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, fan_supply_pct, fan_exhaust_pct, fan_intake_pct, mesure_dt, received_at";
-
-const LIST_COLS_THERMO =
-  "setpoint_temp, temp_deviation, min_vent_pct, max_vent_pct";
-
-const LIST_COLS = `${LIST_COLS_CORE}, ${LIST_COLS_THERMO}`;
+assertLiveListSelectIsThin(LIST_COLS);
+assertLiveListSelectIsThin(LIST_COLS_CORE);
 
 function isListThermoColumnError(message: string): boolean {
   return /setpoint_temp|temp_deviation|min_vent_pct|max_vent_pct/.test(message);

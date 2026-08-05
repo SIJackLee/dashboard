@@ -40,12 +40,16 @@ import { isFarmHubPanelLiveActive } from "@/lib/farm/farm-hub-keepalive";
 import { useFarmHubViewShell } from "@/lib/farm/use-farm-hub-view-shell";
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { farmKeyId, parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
+import { farmKeyId, parseFarmKeyFromQuery, parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import {
+  invalidateFarmControllerTrendCache,
   prefetchFarmControllerTrend,
   useFarmControllerTrend,
 } from "@/lib/farm/use-farm-controller-trend";
-import { prefetchFarmStallTrend } from "@/lib/farm/use-farm-stall-trend";
+import {
+  invalidateFarmStallTrendCache,
+  prefetchFarmStallTrend,
+} from "@/lib/farm/use-farm-stall-trend";
 import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
 import {
   readFarmPanelCache,
@@ -142,6 +146,19 @@ export function FarmPageContent({
   }, [readings]);
 
   const keepAliveFarmId = gridFarmKey ? farmKeyId(gridFarmKey) : "";
+  const prevTrendFarmIdRef = useRef(keepAliveFarmId);
+
+  useEffect(() => {
+    const prev = prevTrendFarmIdRef.current;
+    if (prev && prev !== keepAliveFarmId) {
+      const left = parseFarmKeyId(prev);
+      if (left) {
+        invalidateFarmStallTrendCache(left);
+        invalidateFarmControllerTrendCache(left);
+      }
+    }
+    prevTrendFarmIdRef.current = keepAliveFarmId;
+  }, [keepAliveFarmId]);
 
   const enrichListIfNeeded = useCallback(async () => {
     if (!lazyListEnrichment || !lazyListFarmKey) return;

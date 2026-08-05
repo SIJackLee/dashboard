@@ -179,6 +179,18 @@ function thermoValuesForReading(
 }
 
 /**
+ * slim LIVE(list)만 있고 channels[]가 비어 있는 현대 컨트롤러.
+ * 이 상태에서 벌크 제어하면 SET_CTRL로 잘못 갈 수 있어 full enrich 필요.
+ */
+export function readingNeedsChannelsHydration(r: BarnReading): boolean {
+  if ((r.channels?.length ?? 0) > 0) return false;
+  const ck = r.controllerKey ?? "";
+  if (ck.startsWith("legacy:")) return false;
+  if (r.wireVer != null && r.wireVer >= 0x0a) return true;
+  return ck.includes(":");
+}
+
+/**
  * 선택된 온라인 컨트롤러별 일괄 제어 명령 구성.
  * - channels[] 있음 → 선택된 활성 채널마다 SET_CHANNEL_THERMO
  * - 없음 → SET_CTRL_THERMO 1건

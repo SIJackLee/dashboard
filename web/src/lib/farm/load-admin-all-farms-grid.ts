@@ -16,11 +16,15 @@ import { ADMIN_HUB_GRID_BATCH_SIZE } from "@/lib/farm/admin-all-farms-grid-share
 export type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 export { ADMIN_HUB_GRID_BATCH_SIZE } from "@/lib/farm/admin-all-farms-grid-shared";
 
+/**
+ * Admin hub overview cards only — list-tier slim (no channels[]).
+ * Farm drill-in uses loadFarmScopedPanelData / panel enrich (full) before bulk.
+ */
 async function loadFarmGridPanel(
   farmKey: FarmKey,
   prefs: BarnLayoutPrefs,
 ): Promise<AdminFarmGridPanel> {
-  const readings = await getLiveReadings({ farmKey });
+  const readings = await getLiveReadings({ farmKey, slim: true });
   const scopedReadings = filterReadingsByFarmKey(readings, farmKey);
   const scopedPrefs = filterBarnLayoutPrefsForFarm(prefs, farmKey);
   const { snapshots: barnSnapshots, layoutsToPersist } = buildAutoBarnMap(

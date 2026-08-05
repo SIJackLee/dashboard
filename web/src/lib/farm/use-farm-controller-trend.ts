@@ -7,12 +7,18 @@ import type {
   TrendControllerPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import {
+  invalidateTimedCache,
+  readTimedCache,
+  writeTimedCache,
+  type TimedCacheEntry,
+} from "@/lib/farm/client-trend-cache";
 import { useDeferredLoading } from "@/lib/ui/use-deferred-loading";
 
 type TrendBundle = Record<TrendPeriodId, TrendControllerPeriodData>;
 
-/** map/list 훅 인스턴스 간 공유 — 탭 전환 시 이중 fetch 방지 */
-const trendCache = new Map<string, TrendBundle>();
+/** map/list 훅 인스턴스 간 공유 — 탭 전환 시 이중 fetch 방지 · TTL 90s */
+const trendCache = new Map<string, TimedCacheEntry<TrendBundle>>();
 const trendInflight = new Map<string, Promise<TrendBundle>>();
 /** soft refresh coalesce — 연속 refresh는 동일 Promise */
 const trendRefreshInflight = new Map<string, Promise<TrendBundle>>();
@@ -22,7 +28,11 @@ const trendApplyGen = new Map<string, number>();
 export function peekFarmControllerTrendCache(
   farmKey: FarmKey,
 ): TrendBundle | null {
-  return trendCache.get(farmKeyId(farmKey)) ?? null;
+  return readTimedCache(trendCache, farmKeyId(farmKey));
+}
+
+export function invalidateFarmControllerTrendCache(farmKey: FarmKey): void {
+  invalidateTimedCache(trendCache, farmKeyId(farmKey));
 }
 
 /** 로그인·농장 LIVE 이후 idle 시 호출 — 그래프 탭 대기 제거 */
@@ -31,7 +41,7 @@ export function prefetchFarmControllerTrend(farmKey: FarmKey): Promise<TrendBund
 }
 
 function readTrendCache(scopeId: string): TrendBundle | null {
-  return trendCache.get(scopeId) ?? null;
+  return readTimedCache(trendCache, scopeId);
 }
 
 function bumpApplyGen(scopeId: string): number {
@@ -46,7 +56,7 @@ function fetchTrendShared(
   refresh: boolean,
 ): Promise<TrendBundle> {
   if (!refresh) {
-    const cached = trendCache.get(scopeId);
+    const cached = readTrendCache(scopeId);
     if (cached) return Promise.resolve(cached);
     const pending = trendInflight.get(scopeId);
     if (pending) return pending;
@@ -61,7 +71,7 @@ function fetchTrendShared(
     refresh: refresh || undefined,
   }).then((result) => {
     if (trendApplyGen.get(scopeId) === applyGen) {
-      trendCache.set(scopeId, result);
+      writeTimedCache(trendCache, scopeId, result);
     }
     return result;
   });

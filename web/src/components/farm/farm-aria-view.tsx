@@ -27,6 +27,7 @@ import {
 } from "@/components/farm/aria-stage-layout";
 import { VoiceReportFab } from "@/components/farm/voice-report-fab";
 import type { AlarmSettings } from "@/lib/data/alarms";
+import { DEFAULT_ALARM_SETTINGS } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import type {
   TrendControllerPeriodData,
@@ -35,6 +36,7 @@ import type {
 import { DEFAULT_TREND_PERIOD } from "@/lib/data/farm-trend-types";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { FarmKey } from "@/lib/data/farm-key";
+import { farmDisplayLabel } from "@/lib/data/farm-summaries";
 import {
   applyFarmChartScopeParams,
   applyFarmChartZoomParams,
@@ -50,6 +52,7 @@ import {
   zoomHintFromDelinHandoff,
   type DelinChartHandoff,
 } from "@/lib/voice-report/delin-chart-handoff";
+import { assembleFarmFacts } from "@/lib/voice-report/assemble-farm-facts";
 import {
   DELIN_FULL_NAME,
   DELIN_FULL_NAME_KO,
@@ -70,8 +73,9 @@ import {
 import { dashboardAriaShell } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
-
 const METRICS_POLL_MS = 30_000;
+/** 이상상황 없을 때 soft metrics 간격 (visibility 게이트와 함께) */
+const METRICS_POLL_IDLE_MS = 60_000;
 
 type Props = {
   currentFarm?: FarmKey | null;
@@ -127,6 +131,15 @@ export function FarmAriaView({
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const requestGen = useRef(0);
+  const readingsRef = useRef(readings);
+  const alarmSettingsRef = useRef(alarmSettings);
+  const factsRef = useRef(facts);
+
+  useEffect(() => {
+    readingsRef.current = readings;
+    alarmSettingsRef.current = alarmSettings;
+    factsRef.current = facts;
+  }, [alarmSettings, facts, readings]);
 
   const hasResultSurface = stageAnswer != null;
   const focus =
@@ -342,6 +355,26 @@ export function FarmAriaView({
 
   const loadMetrics = useCallback(async (farm: FarmKey, soft = false) => {
     const gen = ++requestGen.current;
+    const hubReadings = readingsRef.current;
+
+    // soft: 허브 LIVE readings가 있으면 DB 재조회 없이 facts 재조립
+    if (soft && hubReadings.length > 0) {
+      const next = assembleFarmFacts({
+        farmKey: farm,
+        farmLabel:
+          factsRef.current?.farmLabel ?? farmDisplayLabel(farm, null),
+        readings: hubReadings,
+        alarmSettings: alarmSettingsRef.current ?? DEFAULT_ALARM_SETTINGS,
+      });
+      if (gen !== requestGen.current) return;
+      startTransition(() => {
+        setFacts(next);
+        setMetricsError(null);
+        setMetricsLoading(false);
+      });
+      return;
+    }
+
     if (!soft) startTransition(() => setMetricsLoading(true));
     const result = await fetchAriaFarmMetricsAction(farm);
     if (gen !== requestGen.current) return;
@@ -375,12 +408,27 @@ export function FarmAriaView({
   useEffect(() => {
     if (isCompanion || !currentFarm || !panelLiveActive) return;
     if (!hasResultSurface) return;
-    const id = window.setInterval(() => {
+
+    const pollMs =
+      (facts?.alarmTotal ?? 0) > 0 ? METRICS_POLL_MS : METRICS_POLL_IDLE_MS;
+
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       void loadMetrics(currentFarm, true);
-    }, METRICS_POLL_MS);
-    return () => window.clearInterval(id);
+    };
+
+    const id = window.setInterval(tick, pollMs);
+    const onVis = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [
     currentFarm,
+    facts?.alarmTotal,
     hasResultSurface,
     isCompanion,
     loadMetrics,

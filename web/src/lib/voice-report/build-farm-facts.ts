@@ -3,37 +3,16 @@ import "server-only";
 import type { CurrentUser } from "@/lib/auth/get-current-user";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { getAlarmSettings } from "@/lib/data/alarm-settings";
-import {
-  deriveAlarmsFromReadings,
-  summarizeAlarms,
-} from "@/lib/data/alarms";
 import { farmDisplayLabel } from "@/lib/data/farm-summaries";
 import { getFarmLocation } from "@/lib/data/farm-location";
 import { getLiveReadings } from "@/lib/data/iot";
-import { STALL_TYPE_NAMES, normalizeStallTyCode } from "@/lib/data/stall-type";
 import { VOICE_LIMITS } from "@/lib/voice-report/limits";
+import { assembleFarmFacts } from "@/lib/voice-report/assemble-farm-facts";
 import type { VoiceFarmFacts } from "@/lib/voice-report/types";
-
-function controllerDisplayLabel(args: {
-  label?: string | null;
-  eqpmnNo?: string | null;
-  stallNo?: string | null;
-}): string {
-  const label = args.label?.trim();
-  if (label) return label;
-  const eqpmnNo = args.eqpmnNo?.trim();
-  if (eqpmnNo) return `장비 ${eqpmnNo}`;
-  const stallNo = args.stallNo?.trim();
-  if (stallNo) return `축사 ${stallNo} 컨트롤러`;
-  return "컨트롤러";
-}
 
 function severityLabel(severity: "warning" | "critical"): "주의" | "위험" {
   return severity === "critical" ? "위험" : "주의";
 }
-
-/** 프롬프트 한도 안에서 「어느 컨트롤러?」에 답할 수 있는 상위 건수 */
-const MAX_ALARM_ITEMS = 24;
 
 export function canReadFarm(user: CurrentUser, farmKey: FarmKey): boolean {
   if (user.isAdmin) return true;
@@ -45,143 +24,18 @@ export function canReadFarm(user: CurrentUser, farmKey: FarmKey): boolean {
   );
 }
 
-function avg(nums: number[]): number | null {
-  if (nums.length === 0) return null;
-  return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10;
-}
-
 export async function buildFarmFacts(farmKey: FarmKey): Promise<VoiceFarmFacts> {
   const [readings, alarmSettings, location] = await Promise.all([
     getLiveReadings({ farmKey, slim: true }),
     getAlarmSettings(),
     getFarmLocation(farmKey),
   ]);
-  const scoped = readings.filter(
-    (r) =>
-      r.farmKey.lsindRegistNo === farmKey.lsindRegistNo &&
-      r.farmKey.itemCode === farmKey.itemCode,
-  );
-  const alarms = deriveAlarmsFromReadings(scoped, alarmSettings);
-  const alarmSum = summarizeAlarms(alarms);
-
-  const byTy = new Map<
-    string,
-    {
-      stallTyCode: string;
-      stallLabel: string;
-      controllers: number;
-      online: number;
-      temps: number[];
-      hums: number[];
-      alarmCount: number;
-    }
-  >();
-
-  for (const r of scoped) {
-    const code = normalizeStallTyCode(r.stallTyCode) || "UNK";
-    const label = STALL_TYPE_NAMES[code] ?? (code === "UNK" ? "미분류" : code);
-    let g = byTy.get(code);
-    if (!g) {
-      g = {
-        stallTyCode: code,
-        stallLabel: label,
-        controllers: 0,
-        online: 0,
-        temps: [],
-        hums: [],
-        alarmCount: 0,
-      };
-      byTy.set(code, g);
-    }
-    g.controllers += 1;
-    if (r.status !== "offline") g.online += 1;
-    if (r.tempC != null) g.temps.push(r.tempC);
-    if (r.humidityPct != null) g.hums.push(r.humidityPct);
-  }
-
-  for (const a of alarms) {
-    const code = normalizeStallTyCode(a.stallTyCode) || "UNK";
-    const g = byTy.get(code);
-    if (g) g.alarmCount += 1;
-  }
-
-  const stalls = [...byTy.values()]
-    .map((g) => ({
-      stallTyCode: g.stallTyCode,
-      stallLabel: g.stallLabel,
-      controllers: g.controllers,
-      online: g.online,
-      alarmCount: g.alarmCount,
-      tempAvgC: avg(g.temps),
-      humidityAvgPct: avg(g.hums),
-    }))
-    .sort((a, b) => a.stallTyCode.localeCompare(b.stallTyCode));
-
-  const online = scoped.filter((r) => r.status !== "offline").length;
-
-  const labelByKey = new Map(
-    scoped.map((r) => [
-      r.controllerKey,
-      controllerDisplayLabel({
-        label: r.label,
-        eqpmnNo: r.eqpmnNo,
-        stallNo: r.stallNo,
-      }),
-    ]),
-  );
-
-  const ventByKey = new Map(
-    scoped.map((r) => [
-      r.controllerKey,
-      r.thermo?.maxVentPct != null && Number.isFinite(r.thermo.maxVentPct)
-        ? Number(r.thermo.maxVentPct)
-        : null,
-    ]),
-  );
-
-  const alarmItems = [...alarms]
-    .sort((a, b) => {
-      if (a.severity !== b.severity) {
-        return a.severity === "critical" ? -1 : 1;
-      }
-      return a.occurredAt < b.occurredAt ? 1 : -1;
-    })
-    .slice(0, MAX_ALARM_ITEMS)
-    .map((a) => {
-      const code = normalizeStallTyCode(a.stallTyCode) || "UNK";
-      const stallLabel =
-        STALL_TYPE_NAMES[code] ?? (code === "UNK" ? "미분류" : code);
-      return {
-        stallLabel,
-        stallNo: a.stallNo,
-        controllerLabel:
-          labelByKey.get(a.controllerKey) ??
-          controllerDisplayLabel({
-            eqpmnNo: a.eqpmnNo,
-            stallNo: a.stallNo,
-          }),
-        controllerKey: a.controllerKey,
-        eqpmnNo: a.eqpmnNo,
-        alarmType: a.alarmType,
-        severity: a.severity,
-        detail: a.detail,
-        maxVentPct: ventByKey.get(a.controllerKey) ?? null,
-      };
-    });
-
-  return {
+  return assembleFarmFacts({
     farmKey,
     farmLabel: farmDisplayLabel(farmKey, location?.farmName),
-    totalControllers: scoped.length,
-    onlineControllers: online,
-    offlineControllers: scoped.length - online,
-    alarmTotal: alarmSum.total,
-    alarmCritical: alarmSum.critical,
-    alarmWarning: alarmSum.warning,
-    stalls,
-    alarmItems,
-    generatedAt: new Date().toISOString(),
-  };
+    readings,
+    alarmSettings,
+  });
 }
 
 /** 모델에 넘기는 표시용 페이로드 — 내부 키·영문 기술 필드 제외 */
