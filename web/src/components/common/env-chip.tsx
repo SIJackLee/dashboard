@@ -18,7 +18,7 @@ const kindMap: Record<
     label: "습도",
     unit: "%",
     icon: Droplets,
-    className: "text-sky-500",
+    className: "text-channel-info",
   },
 };
 

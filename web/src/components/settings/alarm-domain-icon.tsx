@@ -15,7 +15,7 @@ export function AlarmDomainIcon({
 }) {
   const Metric = domain === "temp" ? Thermometer : Droplets;
   const metricColor =
-    domain === "temp" ? "text-orange-600" : "text-sky-600";
+    domain === "temp" ? "text-channel-temp" : "text-channel-hum";
 
   return (
     <span

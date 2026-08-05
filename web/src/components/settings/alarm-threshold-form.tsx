@@ -567,7 +567,7 @@ export function AlarmThresholdForm({
               low={draft.humidityLow}
               high={draft.humidityHigh}
               unit="%"
-              accentClass="bg-sky-500/35"
+              accentClass="bg-channel-info/35"
               disabled={fieldsDisabled}
               compact
               titleClassName={sliderTitleClassName}
@@ -636,7 +636,7 @@ export function AlarmThresholdForm({
               low={draft.humidityLow}
               high={draft.humidityHigh}
               unit="%"
-              accentClass="bg-sky-500/35"
+              accentClass="bg-channel-info/35"
               disabled={fieldsDisabled}
               onChange={(humidityLow, humidityHigh) =>
                 updateDraft({ ...draft, humidityLow, humidityHigh })

@@ -92,8 +92,8 @@ export function GaugeAnatomy({ compact = false }: GuideProps) {
             <span
               className={
                 compact
-                  ? "mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[0.55rem] font-bold text-white"
-                  : "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-sky-600 text-[0.65rem] font-bold text-white"
+                  ? "mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full bg-primary text-[0.55rem] font-bold text-primary-foreground"
+                  : "mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-[0.65rem] font-bold text-primary-foreground"
               }
             >
               {it.n}

@@ -750,7 +750,7 @@ function TourOverlay({
                 className={cn(
                   "rounded-full transition-colors",
                   mobileSheet ? "size-1.5" : "size-2",
-                  i === stepIdx ? "bg-sky-500" : "bg-muted-foreground/25",
+                  i === stepIdx ? "bg-primary" : "bg-muted-foreground/25",
                 )}
                 aria-hidden
               />
@@ -788,7 +788,7 @@ function TourOverlay({
               type="button"
               onClick={() => goTo(stepIdx + 1, 1)}
               className={cn(
-                "rounded-md bg-sky-600 font-semibold text-white transition-colors hover:bg-sky-700",
+                "rounded-md bg-primary font-semibold text-primary-foreground transition-colors hover:bg-primary/90",
                 mobileSheet ? "px-3 py-1.5 text-xs" : "px-4 py-1.5 text-sm",
               )}
             >

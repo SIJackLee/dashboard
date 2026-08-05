@@ -24,8 +24,8 @@ export function CompactLineChart({
   items,
   unit = "",
   maxValue,
-  strokeClassName = "stroke-sky-500",
-  fillClassName = "fill-sky-500/10",
+  strokeClassName = "stroke-channel-info",
+  fillClassName = "fill-channel-info/10",
   emptyLabel = "표시할 데이터가 없습니다",
   height = 88,
   fillWidth = true,
@@ -85,7 +85,7 @@ export function CompactLineChart({
         <svg
           viewBox={`0 0 100 ${chartH}`}
           preserveAspectRatio="none"
-          className="w-full text-sky-500"
+          className="w-full text-channel-info"
           style={{ height: chartH }}
           role="img"
           aria-label="시계열 추이"
