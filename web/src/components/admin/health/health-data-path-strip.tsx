@@ -36,7 +36,7 @@ function statusDot(status: HealthStatus): string {
     case "critical":
       return "bg-red-500";
     case "not_implemented":
-      return "bg-sky-500";
+      return "bg-channel-info";
     default:
       return "bg-muted-foreground/40";
   }
@@ -84,7 +84,7 @@ export function HealthDataPathStrip({
                 className={cn(
                   opsControl.chip,
                   healthStatusBorderClass(node.status),
-                  active && "ring-2 ring-sky-500/40",
+                  active && "ring-2 ring-primary/40",
                 )}
               >
                 <span
@@ -119,7 +119,7 @@ export function HealthDataPathStrip({
                   opsControl.chipSub,
                   "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
                   healthStatusBorderClass(node.status),
-                  active && "ring-2 ring-sky-500/40",
+                  active && "ring-2 ring-primary/40",
                 )}
               >
                 <span

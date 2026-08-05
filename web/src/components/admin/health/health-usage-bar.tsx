@@ -42,7 +42,7 @@ export function HealthUsageBar({
             "h-full rounded-full transition-[width]",
             motionClass.durationModerate,
             motionClass.easeStandard,
-            tone === "warn" ? "bg-amber-500" : "bg-sky-500"
+            tone === "warn" ? "bg-amber-500" : "bg-channel-info"
           )}
           style={{ width: `${pct}%` }}
         />

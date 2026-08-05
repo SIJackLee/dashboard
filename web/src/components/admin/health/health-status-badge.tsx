@@ -8,7 +8,7 @@ const toneClass: Record<HealthStatus, string> = {
   warn: "border-amber-300/50 bg-amber-50 text-amber-800 dark:text-amber-400",
   critical: "border-red-300/50 bg-red-50 text-red-800 dark:text-red-400",
   unknown: "border-border bg-muted text-muted-foreground",
-  not_implemented: "border-sky-300/50 bg-sky-50 text-sky-800 dark:text-sky-400",
+  not_implemented: "border-channel-info/40 bg-channel-info/10 text-channel-info",
 };
 
 const dotClass: Record<HealthStatus, string> = {
@@ -16,7 +16,7 @@ const dotClass: Record<HealthStatus, string> = {
   warn: "bg-amber-500",
   critical: "bg-red-500",
   unknown: "bg-muted-foreground",
-  not_implemented: "bg-sky-500",
+  not_implemented: "bg-channel-info",
 };
 
 type HealthStatusBadgeProps = {
@@ -64,7 +64,7 @@ export function healthStatusBorderClass(status: HealthStatus): string {
     case "critical":
       return "border-red-500";
     case "not_implemented":
-      return "border-sky-500 border-dashed";
+      return "border-channel-info border-dashed";
     default:
       return "border-muted-foreground";
   }

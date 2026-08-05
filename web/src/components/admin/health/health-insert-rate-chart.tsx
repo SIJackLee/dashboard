@@ -36,8 +36,10 @@ export function HealthInsertRateChart({
         height={height}
         fillWidth
         tickEvery={1}
-        strokeClassName={tone === "amber" ? "stroke-amber-500" : "stroke-sky-500"}
-        fillClassName={tone === "amber" ? "fill-amber-500/10" : "fill-sky-500/10"}
+        strokeClassName={tone === "amber" ? "stroke-amber-500" : "stroke-channel-info"}
+        fillClassName={
+          tone === "amber" ? "fill-amber-500/10" : "fill-channel-info/10"
+        }
         showSummary={!compact}
       />
       {compact ? null : (

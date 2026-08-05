@@ -258,7 +258,7 @@ export function HealthCommandEventGraph({
                     cx={pendingX}
                     cy={y}
                     r={5}
-                    className="fill-card stroke-sky-500"
+                    className="fill-card stroke-channel-info"
                     strokeWidth={2}
                   />
                   {sentX != null ? (

@@ -42,7 +42,7 @@ function statusDotClass(status: HealthSnapshot["modules"][0]["status"]): string 
     case "critical":
       return "bg-red-500";
     case "not_implemented":
-      return "bg-sky-500";
+      return "bg-channel-info";
     default:
       return "bg-muted-foreground/40";
   }
@@ -232,7 +232,7 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
                   strokeLinejoin="round"
                   className={cn(
                     lane === "downlink"
-                      ? "stroke-sky-500"
+                      ? "stroke-channel-info"
                       : "stroke-muted-foreground",
                     lane === "side" ? "opacity-45" : "opacity-90",
                     animateFlow && "health-dag-edge-flow",
@@ -283,7 +283,7 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
                 {meta.id === "mqtt" ? (
                   <div className="mt-0.5 h-1.5 w-[85%] overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-sky-500"
+                      className="h-full rounded-full bg-channel-info"
                       style={{
                         width: `${Math.min(
                           100,

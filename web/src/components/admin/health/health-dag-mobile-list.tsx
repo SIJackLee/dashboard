@@ -32,7 +32,7 @@ function statusDotClass(status: HealthDagNode["status"]): string {
     case "critical":
       return "bg-red-500";
     case "not_implemented":
-      return "bg-sky-500";
+      return "bg-channel-info";
     default:
       return "bg-muted-foreground/40";
   }

@@ -86,14 +86,14 @@ function NodeDetailOverview({
         </>
       ) : null}
       {nodeId === "collector-mqtt" ? (
-        <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
+        <div className="rounded-xl border border-channel-info/40 bg-channel-info/10 px-5 py-4">
           <p className={dashboardTypography.body}>
             Mosquitto active probe 없음 — RS raw 수신으로 간접 추론 (spec §3a).
           </p>
         </div>
       ) : null}
       {nodeId === "collector-ekape" ? (
-        <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
+        <div className="rounded-xl border border-channel-info/40 bg-channel-info/10 px-5 py-4">
           <p className={dashboardTypography.body}>
             Ekape export 비활성화 — snapshot·View·config 테이블 제거됨 (migration
             20260619000000).
@@ -101,14 +101,14 @@ function NodeDetailOverview({
         </div>
       ) : null}
       {nodeId === "collector-ftp" ? (
-        <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
+        <div className="rounded-xl border border-channel-info/40 bg-channel-info/10 px-5 py-4">
           <p className={dashboardTypography.body}>
             FTP Worker 비활성화 (Ekape 미구현). 수집 서버 rollup에서 제외됩니다.
           </p>
         </div>
       ) : null}
       {nodeId === "external" ? (
-        <div className="rounded-xl border border-sky-300/40 bg-sky-50 px-5 py-4">
+        <div className="rounded-xl border border-channel-info/40 bg-channel-info/10 px-5 py-4">
           <p className={dashboardTypography.body}>
             외부 연계(축평원) 비활성화 — 재개 시 D10·migration 이력 참고.
           </p>
