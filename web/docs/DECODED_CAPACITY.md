@@ -43,16 +43,50 @@ raw 비교: total ~21 MB (indexes ~81%).
 | ID | 내용 | 용량 효과 | 상태 |
 |----|------|-----------|------|
 | **D0** | 실측·사용률·본 문서 | — | **완료** |
-| **D1** | 시간 파티션 / HOT·archive (동일 스키마) | 운영 힙·인덱스 유지비↓ | **설계 대기(승인 후)** |
-| **D2** | HOT flat 유지 · WARM/COLD json 정본 | 장기 heap↓ | 설계 |
-| **D3** | series_id / 희소 절대값 | 확장 시 | 후순위 |
-| **D4** | retention DELETE | 행·인덱스↓ | `IOT_RETENTION_OPTIONS` · 별도 승인 |
+| **D-slim A** | DROP `session_id`,`chunk_seq`,`lut_ver`,`crc_ok` | 스키마 정리 | **완료 (2026-08-05)** |
+| **D-slim B+C** | topic→농장키 · `controller_key`→stall/eqpmn 트리거 | 중복 쓰기 제거(컬럼 유지) | **완료 (2026-08-05)** |
+| **D1** | 시간 파티션 · HOT=**30일** | 운영 힙·인덱스 | 합의됨 · SQL 미작성 |
+| **D3 희소** | Edge 절대값+heartbeat(ε_t=0.2, ε_f=2, hb=30m) | 행 증가율↓ | 합의됨 · PoC 미착수 |
+| **D4 retention** | **30일** 초과 detach→archive | total 상한 | 합의됨 · job 미착수 |
 
-Δ 체인 저장은 제외.
+### D-slim A 적용
+
+- migration: `20260805140000_iot_decoded_drop_unused_slim_a.sql` · iot-cloud 적용됨
+- `fan_supply_pct`는 RPC/list가 컬럼을 노출하므로 **미포함**(별도)
+
+### D-slim B+C 적용
+
+- migration: `20260805141000_iot_decoded_fill_keys_bc.sql`
+- `trg_iot_decoded_fill_keys` BEFORE INSERT/UPDATE
+- Edge는 당분간 기존처럼 flat도 넣어도 됨(덮어쓰기 없음 · 빈 값만 채움)
+- **컬럼 DROP 없음** — list/인덱스 계약 유지. 이후 Edge 미전송·컬럼 DROP은 별도 승인
 
 ---
 
-## 4. D1 스케치 (미적용)
+## 4. 행 수 · D(flat) 의논 메모 (미적용)
+
+### 행 수 (시계열 과다)
+
+| 옵션 | 요지 | 장점 | 리스크 |
+|------|------|------|--------|
+| **희소 절대값** | ε/heartbeat일 때만 INSERT | 행·인덱스↓ 큼 | Edge 게이트 · 차트 버킷 의미 QA |
+| **파티션 D1** | HOT만 인덱스 유지 | 운영 VACUUM↓ · 삭제 없이도 분리 | 마이그레이션 잠금 |
+| **retention D4** | N일 후 DELETE/archive | total 직접↓ | 승인·복구 정책 |
+
+권장 묶음: **파티션(HOT 경량) + 희소(쓰기↓)** · retention은 데이터 수명 합의 후.
+
+### D — flat ↔ json
+
+| 구간 | flat `temp`/`fan_*` | `decoded_json` |
+|------|---------------------|----------------|
+| HOT (최근 N일) | 유지 (list/trend 속도) | 유지 (패널) |
+| WARM/COLD | 물리 생략 또는 NULL | 정본 · RPC 추출 |
+
+주의: `fan_exhaust`/`fan_intake`·`temp_c`는 **현재 사용 중**. `fan_supply`만 비어 있음 → supply DROP/RPC 정리는 D와 별도 소작업 가능.
+
+---
+
+## 5. D1 스케치 (미적용)
 
 - `mesure_at` RANGE 파티션(월 단위 권장)
 - LIVE·latest는 HOT만 스캔

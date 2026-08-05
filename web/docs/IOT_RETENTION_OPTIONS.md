@@ -39,8 +39,9 @@ Sprint C · **승인 전 코드/SQL 실행 없음.**
 
 | 항목 | 상태 |
 | --- | --- |
-| 설계 문서 | **본 문서** |
-| SQL / cron / migration | **미작성 · 미적용** |
+| 설계 문서 | **본 문서** + [`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md) |
+| **합의(2026-08-05)** | decoded HOT=**30일** · 차트·보관 상한=**30일** · 희소 추천안 채택 · 초과분 detach→archive |
+| SQL / cron / migration | **미작성 · 미적용** (승인 후) |
 | cmd-poll ids 배칭 | 백로그 (현행 조건부 폴링 유지) |
 
 관련: [`LIVE_HOT_VIEW_RULES.md`](./LIVE_HOT_VIEW_RULES.md) · [`PERF_BASELINE.md`](./PERF_BASELINE.md) · [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)

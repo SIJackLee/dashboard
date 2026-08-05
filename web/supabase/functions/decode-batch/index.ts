@@ -7,6 +7,11 @@ import {
   parseOptionalPct,
   primaryTempC,
 } from "./wire-decode-v0c.ts";
+import {
+  shouldWriteSparse,
+  sparseAppliesToFarm,
+  type SparseLast,
+} from "./sparse-gate.ts";
 
 type RawRow = {
   id: number;
@@ -16,6 +21,16 @@ type RawRow = {
   topic: string | null;
   payload_bytea: unknown;
   received_at: string;
+};
+
+type DecodeConfig = {
+  cron_secret: string;
+  batch_limit: number | null;
+  sparse_enabled: boolean | null;
+  sparse_farm_keys: string[] | null;
+  sparse_eps_temp: number | null;
+  sparse_eps_fan: number | null;
+  sparse_heartbeat_sec: number | null;
 };
 
 const json = (body: unknown, status = 200) =>
@@ -39,7 +54,9 @@ Deno.serve(async (req: Request) => {
 
   const { data: config, error: configErr } = await supabase
     .from("iot_decode_config")
-    .select("cron_secret, batch_limit")
+    .select(
+      "cron_secret, batch_limit, sparse_enabled, sparse_farm_keys, sparse_eps_temp, sparse_eps_fan, sparse_heartbeat_sec",
+    )
     .eq("id", 1)
     .single();
 
@@ -47,12 +64,18 @@ Deno.serve(async (req: Request) => {
     return json({ error: "config_unavailable", detail: configErr?.message }, 500);
   }
 
+  const cfg = config as DecodeConfig;
+
   const auth = req.headers.get("Authorization") ?? "";
-  if (auth !== `Bearer ${config.cron_secret}`) {
+  if (auth !== `Bearer ${cfg.cron_secret}`) {
     return json({ error: "unauthorized" }, 401);
   }
 
-  const batchLimit = config.batch_limit ?? 100;
+  const batchLimit = cfg.batch_limit ?? 100;
+  const sparseOn = cfg.sparse_enabled === true;
+  const epsTemp = Number(cfg.sparse_eps_temp ?? 0.2);
+  const epsFan = Number(cfg.sparse_eps_fan ?? 2);
+  const heartbeatSec = Number(cfg.sparse_heartbeat_sec ?? 1800);
 
   const { data: cursorRow, error: cursorErr } = await supabase
     .from("iot_decode_cursor")
@@ -87,6 +110,7 @@ Deno.serve(async (req: Request) => {
       decoded: 0,
       alarms: 0,
       skipped: 0,
+      sparse_skipped: 0,
       failed: 0,
       last_raw_id: lastRawId,
     });
@@ -95,6 +119,7 @@ Deno.serve(async (req: Request) => {
   let decoded = 0;
   let alarms = 0;
   let skipped = 0;
+  let sparseSkipped = 0;
   let failed = 0;
   let maxRawId = lastRawId;
 
@@ -152,6 +177,54 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
+    const tempC = primaryTempC(payload.tempsC);
+    const fanExhaust = fanPctFromChannels(payload.channels, "EC02");
+    const fanIntake = fanPctFromChannels(payload.channels, "EC03");
+    const nextMetrics = {
+      temp_c: tempC,
+      fan_exhaust_pct: fanExhaust,
+      fan_intake_pct: fanIntake,
+    };
+
+    const farmInScope =
+      sparseOn &&
+      sparseAppliesToFarm(
+        cfg.sparse_farm_keys,
+        row.lsind_regist_no,
+        row.item_code,
+      );
+
+    if (farmInScope) {
+      const { data: lastRow } = await supabase
+        .from("iot_decoded_last_value")
+        .select(
+          "temp_c, fan_exhaust_pct, fan_intake_pct, updated_at",
+        )
+        .eq("lsind_regist_no", row.lsind_regist_no)
+        .eq("item_code", row.item_code)
+        .eq("module_uid", row.module_uid)
+        .eq("controller_key", payload.controllerKey)
+        .maybeSingle();
+
+      const write = shouldWriteSparse({
+        last: (lastRow as SparseLast | null) ?? null,
+        next: nextMetrics,
+        nowMs: Date.now(),
+        epsTemp,
+        epsFan,
+        heartbeatSec,
+      });
+
+      if (!write) {
+        sparseSkipped += 1;
+        await supabase
+          .from("iot_room_state_decode_failed")
+          .delete()
+          .eq("raw_id", row.id);
+        continue;
+      }
+    }
+
     const decodedJson = payload;
     const insertRow = {
       raw_id: row.id,
@@ -168,11 +241,11 @@ Deno.serve(async (req: Request) => {
       stall_no: payload.stallNo,
       mesure_dt: payload.mesureDt,
       run_mode: payload.runMode,
-      temp_c: primaryTempC(payload.tempsC),
+      temp_c: tempC,
       humidity_pct: parseOptionalPct(payload.humidityPct),
       fan_supply_pct: fanPctFromChannels(payload.channels, "EC01"),
-      fan_exhaust_pct: fanPctFromChannels(payload.channels, "EC02"),
-      fan_intake_pct: fanPctFromChannels(payload.channels, "EC03"),
+      fan_exhaust_pct: fanExhaust,
+      fan_intake_pct: fanIntake,
       decoded_json: decodedJson,
       decode_status: "ok",
       decode_source: "edge",
@@ -198,6 +271,24 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
+    if (farmInScope) {
+      await supabase.from("iot_decoded_last_value").upsert(
+        {
+          lsind_regist_no: row.lsind_regist_no,
+          item_code: row.item_code,
+          module_uid: row.module_uid,
+          controller_key: payload.controllerKey,
+          temp_c: tempC,
+          fan_exhaust_pct: fanExhaust,
+          fan_intake_pct: fanIntake,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "lsind_regist_no,item_code,module_uid,controller_key",
+        },
+      );
+    }
+
     decoded += 1;
     await supabase
       .from("iot_room_state_decode_failed")
@@ -221,6 +312,7 @@ Deno.serve(async (req: Request) => {
         decoded,
         alarms,
         skipped,
+        sparse_skipped: sparseSkipped,
         failed,
       },
       500,
@@ -233,6 +325,7 @@ Deno.serve(async (req: Request) => {
     decoded,
     alarms,
     skipped,
+    sparse_skipped: sparseSkipped,
     failed,
     last_raw_id: maxRawId,
   });
