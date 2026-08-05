@@ -10,7 +10,7 @@
 
 실측(2026-08-05): ~8.8k행 · 34MB(indexes 74%) · 컨트롤러 간격 ≈ **5분** · 일 ~1.4k행.
 
-관련: [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) · [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) · [`DECODED_JSON_SLIM.md`](./DECODED_JSON_SLIM.md) · [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md)
+관련: [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) · [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) · [`DECODED_JSON_SLIM.md`](./DECODED_JSON_SLIM.md) · [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md) · [`IOT_ARCHIVE_AND_THERMO_FLAT.md`](./IOT_ARCHIVE_AND_THERMO_FLAT.md)
 
 ---
 
@@ -170,4 +170,4 @@ skip 시에도 decode cursor는 전진(raw 보존 · 재디코드는 cursor rewi
 | 2 | 희소 PoC | ✅ allowlist FARM01+FARM02 |
 | 3 | retention 30d | ✅ `cleanup_iot_retention_30d` + pg_cron `cleanup-iot-retention-30d-daily` (18:30 UTC) |
 
-다음: 희소 전 농장(`[]`) · archive 폐기 정책 · 관측 [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md) · 월 파티션 `ensure_iot_decoded_month_partitions` cron.
+다음: 희소 전 농장(관측 후) · (완료) archive 1개월 soak DROP · thermo flat · slim backfill.

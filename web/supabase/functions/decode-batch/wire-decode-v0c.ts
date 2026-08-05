@@ -342,3 +342,13 @@ export function toSlimDecodedJson(payload: DecodedV0cPayload): SlimDecodedV0cJso
     channels: payload.channels,
   };
 }
+
+/** Channel A thermo for flat HOT columns (list tier). */
+export function channelAThermo(channels: DecodedV0cChannel[]): DecodedThermo | null {
+  const a = channels.find((c) => c.channel === "A");
+  if (a?.thermo) return a.thermo;
+  for (const ch of channels) {
+    if (ch.thermo) return ch.thermo;
+  }
+  return null;
+}

@@ -7,6 +7,7 @@ import {
   parseOptionalPct,
   primaryTempC,
   toSlimDecodedJson,
+  channelAThermo,
 } from "./wire-decode-v0c.ts";
 import {
   shouldWriteSparse,
@@ -227,6 +228,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const decodedJson = toSlimDecodedJson(payload);
+    const thermo = channelAThermo(payload.channels);
     // Partition key must be present on INSERT (BEFORE trigger on parent only fills if null).
     const mesureAt = new Date(
       `${payload.mesureDt.replace(" ", "T")}+09:00`,
@@ -252,6 +254,10 @@ Deno.serve(async (req: Request) => {
       fan_supply_pct: fanPctFromChannels(payload.channels, "EC01"),
       fan_exhaust_pct: fanExhaust,
       fan_intake_pct: fanIntake,
+      setpoint_temp: parseOptionalPct(thermo?.setpointTemp ?? null),
+      temp_deviation: parseOptionalPct(thermo?.tempDeviation ?? null),
+      min_vent_pct: thermo?.minVentPct ?? null,
+      max_vent_pct: thermo?.maxVentPct ?? null,
       decoded_json: decodedJson,
       decode_status: "ok",
       decode_source: "edge",
