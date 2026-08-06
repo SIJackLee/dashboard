@@ -120,10 +120,10 @@ Admin hub grid is overview-only. Farm drill-in uses full panel (or enrich). Bulk
 - Soft poll: hub `readings`로 `assembleFarmFacts` (DB 생략) · `document.hidden` skip · 이상 없으면 60s / 있으면 30s
 - cmd-poll / alarm-single 읽기 경로: 현행 유지 (완료 고정)
 
-## HOT view · retention (Sprint C)
+## HOT view · retention (Sprint C → 적용)
 
 - Thin list 규칙: [`LIVE_HOT_VIEW_RULES.md`](./LIVE_HOT_VIEW_RULES.md) · 가드 `live-read-select.ts` + unit test
-- Retention: [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) — **설계만**, DELETE/cron 미실행
+- Retention: [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) — **채택·cron 적용**(30d detach/archive · raw DELETE · archive soak DROP). 정합 2026-08-06
 - cmd-poll ids 배칭: 백로그 (현행 조건부 폴링 유지)
 
 ## Follow-ups (M1–M5 / L1–L2)
@@ -138,7 +138,7 @@ Admin hub grid is overview-only. Farm drill-in uses full panel (or enrich). Bulk
 | Phase C | Hub visible-first LIVE · Ops Scan client defer · `mergeBarnLayouts` off read path | **done** |
 | Sprint A | Admin hub grid slim LIVE · client trend TTL 90s · bulk channels hydration guard | **done** (2026-08-05) |
 | Sprint B | ARIA metrics visibility/idle poll · soft facts from hub LIVE · profile ui_config 60s cache + tag invalidate | **done** (2026-08-05) |
-| Sprint C | HOT list thin guard + docs · retention options doc (no SQL) | **done** (2026-08-05) |
+| Sprint C | HOT list thin guard + docs · retention options → **이후 D1/D4 cron 적용** | **done** (docs 2026-08-05 · cron 2026-08-05 · 문서정합 2026-08-06) |
 
 ## Admin hub TTFB
 
@@ -177,6 +177,6 @@ npm run measure:hub-ttfb
 | Table | total | heap | indexes | note |
 | --- | --- | --- | --- | --- |
 | `iot_room_state_raw` | 21 MB | ~3.9 MB | ~17 MB (81%) | Phase 4 후 · [`RAW_STORAGE_CHANGE.md`](./RAW_STORAGE_CHANGE.md) §10 |
-| `iot_room_state_decoded` | 34 MB | ~9 MB | ~25 MB (74%) | 인덱스 전부 활성 · [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) |
+| `iot_room_state_decoded` | ~27 MB (파티션 합, 2026-08-06) | — | — | D1+slim 후 · [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) |
 
-decoded: index DROP 비권장(실측 idx_scan 높음). 다음 용량 ROI = 파티션(D1) / retention(별도 승인).
+decoded: index DROP 비권장. D1·retention **적용 완료**. 잔여 용량 ROI = 희소 관측(확대 보류) · raw 인덱스 검토(승인 후).

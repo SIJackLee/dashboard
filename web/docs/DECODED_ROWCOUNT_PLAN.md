@@ -6,9 +6,10 @@
 > **실행 상태 (2026-08-05):**  
 > ① D1 파티션 **운영 적용** · legacy **DROP** (2026-08-05)  
 > ② 희소 PoC **적용** — allowlist `FARM01/P00` + `FARM02/P00`  
-> ③ retention **cron on** — `cleanup_iot_retention_30d` 매일 03:30 KST
+> ③ retention **cron on** — `cleanup_iot_retention_30d` 매일 03:30 KST · archive soak DROP · 월 파티션 ensure  
+> **문서 정합:** 2026-08-06 — [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md)가 보존 정본 (구 “미실행” 폐기)
 
-실측(2026-08-05): ~8.8k행 · 34MB(indexes 74%) · 컨트롤러 간격 ≈ **5분** · 일 ~1.4k행.
+실측(2026-08-06): decoded ~9.4k행 · 파티션 합 ~27MB · raw ~22MB.
 
 관련: [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) · [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) · [`DECODED_JSON_SLIM.md`](./DECODED_JSON_SLIM.md) · [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md) · [`IOT_ARCHIVE_AND_THERMO_FLAT.md`](./IOT_ARCHIVE_AND_THERMO_FLAT.md)
 
@@ -124,24 +125,26 @@ skip 시에도 decode cursor는 전진(raw 보존 · 재디코드는 cursor rewi
 
 ## 3단계 — Retention (D4 · 30일)
 
-### 3.1 정책
+### 3.1 정책 (**적용됨**)
 
-- decoded: **`mesure_at` 기준 30일 초과** 월 파티션 → **detach → archive**(동일 컬럼)  
-- 즉시 DROP 금지(1차). archive 보관 기간·폐기는 추후  
-- raw: **확정 30일** (`received_at`) — decoded와 동일. 초안만 작성, DELETE/cron은 승인 후  
-- dry-run(2026-08-05): decoded·raw 모두 **30일 초과 0행** (창 안 데이터만 존재)
+- decoded: **`mesure_at` 기준 30일 초과** 월 파티션 → **detach → archive**  
+- archive: soak **30일** 후 DROP (`cleanup_iot_archive_drop(30, 30)`)  
+- raw: **30일** (`received_at`) batch DELETE — 동일 retention 함수  
+- dry-run(2026-08-05): 당시 30일 초과 0행. job은 일 1회 대기  
+- 정본: [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md)
 
-### 3.2 Job
+### 3.2 Job (**cron active**)
 
-- 일 1회: “완전히 30일보다 오래된 월 파티션” detach  
-- dry-run 로그 필수 · 명시 승인 후 cron
+| job | UTC | 역할 |
+|-----|-----|------|
+| `ensure-iot-decoded-partitions-daily` | 18:00 | 월 파티션 예비 |
+| `cleanup-iot-retention-30d-daily` | 18:30 | detach + raw DELETE |
+| `cleanup-iot-archive-drop-daily` | 18:45 | archive soak DROP |
 
-### 3.3 승인 체크리스트
+### 3.3 승인 체크리스트 (추가 변경 시)
 
-- [ ] dry-run 행 수  
-- [ ] trend 30d 스모크(경계일)  
-- [ ] re-attach 롤백 절차  
-- [ ] **명시 승인**
+- [x] 초기 적용·cron on (2026-08-05)  
+- [ ] 일수·DROP 정책 변경 시 dry-run · trend 스모크 · **재승인**
 
 ---
 
@@ -154,11 +157,10 @@ skip 시에도 decode cursor는 전진(raw 보존 · 재디코드는 cursor rewi
     │
     ├─② 희소: last 테이블 + Edge 플래그 → FARM01 PoC → 전체
     │
-    └─③ 30d detach→archive job (D1 이후) → 승인 후 cron
+    └─③ 30d detach→archive + archive soak DROP + raw 30d → **cron on**
 ```
 
-권장 순서: **① 파티션 → ② 희소 PoC → ③ retention job**.  
-(희소를 파티션보다 먼저 해도 되나, retention/detach는 파티션이 있어야 안전.)
+①·③ **완료**. ② 희소 allowlist PoC · 확대는 관측 후([`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md)).
 
 ---
 
@@ -167,7 +169,7 @@ skip 시에도 decode cursor는 전진(raw 보존 · 재디코드는 cursor rewi
 | # | 항목 | 상태 |
 |---|------|------|
 | 1 | D1 파티션 | ✅ 운영 적용 · legacy DROP |
-| 2 | 희소 PoC | ✅ allowlist FARM01+FARM02 |
-| 3 | retention 30d | ✅ `cleanup_iot_retention_30d` + pg_cron `cleanup-iot-retention-30d-daily` (18:30 UTC) |
+| 2 | 희소 PoC | ✅ allowlist · 재관측 2026-08-06 · **확대 보류** |
+| 3 | retention 30d + archive DROP | ✅ cron 3종 active |
 
-다음: 희소 전 농장(관측 후) · (완료) archive 1개월 soak DROP · thermo flat · slim backfill.
+다음: 희소 ε 유지·관측 연장 또는 승인 후 ε 조정. retention **추가 작업 없음**(문서 정합 완료).

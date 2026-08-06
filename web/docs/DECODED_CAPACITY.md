@@ -1,7 +1,8 @@
 # decoded 용량 트랙 (iot_room_state_decoded)
 
-> **실측:** iot-cloud · **2026-08-05 17:40 KST** (D1·slim·thermo flat 이후)  
-> **원칙:** 인덱스 DROP은 별도 승인. 본 문서는 실측·판단·다음 후보.
+> **실측:** iot-cloud · **2026-08-06** · raw/decoded 용량 트랙 **완료로 종결**  
+> **원칙:** 인덱스 DROP은 별도 승인. 본 문서는 실측·판단·이력.  
+> **잔여:** 희소 ε 유지·관측만(확대 보류). retention cron 적용 완료.
 
 ---
 
@@ -9,16 +10,16 @@
 
 | 항목 | 값 |
 |------|-----|
-| **decoded 파티션 합계** | **~27 MB** |
+| **decoded 파티션 합계** | **~27 MB** (28,393,472 B · `decoded_at` DROP 후에도 동일 밴드 · 스키마 정리) |
 | **raw total** | **~22 MB** |
-| decoded 행 | ~9,005 |
-| raw 행 | ~9,031 |
+| decoded 행 | ~9,042 |
+| raw 행 | ~9,068 |
 | `decoded_json` avg | **~504 B** (전원 `v0c-slim-1`) |
 | slim 이전(당일 초) | decoded ~34 MB · json avg ~731 B |
 
 | 비교 | 당일 초(단일 테이블) | 지금 |
 |------|---------------------|------|
-| decoded | ~34 MB | ~27 MB (파티션+thermo flat 후) |
+| decoded | ~34 MB | ~27 MB (파티션+thermo flat · `decoded_at` DROP) |
 | raw | ~21 MB | ~22 MB |
 | legacy 복제 | (D1 직후 ~34 MB) | **없음(DROP)** |
 
@@ -111,7 +112,8 @@
 ## 5. 관련
 
 - [`RAW_STORAGE_CHANGE.md`](./RAW_STORAGE_CHANGE.md) — raw Phase 1~4
-- [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md)
+- [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) — retention **정본**(2026-08-06 정합)
 - [`IOT_ARCHIVE_AND_THERMO_FLAT.md`](./IOT_ARCHIVE_AND_THERMO_FLAT.md)
 - [`LIVE_HOT_VIEW_RULES.md`](./LIVE_HOT_VIEW_RULES.md)
+- [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md) — 희소 재관측
 - D1 파티션·retention·월 파티션 cron은 **적용 완료** (본 §3 표)
