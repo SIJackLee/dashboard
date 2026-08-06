@@ -32,6 +32,14 @@ function farmFromRow(row: CommandRowForHealth): FarmKey {
 }
 
 function targetLabel(row: CommandRowForHealth): string {
+  const channelKey = row.channel_key?.trim();
+  if (channelKey) {
+    return `MOD-${row.module_uid} · ${channelKey}`;
+  }
+  const controllerKey = row.controller_key?.trim();
+  if (controllerKey) {
+    return `MOD-${row.module_uid} · ${controllerKey}`;
+  }
   const stall =
     row.stall_ty_code && row.stall_no
       ? `${row.stall_ty_code}:${row.stall_no}`
@@ -99,7 +107,7 @@ export async function fetchCommandHealth(
     admin
       .from("ctrl_thermo_command")
       .select(
-        "id, status, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, stall_ty_code, stall_no, eqpmn_no"
+        "id, status, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, stall_ty_code, stall_no, eqpmn_no, controller_key, channel_key"
       )
       .gte("created_at", since24h)
       .order("created_at", { ascending: false })

@@ -29,4 +29,10 @@
 - `channel_key` non-null ≈ SET_CHANNEL 건수  
 - SET_CTRL → `channel_key` NULL  
 
-앱 select에 키 노출(J6=B)은 후속 선택.
+## 앱 노출 (J6=B · 2026-08-06)
+
+- `THERMO_COMMAND_SELECT`에 `controller_key`, `channel_key` 포함
+- `mapThermoCommandRow`는 DB `controller_key` 우선 · `channelKey` 매핑
+- Health C select·`targetLabel`에 키 우선 표시
+- UI 대상 라벨에 채널 슬롯 표시 (`formatCommandTarget`)
+

@@ -197,12 +197,16 @@ export function formatControllerRef(opts: {
 }
 
 export function formatCommandTarget(cmd: ThermoCommand): string {
-  return formatControllerRef({
+  const base = formatControllerRef({
     farmKey: cmd.farmKey,
     stallTyCode: cmd.stallTyCode,
     stallNo: cmd.stallNo,
     eqpmnNo: cmd.eqpmnNo,
   });
+  if (cmd.channel) {
+    return `${base} · ${cmd.channel}`;
+  }
+  return base;
 }
 
 export function replayPanelTitle(

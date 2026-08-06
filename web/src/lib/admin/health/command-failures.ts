@@ -16,6 +16,8 @@ export type CommandRowForHealth = {
   stall_ty_code: string | null;
   stall_no: string | null;
   eqpmn_no: string | null;
+  controller_key?: string | null;
+  channel_key?: string | null;
 };
 
 function farmFromRow(row: CommandRowForHealth): FarmKey {
@@ -23,6 +25,14 @@ function farmFromRow(row: CommandRowForHealth): FarmKey {
 }
 
 function targetLabel(row: CommandRowForHealth): string {
+  const channelKey = row.channel_key?.trim();
+  if (channelKey) {
+    return `MOD-${row.module_uid} · ${channelKey}`;
+  }
+  const controllerKey = row.controller_key?.trim();
+  if (controllerKey) {
+    return `MOD-${row.module_uid} · ${controllerKey}`;
+  }
   const stall = row.stall_ty_code && row.stall_no
     ? `${row.stall_ty_code}:${row.stall_no}`
     : "—";

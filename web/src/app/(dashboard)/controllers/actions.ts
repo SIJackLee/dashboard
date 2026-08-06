@@ -8,6 +8,7 @@ import { upsertControllerDisplayName } from "@/lib/data/controller-meta";
 import {
   getThermoCommandById,
   mapThermoCommandRow,
+  THERMO_COMMAND_SELECT,
   type ThermoCommand,
   type ThermoCommandRow,
 } from "@/lib/data/commands";
@@ -18,9 +19,6 @@ import { farmScopeCacheKey } from "@/lib/data/live-config";
 export type SendThermoCommandResult =
   | { ok: true; id: string; command: ThermoCommand }
   | { ok: false; error: string };
-
-const THERMO_COMMAND_SELECT =
-  "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg";
 
 export async function sendThermoCommandAction(
   formData: FormData

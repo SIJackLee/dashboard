@@ -36,6 +36,8 @@ export type ThermoCommand = {
   errorMsg: string | null;
   channel?: import("@/lib/data/iot-channel").ChannelSlot;
   eqpmnCode?: string;
+  /** DB generated · ACK target (`controller|CHANNEL|CODE`); SET_CTRL는 없음 */
+  channelKey?: string;
 };
 
 type Row = {
@@ -60,13 +62,15 @@ type Row = {
   channel: string | null;
   eqpmn_code: string | null;
   action: string | null;
+  controller_key?: string | null;
+  channel_key?: string | null;
 };
 
 /** insert/select 행 → ThermoCommand (서버 액션 공용) */
 export type ThermoCommandRow = Row;
 
-const THERMO_COMMAND_SELECT =
-  "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg";
+export const THERMO_COMMAND_SELECT =
+  "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg, controller_key, channel_key";
 
 export function mapThermoCommandRow(row: Row): ThermoCommand {
   const stallTyCode = row.stall_ty_code?.trim() ?? "";
@@ -77,8 +81,10 @@ export function mapThermoCommandRow(row: Row): ThermoCommand {
       ? normalizeEqpmnNo(row.ctrl_idx + 1)
       : "01";
 
+  const fromDb = row.controller_key?.trim();
   const controllerKey =
-    controllerKeyFromParts(stallTyCode, stallNo, eqpmnNo) ??
+    fromDb ||
+    controllerKeyFromParts(stallTyCode, stallNo, eqpmnNo) ||
     (row.ctrl_idx != null ? legacyControllerKey(row.ctrl_idx) : "legacy:unknown");
 
   const channelRaw = row.channel?.trim().toUpperCase();
@@ -86,6 +92,8 @@ export function mapThermoCommandRow(row: Row): ThermoCommand {
     channelRaw === "A" || channelRaw === "B" || channelRaw === "C"
       ? channelRaw
       : undefined;
+
+  const channelKey = row.channel_key?.trim() || undefined;
 
   return {
     id: row.id,
@@ -111,6 +119,7 @@ export function mapThermoCommandRow(row: Row): ThermoCommand {
     errorMsg: row.error_msg,
     channel,
     eqpmnCode: row.eqpmn_code?.trim() || undefined,
+    channelKey,
   };
 }
 
