@@ -37,6 +37,8 @@ export function FeatureTourHelpButton({ tourFarmKey = null }: Props) {
   const farmScoped = Boolean(
     parseFarmKeyFromQuery(searchParams.get("lsind"), searchParams.get("item")),
   );
+  const hubView = resolveFarmHubView(searchParams.get("view"));
+
   const onClick = () => {
     let scope: TourScope = tourScopeFromHubView(hubView);
     try {
