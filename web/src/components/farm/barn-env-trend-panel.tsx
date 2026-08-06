@@ -156,6 +156,7 @@ export function BarnEnvTrendPanel({
         rightUnit="%"
         leftDomain={tempDomain}
         rightDomain={humidityDomain}
+        yAxisTicks="ends"
         referenceLines={envRefs}
         tickEvery={display.tickEvery}
         period={period}

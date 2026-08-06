@@ -3,11 +3,24 @@
 /**
  * 스포트라이트 투어 — 툴팁 내부 확장 가이드.
  * - GaugeAnatomy: 컨트롤러 카드 게이지 바 읽는 법(확대 모식도).
- * - PanelPillsGuide: 그래프·설정 버튼 역할 설명.
- * - HeaderIconsGuide: 상단 헤더 도구(⋮)·연결·알림·계정.
+ * - PanelPillsGuide: 그래프·설정 아이콘 역할 설명.
+ * - ListModeIconsGuide: 목록 상단 보기 모드 아이콘.
+ * - HeaderIconsGuide: 상단 헤더 도구·알림·물음표·계정.
  */
 
-import { Bell, Cpu, EllipsisVertical, FileText, Moon, UserRound } from "lucide-react";
+import {
+  Bell,
+  CircleHelp,
+  Cpu,
+  EllipsisVertical,
+  FileText,
+  LayoutGrid,
+  LineChart,
+  Moon,
+  Settings,
+  UserRound,
+} from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const ANATOMY_ITEMS = [
   { n: 1, label: "현재값", desc: "주황 구간 — 지금 측정된 값" },
@@ -109,16 +122,18 @@ export function GaugeAnatomy({ compact = false }: GuideProps) {
   );
 }
 
-const PILL_ITEMS = [
+const PILL_ITEMS: { name: string; desc: string; Icon: LucideIcon }[] = [
   {
     name: "그래프",
     desc: "온도·습도·채널 추이. 카드 하단 패널에서 확인. 채널 셀 탭으로 해당 채널 출력 추이.",
+    Icon: LineChart,
   },
   {
     name: "설정",
     desc: "알람·설정온도·환기 범위. 카드 하단 패널에서 변경.",
+    Icon: Settings,
   },
-] as const;
+];
 
 export function PanelPillsGuide({ compact = false }: GuideProps) {
   return (
@@ -136,13 +151,83 @@ export function PanelPillsGuide({ compact = false }: GuideProps) {
             <span
               className={
                 compact
-                  ? "shrink-0 rounded-full border bg-background px-2 py-0.5 text-[0.65rem] font-semibold"
-                  : "shrink-0 rounded-full border bg-background px-2.5 py-0.5 text-xs font-semibold"
+                  ? "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-background"
+                  : "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background"
               }
+              aria-hidden
             >
-              {p.name}
+              <p.Icon className={compact ? "size-3.5" : "size-4"} />
             </span>
-            <span className="text-muted-foreground">{p.desc}</span>
+            <span>
+              <span className="font-semibold">{p.name}</span>
+              <span className="text-muted-foreground"> — {p.desc}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+const LIST_MODE_ITEMS: { name: string; desc: string; Icon: LucideIcon }[] = [
+  {
+    name: "컨트롤러",
+    desc: "게이지·현재값 중심 목록.",
+    Icon: Cpu,
+  },
+  {
+    name: "그래프",
+    desc: "카드 아래(또는 시트)에 추이 표시.",
+    Icon: LineChart,
+  },
+  {
+    name: "설정",
+    desc: "알람·설정온도·환기 범위 조정.",
+    Icon: Settings,
+  },
+  {
+    name: "그룹별 보기",
+    desc: "축사 유형별 묶음 / 평면 목록 전환.",
+    Icon: LayoutGrid,
+  },
+];
+
+export function ListModeIconsGuide({ compact = false }: GuideProps) {
+  return (
+    <div className={cnBox(compact)}>
+      <p
+        className={
+          compact
+            ? "mb-1.5 text-xs font-semibold text-muted-foreground"
+            : "mb-2 text-sm font-semibold text-muted-foreground"
+        }
+      >
+        목록 아이콘 안내
+      </p>
+      <ul className={compact ? "space-y-1.5" : "space-y-2"}>
+        {LIST_MODE_ITEMS.map((p) => (
+          <li
+            key={p.name}
+            className={
+              compact
+                ? "flex items-start gap-2 text-xs leading-snug"
+                : "flex items-start gap-2.5 text-sm leading-snug"
+            }
+          >
+            <span
+              className={
+                compact
+                  ? "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border bg-background"
+                  : "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border bg-background"
+              }
+              aria-hidden
+            >
+              <p.Icon className={compact ? "size-3.5" : "size-4"} />
+            </span>
+            <span>
+              <span className="font-semibold">{p.name}</span>
+              <span className="text-muted-foreground"> — {p.desc}</span>
+            </span>
           </li>
         ))}
       </ul>
@@ -156,11 +241,16 @@ function cnBox(compact: boolean) {
     : "rounded-lg border bg-muted/30 p-3.5";
 }
 
-const HEADER_ICON_ITEMS = [
+const HEADER_ICON_ITEMS: {
+  key: string;
+  label: string;
+  desc: string;
+  Icon: LucideIcon;
+}[] = [
   {
     key: "tools",
     label: "헤더 도구",
-    desc: "⋮ 을 누르면 PC는 왼쪽, 모바일은 아래로 아이콘이 펼쳐집니다.",
+    desc: "이상상황·리포트·테마·미리보기 아이콘이 오른쪽에 바로 보입니다. 좁은 화면에서는 ⋮ 으로 접힐 수 있습니다.",
     Icon: EllipsisVertical,
   },
   {
@@ -188,12 +278,18 @@ const HEADER_ICON_ITEMS = [
     Icon: Moon,
   },
   {
+    key: "help",
+    label: "기능 안내",
+    desc: "물음표를 누르면 지금 보고 있는 탭(현장·차트·델린) 안내가 시작됩니다.",
+    Icon: CircleHelp,
+  },
+  {
     key: "account",
     label: "계정",
-    desc: "프로필 메뉴에서 기능 안내 다시 보기, 최근 활동, 농장 주소 등을 이용할 수 있습니다.",
+    desc: "프로필 메뉴에서 최근 활동, 농장 주소 등을 이용할 수 있습니다.",
     Icon: UserRound,
   },
-] as const;
+];
 
 export function HeaderIconsGuide({ compact = false }: GuideProps) {
   return (

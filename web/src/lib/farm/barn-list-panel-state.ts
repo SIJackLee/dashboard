@@ -83,9 +83,9 @@ export function isBarnListGraphExpanded(
   listMode: BarnListViewMode,
   panelSets: BarnListPanelSets
 ): boolean {
-  // 그래프(graph) 모드 — 설정이 열려도 그래프 유지 (스캔 후 즉시 조정)
-  if (listMode === "graph") return true;
+  // 카드별 설정이 열리면 그래프는 닫음 (일괄 그래프에서도 동일)
   if (panelSets.settingsKeys.has(key)) return false;
+  if (listMode === "graph") return true;
   return panelSets.graphKeys.has(key);
 }
 

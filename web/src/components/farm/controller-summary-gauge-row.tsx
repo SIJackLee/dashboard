@@ -264,7 +264,8 @@ export function ControllerSummaryGaugeRow({
           reading={reading}
           graphActive={graphExpanded}
           settingsActive={settingsExpanded}
-          showGraphPill={!hideGraphToggle && listMode !== "graph"}
+          listMode={listMode}
+          hideGraphToggle={hideGraphToggle}
           showAffiliation={showAffiliation}
           cardBodyCollapsed={cardBodyCollapsed}
           onToggleGraph={onToggleGraph}

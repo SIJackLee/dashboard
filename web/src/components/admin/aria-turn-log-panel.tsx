@@ -17,25 +17,11 @@ type RouteFilter = (typeof ROUTES)[number];
 const FEEDBACK_FILTERS = ["ALL", "none", "ok", "bad"] as const;
 type FeedbackFilter = (typeof FEEDBACK_FILTERS)[number];
 
+import { formatKst } from "@/lib/datetime/kst";
+
 type Props = {
   initialRows: AriaTurnLogRow[];
 };
-
-function formatKst(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat("ko-KR", {
-      timeZone: "Asia/Seoul",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    }).format(new Date(iso));
-  } catch {
-    return iso.slice(0, 19);
-  }
-}
 
 function shortUser(id: string): string {
   return id.length <= 8 ? id : `${id.slice(0, 8)}…`;
@@ -259,7 +245,7 @@ export function AriaTurnLogPanel({ initialRows }: Props) {
           {rows.map((row) => (
             <li key={row.id} className="space-y-1.5 py-3">
               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span>{formatKst(row.createdAt)}</span>
+                <span>{formatKst(row.createdAt, "short")}</span>
                 <span className="rounded border px-1.5 py-0.5 font-medium text-foreground">
                   {row.route}
                 </span>
@@ -301,7 +287,7 @@ export function AriaTurnLogPanel({ initialRows }: Props) {
               {rows.map((row) => (
                 <tr key={row.id} className="align-top hover:bg-muted/20">
                   <td className="whitespace-nowrap px-3 py-2 text-[11px] text-muted-foreground">
-                    {formatKst(row.createdAt)}
+                    {formatKst(row.createdAt, "short")}
                   </td>
                   <td className="px-2 py-2">
                     <span className="rounded border px-1.5 py-0.5 text-[11px] font-medium">

@@ -25,8 +25,8 @@ function withSettings(key: string): BarnListPanelSets {
   const key = "c1";
   assert.equal(
     isBarnListGraphExpanded(key, "graph", withSettings(key)),
-    true,
-    "graph mode keeps graph open when settings open",
+    false,
+    "graph mode closes graph when card settings open",
   );
   assert.equal(
     isBarnListGraphExpanded(key, "controller", withSettings(key)),

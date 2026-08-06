@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { HEALTH_REVALIDATE_SEC } from "@/lib/admin/health/constants";
 import { formatHealthTime } from "@/lib/admin/health/format-health-time";
@@ -20,6 +20,10 @@ type HealthRefreshBarProps = {
   onRefresh?: () => void | Promise<void>;
 };
 
+const STATIC_REFRESH_LABEL = "스캔·사용자·명령 스냅샷 갱신";
+
+const emptySubscribe = () => () => {};
+
 export function HealthRefreshBar({
   fetchedAt,
   className,
@@ -29,6 +33,8 @@ export function HealthRefreshBar({
   const [secondsLeft, setSecondsLeft] = useState(HEALTH_REVALIDATE_SEC);
   const [pending, setPending] = useState(false);
   const pendingRef = useRef(false);
+  /** SSR·hydration과 맞추기 — 시계/카운트다운은 마운트 후에만 DOM·ARIA에 노출 */
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   const refresh = useCallback(() => {
     if (!onRefresh || pendingRef.current) return;
@@ -46,7 +52,7 @@ export function HealthRefreshBar({
   }, [onRefresh]);
 
   useEffect(() => {
-    if (!onRefresh) return;
+    if (!onRefresh || !mounted) return;
     const id = window.setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       setSecondsLeft((s) => {
@@ -59,13 +65,16 @@ export function HealthRefreshBar({
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [onRefresh, refresh]);
+  }, [onRefresh, refresh, mounted]);
 
-  const fetchedLabel = formatHealthTime(fetchedAt);
-  const mins = Math.floor(secondsLeft / 60);
-  const secs = secondsLeft % 60;
-  const countdown = `${mins}:${secs.toString().padStart(2, "0")}`;
-  const title = `스캔·사용자·명령 스냅샷 갱신 · 갱신 ${fetchedLabel} · ${countdown} 후`;
+  const detailTitle = (() => {
+    if (!mounted) return STATIC_REFRESH_LABEL;
+    const fetchedLabel = formatHealthTime(fetchedAt);
+    const mins = Math.floor(secondsLeft / 60);
+    const secs = secondsLeft % 60;
+    const countdown = `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${STATIC_REFRESH_LABEL} · 갱신 ${fetchedLabel} · ${countdown} 후`;
+  })();
 
   if (compact) {
     return (
@@ -73,8 +82,8 @@ export function HealthRefreshBar({
         type="button"
         onClick={refresh}
         disabled={pending || !onRefresh}
-        title={title}
-        aria-label={title}
+        title={detailTitle}
+        aria-label={STATIC_REFRESH_LABEL}
         className={cn(opsControl.buttonOutline, "border", className)}
       >
         {pending ? "갱신 중…" : "갱신"}
@@ -89,7 +98,7 @@ export function HealthRefreshBar({
         className,
       )}
     >
-      <p className={cn(dashboardTypography.meta, "min-w-0")}>{title}</p>
+      <p className={cn(dashboardTypography.meta, "min-w-0")}>{detailTitle}</p>
       <Button
         type="button"
         variant="outline"
@@ -99,6 +108,7 @@ export function HealthRefreshBar({
           dashboardControl.buttonOutline,
         )}
         onClick={refresh}
+        aria-label={STATIC_REFRESH_LABEL}
       >
         {pending ? "갱신 중…" : "지금 갱신"}
       </Button>

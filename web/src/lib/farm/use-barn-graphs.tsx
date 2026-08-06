@@ -11,6 +11,7 @@ import type {
 } from "@/lib/data/farm-trend-types";
 import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
+import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
 import {
   findStallTrendSeries,
   formatControllerHeaderSecondary,
@@ -137,21 +138,21 @@ export function useBarnGraphs({
         { id: "H", label: "습도", unit: "%", values: series.humidity, band: hBand },
         {
           id: "A",
-          label: "A",
+          label: CHANNEL_SLOT_LABELS.A,
           unit: "%",
           values: series.fanIntake,
           band: bandForChannel("A", series.fanIntake),
         },
         {
           id: "B",
-          label: "B",
+          label: CHANNEL_SLOT_LABELS.B,
           unit: "%",
           values: series.fanExhaust,
           band: bandForChannel("B", series.fanExhaust),
         },
         {
           id: "C",
-          label: "C",
+          label: CHANNEL_SLOT_LABELS.C,
           unit: "%",
           values: series.fanSupply,
           band: bandForChannel("C", series.fanSupply),
@@ -239,21 +240,21 @@ export function useBarnGraphs({
           H: { id: "H", label: "습도", unit: "%", values: cs.humidity, band: ctrlHBand },
           A: {
             id: "A",
-            label: "A",
+            label: CHANNEL_SLOT_LABELS.A,
             unit: "%",
             values: cs.fanIntake,
             band: ctrlBandForChannel("A", cs.fanIntake),
           },
           B: {
             id: "B",
-            label: "B",
+            label: CHANNEL_SLOT_LABELS.B,
             unit: "%",
             values: cs.fanExhaust,
             band: ctrlBandForChannel("B", cs.fanExhaust),
           },
           C: {
             id: "C",
-            label: "C",
+            label: CHANNEL_SLOT_LABELS.C,
             unit: "%",
             values: cs.fanSupply,
             band: ctrlBandForChannel("C", cs.fanSupply),

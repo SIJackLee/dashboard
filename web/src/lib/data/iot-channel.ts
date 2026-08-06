@@ -128,6 +128,7 @@ export function legacyFieldsFromChannels(channels: ChannelReading[]): {
   };
 }
 
+/** UI 정식명 — 슬롯 A/B/C (입기/배기/송풍 장비명은 비노출) */
 export const CHANNEL_SLOT_LABELS: Record<ChannelSlot, string> = {
   A: "채널 A",
   B: "채널 B",

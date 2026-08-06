@@ -10,6 +10,7 @@ type PageActionButtonProps = {
   disabled?: boolean;
   onClick?: () => void;
   className?: string;
+  title?: string;
   "aria-label"?: string;
   "aria-busy"?: boolean;
 };
@@ -23,6 +24,7 @@ export function PageActionButton({
   disabled,
   onClick,
   className,
+  title,
   "aria-label": ariaLabel,
   "aria-busy": ariaBusy,
 }: PageActionButtonProps) {
@@ -32,6 +34,7 @@ export function PageActionButton({
       type={type}
       disabled={disabled}
       onClick={onClick}
+      title={title}
       aria-label={ariaLabel}
       aria-busy={ariaBusy}
       className={cn(

@@ -72,7 +72,7 @@ export type FarmHubViewShell = {
   chartEverOpened: boolean;
   ariaEverOpened: boolean;
   setView: (next: FarmHubView) => void;
-  setTourView: (next: "map" | "list") => void;
+  setTourView: (next: FarmHubView) => void;
 };
 
 export function useFarmHubViewShell({
@@ -295,7 +295,7 @@ export function useFarmHubViewShell({
   );
 
   const setTourView = useCallback(
-    (next: "map" | "list") => {
+    (next: FarmHubView) => {
       applyViewChange(next);
     },
     [applyViewChange],

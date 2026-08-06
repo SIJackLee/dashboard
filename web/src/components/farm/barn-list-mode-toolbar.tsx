@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Cpu, LineChart, Loader2, Settings, type LucideIcon } from "lucide-react";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
-const MODES: { id: BarnListViewMode; label: string; short: string }[] = [
-  { id: "controller", label: "컨트롤러", short: "Ctrl" },
-  { id: "graph", label: "그래프", short: "Graph" },
-  { id: "settings", label: "설정", short: "Set" },
+const MODES: {
+  id: BarnListViewMode;
+  label: string;
+  Icon: LucideIcon;
+}[] = [
+  { id: "controller", label: "컨트롤러", Icon: Cpu },
+  { id: "graph", label: "그래프", Icon: LineChart },
+  { id: "settings", label: "설정", Icon: Settings },
 ];
 
 type Props = {
@@ -59,16 +63,19 @@ export function BarnListModeToolbar({
       {MODES.map((mode, index) => {
         const selected = displayMode === mode.id;
         const modeBusy = pendingMode === mode.id;
+        const Icon = mode.Icon;
         return (
           <button
             key={mode.id}
             type="button"
             role="tab"
+            aria-label={mode.label}
+            title={mode.label}
             aria-selected={selected}
             aria-busy={modeBusy || undefined}
             disabled={disabled}
             className={cn(
-              "inline-flex min-h-8 items-center justify-center gap-1 border-border px-2.5 py-1.5 text-xs font-medium disabled:cursor-wait sm:min-h-11 sm:px-3 sm:text-sm md:px-4 md:text-[1.75rem]",
+              "inline-flex size-8 min-w-8 items-center justify-center border-border p-0 disabled:cursor-wait sm:size-11 sm:min-w-11",
               motionClass.microInteractive,
               index > 0 && "border-l",
               selected
@@ -85,12 +92,12 @@ export function BarnListModeToolbar({
           >
             {modeBusy ? (
               <Loader2
-                className="size-3.5 shrink-0 animate-spin sm:size-4"
+                className="size-4 shrink-0 animate-spin sm:size-5"
                 aria-hidden
               />
-            ) : null}
-            <span className="sm:hidden">{mode.short}</span>
-            <span className="hidden sm:inline">{mode.label}</span>
+            ) : (
+              <Icon className="size-4 shrink-0 sm:size-5" aria-hidden />
+            )}
           </button>
         );
       })}

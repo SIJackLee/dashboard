@@ -1,20 +1,14 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, CircleHelp, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronDown, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  FARM_TOUR_RESTART_EVENT,
-  FARM_TOUR_RESTART_FLAG,
-  buildFarmTourPath,
-} from "@/lib/onboarding/tour-steps";
-import { parseFarmKeyFromQuery, DEFAULT_FARM, type FarmKey } from "@/lib/data/farm-key";
 import { RecentActivityMenuSection } from "@/components/account/recent-activity-menu-section";
 import { FarmAddressInput } from "@/components/settings/farm-address-input";
 import { FarmSwitcher } from "@/components/layout/farm-switcher";
@@ -23,6 +17,7 @@ import {
   farmShortLabel,
   type FarmSummaryRow,
 } from "@/lib/data/farm-summaries";
+import type { FarmKey } from "@/lib/data/farm-key";
 import type { ModuleReceipt } from "@/lib/data/iot";
 import { farmOptionId } from "@/lib/settings/farm-location-client";
 import { signOut } from "@/app/auth/actions";
@@ -64,39 +59,12 @@ export function AccountMenu({
   canEditLocation = false,
 }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const mobile = useMobileLayout();
   const [open, setOpen] = useState(false);
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const name = user.displayName?.trim() || user.email || "사용자";
   const initial = name.charAt(0).toUpperCase();
   const primaryFarm = farmLocationOptions[0];
-  const tourFarmKey =
-    farmLocationOptions.find((o) => o.hasLiveData)?.farmKey ??
-    primaryFarm?.farmKey ??
-    farmOptions[0] ??
-    DEFAULT_FARM;
-  const farmScopedOnPage = Boolean(
-    parseFarmKeyFromQuery(searchParams.get("lsind"), searchParams.get("item")),
-  );
-  const canRestartTourInPlace =
-    pathname?.startsWith("/farm") && farmScopedOnPage;
-
-  const restartTour = () => {
-    setOpen(false);
-    if (canRestartTourInPlace) {
-      window.dispatchEvent(new Event(FARM_TOUR_RESTART_EVENT));
-      return;
-    }
-    try {
-      sessionStorage.setItem(FARM_TOUR_RESTART_FLAG, "1");
-    } catch {
-      /* storage 사용 불가 시 이동만 수행 */
-    }
-    const target = buildFarmTourPath(tourFarmKey);
-    window.location.assign(target);
-  };
 
   const triggerClassName =
     "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60";
@@ -163,7 +131,7 @@ export function AccountMenu({
           ) : null}
         </div>
 
-        {mobile && farmOptions.length > 0 ? (
+        {farmOptions.length > 0 ? (
           <div
             className="border-b"
             onKeyDown={(e) => e.stopPropagation()}
@@ -185,13 +153,6 @@ export function AccountMenu({
             />
           </div>
         ) : null}
-
-        <div className="p-1.5">
-          <DropdownMenuItem className="gap-2 rounded-lg px-3 py-2" onClick={restartTour}>
-            <CircleHelp className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            기능 안내 다시 보기
-          </DropdownMenuItem>
-        </div>
 
         {receipts.length > 0 ? (
           <div className="border-t">

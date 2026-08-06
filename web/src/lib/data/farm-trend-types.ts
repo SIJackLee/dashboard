@@ -58,6 +58,15 @@ export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
 
 export const DEFAULT_TREND_PERIOD: TrendPeriodId = "7d";
 
+/** UI 순환 순서 — 24시간 → 7일 → 30일 → 24시간 */
+export const TREND_PERIOD_ORDER: TrendPeriodId[] = ["24h", "7d", "30d"];
+
+export function nextTrendPeriod(current: TrendPeriodId): TrendPeriodId {
+  const i = TREND_PERIOD_ORDER.indexOf(current);
+  const idx = i < 0 ? 0 : (i + 1) % TREND_PERIOD_ORDER.length;
+  return TREND_PERIOD_ORDER[idx]!;
+}
+
 /** One barn (stall_no) aligned series across the full continuous time axis. */
 export type TrendStallSeries = {
   stallNo: string;
@@ -100,7 +109,7 @@ export type TrendControllerSeries = TrendStallSeries & {
   eqpmnNo: string;
   /** 호버용 구역 표시명 (축사유형). */
   zoneLabel?: string;
-  /** 호버용 장비 표시명 (N번 축사 M). */
+  /** 호버용 장비 표시명 (컨트롤러 M). */
   equipmentLabel?: string;
   /** 스코프 이동용 축사유형 코드 (UI 미표시). */
   stallTyCode?: string;

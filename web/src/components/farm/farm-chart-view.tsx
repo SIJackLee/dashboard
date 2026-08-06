@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { PanelRight, PanelRightClose, X } from "lucide-react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
 import { resolveThresholdsForScope } from "@/lib/data/alarm-scope";
 import {
@@ -26,6 +26,7 @@ import {
   type ChartTrendZoomHint,
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
+import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +40,8 @@ type Props = {
   onScopeChange?: (scope: FarmChartScope) => void;
   /** P2 — URL chartYBand/chartX* → 온도 레인 등 초기 줌 */
   initialZoom?: ChartTrendZoomHint | null;
+  /** E — 집중 칩 → URL chartYBand 동기화 */
+  onZoomChange?: (zoom: ChartTrendZoomHint | null) => void;
   alarmSettings?: AlarmSettings;
   /** LIVE/명령 반영 제어값 */
   thermoSettings?: Record<string, ControllerThermoSettings>;
@@ -119,6 +122,7 @@ export function FarmChartView({
   scope,
   onScopeChange,
   initialZoom = null,
+  onZoomChange,
   alarmSettings,
   thermoSettings,
   canCommand = false,
@@ -131,7 +135,10 @@ export function FarmChartView({
     {},
   );
   const [expandScopeKey, setExpandScopeKey] = useState("");
+  /** 모바일 — 집계 오버레이 */
   const [scopePanelOpen, setScopePanelOpen] = useState(false);
+  /** PC — 우측 집계 레일 (필드 현황과 동일 접기 정책) */
+  const [scopeRailOpen, setScopeRailOpen] = useState(true);
 
   const tree = useMemo(() => buildFarmChartTree(readings), [readings]);
   const scopedReadings = useMemo(
@@ -349,11 +356,19 @@ export function FarmChartView({
     >
       <div
         className={cn(
-          "flex min-h-0 flex-col gap-3 lg:flex-row lg:items-stretch",
+          "grid min-h-0 grid-cols-1 gap-3 lg:items-stretch",
+          "transition-[grid-template-columns] duration-motion-moderate ease-[var(--motion-ease-standard)]",
+          !isMobileStack &&
+            (scopeRailOpen
+              ? "lg:grid-cols-[minmax(0,1fr)_16rem] xl:grid-cols-[minmax(0,1fr)_18rem]"
+              : "lg:grid-cols-[minmax(0,1fr)_2.5rem]"),
           motionClass.farmChartScopeShell,
         )}
+        data-farm-chart-scope={
+          isMobileStack ? undefined : scopeRailOpen ? "open" : "collapsed"
+        }
       >
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 min-h-0">
           <UnifiedBarnTrendPanel
             label={label}
             controllers={controllers}
@@ -365,6 +380,7 @@ export function FarmChartView({
             chartScope={scope}
             onScopeChange={onScopeChange}
             initialZoom={initialZoom}
+            onZoomChange={onZoomChange}
             canCommand={canCommand}
             isMobileStack={isMobileStack}
             chartHeight={chartHeight}
@@ -382,21 +398,87 @@ export function FarmChartView({
         </div>
 
         {!isMobileStack ? (
-          <aside
-            className={cn(
-              "w-full shrink-0 rounded-xl border bg-card p-3 lg:w-64 xl:w-72",
-              "lg:max-h-[min(70dvh,36rem)] lg:overflow-y-auto",
-              motionClass.farmChartPanelShell,
-            )}
-            data-tour-id="farm-chart-scope-panel"
-            aria-label="차트 집계 범위"
-          >
-            <p className="mb-2 text-xs font-semibold">집계 범위</p>
-            <p className="mb-3 text-[0.65rem] leading-snug text-muted-foreground">
-              기본은 농장 전체. 유형·축사·컨트롤러를 골라 좁힙니다.
-            </p>
-            {scopeTree}
-          </aside>
+          <div className="min-w-0 overflow-hidden">
+            <div
+              className={cn(
+                "ml-auto transition-[width,max-width] duration-motion-moderate ease-[var(--motion-ease-standard)]",
+                scopeRailOpen
+                  ? "w-full max-w-[16rem] xl:max-w-[18rem]"
+                  : "w-10 max-w-10",
+              )}
+            >
+              <aside
+                className={cn(
+                  "flex w-full flex-col rounded-xl border bg-card",
+                  "lg:max-h-[min(70dvh,36rem)]",
+                  motionClass.farmChartPanelShell,
+                )}
+                data-tour-id="farm-chart-scope-panel"
+                data-collapsed={scopeRailOpen ? "false" : "true"}
+                aria-label="차트 집계 범위"
+              >
+                <div
+                  className={cn(
+                    "flex shrink-0 items-center border-b",
+                    scopeRailOpen
+                      ? "gap-1.5 px-2 py-1.5"
+                      : "justify-center px-0.5 py-1.5",
+                  )}
+                >
+                  {scopeRailOpen ? (
+                    <p
+                      className={cn(
+                        "min-w-0 flex-1 truncate font-semibold",
+                        farmChartUi.fsLegend,
+                      )}
+                    >
+                      집계 범위
+                    </p>
+                  ) : null}
+                  {scopeRailOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => setScopeRailOpen(false)}
+                      className={cn(
+                        "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground",
+                        "hover:bg-muted/50 hover:text-foreground",
+                        motionClass.microHover,
+                      )}
+                      aria-label="집계 범위 숨기기"
+                      data-tour-id="farm-chart-scope-hide"
+                    >
+                      <PanelRightClose className="size-4" aria-hidden />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setScopeRailOpen(true)}
+                      className={cn(
+                        "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground",
+                        "hover:bg-muted/50 hover:text-foreground",
+                        motionClass.microHover,
+                      )}
+                      aria-label="집계 범위 나타내기"
+                      data-tour-id="farm-chart-scope-show"
+                    >
+                      <PanelRight className="size-4" aria-hidden />
+                    </button>
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    "overflow-hidden transition-[opacity,max-height] duration-motion-moderate ease-[var(--motion-ease-standard)]",
+                    scopeRailOpen
+                      ? "max-h-[200rem] opacity-100 lg:overflow-y-auto"
+                      : "pointer-events-none max-h-0 opacity-0",
+                  )}
+                  aria-hidden={!scopeRailOpen}
+                >
+                  <div className="p-3">{scopeTree}</div>
+                </div>
+              </aside>
+            </div>
+          </div>
         ) : null}
       </div>
 
@@ -427,8 +509,15 @@ export function FarmChartView({
           >
             <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2.5">
               <div className="min-w-0">
-                <p className="text-xs font-semibold">집계 범위</p>
-                <p className="truncate text-[0.65rem] text-muted-foreground">
+                <p className={cn("font-semibold", farmChartUi.fsLegend)}>
+                  집계 범위
+                </p>
+                <p
+                  className={cn(
+                    "truncate text-muted-foreground",
+                    farmChartUi.fsLegend,
+                  )}
+                >
                   {label}
                 </p>
               </div>
@@ -445,9 +534,6 @@ export function FarmChartView({
               </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-              <p className="mb-3 px-1 text-[0.65rem] leading-snug text-muted-foreground">
-                유형·축사·컨트롤러로 좁힙니다.
-              </p>
               {scopeTree}
             </div>
           </aside>
@@ -497,7 +583,8 @@ function ScopeRow({
           type="button"
           aria-label={expanded ? "접기" : "펼치기"}
           className={cn(
-            "flex shrink-0 items-center justify-center rounded text-[0.65rem] text-muted-foreground",
+            "flex shrink-0 items-center justify-center rounded text-muted-foreground",
+            farmChartUi.fsLegend,
             touchFriendly ? "h-10 w-10" : "h-6 w-6",
             motionClass.microHover,
           )}
@@ -520,7 +607,8 @@ function ScopeRow({
         title={toneLabel ? `${label} · ${toneLabel}` : undefined}
         aria-label={toneLabel ? `${label}, ${toneLabel}` : undefined}
         className={cn(
-          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 text-left text-[0.8rem]",
+          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 text-left",
+          farmChartUi.fsLegend,
           touchFriendly ? "min-h-11 py-2.5" : "py-1",
           motionClass.microHover,
           selected
@@ -553,7 +641,8 @@ function ScopeRow({
         {meta ? (
           <span
             className={cn(
-              "shrink-0 text-[0.65rem]",
+              "shrink-0",
+              farmChartUi.fsLegend,
               tone === "guide"
                 ? "text-amber-700/80 dark:text-amber-400/80"
                 : "text-muted-foreground",

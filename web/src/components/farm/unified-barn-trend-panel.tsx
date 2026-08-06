@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { PanelRight, Settings } from "lucide-react";
 import {
   TrendChart,
   type ScaleEdgeDragEvent,
@@ -45,6 +45,7 @@ import {
 } from "@/lib/farm/controller-summary-display";
 import {
   alarmScopeKeyFromFarmChartScope,
+  chartScopeEntryToZoomHint,
   type ChartTrendZoomHint,
   type FarmChartScope,
   scopesEqual,
@@ -79,7 +80,7 @@ import {
   mapTempCToSplitY,
   mapUnifiedBarnTrendRawToSplitY,
   pickUnifiedTrendLayers,
-  resolveSplitYLayout,
+  resolveUnifiedPlotLayout,
   sliceUnifiedTrendByIndex,
   splitYVisibilityFromLayers,
   countSplitYBands,
@@ -88,6 +89,7 @@ import {
   visibilityForYBands,
   maskLayersForYBands,
   UNIFIED_Y_BAND_LABEL,
+  isSingleYBandFocus,
   unmapHumPctFromSplitY,
   unmapMotorPctFromSplitY,
   unmapTempCFromSplitY,
@@ -95,11 +97,6 @@ import {
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
 import { envComfortScore } from "@/lib/farm/env-comfort-score";
-import {
-  buildUnifiedScopeSummary,
-  formatBreachPct,
-  formatScopeStat,
-} from "@/lib/farm/scope-range-summary";
 import { useSplitYLayoutTransition } from "@/lib/farm/use-split-y-layout-transition";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
@@ -110,6 +107,11 @@ import {
   type GuidedScopeRect,
 } from "@/lib/ui/delin-guided-scope-jitter";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import {
+  chartUiPx,
+  farmChartUi,
+  FARM_CHART_UI_SCALE,
+} from "@/lib/ui/farm-chart-ui-scale";
 import { cn } from "@/lib/utils";
 
 const TEMP_STEP = 0.5;
@@ -184,6 +186,8 @@ type Props = {
   onScopeChange?: (scope: FarmChartScope) => void;
   /** P2 — URL/DELIN handoff 초기 Y밴드·X구간 */
   initialZoom?: ChartTrendZoomHint | null;
+  /** E — 집중 칩·스코프 → URL chartYBand 동기화 */
+  onZoomChange?: (zoom: ChartTrendZoomHint | null) => void;
   /**
    * DELIN — 실제 X스코프 UI로 클릭→드래그→커밋 시연.
    * token 증가 시 재생. CSS 오버레이 아님.
@@ -230,6 +234,7 @@ export function UnifiedBarnTrendPanel({
   chartScope,
   onScopeChange,
   initialZoom = null,
+  onZoomChange,
   guidedXScopeGesture = null,
   onGuidedXScopeComplete,
   canCommand = false,
@@ -380,15 +385,16 @@ export function UnifiedBarnTrendPanel({
       showMotors: layerVisibility.showMotors && bandVis.showMotors,
     };
   }, [layerVisibility, xScope]);
-  const targetLayout = useMemo(
-    () => resolveSplitYLayout(scopeVisibility),
-    [scopeVisibility],
+  const targetPlot = useMemo(
+    () => resolveUnifiedPlotLayout(scopeVisibility, mappingThresholds),
+    [scopeVisibility, mappingThresholds],
   );
-  const layout = useSplitYLayoutTransition(targetLayout);
-  /** 드래그 hit/미리보기 — 레이어 기준(스코프 전) 멀티밴드 */
+  const layout = useSplitYLayoutTransition(targetPlot.layout);
+  const chartLeftUnit = targetPlot.leftUnit;
+  /** 드래그 hit/미리보기 — 레이어 기준(스코프 전) */
   const layerLayout = useMemo(
-    () => resolveSplitYLayout(layerVisibility),
-    [layerVisibility],
+    () => resolveUnifiedPlotLayout(layerVisibility, mappingThresholds).layout,
+    [layerVisibility, mappingThresholds],
   );
 
   /** 브러시 — 30d 온·습 양호도(B안) · 컨트롤러 평균 · 모터 제외 */
@@ -554,22 +560,6 @@ export function UnifiedBarnTrendPanel({
     }
   }
 
-  useEffect(() => {
-    if (xScopeStack.length === 0) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setXScopeStack((stack) => {
-        if (stack.length === 0) return stack;
-        return stack.slice(0, -1);
-      });
-      if (xScopeStack.length > 0) {
-        bumpScopeMotion(xScopeStack.length <= 1 ? "out" : "in");
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [xScopeStack.length]);
-
   /** P2 — URL/DELIN 줌 힌트 1회 적용 (온도 레인 포커스 등) */
   useEffect(() => {
     if (!initialZoom) {
@@ -649,18 +639,16 @@ export function UnifiedBarnTrendPanel({
     );
   }, [picked, xScope]);
 
-  /** P3 — 스코프 구간 원단위 요약 */
-  const scopeSummary = useMemo(() => {
-    if (!trendRaw || !xScope) return null;
-    return buildUnifiedScopeSummary(
-      trendRaw,
-      xScope.start,
-      xScope.end,
-      scopeVisibility,
-    );
-  }, [trendRaw, xScope, scopeVisibility]);
-
   const chartCategories = scoped?.categories ?? [];
+
+  const emitZoom = useCallback(
+    (entry: ScopeEntry | null) => {
+      if (!onZoomChange) return;
+      const n = picked?.categories.length ?? 0;
+      onZoomChange(chartScopeEntryToZoomHint(entry, n));
+    },
+    [onZoomChange, picked?.categories.length],
+  );
 
   const commitXScope = (
     range: {
@@ -711,12 +699,15 @@ export function UnifiedBarnTrendPanel({
       setXScopeStack((stack) => [...stack, next]);
     }
     bumpScopeMotion("in");
+    emitZoom(next);
   };
 
   const popXScope = () => {
     setXScopeStack((stack) => {
       if (stack.length === 0) return stack;
-      return stack.slice(0, -1);
+      const next = stack.slice(0, -1);
+      emitZoom(next.length > 0 ? next[next.length - 1]! : null);
+      return next;
     });
     if (xScopeStack.length > 0) {
       bumpScopeMotion(xScopeStack.length <= 1 ? "out" : "in");
@@ -726,7 +717,18 @@ export function UnifiedBarnTrendPanel({
   const clearXScope = () => {
     if (xScopeStack.length > 0) bumpScopeMotion("out");
     setXScopeStack([]);
+    emitZoom(null);
   };
+
+  useEffect(() => {
+    if (xScopeStack.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      popXScope();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [xScopeStack.length]);
 
   const alarmDragEnabled =
     canCommand &&
@@ -1252,7 +1254,8 @@ export function UnifiedBarnTrendPanel({
       draggable = false,
       editValue?: number,
       opts?: {
-        side?: "left" | "right" | "center";
+        side?: "left" | "right" | "center" | "plotStart";
+        leadingText?: string;
         labelLane?: "outer" | "inner";
         lineStrokeWidth?: number;
         lineDasharray?: string;
@@ -1266,6 +1269,7 @@ export function UnifiedBarnTrendPanel({
         axis: "left",
         side: opts?.side ?? "right",
         text,
+        leadingText: opts?.leadingText,
         color,
         mark,
         title,
@@ -1279,38 +1283,64 @@ export function UnifiedBarnTrendPanel({
       });
     };
 
+    /** 설정모드 — 중앙 칩에 명칭+수치 (선·드래그 동일) */
+    const pushThermoControl = (
+      id: string,
+      chartY: number | null,
+      name: string,
+      valueText: string,
+      mark: "overline" | "underline",
+      editValue: number,
+      opts: {
+        lineStrokeWidth: number;
+        lineDasharray: string;
+        showApplyActions?: boolean;
+      },
+    ) => {
+      push(
+        id,
+        chartY,
+        valueText,
+        CHART_THERMO_CONTROL_COLOR,
+        mark,
+        `${name} · ${valueText}`,
+        true,
+        thermoDragEnabled,
+        editValue,
+        {
+          side: "center",
+          leadingText: name,
+          lineStrokeWidth: opts.lineStrokeWidth,
+          lineDasharray: opts.lineDasharray,
+          showApplyActions: opts.showApplyActions,
+        },
+      );
+    };
+
     if (scopeVisibility.showMotors && layers.motors && built.available.motors) {
       if (controlMode) {
         const minV = thermo.minVentPct;
         const maxV = thermo.maxVentPct;
-        push(
+        pushThermoControl(
           CHART_THERMO_EDGE_IDS.maxVentPct,
           mapMotorPctToSplitY(maxV, layout),
+          "최고환기",
           `${maxV}%`,
-          CHART_THERMO_CONTROL_COLOR,
           "overline",
-          "최고환기량",
-          true,
-          thermoDragEnabled,
           maxV,
           {
-            side: "center",
             lineStrokeWidth: 0.55,
             lineDasharray: "2 2",
           },
         );
-        push(
+        pushThermoControl(
           CHART_THERMO_EDGE_IDS.minVentPct,
           mapMotorPctToSplitY(minV, layout),
+          "최저환기",
           `${minV}%`,
-          CHART_THERMO_CONTROL_COLOR,
           "underline",
-          "최저환기량",
-          true,
-          thermoDragEnabled,
           minV,
           {
-            side: "center",
             lineStrokeWidth: 1.15,
             lineDasharray: "solid",
           },
@@ -1364,34 +1394,26 @@ export function UnifiedBarnTrendPanel({
         const dev = thermo.tempDeviation;
         const highT = sp + dev;
         // 온도 밴드 = 기점만 / 최저·최고 환기량(%)은 모터 밴드
-        push(
+        pushThermoControl(
           CHART_THERMO_EDGE_IDS.highVentTemp,
           mapTempCToSplitY(highT, mapLo, mapHi, layout),
+          "온도편차",
           `+${dev}℃`,
-          CHART_THERMO_CONTROL_COLOR,
           "overline",
-          "온도편차 (설정+편차)",
-          true,
-          thermoDragEnabled,
           dev,
           {
-            side: "center",
             lineStrokeWidth: 0.55,
             lineDasharray: "2 2",
           },
         );
-        push(
+        pushThermoControl(
           CHART_THERMO_EDGE_IDS.setpoint,
           mapTempCToSplitY(sp, mapLo, mapHi, layout),
-          `${sp}℃`,
-          CHART_THERMO_CONTROL_COLOR,
-          "overline",
           "설정온도",
-          true,
-          thermoDragEnabled,
+          `${sp}℃`,
+          "overline",
           sp,
           {
-            side: "center",
             lineStrokeWidth: 1.15,
             lineDasharray: "solid",
             showApplyActions: thermoDirty,
@@ -1497,25 +1519,45 @@ export function UnifiedBarnTrendPanel({
     <button
       type="button"
       className={cn(
-        "inline-flex shrink-0 items-center rounded-md border px-2.5 py-1.5 text-sm font-semibold",
+        "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+        farmChartUi.fsBody,
         controlMode
           ? "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300"
           : "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
       )}
       aria-pressed={controlMode}
+      aria-label={controlMode ? "설정모드 종료" : "설정모드"}
+      title={controlMode ? "설정모드 종료" : "설정모드"}
       onClick={() => {
         if (controlMode) exitControlMode();
         else enterControlMode();
       }}
     >
-      {controlMode ? "설정모드 종료" : "설정모드"}
+      <Settings className="size-[1em] shrink-0" aria-hidden />
     </button>
   ) : null;
 
+  const focusBandActive = isSingleYBandFocus(xScope?.yBands)
+    ? xScope.yBands[0]
+    : null;
+
+  const focusBandTint = (band: UnifiedYBandId | null | undefined) => {
+    if (band === "temp") return dashboardUi.channelTintTemp;
+    if (band === "hum") return dashboardUi.channelTintHum;
+    if (band === "motor") return dashboardUi.channelTintMotor;
+    return dashboardUi.channelTintInfo;
+  };
+
   return (
     <div
-      className={cn("mt-2 space-y-2", className)}
+      className={cn("mt-2 space-y-2", farmChartUi.root, className)}
+      style={
+        {
+          ["--farm-chart-ui-scale"]: String(FARM_CHART_UI_SCALE),
+        } as CSSProperties
+      }
       data-tour-id="farm-chart-unified-trend"
+      data-farm-chart-ui-scale={String(FARM_CHART_UI_SCALE)}
       data-farm-chart-y-bands={
         xScope?.yBands?.length ? xScope.yBands.join("+") : "all"
       }
@@ -1533,44 +1575,48 @@ export function UnifiedBarnTrendPanel({
       >
         <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
           {isMobileStack ? (
-            <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-              <div className="min-w-0 justify-self-start">
+            <div className="flex w-full items-center gap-2">
+              <div className="min-w-0 flex-1" />
+              <div className="shrink-0">{layerToolbar}</div>
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                {controlModeButton}
                 {mobileScopeHandle ? (
                   <button
                     type="button"
                     className={cn(
-                      "inline-flex max-w-full items-center gap-1 rounded-md border border-border/80",
-                      "bg-card px-2.5 py-1.5 text-left",
+                      "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+                      farmChartUi.fsBody,
+                      "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
                       motionClass.microHover,
                     )}
                     data-tour-id="farm-chart-scope-handle"
                     aria-label={`집계 범위 열기 · ${label}`}
+                    title={label}
                     aria-expanded={mobileScopeHandle.open}
                     onClick={mobileScopeHandle.onOpen}
                   >
-                    <span className="truncate text-sm font-semibold text-foreground">
-                      {label}
-                    </span>
-                    <ChevronRight
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                      aria-hidden
-                    />
+                    <PanelRight className="size-[1em] shrink-0" aria-hidden />
                   </button>
                 ) : null}
               </div>
-              <div className="justify-self-center">{layerToolbar}</div>
-              <div className="justify-self-end">{controlModeButton}</div>
             </div>
           ) : (
-            <div className="flex min-w-0 w-full items-center gap-2">
+            <div className="flex min-w-0 w-full items-start gap-2">
               <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
-                <span className="shrink-0 text-xs font-semibold">통합 추이</span>
-                <span className="text-[0.7rem] leading-snug text-muted-foreground">
-                  {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
-                  {trendPeriodLabel(period)}
-                  {picked?.trimmed ? " · 실데이터 구간" : ""}
-                </span>
-              </div>
+                  <span className={cn("shrink-0 font-semibold", farmChartUi.fsTitle)}>
+                    통합 추이
+                  </span>
+                  <span
+                    className={cn(
+                      "leading-snug text-muted-foreground",
+                      farmChartUi.fsMeta,
+                    )}
+                  >
+                    {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
+                    {trendPeriodLabel(period)}
+                    {picked?.trimmed ? " · 실데이터 구간" : ""}
+                  </span>
+                </div>
               {layerToolbar}
               {controlModeButton}
             </div>
@@ -1579,25 +1625,21 @@ export function UnifiedBarnTrendPanel({
             <div
               key={`scope-chip-${scopeMotionKey}`}
               className={cn(
-                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[0.65rem] font-medium",
-                xScope.yBands?.length === 1 && xScope.yBands[0] === "temp"
-                  ? dashboardUi.channelTintTemp
-                  : dashboardUi.channelTintInfo,
+                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1 font-medium",
+                farmChartUi.fsMeta,
+                focusBandTint(focusBandActive),
                 motionClass.farmChartScopeChipIn,
               )}
             >
               <span className="shrink-0">
-                {xScope.yBands?.length === 1 && xScope.yBands[0] === "temp"
-                  ? "온도 스코프"
+                {focusBandActive
+                  ? UNIFIED_Y_BAND_LABEL[focusBandActive]
                   : "구간 줌"}
               </span>
-              {xScope.yBands?.length ? (
+              {xScope.yBands?.length && !focusBandActive ? (
                 <span
                   className={cn(
-                    "shrink-0 rounded px-1 py-px",
-                    xScope.yBands.length === 1 && xScope.yBands[0] === "temp"
-                      ? "bg-channel-temp/15"
-                      : "bg-channel-info/15",
+                    "shrink-0 rounded bg-channel-info/15 px-1 py-px",
                   )}
                 >
                   {xScope.yBands.map((b) => UNIFIED_Y_BAND_LABEL[b]).join("+")}
@@ -1641,77 +1683,7 @@ export function UnifiedBarnTrendPanel({
             </div>
           ) : null}
         </div>
-        {canCommand && controlMode && !isMobileStack ? (
-          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:ml-auto">
-            <span className="text-[0.65rem] text-muted-foreground">
-              보라선=설정온도(최저환기)·설정+편차(최고환기) · 체크=명령 전송
-            </span>
-          </div>
-        ) : null}
       </div>
-
-      {scopeSummary ? (
-        <div
-          className={cn(
-            "flex flex-wrap gap-x-3 gap-y-1.5 rounded-md border px-2.5 py-1.5",
-            xScope?.yBands?.length === 1 && xScope.yBands[0] === "temp"
-              ? "border-channel-temp/30 bg-channel-temp/5"
-              : "border-channel-info/30 bg-channel-info/5",
-            motionClass.farmChartScopeChipIn,
-          )}
-          data-farm-chart-scope-summary=""
-          aria-label="선택 구간 요약"
-        >
-          <span
-            className={cn(
-              "self-center text-[0.65rem] font-semibold",
-              xScope?.yBands?.length === 1 && xScope.yBands[0] === "temp"
-                ? "text-channel-temp"
-                : "text-channel-info",
-            )}
-          >
-            구간 요약
-          </span>
-          {scopeSummary.metrics.map((m) => {
-            const breach = formatBreachPct(m.breachRate);
-            return (
-              <div
-                key={m.id}
-                className="min-w-0 text-[0.65rem] tabular-nums text-foreground/90"
-              >
-                <span className="font-medium text-foreground/80">
-                  {m.label}
-                </span>
-                <span className="text-muted-foreground"> avg </span>
-                <span className="font-semibold">
-                  {formatScopeStat(m.avg)}
-                  {m.unit}
-                </span>
-                <span className="text-muted-foreground"> · </span>
-                <span>
-                  {formatScopeStat(m.min)}–{formatScopeStat(m.max)}
-                  {m.unit}
-                </span>
-                {breach != null ? (
-                  <>
-                    <span className="text-muted-foreground"> · 이탈 </span>
-                    <span
-                      className={cn(
-                        "font-semibold",
-                        (m.breachRate ?? 0) > 0.2
-                          ? "text-destructive"
-                          : "text-foreground/80",
-                      )}
-                    >
-                      {breach}
-                    </span>
-                  </>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
 
       {built &&
       scoped &&
@@ -1723,18 +1695,34 @@ export function UnifiedBarnTrendPanel({
           series={scoped.series}
           envelopes={scoped.envelopes}
           histograms={scoped.histograms}
-          height={chartHeight ?? (isMobileStack ? 320 : 340)}
-          leftUnit=""
+          height={
+            chartHeight ??
+            (isMobileStack ? chartUiPx(320) : chartUiPx(340))
+          }
+          leftUnit={chartLeftUnit}
           leftDomain={built.leftDomain}
           period={period}
           tickEvery={tickEveryForDisplayBars(chartCategories.length)}
           showLegend
-          legendDensity={isMobileStack ? "core" : "full"}
-          scaleEdgeHitPx={isMobileStack ? 22 : 10}
+          legendDensity={
+            isMobileStack ||
+            !(
+              layers.ema ||
+              layers.humEma ||
+              layers.dev ||
+              layers.humDev ||
+              layers.band ||
+              layers.humBand ||
+              layers.motorCh
+            )
+              ? "core"
+              : "full"
+          }
+          scaleEdgeHitPx={isMobileStack ? chartUiPx(22) : chartUiPx(10)}
           labelGutter={isMobileStack}
           showMarkers
           markerDensity={period === "24h" ? "all" : "sparse"}
-          markerRadiusPx={isMobileStack ? 2.8 : 3.2}
+          markerRadiusPx={isMobileStack ? chartUiPx(2.8) : chartUiPx(3.2)}
           animate
           layerClipWipe
           splitBandGuides={splitBandGuides}
@@ -1843,14 +1831,6 @@ export function UnifiedBarnTrendPanel({
           }}
           overviewValues={brushOverview}
         />
-      ) : null}
-
-      {built ? (
-        <p className="hidden text-[0.65rem] leading-snug text-muted-foreground lg:block">
-          온도 레인 드래그=시간·밴드 스코프(온도만 확장) · 하단=기간(24h/7d/30d)
-          선택 · 우측 가이드 숫자 드래그/우클릭=임계값 · 빈 곳 우클릭/Esc=뒤로 ·
-          ×=전체 해제
-        </p>
       ) : null}
     </div>
   );

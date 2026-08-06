@@ -5,7 +5,7 @@ import {
 } from "@/lib/data/alarms";
 import type { TrendStallSeries } from "@/lib/data/farm-trend-types";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
-import type { ChannelSlot } from "@/lib/data/iot-channel";
+import { CHANNEL_SLOT_LABELS, type ChannelSlot } from "@/lib/data/iot-channel";
 import {
   type Band,
   fanBand,
@@ -161,9 +161,21 @@ const CHANNEL_SLOT_META: Record<
   ChannelSlot,
   { field: keyof Pick<TrendStallSeries, "fanIntake" | "fanExhaust" | "fanSupply">; color: string; label: string }
 > = {
-  A: { field: "fanIntake", color: TREND_CHART_COLORS.fanIntake, label: "채널 A" },
-  B: { field: "fanExhaust", color: TREND_CHART_COLORS.fanExhaust, label: "채널 B" },
-  C: { field: "fanSupply", color: TREND_CHART_COLORS.fanSupply, label: "채널 C" },
+  A: {
+    field: "fanIntake",
+    color: TREND_CHART_COLORS.fanIntake,
+    label: CHANNEL_SLOT_LABELS.A,
+  },
+  B: {
+    field: "fanExhaust",
+    color: TREND_CHART_COLORS.fanExhaust,
+    label: CHANNEL_SLOT_LABELS.B,
+  },
+  C: {
+    field: "fanSupply",
+    color: TREND_CHART_COLORS.fanSupply,
+    label: CHANNEL_SLOT_LABELS.C,
+  },
 };
 
 export function channelFanTrendSeries(

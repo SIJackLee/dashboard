@@ -201,6 +201,7 @@ export function BarnListGraphPanel({
               rightUnit="%"
               leftDomain={tempDomain}
               rightDomain={humidityDomain}
+              yAxisTicks="ends"
               referenceLines={envRefs}
               tickEvery={tickEvery}
               period={period}

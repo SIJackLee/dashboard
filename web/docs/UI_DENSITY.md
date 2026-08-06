@@ -24,7 +24,10 @@
 
 인라인 `text-[1.75rem]` / `1.625rem` 금지 — `npm run verify:ui-density`.
 
-`opsTypography` / farm 차트 내부 리터럴은 이미 조밀 — density 토큰 밖.
+opsTypography / farm 차트: A안 — **차트 탭** `.farm-chart-ui` + `--farm-chart-ui-scale` **2**.  
+현장 목록·카드 미니차트는 기본 **1×** (`var(--farm-chart-ui-scale, 1)`).  
+토큰·클래스: `src/lib/ui/farm-chart-ui-scale.ts` · `globals.css` `.farm-chart-fs-*`.  
+허브 density(comfortable/compact)와는 분리(B안 후보).
 
 ## API
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { Warehouse, Building2, GripVertical, Check } from "lucide-react";
+import type { ReactNode } from "react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { EnvChip } from "@/components/common/env-chip";
@@ -18,6 +19,14 @@ const STATUS_ACCENT: Record<StatusTone, string> = {
   warning:
     "ring-2 ring-red-500/90 shadow-[0_0_16px_2px_rgba(239,68,68,0.40)]",
   offline: "ring-1 ring-muted-foreground/30 opacity-70 saturate-50",
+};
+
+/** 스플릿 현황 카드 — 히트맵 없이 상태 면색으로 한눈 파악 */
+const STATUS_SURFACE: Record<StatusTone, string> = {
+  normal: "bg-emerald-500/10",
+  caution: "bg-amber-500/15",
+  warning: "bg-red-500/15",
+  offline: "bg-muted/40",
 };
 
 const STATUS_LABEL: Record<StatusTone, string> = {
@@ -58,7 +67,9 @@ type Props = {
   selectable?: boolean;
   selected?: boolean;
   /** 병합 카드 — 온·습도 요약 아래에 함께 표시할 히트맵 슬롯 */
-  graphContent?: React.ReactNode;
+  graphContent?: ReactNode;
+  /** 현장 스플릿 현황 — 면색+명칭+온습도만 (히트맵·그립 없음) */
+  statusCompact?: boolean;
 };
 
 export function FarmMapCard({
@@ -73,41 +84,111 @@ export function FarmMapCard({
   selectable = false,
   selected = false,
   graphContent,
+  statusCompact = false,
 }: Props) {
   const { meta } = snapshot;
   const Icon = meta.type === "office" ? Building2 : Warehouse;
-  const title = displayCardTitle(snapshot, compact);
+  const title = displayCardTitle(snapshot, compact || statusCompact);
+  const showGrip = Boolean(draggable) && !statusCompact;
+  const showGraph = Boolean(graphContent) && !statusCompact;
 
-  // 레거시 그래프 드릴(카드 클릭 → sp 라우팅) 제거 — 클릭은 일괄모드 선택에만 사용.
+  const tempLabel = formatSensorNumberForDisplay(snapshot.status, snapshot.tempC);
+  const humLabel = formatSensorNumberForDisplay(
+    snapshot.status,
+    snapshot.humidityPct,
+  );
+
+  // 클릭: 일괄모드 선택, 또는 현장 통합 시 상세/목록 연동.
   const handleSelect = () => {
     if (isDragging) return;
     onSelect?.();
   };
+
+  if (statusCompact) {
+    return (
+      <button
+        type="button"
+        onClick={handleSelect}
+        disabled={!onSelect}
+        aria-label={`${title} ${STATUS_LABEL[snapshot.status]} 온도 ${tempLabel ?? "—"} 습도 ${humLabel ?? "—"}`}
+        data-tour-id="barn-card"
+        className={cn(
+          "flex w-full min-w-0 flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 text-center transition-shadow",
+          STATUS_SURFACE[snapshot.status],
+          STATUS_ACCENT[snapshot.status],
+          selectable && "cursor-pointer",
+          selected && "!ring-2 !ring-primary !ring-offset-1",
+          className,
+        )}
+      >
+        <span
+          className="w-full truncate text-center text-sm font-semibold leading-tight text-foreground"
+          title={title}
+        >
+          {title}
+        </span>
+        <span className="flex w-full flex-nowrap items-baseline justify-center gap-2 whitespace-nowrap leading-none">
+          <span className="inline-flex shrink-0 items-baseline gap-px">
+            <span
+              className={cn(
+                dashboardUi.gridCellValueCompact,
+                "text-orange-500",
+              )}
+            >
+              {tempLabel != null && tempLabel !== "" ? tempLabel : "—"}
+            </span>
+            <span className="text-[0.65rem] font-medium text-orange-500/70">
+              ℃
+            </span>
+          </span>
+          <span
+            className="h-3 w-px shrink-0 self-center bg-border/60"
+            aria-hidden
+          />
+          <span className="inline-flex shrink-0 items-baseline gap-px">
+            <span
+              className={cn(
+                dashboardUi.gridCellValueCompact,
+                "text-channel-info",
+              )}
+            >
+              {humLabel != null && humLabel !== "" ? humLabel : "—"}
+            </span>
+            <span className="text-[0.65rem] font-medium text-channel-info/70">
+              %
+            </span>
+          </span>
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div
       aria-label={`${title} ${STATUS_LABEL[snapshot.status]}`}
       data-tour-id="barn-card"
       className={cn(
-        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border bg-background transition-shadow",
+        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border transition-shadow",
+        statusCompact ? STATUS_SURFACE[snapshot.status] : "bg-background",
         layout === "stack" || !compact ? "h-auto" : "h-full",
         STATUS_ACCENT[snapshot.status],
         isDragging && "!opacity-50 !ring-2 !ring-emerald-400",
-        layout === "grid" && "hover:shadow-md",
+        layout === "grid" && !statusCompact && "hover:shadow-md",
         selectable && "cursor-pointer",
         selected && "!ring-2 !ring-primary !ring-offset-1",
         className
       )}
       style={
-        layout === "grid"
+        layout === "grid" && !statusCompact
           ? { gridColumn: meta.grid.col, gridRow: meta.grid.row }
           : undefined
       }
     >
       <div
         className={cn(
-          "flex min-h-0 shrink-0 items-center gap-1 border-b bg-muted/30",
-          compact ? "gap-1 px-1.5 py-1" : "gap-1.5 px-2 py-1.5 lg:gap-2"
+          "flex min-h-0 shrink-0 items-center gap-1 border-b",
+          statusCompact ? "border-black/5 bg-transparent dark:border-white/10" : "bg-muted/30",
+          compact || statusCompact ? "gap-1 px-1.5 py-1" : "gap-1.5 px-2 py-1.5 lg:gap-2"
         )}
       >
         {selectable ? (
@@ -123,7 +204,7 @@ export function FarmMapCard({
             {selected ? <Check className="size-3.5" /> : null}
           </span>
         ) : null}
-        {draggable ? (
+        {showGrip ? (
           <div
             role="button"
             tabIndex={0}
@@ -159,16 +240,18 @@ export function FarmMapCard({
             onSelect && "cursor-pointer"
           )}
         >
-          <Icon
-            className={cn(
-              "text-emerald-600",
-              compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
-            )}
-          />
+          {!statusCompact ? (
+            <Icon
+              className={cn(
+                "text-emerald-600",
+                compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
+              )}
+            />
+          ) : null}
           <span
             className={cn(
               "min-w-0 flex-1",
-              compact
+              compact || statusCompact
                 ? cn("line-clamp-2", dashboardUi.gridCellValueCompact)
                 : cn("truncate whitespace-nowrap", dashboardUi.gridCellValueDefault),
             )}
@@ -182,7 +265,7 @@ export function FarmMapCard({
       <div
         className={cn(
           "flex min-h-0 flex-1 flex-col",
-          compact ? "gap-1 px-1.5 py-1" : "gap-1 px-2 py-1.5"
+          compact || statusCompact ? "gap-1 px-1.5 py-1" : "gap-1 px-2 py-1.5"
         )}
       >
         <button
@@ -191,15 +274,15 @@ export function FarmMapCard({
           disabled={!onSelect}
           className={cn(
             "grid min-h-0 grid-cols-2 rounded text-left",
-            compact ? "gap-1" : "gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3",
+            compact || statusCompact ? "gap-1" : "gap-1 [&>div]:px-2 [&>div]:py-1.5 lg:[&>div]:px-4 lg:[&>div]:py-3",
             onSelect && "cursor-pointer hover:bg-muted/20"
           )}
         >
           <EnvChip
             kind="temp"
             value={formatSensorNumberForDisplay(snapshot.status, snapshot.tempC)}
-            valueOnly={compact}
-            compact={compact}
+            valueOnly={compact || statusCompact}
+            compact={compact || statusCompact}
           />
           <EnvChip
             kind="humidity"
@@ -207,11 +290,11 @@ export function FarmMapCard({
               snapshot.status,
               snapshot.humidityPct
             )}
-            valueOnly={compact}
-            compact={compact}
+            valueOnly={compact || statusCompact}
+            compact={compact || statusCompact}
           />
         </button>
-        {graphContent ? <div className="min-h-0">{graphContent}</div> : null}
+        {showGraph ? <div className="min-h-0">{graphContent}</div> : null}
       </div>
     </div>
   );

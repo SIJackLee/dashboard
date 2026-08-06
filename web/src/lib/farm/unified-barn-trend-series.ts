@@ -9,6 +9,7 @@ import type {
 import type { AlarmThresholds } from "@/lib/data/alarms";
 import type { TrendControllerSeries } from "@/lib/data/farm-trend-types";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
+import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   formatHumidityAlarmRange,
@@ -16,7 +17,7 @@ import {
 } from "@/lib/farm/controller-summary-display";
 
 export const UNIFIED_TEMP_BAND_FILL = "#ef4444";
-/** 온도 밴드 오버레이 편차 — 온도감 유지, 본선(#ef4444)과 구분 */
+/** 온도 밴드 오버레이 분포 — 온도감 유지, 본선(#ef4444)과 구분 */
 export const DEV_HIST_COLOR_UP = "#fb923c";
 export const DEV_HIST_COLOR_DOWN = "#fb7185";
 /** EMA 추세선 (온도) */
@@ -24,11 +25,27 @@ export const EMA_SHORT_COLOR = "#fca5a5";
 export const EMA_LONG_COLOR = "#b91c1c";
 
 export const UNIFIED_HUM_BAND_FILL = "#0ea5e9";
-/** 습도 편차 — 본선(#0ea5e9)과 구분 */
+/** 습도 분포 히스토그램 — 본선(#0ea5e9)과 구분 */
 export const HUM_DEV_HIST_COLOR_UP = "#38bdf8";
 export const HUM_DEV_HIST_COLOR_DOWN = "#818cf8";
 export const HUM_EMA_SHORT_COLOR = "#7dd3fc";
 export const HUM_EMA_LONG_COLOR = "#0284c7";
+
+/** 통합 차트 UI 정식명 (범례·툴팁) */
+export const UNIFIED_CHART_LABELS = {
+  tempEmaShort: "온도 추세",
+  tempEmaLong: "온도 장기 추세",
+  humEmaShort: "습도 추세",
+  humEmaLong: "습도 장기 추세",
+  tempBand: "온도 범위",
+  humBand: "습도 범위",
+  tempDev: "온도 분포",
+  humDev: "습도 분포",
+  motor: "모터",
+  motorA: CHANNEL_SLOT_LABELS.A,
+  motorB: CHANNEL_SLOT_LABELS.B,
+  motorC: CHANNEL_SLOT_LABELS.C,
+} as const;
 
 /** A안 — 임계 접촉 코리도 채움 */
 export const UNIFIED_TEMP_BREACH_HI_FILL = "#ef4444";
@@ -363,8 +380,22 @@ export type UnifiedLayerId =
 
 export type UnifiedLayerFlags = Record<UnifiedLayerId, boolean>;
 
-/** 기본: 온도·습도 본선 + 산포·편차·EMA5 + 모터(max) */
+/** 기본: 온도·습도·모터 본선만 (산포·편차·EMA는 툴바에서 opt-in) */
 export const DEFAULT_UNIFIED_LAYERS: UnifiedLayerFlags = {
+  motors: true,
+  motorCh: false,
+  temp: true,
+  hum: true,
+  band: false,
+  dev: false,
+  ema: false,
+  humBand: false,
+  humDev: false,
+  humEma: false,
+};
+
+/** 분석용 — 본선 + 산포·편차·EMA5 + 모터 */
+export const ALL_UNIFIED_LAYERS: UnifiedLayerFlags = {
   motors: true,
   motorCh: false,
   temp: true,
@@ -401,6 +432,17 @@ export const UNIFIED_Y_BAND_LABEL: Record<UnifiedYBandId, string> = {
   hum: "습도",
   motor: "모터",
 };
+
+/** E — UI 칩·스코프 배지: 「온도 집중」 */
+export function unifiedYBandFocusLabel(band: UnifiedYBandId): string {
+  return `${UNIFIED_Y_BAND_LABEL[band]} 집중`;
+}
+
+export function isSingleYBandFocus(
+  yBands: UnifiedYBandId[] | null | undefined,
+): yBands is [UnifiedYBandId] {
+  return Array.isArray(yBands) && yBands.length === 1;
+}
 
 export function countSplitYBands(visibility: SplitYVisibility): number {
   return (
@@ -618,6 +660,84 @@ export function paddedAlarmDomain(lo: number, hi: number): [number, number] {
   return [lo - pad, hi + pad];
 }
 
+/**
+ * C2 — 밴드 1개만 ON이면 원단위 Y(℃/%) identity 레이아웃.
+ * 매핑 함수가 항등이 되어 축·드래그·엣지 라벨이 실제 단위로 동작한다.
+ */
+export type UnifiedPlotLayoutSpec = {
+  layout: SplitYLayout;
+  leftUnit: string;
+  nativeBand: UnifiedYBandId | null;
+};
+
+export function resolveUnifiedPlotLayout(
+  visibility: SplitYVisibility,
+  thresholds: Pick<
+    AlarmThresholds,
+    "tempLow" | "tempHigh" | "humidityLow" | "humidityHigh"
+  >,
+): UnifiedPlotLayoutSpec {
+  const n = countSplitYBands(visibility);
+  if (n === 1 && visibility.showTemp) {
+    const [vlo, vhi] = paddedAlarmDomain(
+      thresholds.tempLow,
+      thresholds.tempHigh,
+    );
+    return {
+      layout: {
+        motorLo: 0,
+        motorHi: 0,
+        humLo: 0,
+        humHi: 0,
+        tempLo: vlo,
+        tempHi: vhi,
+        domain: [vlo, vhi],
+      },
+      leftUnit: "℃",
+      nativeBand: "temp",
+    };
+  }
+  if (n === 1 && visibility.showHum) {
+    const [vlo, vhi] = paddedAlarmDomain(
+      thresholds.humidityLow,
+      thresholds.humidityHigh,
+    );
+    return {
+      layout: {
+        motorLo: 0,
+        motorHi: 0,
+        humLo: vlo,
+        humHi: vhi,
+        tempLo: 0,
+        tempHi: 0,
+        domain: [vlo, vhi],
+      },
+      leftUnit: "%",
+      nativeBand: "hum",
+    };
+  }
+  if (n === 1 && visibility.showMotors) {
+    return {
+      layout: {
+        motorLo: 0,
+        motorHi: 100,
+        humLo: 0,
+        humHi: 0,
+        tempLo: 0,
+        tempHi: 0,
+        domain: [0, 100],
+      },
+      leftUnit: "%",
+      nativeBand: "motor",
+    };
+  }
+  return {
+    layout: resolveSplitYLayout(visibility),
+    leftUnit: "",
+    nativeBand: null,
+  };
+}
+
 function mapToValueBand(
   value: number | null | undefined,
   valueLo: number,
@@ -710,7 +830,7 @@ export function mapTempCToSplitY(
 }
 
 /**
- * 온도 편차(℃) → 온도 주패널에 오버레이.
+ * 온도 분포(℃) → 온도 주패널에 오버레이.
  * 중점+편차를 온도 스케일로 매핑 (자연스러운 위치).
  */
 export function mapTempDeviationToSplitY(
@@ -725,7 +845,7 @@ export function mapTempDeviationToSplitY(
 }
 
 /**
- * 습도 편차(%p) → 습도 밴드에 오버레이.
+ * 습도 분포(%p) → 습도 밴드에 오버레이.
  */
 export function mapHumDeviationToSplitY(
   deviationPct: number | null | undefined,
@@ -1220,7 +1340,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
   }
   if (hasFinite(emaShortPlot)) {
     seriesByKey.emaShort = {
-      name: `온도EMA${EMA_SHORT_PERIOD}`,
+      name: UNIFIED_CHART_LABELS.tempEmaShort,
       data: emaShortPlot,
       color: EMA_SHORT_COLOR,
       axis: "left",
@@ -1231,7 +1351,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
   }
   if (hasFinite(emaLongPlot)) {
     seriesByKey.emaLong = {
-      name: `온도EMA${EMA_LONG_PERIOD}`,
+      name: UNIFIED_CHART_LABELS.tempEmaLong,
       data: emaLongPlot,
       color: EMA_LONG_COLOR,
       axis: "left",
@@ -1242,7 +1362,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
   }
   if (hasFinite(humEmaShortPlot)) {
     seriesByKey.humEmaShort = {
-      name: `습도EMA${EMA_SHORT_PERIOD}`,
+      name: UNIFIED_CHART_LABELS.humEmaShort,
       data: humEmaShortPlot,
       color: HUM_EMA_SHORT_COLOR,
       axis: "left",
@@ -1253,7 +1373,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
   }
   if (hasFinite(humEmaLongPlot)) {
     seriesByKey.humEmaLong = {
-      name: `습도EMA${EMA_LONG_PERIOD}`,
+      name: UNIFIED_CHART_LABELS.humEmaLong,
       data: humEmaLongPlot,
       color: HUM_EMA_LONG_COLOR,
       axis: "left",
@@ -1273,19 +1393,19 @@ export function mapUnifiedBarnTrendRawToSplitY(
       plot: fanAPlot,
       raw: raw.fanA,
       color: TREND_CHART_COLORS.fanIntake,
-      label: "A",
+      label: UNIFIED_CHART_LABELS.motorA,
     },
     {
       plot: fanBPlot,
       raw: raw.fanB,
       color: TREND_CHART_COLORS.fanExhaust,
-      label: "B",
+      label: UNIFIED_CHART_LABELS.motorB,
     },
     {
       plot: fanCPlot,
       raw: raw.fanC,
       color: TREND_CHART_COLORS.fanSupply,
-      label: "C",
+      label: UNIFIED_CHART_LABELS.motorC,
     },
   ].filter((m) => hasFinite(m.raw));
 
@@ -1303,7 +1423,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
           colorUp: TREND_CHART_COLORS.fanIntake,
           colorDown: TREND_CHART_COLORS.fanIntake,
           style: "volume" as const,
-          legendLabel: "모터",
+          legendLabel: UNIFIED_CHART_LABELS.motor,
           hoverSecondary: raw.fanMaxRaw,
           hoverSecondaryUnit: "%",
           hoverChannels: motorHoverChannels,
@@ -1345,7 +1465,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
           axis: "left" as const,
           fill: UNIFIED_TEMP_BAND_FILL,
           fillOpacity: 0.12,
-          legendLabel: "온도 산포",
+          legendLabel: UNIFIED_CHART_LABELS.tempBand,
           hoverExtremes: raw.tempSpreadExtremes,
         }
       : null;
@@ -1358,7 +1478,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
           axis: "left" as const,
           fill: UNIFIED_HUM_BAND_FILL,
           fillOpacity: 0.14,
-          legendLabel: "습도 산포",
+          legendLabel: UNIFIED_CHART_LABELS.humBand,
           hoverExtremes: raw.humSpreadExtremes,
         }
       : null;
@@ -1373,7 +1493,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
           style: "overlay" as const,
           fillOpacity: 0.14,
           fillOpacityValues: raw.tempDevOpacity,
-          legendLabel: "온도 편차",
+          legendLabel: UNIFIED_CHART_LABELS.tempDev,
           hoverSecondary: raw.tempDevRaw,
           hoverSecondaryUnit: "℃",
           hoverFormat: "midpointDelta" as const,
@@ -1390,7 +1510,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
           style: "overlay" as const,
           fillOpacity: 0.14,
           fillOpacityValues: raw.humDevOpacity,
-          legendLabel: "습도 편차",
+          legendLabel: UNIFIED_CHART_LABELS.humDev,
           hoverSecondary: raw.humDevRaw,
           hoverSecondaryUnit: "%",
           hoverFormat: "midpointDelta" as const,

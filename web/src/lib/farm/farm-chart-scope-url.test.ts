@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   applyFarmChartScopeParams,
   applyFarmChartZoomParams,
+  chartScopeEntryToZoomHint,
   clearFarmChartScopeParams,
   clearFarmChartZoomParams,
   resolveFarmChartScope,
@@ -133,6 +134,29 @@ import {
   assert.equal(params.get("chartYBand"), null);
   clearFarmChartZoomParams(params);
   assert.equal(params.get("chartX0"), null);
+}
+
+{
+  const hint = chartScopeEntryToZoomHint(
+    { start: 0, end: 99, yBands: ["hum"] },
+    100,
+  );
+  assert.ok(hint);
+  assert.deepEqual(hint!.yBands, ["hum"]);
+  assert.equal(hint!.startRatio, 0);
+  assert.equal(hint!.endRatio, 1);
+  assert.equal(hint!.startIndex, 0);
+  assert.equal(hint!.endIndex, 99);
+
+  const params = new URLSearchParams();
+  applyFarmChartZoomParams(params, hint);
+  assert.equal(params.get("chartYBand"), "hum");
+  assert.equal(params.get("chartX0"), null);
+
+  assert.equal(
+    chartScopeEntryToZoomHint({ start: 0, end: 10, yBands: null }, 100),
+    null,
+  );
 }
 
 console.log("farm-chart-scope-url.test.ts: ok");

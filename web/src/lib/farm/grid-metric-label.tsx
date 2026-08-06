@@ -1,12 +1,13 @@
 import { Droplets, Thermometer } from "lucide-react";
+import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
 import { cn } from "@/lib/utils";
 
 const METRIC_ARIA: Record<string, string> = {
   T: "온도",
   H: "습도",
-  A: "채널 A",
-  B: "채널 B",
-  C: "채널 C",
+  A: CHANNEL_SLOT_LABELS.A,
+  B: CHANNEL_SLOT_LABELS.B,
+  C: CHANNEL_SLOT_LABELS.C,
 };
 
 export function gridMetricAriaLabel(id: string, fallback?: string): string {

@@ -59,6 +59,9 @@ type Props = {
   onTrendPeriodChange?: (period: TrendPeriodId) => void;
   trendLoading?: boolean;
   trendStale?: boolean;
+  /** 그리드·목록 통합 — 카드 선택·차트 이동 */
+  fieldMerge?: boolean;
+  onOpenChart?: () => void;
 };
 
 export function FarmMapView({
@@ -77,6 +80,8 @@ export function FarmMapView({
   onTrendPeriodChange,
   trendLoading = false,
   trendStale = false,
+  fieldMerge = false,
+  onOpenChart,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const emptyReason =
@@ -117,6 +122,8 @@ export function FarmMapView({
             onTrendPeriodChange={onTrendPeriodChange}
             trendLoading={trendLoading}
             trendStale={trendStale}
+            fieldMerge={fieldMerge}
+            onOpenChart={onOpenChart}
           />
         ) : (
           <FarmMapCanvas
@@ -132,6 +139,8 @@ export function FarmMapView({
             onTrendPeriodChange={onTrendPeriodChange}
             trendLoading={trendLoading}
             trendStale={trendStale}
+            fieldMerge={fieldMerge}
+            onOpenChart={onOpenChart}
           />
         )}
       </SectionCard>

@@ -69,6 +69,16 @@ export function comfortScoreToColor(score: number): string {
   return lerpHex("#f43f5e", "#fbbf24", t);
 }
 
+/** 브러시·팝업용 구간 라벨 (색 임계와 동일) */
+export function comfortScoreBandLabel(
+  score: number,
+): "양호" | "주의" | "이탈" {
+  const s = Math.max(0, Math.min(100, score));
+  if (s >= 75) return "양호";
+  if (s >= 45) return "주의";
+  return "이탈";
+}
+
 function lerpHex(a: string, b: string, t: number): string {
   const u = Math.max(0, Math.min(1, t));
   const pa = hexToRgb(a);

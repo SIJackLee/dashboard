@@ -454,6 +454,7 @@ export function FarmAriaView({
             } as CSSProperties)
           : undefined
       }
+      data-tour-id="farm-aria-view"
       data-testid="farm-aria-view"
       data-aria-result={hasResultSurface ? "1" : "0"}
       data-aria-reveal-beat={revealBeat}

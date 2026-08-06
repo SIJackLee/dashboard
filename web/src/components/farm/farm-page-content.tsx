@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
-import { Map, List, LineChart, Bot } from "lucide-react";
+import { Warehouse, Map, List, LineChart, Bot } from "lucide-react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
@@ -18,6 +18,11 @@ import { FarmMapView } from "@/components/farm/farm-map-view";
 import { FarmChartView } from "@/components/farm/farm-chart-view";
 import { FarmAriaView } from "@/components/farm/farm-aria-view";
 import { BarnTable } from "@/components/farm/barn-table";
+import {
+  FarmFieldStatusGrid,
+  firstControllerKeyForBarn,
+  readingsMatchingBarn,
+} from "@/components/farm/farm-field-status-grid";
 import { FarmFeatureTour } from "@/components/onboarding/feature-tour";
 import {
   currentFarmSearchParams,
@@ -31,13 +36,16 @@ import {
 } from "@/lib/farm/farm-view-url";
 import {
   applyFarmChartScopeParams,
+  applyFarmChartZoomParams,
   clearFarmChartZoomParams,
   resolveFarmChartScope,
   resolveFarmChartZoomHint,
+  type ChartTrendZoomHint,
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
 import { isFarmHubPanelLiveActive } from "@/lib/farm/farm-hub-keepalive";
 import { useFarmHubViewShell } from "@/lib/farm/use-farm-hub-view-shell";
+import { farmFieldMergeEnabled } from "@/lib/farm/farm-field-merge-enabled";
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { farmKeyId, parseFarmKeyFromQuery, parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
@@ -58,6 +66,7 @@ import {
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { dashboardChroma, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
+import { useFieldListFilterMotion } from "@/components/farm/use-field-list-filter-motion";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { DELIN_NAME } from "@/lib/aria/aria-mode";
@@ -118,7 +127,7 @@ export function FarmPageContent({
 
   const tablistRef = useRef<HTMLDivElement>(null);
   const [tabPill, setTabPill] = useState({ left: 0, width: 0 });
-  /** ScopeBar 농장 선택 옆 슬롯 — undefined=미확인, null=없음, Element=portal */
+  /** TopBar 보기 토글 슬롯 — undefined=미확인, null=없음, Element=portal */
   const [scopeToggleSlot, setScopeToggleSlot] = useState<
     Element | null | undefined
   >(undefined);
@@ -128,12 +137,13 @@ export function FarmPageContent({
       queueMicrotask(() => setScopeToggleSlot(null));
       return;
     }
+    const attr = viewportCompact ? "mobile" : "desktop";
     queueMicrotask(() => {
       setScopeToggleSlot(
-        document.querySelector("[data-farm-view-toggle-slot]"),
+        document.querySelector(`[data-farm-view-toggle-slot="${attr}"]`),
       );
     });
-  }, [hideViewTabs, hubMode]);
+  }, [hideViewTabs, hubMode, viewportCompact]);
 
   const gridFarmKey = useMemo<FarmKey | null>(() => {
     const first = readings[0]?.farmKey ?? null;
@@ -198,7 +208,6 @@ export function FarmPageContent({
     chartEverOpened,
     ariaEverOpened,
     setView,
-    setTourView,
   } = useFarmHubViewShell({
     hubMode,
     hubUrlEpoch,
@@ -210,6 +219,62 @@ export function FarmPageContent({
       void enrichListIfNeeded();
     },
   });
+
+  const fieldMerge = farmFieldMergeEnabled();
+  const fieldActive = view === "map" || view === "list";
+  const openChartFromField = useCallback(() => {
+    setView("chart");
+  }, [setView]);
+  const [fieldFocusCtrl, setFieldFocusCtrl] = useState<string | null>(null);
+  const [fieldSelectedBarnId, setFieldSelectedBarnId] = useState<string | null>(
+    null,
+  );
+  /** PC 스플릿 — 좌측 현황 열 표시 */
+  const [fieldStatusOpen, setFieldStatusOpen] = useState(true);
+
+  const selectBarnForList = useCallback(
+    (barn: BarnMapSnapshot) => {
+      setFieldSelectedBarnId((prev) => {
+        if (prev === barn.meta.id) {
+          setFieldFocusCtrl(null);
+          return null;
+        }
+        const key = firstControllerKeyForBarn(barn, readings);
+        setFieldFocusCtrl(null);
+        if (key) {
+          requestAnimationFrame(() => {
+            setFieldFocusCtrl(key);
+          });
+        }
+        return barn.meta.id;
+      });
+    },
+    [readings],
+  );
+
+  const clearFieldBarnFilter = useCallback(() => {
+    setFieldSelectedBarnId(null);
+    setFieldFocusCtrl(null);
+  }, []);
+
+  const fieldListReadings = useMemo(() => {
+    if (!fieldMerge || !fieldSelectedBarnId) return readings;
+    const barn = barnSnapshots.find((b) => b.meta.id === fieldSelectedBarnId);
+    if (!barn) return readings;
+    return readingsMatchingBarn(barn, readings);
+  }, [fieldMerge, fieldSelectedBarnId, barnSnapshots, readings]);
+
+  const fieldFilterKey = fieldSelectedBarnId ?? "all";
+  const {
+    displayRows: fieldMotionRows,
+    phase: fieldFilterPhase,
+    enterEpoch: fieldFilterEnterEpoch,
+  } = useFieldListFilterMotion(fieldFilterKey, fieldListReadings);
+
+  useEffect(() => {
+    if (!fieldMerge || !fieldActive) return;
+    void enrichListIfNeeded();
+  }, [fieldMerge, fieldActive, enrichListIfNeeded]);
 
   useEffect(() => {
     enrichGenRef.current += 1;
@@ -238,7 +303,7 @@ export function FarmPageContent({
           liveRefreshRef.current?.hydrateStallTrend(gridFarmKey, trend);
         });
       }
-      if (view === "list") {
+      if (view === "list" || (fieldMerge && view === "map")) {
         void enrichListIfNeeded();
       }
     };
@@ -259,7 +324,7 @@ export function FarmPageContent({
         window.clearTimeout(idleId);
       }
     };
-  }, [gridFarmKey, tourActive, enrichListIfNeeded, view]);
+  }, [gridFarmKey, tourActive, enrichListIfNeeded, view, fieldMerge]);
 
   useEffect(() => {
     if (!lazyListEnrichment || !lazyListFarmKey) return;
@@ -341,7 +406,10 @@ export function FarmPageContent({
   }, [urlHydrated, hubUrlEpoch, urlTick, searchParams]);
 
   const urlCtrl = shallowParams.get("ctrl");
-  const listSp = view === "list" ? shallowParams.get("sp") ?? undefined : undefined;
+  const listSp =
+    fieldMerge || view === "list"
+      ? shallowParams.get("sp") ?? undefined
+      : undefined;
   const listMode = useMemo(() => {
     return resolveListViewMode(shallowParams, "controller");
   }, [shallowParams]);
@@ -376,6 +444,17 @@ export function FarmPageContent({
       const params = new URLSearchParams(currentFarmSearchParams().toString());
       applyFarmChartScopeParams(params, scope);
       clearFarmChartZoomParams(params);
+      pinFarmHubViewParam(params, "chart");
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
+    },
+    [setUrlTick],
+  );
+
+  const onChartZoomChange = useCallback(
+    (zoom: ChartTrendZoomHint | null) => {
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      applyFarmChartZoomParams(params, zoom);
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
@@ -423,16 +502,46 @@ export function FarmPageContent({
     );
   };
 
+  /** 현장 통합 — map|list 를 하나의 스플릿 패널로 */
+  const fieldPanelMotionClass = () => {
+    const active = fieldActive;
+    const fromField =
+      viewSlide != null &&
+      (viewSlide.from === "map" || viewSlide.from === "list");
+    const toField =
+      viewSlide != null &&
+      (viewSlide.to === "map" || viewSlide.to === "list");
+    const exiting = Boolean(fromField && !active);
+    const entering = Boolean(toField && active);
+    if (!active && !exiting) return "hidden";
+    return cn(
+      exiting && "pointer-events-none absolute inset-x-0 top-0 z-0 w-full",
+      active && "relative z-[1] w-full",
+      exiting &&
+        viewSlide &&
+        (viewSlide.dir === 1
+          ? motionClass.viewSlideExitNext
+          : motionClass.viewSlideExitPrev),
+      entering &&
+        viewSlide &&
+        (viewSlide.dir === 1
+          ? motionClass.viewSlideEnterNext
+          : motionClass.viewSlideEnterPrev),
+    );
+  };
+
   const embedInScopeHeader = Boolean(scopeToggleSlot);
   const awaitingScopeSlot =
     hubMode && !hideViewTabs && scopeToggleSlot === undefined;
 
   const viewTabBtn = (active: boolean) =>
     cn(
-      "relative z-[1] inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-medium",
-      embedInScopeHeader
-        ? "flex-1 px-2.5 py-1.5 sm:flex-none sm:px-3"
-        : "gap-2 px-5 py-2.5",
+      "relative z-[1] inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg font-medium",
+      embedInScopeHeader && viewportCompact
+        ? "min-w-0 flex-1 px-2 py-2.5"
+        : embedInScopeHeader
+          ? "shrink-0 px-2.5 py-1.5 sm:px-3"
+          : "shrink-0 gap-2 px-5 py-2.5",
       motionClass.microInteractive,
       tabNavClass,
       active
@@ -445,11 +554,13 @@ export function FarmPageContent({
       ref={tablistRef}
       className={cn(
         "relative inline-flex max-w-full flex-nowrap rounded-xl border bg-muted/40 p-1",
-        embedInScopeHeader
-          ? "w-full text-sm md:text-sm sm:w-auto"
-          : gridCompactShell || viewportCompact
-            ? "text-sm md:text-sm"
-            : dashboardUi.body,
+        embedInScopeHeader && viewportCompact
+          ? "w-full text-sm"
+          : embedInScopeHeader
+            ? "w-auto shrink-0 text-sm"
+            : gridCompactShell || viewportCompact
+              ? "text-sm md:text-sm"
+              : dashboardUi.body,
       )}
       role="tablist"
       aria-label="농장 보기"
@@ -468,26 +579,41 @@ export function FarmPageContent({
           width: tabPill.width,
         }}
       />
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "map"}
-        className={viewTabBtn(view === "map")}
-        onClick={() => setView("map")}
-      >
-        <Map className={dashboardUi.iconSm} aria-hidden />
-        그리드
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={view === "list"}
-        className={viewTabBtn(view === "list")}
-        onClick={() => setView("list")}
-      >
-        <List className={dashboardUi.iconSm} aria-hidden />
-        목록
-      </button>
+      {fieldMerge ? (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={fieldActive}
+          className={viewTabBtn(fieldActive)}
+          onClick={() => setView("map")}
+        >
+          <Warehouse className={dashboardUi.iconSm} aria-hidden />
+          현장
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "map"}
+            className={viewTabBtn(view === "map")}
+            onClick={() => setView("map")}
+          >
+            <Map className={dashboardUi.iconSm} aria-hidden />
+            그리드
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === "list"}
+            className={viewTabBtn(view === "list")}
+            onClick={() => setView("list")}
+          >
+            <List className={dashboardUi.iconSm} aria-hidden />
+            목록
+          </button>
+        </>
+      )}
       <button
         type="button"
         role="tab"
@@ -513,11 +639,17 @@ export function FarmPageContent({
     </div>
   ) : null;
 
+  const listFocusKey = fieldMerge
+    ? fieldFocusCtrl ?? urlCtrl
+    : view === "list"
+      ? urlCtrl
+      : null;
+
   return (
     <div className={cn(embedInScopeHeader ? "space-y-3" : "space-y-4")}>
       <FarmFeatureTour
-        view={view === "list" ? "list" : "map"}
-        setView={setTourView}
+        view={view}
+        setView={setView}
         enabled={!hideViewTabs}
       />
       {viewToggle && scopeToggleSlot
@@ -527,60 +659,157 @@ export function FarmPageContent({
           : viewToggle}
 
       <div className="relative min-h-0 overflow-hidden" data-farm-view-slot>
-        <div
-          className={cn(
-            "min-h-0 lg:min-h-[16rem]",
-            panelMotionClass("map"),
-          )}
-          aria-hidden={view !== "map"}
-          data-farm-view-panel="map"
-          data-farm-view-active={view === "map"}
-        >
-          <FarmMapView
-            barns={barnSnapshots}
-            readings={readings}
-            gridCols={gridCols}
-            gridRows={gridRows}
-            trendByPeriod={trendByPeriod}
-            controllerTrendByPeriod={gridControllerTrend}
-            controller={controller}
-            hubMode={hubMode}
-            compactShell={gridCompactShell}
-            trendPeriod={trendPeriod}
-            onTrendPeriodChange={onTrendPeriodChange}
-            trendLoading={gridTrendLoading}
-            trendStale={gridTrendStale}
-          />
-        </div>
-
-        {listEverOpened ? (
+        {fieldMerge ? (
           <div
-            className={panelMotionClass("list")}
-            aria-hidden={view !== "list"}
-            data-farm-view-panel="list"
-            data-farm-view-active={view === "list"}
+            className={cn("min-h-0 lg:min-h-[16rem]", fieldPanelMotionClass())}
+            aria-hidden={!fieldActive}
+            data-farm-view-panel="field"
+            data-farm-view-active={fieldActive}
           >
-            <BarnTable
-              rows={readings}
-              controller={controller ?? null}
-              thermoSettings={thermoSettings}
-              alarmSettings={alarmSettings}
-              canCommand={controller?.canCommand ?? false}
-              initialSp={listSp}
-              initialListMode={listMode}
-              initialListLayout={listLayout}
-              focusControllerKey={view === "list" ? urlCtrl : null}
-              hubMode={hubMode}
-              onHubUrlChange={onHubUrlChange}
-              liveRefreshManaged={liveRefreshManaged}
-              staggerMount={readings.length > STAGGER_MOUNT_MIN_READINGS}
-              onRequestPanelEnrichment={enrichListIfNeeded}
-              trendPeriod={trendPeriod}
-              onTrendPeriodChange={onTrendPeriodChange}
-              panelLiveActive={isFarmHubPanelLiveActive(view, "list")}
-            />
+            {viewportCompact ? (
+              <FarmMapView
+                barns={barnSnapshots}
+                readings={readings}
+                gridCols={gridCols}
+                gridRows={gridRows}
+                trendByPeriod={trendByPeriod}
+                controllerTrendByPeriod={gridControllerTrend}
+                controller={controller}
+                hubMode={hubMode}
+                compactShell={gridCompactShell}
+                trendPeriod={trendPeriod}
+                onTrendPeriodChange={onTrendPeriodChange}
+                trendLoading={gridTrendLoading}
+                trendStale={gridTrendStale}
+                fieldMerge
+                onOpenChart={openChartFromField}
+              />
+            ) : (
+              <div
+                className={cn(
+                  "grid min-h-[28rem] grid-cols-1 gap-3 lg:items-start",
+                  "transition-[grid-template-columns] duration-motion-moderate ease-[var(--motion-ease-standard)]",
+                  fieldStatusOpen
+                    ? "lg:grid-cols-[15rem_minmax(0,1fr)]"
+                    : "lg:grid-cols-[2.5rem_minmax(0,1fr)]",
+                )}
+                data-tour-id="field-split"
+                data-field-status={fieldStatusOpen ? "open" : "collapsed"}
+              >
+                <div className="min-w-0 overflow-hidden">
+                  <div
+                    className={cn(
+                      "transition-[width,max-width] duration-motion-moderate ease-[var(--motion-ease-standard)]",
+                      fieldStatusOpen
+                        ? "w-[15rem] max-w-[15rem]"
+                        : "w-10 max-w-10",
+                    )}
+                  >
+                    <FarmFieldStatusGrid
+                      barns={barnSnapshots}
+                      readings={readings}
+                      selectedBarnId={fieldSelectedBarnId}
+                      onSelectBarn={selectBarnForList}
+                      onShowAll={clearFieldBarnFilter}
+                      collapsed={!fieldStatusOpen}
+                      onHide={() => setFieldStatusOpen(false)}
+                      onShow={() => setFieldStatusOpen(true)}
+                    />
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-md border">
+                  <div
+                    className={cn(
+                      "transition-opacity duration-motion-exit ease-[var(--motion-ease-exit)]",
+                      fieldFilterPhase === "exiting"
+                        ? "opacity-0"
+                        : "opacity-100",
+                    )}
+                    data-field-list-filter={fieldFilterPhase}
+                  >
+                    <BarnTable
+                      rows={fieldMotionRows}
+                      controller={controller ?? null}
+                      thermoSettings={thermoSettings}
+                      alarmSettings={alarmSettings}
+                      canCommand={controller?.canCommand ?? false}
+                      initialSp={listSp}
+                      initialListMode={listMode}
+                      initialListLayout={listLayout}
+                      focusControllerKey={listFocusKey}
+                      hubMode={hubMode}
+                      onHubUrlChange={onHubUrlChange}
+                      liveRefreshManaged={liveRefreshManaged}
+                      staggerMount={readings.length > STAGGER_MOUNT_MIN_READINGS}
+                      onRequestPanelEnrichment={enrichListIfNeeded}
+                      trendPeriod={trendPeriod}
+                      onTrendPeriodChange={onTrendPeriodChange}
+                      panelLiveActive={fieldActive}
+                      listFilterEnterEpoch={fieldFilterEnterEpoch}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        ) : null}
+        ) : (
+          <>
+            <div
+              className={cn(
+                "min-h-0 lg:min-h-[16rem]",
+                panelMotionClass("map"),
+              )}
+              aria-hidden={view !== "map"}
+              data-farm-view-panel="map"
+              data-farm-view-active={view === "map"}
+            >
+              <FarmMapView
+                barns={barnSnapshots}
+                readings={readings}
+                gridCols={gridCols}
+                gridRows={gridRows}
+                trendByPeriod={trendByPeriod}
+                controllerTrendByPeriod={gridControllerTrend}
+                controller={controller}
+                hubMode={hubMode}
+                compactShell={gridCompactShell}
+                trendPeriod={trendPeriod}
+                onTrendPeriodChange={onTrendPeriodChange}
+                trendLoading={gridTrendLoading}
+                trendStale={gridTrendStale}
+              />
+            </div>
+
+            {listEverOpened ? (
+              <div
+                className={panelMotionClass("list")}
+                aria-hidden={view !== "list"}
+                data-farm-view-panel="list"
+                data-farm-view-active={view === "list"}
+              >
+                <BarnTable
+                  rows={readings}
+                  controller={controller ?? null}
+                  thermoSettings={thermoSettings}
+                  alarmSettings={alarmSettings}
+                  canCommand={controller?.canCommand ?? false}
+                  initialSp={listSp}
+                  initialListMode={listMode}
+                  initialListLayout={listLayout}
+                  focusControllerKey={view === "list" ? urlCtrl : null}
+                  hubMode={hubMode}
+                  onHubUrlChange={onHubUrlChange}
+                  liveRefreshManaged={liveRefreshManaged}
+                  staggerMount={readings.length > STAGGER_MOUNT_MIN_READINGS}
+                  onRequestPanelEnrichment={enrichListIfNeeded}
+                  trendPeriod={trendPeriod}
+                  onTrendPeriodChange={onTrendPeriodChange}
+                  panelLiveActive={isFarmHubPanelLiveActive(view, "list")}
+                />
+              </div>
+            ) : null}
+          </>
+        )}
 
         {chartEverOpened ? (
           <div
@@ -598,6 +827,7 @@ export function FarmPageContent({
                 scope={chartScope}
                 onScopeChange={onChartScopeChange}
                 initialZoom={chartZoomHint}
+                onZoomChange={onChartZoomChange}
                 alarmSettings={alarmSettings}
                 thermoSettings={thermoSettings}
                 canCommand={controller?.canCommand ?? false}

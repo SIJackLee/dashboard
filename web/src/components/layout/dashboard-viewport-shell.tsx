@@ -20,7 +20,7 @@ type Props = {
   role?: Role | null;
 };
 
-/** 토글 기준 compact 레이아웃 (브라우저 너비·비율 무관). 하단 네비는 미사용. */
+/** 토글 기준 compact 레이아웃 (브라우저 너비·비율 무관). 보기 탭은 하단 독. */
 export function DashboardViewportShell({ children }: Props) {
   const previewMode = useSyncExternalStore(
     subscribeViewportPreview,
@@ -51,13 +51,31 @@ export function DashboardViewportShell({ children }: Props) {
           className={cn(
             "relative flex min-h-0 w-full flex-col overflow-hidden bg-background",
             compact
-              ? "pb-[env(safe-area-inset-bottom,0px)] shadow-xl ring-1 ring-border/60"
+              ? "shadow-xl ring-1 ring-border/60"
               : "h-full",
           )}
         >
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {children}
           </div>
+          {compact ? (
+            <div
+              className={cn(
+                /* absolute 금지 — 프레임 overflow에 하단이 잘림. flex 흐름 + shrink-0 */
+                "z-40 flex shrink-0 border-t bg-background/95 backdrop-blur",
+                "supports-[backdrop-filter]:bg-background/90",
+                "px-3 pt-2",
+                /* 프리뷰(safe-area=0)에서도 탭 하단이 프레임에 붙지 않게 */
+                "pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]",
+              )}
+              data-farm-view-toggle-dock
+            >
+              <div
+                data-farm-view-toggle-slot="mobile"
+                className="mx-auto flex w-full max-w-lg items-center justify-center empty:hidden"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
     </DashboardViewportProvider>

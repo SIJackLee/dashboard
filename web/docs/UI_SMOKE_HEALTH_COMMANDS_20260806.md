@@ -16,5 +16,5 @@
 
 ## 비고
 
-- 로컬에 Next hydration 경고(Dev overlay) 있음 · 스모크 판정과 무관
+- 로컬 Next hydration: `HealthRefreshBar` ARIA/title 시계·카운트다운을 마운트 후로 지연 · `formatKst`를 formatToParts 고정 조립으로 맞춤 (2026-08-06)
 - Health lane에 raw `channel_key` 문자열(`SP05:01:06|A|EC03`)은 사용자 표시명 대신 정식 명칭 경로를 씀 (의도)

@@ -9,7 +9,6 @@ import {
   FarmContentSkeleton,
 } from "@/components/common/loading-skeletons";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
-import { ScopeBar } from "@/components/layout/scope-bar";
 import { NavContentReadyMarker } from "@/components/layout/nav-content-ready-marker";
 import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
@@ -62,28 +61,6 @@ function sliceFromAdminPanel(
       canCommand,
     },
   };
-}
-
-function AdminScopeBar({
-  farmOptions,
-  activeFarmKey,
-  farmSummaries,
-}: {
-  farmOptions: FarmKey[];
-  activeFarmKey: FarmKey | null;
-  farmSummaries: FarmSummaryRow[];
-}) {
-  return (
-    <ScopeBar
-      sticky
-      adminFarmSwitcher={{
-        farmOptions,
-        activeFarmKey,
-        farmSummaries,
-        compact: true,
-      }}
-    />
-  );
 }
 
 function FarmLivePageContent({
@@ -253,7 +230,6 @@ export function FarmDashboardShell({
   const { ready, getPanelByFarmKey, hubUrlEpoch: ctxEpoch, notifyHubUrlChange } =
     useAdminHubPanels();
 
-  const showAdminScope = isAdmin && farmOptions.length > 0;
   const hubClientNav = isAdmin && ready && farmOptions.length > 0;
 
   const [localHubEpoch, setLocalHubEpoch] = useState(0);
@@ -344,14 +320,6 @@ export function FarmDashboardShell({
     <FarmLiveRefreshProvider farmKey={farmKey} initial={initialSlice}>
       <NavContentReadyMarker />
       <div className="space-y-4 md:space-y-5">
-        {showAdminScope ? (
-          <AdminScopeBar
-            farmOptions={farmOptions}
-            activeFarmKey={scopeActiveFarmKey}
-            farmSummaries={farmSummaries}
-          />
-        ) : null}
-
         {isAdmin && deferAdminGridLoad ? (
           <AdminHubBody
             deferAdminGridLoad={deferAdminGridLoad}

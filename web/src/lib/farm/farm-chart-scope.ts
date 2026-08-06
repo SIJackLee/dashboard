@@ -297,6 +297,31 @@ export function applyFarmChartZoomParams(
   }
 }
 
+/**
+ * E — 스코프 스택 항목 → URL 줌 힌트.
+ * Y밴드가 없으면 null (시간 줌만은 chartYBand에 안 씀).
+ */
+export function chartScopeEntryToZoomHint(
+  entry: {
+    start: number;
+    end: number;
+    yBands: Array<"temp" | "hum" | "motor"> | null;
+  } | null,
+  categoryCount: number,
+): ChartTrendZoomHint | null {
+  if (!entry?.yBands?.length || categoryCount < 2) return null;
+  const denom = categoryCount - 1;
+  const start = Math.max(0, Math.min(entry.start, entry.end));
+  const end = Math.min(categoryCount - 1, Math.max(entry.start, entry.end));
+  return {
+    yBands: [...entry.yBands],
+    startRatio: clamp01(start / denom),
+    endRatio: clamp01(end / denom),
+    startIndex: start,
+    endIndex: end,
+  };
+}
+
 /** URL → 집계 범위. 불완전/빈 값은 가능한 상위 레벨로 완화. */
 export function resolveFarmChartScope(
   params: URLSearchParams,

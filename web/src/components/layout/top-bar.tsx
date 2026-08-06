@@ -1,5 +1,6 @@
 import { AppHeaderAccount } from "@/components/layout/app-header-account";
 import { AppHeaderBrand } from "@/components/layout/app-header-brand";
+import { FeatureTourHelpButton } from "@/components/layout/feature-tour-help-button";
 import { HeaderToolsMenu } from "@/components/layout/header-tools-menu";
 import type { AlarmRow } from "@/lib/data/alarms";
 import type { FarmOverview } from "@/lib/data/iot";
@@ -43,6 +44,11 @@ export function TopBar({
       <div className="flex w-full min-w-0 items-center gap-1.5 md:gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:gap-3">
           <AppHeaderBrand />
+          {/* 보기 토글 PC — 브랜드 영역 우측(도구·계정 직전). compact는 하단 독 */}
+          <div
+            data-farm-view-toggle-slot="desktop"
+            className="ml-auto flex shrink-0 items-center empty:hidden [[data-dashboard-compact]_&]:!hidden"
+          />
         </div>
 
         <div className="ml-auto flex shrink-0 items-center justify-end gap-1 md:gap-3">
@@ -56,6 +62,14 @@ export function TopBar({
               isAdmin={isAdmin}
               farmKey={activeFarmKey}
               variant="header"
+            />
+            <FeatureTourHelpButton
+              tourFarmKey={
+                farmLocationOptions.find((o) => o.hasLiveData)?.farmKey ??
+                farmLocationOptions[0]?.farmKey ??
+                farmOptions[0] ??
+                activeFarmKey
+              }
             />
             <AppHeaderAccount
               user={user}

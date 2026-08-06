@@ -6,7 +6,7 @@ import {
 } from "@/lib/farm/controller-summary-display";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
-import { Bell, Droplets, Thermometer } from "lucide-react";
+import { Droplets, Thermometer } from "lucide-react";
 
 type GaugeMetricProps = {
   label: "온도" | "습도";
@@ -32,15 +32,13 @@ const FILL_ACCENT = {
   습도: "bg-channel-hum",
 } as const;
 
-/** 안3 — value pill + icon watermark (overlay 폐기) */
+/** 임계 값 pill — 숫자만 (워터마크 아이콘 없음) */
 function ValuePillBadge({
-  icon: Icon,
   label,
   accentClass,
   ariaLabel,
   compact,
 }: {
-  icon: typeof Bell;
   label: string;
   accentClass: string;
   ariaLabel: string;
@@ -54,17 +52,9 @@ function ValuePillBadge({
       )}
       aria-label={ariaLabel}
     >
-      <Icon
-        className={cn(
-          "pointer-events-none absolute text-muted-foreground opacity-[0.22]",
-          compact ? "size-4" : "size-[18px]"
-        )}
-        strokeWidth={2}
-        aria-hidden
-      />
       <span
         className={cn(
-          "relative z-[1] font-bold tabular-nums leading-none",
+          "font-bold tabular-nums leading-none",
           compact ? "text-[10px]" : "text-[11px]",
           accentClass
         )}
@@ -90,7 +80,6 @@ function BellBadge({
 }) {
   return (
     <ValuePillBadge
-      icon={Bell}
       label={`${value}${unit}`}
       accentClass={accentClass}
       ariaLabel={ariaLabel}

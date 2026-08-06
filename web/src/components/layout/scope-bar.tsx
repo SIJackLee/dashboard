@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
-import { FarmSwitcher } from "@/components/layout/farm-switcher";
-import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -25,7 +23,7 @@ export type ScopeBarProps = {
   stallOptions?: ScopeChipOption[];
   activeStall?: string;
   onStallChange?: (stallKey: string) => void;
-  /** Admin — TopBar FarmSwitcher → ScopeBar 통합 (alarms 등 farm-only 페이지) */
+  /** @deprecated 농장 선택·보기 탭은 계정 메뉴·TopBar — 전달해도 ScopeBar에 표시하지 않음 */
   adminFarmSwitcher?: {
     farmOptions: FarmKey[];
     activeFarmKey: FarmKey | null;
@@ -91,7 +89,6 @@ export function ScopeBar({
   onStallChange,
   adminFarmSwitcher,
 }: ScopeBarProps) {
-  const compact = useHydrationSafeDashboardCompact();
   const [pendingChip, setPendingChip] = useState<PendingChip | null>(null);
   const [chipPending, startChipTransition] = useTransition();
 
@@ -133,28 +130,11 @@ export function ScopeBar({
     (lsindRegistNo || stallTypeLabel) &&
     !showSpChips;
 
+  /** 농장 선택·보기 탭은 TopBar/계정 메뉴 — ScopeBar admin 슬롯은 사용하지 않음 */
   const titleRow =
-    adminFarmSwitcher != null ? (
-      /* 모바일: 농장 선택은 계정 메뉴 · 여기엔 보기 토글만 */
-      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        {!compact ? (
-          <div className="min-w-0 shrink">
-            <FarmSwitcher
-              {...adminFarmSwitcher}
-              compact={adminFarmSwitcher.compact}
-            />
-          </div>
-        ) : null}
-        {/* FarmPageContent 보기 토글(그리드/목록/차트) portal 대상 */}
-        <div
-          data-farm-view-toggle-slot
-          className={cn(
-            "flex min-w-0 shrink-0 items-center",
-            compact ? "w-full" : "sm:ml-auto",
-          )}
-        />
-      </div>
-    ) : multiFarm && onFarmChange ? (
+    adminFarmSwitcher != null
+      ? null
+      : multiFarm && onFarmChange ? (
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <span className={dashboardUi.scopeLabel}>농장</span>
         {farmOptions.map((f) => (

@@ -123,6 +123,7 @@ function ChannelSlotTrendChart({
         height={dense ? 48 : compact ? 64 : 72}
         leftUnit="%"
         leftDomain={[0, 100]}
+        yAxisTicks="ends"
         referenceLines={fanRefs}
         tickEvery={tickEvery}
         period={period}
@@ -287,6 +288,7 @@ export function BarnChannelTrendPanel({
         height={dense ? 72 : compact ? 88 : 104}
         leftUnit="%"
         leftDomain={[0, 100]}
+        yAxisTicks="ends"
         tickEvery={tickEvery}
         period={period}
         showLegend={!dense}

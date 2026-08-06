@@ -28,6 +28,7 @@ import { EnvChip } from "@/components/common/env-chip";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 
@@ -56,6 +57,10 @@ type Props = {
   onToggleSp?: (stallTyCode: string) => void;
   /** 안 D — 첫 paint 후 idle 배치 마운트 (readings > STAGGER_MOUNT_MIN 일 때만 실제 동작) */
   staggerMount?: boolean;
+  /** 현장 스플릿 우패널 — 컨트롤러 그리드 최대 2열 */
+  narrowControllerGrid?: boolean;
+  /** 현장 축사 필터 — 스태거 입장 epoch */
+  listFilterEnterEpoch?: number;
   /** 모바일 Graph/Set — 단일 toolbar sheet */
   mobileToolbarSheetMode?: boolean;
   toolbarSheetKey?: string | null;
@@ -71,9 +76,18 @@ type Props = {
 const CONTROLLER_GRID_FLAT =
   "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5";
 
-/** group(SP 구역) — xl+ 2열 SP 안에서는 컨트롤러 max 2열 */
+/** 현장 스플릿 우패널 — 좁은 폭 · 최대 2열 */
+const CONTROLLER_GRID_NARROW =
+  "grid grid-cols-1 gap-2 sm:grid-cols-2";
+
+/** group(SP 구역) — 행별(전폭) SP 안 컨트롤러 그리드 */
 const CONTROLLER_GRID_IN_SP =
-  "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-2";
+  "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5";
+
+function controllerGridClass(narrow: boolean, inSpSection: boolean): string {
+  if (narrow) return CONTROLLER_GRID_NARROW;
+  return inSpSection ? CONTROLLER_GRID_IN_SP : CONTROLLER_GRID_FLAT;
+}
 
 const STAGGER_INITIAL = 8;
 const STAGGER_BATCH = 8;
@@ -135,6 +149,8 @@ function ControllerCardGrid({
   bulkMode = false,
   selectedSps,
   staggerMount = false,
+  narrowControllerGrid = false,
+  listFilterEnterEpoch = 0,
   showAffiliation = false,
   mobileToolbarSheetMode = false,
   toolbarSheetKey = null,
@@ -163,6 +179,9 @@ function ControllerCardGrid({
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
   staggerMount?: boolean;
+  /** 현장 스플릿 우패널 — 컨트롤러 그리드 최대 2열 */
+  narrowControllerGrid?: boolean;
+  listFilterEnterEpoch?: number;
   showAffiliation?: boolean;
   mobileToolbarSheetMode?: boolean;
   toolbarSheetKey?: string | null;
@@ -175,7 +194,8 @@ function ControllerCardGrid({
   const staggerEnabled =
     Boolean(staggerMount) &&
     readings.length > STAGGER_MOUNT_MIN_READINGS &&
-    !tourActive;
+    !tourActive &&
+    listFilterEnterEpoch === 0;
   const visibleCount = useStaggeredVisibleCount(
     readings.length,
     staggerEnabled,
@@ -183,16 +203,29 @@ function ControllerCardGrid({
   const visibleReadings = staggerEnabled
     ? readings.slice(0, visibleCount)
     : readings;
+  const filterStagger = listFilterEnterEpoch > 0;
 
   return (
-    <div className={inSpSection ? CONTROLLER_GRID_IN_SP : CONTROLLER_GRID_FLAT}>
-      {visibleReadings.map((r) => {
+    <div className={controllerGridClass(narrowControllerGrid, inSpSection)}>
+      {visibleReadings.map((r, index) => {
         const spCode = normalizeStallTyCode(r.stallTyCode ?? "");
         const spSelected =
           !bulkMode || (selectedSps?.has(spCode) ?? false);
         return (
+        <div
+          key={
+            filterStagger ? `${r.key}:${listFilterEnterEpoch}` : r.key
+          }
+          className={filterStagger ? motionClass.staggerIn : undefined}
+          style={
+            filterStagger
+              ? {
+                  animationDelay: `${Math.min(index, 12) * motionStaggerStepMs}ms`,
+                }
+              : undefined
+          }
+        >
         <ControllerSummaryGaugeRow
-          key={r.key}
           reading={r}
           readings={allReadings}
           thermoSettings={thermoSettings}
@@ -254,6 +287,7 @@ function ControllerCardGrid({
               : undefined
           }
         />
+        </div>
         );
       })}
     </div>
@@ -330,6 +364,8 @@ export function BarnListSummary({
   selectedSps = new Set(),
   onToggleSp,
   staggerMount = false,
+  narrowControllerGrid = false,
+  listFilterEnterEpoch = 0,
   mobileToolbarSheetMode = false,
   toolbarSheetKey = null,
   toolbarSheetOpen = false,
@@ -371,6 +407,8 @@ export function BarnListSummary({
     bulkMode,
     selectedSps,
     staggerMount,
+    narrowControllerGrid,
+    listFilterEnterEpoch,
     mobileToolbarSheetMode,
     toolbarSheetKey,
     onToolbarSheetKeyChange,
@@ -433,12 +471,12 @@ export function BarnListSummary({
   return (
     <>
     <div
-      className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2"
+      className="grid min-w-0 grid-cols-1 gap-4"
       data-tour-id="list-body"
       data-audit-region="barn-list-summary"
       data-list-layout="group"
       data-list-mode={listMode}
-      data-sp-columns="dual-xl"
+      data-sp-columns="stack"
       data-bulk-mode={bulkMode ? "on" : undefined}
     >
       {visibleGroups.map((sp) => {

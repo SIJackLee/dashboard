@@ -16,6 +16,12 @@ import {
   visibilityForYBands,
   maskLayersForYBands,
   DEFAULT_UNIFIED_LAYERS,
+  ALL_UNIFIED_LAYERS,
+  resolveUnifiedPlotLayout,
+  mapTempCToSplitY,
+  paddedAlarmDomain,
+  unifiedYBandFocusLabel,
+  isSingleYBandFocus,
 } from "./unified-barn-trend-series";
 
 const ALL_VIS = {
@@ -91,9 +97,17 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   });
   const masked = maskLayersForYBands(DEFAULT_UNIFIED_LAYERS, ["temp"]);
   assert.equal(masked.temp, true);
+  assert.equal(masked.ema, false);
+  assert.equal(masked.band, false);
   assert.equal(masked.hum, false);
   assert.equal(masked.motors, false);
   assert.equal(masked.motorCh, false);
+
+  const maskedAll = maskLayersForYBands(ALL_UNIFIED_LAYERS, ["temp"]);
+  assert.equal(maskedAll.temp, true);
+  assert.equal(maskedAll.ema, true);
+  assert.equal(maskedAll.hum, false);
+  assert.equal(maskedAll.motors, false);
 }
 
 /* —— env comfort (mid / edge / over) —— */
@@ -211,6 +225,39 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   const swapped = sliceUnifiedTrendByIndex(categories, picked, 2, 0);
   assert.deepEqual(swapped.categories, ["a", "b", "c"]);
   assert.deepEqual(swapped.series[0]!.data, [1, 2, 3]);
+}
+
+/* —— C2 native Y layout —— */
+{
+  const th = DEFAULT_ALARM_THRESHOLDS;
+  const tempOnly = resolveUnifiedPlotLayout(
+    { showTemp: true, showHum: false, showMotors: false },
+    th,
+  );
+  assert.equal(tempOnly.leftUnit, "℃");
+  assert.equal(tempOnly.nativeBand, "temp");
+  const [vlo, vhi] = paddedAlarmDomain(th.tempLow, th.tempHigh);
+  assert.deepEqual(tempOnly.layout.domain, [vlo, vhi]);
+  const mapped = mapTempCToSplitY(24, th.tempLow, th.tempHigh, tempOnly.layout);
+  assert.ok(mapped != null && Math.abs(mapped - 24) < 1e-6, "native temp identity");
+
+  const multi = resolveUnifiedPlotLayout(
+    { showTemp: true, showHum: true, showMotors: true },
+    th,
+  );
+  assert.equal(multi.leftUnit, "");
+  assert.equal(multi.nativeBand, null);
+  assert.deepEqual(multi.layout.domain, [0, 100]);
+}
+
+/* —— E focus labels —— */
+{
+  assert.equal(unifiedYBandFocusLabel("temp"), "온도 집중");
+  assert.equal(unifiedYBandFocusLabel("hum"), "습도 집중");
+  assert.equal(unifiedYBandFocusLabel("motor"), "모터 집중");
+  assert.equal(isSingleYBandFocus(["temp"]), true);
+  assert.equal(isSingleYBandFocus(["temp", "hum"]), false);
+  assert.equal(isSingleYBandFocus(null), false);
 }
 
 console.log("chart-heuristics-m5.test.ts: ok");

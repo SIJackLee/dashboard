@@ -1041,6 +1041,7 @@ export function VoiceReportFab({
         )}
         aria-label={open ? `${DELIN_NAME} 패널 닫기` : `${DELIN_NAME} 열기`}
         aria-expanded={open}
+        data-tour-id="delin-voice-fab"
         onClick={() => setOpen((v) => !v)}
       >
         <Bot className="size-5" />

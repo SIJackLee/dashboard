@@ -36,21 +36,35 @@ export function formatControllerNoLabel(eqpmnNo: string | undefined): string {
   return `${eq}번`;
 }
 
-/** 카드 헤더 상위 — 축사유형 */
-export function formatControllerHeaderPrimary(
+/** 카드 헤더 — 축사유형 (최상위) */
+export function formatControllerHeaderStallType(
   reading: Pick<BarnReading, "stallTyCode">,
 ): string {
   return formatStallTypeLabel(reading.stallTyCode);
 }
 
-/** 카드 헤더 하위 — N(축사번호)번 축사 M(컨트롤러번호) */
-export function formatControllerHeaderSecondary(
-  reading: Pick<BarnReading, "stallNo" | "eqpmnNo" | "controllerKey" | "idx">,
+/** 카드 헤더 — N번 축사 (중간 계층) */
+export function formatControllerHeaderStallUnit(
+  reading: Pick<BarnReading, "stallNo" | "controllerKey" | "idx">,
 ): string {
   const stallKey = stallKeyFromReading(reading);
   const stallNo = stallKey.startsWith("__") ? "—" : stallKey;
+  return `${stallNo}번 축사`;
+}
+
+/** 카드 헤더 상위 — 축사유형 + N번 축사 (한 줄 표기·요약용) */
+export function formatControllerHeaderPrimary(
+  reading: Pick<BarnReading, "stallTyCode" | "stallNo" | "controllerKey" | "idx">,
+): string {
+  return `${formatControllerHeaderStallType(reading)} ${formatControllerHeaderStallUnit(reading)}`;
+}
+
+/** 카드 헤더 하위 — 컨트롤러 번호 */
+export function formatControllerHeaderSecondary(
+  reading: Pick<BarnReading, "eqpmnNo">,
+): string {
   const eq = normalizeEqpmnNo(reading.eqpmnNo ?? "01");
-  return `${stallNo}번 축사 ${eq}`;
+  return `컨트롤러 ${eq}`;
 }
 
 export function channelPercentsFromReading(r: BarnReading): ChannelPercents {

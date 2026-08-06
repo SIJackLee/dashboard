@@ -1409,6 +1409,49 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   animation-delay: var(--motion-duration-fast);
 }
 
+/**
+ * A안 — 차트 UI 배율.
+ * 기본 1× (현장 목록·카드 미니차트). 차트 탭 `.farm-chart-ui` 만 2×.
+ * TS: src/lib/ui/farm-chart-ui-scale.ts FARM_CHART_UI_SCALE
+ */
+.farm-chart-ui {
+  --farm-chart-ui-scale: 2;
+}
+
+.farm-chart-fs-legend {
+  font-size: calc(0.625rem * var(--farm-chart-ui-scale, 1));
+  line-height: 1.3;
+}
+
+.farm-chart-fs-meta {
+  font-size: calc(0.7rem * var(--farm-chart-ui-scale, 1));
+  line-height: 1.35;
+}
+
+.farm-chart-fs-title {
+  font-size: calc(0.75rem * var(--farm-chart-ui-scale, 1));
+  line-height: 1.3;
+}
+
+.farm-chart-fs-body {
+  font-size: calc(0.875rem * var(--farm-chart-ui-scale, 1));
+  line-height: 1.3;
+}
+
+.farm-chart-fs-axis {
+  font-size: calc(0.625rem * var(--farm-chart-ui-scale, 1));
+  line-height: 1.2;
+}
+
+.farm-chart-control {
+  width: calc(2rem * var(--farm-chart-ui-scale, 1));
+  height: calc(2rem * var(--farm-chart-ui-scale, 1));
+}
+
+.farm-chart-tick-rail {
+  height: calc(1rem * var(--farm-chart-ui-scale, 1));
+}
+
 @keyframes farm-chart-layers-enter {
   from {
     opacity: 0;

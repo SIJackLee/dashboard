@@ -7,6 +7,23 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 
 ---
 
+## Feature flag — 현장 통합 (P0)
+
+| 환경변수 | 기본 | 설명 |
+|----------|------|------|
+| `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «현장» 탭. off면 현행 4탭 |
+
+통합 on일 때 UI:
+- 상위 탭: **현장 · 차트 · DELIN**
+- PC 현장: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
+- 모바일 compact: 보기 탭은 **하단 독** (`DashboardViewportShell`)
+- 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
+- 좌 현황 숨기기/나타내기 · 카드 헤더 단일 순환 버튼
+- 모바일: 그리드만 + 카드 탭 시 Bottom sheet 직행 (인라인 상세 없음)
+- 모바일 상세 «차트에서 보기»: `view=chart`만 (시드/`chart*` 자동은 비범위)
+
+---
+
 ## 쿼리 키
 
 | 키 | 값 | 기본 | 설명 |
@@ -24,6 +41,8 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `chartSp` | 축사유형 코드 | — | 차트 집계 (유형). 맵 `sp`와 분리 |
 | `chartStall` | 축사번호 | — | 차트 집계 (축사). `chartSp` 필요 |
 | `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 (컨트롤러). `chartSp`+`chartStall` 필요 |
+| `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수) | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
+| `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |
 
 레거시 `tab=ops|…` 는 미들웨어·페이지에서 `/farm`으로 정리. 신규 코드는 `tab` 쓰지 않음.
 
@@ -66,7 +85,7 @@ resolveFarmHubView(raw)
 - 헬퍼: `buildFarmMonitoringHomeParams` / `buildFarmMonitoringHomePath` / `isFarmMonitoringSoftHome`
 - 진입점:
   - PC: 좌측 상단 로고 (`AppHeaderBrand`)
-  - 모바일 compact: 하단 «모니터링» (`MobileBottomNav`)
+  - 모바일 compact: 로고 홈 · 하단 보기 독은 탭 전환용 (구 «모니터링» 하단 내비와 별개)
 - 유지: `lsind`, `item`, `trendPeriod`(7d|30d)
 - 제거: `view`, drill, `listMode`, `ctrl`, `alarm`, `chart*`
 - 이미 soft home이면 no-op

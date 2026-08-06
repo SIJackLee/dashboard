@@ -11,7 +11,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { Check, GripHorizontal, RotateCcw } from "lucide-react";
+import { Check, GripHorizontal, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
@@ -87,7 +87,7 @@ export type TrendEnvelopePolyPoint = {
   low: number;
 };
 
-/** 두 곡선 사이 면(이목 클라우드·온도 산포 등). */
+/** 두 곡선 사이 면(이목 클라우드·온도 범위 등). */
 export type TrendEnvelope = {
   high: (number | null)[];
   low: (number | null)[];
@@ -154,9 +154,14 @@ export type TrendScaleEdgeLabel = {
   /** 차트 domain Y */
   value: number;
   axis?: TrendAxis;
-  /** center = 설정값 등 플롯 중앙 */
-  side?: "left" | "right" | "center";
+  /**
+   * left/right = 축 거터 · center = 설정 수치(플롯 중앙)
+   * plotStart = (레거시) 설정 명칭 단독 — prefer leadingText
+   */
+  side?: "left" | "right" | "center" | "plotStart";
   text: string;
+  /** center 수치 칩 왼쪽에 붙는 명칭 (설정온도·온도편차 등) */
+  leadingText?: string;
   color: string;
   title?: string;
   mark?: "overline" | "underline";
@@ -172,7 +177,7 @@ export type TrendScaleEdgeLabel = {
   lineDasharray?: string;
   /**
    * 우측 라벨 레인 — outer=알람(바깥), inner=제어값(그래프에 가까운 쪽).
-   * side=center 일 때는 무시.
+   * side=center|plotStart 일 때는 무시.
    */
   labelLane?: "outer" | "inner";
   /** true면 라벨 우측에 적용·되돌리기 아이콘 버튼 */
@@ -202,6 +207,11 @@ type TrendChartProps = {
   /** Force axis domains; otherwise auto-fit with padding. */
   leftDomain?: [number, number];
   rightDomain?: [number, number];
+  /**
+   * 좌측 원단위 Y 눈금.
+   * full=5단(기본) · ends=상·하한만 (현장 카드 미니차트)
+   */
+  yAxisTicks?: "full" | "ends";
   referenceLines?: TrendReferenceLine[];
   /** 우측/좌측 스케일 상하한(원단위 텍스트). */
   scaleEdgeLabels?: TrendScaleEdgeLabel[];
@@ -345,7 +355,7 @@ export type HoverMetricGroup = "temp" | "hum" | "motor";
 /** 시리즈/히스토그램 라벨 → 호버 카드 그룹 */
 export function inferHoverMetricGroup(label: string): HoverMetricGroup {
   if (/습도/.test(label)) return "hum";
-  if (/모터|채널|^[ABC]$/.test(label)) return "motor";
+  if (/모터|채널|입기|배기|송풍|^[ABC]$/.test(label)) return "motor";
   return "temp";
 }
 
@@ -388,7 +398,7 @@ export function resolveBreachNavTarget(opts: {
     envelopes.find(
       (e) =>
         e.hoverExtremes &&
-        e.legendLabel === (group === "temp" ? "온도 산포" : "습도 산포"),
+        e.legendLabel === (group === "temp" ? "온도 범위" : "습도 범위"),
     )?.hoverExtremes;
   if (!extremes) return null;
 
@@ -551,7 +561,7 @@ function AlarmTrack({
 
   return (
     <div className="mt-1.5 border-t border-border/60 pt-1.5">
-      <div className="mb-0.5 flex items-center justify-between gap-2 text-[9px] text-muted-foreground">
+      <div className="mb-0.5 flex items-center justify-between gap-2 farm-chart-fs-axis text-muted-foreground">
         {outside && thresholdEdge != null && breachDeltaText ? (
           <>
             <span className="tabular-nums" title="임계값">
@@ -612,7 +622,7 @@ function MotorChannelMatrix({
         return (
           <div
             key={ch.label}
-            className="flex items-center gap-1.5 text-[10px]"
+            className="flex items-center gap-1.5 farm-chart-fs-legend"
           >
             <span className="w-3 shrink-0 font-medium tabular-nums text-muted-foreground">
               {ch.label}
@@ -705,7 +715,7 @@ export function formatTrendHoverValue(
       seriesName === "A" ||
       seriesName === "B" ||
       seriesName === "C" ||
-      seriesName.includes("모터"));
+      /입기|배기|송풍|모터/.test(seriesName));
   if (motorLike) return `${Math.round(value)}${unit}`;
   if (unit === "n") {
     return `n=${Number.isInteger(value) ? String(value) : value.toFixed(0)}`;
@@ -740,10 +750,11 @@ export function formatLimitBreachDelta(
 
 type EdgeBandLabel = {
   id: string;
-  side: "left" | "right" | "center";
+  side: "left" | "right" | "center" | "plotStart";
   /** 0~100, 차트 영역 기준 top % */
   topPct: number;
   text: string;
+  leadingText?: string;
   color: string;
   title: string;
   /** 상한=숫자 위 선, 하한=숫자 아래 선 */
@@ -756,13 +767,17 @@ type EdgeBandLabel = {
 
 /** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
 function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBandLabel[] {
-  const bySide: Record<"left" | "right" | "center", EdgeBandLabel[]> = {
+  const bySide: Record<
+    "left" | "right" | "center" | "plotStart",
+    EdgeBandLabel[]
+  > = {
     left: [],
     right: [],
     center: [],
+    plotStart: [],
   };
   for (const l of labels) bySide[l.side].push({ ...l });
-  for (const side of ["left", "right", "center"] as const) {
+  for (const side of ["left", "right", "center", "plotStart"] as const) {
     const list = bySide[side].sort((a, b) => a.topPct - b.topPct);
     for (let i = 1; i < list.length; i++) {
       const prev = list[i - 1]!;
@@ -773,7 +788,12 @@ function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBan
     }
     bySide[side] = list;
   }
-  return [...bySide.left, ...bySide.right, ...bySide.center];
+  return [
+    ...bySide.left,
+    ...bySide.right,
+    ...bySide.center,
+    ...bySide.plotStart,
+  ];
 }
 
 function finiteValues(series: TrendSeries[], axis: TrendAxis | undefined): number[] {
@@ -835,7 +855,7 @@ function TrendPointCardBody({
                   inferHoverMetricGroup(s.name) === group,
               );
               const tipHists = histograms.filter((h) => {
-                const label = h.legendLabel ?? "편차";
+                const label = h.legendLabel ?? "분포";
                 return (
                   group == null || inferHoverMetricGroup(label) === group
                 );
@@ -882,7 +902,12 @@ function TrendPointCardBody({
                 return tipHists
                   .filter((h) => {
                     const lab = h.legendLabel ?? "";
-                    return lab === "A" || lab === "B" || lab === "C";
+                    return (
+                      lab === "A" ||
+                      lab === "B" ||
+                      lab === "C" ||
+                      /입기|배기|송풍/.test(lab)
+                    );
                   })
                   .map((h) => ({
                     label: h.legendLabel!,
@@ -890,7 +915,6 @@ function TrendPointCardBody({
                     values: h.hoverSecondary ?? h.values,
                   }));
               })();
-
               const showMotorMatrix =
                 group === "motor" && motorChannels.length > 0;
 
@@ -981,7 +1005,7 @@ function TrendPointCardBody({
                       (e) =>
                         e.hoverExtremes &&
                         e.legendLabel ===
-                          (group === "temp" ? "온도 산포" : "습도 산포"),
+                          (group === "temp" ? "온도 범위" : "습도 범위"),
                     )?.hoverExtremes)
                   : undefined;
               const spreadHigh = spreadExtremes?.high[idx] ?? null;
@@ -1046,10 +1070,10 @@ function TrendPointCardBody({
               return (
                 <>
                   <div className="mb-1 flex items-center gap-1.5">
-                    <span className="rounded-sm bg-muted/80 px-1 py-px text-[9px] font-semibold tracking-tight text-foreground/90">
+                    <span className="rounded-sm bg-muted/80 px-1 py-px farm-chart-fs-axis font-semibold tracking-tight text-foreground/90">
                       {group ? HOVER_GROUP_LABEL[group] : "데이터"}
                     </span>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                    <span className="farm-chart-fs-legend text-muted-foreground tabular-nums">
                       {categories[idx]}
                     </span>
                     <div className="ml-auto">
@@ -1075,7 +1099,7 @@ function TrendPointCardBody({
                       {heroMain || "–"}
                     </span>
                     {heroUnit ? (
-                      <span className="text-[10px] font-medium text-muted-foreground">
+                      <span className="farm-chart-fs-legend font-medium text-muted-foreground">
                         {heroUnit}
                         {heroLabel === "모터 max" ? " max" : ""}
                       </span>
@@ -1109,7 +1133,7 @@ function TrendPointCardBody({
                         return (
                           <div
                             key={s.name}
-                            className="flex items-center justify-between gap-2 text-[10px]"
+                            className="flex items-center justify-between gap-2 farm-chart-fs-legend"
                           >
                             <span className="inline-flex min-w-0 items-center gap-1">
                               <span
@@ -1135,7 +1159,7 @@ function TrendPointCardBody({
                         return (
                           <div
                             key={`hist-tip-${hi}`}
-                            className="flex items-center justify-between gap-2 text-[10px]"
+                            className="flex items-center justify-between gap-2 farm-chart-fs-legend"
                           >
                             <span className="inline-flex min-w-0 items-center gap-1">
                               <span
@@ -1148,7 +1172,7 @@ function TrendPointCardBody({
                                 }}
                               />
                               <span className="truncate text-muted-foreground">
-                                {h.legendLabel ?? "편차"}
+                                {h.legendLabel ?? "분포"}
                               </span>
                             </span>
                             <span className="shrink-0 tabular-nums">
@@ -1169,23 +1193,23 @@ function TrendPointCardBody({
 
                   {showSpreadHigh || showSpreadLow ? (
                     <div className="mt-1.5 space-y-1 border-t border-border/50 pt-1.5">
-                      <div className="text-[9px] font-medium text-muted-foreground">
+                      <div className="farm-chart-fs-axis font-medium text-muted-foreground">
                         임계 초과 구간
                       </div>
                       {onBreachEquipmentNavigate ? (
-                        <div className="text-[9px] text-muted-foreground/90">
+                        <div className="farm-chart-fs-axis text-muted-foreground/90">
                           우클릭 · 해당 장비 차트
                         </div>
                       ) : null}
                       {spreadSame && spreadHigh ? (
-                        <div className="text-[10px] leading-snug text-foreground/90">
+                        <div className="farm-chart-fs-legend leading-snug text-foreground/90">
                           <span className="text-muted-foreground">산포 · </span>
                           {formatSpreadRow("high", spreadHigh)}
                         </div>
                       ) : (
                         <>
                           {showSpreadHigh && spreadHigh ? (
-                            <div className="text-[10px] leading-snug text-foreground/90">
+                            <div className="farm-chart-fs-legend leading-snug text-foreground/90">
                               <span className="text-muted-foreground">
                                 상단 ·{" "}
                               </span>
@@ -1193,7 +1217,7 @@ function TrendPointCardBody({
                             </div>
                           ) : null}
                           {showSpreadLow && spreadLow ? (
-                            <div className="text-[10px] leading-snug text-foreground/90">
+                            <div className="farm-chart-fs-legend leading-snug text-foreground/90">
                               <span className="text-muted-foreground">
                                 하단 ·{" "}
                               </span>
@@ -1228,6 +1252,7 @@ export function TrendChart({
   rightUnit = "",
   leftDomain,
   rightDomain,
+  yAxisTicks = "full",
   referenceLines = [],
   scaleEdgeLabels = [],
   envelopes = [],
@@ -1419,8 +1444,9 @@ export function TrendChart({
 
   const axisH = 16;
   const chartH = height - axisH;
-  /** 좌측 정렬 플롯 + (선택) 우측 라벨 거터 */
-  const padL = labelGutter ? 4 : PAD_X;
+  /** 원단위 Y축(C2) 또는 모바일 거터 */
+  const showNativeLeftAxis = Boolean(leftUnit);
+  const padL = showNativeLeftAxis ? PAD_X : labelGutter ? 4 : PAD_X;
   const padR = labelGutter ? 20 : PAD_X;
   const innerW = VIEW_W - padL - padR;
   const innerH = chartH - PAD_TOP * 2;
@@ -1439,6 +1465,20 @@ export function TrendChart({
     const t = (value - mn) / (mx - mn || 1);
     return PAD_TOP + innerH - t * innerH;
   };
+
+  const leftAxisTicks =
+    showNativeLeftAxis && Number.isFinite(lMin) && Number.isFinite(lMax) && lMax > lMin
+      ? (yAxisTicks === "ends" ? [0, 1] : [0, 1, 2, 3, 4]).map((i, _, steps) => {
+          const denom = Math.max(1, steps.length - 1);
+          const value = lMin + ((lMax - lMin) * i) / denom;
+          const y = yFor(value, "left");
+          return {
+            id: `left-axis-${i}`,
+            topPct: (y / chartH) * 100,
+            text: formatTrendBandEdge(value, leftUnit),
+          };
+        })
+      : [];
 
   const xFor = (i: number): number => {
     if (n <= 1) return padL + innerW / 2;
@@ -2419,6 +2459,7 @@ export function TrendChart({
         side: guide.side ?? "right",
         topPct: (y / chartH) * 100,
         text: guide.text,
+        leadingText: guide.leadingText,
         color: guide.color,
         title: guide.title ?? guide.text,
         mark: guide.mark,
@@ -2566,7 +2607,7 @@ export function TrendChart({
               : s.name === "온도" || s.name === "습도",
           )
           .map((s) => (
-          <span key={s.name} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+          <span key={s.name} className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground">
             <span
               className="inline-block w-3 border-t-2"
               style={{
@@ -2588,7 +2629,7 @@ export function TrendChart({
           env.legendLabel ? (
             <span
               key={`env-leg-${idx}`}
-              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+              className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground"
             >
               <span
                 className="inline-block h-2 w-3 rounded-sm"
@@ -2613,7 +2654,7 @@ export function TrendChart({
           h.legendLabel ? (
             <span
               key={`hist-leg-${idx}`}
-              className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+              className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground"
             >
               {h.style === "volume" ? (
                 <span
@@ -3278,6 +3319,20 @@ export function TrendChart({
         })()}
       </svg>
 
+      {leftAxisTicks.map((tick) => (
+        <span
+          key={tick.id}
+          className={cn(
+            "pointer-events-none absolute left-0.5 z-[1] -translate-y-1/2 rounded-sm bg-background/85 leading-none tabular-nums text-muted-foreground",
+            labelGutter ? "px-1 py-0.5 farm-chart-fs-legend font-medium" : "px-0.5 farm-chart-fs-axis",
+          )}
+          style={{ top: `${tick.topPct}%` }}
+          aria-hidden
+        >
+          {tick.text}
+        </span>
+      ))}
+
       {edgeBandLabels.map((label) => {
         const editing = edgeEdit?.id === label.id;
         const showActions =
@@ -3290,14 +3345,21 @@ export function TrendChart({
               "absolute z-[2] -translate-y-1/2 rounded-sm bg-background/85 leading-none tabular-nums",
               labelGutter
                 ? "min-h-7 px-1.5 py-1 text-xs font-semibold"
-                : "px-0.5 text-[9px]",
+                : "px-0.5 farm-chart-fs-axis",
               showActions && "inline-flex items-center gap-0.5 pr-0",
+              Boolean(label.leadingText) &&
+                !editing &&
+                "inline-flex items-center gap-1",
               label.draggable && !editing
                 ? "pointer-events-auto cursor-ns-resize select-none"
                 : editing || showActions
                   ? "pointer-events-auto"
                   : "pointer-events-none",
               label.side === "left" && "left-0.5 text-left",
+              /** 설정 명칭 단독(레거시) — 수치 칩 바로 왼쪽 */
+              label.side === "plotStart" &&
+                "left-1/2 z-[3] -translate-x-[calc(100%+0.35rem)] text-right font-medium",
+              /** 설정 수치 — 플롯 중앙 (leadingText 있으면 명칭+수치) */
               label.side === "center" &&
                 "left-1/2 z-[3] -translate-x-1/2 text-center shadow-sm ring-1 ring-current/20",
               /** 모바일 거터 — 우측 단일 열(큰 칩). PC는 기존 inner/outer 레인 */
@@ -3319,7 +3381,9 @@ export function TrendChart({
               !editing && label.mark === "overline" && "border-t border-current pt-px",
               !editing && label.mark === "underline" && "border-b border-current pb-px",
               edgeDragId === label.id &&
-                (labelGutter || label.side === "center"
+                (labelGutter ||
+                label.side === "center" ||
+                label.side === "plotStart"
                   ? "min-h-9 text-sm ring-2 ring-current/45"
                   : "ring-1 ring-current/40"),
             )}
@@ -3393,7 +3457,7 @@ export function TrendChart({
                   "rounded-sm border border-current/40 bg-background text-center tabular-nums outline-none",
                   labelGutter
                     ? "h-7 w-14 px-1 text-xs font-semibold"
-                    : "h-4 w-10 px-0.5 text-[9px]",
+                    : "h-4 w-10 px-0.5 farm-chart-fs-axis",
                 )}
                 style={{ color: label.color }}
                 value={edgeEdit.text}
@@ -3414,6 +3478,13 @@ export function TrendChart({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               />
+            ) : label.leadingText ? (
+              <>
+                <span className="font-medium not-italic tracking-tight">
+                  {label.leadingText}
+                </span>
+                <span className="tabular-nums">{label.text}</span>
+              </>
             ) : (
               label.text
             )}
@@ -3538,37 +3609,53 @@ export function TrendChart({
             onPointerDown={(e) => e.stopPropagation()}
           >
             <div className="overflow-hidden rounded-md border border-primary/35 bg-popover/95 text-popover-foreground shadow-lg ring-1 ring-primary/15 backdrop-blur-sm">
-              <button
-                type="button"
-                aria-label="데이터 카드 위치 이동"
-                title="드래그하여 배치"
-                className={cn(
-                  "flex w-full cursor-grab items-center justify-center gap-1 border-b border-border/60 bg-muted/40 px-2 py-1",
-                  "active:cursor-grabbing touch-none select-none",
-                )}
-                onPointerDown={(e) => {
-                  if (e.button !== 0 || !plotRef.current) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  plotRef.current.setPointerCapture(e.pointerId);
-                  pinCardDragRef.current = {
-                    id: pin.id,
-                    pointerId: e.pointerId,
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    origOx: pin.ox,
-                    origOy: pin.oy,
-                  };
-                }}
-              >
-                <GripHorizontal
-                  className="size-3.5 text-muted-foreground"
-                  aria-hidden
-                />
-                <span className="text-[9px] font-medium text-muted-foreground">
-                  이동
-                </span>
-              </button>
+              <div className="flex items-stretch border-b border-border/60 bg-muted/40">
+                <button
+                  type="button"
+                  aria-label="데이터 카드 위치 이동"
+                  title="드래그하여 배치"
+                  className={cn(
+                    "flex min-w-0 flex-1 cursor-grab items-center justify-center gap-1 px-2 py-1",
+                    "active:cursor-grabbing touch-none select-none",
+                  )}
+                  onPointerDown={(e) => {
+                    if (e.button !== 0 || !plotRef.current) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    plotRef.current.setPointerCapture(e.pointerId);
+                    pinCardDragRef.current = {
+                      id: pin.id,
+                      pointerId: e.pointerId,
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      origOx: pin.ox,
+                      origOy: pin.oy,
+                    };
+                  }}
+                >
+                  <GripHorizontal
+                    className="size-3.5 text-muted-foreground"
+                    aria-hidden
+                  />
+                </button>
+                <button
+                  type="button"
+                  aria-label="데이터 카드 닫기"
+                  title="닫기"
+                  className={cn(
+                    "inline-flex shrink-0 items-center justify-center border-l border-border/60 px-1.5",
+                    "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+                  )}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setPinnedTips((prev) => prev.filter((p) => p.id !== pin.id));
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              </div>
               <div className="px-2.5 py-1.5">
                 <TrendPointCardBody
                   idx={pin.idx}
@@ -3623,7 +3710,7 @@ export function TrendChart({
       ) : null}
       </div>
 
-      <div className="relative h-4 overflow-hidden border-t pt-1">
+      <div className="relative farm-chart-tick-rail overflow-hidden border-t pt-1">
         {tickIndices.map((i) => {
           const fullLabel = categories[i] ?? "";
           if (!fullLabel) return null;
@@ -3637,7 +3724,7 @@ export function TrendChart({
             <span
               key={`tick-${i}-${fullLabel}`}
               className={cn(
-                "pointer-events-none absolute top-1 text-[9px] leading-none text-muted-foreground",
+                "pointer-events-none absolute top-1 farm-chart-fs-axis leading-none text-muted-foreground",
                 align === "left" && "left-0 max-w-[30%] truncate text-left",
                 align === "right" &&
                   !labelGutter &&

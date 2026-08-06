@@ -13,11 +13,17 @@ import {
   FARM_TOUR_ACTIVE_EVENT,
   FARM_TOUR_RESTART_EVENT,
   FARM_TOUR_RESTART_FLAG,
+  FARM_TOUR_RESTART_SCOPE_KEY,
+  TOUR_READY_ARIA_SELECTOR,
+  TOUR_READY_CHART_SELECTOR,
   TOUR_READY_HEATMAP_SELECTOR,
   TOUR_READY_MIN_CARDS,
   TOUR_READY_SELECTOR,
   TOUR_READY_VIEW_TOGGLE_SELECTOR,
-  TOUR_STEPS,
+  getTourStepsForScope,
+  parseTourScope,
+  tourScopeFromHubView,
+  type TourScope,
   type TourStepDef,
   type TourView,
 } from "@/lib/onboarding/tour-steps";
@@ -68,7 +74,12 @@ import {
   markOnboardingTourDoneAction,
   shouldShowOnboardingTourAction,
 } from "@/app/(dashboard)/farm/onboarding-actions";
-import { GaugeAnatomy, HeaderIconsGuide, PanelPillsGuide } from "@/components/onboarding/tour-guides";
+import {
+  GaugeAnatomy,
+  HeaderIconsGuide,
+  ListModeIconsGuide,
+  PanelPillsGuide,
+} from "@/components/onboarding/tour-guides";
 import { cn } from "@/lib/utils";
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -78,15 +89,28 @@ const TOOLTIP_W = 440;
 const TOOLTIP_W_MOBILE = 400;
 
 /**
- * 보기 탭 + 축사 카드 + 히트맵 — 스켈레톤/빈 그리드·trend 미도착 위 투어 시작 방지.
- * (히트맵 없는 농장은 manual force / auto give-up으로만 진입)
+ * 스코프별 DOM 준비 — 스켈레톤/빈 패널 위 투어 시작 방지.
+ * 현장 병합(히트맵 없음)은 축사 카드·현황 그리드·컨트롤러 카드로 ready 인정.
  */
-function isTourContentReady(): boolean {
+function isTourContentReady(scope: TourScope): boolean {
   if (countPresentTourTargets(TOUR_READY_VIEW_TOGGLE_SELECTOR) < 1) return false;
-  if (countPresentTourTargets(TOUR_READY_SELECTOR) < TOUR_READY_MIN_CARDS) {
-    return false;
+  if (scope === "chart") {
+    return countPresentTourTargets(TOUR_READY_CHART_SELECTOR) >= 1;
   }
-  return countPresentTourTargets(TOUR_READY_HEATMAP_SELECTOR) >= 1;
+  if (scope === "aria") {
+    return countPresentTourTargets(TOUR_READY_ARIA_SELECTOR) >= 1;
+  }
+  if (countPresentTourTargets(TOUR_READY_SELECTOR) >= TOUR_READY_MIN_CARDS) {
+    if (countPresentTourTargets(TOUR_READY_HEATMAP_SELECTOR) >= 1) return true;
+    // 현장 병합 — 히트맵 없이 현황/목록만 있어도 안내 가능
+    if (countPresentTourTargets('[data-tour-id="field-status-grid"]') >= 1) {
+      return true;
+    }
+    if (countPresentTourTargets('[data-tour-id="controller-card"]') >= 1) {
+      return true;
+    }
+  }
+  return countPresentTourTargets('[data-tour-id="controller-card"]') >= 1;
 }
 
 function measure(el: Element): Rect {
@@ -121,10 +145,12 @@ function setFarmTourActive(active: boolean): void {
  * 대상이 없는 스텝(데이터 없음 등)은 진행 방향으로 자동 건너뛴다.
  */
 function TourOverlay({
+  steps,
   initialView,
   setView,
   onFinish,
 }: {
+  steps: TourStepDef[];
   initialView: TourView;
   setView: (v: TourView) => void;
   onFinish: (completed: boolean) => void;
@@ -144,8 +170,10 @@ function TourOverlay({
   const [portalBounds, setPortalBounds] = useState<ReturnType<
     typeof getTourPortalBounds
   >>(() => (typeof window !== "undefined" ? getTourPortalBounds() : null));
-  const step = TOUR_STEPS[stepIdx];
-  const scrollPolicy: TourScrollPolicy = resolveTourScrollPolicy(step);
+  const step = steps[stepIdx];
+  const scrollPolicy: TourScrollPolicy = step
+    ? resolveTourScrollPolicy(step)
+    : "none";
   const scrollEnabled = scrollPolicy !== "none";
 
   const getTooltipHeight = useCallback(
@@ -161,7 +189,7 @@ function TourOverlay({
 
   const runTargetScrollOnce = useCallback(() => {
     const spotlight = targetRef.current as HTMLElement | null;
-    if (!spotlight || !isMobileTourSheet() || !scrollEnabled) return;
+    if (!spotlight || !isMobileTourSheet() || !scrollEnabled || !step) return;
     const scrollEl = resolveTourScrollTarget(
       spotlight,
       step.mobileScrollSelector,
@@ -181,7 +209,7 @@ function TourOverlay({
       },
       3,
     );
-  }, [scrollPolicy, scrollEnabled, getTooltipHeight, step.mobileScrollSelector]);
+  }, [scrollPolicy, scrollEnabled, getTooltipHeight, step]);
 
   const finish = useCallback(
     (completed: boolean) => {
@@ -197,12 +225,12 @@ function TourOverlay({
     (next: number, dir: 1 | -1) => {
       dirRef.current = dir;
       if (next < 0) return;
-      if (next >= TOUR_STEPS.length) {
+      if (next >= steps.length) {
         finish(true);
         return;
       }
-      const leaving = TOUR_STEPS[stepIdx];
-      const entering = TOUR_STEPS[next];
+      const leaving = steps[stepIdx];
+      const entering = steps[next];
       if (leaving?.id === "header" && entering?.id !== "header") {
         dispatchGridAction("close-header-tools");
       }
@@ -212,7 +240,7 @@ function TourOverlay({
       setSettling(true);
       setStepIdx(next);
     },
-    [finish, stepIdx],
+    [finish, stepIdx, steps],
   );
 
   // P2 — 투어 시작 시 모바일 브라우저 주소창 안정화(1회).
@@ -250,13 +278,13 @@ function TourOverlay({
 
   // 스텝 진입 — 이벤트 기반 layout settle → scroll 1회 → hole 표시.
   useEffect(() => {
-    if (!viewportReady) return;
+    if (!viewportReady || !step) return;
     const stepGen = stepGenRef.current;
     let cancelled = false;
     let attempts = 0;
     const timers: number[] = [];
     const spotlightSelector = getStepSpotlightSelector(step);
-    const prevStep = stepIdx > 0 ? TOUR_STEPS[stepIdx - 1] : null;
+    const prevStep = stepIdx > 0 ? steps[stepIdx - 1] : null;
 
     targetRef.current = null;
     accentRef.current = null;
@@ -401,14 +429,14 @@ function TourOverlay({
       }
       if (step.skipIfMissing) {
         const next = stepIdx + dirRef.current;
-        if (next < 0 || next >= TOUR_STEPS.length) finish(true);
+        if (next < 0 || next >= steps.length) finish(true);
         else setStepIdx(next);
         return;
       }
       attempts += 1;
       if (attempts >= findRetries) {
         const next = stepIdx + dirRef.current;
-        if (next < 0 || next >= TOUR_STEPS.length) finish(true);
+        if (next < 0 || next >= steps.length) finish(true);
         else setStepIdx(next);
         return;
       }
@@ -448,6 +476,7 @@ function TourOverlay({
   }, [
     stepIdx,
     step,
+    steps,
     setView,
     finish,
     viewportReady,
@@ -594,6 +623,7 @@ function TourOverlay({
     viewportTop: tourVp?.top ?? 0,
   });
   const tooltipStyle: React.CSSProperties = tooltipPlacement.style;
+  if (!step) return null;
   const stepBody =
     mobileSheet && step.mobileBody ? step.mobileBody : step.body;
   const stepBullets =
@@ -676,7 +706,7 @@ function TourOverlay({
               mobileSheet ? "text-xs" : "text-sm",
             )}
           >
-            {stepIdx + 1} / {TOUR_STEPS.length}
+            {stepIdx + 1} / {steps.length}
           </span>
           <span className="ml-auto" />
           <button
@@ -735,6 +765,14 @@ function TourOverlay({
               <HeaderIconsGuide compact={mobileSheet} />
             </div>
           ) : null}
+          {step.extra === "list-mode-icons" ? (
+            <div
+              className={mobileSheet ? "mt-2.5" : "mt-3"}
+              data-tour-extra="list-mode-icons"
+            >
+              <ListModeIconsGuide compact={mobileSheet} />
+            </div>
+          ) : null}
         </div>
 
         <div
@@ -744,7 +782,7 @@ function TourOverlay({
           )}
         >
           <div className="flex items-center justify-center gap-1.5">
-            {TOUR_STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <span
                 key={s.id}
                 className={cn(
@@ -792,7 +830,7 @@ function TourOverlay({
                 mobileSheet ? "px-3 py-1.5 text-xs" : "px-4 py-1.5 text-sm",
               )}
             >
-              {stepIdx === TOUR_STEPS.length - 1 ? "완료" : "다음"}
+              {stepIdx === steps.length - 1 ? "완료" : "다음"}
             </button>
           </div>
         </div>
@@ -803,7 +841,8 @@ function TourOverlay({
 }
 
 /**
- * 투어 런처 — 첫 로그인(미완료·버전 갱신) 시 자동 시작, 계정 메뉴에서 수동 재시작.
+ * 투어 런처 — 첫 로그인(미완료·버전 갱신) 시 현장 투어 자동 시작,
+ * 헤더 물음표로 현재 탭(현장·차트·델린) 안내 수동 시작.
  * FarmPageContent 안에 마운트되어 뷰 전환(setView)을 직접 제어한다.
  */
 export function FarmFeatureTour({
@@ -819,57 +858,77 @@ export function FarmFeatureTour({
   /** 다시 보기 시 TourOverlay remount — 이미 활성일 때 step 유지 방지. */
   const [tourSession, setTourSession] = useState(0);
   const [startView, setStartView] = useState<TourView>("map");
+  const [tourScope, setTourScope] = useState<TourScope>("field");
+  const [steps, setSteps] = useState<TourStepDef[]>([]);
   const checkedRef = useRef(false);
   const viewRef = useRef(view);
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
 
-  const start = useCallback((opts?: { manual?: boolean }) => {
-    const manual = Boolean(opts?.manual);
-    // tourActive는 오버레이 표시 직전에만 true — 대기 중 soft fetch/enrich 유지(3).
-    const activate = () => {
-      dispatchGridAction("close-header-tools");
-      setFarmTourActive(true);
-      setStartView(viewRef.current);
-      setTourSession((n) => n + 1);
-      setActive(true);
-    };
-    const abort = () => {
-      setFarmTourActive(false);
-      setActive(false);
-    };
+  const start = useCallback(
+    (opts?: { manual?: boolean; scope?: TourScope }) => {
+      const manual = Boolean(opts?.manual);
+      const scope =
+        opts?.scope ?? tourScopeFromHubView(viewRef.current);
+      const nextSteps = getTourStepsForScope(scope);
+      const resumeView = viewRef.current;
+      // 차트·델린 안내는 해당 탭 DOM이 있어야 ready — 먼저 전환.
+      if (scope === "chart") setView("chart");
+      else if (scope === "aria") setView("aria");
 
-    if (isTourContentReady()) {
-      activate();
-      return;
-    }
+      const activate = () => {
+        dispatchGridAction("close-header-tools");
+        setFarmTourActive(true);
+        setTourScope(scope);
+        setSteps(nextSteps);
+        setStartView(resumeView);
+        setTourSession((n) => n + 1);
+        setActive(true);
+      };
+      const abort = () => {
+        setFarmTourActive(false);
+        setActive(false);
+        setSteps([]);
+      };
 
-    const startedAt = Date.now();
-    const forceAfterMs = manual ? TOUR_MANUAL_READY_FORCE_MS : null;
-    const giveUpMs = manual
-      ? TOUR_MANUAL_READY_FORCE_MS
-      : TOUR_AUTO_READY_GIVE_UP_MS;
-
-    const waitForReady = () => {
-      if (isTourContentReady()) {
-        activate();
-        return;
-      }
-      const elapsed = Date.now() - startedAt;
-      if (forceAfterMs != null && elapsed >= forceAfterMs) {
-        activate();
-        return;
-      }
-      if (elapsed >= giveUpMs) {
-        // 자동: 콘텐츠 미준비 시 투어 보류 (스켈레톤 위 난잡 방지)
+      if (nextSteps.length === 0) {
         abort();
         return;
       }
-      window.setTimeout(waitForReady, TOUR_READY_INTERVAL_MS);
-    };
-    waitForReady();
-  }, []);
+
+      if (isTourContentReady(scope)) {
+        activate();
+        return;
+      }
+
+      const startedAt = Date.now();
+      const forceAfterMs = manual ? TOUR_MANUAL_READY_FORCE_MS : null;
+      const giveUpMs = manual
+        ? TOUR_MANUAL_READY_FORCE_MS
+        : TOUR_AUTO_READY_GIVE_UP_MS;
+
+      const waitForReady = () => {
+        if (isTourContentReady(scope)) {
+          activate();
+          return;
+        }
+        const elapsed = Date.now() - startedAt;
+        if (forceAfterMs != null && elapsed >= forceAfterMs) {
+          activate();
+          return;
+        }
+        if (elapsed >= giveUpMs) {
+          // 자동: 콘텐츠 미준비 시 투어 보류 (스켈레톤 위 난잡 방지)
+          abort();
+          return;
+        }
+        window.setTimeout(waitForReady, TOUR_READY_INTERVAL_MS);
+      };
+      waitForReady();
+    },
+    [setView],
+  );
 
   // 자동 시작 — DOM 준비 폴링과 서버 완료 확인 병렬.
   useEffect(() => {
@@ -878,7 +937,16 @@ export function FarmFeatureTour({
     try {
       if (sessionStorage.getItem(FARM_TOUR_RESTART_FLAG)) {
         sessionStorage.removeItem(FARM_TOUR_RESTART_FLAG);
-        start({ manual: true });
+        let scope: TourScope = "field";
+        try {
+          scope = parseTourScope(
+            sessionStorage.getItem(FARM_TOUR_RESTART_SCOPE_KEY),
+          );
+          sessionStorage.removeItem(FARM_TOUR_RESTART_SCOPE_KEY);
+        } catch {
+          /* ignore */
+        }
+        start({ manual: true, scope });
         return;
       }
     } catch {
@@ -890,7 +958,7 @@ export function FarmFeatureTour({
     void shouldShowOnboardingTourAction()
       .then((show) => {
         if (cancelled || !show) return;
-        start({ manual: false });
+        start({ manual: false, scope: "field" });
       })
       .catch(() => {
         /* 미로그인·네트워크 오류 */
@@ -901,10 +969,15 @@ export function FarmFeatureTour({
     };
   }, [enabled, start]);
 
-  // 계정 메뉴 '기능 안내 다시 보기' — 수동 재시작.
+  // 헤더 물음표 — 현재 탭 스코프 수동 재시작.
   useEffect(() => {
     if (!enabled) return;
-    const onRestart = () => start({ manual: true });
+    const onRestart = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ scope?: TourScope }>).detail;
+      const scope =
+        detail?.scope ?? tourScopeFromHubView(viewRef.current);
+      start({ manual: true, scope });
+    };
     window.addEventListener(FARM_TOUR_RESTART_EVENT, onRestart);
     return () => window.removeEventListener(FARM_TOUR_RESTART_EVENT, onRestart);
   }, [enabled, start]);
@@ -912,15 +985,17 @@ export function FarmFeatureTour({
   const handleFinish = useCallback(() => {
     setFarmTourActive(false);
     setActive(false);
+    setSteps([]);
     void markOnboardingTourDoneAction().catch(() => {
       /* 저장 실패 시 다음 진입에서 재노출 */
     });
   }, []);
 
-  if (!active) return null;
+  if (!active || steps.length === 0) return null;
   return (
     <TourOverlay
-      key={tourSession}
+      key={`${tourSession}-${tourScope}`}
+      steps={steps}
       initialView={startView}
       setView={setView}
       onFinish={handleFinish}

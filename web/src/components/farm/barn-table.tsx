@@ -95,6 +95,13 @@ type Props = {
   onRequestPanelEnrichment?: () => void | Promise<void>;
   /** 그리드 히트맵 '컨트롤러 이동' 도착 — 해당 controllerKey 카드로 스크롤/하이라이트 */
   focusControllerKey?: string | null;
+  /** 현장 스플릿 우패널 — 컨트롤러 그리드 최대 2열 */
+  narrowControllerGrid?: boolean;
+  /**
+   * 현장 축사 필터 전환 — 카드 스태거 입장 epoch (0=비활성).
+   * key remount + ui-motion-stagger-in.
+   */
+  listFilterEnterEpoch?: number;
   /** 그리드·목록 공유 추이 기간 (URL 동기화). */
   trendPeriod?: TrendPeriodId;
   onTrendPeriodChange?: (period: TrendPeriodId) => void;
@@ -132,6 +139,8 @@ export function BarnTable({
   staggerMount = false,
   onRequestPanelEnrichment,
   focusControllerKey = null,
+  narrowControllerGrid = false,
+  listFilterEnterEpoch = 0,
   trendPeriod: trendPeriodProp,
   onTrendPeriodChange,
   panelLiveActive = true,
@@ -636,9 +645,8 @@ export function BarnTable({
         disabled={layoutPending}
         aria-busy={layoutPending || undefined}
         aria-label={layoutPending ? "보기 전환 중" : layoutToggleLabel}
-      >
-        {layoutPending ? `${layoutToggleLabel}…` : layoutToggleLabel}
-      </PageActionButton>
+        title={layoutPending ? "보기 전환 중" : layoutToggleLabel}
+      />
       <BarnListModeToolbar
         value={effectiveListMode}
         onChange={handleListModeChange}
@@ -654,9 +662,8 @@ export function BarnTable({
       disabled={layoutPending}
       aria-busy={layoutPending || undefined}
       aria-label={layoutPending ? "보기 전환 중" : layoutToggleLabel}
-    >
-      {layoutPending ? `${layoutToggleLabel}…` : layoutToggleLabel}
-    </PageActionButton>
+      title={layoutPending ? "보기 전환 중" : layoutToggleLabel}
+    />
   );
 
   const listToolbar = compact ? listToolbarMobile : listToolbarDesktop;
@@ -747,6 +754,8 @@ export function BarnTable({
           selectedSps={selectedSps}
           onToggleSp={toggleSp}
           staggerMount={staggerMount}
+          narrowControllerGrid={narrowControllerGrid}
+          listFilterEnterEpoch={listFilterEnterEpoch}
           mobileToolbarSheetMode={mobileToolbarSheetMode}
           toolbarSheetKey={toolbarSheetKey}
           toolbarSheetOpen={toolbarSheetOpen}

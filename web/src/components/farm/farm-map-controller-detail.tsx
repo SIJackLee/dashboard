@@ -112,6 +112,8 @@ type Props = {
   trendStale?: boolean;
   onChangeMetric: (metricId: string) => void;
   onClose: () => void;
+  /** 현장 통합 — 차트 탭으로 이동 (시드 없음) */
+  onOpenChart?: () => void;
   /** picker·외부 동기화 — BarnReading.key */
   selectedReadingKey?: string | null;
   onSelectedReadingKeyChange?: (readingKey: string | null) => void;
@@ -144,6 +146,7 @@ export function FarmMapControllerDetail({
   trendStale = false,
   onChangeMetric,
   onClose,
+  onOpenChart,
   selectedReadingKey = null,
   onSelectedReadingKeyChange,
   onPickerNavigateReading: _onPickerNavigateReading,
@@ -523,7 +526,21 @@ export function FarmMapControllerDetail({
             ),
           )}
         </div>
-        <PanelCloseButton className="ml-auto" onClick={onClose} />
+        <div className="ml-auto flex items-center gap-1.5">
+          {onOpenChart ? (
+            <button
+              type="button"
+              onClick={onOpenChart}
+              className={cn(
+                "rounded-md border bg-background px-2 py-1 text-xs font-medium text-foreground",
+                motionClass.microHover,
+              )}
+            >
+              차트에서 보기
+            </button>
+          ) : null}
+          <PanelCloseButton onClick={onClose} />
+        </div>
       </div>
 
       {controllers.length === 0 ? (

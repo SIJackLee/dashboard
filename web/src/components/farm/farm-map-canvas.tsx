@@ -101,6 +101,8 @@ type Props = {
   onTrendPeriodChange?: (period: TrendPeriodId) => void;
   trendLoading?: boolean;
   trendStale?: boolean;
+  fieldMerge?: boolean;
+  onOpenChart?: () => void;
 };
 
 const GRID_COL_MIN = "4.75rem";
@@ -191,6 +193,8 @@ export function FarmMapCanvas({
   onTrendPeriodChange,
   trendLoading = false,
   trendStale = false,
+  fieldMerge = false,
+  onOpenChart,
 }: Props) {
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -260,6 +264,12 @@ export function FarmMapCanvas({
   const [detailSelectedReadingKey, setDetailSelectedReadingKey] = useState<
     string | null
   >(null);
+
+  useEffect(() => {
+    if (!bulkMode) return;
+    setExpanded(null);
+    setDetailSelectedReadingKey(null);
+  }, [bulkMode, setExpanded]);
 
   const handleDetailClose = useCallback(() => {
     setExpanded(null);
@@ -493,9 +503,17 @@ export function FarmMapCanvas({
       ) : null}
       <div
         className={cn(
+          fieldMerge &&
+            focusMode &&
+            "lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 lg:p-3",
+        )}
+      >
+      <div
+        className={cn(
           "grid min-h-0 gap-1.5 overflow-auto p-3",
           // 상세 확대 중에는 보드가 남은 높이를 채우지 않도록 flex-1 해제(근접 배치).
           focusMode ? "shrink-0" : "flex-1",
+          fieldMerge && focusMode && "lg:p-0",
           "bg-[linear-gradient(to_right,hsl(var(--border)/0.45)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.45)_1px,transparent_1px)]",
           "bg-[size:20px_20px] bg-muted/10 dark:bg-muted/6",
           isDragging && "select-none"
@@ -532,6 +550,14 @@ export function FarmMapCanvas({
           const isTarget = dropTarget === key;
           const isThisDragging = draggedId === b.meta.id;
           const spCode = parseBarnCatalogKey(b.meta.id)?.stallTyCode ?? "";
+          const selectForDetail =
+            fieldMerge && graphMode && !bulkMode
+              ? () => {
+                  const metrics = metricIdsByBarnId.get(b.meta.id);
+                  const metricId = metrics?.[0] ?? "T";
+                  setExpanded({ barnId: b.meta.id, metricId });
+                }
+              : undefined;
           return (
             <div
               key={b.meta.id}
@@ -563,14 +589,20 @@ export function FarmMapCanvas({
                 graphContent={
                   graphMode ? graphByBarnId.get(b.meta.id) : undefined
                 }
-                selectable={bulkMode && Boolean(spCode)}
-                selected={bulkMode && selectedSps.has(spCode)}
+                selectable={
+                  (bulkMode && Boolean(spCode)) || Boolean(selectForDetail)
+                }
+                selected={
+                  bulkMode
+                    ? selectedSps.has(spCode)
+                    : expanded?.barnId === b.meta.id
+                }
                 onSelect={
                   bulkMode
                     ? spCode
                       ? () => toggleSp(spCode)
                       : undefined
-                    : undefined
+                    : selectForDetail
                 }
               />
             </div>
@@ -582,7 +614,7 @@ export function FarmMapCanvas({
           label={detail.label}
           metricId={expanded.metricId}
           controllers={detail.controllers}
-          gridCols={gridCols}
+          gridCols={fieldMerge && focusMode ? 1 : gridCols}
           period={graphPeriod}
           bars={GRAPH_BARS[graphPeriod]}
           readings={controller?.readings ?? []}
@@ -601,8 +633,10 @@ export function FarmMapCanvas({
           selectedReadingKey={detailSelectedReadingKey}
           onSelectedReadingKeyChange={setDetailSelectedReadingKey}
           onPickerNavigateReading={handlePickerNavigateReading}
+          onOpenChart={onOpenChart}
         />
       ) : null}
+      </div>
       <InlineStatusToast
         message={statusToast?.message ?? null}
         tone={statusToast?.tone}

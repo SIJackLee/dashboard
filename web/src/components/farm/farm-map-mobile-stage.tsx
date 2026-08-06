@@ -17,6 +17,7 @@ import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
+import { firstReadingKeyForBarn } from "./farm-field-status-grid";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { BarnListToolbarMobileSheet } from "./barn-list-toolbar-mobile-sheet";
@@ -50,6 +51,8 @@ type Props = {
   onTrendPeriodChange?: (period: TrendPeriodId) => void;
   trendLoading?: boolean;
   trendStale?: boolean;
+  fieldMerge?: boolean;
+  onOpenChart?: () => void;
 };
 
 /**
@@ -66,6 +69,8 @@ export function FarmMapMobileStage({
   onTrendPeriodChange,
   trendLoading = false,
   trendStale = false,
+  fieldMerge = false,
+  onOpenChart,
 }: Props) {
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -114,6 +119,23 @@ export function FarmMapMobileStage({
     setDetailSelectedReadingKey(null);
     setHostedSheetOpen(false);
   }, [setExpanded]);
+
+  /** 현장 통합 모바일 — 인라인 상세 없이 Bottom sheet 직행 */
+  const openFieldMergeSheet = useCallback(
+    (barn: BarnMapSnapshot) => {
+      const metrics = metricIdsByBarnId.get(barn.meta.id);
+      const metricId = metrics?.[0] ?? "T";
+      const readingKey = firstReadingKeyForBarn(
+        barn,
+        controller?.readings ?? [],
+      );
+      setExpanded({ barnId: barn.meta.id, metricId });
+      setDetailSelectedReadingKey(readingKey);
+      setHostedSheetPage(0);
+      setHostedSheetOpen(true);
+    },
+    [controller?.readings, metricIdsByBarnId, setExpanded],
+  );
 
   const handlePickerNavigateReading = useCallback(
     (readingKey: string) => {
@@ -208,7 +230,7 @@ export function FarmMapMobileStage({
         />
       ) : null}
 
-      {!bulkEnabled && graphMode && barns.length > 0 ? (
+      {!bulkEnabled && graphMode && barns.length > 0 && !fieldMerge ? (
         <div
           className="flex flex-wrap items-center gap-2 border-b px-3 py-2"
           data-tour-id="farm-command-bar"
@@ -239,20 +261,32 @@ export function FarmMapMobileStage({
                 snapshot={b}
                 layout="stack"
                 compact
+                statusCompact={fieldMerge}
                 graphContent={
-                  graphMode ? graphByBarnId.get(b.meta.id) : undefined
+                  graphMode && !fieldMerge
+                    ? graphByBarnId.get(b.meta.id)
+                    : undefined
                 }
-                selectable={bulkMode && Boolean(spCode)}
-                selected={bulkMode && selectedSps.has(spCode)}
+                selectable={
+                  (bulkMode && Boolean(spCode)) ||
+                  (fieldMerge && !bulkMode)
+                }
+                selected={
+                  bulkMode
+                    ? selectedSps.has(spCode)
+                    : expanded?.barnId === b.meta.id
+                }
                 onSelect={
                   bulkMode
                     ? spCode
                       ? () => toggleSp(spCode)
                       : undefined
-                    : undefined
+                    : fieldMerge
+                      ? () => openFieldMergeSheet(b)
+                      : undefined
                 }
               />
-              {graphMode && detail && isExpanded ? (
+              {!fieldMerge && graphMode && detail && isExpanded ? (
                 <FarmMapControllerDetail
                   label={detail.label}
                   metricId={expanded.metricId}
@@ -279,6 +313,7 @@ export function FarmMapMobileStage({
                   hostedMobileSheetPage={hostedSheetPage}
                   onHostedMobileSheetOpenChange={setHostedSheetOpen}
                   onHostedMobileSheetPageChange={setHostedSheetPage}
+                  onOpenChart={onOpenChart}
                 />
               ) : null}
             </div>
@@ -293,7 +328,13 @@ export function FarmMapMobileStage({
         sheetPage={hostedSheetPage}
         onSelectKey={handleHostedSheetSelectKey}
         onPageSettled={setHostedSheetPage}
-        onClose={() => setHostedSheetOpen(false)}
+        onClose={() => {
+          setHostedSheetOpen(false);
+          if (fieldMerge) {
+            setExpanded(null);
+            setDetailSelectedReadingKey(null);
+          }
+        }}
         thermoSettings={controller?.thermoSettings ?? {}}
         commands={controller?.commands}
         alarmSettings={controller?.alarmSettings}

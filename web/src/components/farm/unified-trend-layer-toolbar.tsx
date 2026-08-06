@@ -31,7 +31,7 @@ type Tone = "temp" | "hum" | "motor" | "neutral";
 
 export type LayerGroupId = "temp" | "hum" | "motor";
 
-/** 그룹 토글 사이클: 전체 → 본선만 → 끔 → 전체 */
+/** 그룹 토글 사이클: 본선만 → 전체 → 끔 → 본선만 */
 export type LayerGroupCycleMode = "all" | "base" | "off";
 
 export type UnifiedTrendLayerAvailable = Record<UnifiedLayerId, boolean>;
@@ -43,7 +43,7 @@ const GROUP_MAIN: Record<LayerGroupId, UnifiedLayerId> = {
 };
 
 const GROUP_SUBS: Record<LayerGroupId, readonly UnifiedLayerId[]> = {
-  /* 전체 = 본선 + 편차 + 산포 + EMA5 */
+  /* 전체 = 본선 + 분포 + 범위 + 추세 */
   temp: ["ema", "dev", "band"],
   hum: ["humEma", "humDev", "humBand"],
   motor: ["motorCh"],
@@ -92,9 +92,9 @@ export function detectLayerGroupMode(
 export function nextLayerGroupMode(
   mode: LayerGroupCycleMode,
 ): LayerGroupCycleMode {
-  if (mode === "all") return "base";
-  if (mode === "base") return "off";
-  return "all";
+  if (mode === "base") return "all";
+  if (mode === "all") return "off";
+  return "base";
 }
 
 export function applyLayerGroupMode(
@@ -158,7 +158,7 @@ function toneActiveClass(tone: Tone): string {
 
 function iconBtnClass(active: boolean, muted: boolean, tone: Tone) {
   return cn(
-    "relative inline-flex size-8 shrink-0 items-center justify-center overflow-visible rounded-md border",
+    "relative inline-flex size-9 shrink-0 items-center justify-center overflow-visible rounded-md border md:size-11",
     motionClass.microInteractive,
     active
       ? toneActiveClass(tone)
@@ -231,7 +231,7 @@ function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
 
 /**
  * 차트 레이어 툴바 — 온도·습도·모터 가로 3버튼 (헤더용).
- * 각 버튼 클릭: 전체적용 → 본선만 → 끔 → 전체적용.
+ * 각 버튼 클릭: 본선만 → 전체 → 끔 → 본선만.
  */
 export function UnifiedTrendLayerToolbar({
   layers,
@@ -278,7 +278,7 @@ export function UnifiedTrendLayerToolbar({
                 tone={meta.tone}
                 onClick={() => onCycleGroup(group)}
               >
-                <Icon className="size-4" aria-hidden />
+                <Icon className="size-4 md:size-5" aria-hidden />
                 <ModeOverlay mode={mode} />
               </IconTipButton>
             </div>
