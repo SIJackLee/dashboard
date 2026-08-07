@@ -10,7 +10,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
-import { Warehouse, Map, List, LineChart, Bot } from "lucide-react";
+import { Map, List, LineChart, Bot } from "lucide-react";
+import { StallUnitIcon } from "@/components/icons/stall-unit-icon";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
@@ -587,7 +588,11 @@ export function FarmPageContent({
           className={viewTabBtn(fieldActive)}
           onClick={() => setView("map")}
         >
-          <Warehouse className={dashboardUi.iconSm} aria-hidden />
+          <StallUnitIcon
+            className={dashboardUi.iconSm}
+            strokeWidth={dashboardUi.iconStroke}
+            aria-hidden
+          />
           현장
         </button>
       ) : (
@@ -599,7 +604,11 @@ export function FarmPageContent({
             className={viewTabBtn(view === "map")}
             onClick={() => setView("map")}
           >
-            <Map className={dashboardUi.iconSm} aria-hidden />
+            <Map
+              className={dashboardUi.iconSm}
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
             그리드
           </button>
           <button
@@ -609,7 +618,11 @@ export function FarmPageContent({
             className={viewTabBtn(view === "list")}
             onClick={() => setView("list")}
           >
-            <List className={dashboardUi.iconSm} aria-hidden />
+            <List
+              className={dashboardUi.iconSm}
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
             목록
           </button>
         </>
@@ -621,7 +634,11 @@ export function FarmPageContent({
         className={viewTabBtn(view === "chart")}
         onClick={() => setView("chart")}
       >
-        <LineChart className={dashboardUi.iconSm} aria-hidden />
+        <LineChart
+          className={dashboardUi.iconSm}
+          strokeWidth={dashboardUi.iconStroke}
+          aria-hidden
+        />
         차트
       </button>
       {delinEnabled() ? (
@@ -632,7 +649,11 @@ export function FarmPageContent({
           className={viewTabBtn(view === "aria")}
           onClick={() => setView("aria")}
         >
-          <Bot className={dashboardUi.iconSm} aria-hidden />
+          <Bot
+            className={dashboardUi.iconSm}
+            strokeWidth={dashboardUi.iconStroke}
+            aria-hidden
+          />
           {DELIN_NAME}
         </button>
       ) : null}

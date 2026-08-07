@@ -1,6 +1,6 @@
 "use client";
 
-import { Warehouse, Building2, GripVertical, Check } from "lucide-react";
+import { Building2, GripVertical, Check } from "lucide-react";
 import type { ReactNode } from "react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
@@ -8,6 +8,7 @@ import { EnvChip } from "@/components/common/env-chip";
 import type { StatusTone } from "@/components/common/status-badge";
 import { getStallTypeName, formatStallTypeLabelCompact } from "@/lib/data/stall-type";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
+import { StallUnitIcon } from "@/components/icons/stall-unit-icon";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +88,7 @@ export function FarmMapCard({
   statusCompact = false,
 }: Props) {
   const { meta } = snapshot;
-  const Icon = meta.type === "office" ? Building2 : Warehouse;
+  const Icon = meta.type === "office" ? Building2 : StallUnitIcon;
   const title = displayCardTitle(snapshot, compact || statusCompact);
   const showGrip = Boolean(draggable) && !statusCompact;
   const showGraph = Boolean(graphContent) && !statusCompact;
@@ -227,6 +228,7 @@ export function FarmMapCard({
                 "pointer-events-none",
                 compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
               )}
+              strokeWidth={dashboardUi.iconStroke}
               aria-hidden
             />
           </div>
@@ -246,6 +248,7 @@ export function FarmMapCard({
                 "text-emerald-600",
                 compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
               )}
+              strokeWidth={dashboardUi.iconStroke}
             />
           ) : null}
           <span

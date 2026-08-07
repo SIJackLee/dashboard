@@ -25,11 +25,12 @@ import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { StatusBadge } from "@/components/common/status-badge";
 import { EnvChip } from "@/components/common/env-chip";
+import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
-import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
+import { useFarmTourActive, getFarmTourActiveSync } from "@/lib/onboarding/use-farm-tour-active";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 
 type Props = {
@@ -156,6 +157,7 @@ function ControllerCardGrid({
   toolbarSheetKey = null,
   onToolbarSheetKeyChange,
   cardBodyExpandedKeys,
+  tourFocusKey,
 }: {
   readings: BarnReading[];
   allReadings: BarnReading[];
@@ -187,6 +189,8 @@ function ControllerCardGrid({
   toolbarSheetKey?: string | null;
   onToolbarSheetKeyChange?: (key: string, page?: ControllerMobileSheetPage) => void;
   cardBodyExpandedKeys?: ReadonlySet<string>;
+  /** 투어 — 그래프/설정 모드에서 펼칠 단일 카드 */
+  tourFocusKey?: string;
 }) {
   const tourActive = useFarmTourActive();
   const compact = useHydrationSafeDashboardCompact();
@@ -237,12 +241,16 @@ function ControllerCardGrid({
           graphExpanded={
             mobileToolbarSheetMode
               ? listMode === "graph"
-              : isBarnListGraphExpanded(r.key, listMode, panelSets)
+              : tourFocusKey != null && listMode === "graph"
+                ? r.key === tourFocusKey
+                : isBarnListGraphExpanded(r.key, listMode, panelSets)
           }
           settingsExpanded={
             mobileToolbarSheetMode
               ? listMode === "settings"
-              : isBarnListSettingsExpanded(r.key, listMode, panelSets)
+              : tourFocusKey != null && listMode === "settings"
+                ? r.key === tourFocusKey
+                : isBarnListSettingsExpanded(r.key, listMode, panelSets)
           }
           mobileSheetOpen={
             compact && !mobileToolbarSheetMode
@@ -374,6 +382,8 @@ export function BarnListSummary({
   onToolbarSheetPageChange,
   onToolbarSheetClose,
 }: Props) {
+  const tourActiveState = useFarmTourActive();
+  const tourActive = tourActiveState || getFarmTourActiveSync();
   const groups = useMemo(() => groupReadingsByHierarchy(readings), [readings]);
   const visibleGroups = useMemo(
     () =>
@@ -385,6 +395,11 @@ export function BarnListSummary({
         .filter((sp) => sp.stalls.length > 0),
     [groups]
   );
+  // 투어 중 그래프/설정 — 목록 전체에서 1장만 펼쳐 hole 과대·오타깃 방지
+  const tourFocusKey =
+    tourActive && !mobileToolbarSheetMode && !bulkMode
+      ? readings[0]?.key
+      : undefined;
 
   const gridProps = {
     allReadings: readings,
@@ -413,6 +428,7 @@ export function BarnListSummary({
     toolbarSheetKey,
     onToolbarSheetKeyChange,
     cardBodyExpandedKeys,
+    tourFocusKey,
   };
 
   const toolbarSheet = mobileToolbarSheetMode && onToolbarSheetClose ? (
@@ -576,7 +592,12 @@ export function BarnListSummary({
                       dashboardUi.body
                     )}
                   >
-                    <span className="font-semibold text-muted-foreground">{stall.label}</span>
+                    <StallUnitNoMark
+                      stallNo={
+                        stall.stallKey.startsWith("__") ? null : stall.stallKey
+                      }
+                      className="font-semibold text-muted-foreground"
+                    />
                     <span className={cn("text-muted-foreground", dashboardTypography.meta)}>
                       {stall.readings.length}대
                     </span>

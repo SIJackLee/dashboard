@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Cpu, LineChart, Loader2, Settings, type LucideIcon } from "lucide-react";
+import { useEffect, useState, type ComponentType } from "react";
+import { LineChart, Loader2, Settings } from "lucide-react";
+import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
+type ModeIcon = ComponentType<{
+  className?: string;
+  "aria-hidden"?: boolean;
+  strokeWidth?: number;
+}>;
+
 const MODES: {
   id: BarnListViewMode;
   label: string;
-  Icon: LucideIcon;
+  Icon: ModeIcon;
 }[] = [
-  { id: "controller", label: "컨트롤러", Icon: Cpu },
+  { id: "controller", label: "컨트롤러", Icon: ControllerDeviceIcon },
   { id: "graph", label: "그래프", Icon: LineChart },
   { id: "settings", label: "설정", Icon: Settings },
 ];
@@ -74,6 +81,7 @@ export function BarnListModeToolbar({
             aria-selected={selected}
             aria-busy={modeBusy || undefined}
             disabled={disabled}
+            data-tour-id={`list-mode-${mode.id}`}
             className={cn(
               "inline-flex size-8 min-w-8 items-center justify-center border-border p-0 disabled:cursor-wait sm:size-11 sm:min-w-11",
               motionClass.microInteractive,
@@ -93,10 +101,15 @@ export function BarnListModeToolbar({
             {modeBusy ? (
               <Loader2
                 className="size-4 shrink-0 animate-spin sm:size-5"
+                strokeWidth={dashboardUi.iconStroke}
                 aria-hidden
               />
             ) : (
-              <Icon className="size-4 shrink-0 sm:size-5" aria-hidden />
+              <Icon
+                className="size-4 shrink-0 sm:size-5"
+                strokeWidth={dashboardUi.iconStroke}
+                aria-hidden
+              />
             )}
           </button>
         );

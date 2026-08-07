@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { PanelRight, Settings } from "lucide-react";
+import { Check, PanelRight, Settings } from "lucide-react";
 import {
   TrendChart,
   type ScaleEdgeDragEvent,
@@ -70,6 +70,7 @@ import type { ControllerThermoSettings } from "@/lib/controllers/controller-sett
 import {
   downsampleTrendAxis,
   tickEveryForDisplayBars,
+  formatTrendScopeRangeLabel,
 } from "@/lib/farm/trend-display-buckets";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
@@ -113,6 +114,11 @@ import {
   FARM_CHART_UI_SCALE,
 } from "@/lib/ui/farm-chart-ui-scale";
 import { cn } from "@/lib/utils";
+import {
+  FARM_TOUR_ACTION_EVENT,
+  type TourGridAction,
+} from "@/lib/onboarding/tour-steps";
+import { dispatchTourGridActionDone, afterFrames } from "@/lib/onboarding/tour-timing";
 
 const TEMP_STEP = 0.5;
 const HUM_STEP = 1;
@@ -734,7 +740,7 @@ export function UnifiedBarnTrendPanel({
     canCommand &&
     Boolean(alarmScopeKey) &&
     !alarmSaving &&
-    chartMode === "view";
+    controlMode;
   const thermoDragEnabled =
     canCommand && controlMode && !thermoApplying;
 
@@ -923,9 +929,8 @@ export function UnifiedBarnTrendPanel({
   };
 
   const onScaleEdgeDrag = (event: ScaleEdgeDragEvent) => {
-    if (controlMode) {
+    if (controlMode && isChartThermoEdgeId(event.id)) {
       if (!thermoDragEnabled && event.phase !== "cancel") return;
-      if (!isChartThermoEdgeId(event.id)) return;
       const mapLo = mappingThresholds.tempLow;
       const mapHi = mappingThresholds.tempHigh;
 
@@ -1061,8 +1066,8 @@ export function UnifiedBarnTrendPanel({
   };
 
   const onScaleEdgeNumericCommit = (event: ScaleEdgeNumericCommitEvent) => {
-    if (controlMode) {
-      if (!thermoDragEnabled || !isChartThermoEdgeId(event.id)) return;
+    if (controlMode && isChartThermoEdgeId(event.id)) {
+      if (!thermoDragEnabled) return;
       const cur = thermoDraftRef.current ?? baseThermo;
       let next: ChartThermoDraft = cur;
       if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
@@ -1137,6 +1142,42 @@ export function UnifiedBarnTrendPanel({
     thermoDraftRef.current = null;
     setThermoApplyError(null);
   };
+
+  /** 스포트라이트 투어 — 설정모드 진입/종료 */
+  useEffect(() => {
+    const onTourAction = (e: Event) => {
+      const action = (e as CustomEvent<{ action?: TourGridAction }>).detail
+        ?.action;
+      if (action !== "chart-enter-control" && action !== "chart-exit-control") {
+        return;
+      }
+      if (action === "chart-enter-control") {
+        if (canCommand) {
+          setChartMode("control");
+          setThermoDraft(baseThermo);
+          thermoDraftRef.current = baseThermo;
+          setThermoApplyError(null);
+          setXScopeStack([]);
+          setDraftThresholds(null);
+          setDragFreeze(null);
+          draftRef.current = null;
+          freezeRef.current = null;
+          setLayers((prev) => (prev.motors ? prev : { ...prev, motors: true }));
+        }
+      } else {
+        setChartMode("view");
+        setThermoDraft(null);
+        thermoDraftRef.current = null;
+        setThermoApplyError(null);
+      }
+      void (async () => {
+        await afterFrames(2);
+        dispatchTourGridActionDone(action);
+      })();
+    };
+    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+  }, [canCommand, baseThermo]);
 
   /** 더블클릭 — 설정모드 진입만 (종료는 빈 플롯 우클릭) */
   const enterControlModeFromPlot = () => {
@@ -1260,6 +1301,7 @@ export function UnifiedBarnTrendPanel({
         lineStrokeWidth?: number;
         lineDasharray?: string;
         showApplyActions?: boolean;
+        hideLabel?: boolean;
       },
     ) => {
       if (chartY == null || !Number.isFinite(chartY)) return;
@@ -1280,6 +1322,7 @@ export function UnifiedBarnTrendPanel({
         lineStrokeWidth: opts?.lineStrokeWidth,
         lineDasharray: opts?.lineDasharray,
         showApplyActions: opts?.showApplyActions,
+        hideLabel: opts?.hideLabel,
       });
     };
 
@@ -1377,6 +1420,9 @@ export function UnifiedBarnTrendPanel({
         true,
         alarmDragEnabled,
         thresholds.tempHigh,
+        {
+          leadingText: controlMode ? "온도상한" : undefined,
+        },
       );
       push(
         "temp-lo",
@@ -1388,6 +1434,9 @@ export function UnifiedBarnTrendPanel({
         true,
         alarmDragEnabled,
         thresholds.tempLow,
+        {
+          leadingText: controlMode ? "온도하한" : undefined,
+        },
       );
       if (controlMode && scopeVisibility.showTemp) {
         const sp = thermo.setpointTemp;
@@ -1416,7 +1465,6 @@ export function UnifiedBarnTrendPanel({
           {
             lineStrokeWidth: 1.15,
             lineDasharray: "solid",
-            showApplyActions: thermoDirty,
           },
         );
       }
@@ -1441,6 +1489,9 @@ export function UnifiedBarnTrendPanel({
           true,
           alarmDragEnabled,
           thresholds.humidityHigh,
+          {
+            leadingText: controlMode ? "습도상한" : undefined,
+          },
         );
         push(
           "hum-lo",
@@ -1457,6 +1508,9 @@ export function UnifiedBarnTrendPanel({
           true,
           alarmDragEnabled,
           thresholds.humidityLow,
+          {
+            leadingText: controlMode ? "습도하한" : undefined,
+          },
         );
       }
     }
@@ -1528,13 +1582,52 @@ export function UnifiedBarnTrendPanel({
       aria-pressed={controlMode}
       aria-label={controlMode ? "설정모드 종료" : "설정모드"}
       title={controlMode ? "설정모드 종료" : "설정모드"}
+      data-tour-id="chart-control-mode"
       onClick={() => {
         if (controlMode) exitControlMode();
         else enterControlMode();
       }}
     >
-      <Settings className="size-[1em] shrink-0" aria-hidden />
+      <Settings
+        className="size-[1em] shrink-0"
+        strokeWidth={dashboardUi.iconStroke}
+        aria-hidden
+      />
     </button>
+  ) : null;
+
+  const controlModeCluster = canCommand ? (
+    <div
+      className="flex shrink-0 flex-col items-stretch gap-1"
+      data-tour-id="chart-control-mode-cluster"
+    >
+      {controlModeButton}
+      {controlMode && thermoDirty ? (
+        <button
+          type="button"
+          className={cn(
+            "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+            farmChartUi.fsBody,
+            "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+            "hover:bg-violet-500/15 disabled:opacity-40",
+          )}
+          aria-label="설정값 적용"
+          title="적용 (명령 전송)"
+          data-tour-id="chart-control-apply"
+          disabled={thermoApplying || onlineScopedReadings.length === 0}
+          onClick={() => {
+            if (thermoApplying || onlineScopedReadings.length === 0) return;
+            applyThermoDraft();
+          }}
+        >
+          <Check
+            className="size-[1em] shrink-0"
+            strokeWidth={dashboardUi.iconStroke}
+            aria-hidden
+          />
+        </button>
+      ) : null}
+    </div>
   ) : null;
 
   const focusBandActive = isSingleYBandFocus(xScope?.yBands)
@@ -1579,7 +1672,7 @@ export function UnifiedBarnTrendPanel({
               <div className="min-w-0 flex-1" />
               <div className="shrink-0">{layerToolbar}</div>
               <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-                {controlModeButton}
+                {controlModeCluster}
                 {mobileScopeHandle ? (
                   <button
                     type="button"
@@ -1618,70 +1711,9 @@ export function UnifiedBarnTrendPanel({
                   </span>
                 </div>
               {layerToolbar}
-              {controlModeButton}
+              {controlModeCluster}
             </div>
           )}
-          {xScope != null && picked ? (
-            <div
-              key={`scope-chip-${scopeMotionKey}`}
-              className={cn(
-                "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1 font-medium",
-                farmChartUi.fsMeta,
-                focusBandTint(focusBandActive),
-                motionClass.farmChartScopeChipIn,
-              )}
-            >
-              <span className="shrink-0">
-                {focusBandActive
-                  ? UNIFIED_Y_BAND_LABEL[focusBandActive]
-                  : "구간 줌"}
-              </span>
-              {xScope.yBands?.length && !focusBandActive ? (
-                <span
-                  className={cn(
-                    "shrink-0 rounded bg-channel-info/15 px-1 py-px",
-                  )}
-                >
-                  {xScope.yBands.map((b) => UNIFIED_Y_BAND_LABEL[b]).join("+")}
-                </span>
-              ) : null}
-              {xScopeStack.length > 1 ? (
-                <span className="shrink-0 tabular-nums opacity-80">
-                  ×{xScopeStack.length}
-                </span>
-              ) : null}
-              <span className="min-w-0 truncate tabular-nums opacity-90">
-                {picked.categories[xScope.start] ?? "…"}
-                {" → "}
-                {picked.categories[xScope.end] ?? "…"}
-              </span>
-              <button
-                type="button"
-                aria-label="한 단계 뒤로"
-                title="한 단계 뒤로"
-                onClick={popXScope}
-                className={cn(
-                  "inline-flex h-5 shrink-0 items-center justify-center rounded border border-current/30 px-1",
-                  "hover:bg-black/5 dark:hover:bg-white/10",
-                  motionClass.microHover,
-                )}
-              >
-                ←
-              </button>
-              <button
-                type="button"
-                aria-label="구간 줌 전체 해제"
-                onClick={clearXScope}
-                className={cn(
-                  "inline-flex size-5 shrink-0 items-center justify-center rounded border border-current/30",
-                  "hover:bg-black/5 dark:hover:bg-white/10",
-                  motionClass.microHover,
-                )}
-              >
-                ×
-              </button>
-            </div>
-          ) : null}
         </div>
       </div>
 
@@ -1689,6 +1721,10 @@ export function UnifiedBarnTrendPanel({
       scoped &&
       picked &&
       (scoped.series.length > 0 || scoped.histograms.length > 0) ? (
+        <div
+          data-tour-id="chart-control-plot"
+          data-chart-mode={controlMode ? "control" : "view"}
+        >
         <TrendChart
           mode="line"
           categories={chartCategories}
@@ -1704,6 +1740,59 @@ export function UnifiedBarnTrendPanel({
           period={period}
           tickEvery={tickEveryForDisplayBars(chartCategories.length)}
           showLegend
+          legendTrailing={
+            xScope != null && picked ? (
+              <div
+                key={`scope-chip-${scopeMotionKey}`}
+                className={cn(
+                  "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1 font-medium",
+                  farmChartUi.fsMeta,
+                  focusBandTint(focusBandActive),
+                  motionClass.farmChartScopeChipIn,
+                )}
+              >
+                <span className="shrink-0">
+                  {focusBandActive
+                    ? UNIFIED_Y_BAND_LABEL[focusBandActive]
+                    : "구간 줌"}
+                </span>
+                {xScope.yBands?.length && !focusBandActive ? (
+                  <span
+                    className={cn(
+                      "shrink-0 rounded bg-channel-info/15 px-1 py-px",
+                    )}
+                  >
+                    {xScope.yBands
+                      .map((b) => UNIFIED_Y_BAND_LABEL[b])
+                      .join("+")}
+                  </span>
+                ) : null}
+                {xScopeStack.length > 1 ? (
+                  <span className="shrink-0 tabular-nums opacity-80">
+                    ×{xScopeStack.length}
+                  </span>
+                ) : null}
+                <span className="min-w-0 truncate tabular-nums opacity-90">
+                  {formatTrendScopeRangeLabel(
+                    picked.categories[xScope.start] ?? "",
+                    picked.categories[xScope.end] ?? "",
+                  )}
+                </span>
+                <button
+                  type="button"
+                  aria-label="구간 줌 전체 해제"
+                  onClick={clearXScope}
+                  className={cn(
+                    "inline-flex size-5 shrink-0 items-center justify-center rounded border border-current/30",
+                    "hover:bg-black/5 dark:hover:bg-white/10",
+                    motionClass.microHover,
+                  )}
+                >
+                  ×
+                </button>
+              </div>
+            ) : null
+          }
           legendDensity={
             isMobileStack ||
             !(
@@ -1722,7 +1811,7 @@ export function UnifiedBarnTrendPanel({
           labelGutter={isMobileStack}
           showMarkers
           markerDensity={period === "24h" ? "all" : "sparse"}
-          markerRadiusPx={isMobileStack ? chartUiPx(2.8) : chartUiPx(3.2)}
+          markerRadiusPx={isMobileStack ? chartUiPx(1.4) : chartUiPx(1.6)}
           animate
           layerClipWipe
           splitBandGuides={splitBandGuides}
@@ -1762,37 +1851,21 @@ export function UnifiedBarnTrendPanel({
               : undefined
           }
           onScaleEdgeDrag={
-            controlMode
-              ? thermoDragEnabled
-                ? onScaleEdgeDrag
-                : undefined
-              : canCommand && alarmScopeKey
-                ? onScaleEdgeDrag
-                : undefined
-          }
-          onScaleEdgeNumericCommit={
-            controlMode
-              ? thermoDragEnabled
-                ? onScaleEdgeNumericCommit
-                : undefined
-              : canCommand && alarmScopeKey
-                ? onScaleEdgeNumericCommit
-                : undefined
-          }
-          onScaleEdgeApply={
-            controlMode && thermoDirty ? applyThermoDraft : undefined
-          }
-          onScaleEdgeRevert={
-            controlMode && thermoDirty
-              ? () => {
-                  setThermoDraft(baseThermo);
-                  thermoDraftRef.current = baseThermo;
-                }
+            thermoDragEnabled || alarmDragEnabled
+              ? onScaleEdgeDrag
               : undefined
           }
-          scaleEdgeApplyBusy={thermoApplying}
-          scaleEdgeApplyDisabled={onlineScopedReadings.length === 0}
+          onScaleEdgeNumericCommit={
+            thermoDragEnabled || alarmDragEnabled
+              ? onScaleEdgeNumericCommit
+              : undefined
+          }
+          onScaleEdgeApply={undefined}
+          onScaleEdgeRevert={undefined}
+          scaleEdgeApplyBusy={false}
+          scaleEdgeApplyDisabled={false}
         />
+        </div>
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">
           {built

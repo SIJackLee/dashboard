@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useMemo,
   useState,
@@ -10,6 +11,7 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { Check, GripHorizontal, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -182,6 +184,8 @@ export type TrendScaleEdgeLabel = {
   labelLane?: "outer" | "inner";
   /** true면 라벨 우측에 적용·되돌리기 아이콘 버튼 */
   showApplyActions?: boolean;
+  /** true면 가이드 선만 그리고 박스·수치 라벨은 숨김 (보기 모드 알람 경계 등) */
+  hideLabel?: boolean;
 };
 
 export type ScaleEdgeDragEvent = {
@@ -222,10 +226,12 @@ type TrendChartProps = {
   emptyLabel?: string;
   /** Show every Nth category tick (auto if omitted). */
   tickEvery?: number;
-  /** 있으면 X축 tick을 양끝=풀·중간=축약 (categories·툴팁은 풀 라벨 유지). */
+  /** 있으면 X축 tick 축약 (categories·툴팁은 풀 라벨 유지). 7d/30d는 월 경계=`N월`, 나머지=일. */
   period?: TrendPeriodId;
   /** false면 시리즈 범례 행 숨김 (sheet compact 등). */
   showLegend?: boolean;
+  /** 범례 행 우측(구간 줌 칩 등). showLegend=false여도 단독 표시 가능. */
+  legendTrailing?: ReactNode;
   /**
    * full: 전 시리즈·산포·편차
    * core: 모바일용 — 온도·습도·모터만 (EMA/산포/편차는 호버)
@@ -350,6 +356,12 @@ function parseScaleEdgeEditSeed(
   return m?.[0] ?? "";
 }
 
+/** `28.5℃` / `+5℃` / `100%` → 단위 접미 (`℃`, `%`) */
+function parseScaleEdgeValueUnit(text: string): string {
+  const m = text.match(/-?\d+(?:\.\d+)?(.*)$/);
+  return (m?.[1] ?? "").trim();
+}
+
 export type HoverMetricGroup = "temp" | "hum" | "motor";
 
 /** 시리즈/히스토그램 라벨 → 호버 카드 그룹 */
@@ -398,7 +410,7 @@ export function resolveBreachNavTarget(opts: {
     envelopes.find(
       (e) =>
         e.hoverExtremes &&
-        e.legendLabel === (group === "temp" ? "온도 범위" : "습도 범위"),
+        e.legendLabel === (group === "temp" ? "온도 산포" : "습도 산포"),
     )?.hoverExtremes;
   if (!extremes) return null;
 
@@ -619,13 +631,15 @@ function MotorChannelMatrix({
           raw != null && Number.isFinite(raw)
             ? Math.max(0, Math.min(100, raw))
             : null;
+        /** 데이터 카드 — 「채널 A」→「A」 (범례·정식명은 유지) */
+        const tipLabel = ch.label.replace(/^채널\s*/, "") || ch.label;
         return (
           <div
             key={ch.label}
             className="flex items-center gap-1.5 farm-chart-fs-legend"
           >
             <span className="w-3 shrink-0 font-medium tabular-nums text-muted-foreground">
-              {ch.label}
+              {tipLabel}
             </span>
             <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-sm bg-muted/80">
               <div
@@ -653,8 +667,9 @@ function MotorChannelMatrix({
 
 const MAX_PINNED_TIPS = 5;
 const PIN_CLICK_SLOP_PX = 10;
-/** 모바일 — 설정값 라벨 롱프레스 → 숫자 입력 */
-const SCALE_EDGE_LONG_PRESS_MS = 480;
+/** 모바일 — 설정값 라벨 더블탭 → 숫자 입력 */
+const SCALE_EDGE_DOUBLE_TAP_MS = 320;
+const SCALE_EDGE_DOUBLE_TAP_SLOP_PX = 28;
 const SCALE_EDGE_TAP_SLOP_PX = 12;
 
 type PinnedTip = {
@@ -855,7 +870,7 @@ function TrendPointCardBody({
                   inferHoverMetricGroup(s.name) === group,
               );
               const tipHists = histograms.filter((h) => {
-                const label = h.legendLabel ?? "분포";
+                const label = h.legendLabel ?? "편차";
                 return (
                   group == null || inferHoverMetricGroup(label) === group
                 );
@@ -1005,7 +1020,7 @@ function TrendPointCardBody({
                       (e) =>
                         e.hoverExtremes &&
                         e.legendLabel ===
-                          (group === "temp" ? "온도 범위" : "습도 범위"),
+                          (group === "temp" ? "온도 산포" : "습도 산포"),
                     )?.hoverExtremes)
                   : undefined;
               const spreadHigh = spreadExtremes?.high[idx] ?? null;
@@ -1172,7 +1187,7 @@ function TrendPointCardBody({
                                 }}
                               />
                               <span className="truncate text-muted-foreground">
-                                {h.legendLabel ?? "분포"}
+                                {h.legendLabel ?? "편차"}
                               </span>
                             </span>
                             <span className="shrink-0 tabular-nums">
@@ -1262,6 +1277,7 @@ export function TrendChart({
   period,
   barWidthCapPct,
   showLegend = true,
+  legendTrailing = null,
   legendDensity = "full",
   scaleEdgeHitPx = SCALE_EDGE_HIT_PX,
   labelGutter = false,
@@ -1376,8 +1392,12 @@ export function TrendChart({
     pointerId: number;
     pointerType: string;
   } | null>(null);
-  const scaleEdgeLongPressRef = useRef<number | null>(null);
-  const scaleEdgeLongPressFiredRef = useRef(false);
+  const scaleEdgeTapRef = useRef<{
+    id: string;
+    t: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const pinCardDragRef = useRef<{
     id: string;
     pointerId: number;
@@ -1916,26 +1936,16 @@ export function TrendChart({
     if (!onScaleEdgeNumericCommit) return;
     const guide = scaleEdgeLabels.find((g) => g.id === guideId);
     if (!guide?.draggable) return;
-    if (scaleEdgeLongPressRef.current != null) {
-      window.clearTimeout(scaleEdgeLongPressRef.current);
-      scaleEdgeLongPressRef.current = null;
-    }
     if (edgeDragRef.current) {
       endScaleEdgeDrag("cancel");
     }
     labelDragArmRef.current = null;
+    scaleEdgeTapRef.current = null;
     setEdgeEdit({
       id: guideId,
       text: parseScaleEdgeEditSeed(guide),
     });
     clearHover();
-  };
-
-  const clearScaleEdgeLongPress = () => {
-    if (scaleEdgeLongPressRef.current != null) {
-      window.clearTimeout(scaleEdgeLongPressRef.current);
-      scaleEdgeLongPressRef.current = null;
-    }
   };
 
   const cancelScaleEdgeEdit = () => {
@@ -1999,8 +2009,7 @@ export function TrendChart({
       const dx = Math.abs(e.clientX - arm.x);
       const dy = Math.abs(e.clientY - arm.y);
       if (dx >= SCALE_EDGE_LABEL_DRAG_PX || dy >= SCALE_EDGE_LABEL_DRAG_PX) {
-        clearScaleEdgeLongPress();
-        scaleEdgeLongPressFiredRef.current = false;
+        scaleEdgeTapRef.current = null;
         labelDragArmRef.current = null;
         pinClickArmRef.current = null;
         edgeDragRef.current = { id: arm.id, axis: arm.axis };
@@ -2043,9 +2052,6 @@ export function TrendChart({
     pinClickArmRef.current = null;
 
     const labelArm = labelDragArmRef.current;
-    const longPressFired = scaleEdgeLongPressFiredRef.current;
-    clearScaleEdgeLongPress();
-    scaleEdgeLongPressFiredRef.current = false;
 
     if (labelArm && labelArm.pointerId === e.pointerId && !edgeDragRef.current) {
       labelDragArmRef.current = null;
@@ -2054,11 +2060,28 @@ export function TrendChart({
         labelArm.pointerType === "touch" || labelArm.pointerType === "pen";
       if (
         isTouchLike &&
-        !longPressFired &&
         dist <= SCALE_EDGE_TAP_SLOP_PX &&
         onScaleEdgeNumericCommit
       ) {
-        beginScaleEdgeEdit(labelArm.id);
+        const now = Date.now();
+        const prev = scaleEdgeTapRef.current;
+        if (
+          prev &&
+          prev.id === labelArm.id &&
+          now - prev.t <= SCALE_EDGE_DOUBLE_TAP_MS &&
+          Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <=
+            SCALE_EDGE_DOUBLE_TAP_SLOP_PX
+        ) {
+          scaleEdgeTapRef.current = null;
+          beginScaleEdgeEdit(labelArm.id);
+        } else {
+          scaleEdgeTapRef.current = {
+            id: labelArm.id,
+            t: now,
+            x: e.clientX,
+            y: e.clientY,
+          };
+        }
       }
       return;
     }
@@ -2111,8 +2134,7 @@ export function TrendChart({
   const onPlotPointerCancel = () => {
     pinCardDragRef.current = null;
     pinClickArmRef.current = null;
-    clearScaleEdgeLongPress();
-    scaleEdgeLongPressFiredRef.current = false;
+    scaleEdgeTapRef.current = null;
     labelDragArmRef.current = null;
     if (edgeDragRef.current) {
       endScaleEdgeDrag("cancel");
@@ -2451,6 +2473,7 @@ export function TrendChart({
       });
     }
     for (const guide of scaleEdgeLabels) {
+      if (guide.hideLabel) continue;
       const axis = guide.axis ?? "left";
       const y = yFor(guide.value, axis);
       if (!Number.isFinite(y)) continue;
@@ -2488,6 +2511,11 @@ export function TrendChart({
     rMax,
     innerH,
   ]);
+
+  const edgeValueMaxCh = edgeBandLabels.reduce(
+    (max, label) => Math.max(max, label.text.length),
+    1,
+  );
 
   if (!hasAny || n === 0) {
     return (
@@ -2595,92 +2623,181 @@ export function TrendChart({
   return (
     <div
       ref={chartRootRef}
-      className={showLegend ? "space-y-1.5" : "space-y-1"}
+      className={showLegend || legendTrailing ? "space-y-1.5" : "space-y-1"}
       data-trend-chart-root=""
     >
-      {showLegend ? (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {series
-          .filter((s) =>
-            legendDensity === "full"
-              ? true
-              : s.name === "온도" || s.name === "습도",
-          )
-          .map((s) => (
-          <span key={s.name} className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground">
-            <span
-              className="inline-block w-3 border-t-2"
-              style={{
-                borderColor: s.color,
-                borderStyle: s.strokeDasharray
-                  ? s.strokeDasharray.startsWith("2")
-                    ? "dotted"
-                    : "dashed"
-                  : "solid",
-              }}
-              aria-hidden
-            />
-            {s.name}
-            {(s.axis ?? "left") === "right" && usesRight ? <span className="opacity-60">(우)</span> : null}
-          </span>
-        ))}
-        {legendDensity === "full"
-          ? envelopes.map((env, idx) =>
-          env.legendLabel ? (
-            <span
-              key={`env-leg-${idx}`}
-              className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground"
-            >
-              <span
-                className="inline-block h-2 w-3 rounded-sm"
-                style={{
-                  backgroundColor: env.fill,
-                  opacity: Math.min(1, (env.fillOpacity ?? 0.22) * 2),
-                }}
-                aria-hidden
-              />
-              {env.legendLabel}
-            </span>
-          ) : null,
-        )
-          : null}
-        {histograms
-          .filter((h) =>
-            legendDensity === "full"
-              ? Boolean(h.legendLabel)
-              : h.legendLabel === "모터",
-          )
-          .map((h, idx) =>
-          h.legendLabel ? (
-            <span
-              key={`hist-leg-${idx}`}
-              className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground"
-            >
-              {h.style === "volume" ? (
-                <span
-                  className="inline-block h-2 w-3 rounded-sm"
-                  style={{ backgroundColor: h.colorUp, opacity: 0.85 }}
-                  aria-hidden
-                />
-              ) : (
-                <span
-                  className="inline-flex h-2 w-3 overflow-hidden rounded-sm"
-                  aria-hidden
-                >
+      {showLegend || legendTrailing ? (
+      <div
+        className="flex flex-wrap items-center gap-x-4 gap-y-1.5"
+        data-trend-chart-legend=""
+      >
+        {showLegend ? (() => {
+          type LegendItem = {
+            key: string;
+            group: HoverMetricGroup;
+            label: string;
+            node: ReactNode;
+          };
+          const items: LegendItem[] = [];
+
+          for (const s of series) {
+            if (
+              legendDensity !== "full" &&
+              s.name !== "온도" &&
+              s.name !== "습도"
+            ) {
+              continue;
+            }
+            items.push({
+              key: `s-${s.name}`,
+              group: inferHoverMetricGroup(s.name),
+              label: s.name,
+              node: (
+                <span className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground">
                   <span
-                    className="h-full w-1/2"
-                    style={{ backgroundColor: h.colorUp }}
+                    className="inline-block w-3 border-t-2"
+                    style={{
+                      borderColor: s.color,
+                      borderStyle: s.strokeDasharray
+                        ? s.strokeDasharray.startsWith("2")
+                          ? "dotted"
+                          : "dashed"
+                        : "solid",
+                    }}
+                    aria-hidden
                   />
-                  <span
-                    className="h-full w-1/2"
-                    style={{ backgroundColor: h.colorDown }}
-                  />
+                  {s.name}
+                  {(s.axis ?? "left") === "right" && usesRight ? (
+                    <span className="opacity-60">(우)</span>
+                  ) : null}
                 </span>
-              )}
-              {h.legendLabel}
-            </span>
-          ) : null,
-        )}
+              ),
+            });
+          }
+
+          if (legendDensity === "full") {
+            envelopes.forEach((env, idx) => {
+              if (!env.legendLabel) return;
+              items.push({
+                key: `env-${idx}`,
+                group: inferHoverMetricGroup(env.legendLabel),
+                label: env.legendLabel,
+                node: (
+                  <span className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground">
+                    <span
+                      className="inline-block h-2 w-3 rounded-sm"
+                      style={{
+                        backgroundColor: env.fill,
+                        opacity: Math.min(1, (env.fillOpacity ?? 0.22) * 2),
+                      }}
+                      aria-hidden
+                    />
+                    {env.legendLabel}
+                  </span>
+                ),
+              });
+            });
+          }
+
+          histograms.forEach((h, idx) => {
+            if (!h.legendLabel) return;
+            if (
+              legendDensity !== "full" &&
+              h.legendLabel !== "모터"
+            ) {
+              return;
+            }
+            items.push({
+              key: `hist-${idx}`,
+              group: inferHoverMetricGroup(h.legendLabel),
+              label: h.legendLabel,
+              node: (
+                <span className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground">
+                  {h.style === "volume" ? (
+                    <span
+                      className="inline-block h-2 w-3 rounded-sm"
+                      style={{ backgroundColor: h.colorUp, opacity: 0.85 }}
+                      aria-hidden
+                    />
+                  ) : (
+                    <span
+                      className="inline-flex h-2 w-3 overflow-hidden rounded-sm"
+                      aria-hidden
+                    >
+                      <span
+                        className="h-full w-1/2"
+                        style={{ backgroundColor: h.colorUp }}
+                      />
+                      <span
+                        className="h-full w-1/2"
+                        style={{ backgroundColor: h.colorDown }}
+                      />
+                    </span>
+                  )}
+                  {h.legendLabel}
+                </span>
+              ),
+            });
+          });
+
+          const GROUP_ORDER: HoverMetricGroup[] = ["temp", "hum", "motor"];
+          const GROUP_ARIA: Record<HoverMetricGroup, string> = {
+            temp: "온도",
+            hum: "습도",
+            motor: "모터",
+          };
+          /** 그룹 안 표시 순서 */
+          const LABEL_RANK: Record<HoverMetricGroup, string[]> = {
+            temp: [
+              "온도",
+              "온도 추세",
+              "온도 산포",
+              "온도 편차",
+              "온도 상한 접촉",
+              "온도 하한 접촉",
+            ],
+            hum: [
+              "습도",
+              "습도 추세",
+              "습도 산포",
+              "습도 편차",
+              "습도 상한 접촉",
+              "습도 하한 접촉",
+            ],
+            motor: ["모터", "채널 A", "채널 B", "채널 C"],
+          };
+          const rank = (group: HoverMetricGroup, label: string) => {
+            const i = LABEL_RANK[group].indexOf(label);
+            return i >= 0 ? i : 50;
+          };
+
+          return GROUP_ORDER.map((group) => {
+            const groupItems = items
+              .filter((it) => it.group === group)
+              .sort(
+                (a, b) =>
+                  rank(group, a.label) - rank(group, b.label) ||
+                  a.label.localeCompare(b.label, "ko"),
+              );
+            if (groupItems.length === 0) return null;
+            return (
+              <div
+                key={group}
+                role="group"
+                aria-label={GROUP_ARIA[group]}
+                className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1"
+                data-legend-group={group}
+              >
+                {groupItems.map((it) => (
+                  <Fragment key={it.key}>{it.node}</Fragment>
+                ))}
+              </div>
+            );
+          });
+        })() : null}
+        {legendTrailing ? (
+          <div className="ml-auto min-w-0 shrink-0">{legendTrailing}</div>
+        ) : null}
       </div>
       ) : null}
 
@@ -3338,6 +3455,14 @@ export function TrendChart({
         const showActions =
           Boolean(label.showApplyActions) &&
           (onScaleEdgeApply != null || onScaleEdgeRevert != null);
+        const valueText = (
+          <span
+            className="inline-block text-center tabular-nums"
+            style={{ minWidth: `${edgeValueMaxCh}ch` }}
+          >
+            {label.text}
+          </span>
+        );
         return (
           <span
             key={label.id}
@@ -3347,9 +3472,11 @@ export function TrendChart({
                 ? "min-h-7 px-1.5 py-1 text-xs font-semibold"
                 : "px-0.5 farm-chart-fs-axis",
               showActions && "inline-flex items-center gap-0.5 pr-0",
+              (editing || Boolean(label.leadingText)) &&
+                "inline-flex items-center gap-1 whitespace-nowrap",
               Boolean(label.leadingText) &&
                 !editing &&
-                "inline-flex items-center gap-1",
+                "shadow-sm ring-1 ring-current/20",
               label.draggable && !editing
                 ? "pointer-events-auto cursor-ns-resize select-none"
                 : editing || showActions
@@ -3361,23 +3488,25 @@ export function TrendChart({
                 "left-1/2 z-[3] -translate-x-[calc(100%+0.35rem)] text-right font-medium",
               /** 설정 수치 — 플롯 중앙 (leadingText 있으면 명칭+수치) */
               label.side === "center" &&
-                "left-1/2 z-[3] -translate-x-1/2 text-center shadow-sm ring-1 ring-current/20",
+                "left-1/2 z-[3] -translate-x-1/2 text-center",
               /** 모바일 거터 — 우측 단일 열(큰 칩). PC는 기존 inner/outer 레인 */
-              label.side === "right" && labelGutter && "right-1 max-w-[4.75rem] text-right",
+              label.side === "right" &&
+                labelGutter &&
+                "right-1 max-w-[6.5rem] text-center",
               label.side === "right" &&
                 !labelGutter &&
                 label.labelLane === "inner" &&
                 !showActions &&
-                "right-11 text-right",
+                "right-11 text-center",
               label.side === "right" &&
                 !labelGutter &&
                 label.labelLane === "inner" &&
                 showActions &&
-                "right-1 text-right",
+                "right-1 text-center",
               label.side === "right" &&
                 !labelGutter &&
                 label.labelLane !== "inner" &&
-                "right-0.5 text-right",
+                "right-0.5 text-center",
               !editing && label.mark === "overline" && "border-t border-current pt-px",
               !editing && label.mark === "underline" && "border-b border-current pb-px",
               edgeDragId === label.id &&
@@ -3390,7 +3519,7 @@ export function TrendChart({
             style={{ top: `${label.topPct}%`, color: label.color }}
             title={
               label.draggable
-                ? `${label.title} · 드래그 조절 · 탭·롱프레스(모바일)·더블클릭·우클릭 숫자 입력`
+                ? `${label.title} · 드래그 조절 · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
                 : label.title
             }
             onPointerDown={
@@ -3402,8 +3531,6 @@ export function TrendChart({
                     const guide = scaleEdgeLabels.find((g) => g.id === label.id);
                     if (!guide?.draggable) return;
                     plotRef.current.setPointerCapture(e.pointerId);
-                    clearScaleEdgeLongPress();
-                    scaleEdgeLongPressFiredRef.current = false;
                     labelDragArmRef.current = {
                       id: guide.id,
                       axis: guide.axis ?? "left",
@@ -3413,17 +3540,6 @@ export function TrendChart({
                       pointerId: e.pointerId,
                       pointerType: e.pointerType,
                     };
-                    const isTouchLike =
-                      e.pointerType === "touch" || e.pointerType === "pen";
-                    if (isTouchLike && onScaleEdgeNumericCommit) {
-                      const guideId = guide.id;
-                      scaleEdgeLongPressRef.current = window.setTimeout(() => {
-                        scaleEdgeLongPressRef.current = null;
-                        scaleEdgeLongPressFiredRef.current = true;
-                        labelDragArmRef.current = null;
-                        beginScaleEdgeEdit(guideId);
-                      }, SCALE_EDGE_LONG_PRESS_MS);
-                    }
                     clearHover();
                   }
                 : undefined
@@ -3448,45 +3564,60 @@ export function TrendChart({
             }
           >
             {editing ? (
-              <input
-                autoFocus
-                type="text"
-                inputMode="decimal"
-                aria-label={`${label.title} 숫자 입력`}
-                className={cn(
-                  "rounded-sm border border-current/40 bg-background text-center tabular-nums outline-none",
-                  labelGutter
-                    ? "h-7 w-14 px-1 text-xs font-semibold"
-                    : "h-4 w-10 px-0.5 farm-chart-fs-axis",
-                )}
-                style={{ color: label.color }}
-                value={edgeEdit.text}
-                onChange={(e) =>
-                  setEdgeEdit({ id: label.id, text: e.target.value })
-                }
-                onFocus={(e) => e.currentTarget.select()}
-                onBlur={() => commitScaleEdgeEdit()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    commitScaleEdgeEdit();
-                  } else if (e.key === "Escape") {
-                    e.preventDefault();
-                    cancelScaleEdgeEdit();
+              <>
+                {label.leadingText ? (
+                  <span className="font-medium not-italic tracking-tight">
+                    {label.leadingText}
+                  </span>
+                ) : null}
+                <input
+                  autoFocus
+                  type="text"
+                  inputMode="decimal"
+                  aria-label={`${label.title} 숫자 입력`}
+                  className={cn(
+                    "rounded-sm border border-current/40 bg-background text-center tabular-nums outline-none",
+                    labelGutter
+                      ? "h-7 w-14 px-1 text-xs font-semibold"
+                      : "h-4 w-10 px-0.5 farm-chart-fs-axis",
+                  )}
+                  style={{
+                    color: label.color,
+                    minWidth: `${edgeValueMaxCh}ch`,
+                  }}
+                  value={edgeEdit.text}
+                  onChange={(e) =>
+                    setEdgeEdit({ id: label.id, text: e.target.value })
                   }
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-              />
+                  onFocus={(e) => e.currentTarget.select()}
+                  onBlur={() => commitScaleEdgeEdit()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      commitScaleEdgeEdit();
+                    } else if (e.key === "Escape") {
+                      e.preventDefault();
+                      cancelScaleEdgeEdit();
+                    }
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                {parseScaleEdgeValueUnit(label.text) ? (
+                  <span className="tabular-nums">
+                    {parseScaleEdgeValueUnit(label.text)}
+                  </span>
+                ) : null}
+              </>
             ) : label.leadingText ? (
               <>
                 <span className="font-medium not-italic tracking-tight">
                   {label.leadingText}
                 </span>
-                <span className="tabular-nums">{label.text}</span>
+                {valueText}
               </>
             ) : (
-              label.text
+              valueText
             )}
             {showActions ? (
               <span
@@ -3711,12 +3842,18 @@ export function TrendChart({
       </div>
 
       <div className="relative farm-chart-tick-rail overflow-hidden border-t pt-1">
-        {tickIndices.map((i) => {
+        {tickIndices.map((i, tickOrd) => {
           const fullLabel = categories[i] ?? "";
           if (!fullLabel) return null;
           const endpoint = i === 0 || i === n - 1;
+          const prevTickIdx = tickOrd > 0 ? tickIndices[tickOrd - 1] : undefined;
+          const prevLabel =
+            prevTickIdx != null ? (categories[prevTickIdx] ?? null) : null;
           const label = period
-            ? abbreviateTrendAxisLabel(period, fullLabel, { endpoint })
+            ? abbreviateTrendAxisLabel(period, fullLabel, {
+                endpoint,
+                prevLabel,
+              })
             : fullLabel;
           const align =
             i === 0 ? "left" : i === n - 1 ? "right" : "center";

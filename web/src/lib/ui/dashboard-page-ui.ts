@@ -419,6 +419,8 @@ export const dashboardUi = {
   /* 아이콘 */
   iconSm: "size-4 shrink-0 md:size-[length:var(--density-icon-sm-md)]",
   iconMd: "size-5 shrink-0 md:size-[length:var(--density-icon-md-md)]",
+  /** Lucide·커스텀 공통 선 두께 (아이콘 패밀리 A안) */
+  iconStroke: 1.75 as const,
 
   /* 컨트롤 */
   slider: "ctrl-range min-w-0 flex-1",

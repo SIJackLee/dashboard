@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
@@ -28,6 +28,13 @@ import {
 } from "@/components/common/inline-status-toast";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
+import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
+import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
+import {
+  afterFrames,
+  dispatchTourGridActionDone,
+  waitForTourTarget,
+} from "@/lib/onboarding/tour-timing";
 
 const FarmMapBulkApply = dynamic(
   () =>
@@ -170,6 +177,101 @@ export function FarmMapMobileStage({
   );
 
   useFarmTourGridAction({ barns, metricIdsByBarnId, setExpanded });
+
+  const barnsRef = useRef(barns);
+  const readingsRef = useRef(controller?.readings ?? []);
+  const metricIdsRef = useRef(metricIdsByBarnId);
+  useEffect(() => {
+    barnsRef.current = barns;
+  });
+  useEffect(() => {
+    readingsRef.current = controller?.readings ?? [];
+  });
+  useEffect(() => {
+    metricIdsRef.current = metricIdsByBarnId;
+  });
+
+  /** fieldMerge 모바일 — 투어가 PC list-mode 대신 시트를 열고 페이지를 맞춤 */
+  useEffect(() => {
+    if (!fieldMerge) return;
+
+    const openFirstSheet = (page: ControllerMobileSheetPage) => {
+      const list = barnsRef.current;
+      const readings = readingsRef.current;
+      const barn =
+        list.find((b) => firstReadingKeyForBarn(b, readings)) ?? list[0];
+      if (!barn) return false;
+      const metrics = metricIdsRef.current.get(barn.meta.id);
+      const metricId = metrics?.[0] ?? "T";
+      const readingKey =
+        firstReadingKeyForBarn(barn, readings) ?? readings[0]?.key ?? null;
+      if (!readingKey) return false;
+      setExpanded({ barnId: barn.meta.id, metricId });
+      setDetailSelectedReadingKey(readingKey);
+      setHostedSheetPage(page);
+      setHostedSheetOpen(true);
+      return true;
+    };
+
+    const onTourAction = (e: Event) => {
+      const action = (e as CustomEvent<{ action?: TourGridAction }>).detail
+        ?.action;
+      if (
+        action !== "field-mobile-sheet-controller" &&
+        action !== "field-mobile-sheet-graph" &&
+        action !== "field-mobile-sheet-settings" &&
+        action !== "field-mobile-sheet-close"
+      ) {
+        return;
+      }
+
+      if (action === "field-mobile-sheet-close") {
+        setHostedSheetOpen(false);
+        setExpanded(null);
+        setDetailSelectedReadingKey(null);
+        void (async () => {
+          await afterFrames(2);
+          await waitForTourTarget([
+            '[data-tour-id="map-grid"]',
+            '[data-tour-id="barn-card"]',
+            '[data-tour-id="header-feature-tour"]',
+          ]);
+          dispatchTourGridActionDone(action);
+        })();
+        return;
+      }
+
+      const page: ControllerMobileSheetPage =
+        action === "field-mobile-sheet-settings" ? 1 : 0;
+      const opened = openFirstSheet(page);
+      void (async () => {
+        await afterFrames(2);
+        if (opened) {
+          const settle =
+            action === "field-mobile-sheet-settings"
+              ? [
+                  '[data-tour-id="controller-mobile-sheet-panel"]',
+                  '[data-tour-id="list-settings-host"]',
+                  '[data-audit-region="controller-mobile-sheet-settings"]',
+                ]
+              : action === "field-mobile-sheet-graph"
+                ? [
+                    '[data-audit-region="controller-mobile-sheet-channel-trend"]',
+                    '[data-tour-id="list-graph-panel"]',
+                  ]
+                : [
+                    '[data-tour-id="controller-gauge-metrics"]',
+                    '[data-audit-region="controller-mobile-sheet-controller"]',
+                  ];
+          await waitForTourTarget(settle);
+        }
+        dispatchTourGridActionDone(action);
+      })();
+    };
+
+    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
+  }, [fieldMerge, setExpanded]);
 
   const toggleSp = useCallback((sp: string) => {
     setSelectedSps((prev) => {

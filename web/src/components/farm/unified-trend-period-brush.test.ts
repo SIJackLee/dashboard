@@ -25,13 +25,10 @@ import {
 }
 
 {
-  // 거의 클릭 — 위치 존 (최근 정렬 윈도우와 동일 경계)
+  // 거의 클릭 — null (UI에서 기간 순환)
   const tap24 = BRUSH_PERIOD_WINDOW["24h"].start + 0.005;
-  assert.equal(resolveBrushPeriodFromDraft(tap24, tap24), "24h");
-  const tap7 =
-    (BRUSH_PERIOD_WINDOW["7d"].start + BRUSH_PERIOD_WINDOW["24h"].start) / 2;
-  assert.equal(resolveBrushPeriodFromDraft(tap7, tap7), "7d");
-  assert.equal(resolveBrushPeriodFromDraft(0.1, 0.11), "30d");
+  assert.equal(resolveBrushPeriodFromDraft(tap24, tap24), null);
+  assert.equal(resolveBrushPeriodFromDraft(0.1, 0.11), null);
 }
 
 {

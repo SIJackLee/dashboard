@@ -496,7 +496,10 @@ export function BarnListAccordionPanel({
             상세 데이터 불러오는 중…
           </p>
         ) : null}
-        <div className="space-y-2 px-3 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]">
+        <div
+          className="space-y-2 px-3 py-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          data-tour-id="list-settings-tour-target"
+        >
           {readOnlyBanner}
           {settingsSections}
           {canCommand ? (
@@ -526,10 +529,12 @@ export function BarnListAccordionPanel({
         </p>
       ) : null}
       {readOnlyBanner ? <div className="mb-3">{readOnlyBanner}</div> : null}
-      {settingsSections}
-      {canCommand ? (
-        <div className="mt-3 space-y-2 border-t pt-3">{footer}</div>
-      ) : null}
+      <div data-tour-id="list-settings-tour-target">
+        {settingsSections}
+        {canCommand ? (
+          <div className="mt-3 space-y-2 border-t pt-3">{footer}</div>
+        ) : null}
+      </div>
     </div>
     </>
   );

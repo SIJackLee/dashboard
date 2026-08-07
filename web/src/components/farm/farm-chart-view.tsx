@@ -29,6 +29,8 @@ import {
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
+import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
+import type { ReactNode } from "react";
 
 type Props = {
   readings: BarnReading[];
@@ -246,7 +248,7 @@ export function FarmChartView({
 
   const scopeTree = (
     <nav
-      className="space-y-0.5 text-sm"
+      className="space-y-0.5"
       aria-label="집계 범위 트리"
     >
       <ScopeRow
@@ -299,7 +301,17 @@ export function FarmChartView({
                         selected={scopesEqual(scope, stallScope)}
                         onSelect={() => selectScope(stallScope)}
                         depth={1}
-                        label={stall.label}
+                        label={
+                          <StallUnitNoMark
+                            stallNo={
+                              stall.stallNo.startsWith("__")
+                                ? null
+                                : stall.stallNo
+                            }
+                            className="text-inherit"
+                          />
+                        }
+                        nameForA11y={stall.label}
                         meta={`${stall.controllers.length}대`}
                         tone={
                           scopeTones.byStall.get(
@@ -411,6 +423,7 @@ export function FarmChartView({
                 className={cn(
                   "flex w-full flex-col rounded-xl border bg-card",
                   "lg:max-h-[min(70dvh,36rem)]",
+                  farmChartUi.root,
                   motionClass.farmChartPanelShell,
                 )}
                 data-tour-id="farm-chart-scope-panel"
@@ -501,6 +514,7 @@ export function FarmChartView({
             className={cn(
               "absolute inset-y-0 right-0 z-[1] flex w-[min(100%,20rem)] flex-col",
               "border-l border-border/80 bg-card/95 backdrop-blur-md",
+              farmChartUi.root,
               motionClass.farmChartPanelShell,
               motionClass.enterFade,
             )}
@@ -548,6 +562,7 @@ function ScopeRow({
   onSelect,
   depth,
   label,
+  nameForA11y,
   meta,
   tone,
   expandable,
@@ -558,7 +573,9 @@ function ScopeRow({
   selected: boolean;
   onSelect: () => void;
   depth: number;
-  label: string;
+  label: ReactNode;
+  /** ReactNode label일 때 title/aria용 정식 명칭 */
+  nameForA11y?: string;
   meta?: string;
   tone?: ScopeTreeTone | null;
   expandable?: boolean;
@@ -572,6 +589,8 @@ function ScopeRow({
       : tone === "offline"
         ? "통신 두절"
         : undefined;
+  const labelText =
+    nameForA11y ?? (typeof label === "string" ? label : undefined);
 
   return (
     <div
@@ -604,8 +623,20 @@ function ScopeRow({
       <button
         type="button"
         onClick={onSelect}
-        title={toneLabel ? `${label} · ${toneLabel}` : undefined}
-        aria-label={toneLabel ? `${label}, ${toneLabel}` : undefined}
+        title={
+          toneLabel && labelText
+            ? `${labelText} · ${toneLabel}`
+            : toneLabel
+              ? toneLabel
+              : labelText
+        }
+        aria-label={
+          toneLabel && labelText
+            ? `${labelText}, ${toneLabel}`
+            : toneLabel
+              ? toneLabel
+              : undefined
+        }
         className={cn(
           "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 text-left",
           farmChartUi.fsLegend,

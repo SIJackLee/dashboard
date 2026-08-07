@@ -24,6 +24,8 @@ import {
   resolveReadingThermo,
   tempAlarmBreached,
 } from "@/lib/farm/controller-summary-display";
+import { normalizeEqpmnNo } from "@/lib/data/controller-key";
+import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
@@ -31,7 +33,9 @@ import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { ChevronDown, ChevronUp, Cpu, LineChart, Settings } from "lucide-react";
+import { ChevronDown, ChevronUp, LineChart, Settings } from "lucide-react";
+import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
+import { StallUnitIcon } from "@/components/icons/stall-unit-icon";
 
 export function statusRingClass(status: ControllerStatus): string {
   if (status === "normal") return "outline outline-2 outline-emerald-500/70 -outline-offset-1";
@@ -50,7 +54,18 @@ const cardActionSelectedClass =
 const cardActionIdleClass =
   "text-muted-foreground hover:bg-muted/50 hover:text-foreground";
 
-/** 컨트롤러 번호 — Cpu 아이콘 + N번 (aria에 정식 명칭) */
+/** 번호 오버레이 — 글자 둘레 아주 얇은 할로(카드 면색)로 아이콘 선과 분리 */
+const noMarkDigitClass = cn(
+  "pointer-events-none absolute bottom-0 right-0 z-[1]",
+  "font-bold tabular-nums leading-none text-foreground",
+  "text-[0.68em]",
+  "[-webkit-text-stroke:1.5px_var(--card)]",
+  "[paint-order:stroke_fill]",
+);
+
+/** 컨트롤러 번호 — 장치 아이콘 우하단에 번호 오버레이 (aria에 정식 명칭)
+ *  B안: 아이콘 muted · 번호 foreground · 글자 둘레 얇은 할로
+ */
 function ControllerNoMark({
   eqpmnNo,
   className,
@@ -60,15 +75,65 @@ function ControllerNoMark({
   className?: string;
   iconClassName?: string;
 }) {
+  const eq = normalizeEqpmnNo(eqpmnNo ?? "01");
   const noLabel = formatControllerNoLabel(eqpmnNo);
   return (
     <span
-      className={cn("inline-flex min-w-0 items-center gap-1.5", className)}
+      className={cn("relative inline-flex shrink-0", className)}
       aria-label={`컨트롤러 ${noLabel}`}
       title={`컨트롤러 ${noLabel}`}
     >
-      <Cpu className={cn("size-[1em] shrink-0", iconClassName)} aria-hidden />
-      <span className="min-w-0 truncate tabular-nums">{noLabel}</span>
+      <ControllerDeviceIcon
+        className={cn(
+          "size-[1.35em] shrink-0 text-muted-foreground",
+          iconClassName,
+        )}
+        numberCutout
+        aria-hidden
+      />
+      <span className={noMarkDigitClass} aria-hidden>
+        {eq}
+      </span>
+    </span>
+  );
+}
+
+/** 축사 번호 — 박공 창고 아이콘 우하단 오버레이 (aria에 「N번 축사」)
+ *  B안: 아이콘 muted · 번호 foreground · 글자 둘레 얇은 할로
+ */
+export function StallUnitNoMark({
+  stallNo,
+  className,
+  iconClassName,
+}: {
+  stallNo: string | null | undefined;
+  className?: string;
+  iconClassName?: string;
+}) {
+  const key = stallKeyFromReading({ stallNo: stallNo ?? null });
+  const display = key.startsWith("__") ? "—" : key;
+  const unitLabel = formatControllerHeaderStallUnit({
+    stallNo: stallNo ?? null,
+    controllerKey: undefined,
+    idx: undefined,
+  });
+  return (
+    <span
+      className={cn("relative inline-flex shrink-0", className)}
+      aria-label={unitLabel}
+      title={unitLabel}
+    >
+      <StallUnitIcon
+        className={cn(
+          "size-[1.35em] shrink-0 text-muted-foreground",
+          iconClassName,
+        )}
+        numberCutout
+        aria-hidden
+      />
+      <span className={noMarkDigitClass} aria-hidden>
+        {display}
+      </span>
     </span>
   );
 }
@@ -97,7 +162,11 @@ export function GraphTogglePill(props: HeaderTogglePillProps) {
           props.active ? cardActionSelectedClass : cardActionIdleClass,
         )}
       >
-        <LineChart className="size-3.5" aria-hidden />
+        <LineChart
+          className="size-3.5"
+          strokeWidth={dashboardUi.iconStroke}
+          aria-hidden
+        />
       </button>
     </span>
   );
@@ -124,33 +193,33 @@ export function SettingsTogglePill({
           active ? cardActionSelectedClass : cardActionIdleClass,
         )}
       >
-        <Settings className="size-3.5" aria-hidden />
+        <Settings
+          className="size-3.5"
+          strokeWidth={dashboardUi.iconStroke}
+          aria-hidden
+        />
       </button>
     </span>
   );
 }
 
-/** 다음 패널 액션 — 목록 모드별 단일 버튼 순환 */
+/**
+ * 카드 패널 순환: 컨트롤러 → 그래프 → 설정 → 컨트롤러.
+ * 버튼은 «다음에 갈 모드» 아이콘을 보여 줌.
+ */
 function nextCardPanelCycle(
-  listMode: BarnListViewMode,
   graphActive: boolean,
   settingsActive: boolean,
-): { label: "그래프" | "설정"; kind: "graph" | "settings" } {
-  if (listMode === "graph") {
-    // 설정 → 그래프 → 설정
-    if (settingsActive) return { label: "그래프", kind: "graph" };
+): {
+  label: "그래프" | "설정" | "컨트롤러";
+  kind: "graph" | "settings" | "controller";
+} {
+  if (settingsActive) {
+    return { label: "컨트롤러", kind: "controller" };
+  }
+  if (graphActive) {
     return { label: "설정", kind: "settings" };
   }
-  if (listMode === "settings") {
-    // 그래프 → 설정 → 그래프 (그래프 오버레이 중이면 설정으로)
-    if (graphActive && !settingsActive) {
-      return { label: "설정", kind: "settings" };
-    }
-    return { label: "그래프", kind: "graph" };
-  }
-  // 컨트롤러: 그래프 → 설정 → 그래프
-  if (settingsActive) return { label: "그래프", kind: "graph" };
-  if (graphActive) return { label: "설정", kind: "settings" };
   return { label: "그래프", kind: "graph" };
 }
 
@@ -179,28 +248,51 @@ function CardPanelModeToggle({
     (onToggleGraph != null || onToggleSettings != null) &&
     !(hideGraphToggle && listMode === "controller");
   const cycle = canCycle
-    ? nextCardPanelCycle(
-        listMode,
-        Boolean(graphActive),
-        Boolean(settingsActive),
-      )
+    ? nextCardPanelCycle(Boolean(graphActive), Boolean(settingsActive))
     : null;
 
   if (!cycle && !showCardBodyToggle) return null;
 
   const onCycleClick = () => {
     if (!cycle) return;
-    if (cycle.kind === "graph") onToggleGraph?.();
-    else onToggleSettings?.();
+    if (cycle.kind === "graph") {
+      onToggleGraph?.();
+      return;
+    }
+    if (cycle.kind === "settings") {
+      onToggleSettings?.();
+      return;
+    }
+    // 컨트롤러로 접기
+    if (listMode === "settings" && settingsActive) {
+      // 설정 전역 모드 — 설정Keys 토글만으로는 안 닫힘 → 그래프로 전환
+      onToggleGraph?.();
+      return;
+    }
+    if (settingsActive) onToggleSettings?.();
+    else if (graphActive) onToggleGraph?.();
   };
 
   const cycleDisabled =
     cycle == null ||
-    (cycle.kind === "graph" ? onToggleGraph == null : onToggleSettings == null);
+    (cycle.kind === "graph"
+      ? onToggleGraph == null
+      : cycle.kind === "settings"
+        ? onToggleSettings == null
+        : onToggleGraph == null && onToggleSettings == null);
 
   const cycleAria =
-    cycle?.kind === "graph" ? "그래프로 전환" : "설정으로 전환";
-  const CycleIcon = cycle?.kind === "graph" ? LineChart : Settings;
+    cycle?.kind === "graph"
+      ? "그래프로 전환"
+      : cycle?.kind === "settings"
+        ? "설정으로 전환"
+        : "컨트롤러로 접기";
+  const CycleIcon =
+    cycle?.kind === "graph"
+      ? LineChart
+      : cycle?.kind === "settings"
+        ? Settings
+        : ControllerDeviceIcon;
 
   return (
     <div className="flex shrink-0 items-center gap-1">
@@ -226,9 +318,17 @@ function CardPanelModeToggle({
           )}
         >
           {cardBodyCollapsed ? (
-            <ChevronDown className="size-3.5" aria-hidden />
+            <ChevronDown
+              className="size-3.5"
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
           ) : (
-            <ChevronUp className="size-3.5" aria-hidden />
+            <ChevronUp
+              className="size-3.5"
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
           )}
         </button>
       ) : null}
@@ -252,7 +352,11 @@ function CardPanelModeToggle({
               cycleDisabled && "pointer-events-none opacity-50",
             )}
           >
-            <CycleIcon className="size-3.5" aria-hidden />
+            <CycleIcon
+              className="size-3.5"
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
           </button>
         </div>
       ) : null}
@@ -294,7 +398,6 @@ export function ControllerSummaryHeader({
 }) {
   const showCardBodyToggle = onToggleCardBody != null;
   const stallTypeLabel = formatControllerHeaderStallType(reading);
-  const stallUnitLabel = formatControllerHeaderStallUnit(reading);
   const offline = reading.status === "offline";
   const caution = reading.status === "caution";
 
@@ -313,7 +416,7 @@ export function ControllerSummaryHeader({
         <div className="min-w-0 flex-1">
           {showAffiliation ? (
             <>
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
                 <span
                   className={cn(
                     "break-keep text-foreground",
@@ -322,23 +425,23 @@ export function ControllerSummaryHeader({
                 >
                   {stallTypeLabel}
                 </span>
-                <span
-                  className={cn(
-                    "break-keep text-foreground/85",
-                    dashboardTypography.sectionTitle,
-                  )}
-                >
-                  {stallUnitLabel}
-                </span>
               </div>
               <div className="mt-0.5 flex min-w-0 items-center gap-2">
-                <ControllerNoMark
-                  eqpmnNo={reading.eqpmnNo}
+                <StallUnitNoMark
+                  stallNo={reading.stallNo}
                   className={cn(
-                    "min-w-0 flex-1 text-muted-foreground",
+                    "text-muted-foreground",
                     dashboardTypography.cardDesc,
                   )}
                 />
+                <ControllerNoMark
+                  eqpmnNo={reading.eqpmnNo}
+                  className={cn(
+                    "text-muted-foreground",
+                    dashboardTypography.cardDesc,
+                  )}
+                />
+                <div className="min-w-0 flex-1" />
                 <CardPanelModeToggle
                   listMode={listMode}
                   hideGraphToggle={hideGraphToggle}
@@ -357,10 +460,11 @@ export function ControllerSummaryHeader({
               <ControllerNoMark
                 eqpmnNo={reading.eqpmnNo}
                 className={cn(
-                  "min-w-0 flex-1 text-foreground",
+                  "text-foreground",
                   dashboardTypography.cardTitle,
                 )}
               />
+              <div className="min-w-0 flex-1" />
               <CardPanelModeToggle
                 listMode={listMode}
                 hideGraphToggle={hideGraphToggle}

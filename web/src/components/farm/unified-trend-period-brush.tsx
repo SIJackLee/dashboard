@@ -9,7 +9,6 @@ import {
 } from "@/lib/farm/env-comfort-score";
 import { downsampleTrendValues } from "@/lib/farm/trend-display-buckets";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 /** 30d 컨텍스트 기준 — 우측(now) 정렬 윈도우 비율 (API 기간과 동일) */
@@ -26,24 +25,22 @@ const BRUSH_VIEW_H = 88;
 const BRUSH_BASELINE = 82;
 const BRUSH_MAX_BAR = 70;
 
+/** 드래그 없이 탭으로 판정하는 최대 폭(비율) */
+const BRUSH_CLICK_SPAN = 0.02;
+
 export function snapBrushSpanToPeriod(span: number): TrendPeriodId {
   if (span <= 0.08) return "24h";
   if (span <= 0.35) return "7d";
   return "30d";
 }
 
-/** 드래그/탭 → 기간 프리셋. 폭 우선, 거의 클릭이면 위치 존. */
+/** 드래그 → 기간 프리셋(폭). 거의 클릭이면 null — 호출측에서 순환 처리. */
 export function resolveBrushPeriodFromDraft(
   a: number,
   b: number,
-): TrendPeriodId {
-  const left = Math.min(a, b);
+): TrendPeriodId | null {
   const span = Math.abs(b - a);
-  if (span < 0.02) {
-    if (left >= BRUSH_PERIOD_WINDOW["24h"].start) return "24h";
-    if (left >= BRUSH_PERIOD_WINDOW["7d"].start) return "7d";
-    return "30d";
-  }
+  if (span < BRUSH_CLICK_SPAN) return null;
   return snapBrushSpanToPeriod(span);
 }
 
@@ -73,7 +70,7 @@ type Props = {
 
 /**
  * TradingView형 기간 네비게이터 — 온·습 양호도 스파크 + 프리셋 윈도우.
- * 드래그 폭 → 24h/7d/30d 프리셋. 차트는 항상 **최근** N 구간(위치≠임의 구간).
+ * 탭 → 기간 순환(24h→7d→30d). 드래그 폭 → 프리셋. 차트는 항상 **최근** N 구간.
  */
 export function UnifiedTrendPeriodBrush({
   period,
@@ -113,8 +110,9 @@ export function UnifiedTrendPeriodBrush({
   const win = BRUSH_PERIOD_WINDOW[period];
   const periodLabel = TREND_PERIODS[period].label;
   const nextPeriodLabel = TREND_PERIODS[nextTrendPeriod(period)].label;
-  const snapPeriod =
-    draft != null ? resolveBrushPeriodFromDraft(draft.a, draft.b) : period;
+  const resolvedDraft =
+    draft != null ? resolveBrushPeriodFromDraft(draft.a, draft.b) : null;
+  const snapPeriod = resolvedDraft ?? period;
   const snapWin = BRUSH_PERIOD_WINDOW[snapPeriod];
   const draftWin =
     draft != null
@@ -153,66 +151,22 @@ export function UnifiedTrendPeriodBrush({
   };
 
   const commitDraft = (a: number, b: number) => {
-    const next = resolveBrushPeriodFromDraft(a, b);
-    onPeriodChange(next);
+    const fromDrag = resolveBrushPeriodFromDraft(a, b);
+    onPeriodChange(fromDrag ?? nextTrendPeriod(period));
     setDraft(null);
     dragRef.current = null;
   };
 
   const hoverBand = hover ? comfortScoreBandLabel(hover.score) : null;
+  const scoreLabel =
+    avgScore != null ? String(Math.round(avgScore)) : "—";
 
   return (
     <div
-      className={cn("space-y-2", className)}
+      className={cn(className)}
       data-tour-id="unified-trend-period-brush"
       data-farm-chart-period-nav=""
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-        <div
-          className="flex flex-wrap items-center gap-2 farm-chart-fs-legend text-muted-foreground"
-          aria-hidden
-        >
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2 rounded-sm bg-emerald-500" />
-            양호
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2 rounded-sm bg-amber-400" />
-            주의
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="size-2 rounded-sm bg-destructive/80" />
-            이탈
-          </span>
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          {avgScore != null ? (
-            <span
-              className={cn(
-                "inline-flex items-center rounded-md border border-border/60 bg-muted/40",
-                "px-2.5 py-1 farm-chart-fs-meta font-semibold tabular-nums text-foreground/80",
-              )}
-            >
-              {periodLabel} 평균 {Math.round(avgScore)}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            aria-label={`추이 기간 ${periodLabel} · 클릭 시 ${nextPeriodLabel}`}
-            title={`${periodLabel} → ${nextPeriodLabel}`}
-            onClick={() => onPeriodChange(nextTrendPeriod(period))}
-            className={cn(
-              "inline-flex items-center rounded-md border px-2.5 py-1 farm-chart-fs-meta font-medium",
-              motionClass.microHover,
-              dashboardUi.headerActionBtnActive,
-            )}
-          >
-            {periodLabel}
-          </button>
-        </div>
-      </div>
-
       <div className="relative">
         {hover && hoverBand ? (
           <div
@@ -261,7 +215,8 @@ export function UnifiedTrendPeriodBrush({
             "relative h-[5.5rem] select-none overflow-hidden rounded-xl border border-border/80",
             "bg-gradient-to-b from-muted/50 via-muted/25 to-background/90",
             "shadow-[inset_0_1px_0_0_hsl(0_0%_100%_/_0.04)]",
-            "cursor-ew-resize touch-none",
+            "cursor-pointer touch-none",
+            draft && "cursor-ew-resize",
           )}
           onPointerDown={(e) => {
             if (e.button !== 0) return;
@@ -294,8 +249,16 @@ export function UnifiedTrendPeriodBrush({
           onPointerLeave={() => {
             if (!dragRef.current) setHover(null);
           }}
-          role="group"
-          aria-label={`기간 프리셋 네비게이터 · 드래그 폭으로 24시간/7일/30일 선택 · 현재 최근 ${TREND_PERIODS[period].label}`}
+          role="button"
+          tabIndex={0}
+          aria-label={`추이 기간 ${periodLabel} · 점수 ${scoreLabel} · 탭 시 ${nextPeriodLabel} · 드래그로 기간 선택`}
+          title={`탭: ${periodLabel} → ${nextPeriodLabel} · 드래그: 기간 폭`}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onPeriodChange(nextTrendPeriod(period));
+            }
+          }}
         >
           <div
             className="pointer-events-none absolute inset-x-0 border-t border-dashed border-emerald-500/25"
@@ -383,7 +346,7 @@ export function UnifiedTrendPeriodBrush({
             }}
           />
 
-          {draftWin != null ? (
+          {draftWin != null && resolvedDraft != null ? (
             <div
               className="pointer-events-none absolute inset-y-1 rounded-sm border border-dashed border-primary/50 bg-primary/10"
               style={{
@@ -399,7 +362,7 @@ export function UnifiedTrendPeriodBrush({
               "pointer-events-none absolute inset-y-0 border-y-2 border-primary/80 bg-primary/15",
               "shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.35)]",
               motionClass.farmChartBrushWindow,
-              draft && "border-primary",
+              draft && resolvedDraft != null && "border-primary",
             )}
             style={{
               left: `${(draft ? snapWin : win).start * 100}%`,
@@ -415,29 +378,29 @@ export function UnifiedTrendPeriodBrush({
               aria-hidden
             />
           </div>
-          <span
-            className={cn(
-              "pointer-events-none absolute bottom-1.5 z-[2] -translate-x-1/2",
-              "whitespace-nowrap rounded bg-primary/90 px-1.5 py-0.5",
-              "farm-chart-fs-meta font-semibold tracking-wide text-primary-foreground backdrop-blur-sm",
-            )}
-            style={{
-              left: `clamp(3.25rem, ${((draft ? snapWin : win).start + (draft ? snapWin : win).width / 2) * 100}%, calc(100% - 3.25rem))`,
-            }}
-          >
-            {draft
-              ? `적용 · 최근 ${TREND_PERIODS[snapPeriod].label}`
-              : `최근 ${TREND_PERIODS[period].label}`}
-          </span>
 
-          <span className="pointer-events-none absolute left-2 top-1.5 rounded bg-background/50 px-1.5 py-0.5 farm-chart-fs-axis font-medium text-muted-foreground/90 backdrop-blur-sm">
-            전체 30일 맥락
-          </span>
-          {draft ? (
-            <span className="pointer-events-none absolute right-2 top-1.5 rounded border border-primary/40 bg-primary/90 px-1.5 py-0.5 farm-chart-fs-axis font-medium text-primary-foreground backdrop-blur-sm">
-              폭→기간 프리셋 · 세밀 줌은 위 차트
+          {!draft ? (
+            <span
+              className={cn(
+                "pointer-events-none absolute left-2 top-1.5 z-[1]",
+                "inline-flex items-center gap-1 rounded-md border border-border/70 bg-background/90 px-2 py-0.5",
+                "farm-chart-fs-meta font-medium tabular-nums text-foreground shadow-sm backdrop-blur-sm",
+              )}
+              aria-hidden
+            >
+              <span>{periodLabel}</span>
+              <span className="text-muted-foreground">·</span>
+              <span className="font-semibold">{scoreLabel}</span>
             </span>
-          ) : null}
+          ) : resolvedDraft != null ? (
+            <span className="pointer-events-none absolute right-2 top-1.5 rounded border border-primary/40 bg-primary/90 px-1.5 py-0.5 farm-chart-fs-axis font-medium text-primary-foreground backdrop-blur-sm">
+              폭→{TREND_PERIODS[resolvedDraft].label} · 탭은 기간 순환
+            </span>
+          ) : (
+            <span className="pointer-events-none absolute right-2 top-1.5 rounded border border-border/60 bg-background/90 px-1.5 py-0.5 farm-chart-fs-axis font-medium text-muted-foreground backdrop-blur-sm">
+              탭→{nextPeriodLabel}
+            </span>
+          )}
         </div>
       </div>
     </div>

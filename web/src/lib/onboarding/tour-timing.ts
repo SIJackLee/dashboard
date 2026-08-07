@@ -200,6 +200,7 @@ export function settleSelectorsForGridAction(
       ];
     case "list-mode-settings":
       return [
+        '[data-tour-id="list-settings-tour-target"]',
         '[data-tour-id="list-settings-panel"]',
         '[data-audit-region="controller-mobile-sheet-settings"]',
         '[data-tour-id="controller-card"]',
@@ -208,6 +209,38 @@ export function settleSelectorsForGridAction(
       return ['[data-tour-id="header-tools-panel"]'];
     case "close-header-tools":
       return ['[data-tour-id="header-tools"]'];
+    case "chart-enter-control":
+      return [
+        '[data-tour-id="chart-control-plot"][data-chart-mode="control"]',
+        '[data-tour-id="chart-control-mode"]',
+      ];
+    case "chart-exit-control":
+      return [
+        '[data-tour-id="unified-trend-period-brush"]',
+        '[data-tour-id="farm-chart-unified-trend"]',
+      ];
+    case "field-mobile-sheet-controller":
+      return [
+        '[data-tour-id="controller-gauge-metrics"]',
+        '[data-audit-region="controller-mobile-sheet-controller"]',
+      ];
+    case "field-mobile-sheet-graph":
+      return [
+        '[data-audit-region="controller-mobile-sheet-channel-trend"]',
+        '[data-tour-id="list-graph-panel"]',
+      ];
+    case "field-mobile-sheet-settings":
+      return [
+        '[data-tour-id="controller-mobile-sheet-panel"]',
+        '[data-tour-id="list-settings-host"]',
+        '[data-audit-region="controller-mobile-sheet-settings"]',
+      ];
+    case "field-mobile-sheet-close":
+      return [
+        '[data-tour-id="map-grid"]',
+        '[data-tour-id="barn-card"]',
+        '[data-tour-id="header-feature-tour"]',
+      ];
     default:
       return null;
   }

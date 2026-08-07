@@ -45,7 +45,8 @@ export function formatControllerHeaderStallType(
 
 /** 카드 헤더 — N번 축사 (중간 계층) */
 export function formatControllerHeaderStallUnit(
-  reading: Pick<BarnReading, "stallNo" | "controllerKey" | "idx">,
+  reading: Pick<BarnReading, "stallNo"> &
+    Partial<Pick<BarnReading, "controllerKey" | "idx">>,
 ): string {
   const stallKey = stallKeyFromReading(reading);
   const stallNo = stallKey.startsWith("__") ? "—" : stallKey;

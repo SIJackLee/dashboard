@@ -7,7 +7,6 @@ import {
 } from "react";
 import {
   Check,
-  CheckCheck,
   Droplets,
   Fan,
   Thermometer,
@@ -31,8 +30,8 @@ type Tone = "temp" | "hum" | "motor" | "neutral";
 
 export type LayerGroupId = "temp" | "hum" | "motor";
 
-/** 그룹 토글 사이클: 본선만 → 전체 → 끔 → 본선만 */
-export type LayerGroupCycleMode = "all" | "base" | "off";
+/** 그룹 토글 사이클: 기본보기(본선+산포) ↔ 끔 */
+export type LayerGroupCycleMode = "base" | "off";
 
 export type UnifiedTrendLayerAvailable = Record<UnifiedLayerId, boolean>;
 
@@ -42,11 +41,18 @@ const GROUP_MAIN: Record<LayerGroupId, UnifiedLayerId> = {
   motor: "motors",
 };
 
+/** 끌 때 함께 끄는 상세 레이어(범위·추세·채널 등) */
 const GROUP_SUBS: Record<LayerGroupId, readonly UnifiedLayerId[]> = {
-  /* 전체 = 본선 + 분포 + 범위 + 추세 */
   temp: ["ema", "dev", "band"],
   hum: ["humEma", "humDev", "humBand"],
   motor: ["motorCh"],
+};
+
+/** 기본보기 — 본선 + 산포(온·습 min–max). 모터는 본선만 */
+const GROUP_BASE_SUBS: Record<LayerGroupId, readonly UnifiedLayerId[]> = {
+  temp: ["band"],
+  hum: ["humBand"],
+  motor: [],
 };
 
 const GROUP_META: Record<
@@ -69,6 +75,13 @@ function availableSubs(
   return GROUP_SUBS[group].filter((id) => available[id]);
 }
 
+function availableBaseSubs(
+  group: LayerGroupId,
+  available: UnifiedTrendLayerAvailable,
+): UnifiedLayerId[] {
+  return GROUP_BASE_SUBS[group].filter((id) => available[id]);
+}
+
 export function detectLayerGroupMode(
   layers: UnifiedLayerFlags,
   available: UnifiedTrendLayerAvailable,
@@ -77,24 +90,16 @@ export function detectLayerGroupMode(
   const main = GROUP_MAIN[group];
   const subs = availableSubs(group, available);
   const mainOn = layers[main];
-  const onSubs = subs.filter((id) => layers[id]);
-  const allSubsOn = subs.length === 0 || onSubs.length === subs.length;
-  const noSubsOn = onSubs.length === 0;
+  const anySubOn = subs.some((id) => layers[id]);
 
-  if (!mainOn && noSubsOn) return "off";
-  if (mainOn && allSubsOn) return "all";
-  if (mainOn && noSubsOn) return "base";
-  /* 본선+일부 상세 → 끔으로 정리 유도(다음 클릭에서 전체로) */
-  if (mainOn) return "off";
-  return "off";
+  if (!mainOn && !anySubOn) return "off";
+  return "base";
 }
 
 export function nextLayerGroupMode(
   mode: LayerGroupCycleMode,
 ): LayerGroupCycleMode {
-  if (mode === "base") return "all";
-  if (mode === "all") return "off";
-  return "base";
+  return mode === "base" ? "off" : "base";
 }
 
 export function applyLayerGroupMode(
@@ -105,19 +110,15 @@ export function applyLayerGroupMode(
 ): UnifiedLayerFlags {
   const next = { ...prev };
   const main = GROUP_MAIN[group];
-  const subs = availableSubs(group, available);
+  const baseSubs = availableBaseSubs(group, available);
 
-  if (mode === "all") {
-    next[main] = true;
-    for (const id of subs) next[id] = true;
-    return next;
-  }
   if (mode === "base") {
     next[main] = true;
     for (const id of GROUP_SUBS[group]) next[id] = false;
+    for (const id of baseSubs) next[id] = true;
     return next;
   }
-  // off — 그룹 그래프 해제
+
   next[main] = false;
   for (const id of GROUP_SUBS[group]) next[id] = false;
   return next;
@@ -125,8 +126,7 @@ export function applyLayerGroupMode(
 
 function modeTooltip(group: LayerGroupId, mode: LayerGroupCycleMode): string {
   const name = GROUP_META[group].baseLabel;
-  if (mode === "all") return `${name} 전체 적용`;
-  if (mode === "base") return `${name}만`;
+  if (mode === "base") return `${name} 기본보기`;
   return `${name} 그래프 끔`;
 }
 
@@ -210,8 +210,7 @@ function IconTipButton({
 }
 
 function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
-  const Icon =
-    mode === "all" ? CheckCheck : mode === "base" ? Check : X;
+  const Icon = mode === "base" ? Check : X;
   return (
     <span
       key={mode}
@@ -231,7 +230,7 @@ function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
 
 /**
  * 차트 레이어 툴바 — 온도·습도·모터 가로 3버튼 (헤더용).
- * 각 버튼 클릭: 본선만 → 전체 → 끔 → 본선만.
+ * 각 버튼 클릭: 기본보기(본선+산포) ↔ 끔.
  */
 export function UnifiedTrendLayerToolbar({
   layers,

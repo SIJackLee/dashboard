@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { Cpu } from "lucide-react";
+import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,7 +63,7 @@ export function ConnectivityStatusButton({ overview }: Props) {
 
   const triggerBody = (
     <>
-      <Cpu className={dashboardUi.topHeaderOverlayIcon} aria-hidden />
+      <ControllerDeviceIcon className={dashboardUi.topHeaderOverlayIcon} aria-hidden />
       {registered !== undefined ? (
         <span
           className={cn(

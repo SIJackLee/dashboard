@@ -17,7 +17,7 @@ import {
 } from "@/lib/farm/controller-summary-display";
 
 export const UNIFIED_TEMP_BAND_FILL = "#ef4444";
-/** 온도 밴드 오버레이 분포 — 온도감 유지, 본선(#ef4444)과 구분 */
+/** 온도 편차 히스토그램 — 온도감 유지, 본선(#ef4444)과 구분 */
 export const DEV_HIST_COLOR_UP = "#fb923c";
 export const DEV_HIST_COLOR_DOWN = "#fb7185";
 /** EMA 추세선 (온도) */
@@ -25,7 +25,7 @@ export const EMA_SHORT_COLOR = "#fca5a5";
 export const EMA_LONG_COLOR = "#b91c1c";
 
 export const UNIFIED_HUM_BAND_FILL = "#0ea5e9";
-/** 습도 분포 히스토그램 — 본선(#0ea5e9)과 구분 */
+/** 습도 편차 히스토그램 — 본선(#0ea5e9)과 구분 */
 export const HUM_DEV_HIST_COLOR_UP = "#38bdf8";
 export const HUM_DEV_HIST_COLOR_DOWN = "#818cf8";
 export const HUM_EMA_SHORT_COLOR = "#7dd3fc";
@@ -37,10 +37,10 @@ export const UNIFIED_CHART_LABELS = {
   tempEmaLong: "온도 장기 추세",
   humEmaShort: "습도 추세",
   humEmaLong: "습도 장기 추세",
-  tempBand: "온도 범위",
-  humBand: "습도 범위",
-  tempDev: "온도 분포",
-  humDev: "습도 분포",
+  tempBand: "온도 산포",
+  humBand: "습도 산포",
+  tempDev: "온도 편차",
+  humDev: "습도 편차",
   motor: "모터",
   motorA: CHANNEL_SLOT_LABELS.A,
   motorB: CHANNEL_SLOT_LABELS.B,
@@ -380,16 +380,16 @@ export type UnifiedLayerId =
 
 export type UnifiedLayerFlags = Record<UnifiedLayerId, boolean>;
 
-/** 기본: 온도·습도·모터 본선만 (산포·편차·EMA는 툴바에서 opt-in) */
+/** 기본: 온도·습도·모터 본선 + 온·습 산포 (레이어 툴바 「기본보기」와 동일) */
 export const DEFAULT_UNIFIED_LAYERS: UnifiedLayerFlags = {
   motors: true,
   motorCh: false,
   temp: true,
   hum: true,
-  band: false,
+  band: true,
   dev: false,
   ema: false,
-  humBand: false,
+  humBand: true,
   humDev: false,
   humEma: false,
 };
@@ -830,7 +830,7 @@ export function mapTempCToSplitY(
 }
 
 /**
- * 온도 분포(℃) → 온도 주패널에 오버레이.
+ * 온도 편차(℃) → 온도 주패널에 오버레이.
  * 중점+편차를 온도 스케일로 매핑 (자연스러운 위치).
  */
 export function mapTempDeviationToSplitY(
@@ -845,7 +845,7 @@ export function mapTempDeviationToSplitY(
 }
 
 /**
- * 습도 분포(%p) → 습도 밴드에 오버레이.
+ * 습도 편차(%p) → 습도 밴드에 오버레이.
  */
 export function mapHumDeviationToSplitY(
   deviationPct: number | null | undefined,

@@ -87,8 +87,8 @@ function SheetMetricsBlock({
             breached: humidityAlarmBreached,
           }}
         />
+        <ChannelStrip reading={reading} thermo={thermo} compact hideChannelTrendExpand />
       </div>
-      <ChannelStrip reading={reading} thermo={thermo} compact hideChannelTrendExpand />
     </>
   );
 }

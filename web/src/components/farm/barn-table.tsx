@@ -44,6 +44,7 @@ import {
   type BarnListViewMode,
   type ListLayout,
 } from "@/lib/farm/farm-view-url";
+import { farmFieldMergeEnabled } from "@/lib/farm/farm-field-merge-enabled";
 import {
   EMPTY_BARN_LIST_PANEL_SETS,
   toggleBarnListGraph,
@@ -76,6 +77,7 @@ import {
   waitForTourTarget,
 } from "@/lib/onboarding/tour-timing";
 import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
+import { getFarmTourActiveSync } from "@/lib/onboarding/use-farm-tour-active";
 
 type Props = {
   rows?: BarnReading[];
@@ -221,6 +223,7 @@ export function BarnTable({
       const params = currentFarmSearchParams();
       const nextLayout = resolveListLayout(params);
       setListLayout((prev) => (prev === nextLayout ? prev : nextLayout));
+      if (getFarmTourActiveSync()) return;
       const fromUrl = resolveListViewMode(params);
       setListMode((prev) => {
         if (prev === fromUrl) return prev;
@@ -426,7 +429,16 @@ export function BarnTable({
   const replaceListParams = useCallback(
     (patch: Record<string, string | null>) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
-      if (hubMode) {
+      const fieldMerge = farmFieldMergeEnabled();
+      const currentView = params.get("view");
+      // 현장 병합: map|list 모두 현장 탭. listMode만 바꿀 때 view=list 강제하면
+      // 투어 setView(map)과 경합 → RSC POST JSON 깨짐(Unexpected end of JSON).
+      if (fieldMerge) {
+        if (currentView !== "map" && currentView !== "list") {
+          if (hubMode) applyHubScopedViewParams(params, "map");
+          else params.set("view", "map");
+        }
+      } else if (hubMode) {
         applyHubScopedViewParams(params, "list");
       } else {
         params.set("view", "list");
@@ -508,6 +520,11 @@ export function BarnTable({
     });
   };
 
+  const filteredRowsRef = useRef(filteredRows);
+  useEffect(() => {
+    filteredRowsRef.current = filteredRows;
+  }, [filteredRows]);
+
   /** 스포트라이트 투어 — 목록 보기 모드(컨트롤러/그래프/설정) 전환 */
   useEffect(() => {
     const onTourAction = (e: Event) => {
@@ -525,14 +542,40 @@ export function BarnTable({
           : action === "list-mode-settings"
             ? "settings"
             : "controller";
+      const firstKey = filteredRowsRef.current[0]?.key;
+      const tourActive = getFarmTourActiveSync();
       if (!bulkMode) {
-        setListMode(mode);
-        setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
-        setCardBodyExpandedKeys(new Set());
-        setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
-        replaceListParams({
-          listMode: mode === "controller" ? null : mode,
+        let changed = false;
+        setListMode((prev) => {
+          if (prev === mode) return prev;
+          changed = true;
+          return mode;
         });
+        // 투어 — 첫 카드만 패널 열어 hole 과대·마운트 폭주 방지
+        if (tourActive && firstKey && mode === "settings") {
+          setPanelSets({
+            graphKeys: new Set(),
+            settingsKeys: new Set([firstKey]),
+          });
+        } else if (tourActive && firstKey && mode === "graph") {
+          setPanelSets({
+            graphKeys: new Set([firstKey]),
+            settingsKeys: new Set(),
+          });
+          setCardBodyExpandedKeys(new Set());
+        } else if (changed) {
+          setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
+          setCardBodyExpandedKeys(new Set());
+        }
+        if (changed || tourActive) {
+          setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
+        }
+        // 투어 중 URL listMode 생략 — shallow 갱신이 모드를 되돌리거나 RSC 경합 유발
+        if (changed && !tourActive) {
+          replaceListParams({
+            listMode: mode === "controller" ? null : mode,
+          });
+        }
       }
       // 카드·시트·패널 paint 후 done — 2 rAF만으로는 locate 레이스.
       void (async () => {
@@ -545,6 +588,7 @@ export function BarnTable({
               ]
             : mode === "settings"
               ? [
+                  '[data-tour-id="list-settings-tour-target"]',
                   '[data-tour-id="list-settings-panel"]',
                   '[data-audit-region="controller-mobile-sheet-settings"]',
                   '[data-tour-id="controller-card"]',
@@ -553,7 +597,9 @@ export function BarnTable({
                   '[data-tour-id="controller-card"]',
                   '[data-tour-id="controller-gauge-metrics"]',
                 ];
-        await waitForTourTarget(settle);
+        await waitForTourTarget(settle, {
+          timeoutMs: tourActive ? 3_200 : undefined,
+        });
         dispatchTourGridActionDone(action as TourGridAction);
       })();
     };

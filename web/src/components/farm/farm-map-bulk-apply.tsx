@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   Bell,
   CheckCircle2,
-  Cpu,
   Layers,
   Loader2,
   Send,
@@ -15,6 +14,7 @@ import {
   Thermometer,
   X,
 } from "lucide-react";
+import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
 import { ControllerTempDualSlider } from "@/components/controllers/controller-temp-dual-slider";
 import { AlarmDomainIcon } from "@/components/settings/alarm-domain-icon";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
@@ -848,7 +848,7 @@ export function FarmMapBulkApply({
                       : "컨트롤러"
                   }
                 >
-                  <Cpu className={dashboardUi.iconSm} aria-hidden />
+                  <ControllerDeviceIcon className={dashboardUi.iconSm} aria-hidden />
                   <span className="sr-only">컨트롤러</span>
                   <span aria-label={`컨트롤러 ${targets.length}대`}>
                     {targets.length}

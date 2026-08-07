@@ -11,8 +11,6 @@
 import {
   Bell,
   CircleHelp,
-  Cpu,
-  EllipsisVertical,
   FileText,
   LayoutGrid,
   LineChart,
@@ -21,6 +19,8 @@ import {
   UserRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 
 const ANATOMY_ITEMS = [
   { n: 1, label: "현재값", desc: "주황 구간 — 지금 측정된 값" },
@@ -122,15 +122,24 @@ export function GaugeAnatomy({ compact = false }: GuideProps) {
   );
 }
 
-const PILL_ITEMS: { name: string; desc: string; Icon: LucideIcon }[] = [
+const PILL_ITEMS: {
+  name: string;
+  desc: string;
+  Icon: LucideIcon | typeof ControllerDeviceIcon;
+}[] = [
+  {
+    name: "순환",
+    desc: "카드 우측 버튼 — 컨트롤러 → 그래프 → 설정 → 컨트롤러 순으로 전환·접기.",
+    Icon: ControllerDeviceIcon,
+  },
   {
     name: "그래프",
-    desc: "온도·습도·채널 추이. 카드 하단 패널에서 확인. 채널 셀 탭으로 해당 채널 출력 추이.",
+    desc: "추이 패널을 엽니다. 다시 누르면 설정으로 갑니다.",
     Icon: LineChart,
   },
   {
     name: "설정",
-    desc: "알람·설정온도·환기 범위. 카드 하단 패널에서 변경.",
+    desc: "알람·설정온도·환기. 다시 누르면 컨트롤러로 접습니다.",
     Icon: Settings,
   },
 ];
@@ -156,7 +165,10 @@ export function PanelPillsGuide({ compact = false }: GuideProps) {
               }
               aria-hidden
             >
-              <p.Icon className={compact ? "size-3.5" : "size-4"} />
+              <p.Icon
+                className={compact ? "size-3.5" : "size-4"}
+                strokeWidth={dashboardUi.iconStroke}
+              />
             </span>
             <span>
               <span className="font-semibold">{p.name}</span>
@@ -169,11 +181,15 @@ export function PanelPillsGuide({ compact = false }: GuideProps) {
   );
 }
 
-const LIST_MODE_ITEMS: { name: string; desc: string; Icon: LucideIcon }[] = [
+const LIST_MODE_ITEMS: {
+  name: string;
+  desc: string;
+  Icon: LucideIcon | typeof ControllerDeviceIcon;
+}[] = [
   {
     name: "컨트롤러",
     desc: "게이지·현재값 중심 목록.",
-    Icon: Cpu,
+    Icon: ControllerDeviceIcon,
   },
   {
     name: "그래프",
@@ -222,7 +238,10 @@ export function ListModeIconsGuide({ compact = false }: GuideProps) {
               }
               aria-hidden
             >
-              <p.Icon className={compact ? "size-3.5" : "size-4"} />
+              <p.Icon
+                className={compact ? "size-3.5" : "size-4"}
+                strokeWidth={dashboardUi.iconStroke}
+              />
             </span>
             <span>
               <span className="font-semibold">{p.name}</span>
@@ -247,18 +266,6 @@ const HEADER_ICON_ITEMS: {
   desc: string;
   Icon: LucideIcon;
 }[] = [
-  {
-    key: "tools",
-    label: "헤더 도구",
-    desc: "이상상황·리포트·테마·미리보기 아이콘이 오른쪽에 바로 보입니다. 좁은 화면에서는 ⋮ 으로 접힐 수 있습니다.",
-    Icon: EllipsisVertical,
-  },
-  {
-    key: "connectivity",
-    label: "컨트롤러 연결",
-    desc: "등록·연결·오프라인 대수를 아이콘과 배지로 확인합니다.",
-    Icon: Cpu,
-  },
   {
     key: "alarms",
     label: "이상상황",
@@ -286,7 +293,7 @@ const HEADER_ICON_ITEMS: {
   {
     key: "account",
     label: "계정",
-    desc: "프로필 메뉴에서 최근 활동, 농장 주소 등을 이용할 수 있습니다.",
+    desc: "프로필 메뉴에서 농장 선택, 최근 활동, 농장 주소 등을 이용할 수 있습니다.",
     Icon: UserRound,
   },
 ];
@@ -321,7 +328,10 @@ export function HeaderIconsGuide({ compact = false }: GuideProps) {
               }
               aria-hidden
             >
-              <item.Icon className={compact ? "size-3.5" : "size-4"} />
+              <item.Icon
+                className={compact ? "size-3.5" : "size-4"}
+                strokeWidth={dashboardUi.iconStroke}
+              />
             </span>
             <span>
               <span className="font-semibold">{item.label}</span>

@@ -387,14 +387,21 @@ export type ScrollTourTargetOptions = {
   tooltipDock?: TourTooltipDock;
 };
 
-/** 모바일 — instant(auto) 1회만. PC — center smooth. */
+/** 모바일 — instant(auto) 1회만. PC — center instant(auto) — smooth는 완료 전에 hole을 재어 화면 밖 스포트라이트가 남음. */
 export function scrollTourTargetIntoView(
   el: HTMLElement,
   mobileSheet: boolean,
   options?: ScrollTourTargetOptions,
 ) {
   if (!mobileSheet) {
-    el.scrollIntoView({ block: "center", behavior: "smooth" });
+    el.scrollIntoView({ block: "nearest", behavior: "auto" });
+    const rect = el.getBoundingClientRect();
+    const vv = getTourViewport();
+    const viewTop = vv.top + 80;
+    const viewBottom = vv.top + vv.height - 24;
+    if (rect.top < viewTop || rect.bottom > viewBottom) {
+      el.scrollIntoView({ block: "center", behavior: "auto" });
+    }
     return;
   }
 
@@ -676,7 +683,7 @@ export type TourTooltipPlacement = {
 /**
  * 설명 카드가 뷰포트 밖으로 잘리지 않게 배치.
  * 모바일: 스포트라이트 반대편 도킹 — 카드가 hole을 덮지 않음.
- * PC: hole이 크거나 상·하 여백이 부족하면 하단 도킹.
+ * PC: 홀을 가리지 않는 후보(아래→위→우측→좌측→상단 도킹) 중 선택.
  */
 export function placeTourTooltip(opts: {
   hole: { top: number; left: number; width: number; height: number } | null;
@@ -746,47 +753,161 @@ export function placeTourTooltip(opts: {
     };
   }
 
+  type Cand = TourTooltipPlacement & {
+    tip: { top: number; left: number; width: number; height: number };
+  };
+  const cands: Cand[] = [];
+
+  const push = (
+    style: TourTooltipPlacement["style"],
+    dock: TourTooltipDock,
+    docked: boolean,
+    tipH: number,
+  ) => {
+    const h = Math.min(
+      tipH,
+      typeof style.maxHeight === "number" ? style.maxHeight : tipH,
+    );
+    let top = edge;
+    if (typeof style.top === "number") top = style.top;
+    else if (typeof style.bottom === "number") top = vh - style.bottom - h;
+    const left =
+      typeof style.left === "number"
+        ? style.left
+        : Math.max(edge, (vw - tooltipW) / 2);
+    cands.push({
+      style,
+      docked,
+      dock,
+      tip: { top, left, width: tooltipW, height: h },
+    });
+  };
+
   const spaceBelow = vh - (hole.top + hole.height) - gap;
   const spaceAbove = hole.top - gap;
-  const holeLarge = hole.height > vh * 0.42;
-  const preferDock = holeLarge || (spaceBelow < 200 && spaceAbove < 200);
+  const estH = maxH;
 
-  if (preferDock) {
-    return {
-      style: {
-        left: clampLeft((vw - tooltipW) / 2),
-        bottom: edge,
+  if (spaceBelow >= 160) {
+    const top = Math.max(edge, hole.top + hole.height + gap);
+    push(
+      {
+        left: clampLeft(hole.left),
+        top,
+        width: tooltipW,
+        maxHeight: Math.min(maxH, Math.max(160, vh - top - edge)),
+      },
+      "bottom",
+      false,
+      Math.min(estH, Math.max(160, vh - top - edge)),
+    );
+  }
+
+  if (spaceAbove >= 160) {
+    const h = Math.min(maxH, Math.max(160, spaceAbove));
+    const top = Math.max(edge, hole.top - gap - h);
+    push(
+      {
+        left: clampLeft(hole.left),
+        top,
+        width: tooltipW,
+        maxHeight: h,
+      },
+      "top",
+      false,
+      h,
+    );
+  }
+
+  const sideTop = Math.max(
+    edge,
+    Math.min(hole.top, Math.max(edge, vh - Math.min(estH, maxH) - edge)),
+  );
+  if (hole.left + hole.width + gap + tooltipW <= vw - edge) {
+    push(
+      {
+        left: Math.round(hole.left + hole.width + gap),
+        top: sideTop,
         width: tooltipW,
         maxHeight: maxH,
       },
-      docked: true,
-      dock: "bottom",
-    };
+      "bottom",
+      false,
+      estH,
+    );
   }
-
-  if (spaceBelow >= Math.min(220, maxH) || spaceBelow >= spaceAbove) {
-    const top = Math.min(hole.top + hole.height + gap, vh - maxH - edge);
-    return {
-      style: {
-        left: clampLeft(hole.left),
-        top: Math.max(edge, top),
+  if (hole.left - gap - tooltipW >= edge) {
+    push(
+      {
+        left: Math.round(hole.left - gap - tooltipW),
+        top: sideTop,
         width: tooltipW,
-        maxHeight: Math.min(maxH, Math.max(160, vh - Math.max(edge, top) - edge)),
+        maxHeight: maxH,
       },
-      docked: false,
-      dock: "bottom",
-    };
+      "bottom",
+      false,
+      estH,
+    );
   }
 
-  const bottom = Math.max(edge, vh - hole.top + gap);
-  return {
-    style: {
-      left: clampLeft(hole.left),
-      bottom,
+  push(
+    {
+      left: clampLeft((vw - tooltipW) / 2),
+      top: edge,
       width: tooltipW,
-      maxHeight: Math.min(maxH, Math.max(160, vh - bottom - edge)),
+      maxHeight: Math.min(maxH, Math.max(160, hole.top - gap - edge)),
     },
-    docked: false,
-    dock: "top",
+    "top",
+    true,
+    Math.min(estH, Math.max(160, hole.top - gap - edge)),
+  );
+  push(
+    {
+      left: clampLeft((vw - tooltipW) / 2),
+      bottom: edge,
+      width: tooltipW,
+      maxHeight: Math.min(
+        maxH,
+        Math.max(160, vh - (hole.top + hole.height) - gap - edge),
+      ),
+    },
+    "bottom",
+    true,
+    Math.min(
+      estH,
+      Math.max(160, vh - (hole.top + hole.height) - gap - edge),
+    ),
+  );
+
+  let best: Cand | null = null;
+  let bestOverlap = Number.POSITIVE_INFINITY;
+  for (const c of cands) {
+    if (c.tip.height < 120) continue;
+    const overlap = measureTourHoleTooltipOverlap(hole, c.tip);
+    if (overlap < bestOverlap) {
+      bestOverlap = overlap;
+      best = c;
+      if (overlap === 0) break;
+    }
+  }
+  if (!best) {
+    best =
+      cands.find((c) => c.tip.height >= 120) ??
+      cands[0] ?? {
+        style: {
+          left: clampLeft((vw - tooltipW) / 2),
+          bottom: edge,
+          width: tooltipW,
+          maxHeight: maxH,
+        },
+        docked: true,
+        dock: "bottom" as TourTooltipDock,
+        tip: { top: vh - edge - maxH, left: edge, width: tooltipW, height: maxH },
+      };
+  }
+
+  return {
+    style: best.style,
+    docked: best.docked,
+    dock: best.dock,
   };
 }

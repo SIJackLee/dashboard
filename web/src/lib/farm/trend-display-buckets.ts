@@ -50,31 +50,85 @@ export function tickEveryForDisplayBars(count: number): number {
   return Math.max(1, Math.ceil(count / 5));
 }
 
+/** 풀 라벨 `M/D` · `M/D HH` 파싱 (호버용 categories 형식). */
+export function parseTrendAxisMdLabel(
+  fullLabel: string,
+): { month: number; day: number } | null {
+  const m = fullLabel.match(/^(\d{1,2})\/(\d{1,2})(?:\s+\d{1,2})?$/);
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  if (!Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return { month, day };
+}
+
 /**
  * X축 tick 표시용 축약.
- * categories는 풀 라벨(호버/툴팁용)을 유지하고, tick만 양끝=풀 · 중간=축약.
+ * categories는 풀 라벨(호버/툴팁용)을 유지하고, tick만 축약.
  *
- * - 24h 풀 `HH:mm` → 중간 `HH`
- * - 7d 풀 `M/D HH` → 중간 `M/D`
- * - 30d 풀 `M/D` → 중간 `D`
+ * - 24h: 양끝 풀 `HH:mm` · 중간 `HH`
+ * - 7d/30d: 월이 바뀌는 틱(또는 1일) → `N월`, 그 외 → 일 숫자만.
+ *   구간 첫 틱이 월 중이면 `M/D`로 월 맥락 유지.
  */
 export function abbreviateTrendAxisLabel(
   period: TrendPeriodId,
   fullLabel: string,
-  opts: { endpoint: boolean },
+  opts: { endpoint: boolean; prevLabel?: string | null },
 ): string {
-  if (opts.endpoint || !fullLabel) return fullLabel;
+  if (!fullLabel) return fullLabel;
 
   if (period === "24h") {
+    if (opts.endpoint) return fullLabel;
     const m = fullLabel.match(/^(\d{1,2}):\d{2}$/);
     return m ? m[1]! : fullLabel;
   }
-  if (period === "7d") {
-    const m = fullLabel.match(/^(\d{1,2}\/\d{1,2})\s+\d{1,2}$/);
-    return m ? m[1]! : fullLabel;
+
+  const cur = parseTrendAxisMdLabel(fullLabel);
+  if (!cur) return fullLabel;
+
+  const prev = opts.prevLabel ? parseTrendAxisMdLabel(opts.prevLabel) : null;
+  const monthChanged = !prev || prev.month !== cur.month;
+
+  if (monthChanged) {
+    // 1일·월 경계 → 월만. 첫 틱이 월 중이면 M/D로 맥락 유지.
+    if (!prev && cur.day !== 1) return `${cur.month}/${cur.day}`;
+    return `${cur.month}월`;
   }
-  // 30d — `M/D` → 일만
-  const m = fullLabel.match(/^\d{1,2}\/(\d{1,2})$/);
-  return m ? m[1]! : fullLabel;
+  return String(cur.day);
+}
+
+/** 구간 줌 칩 — `8/3 ~ 5` (같은 달이면 끝쪽 월 생략). 24h는 `HH:mm ~ HH:mm`. */
+export function formatTrendScopeRangeLabel(
+  startLabel: string,
+  endLabel: string,
+): string {
+  const start = startLabel.trim();
+  const end = endLabel.trim();
+  if (!start && !end) return "…";
+  if (!start) return end;
+  if (!end) return start;
+
+  if (/^\d{1,2}:\d{2}$/.test(start) && /^\d{1,2}:\d{2}$/.test(end)) {
+    return `${start} ~ ${end}`;
+  }
+
+  const a = parseTrendAxisMdLabel(start);
+  const b = parseTrendAxisMdLabel(end);
+  if (!a || !b) return `${start} ~ ${end}`;
+
+  const startHour = start.match(/\s+(\d{1,2})$/)?.[1];
+  const endHour = end.match(/\s+(\d{1,2})$/)?.[1];
+  const left = startHour
+    ? `${a.month}/${a.day} ${startHour}`
+    : `${a.month}/${a.day}`;
+  const right =
+    a.month === b.month
+      ? endHour
+        ? `${b.day} ${endHour}`
+        : String(b.day)
+      : endHour
+        ? `${b.month}/${b.day} ${endHour}`
+        : `${b.month}/${b.day}`;
+  return `${left} ~ ${right}`;
 }
 

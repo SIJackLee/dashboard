@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -16,7 +17,10 @@ import {
   FARM_TOUR_RESTART_SCOPE_KEY,
   TOUR_READY_ARIA_SELECTOR,
   TOUR_READY_CHART_SELECTOR,
+  TOUR_READY_CONTROLLER_SELECTOR,
+  TOUR_READY_FIELD_STATUS_SELECTOR,
   TOUR_READY_HEATMAP_SELECTOR,
+  TOUR_READY_MAP_GRID_SELECTOR,
   TOUR_READY_MIN_CARDS,
   TOUR_READY_SELECTOR,
   TOUR_READY_VIEW_TOGGLE_SELECTOR,
@@ -27,6 +31,7 @@ import {
   type TourStepDef,
   type TourView,
 } from "@/lib/onboarding/tour-steps";
+import { setFarmTourActiveSync } from "@/lib/onboarding/use-farm-tour-active";
 import {
   getTourViewport,
   getTourPortalBounds,
@@ -90,7 +95,7 @@ const TOOLTIP_W_MOBILE = 400;
 
 /**
  * 스코프별 DOM 준비 — 스켈레톤/빈 패널 위 투어 시작 방지.
- * 현장 병합(히트맵 없음)은 축사 카드·현황 그리드·컨트롤러 카드로 ready 인정.
+ * 현장: PC 현황/컨트롤러 · 모바일 map-grid · 레거시 카드+히트맵.
  */
 function isTourContentReady(scope: TourScope): boolean {
   if (countPresentTourTargets(TOUR_READY_VIEW_TOGGLE_SELECTOR) < 1) return false;
@@ -100,17 +105,28 @@ function isTourContentReady(scope: TourScope): boolean {
   if (scope === "aria") {
     return countPresentTourTargets(TOUR_READY_ARIA_SELECTOR) >= 1;
   }
-  if (countPresentTourTargets(TOUR_READY_SELECTOR) >= TOUR_READY_MIN_CARDS) {
-    if (countPresentTourTargets(TOUR_READY_HEATMAP_SELECTOR) >= 1) return true;
-    // 현장 병합 — 히트맵 없이 현황/목록만 있어도 안내 가능
-    if (countPresentTourTargets('[data-tour-id="field-status-grid"]') >= 1) {
-      return true;
-    }
-    if (countPresentTourTargets('[data-tour-id="controller-card"]') >= 1) {
-      return true;
-    }
+  if (countPresentTourTargets(TOUR_READY_FIELD_STATUS_SELECTOR) >= 1) {
+    return true;
   }
-  return countPresentTourTargets('[data-tour-id="controller-card"]') >= 1;
+  if (countPresentTourTargets(TOUR_READY_CONTROLLER_SELECTOR) >= 1) {
+    return true;
+  }
+  // 모바일 fieldMerge — 맵 카드 그리드(히트맵 없음)
+  if (countPresentTourTargets(TOUR_READY_MAP_GRID_SELECTOR) >= 1) {
+    return countPresentTourTargets(TOUR_READY_SELECTOR) >= TOUR_READY_MIN_CARDS;
+  }
+  // 레거시 그리드(병합 off) — 카드+히트맵
+  if (countPresentTourTargets(TOUR_READY_SELECTOR) < TOUR_READY_MIN_CARDS) {
+    return false;
+  }
+  return countPresentTourTargets(TOUR_READY_HEATMAP_SELECTOR) >= 1;
+}
+
+function resolveStepGridAction(step: TourStepDef): TourGridAction | undefined {
+  if (isMobileTourSheet() && step.mobileGridAction) {
+    return step.mobileGridAction;
+  }
+  return step.gridAction;
 }
 
 function measure(el: Element): Rect {
@@ -134,6 +150,7 @@ function dispatchGridAction(action: TourGridAction) {
 }
 
 function setFarmTourActive(active: boolean): void {
+  setFarmTourActiveSync(active);
   window.dispatchEvent(
     new CustomEvent(FARM_TOUR_ACTIVE_EVENT, { detail: { active } }),
   );
@@ -170,6 +187,7 @@ function TourOverlay({
   const [portalBounds, setPortalBounds] = useState<ReturnType<
     typeof getTourPortalBounds
   >>(() => (typeof window !== "undefined" ? getTourPortalBounds() : null));
+  const dimMaskId = useId().replace(/:/g, "");
   const step = steps[stepIdx];
   const scrollPolicy: TourScrollPolicy = step
     ? resolveTourScrollPolicy(step)
@@ -183,8 +201,18 @@ function TourOverlay({
 
   const measureTargets = useCallback(() => {
     if (targetRef.current) setRect(measure(targetRef.current));
-    if (accentRef.current) setAccentRect(measure(accentRef.current));
-    else setAccentRect(null);
+    if (accentRef.current) {
+      const ar = accentRef.current.getBoundingClientRect();
+      const vv = getTourViewport();
+      const visible =
+        ar.bottom > vv.top + 4 &&
+        ar.top < vv.top + vv.height - 4 &&
+        ar.right > vv.left + 4 &&
+        ar.left < vv.left + vv.width - 4;
+      setAccentRect(visible ? measure(accentRef.current) : null);
+    } else {
+      setAccentRect(null);
+    }
   }, []);
 
   const runTargetScrollOnce = useCallback(() => {
@@ -214,7 +242,6 @@ function TourOverlay({
   const finish = useCallback(
     (completed: boolean) => {
       dispatchGridAction("close-header-tools");
-      dispatchGridAction("collapse");
       setView(initialView);
       onFinish(completed);
     },
@@ -231,7 +258,7 @@ function TourOverlay({
       }
       const leaving = steps[stepIdx];
       const entering = steps[next];
-      if (leaving?.id === "header" && entering?.id !== "header") {
+      if (leaving?.id === "f-header" && entering?.id !== "f-header") {
         dispatchGridAction("close-header-tools");
       }
       stepGenRef.current += 1;
@@ -365,12 +392,16 @@ function TourOverlay({
 
       try {
         // gridAction은 runStepEntry에서 이미 대기함 — 여기서 재대기하면 done 레이스를 놓침.
-        if (!step.gridAction) {
+        const entryAction = resolveStepGridAction(step);
+        if (!entryAction) {
           if (prevStep?.view !== step.view) await afterFrames(2);
           else await afterFrames(1);
         }
 
-        if (step.extra && tooltipRef.current) {
+        const showExtra =
+          Boolean(step.extra) &&
+          !(isMobileTourSheet() && step.mobileHideExtra);
+        if (showExtra && tooltipRef.current) {
           await waitForTooltipExtraReady(tooltipRef.current);
         }
 
@@ -387,9 +418,25 @@ function TourOverlay({
 
     const finalizeDesktopStep = async (el: HTMLElement) => {
       if (cancelled || stepGenRef.current !== stepGen) return;
-      scrollTourTargetIntoView(el, false);
-      await afterFrames(2);
-      completeStep(el);
+      setSettling(true);
+      markTourStepSettling();
+      try {
+        if (step.extra && tooltipRef.current) {
+          await waitForTooltipExtraReady(tooltipRef.current);
+        }
+        if (stepScrollEnabled) {
+          scrollTourTargetIntoView(el, false);
+          await afterFrames(2);
+          // tip 높이 반영 후 한 번 더 — 그래프·설정 패널이 화면 밖으로 남지 않게.
+          scrollTourTargetIntoView(el, false);
+          await afterFrames(1);
+        } else {
+          await afterFrames(1);
+        }
+        completeStep(el);
+      } catch {
+        completeStep(el);
+      }
     };
 
     const locate = () => {
@@ -451,12 +498,13 @@ function TourOverlay({
       if (step.view === "list" && prevStep?.view !== "list") {
         resetTourScrollContainers();
       }
-      if (step.gridAction) {
-        const pending = waitForTourGridAction(step.gridAction);
-        dispatchGridAction(step.gridAction);
+      const entryAction = resolveStepGridAction(step);
+      if (entryAction) {
+        const pending = waitForTourGridAction(entryAction);
+        dispatchGridAction(entryAction);
         await pending;
         await afterFrames(2);
-        const settleSels = settleSelectorsForGridAction(step.gridAction);
+        const settleSels = settleSelectorsForGridAction(entryAction);
         if (settleSels) await waitForTourTarget(settleSels);
       } else if (step.view === "list" && prevStep?.view !== "list") {
         // 목록 첫 진입 — 커맨드바·카드 마운트 여유.
@@ -612,6 +660,16 @@ function TourOverlay({
         height: rect.height + HOLE_PAD * 2,
       }
     : null;
+  // 보조 타깃(설정모드 톱니 등)도 딤을 뚫어 밝게 표시
+  const accentHole =
+    holeReady && accentRect
+      ? {
+          top: accentRect.top - 4,
+          left: accentRect.left - 4,
+          width: accentRect.width + 8,
+          height: accentRect.height + 8,
+        }
+      : null;
 
   const tooltipPlacement = placeTourTooltip({
     hole,
@@ -624,10 +682,16 @@ function TourOverlay({
   });
   const tooltipStyle: React.CSSProperties = tooltipPlacement.style;
   if (!step) return null;
+  const stepTitle =
+    mobileSheet && step.mobileTitle ? step.mobileTitle : step.title;
   const stepBody =
     mobileSheet && step.mobileBody ? step.mobileBody : step.body;
   const stepBullets =
     mobileSheet && step.mobileBullets ? step.mobileBullets : step.bullets;
+  const showStepExtra =
+    Boolean(step.extra) && !(mobileSheet && step.mobileHideExtra);
+  const dimW = portalBounds?.width ?? vw;
+  const dimH = portalBounds?.height ?? vh;
 
   return createPortal(
     <div
@@ -650,23 +714,55 @@ function TourOverlay({
       aria-modal="true"
       aria-label="기능 안내 투어"
     >
-      {/* 딤 + 스포트라이트 홀 — overflow는 딤 레이어만(툴팁 잘림 방지) */}
+      {/* 딤 + 스포트라이트 홀 — 주 타깃·보조(accent) 모두 밝게 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
         {hole ? (
-          <div
+          <svg
             className={cn(
-              "farm-tour-hole absolute rounded-xl",
+              "farm-tour-hole absolute inset-0 h-full w-full",
               mobileSheet && "farm-tour-hole--mobile",
             )}
             data-settling={settling ? "true" : undefined}
-            style={{
-              top: hole.top,
-              left: hole.left,
-              width: hole.width,
-              height: hole.height,
-              boxShadow: "0 0 0 200vmax rgba(9, 12, 20, 0.62)",
-            }}
-          />
+            viewBox={`0 0 ${dimW} ${dimH}`}
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <mask
+                id={`farm-tour-dim-${dimMaskId}`}
+                maskUnits="userSpaceOnUse"
+              >
+                <rect x={0} y={0} width={dimW} height={dimH} fill="white" />
+                <rect
+                  x={hole.left}
+                  y={hole.top}
+                  width={hole.width}
+                  height={hole.height}
+                  rx={12}
+                  ry={12}
+                  fill="black"
+                />
+                {accentHole ? (
+                  <rect
+                    x={accentHole.left}
+                    y={accentHole.top}
+                    width={accentHole.width}
+                    height={accentHole.height}
+                    rx={8}
+                    ry={8}
+                    fill="black"
+                  />
+                ) : null}
+              </mask>
+            </defs>
+            <rect
+              x={0}
+              y={0}
+              width={dimW}
+              height={dimH}
+              fill="rgba(9, 12, 20, 0.62)"
+              mask={`url(#farm-tour-dim-${dimMaskId})`}
+            />
+          </svg>
         ) : (
           <div className="absolute inset-0 bg-[rgba(9,12,20,0.62)]" />
         )}
@@ -728,7 +824,7 @@ function TourOverlay({
               mobileSheet ? "text-base" : "text-lg",
             )}
           >
-            {step.title}
+            {stepTitle}
           </p>
           <p
             className={cn(
@@ -750,22 +846,22 @@ function TourOverlay({
               ))}
             </ul>
           ) : null}
-          {step.extra === "anatomy" ? (
+          {showStepExtra && step.extra === "anatomy" ? (
             <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="anatomy">
               <GaugeAnatomy compact={mobileSheet} />
             </div>
           ) : null}
-          {step.extra === "pills" ? (
+          {showStepExtra && step.extra === "pills" ? (
             <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="pills">
               <PanelPillsGuide compact={mobileSheet} />
             </div>
           ) : null}
-          {step.extra === "header-icons" ? (
+          {showStepExtra && step.extra === "header-icons" ? (
             <div className={mobileSheet ? "mt-2.5" : "mt-3"} data-tour-extra="header-icons">
               <HeaderIconsGuide compact={mobileSheet} />
             </div>
           ) : null}
-          {step.extra === "list-mode-icons" ? (
+          {showStepExtra && step.extra === "list-mode-icons" ? (
             <div
               className={mobileSheet ? "mt-2.5" : "mt-3"}
               data-tour-extra="list-mode-icons"
@@ -873,8 +969,9 @@ export function FarmFeatureTour({
         opts?.scope ?? tourScopeFromHubView(viewRef.current);
       const nextSteps = getTourStepsForScope(scope);
       const resumeView = viewRef.current;
-      // 차트·델린 안내는 해당 탭 DOM이 있어야 ready — 먼저 전환.
-      if (scope === "chart") setView("chart");
+      // 스코프 탭 DOM이 보이도록 전환 — 현장은 병합 패널(map)로 맞춤.
+      if (scope === "field") setView("map");
+      else if (scope === "chart") setView("chart");
       else if (scope === "aria") setView("aria");
 
       const activate = () => {
@@ -984,6 +1081,10 @@ export function FarmFeatureTour({
 
   const handleFinish = useCallback(() => {
     setFarmTourActive(false);
+    if (isMobileTourSheet()) {
+      dispatchGridAction("field-mobile-sheet-close");
+    }
+    dispatchGridAction("list-mode-controller");
     setActive(false);
     setSteps([]);
     void markOnboardingTourDoneAction().catch(() => {
