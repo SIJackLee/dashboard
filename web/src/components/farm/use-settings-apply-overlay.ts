@@ -6,8 +6,8 @@ import { commandStatusLabel } from "@/lib/controllers/controller-settings";
 import type { CommandPipelineFlash } from "@/components/controllers/use-command-pipeline-tracker";
 import type { CommandPipelineOverlayState } from "@/components/farm/command-pipeline-overlay";
 import {
+  COMMAND_REGISTER_SUCCESS,
   pipelineDetailMessage,
-  pipelineStatusDetail,
 } from "@/lib/ui/controller-labels";
 
 type Args = {
@@ -100,15 +100,14 @@ export function useSettingsApplyOverlay({
       return {
         visible: true,
         phase: "success",
-        title: "현장 반영 완료",
+        title: "적용 완료",
         detail:
           flash?.text ??
           (setpoint
-            ? `LIVE 설정온도 ${setpoint}가 명령과 일치합니다. 패널의 현재값을 확인하세요.`
-            : "LIVE 설정값이 명령과 일치합니다. 패널의 현재값을 확인하세요."),
+            ? `설정온도 ${setpoint}로 적용했습니다.`
+            : "적용한 설정값이 표시됩니다."),
         autoDismiss: true,
-        /** 성공 체감용 — 탭으로 언제든 닫기 가능 */
-        autoDismissMs: 6500,
+        autoDismissMs: 4000,
       };
     }
 
@@ -133,43 +132,25 @@ export function useSettingsApplyOverlay({
       };
     }
 
-    // 이력에 남은 pending/sent/applied는 오버레이 금지 — 이번 세션 적용(registerCommand)만
+    // 전송·등록 성공 = 적용 완료 (LIVE/ACK 대기 없이 값 표시는 명령 낙관 패치)
     if (
       command &&
       isUserInitiatedCommand(command.id) &&
-      (command.status === "pending" || command.status === "sent")
+      (command.status === "pending" ||
+        command.status === "sent" ||
+        command.status === "applied")
     ) {
+      const setpoint =
+        command.setpointTemp != null ? `${command.setpointTemp}℃` : null;
       return {
         visible: true,
-        phase: "info",
-        title:
-          command.status === "pending"
-            ? "명령 등록 · 전송 대기"
-            : "전송됨 · 장치 ACK 대기",
-        detail: pipelineStatusDetail(
-          command.status,
-          command.errorMsg,
-          liveConfirmed,
-        ),
-        autoDismiss: false,
-      };
-    }
-
-    if (
-      command?.status === "applied" &&
-      !liveConfirmed &&
-      isUserInitiatedCommand(command.id)
-    ) {
-      return {
-        visible: true,
-        phase: "info",
-        title: "장치 ACK · 현장 확인 중",
-        detail: pipelineStatusDetail(
-          command.status,
-          command.errorMsg,
-          liveConfirmed,
-        ),
-        autoDismiss: false,
+        phase: "success",
+        title: "적용 완료",
+        detail: setpoint
+          ? `설정온도 ${setpoint} 명령을 보냈습니다. 연결된 컨트롤러에 곧 반영됩니다.`
+          : COMMAND_REGISTER_SUCCESS,
+        autoDismiss: true,
+        autoDismissMs: 4000,
       };
     }
 

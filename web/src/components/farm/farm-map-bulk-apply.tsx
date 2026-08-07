@@ -950,11 +950,14 @@ export function FarmMapBulkApply({
                   )}
                 >
                   <p className={cn("font-semibold leading-snug", bulkModalSectionTitle)}>
-                    {liveTracker.progress.allLive
-                      ? "현장 반영 완료"
+                    {liveTracker.progress.allLive ||
+                    liveTracker.progress.complete
+                      ? liveTracker.progress.failed > 0
+                        ? "일부 적용 완료"
+                        : "적용 완료"
                       : liveTracker.progress.timedOut
-                        ? "현장 반영 일부 미확인"
-                        : "현장 반영 확인 중"}
+                        ? "적용 일부 미확인"
+                        : "적용 중…"}
                   </p>
                   <p className={cn("mt-1 leading-snug", bulkModalMeta)}>
                     LIVE {liveTracker.progress.liveDone}/{liveTracker.progress.total}

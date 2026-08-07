@@ -16,11 +16,11 @@ export function settingsSourceLabel(
     case "live":
       return "장치 실측값";
     case "applied":
-      return "설정 적용 완료";
+      return "적용한 설정값";
     case "sent":
-      return "전송됨 · 적용 확인 중";
+      return "적용한 설정값";
     case "pending":
-      return "명령 등록됨 · 전송 대기";
+      return "적용한 설정값";
     default:
       return "설정값";
   }
@@ -32,11 +32,11 @@ export function pipelineDetailMessage(
 ): string {
   switch (status) {
     case "applied":
-      return "컨트롤러에 설정값이 반영되었습니다.";
+      return "명령을 보냈습니다. 연결된 컨트롤러에 곧 반영됩니다.";
     case "sent":
-      return "통신모듈로 전송됨 · 장치 ACK 대기 중";
+      return "명령을 보냈습니다. 연결된 컨트롤러에 곧 반영됩니다.";
     case "pending":
-      return "명령을 등록했습니다 · 통신모듈 전송 대기 중";
+      return "명령을 등록했습니다. 연결된 컨트롤러에 곧 반영됩니다.";
     case "failed":
       return errorMsg
         ? formatUserError(errorMsg)
@@ -48,17 +48,17 @@ export function pipelineDetailMessage(
   }
 }
 
-/** ACK 배너 — LIVE 확인 전 applied 단계 문구 분리 */
+/** ACK 배너 — 전송 성공을 적용 완료로 안내 (LIVE 일치는 필수가 아님) */
 export function pipelineStatusDetail(
   status: ThermoCommand["status"],
   errorMsg?: string | null,
   liveConfirmed?: boolean
 ): string {
   if (liveConfirmed) {
-    return "LIVE 설정값이 명령과 일치합니다. 패널의 현재값을 확인하세요.";
+    return "명령을 보냈습니다. 패널에 적용한 값이 표시됩니다.";
   }
-  if (status === "applied") {
-    return "장치 ACK 완료 · LIVE 데이터 반영 확인 중";
+  if (status === "applied" || status === "sent") {
+    return "명령을 보냈습니다. 통신이 연결된 컨트롤러에 곧 반영됩니다.";
   }
   return pipelineDetailMessage(status, errorMsg);
 }
@@ -67,7 +67,7 @@ export const UNKNOWN_SETTINGS_HINT =
   "컨트롤러 설정값을 아직 받지 못했습니다. 조정 후 적용하면 명령으로 등록됩니다.";
 
 export const COMMAND_REGISTER_SUCCESS =
-  "명령을 등록했습니다. 장치 전송을 기다리는 중입니다.";
+  "명령을 보냈습니다. 통신이 연결된 컨트롤러에 곧 반영됩니다.";
 
 export function formatUserError(error: string): string {
   if (error === "invalid_vent_range") {

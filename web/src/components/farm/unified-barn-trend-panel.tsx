@@ -1598,34 +1598,50 @@ export function UnifiedBarnTrendPanel({
 
   const controlModeCluster = canCommand ? (
     <div
-      className="flex shrink-0 flex-col items-stretch gap-1"
+      className="flex shrink-0 flex-row items-center gap-1"
       data-tour-id="chart-control-mode-cluster"
     >
       {controlModeButton}
-      {controlMode && thermoDirty ? (
-        <button
-          type="button"
-          className={cn(
-            "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-            farmChartUi.fsBody,
-            "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-            "hover:bg-violet-500/15 disabled:opacity-40",
-          )}
-          aria-label="설정값 적용"
-          title="적용 (명령 전송)"
-          data-tour-id="chart-control-apply"
-          disabled={thermoApplying || onlineScopedReadings.length === 0}
-          onClick={() => {
-            if (thermoApplying || onlineScopedReadings.length === 0) return;
-            applyThermoDraft();
-          }}
-        >
-          <Check
-            className="size-[1em] shrink-0"
-            strokeWidth={dashboardUi.iconStroke}
+      {controlMode ? (
+        thermoDirty ? (
+          <button
+            type="button"
+            className={cn(
+              "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+              farmChartUi.fsBody,
+              "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+              "hover:bg-violet-500/15 disabled:opacity-40",
+            )}
+            aria-label="설정값 적용"
+            title="적용 (명령 전송)"
+            data-tour-id="chart-control-apply"
+            disabled={thermoApplying || onlineScopedReadings.length === 0}
+            onClick={() => {
+              if (thermoApplying || onlineScopedReadings.length === 0) return;
+              applyThermoDraft();
+            }}
+          >
+            <Check
+              className="size-[1em] shrink-0"
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
+          </button>
+        ) : (
+          /** 드래그 중 레이아웃 점프 방지 — 적용 버튼과 동일 슬롯 예약 */
+          <span
+            className={cn(
+              "invisible inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+              farmChartUi.fsBody,
+            )}
             aria-hidden
-          />
-        </button>
+          >
+            <Check
+              className="size-[1em] shrink-0"
+              strokeWidth={dashboardUi.iconStroke}
+            />
+          </span>
+        )
       ) : null}
     </div>
   ) : null;
@@ -1694,7 +1710,7 @@ export function UnifiedBarnTrendPanel({
               </div>
             </div>
           ) : (
-            <div className="flex min-w-0 w-full items-start gap-2">
+            <div className="flex min-w-0 w-full items-center gap-2">
               <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
                   <span className={cn("shrink-0 font-semibold", farmChartUi.fsTitle)}>
                     통합 추이

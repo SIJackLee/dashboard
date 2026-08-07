@@ -202,7 +202,8 @@ export function useBulkCommandPipelineTracker({
     const settled =
       current.length === 0 ||
       current.every(
-        (r) => r.liveConfirmed || isTerminalFail(r.command.status),
+        (r) =>
+          isAckDone(r.command.status) || isTerminalFail(r.command.status),
       );
     if (settled || timedOut) {
       setActive(false);
@@ -258,12 +259,14 @@ export function useBulkCommandPipelineTracker({
       else if (isAckDone(row.command.status)) ackDone += 1;
       else pending += 1;
     }
-    const allLive = total > 0 && liveDone === total;
-    const settled =
+    const allAcked =
       total > 0 &&
       trackedRows.every(
-        (r) => r.liveConfirmed || isTerminalFail(r.command.status),
+        (r) => isAckDone(r.command.status) || isTerminalFail(r.command.status),
       );
+    /** 전송(sent/applied)·실패로 완료 — LIVE 일치는 필수가 아님 */
+    const settled = allAcked;
+    const allLive = total > 0 && liveDone === total;
     return {
       total,
       ackDone,
@@ -369,9 +372,9 @@ export function useBulkCommandPipelineTracker({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rows captured via signature
   }, [active, pollSignature]);
 
-  // 전원 LIVE 확인 시 배너 자동 닫힘
+  // 전송 완료(또는 전원 LIVE) 시 배너 자동 닫힘
   useEffect(() => {
-    if (!bannerVisible || !progress.allLive) return;
+    if (!bannerVisible || !(progress.complete && !progress.timedOut)) return;
     const id = window.setTimeout(() => {
       setBannerVisible(false);
       setActive(false);
@@ -379,7 +382,7 @@ export function useBulkCommandPipelineTracker({
       startedAtRef.current = null;
     }, COMPLETE_AUTO_DISMISS_MS);
     return () => window.clearTimeout(id);
-  }, [bannerVisible, progress.allLive]);
+  }, [bannerVisible, progress.complete, progress.timedOut]);
 
   return {
     active,

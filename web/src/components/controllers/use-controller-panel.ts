@@ -406,25 +406,24 @@ export function useControllerPanel(
   );
 
   /**
-   * 「현재」표시 — LIVE 우선 (낙관 명령값과 분리).
-   * LIVE 없으면 knownSettings.
+   * 「현재」표시 — 적용·명령값(knownSettings) 우선.
+   * 통신 연결 시 명령은 곧 컨트롤러에 전달된다는 신뢰 모델 (LIVE/ACK 대기 불필요).
    */
   const currentValues = useMemo((): Record<PanelMenuId, number> | null => {
+    if (knownSettings) return panelDraftToFields(draftFromSettings(knownSettings));
     if (liveBaseline) return thermoToFields(liveBaseline);
-    if (!knownSettings) return null;
-    return panelDraftToFields(draftFromSettings(knownSettings));
-  }, [liveBaseline, knownSettings]);
+    return null;
+  }, [knownSettings, liveBaseline]);
 
   /**
-   * dirty 기준 — 방금 제출한 값 > LIVE > knownSettings.
-   * 낙관 patch만으로 Apply가 꺼지거나, LIVE 미반영인데 재전송되는 것을 피함.
+   * dirty 기준 — 방금 제출한 값 > 명령/낙관 knownSettings > LIVE.
    */
   const dirtyBaseline = useMemo((): Record<PanelMenuId, number> | null => {
     if (saveBaseline) return panelDraftToFields(saveBaseline);
+    if (knownSettings) return panelDraftToFields(draftFromSettings(knownSettings));
     if (liveBaseline) return thermoToFields(liveBaseline);
-    if (!knownSettings) return null;
-    return panelDraftToFields(draftFromSettings(knownSettings));
-  }, [saveBaseline, liveBaseline, knownSettings]);
+    return null;
+  }, [saveBaseline, knownSettings, liveBaseline]);
 
   const isFieldChanged = useCallback(
     (menu: PanelMenuId): boolean => {

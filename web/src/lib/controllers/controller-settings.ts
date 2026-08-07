@@ -207,7 +207,7 @@ export function buildThermoSettingsFromReadings(
   return out;
 }
 
-/** 명령 + LIVE 병합 — LIVE≠명령이면 명령(낙관·진행 중) 우선, 일치하면 live */
+/** 명령 + LIVE 병합 — 값이 다르면 명령(적용값) 우선. 사용자는 적용값을 바로 본다. */
 export function mergeThermoSettingsMaps(
   commandMap: Record<string, ControllerThermoSettings>,
   liveMap: Record<string, ControllerThermoSettings>

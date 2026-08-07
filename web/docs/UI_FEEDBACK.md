@@ -1,6 +1,6 @@
 # UI Feedback (H4 — 운영 피드백)
 
-명령 전송 → ACK → LIVE 확인과 토스트·배너의 **톤·모션 언어**.
+명령 **적용(전송) 완료**를 성공으로 안내합니다. 값은 적용 직후 명령값으로 표시하며, LIVE/ACK 일치는 백그라운드 신뢰 모델입니다.
 
 관련: [UI_MOTION.md](./UI_MOTION.md) · [UI_CHROMA.md](./UI_CHROMA.md) · [UI_ELEVATION.md](./UI_ELEVATION.md)  
 코드: `src/lib/ui/ops-feedback.ts` · `command-pipeline-overlay.tsx` · `inline-status-toast.tsx`
@@ -9,10 +9,10 @@
 
 | tone | 용도 | 색 |
 |------|------|-----|
-| `ok` | 성공 · LIVE 일치 | `--status-ok` |
-| `warn` | 부분 미확인 · 주의 | `--status-warn` |
+| `ok` | 적용 성공 | `--status-ok` |
+| `warn` | 부분 실패 · 주의 | `--status-warn` |
 | `error` | 실패 | `--status-danger` |
-| `info` | 대기·안내 | border + foreground |
+| `info` | 안내 | border + foreground |
 | `loading` | 적용 중 | muted + spin |
 
 셸: `opsFeedbackShell` (= elevation float급 `shadow-lg`).
@@ -21,10 +21,10 @@
 
 | phase | 모션 |
 |-------|------|
-| loading / info | 오버레이 fade · 진행 점 `pipelineStep` 0..3 (등록→전송→ACK→LIVE) |
-| success / error / info 결과 | `.ui-motion-feedback-icon` soft scale-in (amplitude 토큰) |
+| loading | 오버레이 fade |
+| success / error | `.ui-motion-feedback-icon` soft scale-in (amplitude 토큰) |
 
-`useSettingsApplyOverlay`가 `pipelineStep`을 상태와 함께 넘긴다.
+`useSettingsApplyOverlay`가 전송 성공을 곧바로 success로 표시한다.
 
 ## 컴포넌트
 
