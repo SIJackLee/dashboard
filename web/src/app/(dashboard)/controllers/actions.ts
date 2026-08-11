@@ -146,6 +146,20 @@ export async function fetchThermoCommandAction(
   return getThermoCommandById(id);
 }
 
+/** 일괄 적용 배너 폴링 — POST /farm N회 → 1회 (RSC 경합 완화) */
+export async function fetchThermoCommandsBatchAction(
+  ids: string[],
+): Promise<(ThermoCommand | null)[]> {
+  const user = await getCurrentUser();
+  if (!user) return ids.map(() => null);
+  const ordered = ids.filter(Boolean);
+  if (ordered.length === 0) return [];
+  const unique = [...new Set(ordered)];
+  const rows = await Promise.all(unique.map((id) => getThermoCommandById(id)));
+  const byId = new Map(unique.map((id, i) => [id, rows[i] ?? null]));
+  return ordered.map((id) => byId.get(id) ?? null);
+}
+
 export type BulkThermoCommand = {
   /** reading key — LIVE thermo 매칭용 (채널 명령도 reading 단위) */
   key: string;

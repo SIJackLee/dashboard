@@ -13,6 +13,11 @@ export type ModuleAlarmDbRow = {
   wire_ver: number;
   err_code: number;
   err_label: string;
+  stall_ty_code: string | null;
+  stall_no: string | null;
+  eqpmn_no: string | null;
+  controller_key: string | null;
+  channel: string | null;
   status: string;
   received_at: string;
 };
@@ -27,6 +32,20 @@ export function severityForModuleErrCode(errCode: number): AlarmSeverity {
 
 export function moduleAlarmToAlarmRow(row: ModuleAlarmDbRow): AlarmRow {
   const itemCode = (row.item_code ?? "").trim();
+  const stallTyCode = row.stall_ty_code?.trim() || null;
+  const stallNo = row.stall_no?.trim() || null;
+  const eqpmnNo = row.eqpmn_no?.trim() || "";
+  const controllerKey = row.controller_key?.trim() || "";
+  const channel = row.channel?.trim();
+  const locParts: string[] = [];
+  if (stallTyCode && stallNo && eqpmnNo) {
+    locParts.push(`${stallTyCode} ${stallNo}번 ${eqpmnNo}번`);
+  }
+  if (channel) {
+    locParts.push(`${channel}라인`);
+  }
+  const locDetail = locParts.join(" · ");
+
   return {
     id: row.id,
     occurredAt: row.received_at,
@@ -35,16 +54,17 @@ export function moduleAlarmToAlarmRow(row: ModuleAlarmDbRow): AlarmRow {
       itemCode: itemCode || "",
     },
     moduleUid: row.module_uid ?? 0,
-    controllerKey: "",
-    eqpmnNo: "",
-    stallNo: null,
-    stallTyCode: null,
+    controllerKey,
+    eqpmnNo,
+    stallNo,
+    stallTyCode,
     alarmType: row.err_label,
     severity: severityForModuleErrCode(Number(row.err_code)),
     status: row.status === "active" ? "active" : "resolved",
-    detail: (row.farm_name ?? "").trim(),
+    detail: locDetail || (row.farm_name ?? "").trim(),
     controllerStatus: "normal",
     source: "module",
     farmName: row.farm_name,
+    channel: channel || null,
   };
 }

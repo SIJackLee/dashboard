@@ -1601,48 +1601,46 @@ export function UnifiedBarnTrendPanel({
       className="flex shrink-0 flex-row items-center gap-1"
       data-tour-id="chart-control-mode-cluster"
     >
-      {controlModeButton}
-      {controlMode ? (
-        thermoDirty ? (
-          <button
-            type="button"
-            className={cn(
-              "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-              farmChartUi.fsBody,
-              "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-              "hover:bg-violet-500/15 disabled:opacity-40",
-            )}
-            aria-label="설정값 적용"
-            title="적용 (명령 전송)"
-            data-tour-id="chart-control-apply"
-            disabled={thermoApplying || onlineScopedReadings.length === 0}
-            onClick={() => {
-              if (thermoApplying || onlineScopedReadings.length === 0) return;
-              applyThermoDraft();
-            }}
-          >
-            <Check
-              className="size-[1em] shrink-0"
-              strokeWidth={dashboardUi.iconStroke}
-              aria-hidden
-            />
-          </button>
-        ) : (
-          /** 드래그 중 레이아웃 점프 방지 — 적용 버튼과 동일 슬롯 예약 */
-          <span
-            className={cn(
-              "invisible inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-              farmChartUi.fsBody,
-            )}
+      {controlMode && thermoDirty ? (
+        <button
+          type="button"
+          className={cn(
+            "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+            farmChartUi.fsBody,
+            "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+            "hover:bg-violet-500/15 disabled:opacity-40",
+          )}
+          aria-label="설정값 적용"
+          title="적용 (명령 전송)"
+          data-tour-id="chart-control-apply"
+          disabled={thermoApplying || onlineScopedReadings.length === 0}
+          onClick={() => {
+            if (thermoApplying || onlineScopedReadings.length === 0) return;
+            applyThermoDraft();
+          }}
+        >
+          <Check
+            className="size-[1em] shrink-0"
+            strokeWidth={dashboardUi.iconStroke}
             aria-hidden
-          >
-            <Check
-              className="size-[1em] shrink-0"
-              strokeWidth={dashboardUi.iconStroke}
-            />
-          </span>
-        )
+          />
+        </button>
+      ) : controlMode ? (
+        /** 설정모드·드래그 중 설정 버튼 위치 고정 */
+        <span
+          className={cn(
+            "invisible inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+            farmChartUi.fsBody,
+          )}
+          aria-hidden
+        >
+          <Check
+            className="size-[1em] shrink-0"
+            strokeWidth={dashboardUi.iconStroke}
+          />
+        </span>
       ) : null}
+      {controlModeButton}
     </div>
   ) : null;
 
@@ -1684,30 +1682,27 @@ export function UnifiedBarnTrendPanel({
       >
         <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
           {isMobileStack ? (
-            <div className="flex w-full items-center gap-2">
-              <div className="min-w-0 flex-1" />
-              <div className="shrink-0">{layerToolbar}</div>
-              <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-                {controlModeCluster}
-                {mobileScopeHandle ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-                      farmChartUi.fsBody,
-                      "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
-                      motionClass.microHover,
-                    )}
-                    data-tour-id="farm-chart-scope-handle"
-                    aria-label={`집계 범위 열기 · ${label}`}
-                    title={label}
-                    aria-expanded={mobileScopeHandle.open}
-                    onClick={mobileScopeHandle.onOpen}
-                  >
-                    <PanelRight className="size-[1em] shrink-0" aria-hidden />
-                  </button>
-                ) : null}
-              </div>
+            <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1">
+              {layerToolbar}
+              {controlModeCluster}
+              {mobileScopeHandle ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+                    farmChartUi.fsBody,
+                    "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
+                    motionClass.microHover,
+                  )}
+                  data-tour-id="farm-chart-scope-handle"
+                  aria-label={`집계 범위 열기 · ${label}`}
+                  title={label}
+                  aria-expanded={mobileScopeHandle.open}
+                  onClick={mobileScopeHandle.onOpen}
+                >
+                  <PanelRight className="size-[1em] shrink-0" aria-hidden />
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="flex min-w-0 w-full items-center gap-2">
@@ -1726,8 +1721,12 @@ export function UnifiedBarnTrendPanel({
                     {picked?.trimmed ? " · 실데이터 구간" : ""}
                   </span>
                 </div>
-              {layerToolbar}
-              {controlModeCluster}
+              {layerToolbar || controlModeCluster ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  {layerToolbar}
+                  {controlModeCluster}
+                </div>
+              ) : null}
             </div>
           )}
         </div>

@@ -9,8 +9,10 @@ const CHANNEL_LABELS = ["A", "B", "C"] as const;
 const NA_TEMP = 0xffff;
 const NA_FAN = 0xff;
 const KIND_ERROR_V0C = 0x02;
-const ERROR_BODY_SIZE = 3;
-const ERROR_PACKET_SIZE = 5;
+const ERROR_BODY_SIZE_LEGACY = 3;
+const ERROR_PACKET_SIZE_LEGACY = 5;
+const ERROR_BODY_SIZE = 6;
+const ERROR_PACKET_SIZE = 8;
 
 /** Formal labels - docs/wire-v00c-error-uplink.md */
 export const ERROR_CODE_LABELS_V0C: Record<number, string> = {
@@ -54,13 +56,18 @@ export type DecodedV0cPayload = {
 };
 
 export type DecodedV0cError = {
-  schema_version: "v0c-error-1";
+  schema_version: "v0c-error-1" | "v0c-error-2";
   wireVer: number;
   kind: number;
   errCode: number;
   errCodeHex: string;
   errLabel: string;
+  channel: string | null;
   crcOk: true;
+  stallTyCode?: string;
+  stallNo?: string;
+  eqpmnNo?: string;
+  controllerKey?: string;
 };
 
 function readU16LE(buf: Uint8Array, off: number): number {
@@ -235,21 +242,45 @@ export function decodeV0cPayload(wire: Uint8Array): DecodedV0cPayload | null {
   };
 }
 
+function channelFromErrCode(code: number): string | null {
+  if (code === 0x41) return null;
+  const hi = (code >> 4) & 0x0f;
+  if (hi === 1) return "A";
+  if (hi === 2) return "B";
+  if (hi === 3) return "C";
+  return null;
+}
+
 export function isErrorPacketV0c(wire: Uint8Array): boolean {
   return (
-    wire.length === ERROR_PACKET_SIZE &&
+    (wire.length === ERROR_PACKET_SIZE_LEGACY ||
+      wire.length === ERROR_PACKET_SIZE) &&
     wire[0] === VER_V0C &&
     wire[1] === KIND_ERROR_V0C
   );
 }
 
-export function encodeErrorPacketV0c(errcode: number): Uint8Array {
-  const body = new Uint8Array([VER_V0C, KIND_ERROR_V0C, errcode & 0xff]);
+export function encodeErrorPacketV0c(
+  errcode: number,
+  loc?: { stallTy: number; stallNo: number; eqpmnNo: number },
+): Uint8Array {
+  const code = errcode & 0xff;
+  const body =
+    loc != null
+      ? new Uint8Array([
+          VER_V0C,
+          KIND_ERROR_V0C,
+          loc.stallTy & 0xff,
+          loc.stallNo & 0xff,
+          loc.eqpmnNo & 0xff,
+          code,
+        ])
+      : new Uint8Array([VER_V0C, KIND_ERROR_V0C, code]);
   const crc = crc16CcittFalse(body);
-  const out = new Uint8Array(ERROR_PACKET_SIZE);
+  const out = new Uint8Array(body.length + 2);
   out.set(body, 0);
-  out[3] = crc & 0xff;
-  out[4] = (crc >> 8) & 0xff;
+  out[body.length] = crc & 0xff;
+  out[body.length + 1] = (crc >> 8) & 0xff;
   return out;
 }
 
@@ -258,27 +289,56 @@ export function decodeErrorPacketV0c(
   opts?: { allowUnknown?: boolean },
 ): DecodedV0cError | null {
   if (!isErrorPacketV0c(wire)) return null;
-  const body = wire.subarray(0, ERROR_BODY_SIZE);
-  const crcRecv = readU16LE(wire, ERROR_BODY_SIZE);
+  const bodySize =
+    wire.length === ERROR_PACKET_SIZE
+      ? ERROR_BODY_SIZE
+      : ERROR_BODY_SIZE_LEGACY;
+  const body = wire.subarray(0, bodySize);
+  const crcRecv = readU16LE(wire, bodySize);
   const crcCalc = crc16CcittFalse(body);
   if (crcRecv !== crcCalc) return null;
 
-  const errCode = wire[2]!;
+  let errCode: number;
+  let schema_version: "v0c-error-1" | "v0c-error-2" = "v0c-error-1";
+  let stallTyCode: string | undefined;
+  let stallNo: string | undefined;
+  let eqpmnNo: string | undefined;
+  let controllerKey: string | undefined;
+
+  if (wire.length === ERROR_PACKET_SIZE) {
+    stallTyCode = formatStallTy(wire[2]!);
+    stallNo = formatStallNo(wire[3]!);
+    eqpmnNo = formatEqpmnNo(wire[4]!);
+    errCode = wire[5]!;
+    schema_version = "v0c-error-2";
+    controllerKey = `${stallTyCode}:${stallNo}:${eqpmnNo}`;
+  } else {
+    errCode = wire[2]!;
+  }
+
   let errLabel = ERROR_CODE_LABELS_V0C[errCode];
   if (errLabel == null) {
     if (!opts?.allowUnknown) return null;
     errLabel = `미정의 경보(0x${errCode.toString(16).toUpperCase().padStart(2, "0")})`;
   }
 
-  return {
-    schema_version: "v0c-error-1",
+  const decoded: DecodedV0cError = {
+    schema_version,
     wireVer: VER_V0C,
     kind: KIND_ERROR_V0C,
     errCode,
     errCodeHex: `0x${errCode.toString(16).padStart(2, "0")}`,
     errLabel,
+    channel: channelFromErrCode(errCode),
     crcOk: true,
   };
+  if (stallTyCode != null && stallNo != null && eqpmnNo != null) {
+    decoded.stallTyCode = stallTyCode;
+    decoded.stallNo = stallNo;
+    decoded.eqpmnNo = eqpmnNo;
+    decoded.controllerKey = controllerKey;
+  }
+  return decoded;
 }
 
 export function decodeV0cPayloadFromDb(

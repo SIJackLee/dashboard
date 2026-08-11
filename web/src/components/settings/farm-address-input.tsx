@@ -9,6 +9,7 @@ import type { FarmKey } from "@/lib/data/farm-key";
 import { PageActionButton } from "@/components/common/page-action-button";
 import type { FarmLocationRow } from "@/lib/data/farm-location";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { accountMenuLayout } from "@/lib/ui/account-menu-layout";
 import { cn } from "@/lib/utils";
 
 export type AddressDraft = {
@@ -63,6 +64,8 @@ type Props = {
   compact?: boolean;
   /** 모바일 계정 메뉴 등 — 열릴 때 키보드·포커스 없이, 입력칸 터치 시에만 편집 */
   deferFocusUntilTap?: boolean;
+  /** compact + saveOnly — 검색 없이 저장만 (프로필 Top Sheet) */
+  saveOnly?: boolean;
   onSaved?: () => void;
 };
 
@@ -71,6 +74,7 @@ export function FarmAddressInput({
   location,
   disabled = false,
   compact = false,
+  saveOnly = false,
   deferFocusUntilTap = false,
   onSaved,
 }: Props) {
@@ -146,88 +150,182 @@ export function FarmAddressInput({
   };
 
   return (
-    <div className={cn("space-y-3", compact && "space-y-2")}>
-      <label className="block space-y-1.5">
-        <span className={cn("font-medium", compact ? "text-xs" : dashboardUi.body)}>
-          농장 주소
-        </span>
-        <input
-          ref={inputRef}
-          type="text"
-          className={cn(
-            "w-full rounded-lg border bg-background px-3 py-2 text-sm",
-            inputLocked && "cursor-text"
-          )}
-          placeholder="예: 경기도 수원시 영통구 월드컵로 206"
-          value={draft.addressText}
-          disabled={disabled || pending}
-          readOnly={inputLocked}
-          tabIndex={inputLocked ? -1 : undefined}
-          aria-readonly={inputLocked || undefined}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            if (inputLocked) {
-              e.preventDefault();
-              activateInput();
-            }
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onFocus={(e) => {
-            if (inputLocked) e.target.blur();
-          }}
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (inputLocked) return;
-            if (e.key === "Enter") {
-              e.preventDefault();
-              runGeocode();
-            }
-          }}
-          onChange={(e) => {
-            if (inputLocked) return;
-            setVerified(false);
-            setDraft((prev) => ({
-              ...prev,
-              addressText: e.target.value,
-              lat: null,
-              lng: null,
-            }));
-          }}
-        />
-      </label>
+    <div className={cn(compact ? "space-y-1" : "space-y-3")}>
+      {compact ? (
+        <>
+          <div className={accountMenuLayout.compactInputRow}>
+            <input
+              ref={inputRef}
+              type="text"
+              className={cn(
+                accountMenuLayout.compactInput,
+                inputLocked && "cursor-text",
+              )}
+              placeholder="농장 주소"
+              value={draft.addressText}
+              disabled={disabled || pending}
+              readOnly={inputLocked}
+              tabIndex={inputLocked ? -1 : undefined}
+              aria-readonly={inputLocked || undefined}
+              aria-invalid={error ? true : undefined}
+              aria-label={
+                verified && draft.addressText && !error
+                  ? "농장 주소, 확인됨"
+                  : "농장 주소"
+              }
+              aria-describedby={error ? "farm-address-error" : undefined}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (inputLocked) {
+                  e.preventDefault();
+                  activateInput();
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => {
+                if (inputLocked) e.target.blur();
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (inputLocked) return;
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (saveOnly) {
+                    runSave();
+                  } else {
+                    runGeocode();
+                  }
+                }
+              }}
+              onChange={(e) => {
+                if (inputLocked) return;
+                setVerified(false);
+                setDraft((prev) => ({
+                  ...prev,
+                  addressText: e.target.value,
+                  lat: null,
+                  lng: null,
+                }));
+              }}
+            />
+            {!disabled && saveOnly ? (
+              <button
+                type="button"
+                disabled={pending}
+                className={accountMenuLayout.compactSaveBtn}
+                onClick={runSave}
+              >
+                {pending ? "…" : "저장"}
+              </button>
+            ) : !disabled ? (
+              <div className={accountMenuLayout.compactBtnRow}>
+                <button
+                  type="button"
+                  disabled={pending}
+                  className={accountMenuLayout.compactBtn}
+                  onClick={runGeocode}
+                >
+                  {pending ? "…" : "검색"}
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  className={accountMenuLayout.compactBtnPrimary}
+                  onClick={runSave}
+                >
+                  {pending ? "…" : "저장"}
+                </button>
+              </div>
+            ) : null}
+          </div>
+          {error ? (
+            <p
+              id="farm-address-error"
+              className={cn("leading-snug text-destructive", accountMenuLayout.hubMeta)}
+            >
+              {error}
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <label className="block space-y-1.5">
+            <span className={cn("font-medium", dashboardUi.body)}>농장 주소</span>
+            <input
+              ref={inputRef}
+              type="text"
+              className={cn(
+                "w-full rounded-lg border bg-background px-3 py-2 text-sm",
+                inputLocked && "cursor-text",
+              )}
+              placeholder="예: 경기도 수원시 영통구 월드컵로 206"
+              value={draft.addressText}
+              disabled={disabled || pending}
+              readOnly={inputLocked}
+              tabIndex={inputLocked ? -1 : undefined}
+              aria-readonly={inputLocked || undefined}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (inputLocked) {
+                  e.preventDefault();
+                  activateInput();
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => {
+                if (inputLocked) e.target.blur();
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (inputLocked) return;
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  runGeocode();
+                }
+              }}
+              onChange={(e) => {
+                if (inputLocked) return;
+                setVerified(false);
+                setDraft((prev) => ({
+                  ...prev,
+                  addressText: e.target.value,
+                  lat: null,
+                  lng: null,
+                }));
+              }}
+            />
+          </label>
 
-      {!disabled ? (
-        <div className="flex flex-wrap gap-2">
-          <PageActionButton
-            type="button"
-            variant="outline"
-            disabled={pending}
-            className={compact ? "h-8 px-3 text-xs" : undefined}
-            onClick={runGeocode}
-          >
-            {pending ? "검색 중…" : "주소 검색"}
-          </PageActionButton>
-          <PageActionButton
-            type="button"
-            variant="primary"
-            disabled={pending}
-            className={compact ? "h-8 px-3 text-xs" : undefined}
-            onClick={runSave}
-          >
-            {pending ? "저장 중…" : "저장"}
-          </PageActionButton>
-        </div>
-      ) : null}
+          {!disabled ? (
+            <div className="flex flex-wrap gap-2">
+              <PageActionButton
+                type="button"
+                variant="outline"
+                disabled={pending}
+                onClick={runGeocode}
+              >
+                {pending ? "검색 중…" : "주소 검색"}
+              </PageActionButton>
+              <PageActionButton
+                type="button"
+                variant="primary"
+                disabled={pending}
+                onClick={runSave}
+              >
+                {pending ? "저장 중…" : "저장"}
+              </PageActionButton>
+            </div>
+          ) : null}
 
-      {error ? (
-        <p className={cn("text-destructive", compact ? "text-xs" : dashboardUi.tableMeta)}>
-          {error}
-        </p>
-      ) : verified && draft.addressText ? (
-        <p className={cn("text-muted-foreground", compact ? "text-xs" : dashboardUi.tableMeta)}>
-          주소를 확인했습니다.
-        </p>
-      ) : null}
+          {error ? (
+            <p className={cn("text-destructive", dashboardUi.tableMeta)}>{error}</p>
+          ) : verified && draft.addressText ? (
+            <p className={cn("text-muted-foreground", dashboardUi.tableMeta)}>
+              주소를 확인했습니다.
+            </p>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

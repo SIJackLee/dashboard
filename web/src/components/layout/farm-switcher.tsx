@@ -44,6 +44,8 @@ type FarmSwitcherProps = {
   variant?: "dropdown" | "inline";
   /** inline 선택 후 부모 메뉴 닫기 등 */
   onNavigated?: () => void;
+  /** inline 목록 컨테이너 class (계정 메뉴 탭 body 등) */
+  inlineListClassName?: string;
 };
 
 /** useSearchParams — 클라이언트 마운트 후 렌더로 hydration 불일치 방지 */
@@ -78,6 +80,7 @@ function FarmSwitcherBody({
   compact = false,
   variant = "dropdown",
   onNavigated,
+  inlineListClassName,
 }: FarmSwitcherProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -235,7 +238,10 @@ function FarmSwitcherBody({
   if (variant === "inline") {
     return (
       <div
-        className="max-h-[min(50vh,20rem)] overflow-y-auto p-1.5"
+        className={cn(
+          "max-h-[min(50vh,20rem)] overflow-y-auto p-1.5",
+          inlineListClassName,
+        )}
         data-tour-id="farm-switcher"
         aria-busy={switchPending || undefined}
         aria-label="농장 선택"

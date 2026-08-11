@@ -28,6 +28,7 @@ import {
 } from "@/components/common/inline-status-toast";
 import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-action";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
+import { scheduleSafeRouterRefresh } from "@/lib/navigation/safe-router-refresh";
 import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
 import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 import {
@@ -308,7 +309,7 @@ export function FarmMapMobileStage({
             if (liveRefresh) {
               void liveRefresh.revalidateFarmLive();
             } else if (!hubMode) {
-              router.refresh();
+              scheduleSafeRouterRefresh(router);
             }
           }}
           onRefreshLive={() => {
@@ -316,7 +317,7 @@ export function FarmMapMobileStage({
             if (liveRefresh) {
               void liveRefresh.revalidateFarmLive();
             } else if (!hubMode) {
-              router.refresh();
+              scheduleSafeRouterRefresh(router);
             }
           }}
           trailing={

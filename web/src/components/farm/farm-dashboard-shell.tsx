@@ -15,6 +15,7 @@ import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
+import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
 import type { BarnLayoutsToPersist } from "@/lib/farm/load-farm-scoped-panel-data";
 import { currentFarmSearchParams, resolveFarmHubView } from "@/lib/farm/farm-view-url";
@@ -42,6 +43,8 @@ export type FarmDashboardShellProps = {
   allFarmGrids?: AdminFarmGridPanel[] | null;
   deferAdminGridLoad?: boolean;
   children?: ReactNode;
+  initialWeatherNudge?: WeatherNudgeView | null;
+  weatherNudgeEnabled?: boolean;
 };
 
 function sliceFromAdminPanel(
@@ -70,6 +73,8 @@ function FarmLivePageContent({
   lazyListEnrichment = false,
   lazyListFarmKey = null,
   initialHubView,
+  initialWeatherNudge = null,
+  weatherNudgeEnabled = false,
 }: {
   gridCompactShell: boolean;
   hubUrlEpoch: number;
@@ -77,6 +82,8 @@ function FarmLivePageContent({
   lazyListEnrichment?: boolean;
   lazyListFarmKey?: FarmKey | null;
   initialHubView?: ReturnType<typeof resolveFarmHubView>;
+  initialWeatherNudge?: WeatherNudgeView | null;
+  weatherNudgeEnabled?: boolean;
 }) {
   const { slice, isStale, isBootstrapping } = useFarmLiveRefresh();
 
@@ -105,6 +112,8 @@ function FarmLivePageContent({
         lazyListEnrichment={lazyListEnrichment}
         lazyListFarmKey={lazyListFarmKey}
         initialHubView={initialHubView}
+        initialWeatherNudge={initialWeatherNudge}
+        weatherNudgeEnabled={weatherNudgeEnabled}
       />
     </StaleWhileRevalidateShell>
   );
@@ -119,6 +128,8 @@ function AdminHubBody({
   hubUrlEpoch,
   onHubUrlChange,
   serverActiveFarmKey,
+  initialWeatherNudge = null,
+  weatherNudgeEnabled = false,
 }: {
   deferAdminGridLoad: boolean;
   children?: ReactNode;
@@ -128,6 +139,8 @@ function AdminHubBody({
   hubUrlEpoch: number;
   onHubUrlChange: () => void;
   serverActiveFarmKey: FarmKey | null;
+  initialWeatherNudge?: WeatherNudgeView | null;
+  weatherNudgeEnabled?: boolean;
 }) {
   const { panels, ready, getPanelByFarmKey, hubUrlEpoch: ctxEpoch } =
     useAdminHubPanels();
@@ -174,6 +187,8 @@ function AdminHubBody({
           lazyListEnrichment
           lazyListFarmKey={clientActiveFarmKey}
           initialHubView={resolveFarmHubView(view)}
+          initialWeatherNudge={initialWeatherNudge}
+          weatherNudgeEnabled={weatherNudgeEnabled}
         />
       );
     }
@@ -183,6 +198,8 @@ function AdminHubBody({
         hubUrlEpoch={hubUrlEpoch}
         onHubUrlChange={onHubUrlChange}
         initialHubView={resolveFarmHubView(view)}
+        initialWeatherNudge={initialWeatherNudge}
+        weatherNudgeEnabled={weatherNudgeEnabled}
       />
     );
   }
@@ -203,6 +220,8 @@ function AdminHubBody({
           hubUrlEpoch={hubUrlEpoch}
           onHubUrlChange={onHubUrlChange}
           initialHubView={resolveFarmHubView(view)}
+          initialWeatherNudge={initialWeatherNudge}
+          weatherNudgeEnabled={weatherNudgeEnabled}
         />
       )}
     </Suspense>
@@ -226,6 +245,8 @@ export function FarmDashboardShell({
   allFarmGrids = null,
   deferAdminGridLoad = false,
   children,
+  initialWeatherNudge = null,
+  weatherNudgeEnabled = false,
 }: FarmDashboardShellProps) {
   const { ready, getPanelByFarmKey, hubUrlEpoch: ctxEpoch, notifyHubUrlChange } =
     useAdminHubPanels();
@@ -329,6 +350,8 @@ export function FarmDashboardShell({
             hubUrlEpoch={hubUrlEpoch}
             onHubUrlChange={onHubUrlChange}
             serverActiveFarmKey={serverActiveFarmKey}
+            initialWeatherNudge={initialWeatherNudge}
+            weatherNudgeEnabled={weatherNudgeEnabled}
           >
             {children}
           </AdminHubBody>
@@ -356,6 +379,8 @@ export function FarmDashboardShell({
                 lazyListEnrichment={useCachedSingle}
                 lazyListFarmKey={clientActiveFarmKey}
                 initialHubView={resolveFarmHubView(view)}
+                initialWeatherNudge={initialWeatherNudge}
+                weatherNudgeEnabled={weatherNudgeEnabled}
               />
             )}
           </Suspense>

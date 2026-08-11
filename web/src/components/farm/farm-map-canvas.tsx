@@ -31,6 +31,7 @@ import {
   type InlineStatusTone,
 } from "@/components/common/inline-status-toast";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
+import { scheduleSafeRouterRefresh } from "@/lib/navigation/safe-router-refresh";
 import { GridMetricLabel } from "@/lib/farm/grid-metric-label";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -451,7 +452,7 @@ export function FarmMapCanvas({
             if (liveRefresh) {
               void liveRefresh.revalidateFarmLive();
             } else if (!hubMode) {
-              router.refresh();
+              scheduleSafeRouterRefresh(router);
             }
           }}
           onRefreshLive={() => {
@@ -459,7 +460,7 @@ export function FarmMapCanvas({
             if (liveRefresh) {
               void liveRefresh.revalidateFarmLive();
             } else if (!hubMode) {
-              router.refresh();
+              scheduleSafeRouterRefresh(router);
             }
           }}
           trailing={

@@ -32,7 +32,7 @@ import {
 } from "@/lib/farm/load-farm-scoped-panel-data";
 import { loadAdminFarmGridPanelsForKeys } from "@/lib/farm/load-admin-all-farms-grid";
 import type { AdminFarmGridPanel } from "@/lib/farm/admin-all-farms-grid-shared";
-import { fetchActiveModuleAlarms, ackModuleAlarm } from "@/lib/data/module-alarms";
+import { fetchActiveModuleAlarms, ackModuleAlarm, ackModuleAlarmsBulk } from "@/lib/data/module-alarms";
 import type { AlarmRow } from "@/lib/data/alarms";
 
 async function assertFarmReadAccess(farmKey: FarmKey) {
@@ -103,6 +103,17 @@ export async function ackModuleAlarmAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await assertFarmReadAccess(farmKey);
   return ackModuleAlarm(alarmId);
+}
+
+/** 모듈 경보 일괄 확인 — active View에서 제외 */
+export async function ackModuleAlarmsBulkAction(
+  alarmIds: string[],
+  farmKey: FarmKey,
+): Promise<
+  { ok: true; acked: number } | { ok: false; error: string }
+> {
+  await assertFarmReadAccess(farmKey);
+  return ackModuleAlarmsBulk(alarmIds);
 }
 
 /** Admin hub / farmer — 단일 farm scoped 그리드·목록 패널 데이터(full). */

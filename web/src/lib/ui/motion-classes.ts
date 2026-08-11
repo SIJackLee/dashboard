@@ -171,6 +171,11 @@ export const motionClass = {
   portalOverlayEnter:
     "data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
 
+  /** 계정 Top Sheet — 헤더 아래 드롭다운 */
+  accountMenuSheetBackdrop: "account-menu-sheet-backdrop",
+  accountMenuSheetPanel: "account-menu-sheet-panel",
+  accountMenuSheetInner: "account-menu-sheet-inner",
+
   /** bottom sheet — slide from bottom */
   sheetEnter:
     "data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",

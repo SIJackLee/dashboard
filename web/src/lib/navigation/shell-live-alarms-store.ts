@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { AlarmRow } from "@/lib/data/alarms";
+import { isModuleAlarmRow } from "@/lib/data/alarms";
 
 /**
  * FarmLiveRefreshProvider(페이지 children) → TopBar/FAB(PageShell 밖) 알람 브리지.
@@ -26,6 +27,26 @@ export function removeShellAlarm(id: string, fromList?: AlarmRow[]): void {
   const next = base.filter((a) => a.id !== id);
   if (published != null && next.length === published.length) return;
   published = next;
+  emit();
+}
+
+/** 일괄 확인 — 여러 id 낙관적 제거 */
+export function removeShellAlarms(ids: Iterable<string>, fromList?: AlarmRow[]): void {
+  const idSet = new Set(ids);
+  if (idSet.size === 0) return;
+  const base = published ?? fromList;
+  if (base == null) return;
+  const next = base.filter((a) => !idSet.has(a.id));
+  if (published != null && next.length === published.length) return;
+  published = next;
+  emit();
+}
+
+/** 모듈 경보만 갱신 — 통신두절(derived) 행은 유지 */
+export function patchShellModuleAlarms(moduleAlarms: AlarmRow[]): void {
+  const base = published ?? [];
+  const derived = base.filter((a) => !isModuleAlarmRow(a));
+  published = [...moduleAlarms, ...derived];
   emit();
 }
 

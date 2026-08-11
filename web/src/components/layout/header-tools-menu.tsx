@@ -25,6 +25,10 @@ import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { AppNavLink } from "@/components/layout/app-nav-link";
 import { DailyReportButton } from "@/components/layout/daily-report-button";
 import {
+  ProfilePinHeaderDropZone,
+  ProfilePinToolChip,
+} from "@/components/account/profile-pin-tool-chip";
+import {
   RAIL_GROUP_GAP_DEFAULT,
   RAIL_PITCH_BASE,
   hubRailToolDistances,
@@ -32,13 +36,11 @@ import {
 } from "@/components/layout/hub-rail-layout";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmChartHref, isModuleAlarmRow } from "@/lib/data/alarms";
+import { alarmChartHref, isModuleAlarmRow, situationAlarmMetaLine } from "@/lib/data/alarms";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmOverview } from "@/lib/data/iot";
-import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { formatKst } from "@/lib/datetime/kst";
 import { isAdminOpsNavPath } from "@/lib/dashboard-sections";
-import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import { ModuleAlarmAckButton } from "@/components/layout/module-alarm-ack-button";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -51,6 +53,23 @@ import {
   type ViewportPreviewMode,
 } from "@/lib/ui/viewport-preview-store";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
+import {
+  getDashboardTheme,
+  subscribeDashboardTheme,
+  syncDashboardThemeFromDom,
+  toggleDashboardTheme,
+} from "@/lib/ui/dashboard-theme";
+import {
+  DEFAULT_PROFILE_PINNED_TOOLS,
+  type ProfilePinToolId,
+} from "@/lib/ui/profile-pin-tools";
+import {
+  getProfileAccountMenuOpen,
+  getProfilePinEditMode,
+  getProfilePinnedTools,
+  subscribeProfilePinStore,
+  unpinProfileTool,
+} from "@/lib/ui/profile-pin-tools-store";
 import { FARM_TOUR_ACTION_EVENT } from "@/lib/onboarding/tour-steps";
 import {
   afterFrames,
@@ -104,6 +123,19 @@ type Props = {
 };
 
 type DetailId = "alarms" | "report";
+
+type HeaderPinVis = "hidden" | "drop" | "draggable" | "normal";
+
+function headerPinVisibility(
+  id: ProfilePinToolId,
+  pinned: ProfilePinToolId[],
+  pinDnDActive: boolean,
+): HeaderPinVis {
+  if (!pinDnDActive) {
+    return pinned.includes(id) ? "hidden" : "normal";
+  }
+  return pinned.includes(id) ? "drop" : "draggable";
+}
 
 function connectivityMessage(overview?: FarmOverview): string {
   const registered = overview?.controllerCount;
@@ -239,8 +271,33 @@ export function HeaderToolsMenu({
 
   const [detail, setDetail] = useState<DetailId | null>(null);
   const [alarmListOpen, setAlarmListOpen] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-  const [themeReady, setThemeReady] = useState(false);
+
+  const pinnedTools = useSyncExternalStore(
+    subscribeProfilePinStore,
+    getProfilePinnedTools,
+    () => DEFAULT_PROFILE_PINNED_TOOLS,
+  );
+  const pinEditMode = useSyncExternalStore(
+    subscribeProfilePinStore,
+    getProfilePinEditMode,
+    () => false,
+  );
+  const accountMenuOpen = useSyncExternalStore(
+    subscribeProfilePinStore,
+    getProfileAccountMenuOpen,
+    () => false,
+  );
+  const pinDnDActive = pinEditMode && accountMenuOpen && !isHub;
+
+  const themeIsDark = useSyncExternalStore(
+    subscribeDashboardTheme,
+    () => getDashboardTheme() === "dark",
+    () => false,
+  );
+
+  useEffect(() => {
+    syncDashboardThemeFromDom();
+  }, []);
 
   useEffect(() => {
     const onTourAction = (e: Event) => {
@@ -264,16 +321,6 @@ export function HeaderToolsMenu({
     return () =>
       window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
   }, []);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      setTheme(
-        document.documentElement.classList.contains("dark") ? "dark" : "light",
-      );
-      setThemeReady(true);
-    });
-  }, []);
-  const themeIsDark = theme === "dark";
 
   const connTitle = connectivityMessage(overview);
   const viewportTitle =
@@ -301,10 +348,7 @@ export function HeaderToolsMenu({
   };
 
   const toggleTheme = () => {
-    const next = themeIsDark ? "light" : "dark";
-    document.documentElement.classList.toggle("dark", next === "dark");
-    localStorage.setItem("dashboard-theme", next);
-    setTheme(next);
+    toggleDashboardTheme();
   };
 
   const toolbarIcons = (opts: {
@@ -319,7 +363,7 @@ export function HeaderToolsMenu({
       <ToolsIconBtn
         Icon={themeIsDark ? Sun : Moon}
         data-tour-id="header-theme"
-        data-theme-ready={themeReady || undefined}
+        data-theme-ready={mounted || undefined}
         aria-label={themeIsDark ? "라이트 모드" : "다크 모드"}
         title={themeIsDark ? "라이트 모드" : "다크 모드"}
         onClick={toggleTheme}
@@ -337,23 +381,44 @@ export function HeaderToolsMenu({
       />
     );
 
-    const bell = (
-      <ToolsIconWrap key="bell" toolsI={iBell}>
-        <ToolsIconBtn
-          Icon={Bell}
-          alert={alert}
-          active={detail === "alarms"}
-          badge={alarmCount > 0 ? alarmCount : undefined}
-          data-tour-id="header-alarms"
-          aria-label={
-            alarmCount > 0 ? `이상상황 ${alarmCount}건` : "이상상황"
-          }
-          aria-pressed={detail === "alarms"}
-          title="이상상황"
-          onClick={() => toggleDetail("alarms")}
-        />
-      </ToolsIconWrap>
-    );
+    const bellVis = headerPinVisibility("alarm", pinnedTools, pinDnDActive);
+    const bell =
+      bellVis === "hidden" ? null : bellVis === "drop" ? (
+        <ToolsIconWrap key="bell" toolsI={iBell}>
+          <ProfilePinHeaderDropZone
+            visible
+            onUnpinTool={unpinProfileTool}
+          />
+        </ToolsIconWrap>
+      ) : bellVis === "draggable" ? (
+        <ToolsIconWrap key="bell" toolsI={iBell}>
+          <ProfilePinToolChip
+            toolId="alarm"
+            draggable
+            badge={alarmCount > 0 ? alarmCount : undefined}
+            alert={alert}
+            active={detail === "alarms"}
+            data-tour-id="header-alarms"
+            onClick={() => toggleDetail("alarms")}
+          />
+        </ToolsIconWrap>
+      ) : (
+        <ToolsIconWrap key="bell" toolsI={iBell}>
+          <ToolsIconBtn
+            Icon={Bell}
+            alert={alert}
+            active={detail === "alarms"}
+            badge={alarmCount > 0 ? alarmCount : undefined}
+            data-tour-id="header-alarms"
+            aria-label={
+              alarmCount > 0 ? `이상상황 ${alarmCount}건` : "이상상황"
+            }
+            aria-pressed={detail === "alarms"}
+            title="이상상황"
+            onClick={() => toggleDetail("alarms")}
+          />
+        </ToolsIconWrap>
+      );
     const ops = isAdmin ? (
       <ToolsIconWrap key="ops" toolsI={iOps}>
         <AppNavLink
@@ -373,30 +438,67 @@ export function HeaderToolsMenu({
         </AppNavLink>
       </ToolsIconWrap>
     ) : null;
-    const report = (
-      <ToolsIconWrap key="report" toolsI={iReport}>
-        <ToolsIconBtn
-          Icon={FileText}
-          active={detail === "report"}
-          data-tour-id="header-daily-report"
-          aria-label="오늘의 리포트"
-          aria-pressed={detail === "report"}
-          title="오늘의 리포트"
-          onClick={() => toggleDetail("report")}
-        />
-      </ToolsIconWrap>
-    );
+    const reportVis = headerPinVisibility("pdf", pinnedTools, pinDnDActive);
+    const report =
+      reportVis === "hidden" ? null : reportVis === "drop" ? (
+        <ToolsIconWrap key="report" toolsI={iReport}>
+          <ProfilePinHeaderDropZone
+            visible
+            onUnpinTool={unpinProfileTool}
+          />
+        </ToolsIconWrap>
+      ) : reportVis === "draggable" ? (
+        <ToolsIconWrap key="report" toolsI={iReport}>
+          <ProfilePinToolChip
+            toolId="pdf"
+            draggable
+            active={detail === "report"}
+            data-tour-id="header-daily-report"
+            onClick={() => toggleDetail("report")}
+          />
+        </ToolsIconWrap>
+      ) : (
+        <ToolsIconWrap key="report" toolsI={iReport}>
+          <ToolsIconBtn
+            Icon={FileText}
+            active={detail === "report"}
+            data-tour-id="header-daily-report"
+            aria-label="오늘의 리포트"
+            aria-pressed={detail === "report"}
+            title="오늘의 리포트"
+            onClick={() => toggleDetail("report")}
+          />
+        </ToolsIconWrap>
+      );
     const viewport =
       isHub || showViewportToggle ? (
         <ToolsIconWrap key="viewport" toolsI={iViewport}>
           {viewportBtn}
         </ToolsIconWrap>
       ) : null;
-    const themeEl = (
-      <ToolsIconWrap key="theme" toolsI={iTheme}>
-        {themeBtn}
-      </ToolsIconWrap>
-    );
+    const themeVis = headerPinVisibility("theme", pinnedTools, pinDnDActive);
+    const themeEl =
+      themeVis === "hidden" ? null : themeVis === "drop" ? (
+        <ToolsIconWrap key="theme" toolsI={iTheme}>
+          <ProfilePinHeaderDropZone
+            visible
+            onUnpinTool={unpinProfileTool}
+          />
+        </ToolsIconWrap>
+      ) : themeVis === "draggable" ? (
+        <ToolsIconWrap key="theme" toolsI={iTheme}>
+          <ProfilePinToolChip
+            toolId="theme"
+            draggable
+            data-tour-id="header-theme"
+            onClick={toggleTheme}
+          />
+        </ToolsIconWrap>
+      ) : (
+        <ToolsIconWrap key="theme" toolsI={iTheme}>
+          {themeBtn}
+        </ToolsIconWrap>
+      );
 
     /* hub: 그룹별 · header: 이상상황 → 운영 → 리포트 → 테마 → (md+) 뷰포트 */
     const hubItems =
@@ -421,6 +523,16 @@ export function HeaderToolsMenu({
 
     if (asNodes) return items;
 
+    const headerPinnedHint =
+      !isHub && items.length === 0 && pinnedTools.length > 0 ? (
+        <span
+          className="max-w-[5.5rem] truncate px-1 text-[10px] leading-tight text-muted-foreground"
+          title="알람·리포트·테마가 프로필에 고정되어 있습니다"
+        >
+          도구 → 프로필
+        </span>
+      ) : null;
+
     return (
       <div
         className={cn(
@@ -432,6 +544,7 @@ export function HeaderToolsMenu({
         aria-orientation={vertical ? "vertical" : "horizontal"}
       >
         {items}
+        {headerPinnedHint}
       </div>
     );
   };
@@ -639,19 +752,7 @@ export function HeaderToolsMenu({
                           </span>
                         </span>
                         <span className="block truncate text-[0.65rem] text-muted-foreground">
-                          {isModuleAlarmRow(a)
-                            ? a.farmName?.trim() ||
-                              a.detail?.trim() ||
-                              "모듈 경보"
-                            : `${
-                                a.stallTyCode
-                                  ? formatStallTypeLabel(a.stallTyCode)
-                                  : "—"
-                              } · ${formatControllerSlotLabel({
-                                stallNo: a.stallNo,
-                                eqpmnNo: a.eqpmnNo,
-                                idx: a.idx,
-                              })}`}
+                          {situationAlarmMetaLine(a)}
                         </span>
                         <span className="block text-[0.65rem] text-muted-foreground">
                           {formatKst(a.occurredAt, "short")}

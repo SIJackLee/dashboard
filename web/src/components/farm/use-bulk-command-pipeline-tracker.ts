@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  fetchThermoCommandAction,
+  fetchThermoCommandsBatchAction,
   type BulkSentCommandItem,
 } from "@/app/(dashboard)/controllers/actions";
 import {
@@ -324,10 +324,9 @@ export function useBulkCommandPipelineTracker({
       }
       inFlight = true;
       try {
-        const updates = await Promise.all(
-          ids.map((id) => fetchThermoCommandAction(id)),
-        );
+        const updates = await fetchThermoCommandsBatchAction(ids);
         if (cancelled) return;
+        const acked: ThermoCommand[] = [];
         setRows((prev) =>
           prev.map((row) => {
             const fetched = updates.find((u) => u?.id === row.id) ?? null;
@@ -338,16 +337,27 @@ export function useBulkCommandPipelineTracker({
                 isAckDone(command.status) &&
                 !isAckDone(row.command.status)
               ) {
-                onCommandAckRef.current?.(command);
+                acked.push(command);
               }
               return { ...row, command };
             }
             return row;
           }),
         );
+        if (acked.length > 0) {
+          // setState updater 안에서 부모 patch 금지 — render 경합 방지
+          queueMicrotask(() => {
+            if (cancelled) return;
+            for (const cmd of acked) {
+              onCommandAckRef.current?.(cmd);
+            }
+          });
+        }
         // pending-only 구간은 명령 status만. LIVE n/N 확인 중일 때만 farm LIVE 갱신
         if (awaitingLive) {
-          onRefreshLiveRef.current?.();
+          queueMicrotask(() => {
+            if (!cancelled) onRefreshLiveRef.current?.();
+          });
         }
       } finally {
         inFlight = false;

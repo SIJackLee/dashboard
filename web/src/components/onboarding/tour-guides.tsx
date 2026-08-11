@@ -293,7 +293,7 @@ const HEADER_ICON_ITEMS: {
   {
     key: "account",
     label: "계정",
-    desc: "프로필 메뉴에서 농장 선택, 최근 활동, 농장 주소 등을 이용할 수 있습니다.",
+    desc: "프로필 메뉴에서 농장·활동·계정 탭과 요약 한 줄을 이용할 수 있습니다.",
     Icon: UserRound,
   },
 ];

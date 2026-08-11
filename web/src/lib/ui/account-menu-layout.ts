@@ -1,0 +1,145 @@
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { motionClass } from "@/lib/ui/motion-classes";
+import { cn } from "@/lib/utils";
+
+const inlineMeta = cn(dashboardUi.tableMeta, "truncate leading-snug");
+
+/** 프로필(계정) Top Sheet — A안 full sheet · 단일 density 규칙 */
+export const accountMenuLayout = {
+  /** @deprecated dropdown — sheet 전환 후 sheetPanel 사용 */
+  panel:
+    "flex w-[min(100vw-1.5rem,22rem)] !max-h-none flex-col overflow-y-visible overflow-x-hidden rounded-xl p-0",
+  sheetBackdrop: cn(
+    "account-menu-sheet-backdrop inset-x-0 bottom-0 z-40 bg-black/15 supports-backdrop-filter:backdrop-blur-[2px]",
+  ),
+  sheetBackdropFixed: "fixed",
+  sheetBackdropAbsolute: "absolute",
+  sheetPanel: cn(
+    "account-menu-sheet-panel z-50 flex w-full max-w-none flex-col overflow-x-hidden overflow-y-auto overscroll-contain border-b border-border/60 bg-popover text-popover-foreground shadow-md",
+  ),
+  sheetPanelFixed: cn(
+    "fixed inset-x-0",
+    "max-h-[min(calc(100dvh-var(--account-menu-sheet-top,3.5rem)-env(safe-area-inset-bottom,0px)),40rem)]",
+  ),
+  /** 모바일 프리뷰 프레임 내부 portal — 프레임 너비·높이에 맞춤 */
+  sheetPanelInFrame: cn(
+    "absolute inset-x-0",
+    "max-h-[calc(100%-var(--account-menu-sheet-top,0px)-env(safe-area-inset-bottom,0px))]",
+  ),
+  sheetInner: "account-menu-sheet-inner w-full min-w-0",
+  sheetHeader:
+    "flex min-w-0 items-center gap-2 border-b border-border/60 px-3 py-2 max-md:pt-safe md:gap-2.5 md:px-4 md:py-2.5",
+  sheetHeaderActions: "flex shrink-0 items-center gap-2",
+  headerLogout: cn(
+    "text-[10px] font-medium text-destructive hover:underline",
+    motionClass.microInteractive,
+  ),
+  sheetCloseBtn: cn(
+    "inline-flex shrink-0 items-center rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+    motionClass.microInteractive,
+  ),
+  hubAvatar: cn(
+    dashboardUi.headerAccountAvatar,
+    "size-8 shrink-0 text-sm md:size-8 md:text-sm",
+  ),
+  hubName:
+    "truncate font-semibold leading-snug text-[length:var(--density-section)] md:text-[length:var(--density-section-md)]",
+  hubMeta: inlineMeta,
+  /** @deprecated Two-Zone Split — zoneContext 사용 */
+  sheetMetaGrid:
+    "grid grid-cols-2 gap-x-4 gap-y-1 border-b border-border/60 bg-muted/40 px-4 py-2.5 text-[length:var(--density-meta)] leading-snug text-foreground md:text-[length:var(--density-meta-md)]",
+  splitBody:
+    "grid min-w-0 grid-cols-1 gap-0 border-b border-border/60 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+  zoneContext:
+    "flex min-w-0 flex-col gap-1.5 border-b border-border/60 bg-muted/40 px-3 py-2.5 max-md:pt-safe md:border-b-0 md:border-r md:px-4",
+  zoneAction: "flex min-w-0 flex-col gap-2 px-3 py-2.5 md:px-4",
+  addressRow:
+    "min-w-0 border-b border-border/60 px-3 py-2.5 md:px-4",
+  contextFarm:
+    "min-w-0 break-words text-left font-semibold leading-snug text-[length:var(--density-meta)] md:text-[length:var(--density-meta-md)]",
+  contextFarmBtn: cn(
+    "min-w-0 break-words text-left font-semibold leading-snug text-[length:var(--density-meta)] md:text-[length:var(--density-meta-md)]",
+    motionClass.microInteractive,
+    "hover:text-primary",
+  ),
+  liveStrip:
+    "flex min-w-0 items-center gap-1 text-[length:var(--density-meta)] leading-snug text-muted-foreground md:text-[length:var(--density-meta-md)]",
+  liveStatusDot: "size-1.5 shrink-0 rounded-full bg-primary",
+  liveStatusDotWarn: "size-1.5 shrink-0 rounded-full bg-amber-500",
+  liveStatusDotOffline: "size-1.5 shrink-0 rounded-full bg-muted-foreground/50",
+  toolGrid: "flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2",
+  toolTile: cn(
+    dashboardUi.topHeaderActionBtn,
+    "relative size-9 shrink-0 md:size-11",
+  ),
+  toolTileActive:
+    "border-primary/60 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary",
+  activityFooter:
+    "flex min-w-0 gap-1.5 overflow-x-auto border-t border-border/60 px-3 py-2 md:px-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+  activityChip: cn(
+    "shrink-0 rounded-full border border-border/60 px-2 py-0.5 text-[9px] leading-snug text-muted-foreground",
+    motionClass.microInteractive,
+    "hover:bg-muted/50 hover:text-foreground",
+  ),
+  switcherInset: "max-h-[min(40vh,12rem)] overflow-y-auto rounded-md border border-border/60 bg-background/80 p-1",
+  sheetMetaLabel: "text-muted-foreground",
+  toolsStrip: "flex items-center gap-2 px-4 py-2.5",
+  rowLabel:
+    "w-7 shrink-0 text-[10px] font-medium leading-none text-muted-foreground",
+  toolsCluster: "flex min-w-0 flex-1 flex-wrap items-center gap-1.5",
+  kebabBtn: cn(
+    "inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+    motionClass.microInteractive,
+  ),
+  section: "border-t border-border/60 px-4 py-2.5",
+  sectionMicroHeader: "mb-1 flex min-h-5 items-center justify-between gap-2",
+  sectionMicroLabel:
+    "text-[10px] font-medium leading-none text-muted-foreground",
+  sectionAction: cn(
+    "text-[10px] font-medium text-primary",
+    motionClass.microInteractive,
+  ),
+  inlineMeta,
+  list: "space-y-0.5",
+  listInlineRow: cn(
+    "flex w-full min-w-0 items-center rounded-md px-0.5 py-1 text-left",
+    inlineMeta,
+    motionClass.microInteractive,
+    "hover:bg-muted/50",
+  ),
+  compactInput:
+    "min-w-0 flex-1 basis-[min(100%,10rem)] rounded-md border border-border bg-background px-2.5 py-1.5 text-[length:var(--density-meta)] leading-snug md:text-[length:var(--density-meta-md)]",
+  compactInputRow:
+    "flex min-w-0 items-stretch gap-1.5",
+  compactSaveBtn: cn(
+    "inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-primary px-2.5 py-1.5 text-[10px] font-medium leading-snug text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:text-[length:var(--density-meta-md)]",
+    motionClass.microInteractive,
+  ),
+  compactBtnRow: "flex w-full shrink-0 items-center gap-1 sm:w-auto",
+  compactBtn: cn(
+    "inline-flex h-7 shrink-0 items-center rounded-md border border-border px-2 text-[10px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground disabled:opacity-50",
+    motionClass.microInteractive,
+  ),
+  compactBtnPrimary: cn(
+    "inline-flex h-7 shrink-0 items-center rounded-md border border-border bg-primary px-2 text-[10px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50",
+    motionClass.microInteractive,
+  ),
+  pinChipSm: "relative size-8 shrink-0 md:size-8",
+  editHint: "px-4 pb-2 text-[10px] leading-snug text-muted-foreground",
+  footerLogout: cn(
+    "text-[10px] font-medium text-destructive hover:underline",
+    motionClass.microInteractive,
+  ),
+} as const;
+
+export const CONTROLLER_STATUS_LABEL: Record<
+  "normal" | "caution" | "offline",
+  string
+> = {
+  normal: "정상",
+  caution: "주의",
+  offline: "오프라인",
+};
+
+/** Top Sheet backdrop·panel top — `[data-app-header]` 하단 */
+export const ACCOUNT_MENU_SHEET_Z = 45;

@@ -4,7 +4,8 @@ import { appendFarmKeyParams } from "@/lib/data/farm-key";
 import { buildControllerHref } from "@/lib/auth/farm-access";
 import { compareReadings } from "@/lib/data/reading-hierarchy";
 import { resolveThresholdsForReading } from "@/lib/data/alarm-scope";
-import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import { normalizeStallTyCode, formatStallTypeLabel } from "@/lib/data/stall-type";
+import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import {
   applyFarmChartScopeParams,
   type FarmChartScope,
@@ -32,11 +33,40 @@ export type AlarmRow = {
   source?: "module" | "derived";
   /** 모듈 경보 View의 농장 표시명 */
   farmName?: string | null;
+  /** 모듈 wire err — A/B/C (정전은 null) */
+  channel?: string | null;
 };
 
 /** 이상상황 목록 — 모듈 경보면 농장 표시명 중심 */
 export function isModuleAlarmRow(a: AlarmRow): boolean {
   return a.source === "module";
+}
+
+/** 모듈·통신두절 이상상황 행 — 부가 메타 한 줄 */
+export function situationAlarmMetaLine(a: AlarmRow): string {
+  if (isModuleAlarmRow(a)) {
+    if (a.stallTyCode && a.stallNo && a.eqpmnNo) {
+      const parts = [
+        formatStallTypeLabel(a.stallTyCode),
+        formatControllerSlotLabel({
+          stallNo: a.stallNo,
+          eqpmnNo: a.eqpmnNo,
+          idx: a.idx,
+        }),
+      ];
+      if (a.channel) parts.push(`${a.channel}라인`);
+      return parts.join(" · ");
+    }
+    return a.farmName?.trim() || a.detail?.trim() || "모듈 경보";
+  }
+  return [
+    a.stallTyCode ? formatStallTypeLabel(a.stallTyCode) : "—",
+    formatControllerSlotLabel({
+      stallNo: a.stallNo,
+      eqpmnNo: a.eqpmnNo,
+      idx: a.idx,
+    }),
+  ].join(" · ");
 }
 
 export type AlarmThresholds = {

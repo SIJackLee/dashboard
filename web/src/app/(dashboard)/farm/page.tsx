@@ -14,6 +14,9 @@ import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/comman
 import { mergeThermoSettingsMaps } from "@/lib/controllers/controller-settings";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { ThermoCommand } from "@/lib/data/commands";
+import { getPendingWeatherRecommendation } from "@/lib/data/weather-recommendation";
+import { delinEnabled } from "@/lib/aria/delin-enabled";
+import { weatherCtrlRecEnabled } from "@/lib/weather-control/weather-ctrl-enabled";
 
 function stripLegacyOverviewView(params: {
   view?: string;
@@ -144,6 +147,13 @@ export default async function FarmPage({
 
   const { scopedPanelData, thermoSettings, history } = panelBundle;
 
+  const weatherNudgeEnabled =
+    weatherCtrlRecEnabled() && delinEnabled() && Boolean(activeFarmKey);
+  const initialWeatherNudge =
+    weatherNudgeEnabled && activeFarmKey
+      ? await getPendingWeatherRecommendation(activeFarmKey)
+      : null;
+
   const pageBody = (content: ReactNode) => (
     <div className="space-y-4 md:space-y-5">
       <Suspense fallback={<FarmContentSkeleton view={params.view} />}>
@@ -187,6 +197,8 @@ export default async function FarmPage({
             }
             allFarmGrids={adminAllFarmsMode ? null : undefined}
             deferAdminGridLoad={adminAllFarmsMode}
+            initialWeatherNudge={initialWeatherNudge}
+            weatherNudgeEnabled={weatherNudgeEnabled}
           >
             {deferredAdminGrid}
           </FarmDashboardShell>

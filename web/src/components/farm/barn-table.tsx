@@ -64,6 +64,7 @@ import {
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
+import { scheduleSafeRouterRefresh } from "@/lib/navigation/safe-router-refresh";
 import { useSoftRefresh } from "@/lib/ui/use-soft-refresh";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -192,7 +193,7 @@ export function BarnTable({
       if (liveRefresh.revalidating) return;
       return liveRefresh.revalidateFarmLive();
     }
-    router.refresh();
+    scheduleSafeRouterRefresh(router);
   }, [liveRefresh, liveRefreshManaged, router]);
   const {
     run: refreshList,
@@ -429,6 +430,15 @@ export function BarnTable({
   const replaceListParams = useCallback(
     (patch: Record<string, string | null>) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
+      let patchChanged = false;
+      for (const [key, value] of Object.entries(patch)) {
+        const next = value == null || value === "" ? null : value;
+        const cur = params.get(key);
+        const curNorm = cur == null || cur === "" ? null : cur;
+        if (next !== curNorm) patchChanged = true;
+      }
+      if (!patchChanged) return;
+
       const fieldMerge = farmFieldMergeEnabled();
       const currentView = params.get("view");
       // 현장 병합: map|list 모두 현장 탭. listMode만 바꿀 때 view=list 강제하면

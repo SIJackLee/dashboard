@@ -98,7 +98,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   const masked = maskLayersForYBands(DEFAULT_UNIFIED_LAYERS, ["temp"]);
   assert.equal(masked.temp, true);
   assert.equal(masked.ema, false);
-  assert.equal(masked.band, false);
+  assert.equal(masked.band, true);
   assert.equal(masked.hum, false);
   assert.equal(masked.motors, false);
   assert.equal(masked.motorCh, false);

@@ -1,27 +1,30 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChevronDown } from "lucide-react";
 import { RecentActivityMenuSection } from "@/components/account/recent-activity-menu-section";
-import { FarmAddressInput } from "@/components/settings/farm-address-input";
-import { FarmSwitcher } from "@/components/layout/farm-switcher";
+import { AccountMenuHub } from "@/components/account/account-menu-hub";
+import { AccountMenuSplitBody } from "@/components/account/account-menu-split";
+import { AccountMenuSheet } from "@/components/account/account-menu-sheet";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
 import {
   farmShortLabel,
   type FarmSummaryRow,
 } from "@/lib/data/farm-summaries";
-import type { FarmKey } from "@/lib/data/farm-key";
-import type { ModuleReceipt } from "@/lib/data/iot";
-import { farmOptionId } from "@/lib/settings/farm-location-client";
+import {
+  appendFarmKeyParams,
+  farmKeyId,
+  type FarmKey,
+} from "@/lib/data/farm-key";
+import type { ModuleReceipt, FarmOverview } from "@/lib/data/iot";
+import type { AlarmRow } from "@/lib/data/alarms";
+import { setProfileAccountMenuOpen } from "@/lib/ui/profile-pin-tools-store";
 import { signOut } from "@/app/auth/actions";
+import { useAppNavigate } from "@/components/layout/use-app-navigate";
+import { accountMenuLayout } from "@/lib/ui/account-menu-layout";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +50,8 @@ type Props = {
   activeFarmKey?: FarmKey | null;
   farmSummaries?: FarmSummaryRow[];
   canEditLocation?: boolean;
+  overview?: FarmOverview;
+  alarms?: AlarmRow[];
 };
 
 export function AccountMenu({
@@ -57,17 +62,57 @@ export function AccountMenu({
   activeFarmKey = null,
   farmSummaries = [],
   canEditLocation = false,
+  overview,
+  alarms = [],
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { navigate: appNavigate } = useAppNavigate();
   const mobile = useMobileLayout();
   const [open, setOpen] = useState(false);
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const name = user.displayName?.trim() || user.email || "사용자";
   const initial = name.charAt(0).toUpperCase();
-  const primaryFarm = farmLocationOptions[0];
 
-  const triggerClassName =
-    "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60";
+  const activeFarmLocation = useMemo(() => {
+    if (activeFarmKey) {
+      const id = farmKeyId(activeFarmKey);
+      return (
+        farmLocationOptions.find((o) => farmKeyId(o.farmKey) === id) ?? null
+      );
+    }
+    return farmLocationOptions[0] ?? null;
+  }, [activeFarmKey, farmLocationOptions]);
+
+  const navigateToFarm = useCallback(
+    (farmKey: FarmKey) => {
+      setOpen(false);
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("lsind");
+      params.delete("item");
+      appendFarmKeyParams(params, farmKey);
+      const query = params.toString();
+      const href = query ? `/farm?${query}` : "/farm";
+      if (pathname === "/farm") {
+        appNavigate(href, { message: "농장으로 이동 중…" });
+        return;
+      }
+      router.push(href);
+    },
+    [appNavigate, pathname, router, searchParams],
+  );
+
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+    setProfileAccountMenuOpen(next);
+  }, []);
+
+  const triggerClassName = cn(
+    "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60",
+    motionClass.microInteractive,
+    open && "bg-muted/60",
+  );
 
   const triggerInner = (
     <>
@@ -79,10 +124,33 @@ export function AccountMenu({
         </p>
       </div>
       <ChevronDown
-        className="hidden size-4 shrink-0 text-muted-foreground sm:block"
+        className={cn(
+          "hidden size-4 shrink-0 text-muted-foreground sm:block",
+          motionClass.transitionTransform,
+          motionClass.durationNormal,
+          motionClass.easeStandard,
+          open && "rotate-180",
+        )}
         aria-hidden
       />
     </>
+  );
+
+  const identityFarmLabel =
+    activeFarmLocation?.label ??
+    (activeFarmKey ? farmShortLabel(activeFarmKey) : null);
+
+  const logoutAction = (
+    <button
+      type="button"
+      className={accountMenuLayout.headerLogout}
+      data-tour-id="account-menu-account"
+      onClick={() => {
+        void signOut();
+      }}
+    >
+      로그아웃
+    </button>
   );
 
   if (!mounted) {
@@ -99,100 +167,54 @@ export function AccountMenu({
   }
 
   return (
-    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger
+    <>
+      <button
+        type="button"
         className={triggerClassName}
         data-tour-id="header-account"
         aria-label="계정 메뉴"
+        aria-expanded={open}
+        aria-controls="account-menu-sheet"
+        onClick={() => handleOpenChange(!open)}
       >
         {triggerInner}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        sideOffset={mobile ? 8 : 4}
-        className={cn(
-          "w-[min(100vw-1.5rem,22rem)] overflow-hidden rounded-xl p-0",
-          dashboardUi.alarmMenuContent,
-          mobile &&
-            "max-md:rounded-2xl max-md:border max-md:border-border/60 max-md:bg-card max-md:shadow-lg",
-        )}
-      >
-        <div className="border-b px-4 py-3">
-          <p className="truncate font-semibold leading-snug">{name}</p>
-          {user.email ? (
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {user.email}
-            </p>
-          ) : null}
-          {user.role ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {roleLabel[user.role]}
-            </p>
-          ) : null}
-        </div>
+      </button>
 
-        {farmOptions.length > 0 ? (
-          <div
-            className="border-b"
-            onKeyDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <p className="px-4 pt-3 text-[11px] font-medium text-muted-foreground">
-              농장
-              {activeFarmKey
-                ? ` · ${farmShortLabel(activeFarmKey)}`
-                : ` · 전체 ${farmOptions.length}개`}
-            </p>
-            <FarmSwitcher
-              farmOptions={farmOptions}
-              activeFarmKey={activeFarmKey}
-              farmSummaries={farmSummaries}
-              compact
-              variant="inline"
-              onNavigated={() => setOpen(false)}
-            />
-          </div>
-        ) : null}
+      <AccountMenuSheet open={open} onOpenChange={handleOpenChange}>
+        <AccountMenuHub
+          name={name}
+          initial={initial}
+          email={user.email}
+          roleLabel={user.role ? roleLabel[user.role] : null}
+          trailing={logoutAction}
+          onCloseMenu={() => handleOpenChange(false)}
+        />
 
-        {receipts.length > 0 ? (
-          <div className="border-t">
-            <RecentActivityMenuSection receipts={receipts} />
-          </div>
-        ) : null}
+        <AccountMenuSplitBody
+          farmLabel={identityFarmLabel}
+          activeFarmKey={activeFarmKey}
+          receipts={receipts}
+          overview={overview}
+          alarms={alarms}
+          farmKey={activeFarmKey}
+          farmOptions={farmOptions}
+          farmSummaries={farmSummaries}
+          activeFarmLocation={activeFarmLocation}
+          canEditLocation={canEditLocation}
+          deferAddressFocus={mobile && open}
+          onCloseMenu={() => handleOpenChange(false)}
+          onFarmSaved={() => router.refresh()}
+        />
 
-        {primaryFarm ? (
-          <div
-            className="border-t px-4 py-3"
-            onKeyDown={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            <p className={cn("mb-2 font-medium", dashboardUi.tableMeta)}>
-              {primaryFarm.label}
-            </p>
-            <FarmAddressInput
-              key={farmOptionId(primaryFarm.farmKey)}
-              farmKey={primaryFarm.farmKey}
-              location={primaryFarm.location}
-              disabled={!canEditLocation}
-              compact
-              deferFocusUntilTap={mobile && open}
-              onSaved={() => router.refresh()}
-            />
-          </div>
-        ) : null}
-
-        <div className="border-t p-1.5 md:hidden">
-          <DropdownMenuItem
-            className="gap-2 rounded-lg px-3 py-2 text-destructive focus:text-destructive"
-            onClick={() => {
-              void signOut();
-            }}
-          >
-            <LogOut className="size-4 shrink-0" aria-hidden />
-            로그아웃
-          </DropdownMenuItem>
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <RecentActivityMenuSection
+          receipts={receipts}
+          farmKeyFilter={activeFarmKey}
+          excludeActiveFarm
+          max={6}
+          variant="chips"
+          onItemNavigate={navigateToFarm}
+        />
+      </AccountMenuSheet>
+    </>
   );
 }

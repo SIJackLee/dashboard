@@ -19,7 +19,7 @@ import {
 } from "@/app/(dashboard)/farm/actions";
 import { fetchFarmPanelEnrichShared } from "@/lib/farm/fetch-farm-panel-enrich";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import type { AlarmSettings } from "@/lib/data/alarms";
+import type { AlarmSettings, AlarmRow } from "@/lib/data/alarms";
 import { mergeSituationAlarms } from "@/lib/data/alarms";
 import type { ThermoCommand } from "@/lib/data/commands";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
@@ -53,6 +53,7 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import { hasStallTrendByPeriod } from "@/lib/data/farm-trend-types";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { registerFarmLiveRefreshHandler } from "@/lib/navigation/farm-live-refresh-bridge";
+import { scheduleSafeRouterRefresh } from "@/lib/navigation/safe-router-refresh";
 import {
   clearShellAlarms,
   publishShellAlarms,
@@ -74,6 +75,9 @@ function schedulePersistLayouts(layouts?: BarnLayoutsToPersist): void {
 
 /** soft refresh LIVE coalesce */
 const liveInflight = new Map<string, Promise<FarmScopedLiveData>>();
+
+/** map/list — LIVE·모듈 경보 주기 갱신 (모바일 push 대비 웹 폴링) */
+const FARM_LIVE_POLL_MS = 30_000;
 
 function fetchFarmLiveShared(farmKey: FarmKey): Promise<FarmScopedLiveData> {
   const id = farmKeyId(farmKey);
@@ -182,11 +186,17 @@ type ApplyLiveArgs = {
   farmKey: FarmKey;
   data: FarmScopedLiveData;
   setSlice: React.Dispatch<React.SetStateAction<FarmLiveSlice>>;
+  moduleAlarmsRef: React.MutableRefObject<AlarmRow[]>;
 };
 
 /** LIVE만 패치 — trend·alarm·command history·낙관적 patch 유지.
  *  readings/barnSnapshots는 측정값이 같으면 이전 참조 재사용. */
-function applyLivePatch({ farmKey, data, setSlice }: ApplyLiveArgs): void {
+function applyLivePatch({
+  farmKey,
+  data,
+  setSlice,
+  moduleAlarmsRef,
+}: ApplyLiveArgs): void {
   setSlice((prev) => {
     const readings = mergeLiveReadings(prev.readings, data.readings);
     const barnSnapshots = mergeLiveBarnSnapshots(
@@ -238,8 +248,18 @@ function applyLivePatch({ farmKey, data, setSlice }: ApplyLiveArgs): void {
     return next;
   });
   schedulePersistLayouts(data.layoutsToPersist);
+  moduleAlarmsRef.current = data.moduleAlarms;
   publishShellAlarms(
     mergeSituationAlarms(data.moduleAlarms, data.readings ?? []),
+  );
+}
+
+function publishSituationFromRef(
+  moduleAlarmsRef: React.MutableRefObject<AlarmRow[]>,
+  readings: BarnReading[],
+): void {
+  publishShellAlarms(
+    mergeSituationAlarms(moduleAlarmsRef.current, readings ?? []),
   );
 }
 
@@ -276,6 +296,7 @@ export function FarmLiveRefreshProvider({
   const revalidateSeq = useRef(0);
   const layoutsPersistOnceRef = useRef(false);
   const sliceRef = useRef(slice);
+  const moduleAlarmsRef = useRef<AlarmRow[]>([]);
   useEffect(() => {
     sliceRef.current = slice;
   });
@@ -482,7 +503,7 @@ export function FarmLiveRefreshProvider({
   const revalidateFarmLive = useCallback(
     async (opts?: { mode?: FarmLiveRevalidateMode }) => {
       if (!farmKey) {
-        startTransition(() => router.refresh());
+        startTransition(() => scheduleSafeRouterRefresh(router));
         return;
       }
       const mode = opts?.mode ?? "live";
@@ -503,6 +524,7 @@ export function FarmLiveRefreshProvider({
           });
           const moduleAlarms = await fetchActiveModuleAlarmsAction(farmKey);
           if (seq !== revalidateSeq.current) return;
+          moduleAlarmsRef.current = moduleAlarms;
           publishShellAlarms(
             mergeSituationAlarms(moduleAlarms, fresh.readings ?? []),
           );
@@ -510,10 +532,26 @@ export function FarmLiveRefreshProvider({
         }
         const live = await fetchFarmLiveShared(farmKey);
         if (seq !== revalidateSeq.current) return;
-        applyLivePatch({ farmKey, data: live, setSlice });
+        applyLivePatch({
+          farmKey,
+          data: live,
+          setSlice,
+          moduleAlarmsRef,
+        });
       } catch {
         if (seq !== revalidateSeq.current) return;
-        startTransition(() => router.refresh());
+        try {
+          const live = await fetchFarmLiveShared(farmKey);
+          if (seq !== revalidateSeq.current) return;
+          applyLivePatch({
+            farmKey,
+            data: live,
+            setSlice,
+            moduleAlarmsRef,
+          });
+        } catch {
+          /* 마지막 good slice 유지 — 다음 poll에서 재시도. router.refresh는 RSC 경합 유발 */
+        }
       } finally {
         if (seq === revalidateSeq.current) setRevalidating(false);
       }
@@ -547,10 +585,6 @@ export function FarmLiveRefreshProvider({
     };
   }, [alarmPatch, thermoPatch, slice]);
 
-  const moduleAlarmsRef = useRef<
-    Awaited<ReturnType<typeof fetchActiveModuleAlarmsAction>>
-  >([]);
-
   /** TopBar/FAB — 모듈 에러(농장 전환 시 fetch) + 통신두절(LIVE readings merge) */
   useEffect(() => {
     if (!farmKey) {
@@ -563,9 +597,7 @@ export function FarmLiveRefreshProvider({
       .then((rows) => {
         if (cancelled) return;
         moduleAlarmsRef.current = rows;
-        publishShellAlarms(
-          mergeSituationAlarms(rows, slice.readings ?? []),
-        );
+        publishSituationFromRef(moduleAlarmsRef, slice.readings ?? []);
       })
       .catch(() => {
         if (!cancelled) {
@@ -582,10 +614,26 @@ export function FarmLiveRefreshProvider({
 
   useEffect(() => {
     if (!farmKey) return;
-    publishShellAlarms(
-      mergeSituationAlarms(moduleAlarmsRef.current, slice.readings ?? []),
-    );
+    publishSituationFromRef(moduleAlarmsRef, slice.readings ?? []);
   }, [farmKey, slice.readings]);
+
+  /** LIVE + 모듈 경보 — 탭 visible 시 주기 갱신 (모바일 push 대비) */
+  useEffect(() => {
+    if (!farmKey || tourActive) return;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      void revalidateFarmLive({ mode: "live" });
+    };
+    const onVis = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    const id = window.setInterval(tick, FARM_LIVE_POLL_MS);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [farmKey, revalidateFarmLive, tourActive]);
 
   useEffect(() => () => clearShellAlarms(), []);
 

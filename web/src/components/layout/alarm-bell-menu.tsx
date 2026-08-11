@@ -13,10 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmChartHref, isModuleAlarmRow } from "@/lib/data/alarms";
+import { alarmChartHref, isModuleAlarmRow, situationAlarmMetaLine } from "@/lib/data/alarms";
 import { formatKst } from "@/lib/datetime/kst";
-import { formatStallTypeLabel } from "@/lib/data/stall-type";
-import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { ModuleAlarmAckButton } from "@/components/layout/module-alarm-ack-button";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -27,20 +25,6 @@ const emptySubscribe = () => () => {};
 type Props = {
   alarms: AlarmRow[];
 };
-
-function alarmMetaLine(a: AlarmRow): string {
-  if (isModuleAlarmRow(a)) {
-    return a.farmName?.trim() || a.detail?.trim() || "모듈 경보";
-  }
-  return [
-    a.stallTyCode ? formatStallTypeLabel(a.stallTyCode) : "—",
-    formatControllerSlotLabel({
-      stallNo: a.stallNo,
-      eqpmnNo: a.eqpmnNo,
-      idx: a.idx,
-    }),
-  ].join(" · ");
-}
 
 export function AlarmBellMenu({ alarms }: Props) {
   const { navigate } = useAppNavigate();
@@ -156,7 +140,7 @@ export function AlarmBellMenu({ alarms }: Props) {
                   </Badge>
                 </span>
                 <span className={dashboardUi.alarmMenuMeta}>
-                  {alarmMetaLine(a)}
+                  {situationAlarmMetaLine(a)}
                 </span>
                 {!isModuleAlarmRow(a) && a.detail ? (
                   <span

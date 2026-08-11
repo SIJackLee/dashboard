@@ -132,6 +132,20 @@ Deno.serve(async (req: Request) => {
       allowUnknown: true,
     });
     if (alarm) {
+      if (alarm.controllerKey) {
+        await supabase
+          .from("farm_module_alarm")
+          .update({
+            status: "acked",
+            status_changed_at: new Date().toISOString(),
+          })
+          .eq("lsind_regist_no", row.lsind_regist_no)
+          .eq("item_code", row.item_code)
+          .eq("controller_key", alarm.controllerKey)
+          .eq("err_code", alarm.errCode)
+          .eq("status", "active");
+      }
+
       const { error: alarmErr } = await supabase.from("farm_module_alarm").upsert(
         {
           raw_id: row.id,
@@ -142,6 +156,11 @@ Deno.serve(async (req: Request) => {
           wire_ver: alarm.wireVer,
           err_code: alarm.errCode,
           err_label: alarm.errLabel,
+          stall_ty_code: alarm.stallTyCode ?? null,
+          stall_no: alarm.stallNo ?? null,
+          eqpmn_no: alarm.eqpmnNo ?? null,
+          controller_key: alarm.controllerKey ?? null,
+          channel: alarm.channel ?? null,
           status: "active",
           received_at: row.received_at,
           decoded_json: alarm,

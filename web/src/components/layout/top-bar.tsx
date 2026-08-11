@@ -79,6 +79,8 @@ export function TopBar({
               activeFarmKey={activeFarmKey}
               farmSummaries={farmSummaries}
               canEditLocation={canEditLocation}
+              overview={overview}
+              alarms={alarms}
             />
           </div>
         </div>

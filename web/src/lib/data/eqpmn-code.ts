@@ -6,7 +6,8 @@
 export const EQPMN_CODE_NAMES: Record<string, string> = {
   EC01: "송풍팬",
   EC02: "배기팬",
-  EC03: "입기팬",
+  EC05: "쿨링패드",
+  EC06: "보온등",
   ES01: "온도센서",
   ES02: "습도센서",
 };
