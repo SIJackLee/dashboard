@@ -23,6 +23,7 @@ export function AppNavLink({
   message,
   sublabel,
   className,
+  "aria-busy": ariaBusyProp,
   ...rest
 }: AppNavLinkProps) {
   const pathname = usePathname();
@@ -31,8 +32,9 @@ export function AppNavLink({
   const useGlobal = shouldUseGlobalNav(hrefStr, pathname);
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
-  /** SSR·첫 페인트와 맞추기 — pending 시각은 클라이언트에서만 */
+  /** SSR·hydration과 동일 — pending 시각은 마운트 후에만 */
   const pendingVisual = mounted && isPending && useGlobal;
+  const ariaBusy = pendingVisual || ariaBusyProp ? true : undefined;
 
   const handleClick = useCallback(
     (e: MouseEvent<HTMLAnchorElement>) => {
@@ -51,7 +53,8 @@ export function AppNavLink({
       href={href}
       className={cn(pendingVisual && "opacity-70", className)}
       onClick={handleClick}
-      aria-busy={pendingVisual ? true : undefined}
+      aria-busy={ariaBusy}
+      suppressHydrationWarning
       {...rest}
     />
   );

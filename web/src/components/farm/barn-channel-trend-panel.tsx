@@ -45,16 +45,11 @@ type Props = {
 };
 
 function tickEveryForPeriod(
-  period: TrendPeriodId,
+  _period: TrendPeriodId,
   count: number,
-  dense = false
+  dense = false,
 ): number {
-  if (dense) {
-    if (count <= 4) return 1;
-    return Math.max(1, Math.ceil(count / 4));
-  }
-  if (count <= 5) return 1;
-  return Math.max(1, Math.ceil(count / 5));
+  return tickEveryForDisplayBars(count, { compact: dense });
 }
 
 function ChannelSlotTrendChart({

@@ -72,9 +72,18 @@ Sprint A 재측정 (2026-08-05 · `npm run measure:live`): List farm-scoped p50/
 | `farm_trend_history` | Client idle (grid heatmap hydrate) | `live:trend:{scope}` | SP × stall × 96 buckets · **`mesure_at` bin** |
 | `farm_trend_history_by_controller` | Client lazy (list graph) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets · **`mesure_at` bin** |
 
-- Bucket policy (source → display via `binWorst` / avg downsample): 24h = 15 min × 96 → 24, 7d = 1 h × 168 → 28, 30d = 1 h × 720 → 30 (`farm-trend-types.ts` + `GRAPH_BARS`)
+- Bucket policy (canonical 15 min → UI display via `binWorst` / avg downsample): fetch **30d × 2880** once, slice 7d=672 / 24h=96; UI bars 24h→24, 7d→28, 30d→30 (`farm-trend-types.ts` + `GRAPH_BARS`). PDF uses full 15m resolution (no GRAPH_BARS).
 - Map tab SSR skips stall trend + controller-trend (Phase B idle hydrate / P4 lazy)
 - Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch; stall trend client-idle when map opens
+
+### Measured (dev, 2026-08-11) — `npm run measure:trend` · FARM01/P00 · 30d @ 15m
+
+| RPC | p50 | p95 | rows (note) |
+| --- | --- | --- | --- |
+| `farm_trend_history` | 110 ms | 182 ms | 942 (PostgREST `max_rows=1000` cap) |
+| `farm_trend_history_by_controller` | 102 ms | 172 ms | 1000 (cap) |
+
+Follow-up: trend RPC responses are **paginated** in app code (`.range` 1000/page) — do not rely on a single PostgREST page for 15m windows.
 
 ## Soft refresh tiers (H2)
 

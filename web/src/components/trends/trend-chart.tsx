@@ -16,7 +16,11 @@ import {
 import { Check, GripHorizontal, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
-import { abbreviateTrendAxisLabel } from "@/lib/farm/trend-display-buckets";
+import {
+  abbreviateTrendAxisLabel,
+  TREND_CHART_TICK_TARGET,
+  trendChartTickMinGap,
+} from "@/lib/farm/trend-display-buckets";
 import {
   type Band,
   SEV_COLOR,
@@ -671,6 +675,46 @@ const PIN_CLICK_SLOP_PX = 10;
 const SCALE_EDGE_DOUBLE_TAP_MS = 320;
 const SCALE_EDGE_DOUBLE_TAP_SLOP_PX = 28;
 const SCALE_EDGE_TAP_SLOP_PX = 12;
+
+type ScaleEdgeTapRecord = {
+  id: string;
+  t: number;
+  x: number;
+  y: number;
+};
+
+function handleScaleEdgeDoubleTap(
+  e: ReactPointerEvent<HTMLDivElement>,
+  labelArm: { id: string; x: number; y: number; pointerType: string },
+  scaleEdgeTapRef: { current: ScaleEdgeTapRecord | null },
+  beginScaleEdgeEdit: (id: string) => void,
+): void {
+  const dist = Math.hypot(e.clientX - labelArm.x, e.clientY - labelArm.y);
+  const isTouchLike =
+    labelArm.pointerType === "touch" || labelArm.pointerType === "pen";
+  if (dist > SCALE_EDGE_TAP_SLOP_PX || !isTouchLike) return;
+
+  const now = e.timeStamp;
+  const prev = scaleEdgeTapRef.current;
+  if (
+    prev &&
+    prev.id === labelArm.id &&
+    now - prev.t <= SCALE_EDGE_DOUBLE_TAP_MS &&
+    Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <=
+      SCALE_EDGE_DOUBLE_TAP_SLOP_PX
+  ) {
+    scaleEdgeTapRef.current = null;
+    beginScaleEdgeEdit(labelArm.id);
+    return;
+  }
+
+  scaleEdgeTapRef.current = {
+    id: labelArm.id,
+    t: now,
+    x: e.clientX,
+    y: e.clientY,
+  };
+}
 
 type PinnedTip = {
   id: string;
@@ -2055,33 +2099,13 @@ export function TrendChart({
 
     if (labelArm && labelArm.pointerId === e.pointerId && !edgeDragRef.current) {
       labelDragArmRef.current = null;
-      const dist = Math.hypot(e.clientX - labelArm.x, e.clientY - labelArm.y);
-      const isTouchLike =
-        labelArm.pointerType === "touch" || labelArm.pointerType === "pen";
-      if (
-        isTouchLike &&
-        dist <= SCALE_EDGE_TAP_SLOP_PX &&
-        onScaleEdgeNumericCommit
-      ) {
-        const now = Date.now();
-        const prev = scaleEdgeTapRef.current;
-        if (
-          prev &&
-          prev.id === labelArm.id &&
-          now - prev.t <= SCALE_EDGE_DOUBLE_TAP_MS &&
-          Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <=
-            SCALE_EDGE_DOUBLE_TAP_SLOP_PX
-        ) {
-          scaleEdgeTapRef.current = null;
-          beginScaleEdgeEdit(labelArm.id);
-        } else {
-          scaleEdgeTapRef.current = {
-            id: labelArm.id,
-            t: now,
-            x: e.clientX,
-            y: e.clientY,
-          };
-        }
+      if (onScaleEdgeNumericCommit) {
+        handleScaleEdgeDoubleTap(
+          e,
+          labelArm,
+          scaleEdgeTapRef,
+          beginScaleEdgeEdit,
+        );
       }
       return;
     }
@@ -2351,20 +2375,21 @@ export function TrendChart({
     return i % markerStride === 0;
   };
 
-  const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / 5));
+  const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / TREND_CHART_TICK_TARGET));
   const tickIndices = useMemo(() => {
     if (n <= 0) return [] as number[];
     if (n === 1) return [0];
 
     const every = Math.max(1, autoTick);
+    const tickTarget =
+      tickEvery != null ? Math.max(1, Math.ceil(n / every)) : TREND_CHART_TICK_TARGET;
     const candidates: number[] = [];
     for (let i = 0; i < n; i += every) candidates.push(i);
     if (candidates[candidates.length - 1] !== n - 1) {
       candidates.push(n - 1);
     }
 
-    // 라벨 폭을 고려한 최소 간격 — 끝점과 직전이 붙으면 끝점을 남기고 직전 제거
-    const minGap = Math.max(every, Math.ceil(n / 5));
+    const minGap = trendChartTickMinGap(n, every, tickTarget);
     const out: number[] = [candidates[0]!];
     for (let k = 1; k < candidates.length; k++) {
       const idx = candidates[k]!;
@@ -3862,15 +3887,15 @@ export function TrendChart({
               key={`tick-${i}-${fullLabel}`}
               className={cn(
                 "pointer-events-none absolute top-1 farm-chart-fs-axis leading-none text-muted-foreground",
-                align === "left" && "left-0 max-w-[30%] truncate text-left",
+                align === "left" && "left-0 max-w-[18%] truncate text-left",
                 align === "right" &&
                   !labelGutter &&
-                  "right-0 max-w-[30%] truncate text-right",
+                  "right-0 max-w-[18%] truncate text-right",
                 align === "right" &&
                   labelGutter &&
-                  "max-w-[30%] -translate-x-full truncate text-right",
+                  "max-w-[18%] -translate-x-full truncate text-right",
                 align === "center" &&
-                  "max-w-[22%] -translate-x-1/2 truncate text-center",
+                  "max-w-[12%] -translate-x-1/2 truncate text-center",
               )}
               style={
                 align === "center" || (align === "right" && labelGutter)

@@ -18,16 +18,16 @@ export type TrendPeriodConfig = {
   strideMs: number;
 };
 
-const HOUR = 60 * 60 * 1000;
 const MINUTE = 60 * 1000;
-const DAY = 24 * HOUR;
+const DAY = 24 * 60 * 60 * 1000;
 
 /**
- * Source buckets are finer than GRAPH_BARS so heatmap can binWorst
- * (crisis / short excursions). Display stays 24 / 28 / 30 columns.
- *   24h: 15m × 96  → 24 (worst of 4)
- *   7d:  1h × 168  → 28 (worst of 6)
- *   30d: 1h × 720  → 30 (worst of 24 = 1 day)
+ * Canonical bucket: 15 minutes for all periods (shared time grid).
+ * Source buckets are finer than GRAPH_BARS so heatmap can binWorst.
+ * Display stays 24 / 28 / 30 columns.
+ *   24h: 15m × 96   → 24 (worst of 4)
+ *   7d:  15m × 672  → 28 (worst of 24)
+ *   30d: 15m × 2880 → 30 (worst of 96)
  */
 export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
   "24h": {
@@ -41,18 +41,18 @@ export const TREND_PERIODS: Record<TrendPeriodId, TrendPeriodConfig> = {
   "7d": {
     id: "7d",
     label: "7일",
-    bucket: "1 hour",
+    bucket: "15 minutes",
     durationMs: 7 * DAY,
-    bucketCount: 168,
-    strideMs: HOUR,
+    bucketCount: 7 * 24 * 4,
+    strideMs: 15 * MINUTE,
   },
   "30d": {
     id: "30d",
     label: "30일",
-    bucket: "1 hour",
+    bucket: "15 minutes",
     durationMs: 30 * DAY,
-    bucketCount: 720,
-    strideMs: HOUR,
+    bucketCount: 30 * 24 * 4,
+    strideMs: 15 * MINUTE,
   },
 };
 

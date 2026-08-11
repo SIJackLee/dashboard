@@ -46,11 +46,8 @@ type Props = {
   layout?: "default" | "sheetCompact";
 };
 
-function tickEveryForPeriod(period: TrendPeriodId, count: number): number {
-  if (count <= 5) return 1;
-  if (period === "24h") return Math.max(1, Math.ceil(count / 5));
-  if (period === "7d") return Math.max(1, Math.ceil(count / 5));
-  return Math.max(1, Math.ceil(count / 5));
+function tickEveryForPeriod(_period: TrendPeriodId, count: number): number {
+  return tickEveryForDisplayBars(count, { compact: true });
 }
 
 export function BarnListGraphPanel({

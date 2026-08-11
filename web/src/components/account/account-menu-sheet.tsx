@@ -3,9 +3,9 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -20,6 +20,8 @@ type Props = {
 };
 
 type SheetMotionState = "open" | "exit";
+
+const emptySubscribe = () => () => {};
 
 function resolvePortalRoot(compact: boolean): HTMLElement | null {
   if (typeof window === "undefined") return null;
@@ -41,59 +43,90 @@ function measureHeaderBottom(portalRoot: HTMLElement): number {
   return Math.round(headerRect.bottom);
 }
 
+function subscribeSheetLayout(
+  compact: boolean,
+  enabled: boolean,
+  onStoreChange: () => void,
+) {
+  if (!enabled || typeof window === "undefined") return () => {};
+  const header = document.querySelector("[data-app-header]");
+  const root = resolvePortalRoot(compact);
+  const ro =
+    typeof ResizeObserver !== "undefined"
+      ? new ResizeObserver(onStoreChange)
+      : null;
+  if (header) ro?.observe(header);
+  if (root && root !== document.body) ro?.observe(root);
+  window.addEventListener("resize", onStoreChange);
+  window.addEventListener("scroll", onStoreChange, true);
+  return () => {
+    ro?.disconnect();
+    window.removeEventListener("resize", onStoreChange);
+    window.removeEventListener("scroll", onStoreChange, true);
+  };
+}
+
+type SheetLayoutSnapshot = {
+  portalRoot: HTMLElement | null;
+  headerBottom: number;
+};
+
+const EMPTY_SHEET_LAYOUT: SheetLayoutSnapshot = {
+  portalRoot: null,
+  headerBottom: 0,
+};
+
+function useSheetLayout(compact: boolean, enabled: boolean) {
+  const snapshotRef = useRef<SheetLayoutSnapshot>(EMPTY_SHEET_LAYOUT);
+
+  const getSnapshot = useCallback(() => {
+    if (!enabled || typeof window === "undefined") {
+      return EMPTY_SHEET_LAYOUT;
+    }
+    const portalRoot = resolvePortalRoot(compact);
+    const headerBottom = portalRoot ? measureHeaderBottom(portalRoot) : 0;
+    const prev = snapshotRef.current;
+    if (prev.portalRoot === portalRoot && prev.headerBottom === headerBottom) {
+      return prev;
+    }
+    const next = { portalRoot, headerBottom };
+    snapshotRef.current = next;
+    return next;
+  }, [compact, enabled]);
+
+  return useSyncExternalStore(
+    (onStoreChange) => subscribeSheetLayout(compact, enabled, onStoreChange),
+    getSnapshot,
+    () => EMPTY_SHEET_LAYOUT,
+  );
+}
+
 export function AccountMenuSheet({ open, onOpenChange, children }: Props) {
   const compact = useHydrationSafeDashboardCompact();
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
-  const [motionState, setMotionState] = useState<SheetMotionState>("open");
-  const [headerBottom, setHeaderBottom] = useState(0);
-  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const [sheet, setSheet] = useState({
+    visible: false,
+    motion: "open" as SheetMotionState,
+    lastOpen: open,
+  });
   const panelRef = useRef<HTMLDivElement>(null);
-  const exitFinishedRef = useRef(false);
+
+  if (open !== sheet.lastOpen) {
+    if (open) {
+      setSheet({ visible: true, motion: "open", lastOpen: open });
+    } else {
+      setSheet((prev) => ({
+        ...prev,
+        motion: "exit",
+        lastOpen: open,
+      }));
+    }
+  }
+
+  const { visible, motion: motionState } = sheet;
+  const { portalRoot, headerBottom } = useSheetLayout(compact, visible && mounted);
   const inPreviewFrame =
     portalRoot != null && portalRoot !== document.body;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      exitFinishedRef.current = false;
-      setVisible(true);
-      setMotionState("open");
-      return;
-    }
-    if (visible) {
-      setMotionState("exit");
-    }
-  }, [open, visible]);
-
-  const syncLayout = useCallback(() => {
-    const root = resolvePortalRoot(compact);
-    if (!root) return;
-    setPortalRoot(root);
-    setHeaderBottom(measureHeaderBottom(root));
-  }, [compact]);
-
-  useLayoutEffect(() => {
-    if (!visible) return;
-    syncLayout();
-    const header = document.querySelector("[data-app-header]");
-    const root = resolvePortalRoot(compact);
-    if (!root) return;
-    const ro = new ResizeObserver(syncLayout);
-    if (header) ro.observe(header);
-    if (root !== document.body) ro.observe(root);
-    window.addEventListener("resize", syncLayout);
-    window.addEventListener("scroll", syncLayout, true);
-
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", syncLayout);
-      window.removeEventListener("scroll", syncLayout, true);
-    };
-  }, [visible, compact, syncLayout]);
 
   useEffect(() => {
     if (!visible) return;
@@ -128,10 +161,10 @@ export function AccountMenuSheet({ open, onOpenChange, children }: Props) {
   }, [motionState, visible]);
 
   const finishExit = useCallback(() => {
-    if (exitFinishedRef.current) return;
-    exitFinishedRef.current = true;
-    setVisible(false);
-    setMotionState("open");
+    setSheet((prev) => {
+      if (!prev.visible || prev.motion !== "exit") return prev;
+      return { ...prev, visible: false, motion: "open" };
+    });
   }, []);
 
   const handlePanelAnimationEnd = useCallback(

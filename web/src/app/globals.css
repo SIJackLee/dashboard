@@ -2302,6 +2302,25 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     var(--motion-ease-enter) both;
 }
 
+/* DELIN 탭 — 기상 권장 pending 알림 glow */
+@keyframes delin-tab-nudge-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--primary) 28%, transparent),
+      0 0 0 0 var(--aria-glow);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--primary) 42%, transparent),
+      0 0 14px 2px var(--aria-glow);
+  }
+}
+
+[data-delin-nudge-pending="1"] {
+  animation: delin-tab-nudge-glow 2.4s var(--motion-ease-standard) infinite;
+}
+
 .aria-orb-pulse-listen {
   animation: aria-orb-pulse-listen var(--motion-aria-listen-period)
     var(--motion-ease-standard) infinite;
@@ -2381,6 +2400,7 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   .aria-orb-core-speak,
   .aria-dock-in,
   .aria-shell-stage-glow,
+  [data-delin-nudge-pending="1"],
   .aria-stage-metrics-rail,
   .aria-stage-metrics-hero,
   .aria-stage-metrics-panel[data-emphasized="1"],

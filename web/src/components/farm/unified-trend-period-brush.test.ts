@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import {
   BRUSH_PERIOD_WINDOW,
+  resolveBrushHighlightWindow,
   resolveBrushPeriodFromDraft,
   snapBrushSpanToPeriod,
 } from "./unified-trend-period-brush";
@@ -37,6 +38,32 @@ import {
   assert.equal(BRUSH_PERIOD_WINDOW["30d"].width, 1);
   assert.ok(BRUSH_PERIOD_WINDOW["7d"].start > 0.7);
   assert.ok(BRUSH_PERIOD_WINDOW["24h"].start > BRUSH_PERIOD_WINDOW["7d"].start);
+}
+
+{
+  const full30 = resolveBrushHighlightWindow("30d", null, 100);
+  assert.equal(full30.start, 0);
+  assert.equal(full30.width, 1);
+
+  const scoped30 = resolveBrushHighlightWindow(
+    "30d",
+    { start: 20, end: 80 },
+    101,
+  );
+  assert.ok(Math.abs(scoped30.start - 0.2) < 0.001);
+  assert.ok(Math.abs(scoped30.width - 0.6) < 0.001);
+
+  const scoped7Half = resolveBrushHighlightWindow(
+    "7d",
+    { start: 0, end: 25 },
+    51,
+  );
+  assert.ok(
+    Math.abs(scoped7Half.start - BRUSH_PERIOD_WINDOW["7d"].start) < 0.001,
+  );
+  assert.ok(
+    Math.abs(scoped7Half.width - BRUSH_PERIOD_WINDOW["7d"].width * 0.5) < 0.001,
+  );
 }
 
 console.log("unified-trend-period-brush.test.ts: ok");

@@ -610,6 +610,34 @@ export function VoiceReportFab({
 
   const panelControls = (
     <>
+      {showSuggestionChips && isDock ? (
+        <div
+          className="mb-2 flex flex-wrap justify-center gap-1.5"
+          role="group"
+          aria-label="추천 질문"
+        >
+          {DELIN_SUGGESTION_CHIPS.map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setQuestion(chip.ask);
+                void submitAsk({ text: chip.ask });
+              }}
+              className={cn(
+                "rounded-full border border-primary/25 bg-primary/5 px-2.5 py-1",
+                "text-[11px] font-medium text-foreground/90",
+                "hover:border-primary/40 hover:bg-primary/10",
+                "disabled:opacity-50",
+              )}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className={cn("mb-2 flex gap-1.5", isDock && "mb-3")}>
         {status === "recording" ? (
           <button
@@ -666,7 +694,7 @@ export function VoiceReportFab({
         </div>
       ) : null}
 
-      {showSuggestionChips ? (
+      {showSuggestionChips && !isDock ? (
         <div
           className="mb-2 flex flex-wrap justify-center gap-1.5"
           role="group"

@@ -66,7 +66,7 @@ const noMarkDigitClass = cn(
 /** 컨트롤러 번호 — 장치 아이콘 우하단에 번호 오버레이 (aria에 정식 명칭)
  *  B안: 아이콘 muted · 번호 foreground · 글자 둘레 얇은 할로
  */
-function ControllerNoMark({
+export function ControllerNoMark({
   eqpmnNo,
   className,
   iconClassName,

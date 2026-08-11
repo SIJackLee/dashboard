@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import type { BarnReading } from "@/lib/data/iot";
 import {
   motionDuration,
@@ -8,6 +8,40 @@ import {
 } from "@/lib/ui/motion-tokens";
 
 export type FieldListFilterPhase = "idle" | "exiting" | "entering";
+
+type MotionState = {
+  displayRows: BarnReading[];
+  phase: FieldListFilterPhase;
+  enterEpoch: number;
+  committedKey: string;
+};
+
+type MotionAction =
+  | { type: "sync_rows"; rows: BarnReading[] }
+  | { type: "begin_exit" }
+  | { type: "apply_filter"; rows: BarnReading[]; filterKey: string }
+  | { type: "finish_enter" };
+
+function motionReducer(state: MotionState, action: MotionAction): MotionState {
+  switch (action.type) {
+    case "sync_rows":
+      return { ...state, displayRows: action.rows };
+    case "begin_exit":
+      return { ...state, phase: "exiting" };
+    case "apply_filter":
+      return {
+        ...state,
+        displayRows: action.rows,
+        committedKey: action.filterKey,
+        enterEpoch: state.enterEpoch + 1,
+        phase: "entering",
+      };
+    case "finish_enter":
+      return { ...state, phase: "idle" };
+    default:
+      return state;
+  }
+}
 
 /**
  * 현장 좌측 축사 필터 — exit fade → rows 교체 → enter stagger.
@@ -21,54 +55,70 @@ export function useFieldListFilterMotion(
   phase: FieldListFilterPhase;
   enterEpoch: number;
 } {
-  const [displayRows, setDisplayRows] = useState(rows);
-  const [phase, setPhase] = useState<FieldListFilterPhase>("idle");
-  const [enterEpoch, setEnterEpoch] = useState(0);
-  const [committedKey, setCommittedKey] = useState(filterKey);
-  const pendingRowsRef = useRef(rows);
-  const bootRef = useRef(true);
-
-  pendingRowsRef.current = rows;
+  const rowsRef = useRef(rows);
 
   useEffect(() => {
-    if (bootRef.current) {
-      bootRef.current = false;
-      setDisplayRows(rows);
-      setCommittedKey(filterKey);
-      return;
-    }
-    if (filterKey === committedKey) return;
+    rowsRef.current = rows;
+  });
+
+  const [state, dispatch] = useReducer(motionReducer, {
+    displayRows: rows,
+    phase: "idle",
+    enterEpoch: 0,
+    committedKey: filterKey,
+  });
+
+  if (
+    state.phase === "idle" &&
+    filterKey === state.committedKey &&
+    state.displayRows !== rows
+  ) {
+    dispatch({ type: "sync_rows", rows });
+  }
+
+  if (filterKey !== state.committedKey && state.phase !== "exiting") {
+    dispatch({ type: "begin_exit" });
+  }
+
+  useEffect(() => {
+    if (state.phase !== "exiting") return;
 
     let cancelled = false;
-    let enterTimer = 0;
-    setPhase("exiting");
-
     const exitTimer = window.setTimeout(() => {
       if (cancelled) return;
-      const next = pendingRowsRef.current;
-      setDisplayRows(next);
-      setCommittedKey(filterKey);
-      setEnterEpoch((n) => n + 1);
-      setPhase("entering");
-      const staggerTail =
-        Math.min(12, Math.max(0, next.length - 1)) * motionStaggerStepMs;
-      enterTimer = window.setTimeout(() => {
-        if (!cancelled) setPhase("idle");
-      }, motionDuration.moderate + staggerTail);
+      dispatch({
+        type: "apply_filter",
+        rows: rowsRef.current,
+        filterKey,
+      });
     }, motionDuration.exit);
 
     return () => {
       cancelled = true;
       window.clearTimeout(exitTimer);
-      window.clearTimeout(enterTimer);
     };
-  }, [filterKey, committedKey]);
+  }, [state.phase, filterKey]);
 
   useEffect(() => {
-    if (phase !== "idle") return;
-    if (filterKey !== committedKey) return;
-    setDisplayRows(rows);
-  }, [rows, phase, filterKey, committedKey]);
+    if (state.phase !== "entering") return;
 
-  return { displayRows, phase, enterEpoch };
+    let cancelled = false;
+    const staggerTail =
+      Math.min(12, Math.max(0, state.displayRows.length - 1)) *
+      motionStaggerStepMs;
+    const enterTimer = window.setTimeout(() => {
+      if (!cancelled) dispatch({ type: "finish_enter" });
+    }, motionDuration.moderate + staggerTail);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(enterTimer);
+    };
+  }, [state.phase, state.enterEpoch, state.displayRows.length]);
+
+  return {
+    displayRows: state.displayRows,
+    phase: state.phase,
+    enterEpoch: state.enterEpoch,
+  };
 }

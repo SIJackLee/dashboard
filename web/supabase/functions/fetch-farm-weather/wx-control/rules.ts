@@ -40,7 +40,7 @@ function matchRiseVent(ctx: WeatherRuleContext): WeatherRuleDraft | null {
   if (rise < 3) return null;
 
   const internal = ctx.internalTempC;
-  if (internal == null || internal < ext - 2) return null;
+  if (internal == null || internal < ext - 4) return null;
   if (ctx.current.maxVentPct >= 90) return null;
 
   const proposed = proposeRiseVent(ctx.current);
@@ -67,16 +67,20 @@ function matchDropHeat(ctx: WeatherRuleContext): WeatherRuleDraft | null {
   if (min3h > ext - 3) return null;
   if (ctx.current.setpointTemp <= 18) return null;
 
+  const internal = ctx.internalTempC;
+  if (internal == null || internal - min3h >= 2) return null;
+
   const proposed = proposeDropHeat(ctx.current);
   if (thermoValuesEqual(proposed, ctx.current)) return null;
 
   return {
     ruleId: "wx_drop_heat",
     reasonKo:
-      "앞으로 외기가 식을 예정이어서 목표온도를 1°C 낮추는 것을 권장합니다.",
+      "앞으로 외기가 식을 예정이고 실내가 함께 내려갈 여지가 있어 목표온도를 1°C 낮추는 것을 권장합니다.",
     reasonFacts: {
       externalNow: ext,
       forecastMin3h: min3h,
+      internalTemp: internal,
       drop3h: ext - min3h,
     },
     proposed,

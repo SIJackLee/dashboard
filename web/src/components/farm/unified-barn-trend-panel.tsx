@@ -89,7 +89,6 @@ import {
   resolveYScopeBands,
   visibilityForYBands,
   maskLayersForYBands,
-  UNIFIED_Y_BAND_LABEL,
   isSingleYBandFocus,
   unmapHumPctFromSplitY,
   unmapMotorPctFromSplitY,
@@ -656,6 +655,14 @@ export function UnifiedBarnTrendPanel({
     [onZoomChange, picked?.categories.length],
   );
 
+  /** 부모 URL 동기화 — 렌더/updater 중 setState 금지 */
+  const deferEmitZoom = useCallback(
+    (entry: ScopeEntry | null) => {
+      queueMicrotask(() => emitZoom(entry));
+    },
+    [emitZoom],
+  );
+
   const commitXScope = (
     range: {
       start: number;
@@ -705,25 +712,22 @@ export function UnifiedBarnTrendPanel({
       setXScopeStack((stack) => [...stack, next]);
     }
     bumpScopeMotion("in");
-    emitZoom(next);
+    deferEmitZoom(next);
   };
 
   const popXScope = () => {
-    setXScopeStack((stack) => {
-      if (stack.length === 0) return stack;
-      const next = stack.slice(0, -1);
-      emitZoom(next.length > 0 ? next[next.length - 1]! : null);
-      return next;
-    });
-    if (xScopeStack.length > 0) {
-      bumpScopeMotion(xScopeStack.length <= 1 ? "out" : "in");
-    }
+    if (xScopeStack.length === 0) return;
+    const nextStack = xScopeStack.slice(0, -1);
+    const entry = nextStack.length > 0 ? nextStack[nextStack.length - 1]! : null;
+    setXScopeStack(nextStack);
+    bumpScopeMotion(xScopeStack.length <= 1 ? "out" : "in");
+    deferEmitZoom(entry);
   };
 
   const clearXScope = () => {
     if (xScopeStack.length > 0) bumpScopeMotion("out");
     setXScopeStack([]);
-    emitZoom(null);
+    deferEmitZoom(null);
   };
 
   useEffect(() => {
@@ -1766,28 +1770,12 @@ export function UnifiedBarnTrendPanel({
                   motionClass.farmChartScopeChipIn,
                 )}
               >
-                <span className="shrink-0">
-                  {focusBandActive
-                    ? UNIFIED_Y_BAND_LABEL[focusBandActive]
-                    : "구간 줌"}
-                </span>
-                {xScope.yBands?.length && !focusBandActive ? (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded bg-channel-info/15 px-1 py-px",
-                    )}
-                  >
-                    {xScope.yBands
-                      .map((b) => UNIFIED_Y_BAND_LABEL[b])
-                      .join("+")}
-                  </span>
-                ) : null}
                 {xScopeStack.length > 1 ? (
                   <span className="shrink-0 tabular-nums opacity-80">
                     ×{xScopeStack.length}
                   </span>
                 ) : null}
-                <span className="min-w-0 truncate tabular-nums opacity-90">
+                <span className="min-w-0 truncate tabular-nums">
                   {formatTrendScopeRangeLabel(
                     picked.categories[xScope.start] ?? "",
                     picked.categories[xScope.end] ?? "",
@@ -1795,7 +1783,7 @@ export function UnifiedBarnTrendPanel({
                 </span>
                 <button
                   type="button"
-                  aria-label="구간 줌 전체 해제"
+                  aria-label="스코프 해제"
                   onClick={clearXScope}
                   className={cn(
                     "inline-flex size-5 shrink-0 items-center justify-center rounded border border-current/30",
@@ -1918,6 +1906,8 @@ export function UnifiedBarnTrendPanel({
             onPeriodChange(next);
           }}
           overviewValues={brushOverview}
+          xScope={xScope}
+          chartPointCount={picked?.categories.length ?? 0}
         />
       ) : null}
     </div>

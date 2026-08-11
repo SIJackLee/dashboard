@@ -72,6 +72,31 @@ function alignedToMs(now: number): number {
   return Math.floor(now / CACHE_SLOT_MS) * CACHE_SLOT_MS;
 }
 
+/** PostgREST page size — must match supabase/config.toml max_rows. */
+const RPC_PAGE_SIZE = 1000;
+/** Safety cap: 30d×15m×~20 controllers ≈ 38 pages. */
+const RPC_MAX_PAGES = 50;
+
+async function fetchRpcAllPages<T>(
+  accessToken: string,
+  rpcName: string,
+  args: Record<string, string>,
+): Promise<T[]> {
+  const supabase = createRlsClient(accessToken);
+  const out: T[] = [];
+  for (let page = 0; page < RPC_MAX_PAGES; page++) {
+    const from = page * RPC_PAGE_SIZE;
+    const to = from + RPC_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .rpc(rpcName as never, args as never)
+      .range(from, to);
+    if (error || !data?.length) break;
+    out.push(...(data as T[]));
+    if (data.length < RPC_PAGE_SIZE) break;
+  }
+  return out;
+}
+
 async function fetchTrendRows(
   accessToken: string,
   farmKey: FarmKey,
@@ -79,19 +104,13 @@ async function fetchTrendRows(
   toIso: string,
   bucket: string,
 ): Promise<RpcRow[]> {
-  const supabase = createRlsClient(accessToken);
-  const { data, error } = await supabase.rpc(
-    "farm_trend_history" as never,
-    {
-      p_lsind: farmKey.lsindRegistNo,
-      p_item: farmKey.itemCode,
-      p_from: fromIso,
-      p_to: toIso,
-      p_bucket: bucket,
-    } as never,
-  );
-  if (error || !data) return [];
-  return data as unknown as RpcRow[];
+  return fetchRpcAllPages<RpcRow>(accessToken, "farm_trend_history", {
+    p_lsind: farmKey.lsindRegistNo,
+    p_item: farmKey.itemCode,
+    p_from: fromIso,
+    p_to: toIso,
+    p_bucket: bucket,
+  });
 }
 
 async function fetchControllerTrendRows(
@@ -101,19 +120,17 @@ async function fetchControllerTrendRows(
   toIso: string,
   bucket: string,
 ): Promise<ControllerRpcRow[]> {
-  const supabase = createRlsClient(accessToken);
-  const { data, error } = await supabase.rpc(
-    "farm_trend_history_by_controller" as never,
+  return fetchRpcAllPages<ControllerRpcRow>(
+    accessToken,
+    "farm_trend_history_by_controller",
     {
       p_lsind: farmKey.lsindRegistNo,
       p_item: farmKey.itemCode,
       p_from: fromIso,
       p_to: toIso,
       p_bucket: bucket,
-    } as never,
+    },
   );
-  if (error || !data) return [];
-  return data as unknown as ControllerRpcRow[];
 }
 
 function eqpmnSortKey(eqpmnNo: string): number {
@@ -140,9 +157,8 @@ function formatBucketLabel(date: Date, period: TrendPeriodId): string {
   const hh = String(date.getHours()).padStart(2, "0");
   const min = String(date.getMinutes()).padStart(2, "0");
   if (period === "24h") return `${hh}:${min}`;
-  // 7d — 짧은 라벨(M/D HH). 「시」접미·공백 과다로 X축 겹침 방지
-  if (period === "7d") return `${mm}/${dd} ${hh}`;
-  return `${mm}/${dd}`;
+  // 7d/30d — 15m canonical · M/D HH (툴팁·호버; tick은 abbreviateTrendAxisLabel)
+  return `${mm}/${dd} ${hh}:${min}`;
 }
 
 /** Build a continuous, gap-aware time axis grouped by SP. */
@@ -319,7 +335,7 @@ export async function getFarmTrendHistory(params: {
   const scopeKey = farmKeyId(params.farmKey);
 
   const rows = await cachedLiveQuery(
-    ["farm-trend", userId, scopeKey, params.period, String(toMs)],
+    ["farm-trend", userId, scopeKey, params.period, String(toMs), "rpc-paged"],
     ["live", `trend:${scopeKey}`],
     () =>
       fetchTrendRows(
@@ -334,19 +350,27 @@ export async function getFarmTrendHistory(params: {
   return buildPeriodData(rows, params.period, fromMs);
 }
 
-/** SSR — 24h(15m) + 30d(1h). 7d는 30d에서 파생(동일 1h 버킷). */
+/** SSR — canonical 30d(15m) 1회 → 7d/24h slice. */
 export async function getFarmTrendAllPeriods(params: {
   farmKey: FarmKey;
   now?: number;
 }): Promise<Record<TrendPeriodId, TrendPeriodData>> {
   const now = params.now ?? Date.now();
-  const [h24, d30] = await Promise.all([
-    getFarmTrendHistory({ farmKey: params.farmKey, period: "24h", now }),
-    getFarmTrendHistory({ farmKey: params.farmKey, period: "30d", now }),
-  ]);
+  const d30 = await getFarmTrendHistory({
+    farmKey: params.farmKey,
+    period: "30d",
+    now,
+  });
+  const d7Slice = sliceStallTrendFromLonger(d30, "7d");
   const d7 =
-    sliceStallTrendFromLonger(d30, "7d") ??
-    (await getFarmTrendHistory({ farmKey: params.farmKey, period: "7d", now }));
+    d7Slice && d7Slice.totalSamples > 0
+      ? d7Slice
+      : await getFarmTrendHistory({ farmKey: params.farmKey, period: "7d", now });
+  const h24Slice = sliceStallTrendFromLonger(d30, "24h");
+  const h24 =
+    h24Slice && h24Slice.totalSamples > 0
+      ? h24Slice
+      : await getFarmTrendHistory({ farmKey: params.farmKey, period: "24h", now });
   return { "24h": h24, "7d": d7, "30d": d30 };
 }
 
@@ -374,7 +398,14 @@ export async function getFarmControllerTrendHistory(params: {
   const scopeKey = farmKeyId(params.farmKey);
 
   const rows = await cachedLiveQuery(
-    ["farm-controller-trend", userId, scopeKey, params.period, String(toMs)],
+    [
+      "farm-controller-trend",
+      userId,
+      scopeKey,
+      params.period,
+      String(toMs),
+      "rpc-paged",
+    ],
     ["live", `controller-trend:${scopeKey}`],
     () =>
       fetchControllerTrendRows(
@@ -389,30 +420,34 @@ export async function getFarmControllerTrendHistory(params: {
   return buildControllerPeriodData(rows, params.period, fromMs);
 }
 
-/** 목록 그래프 — 24h(15m) + 30d(1h). 7d는 30d에서 파생. */
+/** 목록 그래프 — canonical 30d(15m) 1회 → 7d/24h slice. */
 export async function getFarmControllerTrendAllPeriods(params: {
   farmKey: FarmKey;
   now?: number;
 }): Promise<Record<TrendPeriodId, TrendControllerPeriodData>> {
   const now = params.now ?? Date.now();
-  const [h24, d30] = await Promise.all([
-    getFarmControllerTrendHistory({
-      farmKey: params.farmKey,
-      period: "24h",
-      now,
-    }),
-    getFarmControllerTrendHistory({
-      farmKey: params.farmKey,
-      period: "30d",
-      now,
-    }),
-  ]);
+  const d30 = await getFarmControllerTrendHistory({
+    farmKey: params.farmKey,
+    period: "30d",
+    now,
+  });
+  const d7Slice = sliceControllerTrendFromLonger(d30, "7d");
   const d7 =
-    sliceControllerTrendFromLonger(d30, "7d") ??
-    (await getFarmControllerTrendHistory({
-      farmKey: params.farmKey,
-      period: "7d",
-      now,
-    }));
+    d7Slice && d7Slice.totalSamples > 0
+      ? d7Slice
+      : await getFarmControllerTrendHistory({
+          farmKey: params.farmKey,
+          period: "7d",
+          now,
+        });
+  const h24Slice = sliceControllerTrendFromLonger(d30, "24h");
+  const h24 =
+    h24Slice && h24Slice.totalSamples > 0
+      ? h24Slice
+      : await getFarmControllerTrendHistory({
+          farmKey: params.farmKey,
+          period: "24h",
+          now,
+        });
   return { "24h": h24, "7d": d7, "30d": d30 };
 }

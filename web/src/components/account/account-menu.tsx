@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { RecentActivityMenuSection } from "@/components/account/recent-activity-menu-section";
 import { AccountMenuHub } from "@/components/account/account-menu-hub";
@@ -67,7 +67,6 @@ export function AccountMenu({
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { navigate: appNavigate } = useAppNavigate();
   const mobile = useMobileLayout();
   const [open, setOpen] = useState(false);
@@ -88,7 +87,9 @@ export function AccountMenu({
   const navigateToFarm = useCallback(
     (farmKey: FarmKey) => {
       setOpen(false);
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(
+        typeof window !== "undefined" ? window.location.search : "",
+      );
       params.delete("lsind");
       params.delete("item");
       appendFarmKeyParams(params, farmKey);
@@ -100,7 +101,7 @@ export function AccountMenu({
       }
       router.push(href);
     },
-    [appNavigate, pathname, router, searchParams],
+    [appNavigate, pathname, router],
   );
 
   const handleOpenChange = useCallback((next: boolean) => {
@@ -111,7 +112,7 @@ export function AccountMenu({
   const triggerClassName = cn(
     "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60",
     motionClass.microInteractive,
-    open && "bg-muted/60",
+    mounted && open && "bg-muted/60",
   );
 
   const triggerInner = (
@@ -129,7 +130,7 @@ export function AccountMenu({
           motionClass.transitionTransform,
           motionClass.durationNormal,
           motionClass.easeStandard,
-          open && "rotate-180",
+          mounted && open && "rotate-180",
         )}
         aria-hidden
       />
@@ -153,19 +154,6 @@ export function AccountMenu({
     </button>
   );
 
-  if (!mounted) {
-    return (
-      <button
-        type="button"
-        className={triggerClassName}
-        data-tour-id="header-account"
-        aria-label="계정 메뉴"
-      >
-        {triggerInner}
-      </button>
-    );
-  }
-
   return (
     <>
       <button
@@ -173,14 +161,16 @@ export function AccountMenu({
         className={triggerClassName}
         data-tour-id="header-account"
         aria-label="계정 메뉴"
-        aria-expanded={open}
-        aria-controls="account-menu-sheet"
+        aria-expanded={mounted ? open : undefined}
+        aria-controls={mounted ? "account-menu-sheet" : undefined}
         onClick={() => handleOpenChange(!open)}
+        suppressHydrationWarning
       >
         {triggerInner}
       </button>
 
-      <AccountMenuSheet open={open} onOpenChange={handleOpenChange}>
+      {mounted ? (
+        <AccountMenuSheet open={open} onOpenChange={handleOpenChange}>
         <AccountMenuHub
           name={name}
           initial={initial}
@@ -215,6 +205,7 @@ export function AccountMenu({
           onItemNavigate={navigateToFarm}
         />
       </AccountMenuSheet>
+      ) : null}
     </>
   );
 }

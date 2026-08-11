@@ -19,12 +19,19 @@ assert.equal(rise?.proposed.maxVentPct, 70);
 
 const dropCtx = buildRuleContext(
   { tempC: 27, humidityPct: 55 },
-  { tempC: 26, humidityPct: 58, current },
+  { tempC: 24, humidityPct: 58, current },
   { maxTempC: 27, minTempC: 23 },
 );
 const drop = evaluateRules(dropCtx);
 assert.equal(drop?.ruleId, "wx_drop_heat");
 assert.equal(drop?.proposed.setpointTemp, 23);
+
+const dropInsulated = buildRuleContext(
+  { tempC: 27, humidityPct: 55 },
+  { tempC: 26, humidityPct: 58, current },
+  { maxTempC: 27, minTempC: 23 },
+);
+assert.equal(evaluateRules(dropInsulated), null);
 
 const humidCtx = buildRuleContext(
   { tempC: 25, humidityPct: 72 },

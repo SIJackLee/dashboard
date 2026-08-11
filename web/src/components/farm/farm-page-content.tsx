@@ -73,7 +73,6 @@ import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { DELIN_NAME } from "@/lib/aria/aria-mode";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
-import { DelinWeatherNudgeBubble } from "@/components/farm/delin-weather-nudge-bubble";
 import { useWeatherNudgePoll } from "@/lib/weather-control/use-weather-nudge-poll";
 import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 import { fetchThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
@@ -136,7 +135,6 @@ export function FarmPageContent({
   });
 
   const tablistRef = useRef<HTMLDivElement>(null);
-  const [delinTabEl, setDelinTabEl] = useState<HTMLElement | null>(null);
   const [tabPill, setTabPill] = useState({ left: 0, width: 0 });
   /** TopBar 보기 토글 슬롯 — undefined=미확인, null=없음, Element=portal */
   const [scopeToggleSlot, setScopeToggleSlot] = useState<
@@ -236,13 +234,11 @@ export function FarmPageContent({
     weatherNudgeEnabled &&
     delinEnabled() &&
     !tourActive &&
-    view !== "aria" &&
     Boolean(nudgeFarmKey);
   const { nudge: weatherNudge, dismissLocal: dismissWeatherNudge } =
     useWeatherNudgePoll(nudgeFarmKey, initialWeatherNudge, nudgeGate);
-  const showWeatherNudge =
-    nudgeGate && weatherNudge != null && !weatherNudge.stale && delinTabEl != null;
-  const canCommand = controller?.canCommand ?? false;
+  const hasWeatherNudge =
+    nudgeGate && weatherNudge != null && !weatherNudge.stale;
 
   const onWeatherNudgeApplied = useCallback(
     async (commandId: string) => {
@@ -687,8 +683,10 @@ export function FarmPageContent({
           aria-selected={view === "aria"}
           className={viewTabBtn(view === "aria")}
           onClick={() => setView("aria")}
-          ref={setDelinTabEl}
           data-delin-tab-anchor="1"
+          data-delin-nudge-pending={
+            hasWeatherNudge && view !== "aria" ? "1" : undefined
+          }
         >
           <Bot
             className={dashboardUi.iconSm}
@@ -719,17 +717,6 @@ export function FarmPageContent({
         : awaitingScopeSlot
           ? null
           : viewToggle}
-
-      {showWeatherNudge && weatherNudge ? (
-        <DelinWeatherNudgeBubble
-          nudge={weatherNudge}
-          anchorEl={delinTabEl}
-          canCommand={canCommand}
-          flipAbove={viewportCompact}
-          onDismiss={dismissWeatherNudge}
-          onApplied={(commandId) => void onWeatherNudgeApplied(commandId)}
-        />
-      ) : null}
 
       <div className="relative min-h-0 overflow-hidden" data-farm-view-slot>
         {fieldMerge ? (
@@ -930,6 +917,11 @@ export function FarmPageContent({
               alarmSettings={alarmSettings}
               thermoSettings={thermoSettings}
               canCommand={controller?.canCommand ?? false}
+              weatherNudge={hasWeatherNudge ? weatherNudge : null}
+              onWeatherNudgeDismiss={dismissWeatherNudge}
+              onWeatherNudgeApplied={(commandId) =>
+                void onWeatherNudgeApplied(commandId)
+              }
             />
           </div>
         ) : null}

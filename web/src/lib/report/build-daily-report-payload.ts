@@ -73,7 +73,7 @@ function avgColumns(
 
 /**
  * PDF용 시리즈 — UI GRAPH_BARS(24/28/30) 다운샘플 없이
- * RPC 정렬 버킷 그대로 (24h×96 / 7d×168 / 30d×720).
+ * RPC 정렬 버킷 그대로 (24h×96 / 7d×672 / 30d×2880 · 15분).
  * 축사 내 컨트롤러는 슬롯 평균만 적용.
  */
 function seriesFromControllers(

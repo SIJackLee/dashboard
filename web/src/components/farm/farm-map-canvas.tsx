@@ -265,12 +265,15 @@ export function FarmMapCanvas({
   const [detailSelectedReadingKey, setDetailSelectedReadingKey] = useState<
     string | null
   >(null);
+  const [lastBulkMode, setLastBulkMode] = useState(bulkMode);
 
-  useEffect(() => {
-    if (!bulkMode) return;
-    setExpanded(null);
-    setDetailSelectedReadingKey(null);
-  }, [bulkMode, setExpanded]);
+  if (bulkMode !== lastBulkMode) {
+    if (bulkMode) {
+      setExpanded(null);
+      setDetailSelectedReadingKey(null);
+    }
+    setLastBulkMode(bulkMode);
+  }
 
   const handleDetailClose = useCallback(() => {
     setExpanded(null);

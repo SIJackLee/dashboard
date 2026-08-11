@@ -10,7 +10,7 @@ export function applyThermoCaps(values: ThermoValues): ThermoValues {
     THERMO_CAPS.ventMin,
     THERMO_CAPS.ventMax,
   );
-  let maxVentPct = clamp(
+  const maxVentPct = clamp(
     Math.round(values.maxVentPct),
     THERMO_CAPS.ventMin,
     THERMO_CAPS.ventMax,

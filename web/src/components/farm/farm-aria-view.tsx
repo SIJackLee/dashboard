@@ -26,6 +26,12 @@ import {
   ariaStageFocusFromOrbMode,
 } from "@/components/farm/aria-stage-layout";
 import { VoiceReportFab } from "@/components/farm/voice-report-fab";
+import {
+  DelinWeatherNudgeMobile,
+  DelinWeatherRecommendInline,
+  DelinWeatherRecommendStrip,
+} from "@/components/farm/delin-weather-nudge-bubble";
+import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { DEFAULT_ALARM_SETTINGS } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -72,6 +78,7 @@ import {
 } from "@/lib/ui/delin-reveal-sequence";
 import { dashboardAriaShell } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 const METRICS_POLL_MS = 30_000;
 /** 이상상황 없을 때 soft metrics 간격 (visibility 게이트와 함께) */
@@ -99,6 +106,10 @@ type Props = {
   alarmSettings?: AlarmSettings;
   thermoSettings?: Record<string, ControllerThermoSettings>;
   canCommand?: boolean;
+  /** DELIN 탭 — 기상 권장 (인라인·모바일 패널) */
+  weatherNudge?: WeatherNudgeView | null;
+  onWeatherNudgeDismiss?: () => void;
+  onWeatherNudgeApplied?: (commandId: string) => void;
   className?: string;
 };
 
@@ -117,6 +128,9 @@ export function FarmAriaView({
   alarmSettings,
   thermoSettings,
   canCommand = false,
+  weatherNudge = null,
+  onWeatherNudgeDismiss,
+  onWeatherNudgeApplied,
   className,
 }: Props) {
   const isCompanion = variant === "companion";
@@ -142,6 +156,13 @@ export function FarmAriaView({
   }, [alarmSettings, facts, readings]);
 
   const hasResultSurface = stageAnswer != null;
+  const voiceActive = orbMode !== "idle" && orbMode !== "error";
+  const mobileLayout = useMobileLayout();
+  const showWeatherNudge =
+    !isCompanion && weatherNudge != null && onWeatherNudgeDismiss != null;
+  const nudgeCompact = showWeatherNudge && (hasResultSurface || voiceActive);
+  /** 좌·우(데스크) / 상·하(모바일) 추천 분할 — 말하기·결과면 제외 */
+  const nudgeSplitLayout = showWeatherNudge && !nudgeCompact;
   const focus =
     hasResultSurface && revealBeat !== "idle"
       ? ("metrics" as const)
@@ -435,66 +456,46 @@ export function FarmAriaView({
     panelLiveActive,
   ]);
 
-  return (
-    <div
+  const delinHeader = (
+    <header
       className={cn(
-        "flex min-h-[min(72dvh,34rem)] flex-col",
-        currentFarm && !hasResultSurface && "min-h-[min(80dvh,40rem)]",
-        hasResultSurface && !isCompanion && "min-h-[min(94dvh,56rem)]",
-        dashboardAriaShell.stage,
-        motionClass.enterFade,
-        className,
+        "relative z-[1] flex flex-col items-center gap-1 px-4 text-center",
+        hasResultSurface ? "pt-2 md:pt-3" : "pt-5 md:pt-7",
+        nudgeSplitLayout && mobileLayout && !hasResultSurface && "pt-3",
+        nudgeSplitLayout && "md:pt-6",
       )}
-      style={
-        currentFarm
-          ? ({
-              ["--aria-dock-clearance"]: hasResultSurface
-                ? "18rem"
-                : "16.5rem",
-            } as CSSProperties)
-          : undefined
-      }
-      data-tour-id="farm-aria-view"
-      data-testid="farm-aria-view"
-      data-aria-result={hasResultSurface ? "1" : "0"}
-      data-aria-reveal-beat={revealBeat}
     >
-      <div className={dashboardAriaShell.stageGlow} aria-hidden />
-
-      <header
-        className={cn(
-          "relative z-[1] flex flex-col items-center gap-1 px-4 text-center",
-          hasResultSurface ? "pt-2 md:pt-3" : "pt-5 md:pt-7",
-        )}
-      >
-        {hasResultSurface ? (
+      {hasResultSurface ? (
+        <h2
+          className="text-sm font-semibold tracking-tight text-primary md:text-base"
+          title={`${DELIN_FULL_NAME} · ${DELIN_FULL_NAME_KO}`}
+        >
+          {DELIN_NAME}
+        </h2>
+      ) : (
+        <>
           <h2
-            className="text-sm font-semibold tracking-tight text-primary md:text-base"
-            title={`${DELIN_FULL_NAME} · ${DELIN_FULL_NAME_KO}`}
+            className={dashboardAriaShell.title}
+            title={`${DELIN_FULL_NAME} · ${DELIN_FULL_NAME_KO} · ${DELIN_TAGLINE}`}
           >
             {DELIN_NAME}
           </h2>
-        ) : (
-          <>
-            <h2
-              className={dashboardAriaShell.title}
-              title={`${DELIN_FULL_NAME} · ${DELIN_FULL_NAME_KO} · ${DELIN_TAGLINE}`}
-            >
-              {DELIN_NAME}
-            </h2>
-            <p className={dashboardAriaShell.eyebrow}>{DELIN_NAME_KO}</p>
-          </>
-        )}
-        {!currentFarm ? (
-          <p className={dashboardAriaShell.warnMeta}>
-            농장을 선택하면 델린을 사용할 수 있습니다.
-          </p>
-        ) : null}
-        {metricsError && hasResultSurface ? (
-          <p className="text-[11px] text-destructive">{metricsError}</p>
-        ) : null}
-      </header>
+          <p className={dashboardAriaShell.eyebrow}>{DELIN_NAME_KO}</p>
+        </>
+      )}
+      {!currentFarm ? (
+        <p className={dashboardAriaShell.warnMeta}>
+          농장을 선택하면 델린을 사용할 수 있습니다.
+        </p>
+      ) : null}
+      {metricsError && hasResultSurface ? (
+        <p className="text-[11px] text-destructive">{metricsError}</p>
+      ) : null}
+    </header>
+  );
 
+  const delinStageAndDock = (
+    <>
       <AriaStageLayout
         focus={focus}
         metricsVisible={metricsVisible}
@@ -533,7 +534,9 @@ export function FarmAriaView({
         <div
           className={cn(
             dashboardAriaShell.dockSlot,
-            isMobileStack && "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+            nudgeSplitLayout && "md:inset-x-0",
+            (isMobileStack || mobileLayout) &&
+              "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
           )}
         >
           <div
@@ -566,6 +569,85 @@ export function FarmAriaView({
           </div>
         </div>
       ) : null}
+    </>
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex min-h-[min(72dvh,34rem)] flex-col",
+        currentFarm && !hasResultSurface && "min-h-[min(80dvh,40rem)]",
+        nudgeSplitLayout && "min-h-[min(80dvh,40rem)]",
+        nudgeSplitLayout && mobileLayout && "min-h-[min(88dvh,44rem)]",
+        hasResultSurface && !isCompanion && "min-h-[min(94dvh,56rem)]",
+        dashboardAriaShell.stage,
+        motionClass.enterFade,
+        className,
+      )}
+      style={
+        currentFarm
+          ? ({
+              ["--aria-dock-clearance"]: hasResultSurface
+                ? "18rem"
+                : nudgeSplitLayout && mobileLayout
+                  ? "13.5rem"
+                  : "16.5rem",
+            } as CSSProperties)
+          : undefined
+      }
+      data-tour-id="farm-aria-view"
+      data-testid="farm-aria-view"
+      data-aria-result={hasResultSurface ? "1" : "0"}
+      data-aria-reveal-beat={revealBeat}
+    >
+      <div className={dashboardAriaShell.stageGlow} aria-hidden />
+
+      {nudgeSplitLayout ? (
+        <div
+          className={cn(
+            "relative z-[1] grid min-h-0 flex-1",
+            "grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]",
+            "md:grid-cols-2 md:grid-rows-1",
+          )}
+          data-delin-split="recommend"
+        >
+          <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-primary/15 md:border-b-0 md:border-r md:border-primary/15">
+            {delinHeader}
+            {delinStageAndDock}
+          </div>
+          <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-3 md:p-4 md:pl-5">
+            <DelinWeatherRecommendInline
+              nudge={weatherNudge}
+              canCommand={canCommand}
+              onDismiss={onWeatherNudgeDismiss}
+              onApplied={onWeatherNudgeApplied}
+              variant="split"
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          {showWeatherNudge && nudgeCompact && !mobileLayout ? (
+            <DelinWeatherRecommendStrip nudge={weatherNudge} />
+          ) : null}
+
+          {delinHeader}
+
+          <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
+            {delinStageAndDock}
+          </div>
+
+          {showWeatherNudge && nudgeCompact && mobileLayout ? (
+            <DelinWeatherNudgeMobile
+              nudge={weatherNudge}
+              canCommand={canCommand}
+              onDismiss={onWeatherNudgeDismiss}
+              onApplied={onWeatherNudgeApplied}
+              compact
+            />
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

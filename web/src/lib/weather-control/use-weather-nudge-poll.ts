@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 
@@ -14,40 +14,43 @@ export function useWeatherNudgePoll(
   nudge: WeatherNudgeView | null;
   dismissLocal: () => void;
 } {
+  const farmId = farmKey ? farmKeyId(farmKey) : "";
+  const resetToken = `${farmId}:${initial?.id ?? ""}:${enabled}`;
+  const [appliedReset, setAppliedReset] = useState(resetToken);
+  const [dismissed, setDismissed] = useState(false);
   const [nudge, setNudge] = useState<WeatherNudgeView | null>(
     enabled ? initial : null,
   );
-  const dismissedRef = useRef(false);
-  const farmId = farmKey ? farmKeyId(farmKey) : "";
 
-  useEffect(() => {
-    dismissedRef.current = false;
+  if (appliedReset !== resetToken) {
+    setAppliedReset(resetToken);
+    setDismissed(false);
     setNudge(enabled ? initial : null);
-  }, [enabled, initial?.id, initial, farmId]);
+  }
 
   const dismissLocal = useCallback(() => {
-    dismissedRef.current = true;
+    setDismissed(true);
     setNudge(null);
   }, []);
 
   useEffect(() => {
-    if (!enabled || !farmKey || dismissedRef.current) return;
+    if (!enabled || !farmKey || dismissed) return;
 
     let cancelled = false;
 
     async function poll() {
-      if (dismissedRef.current || cancelled) return;
+      if (cancelled || dismissed) return;
       try {
         const res = await fetch(
           `/api/weather-control/pending?farm=${encodeURIComponent(farmKeyId(farmKey!))}`,
           { credentials: "include" },
         );
-        if (!res.ok || cancelled || dismissedRef.current) return;
+        if (!res.ok || cancelled || dismissed) return;
         const json = (await res.json()) as {
           ok: boolean;
           pending: WeatherNudgeView | null;
         };
-        if (!json.ok || cancelled || dismissedRef.current) return;
+        if (!json.ok || cancelled || dismissed) return;
         const pending = json.pending;
         if (!pending || pending.stale) {
           setNudge(null);
@@ -65,7 +68,7 @@ export function useWeatherNudgePoll(
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [enabled, farmId, farmKey]);
+  }, [enabled, farmId, farmKey, dismissed]);
 
   return { nudge, dismissLocal };
 }

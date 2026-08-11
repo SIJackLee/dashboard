@@ -305,9 +305,9 @@ async function main() {
     rise != null &&
     rise >= 3 &&
     ctx.internalTempC != null &&
-    ctx.internalTempC >= ctx.externalTempC - 2;
+    ctx.internalTempC >= ctx.externalTempC - 4;
   console.log(
-    `| 상승 환기 | 3h 상승≥3°C · 내부≥외기−2°C | 상승 ${rise?.toFixed(1) ?? "—"}°C (${ctx.externalTempC}→${ctx.forecastMax3h}) · 내부 ${ctx.internalTempC}°C | ${risePass ? "✅" : "❌"} |`,
+    `| 상승 환기 | 3h 상승≥3°C · 내부≥외기−4°C | 상승 ${rise?.toFixed(1) ?? "—"}°C (${ctx.externalTempC}→${ctx.forecastMax3h}) · 내부 ${ctx.internalTempC}°C | ${risePass ? "✅" : "❌"} |`,
   );
 
   const drop =
@@ -315,9 +315,11 @@ async function main() {
   const dropPass =
     ctx.forecastMin3h != null &&
     ctx.forecastMin3h <= ctx.externalTempC - 3 &&
-    ctx.current.setpointTemp > 18;
+    ctx.current.setpointTemp > 18 &&
+    ctx.internalTempC != null &&
+    ctx.internalTempC - ctx.forecastMin3h < 2;
   console.log(
-    `| 하강 난방 | 3h 하강≥3°C · 목표>18°C | 하강 ${drop?.toFixed(1) ?? "—"}°C (${ctx.externalTempC}→${ctx.forecastMin3h}) | ${dropPass ? "✅" : "❌"} |`,
+    `| 하강 난방 | 3h 하강≥3°C · 실내−예보최저<2°C | 하강 ${drop?.toFixed(1) ?? "—"}°C (${ctx.externalTempC}→${ctx.forecastMin3h}) · 실내 ${ctx.internalTempC}°C | ${dropPass ? "✅" : "❌"} |`,
   );
 
   console.log("\n## 4. 권장 결과");

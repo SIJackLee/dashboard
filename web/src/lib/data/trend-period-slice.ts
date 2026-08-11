@@ -1,6 +1,5 @@
 /**
- * 동일 bucket(1h) 기간끼리 — 긴 창(30d)에서 짧은 창(7d)을 잘라낸다.
- * 24h(15m)와는 버킷이 달라 파생 불가.
+ * Canonical 30d(15m) → shorter periods — 동일 bucket·stride only.
  */
 import {
   TREND_PERIODS,
@@ -27,18 +26,29 @@ function sliceNumericCols<T extends TrendStallSeries>(
   };
 }
 
-/** 30d(1h×720) → 7d(1h×168). bucket 불일치·길이 부족 시 null. */
+function tailSliceStart(
+  sourceLength: number,
+  targetPeriod: Exclude<TrendPeriodId, "30d">,
+): number | null {
+  const dstCfg = TREND_PERIODS[targetPeriod];
+  if (sourceLength < dstCfg.bucketCount) return null;
+  return sourceLength - dstCfg.bucketCount;
+}
+
+/** 30d(15m×2880) → 7d(672) | 24h(96). bucket 불일치·길이 부족 시 null. */
 export function sliceControllerTrendFromLonger(
   source: TrendControllerPeriodData,
-  targetPeriod: Extract<TrendPeriodId, "7d">,
+  targetPeriod: Exclude<TrendPeriodId, "30d">,
 ): TrendControllerPeriodData | null {
+  if (source.period !== "30d") return null;
   const srcCfg = TREND_PERIODS[source.period];
   const dstCfg = TREND_PERIODS[targetPeriod];
   if (srcCfg.bucket !== dstCfg.bucket) return null;
   if (srcCfg.strideMs !== dstCfg.strideMs) return null;
-  if (source.bucketAts.length < dstCfg.bucketCount) return null;
 
-  const start = source.bucketAts.length - dstCfg.bucketCount;
+  const start = tailSliceStart(source.bucketAts.length, targetPeriod);
+  if (start == null) return null;
+
   let totalSamples = 0;
   const sp = source.sp.map((s) => ({
     ...s,
@@ -63,15 +73,17 @@ export function sliceControllerTrendFromLonger(
 
 export function sliceStallTrendFromLonger(
   source: TrendPeriodData,
-  targetPeriod: Extract<TrendPeriodId, "7d">,
+  targetPeriod: Exclude<TrendPeriodId, "30d">,
 ): TrendPeriodData | null {
+  if (source.period !== "30d") return null;
   const srcCfg = TREND_PERIODS[source.period];
   const dstCfg = TREND_PERIODS[targetPeriod];
   if (srcCfg.bucket !== dstCfg.bucket) return null;
   if (srcCfg.strideMs !== dstCfg.strideMs) return null;
-  if (source.bucketAts.length < dstCfg.bucketCount) return null;
 
-  const start = source.bucketAts.length - dstCfg.bucketCount;
+  const start = tailSliceStart(source.bucketAts.length, targetPeriod);
+  if (start == null) return null;
+
   let totalSamples = 0;
   const sp = source.sp.map((s) => ({
     ...s,

@@ -110,7 +110,7 @@ export function BarnEnvTrendPanel({
         fanSupply: columns[4] ?? controllerSeries.fanSupply,
       },
       tickEvery: dense
-        ? Math.max(1, Math.ceil(categories.length / 4))
+        ? tickEveryForDisplayBars(categories.length, { compact: true })
         : tickEveryForDisplayBars(categories.length),
     };
   }, [hasDataRaw, controllerSeries, categoriesRaw, period, dense]);

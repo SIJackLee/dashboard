@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { CSSProperties, MouseEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -25,16 +25,19 @@ import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 
 const BRAND_TITLE = "IoT Board";
 const LOGO_SCALE = 1.3;
+const emptySubscribe = () => () => {};
 
 export function AppHeaderBrand() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { navigate } = useAppNavigate();
+  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const titleRef = useRef<HTMLParagraphElement>(null);
   const [titleWidth, setTitleWidth] = useState<number | null>(null);
 
   useLayoutEffect(() => {
+    if (!mounted) return;
     const el = titleRef.current;
     if (!el) return;
 
@@ -47,7 +50,7 @@ export function AppHeaderBrand() {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [mounted]);
 
   /** SSR·Link — Next searchParams. 클릭 시 window shallow URL 재계산 */
   const monitoringHomeHref = useMemo(
@@ -98,7 +101,7 @@ export function AppHeaderBrand() {
   );
 
   const logoStyle: CSSProperties | undefined =
-    titleWidth != null
+    mounted && titleWidth != null
       ? ({
           "--brand-title-w": `${Math.round(titleWidth * LOGO_SCALE)}px`,
         } as CSSProperties)
@@ -124,13 +127,13 @@ export function AppHeaderBrand() {
         }
         aria-label={softHome ? "데이터 새로고침" : "모니터링 홈"}
         title={softHome ? "새로고침" : "모니터링 홈"}
-        aria-busy={refreshBusy || undefined}
+        aria-busy={mounted && refreshBusy ? true : undefined}
         onClick={goMonitoringHome}
         className={cn(
           dashboardUi.headerBrandIcon,
-          titleWidth != null && "sm:w-[var(--brand-title-w)]",
+          mounted && titleWidth != null && "sm:w-[var(--brand-title-w)]",
           "transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-          refreshBusy && "pointer-events-none opacity-70",
+          mounted && refreshBusy && "pointer-events-none opacity-70",
         )}
         style={logoStyle}
       >
@@ -141,11 +144,11 @@ export function AppHeaderBrand() {
           sizes="(max-width: 639px) 187px, 156px"
           className={cn(
             "object-contain p-0.5",
-            refreshShowSpinner && "opacity-40",
+            mounted && refreshShowSpinner && "opacity-40",
           )}
           priority
         />
-        {refreshShowSpinner ? (
+        {mounted && refreshShowSpinner ? (
           <Loader2
             className="absolute inset-0 m-auto size-5 animate-spin text-muted-foreground"
             aria-hidden

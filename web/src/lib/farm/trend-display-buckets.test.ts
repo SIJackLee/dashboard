@@ -4,14 +4,19 @@ import {
   abbreviateTrendAxisLabel,
   formatTrendScopeRangeLabel,
   parseTrendAxisMdLabel,
+  tickEveryForDisplayBars,
 } from "./trend-display-buckets";
 
 describe("parseTrendAxisMdLabel", () => {
-  it("parses M/D and M/D HH", () => {
+  it("parses M/D and M/D HH and M/D HH:mm", () => {
     assert.deepEqual(parseTrendAxisMdLabel("7/1"), { month: 7, day: 1 });
     assert.deepEqual(parseTrendAxisMdLabel("12/31 14"), {
       month: 12,
       day: 31,
+    });
+    assert.deepEqual(parseTrendAxisMdLabel("8/4 14:30"), {
+      month: 8,
+      day: 4,
     });
   });
 });
@@ -25,6 +30,31 @@ describe("abbreviateTrendAxisLabel", () => {
     assert.equal(
       abbreviateTrendAxisLabel("24h", "09:30", { endpoint: false }),
       "09",
+    );
+  });
+
+  it("24h: M/D HH:mm → HH:mm / HH (no month on ticks)", () => {
+    assert.equal(
+      abbreviateTrendAxisLabel("24h", "8/10 16:20", { endpoint: true }),
+      "16:20",
+    );
+    assert.equal(
+      abbreviateTrendAxisLabel("24h", "8/10 19:20", {
+        endpoint: false,
+        prevLabel: "8/10 16:20",
+      }),
+      "19",
+    );
+    assert.equal(
+      abbreviateTrendAxisLabel("24h", "8/11 01:20", {
+        endpoint: false,
+        prevLabel: "8/10 22:20",
+      }),
+      "8/11 01",
+    );
+    assert.equal(
+      abbreviateTrendAxisLabel("24h", "8/11 15:20", { endpoint: true }),
+      "15:20",
     );
   });
 
@@ -95,5 +125,21 @@ describe("formatTrendScopeRangeLabel", () => {
 
   it("24h keeps times", () => {
     assert.equal(formatTrendScopeRangeLabel("09:00", "15:30"), "09:00 ~ 15:30");
+    assert.equal(
+      formatTrendScopeRangeLabel("8/10 16:20", "8/11 15:20"),
+      "16:20 ~ 15:20",
+    );
+  });
+});
+
+describe("tickEveryForDisplayBars", () => {
+  it("targets ~8 ticks on wide charts", () => {
+    assert.equal(tickEveryForDisplayBars(30), 4);
+    assert.equal(Math.ceil(30 / tickEveryForDisplayBars(30)), 8);
+  });
+
+  it("targets ~6 ticks on compact charts", () => {
+    assert.equal(tickEveryForDisplayBars(30, { compact: true }), 5);
+    assert.equal(Math.ceil(30 / tickEveryForDisplayBars(30, { compact: true })), 6);
   });
 });

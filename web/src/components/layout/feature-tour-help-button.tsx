@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { CircleHelp } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -24,11 +25,24 @@ type Props = {
   tourFarmKey?: FarmKey | null;
 };
 
-/**
- * 헤더 기능 안내 — 원형 물음표.
- * 현재 탭(현장·차트·델린) 스코프 투어를 시작한다.
- */
-export function FeatureTourHelpButton({ tourFarmKey = null }: Props) {
+function TourHelpButtonShell() {
+  return (
+    <button
+      type="button"
+      className={cn(dashboardUi.topHeaderActionBtn, "rounded-full")}
+      aria-label="기능 안내"
+      title="기능 안내"
+      data-tour-id="header-feature-tour"
+      tabIndex={-1}
+      aria-hidden
+      suppressHydrationWarning
+    >
+      <CircleHelp className="size-4 md:size-5" aria-hidden />
+    </button>
+  );
+}
+
+function FeatureTourHelpButtonInner({ tourFarmKey = null }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -72,8 +86,21 @@ export function FeatureTourHelpButton({ tourFarmKey = null }: Props) {
       aria-label="기능 안내"
       title="기능 안내"
       data-tour-id="header-feature-tour"
+      suppressHydrationWarning
     >
       <CircleHelp className="size-4 md:size-5" aria-hidden />
     </button>
+  );
+}
+
+/**
+ * 헤더 기능 안내 — 원형 물음표.
+ * 현재 탭(현장·차트·델린) 스코프 투어를 시작한다.
+ */
+export function FeatureTourHelpButton(props: Props) {
+  return (
+    <Suspense fallback={<TourHelpButtonShell />}>
+      <FeatureTourHelpButtonInner {...props} />
+    </Suspense>
   );
 }

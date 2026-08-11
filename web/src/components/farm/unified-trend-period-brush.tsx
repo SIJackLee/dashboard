@@ -28,6 +28,32 @@ const BRUSH_MAX_BAR = 70;
 /** 드래그 없이 탭으로 판정하는 최대 폭(비율) */
 const BRUSH_CLICK_SPAN = 0.02;
 
+export type BrushHighlightWindow = { start: number; width: number };
+
+/** 차트 X 스코프 → 30d 브러시 트랙 하이라이트 (0~1) */
+export function resolveBrushHighlightWindow(
+  period: TrendPeriodId,
+  xScope: { start: number; end: number } | null | undefined,
+  chartPointCount: number,
+): BrushHighlightWindow {
+  const periodWin = BRUSH_PERIOD_WINDOW[period];
+  if (!xScope || chartPointCount < 2) return periodWin;
+
+  const span = chartPointCount - 1;
+  const i0 = Math.max(0, Math.min(xScope.start, xScope.end));
+  const i1 = Math.min(span, Math.max(xScope.start, xScope.end));
+  if (i1 <= i0) return periodWin;
+
+  const relStart = i0 / span;
+  const relEnd = i1 / span;
+  const relWidth = Math.max(0.02, relEnd - relStart);
+
+  return {
+    start: periodWin.start + relStart * periodWin.width,
+    width: relWidth * periodWin.width,
+  };
+}
+
 export function snapBrushSpanToPeriod(span: number): TrendPeriodId {
   if (span <= 0.08) return "24h";
   if (span <= 0.35) return "7d";
@@ -65,6 +91,10 @@ type Props = {
   onPeriodChange: (period: TrendPeriodId) => void;
   /** 30d 환경 양호도 점수(0~100) */
   overviewValues?: (number | null)[];
+  /** 차트 X 스코프 — 브러시 선택창 동기화 */
+  xScope?: { start: number; end: number } | null;
+  /** 현재 기간 차트 포인트 수 (스코프 인덱스 기준) */
+  chartPointCount?: number;
   className?: string;
 };
 
@@ -76,6 +106,8 @@ export function UnifiedTrendPeriodBrush({
   period,
   onPeriodChange,
   overviewValues = [],
+  xScope = null,
+  chartPointCount = 0,
   className,
 }: Props) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -85,14 +117,22 @@ export function UnifiedTrendPeriodBrush({
   const sheenId = `brush-track-sheen-${useId().replace(/:/g, "")}`;
 
   const spark = useMemo(() => {
+    // 30d canonical 2880 → 브러시 트랙 96 막대 (표시만 다운샘플)
     if (overviewValues.length <= 96) return overviewValues;
     return downsampleTrendValues(overviewValues, 96);
   }, [overviewValues]);
 
+  const win = useMemo(
+    () => resolveBrushHighlightWindow(period, xScope, chartPointCount),
+    [period, xScope, chartPointCount],
+  );
+  const scopedActive =
+    xScope != null && chartPointCount >= 2 && win.width < 0.999;
+
   const avgScore = useMemo(() => {
     const n = spark.length;
     if (n === 0) return null;
-    const { start, width } = BRUSH_PERIOD_WINDOW[period];
+    const { start, width } = win;
     const from = Math.max(0, Math.floor(start * n));
     const to = Math.min(n, Math.ceil((start + width) * n));
     let sum = 0;
@@ -105,9 +145,8 @@ export function UnifiedTrendPeriodBrush({
       }
     }
     return count > 0 ? sum / count : null;
-  }, [spark, period]);
+  }, [spark, win]);
 
-  const win = BRUSH_PERIOD_WINDOW[period];
   const periodLabel = TREND_PERIODS[period].label;
   const nextPeriodLabel = TREND_PERIODS[nextTrendPeriod(period)].label;
   const resolvedDraft =
@@ -251,8 +290,8 @@ export function UnifiedTrendPeriodBrush({
           }}
           role="button"
           tabIndex={0}
-          aria-label={`추이 기간 ${periodLabel} · 점수 ${scoreLabel} · 탭 시 ${nextPeriodLabel} · 드래그로 기간 선택`}
-          title={`탭: ${periodLabel} → ${nextPeriodLabel} · 드래그: 기간 폭`}
+          aria-label={`추이 기간 ${periodLabel}${scopedActive ? " · 차트 스코프 구간" : ""} · 점수 ${scoreLabel} · 탭 시 ${nextPeriodLabel} · 드래그로 기간 선택`}
+          title={`탭: ${periodLabel} → ${nextPeriodLabel} · 드래그: 기간 폭${scopedActive ? " · 스코프 구간 표시" : ""}`}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
@@ -389,6 +428,12 @@ export function UnifiedTrendPeriodBrush({
               aria-hidden
             >
               <span>{periodLabel}</span>
+              {scopedActive ? (
+                <>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-primary">스코프</span>
+                </>
+              ) : null}
               <span className="text-muted-foreground">·</span>
               <span className="font-semibold">{scoreLabel}</span>
             </span>

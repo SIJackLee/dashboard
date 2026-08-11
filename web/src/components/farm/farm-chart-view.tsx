@@ -29,7 +29,7 @@ import {
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
-import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
+import { StallUnitNoMark, ControllerNoMark } from "@/components/farm/controller-summary-parts";
 import type { ReactNode } from "react";
 
 type Props = {
@@ -342,7 +342,13 @@ export function FarmChartView({
                                 selected={scopesEqual(scope, ctrlScope)}
                                 onSelect={() => selectScope(ctrlScope)}
                                 depth={2}
-                                label={c.label}
+                                label={
+                                  <ControllerNoMark
+                                    eqpmnNo={c.eqpmnNo}
+                                    className="text-inherit"
+                                  />
+                                }
+                                nameForA11y={`컨트롤러 ${c.label}`}
                                 tone={
                                   scopeTones.byCtrl.get(c.controllerKey) ?? null
                                 }
@@ -667,7 +673,13 @@ function ScopeRow({
               aria-hidden
             />
           ) : null}
-          <span className="truncate">{label}</span>
+          <span
+            className={cn(
+              typeof label === "string" ? "truncate" : "shrink-0",
+            )}
+          >
+            {label}
+          </span>
         </span>
         {meta ? (
           <span
