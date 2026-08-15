@@ -1258,11 +1258,6 @@ function TrendPointCardBody({
                       <div className="farm-chart-fs-axis font-medium text-muted-foreground">
                         임계 초과 구간
                       </div>
-                      {onBreachEquipmentNavigate ? (
-                        <div className="farm-chart-fs-axis text-muted-foreground/90">
-                          우클릭 · 해당 장비 차트
-                        </div>
-                      ) : null}
                       {spreadSame && spreadHigh ? (
                         <div className="farm-chart-fs-legend leading-snug text-foreground/90">
                           <span className="text-muted-foreground">산포 · </span>
@@ -1361,6 +1356,17 @@ export function TrendChart({
   const [hoverSeries, setHoverSeries] = useState<string | null>(null);
   /** 클릭으로 고정한 비교용 데이터 카드 (다중) */
   const [pinnedTips, setPinnedTips] = useState<PinnedTip[]>([]);
+  const bringPinToFront = (id: string) => {
+    setPinnedTips((prev) => {
+      const i = prev.findIndex((p) => p.id === id);
+      if (i < 0 || i === prev.length - 1) return prev;
+      const next = prev.slice();
+      const [item] = next.splice(i, 1);
+      if (!item) return prev;
+      next.push(item);
+      return next;
+    });
+  };
   const [xDraft, setXDraft] = useState<{
     a: number;
     b: number;
@@ -3750,7 +3756,7 @@ export function TrendChart({
         </svg>
       ) : null}
 
-      {pinnedTips.map((pin) => {
+      {pinnedTips.map((pin, pinOrd) => {
         if (pin.idx < 0 || pin.idx >= n) return null;
         const plotW = plotPx.w || 1;
         const plotH = plotPx.h || 1;
@@ -3763,13 +3769,16 @@ export function TrendChart({
           <div
             key={pin.id}
             className={cn(
-              "pointer-events-auto absolute z-20 w-max max-w-[16rem]",
+              "pointer-events-auto absolute w-max max-w-[16rem]",
               motionClass.farmChartTipIn,
             )}
-            style={{ left, top }}
+            style={{ left, top, zIndex: 20 + pinOrd }}
             data-tour-id="trend-chart-pinned-card"
             data-pin-id={pin.id}
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              bringPinToFront(pin.id);
+            }}
           >
             <div className="overflow-hidden rounded-md border border-border/80 bg-popover/95 text-popover-foreground shadow-lg backdrop-blur-sm">
               <div className="flex items-stretch border-b border-border/60 bg-muted/40">
