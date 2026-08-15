@@ -764,14 +764,16 @@ export function UnifiedBarnTrendPanel({
         );
         if (raw) {
           const builtScoped = mapUnifiedBarnTrendRawToSplitY(raw, layout);
-          const pickLayers = maskLayersForYBands(layers, xScope.yBands);
-          const pickedScoped = pickUnifiedTrendLayers(builtScoped, pickLayers);
-          return {
-            categories: builtScoped.categories,
-            series: pickedScoped.series,
-            envelopes: pickedScoped.envelopes,
-            histograms: pickedScoped.histograms,
-          };
+          if (builtScoped) {
+            const pickLayers = maskLayersForYBands(layers, xScope.yBands);
+            const pickedScoped = pickUnifiedTrendLayers(builtScoped, pickLayers);
+            return {
+              categories: builtScoped.categories,
+              series: pickedScoped.series,
+              envelopes: pickedScoped.envelopes,
+              histograms: pickedScoped.histograms,
+            };
+          }
         }
       }
     }
