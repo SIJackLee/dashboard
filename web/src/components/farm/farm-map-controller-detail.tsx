@@ -24,10 +24,7 @@ import {
   worstSingleStackMetric,
   type StackMetric,
 } from "@/lib/farm/stack-metric";
-import {
-  formatControllerHeaderPrimary,
-  formatControllerHeaderSecondary,
-} from "@/lib/farm/controller-summary-display";
+import { ControllerAffiliationMarks, ControllerNoMark } from "@/components/farm/controller-summary-parts";
 import { TrendChart, type TrendSeries } from "@/components/trends/trend-chart";
 import { ControllerSummaryGaugeRow } from "./controller-summary-gauge-row";
 import { BarnListGraphPanel } from "./barn-list-graph-panel";
@@ -35,7 +32,7 @@ import { PanelCloseButton } from "./panel-close-button";
 import { GridMetricLabel, gridMetricAriaLabel } from "@/lib/farm/grid-metric-label";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { controllerKeyForReadingKey } from "@/lib/farm/use-barn-graphs";
-import { downsampleTrendAxis } from "@/lib/farm/trend-display-buckets";
+import { downsampleColumnsForChart } from "@/lib/farm/trend-display-buckets";
 import { BarnPanelBottomSheet } from "@/components/farm/barn-panel-bottom-sheet";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -156,6 +153,11 @@ export function FarmMapControllerDetail({
   onHostedMobileSheetPageChange,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
+  const [chartPlotWidth, setChartPlotWidth] = useState(0);
+  const onPlotWidthChange = useCallback((w: number) => {
+    setChartPlotWidth((prev) => (Math.abs(prev - w) < 8 ? prev : w));
+  }, []);
+  const plotWidthPx = chartPlotWidth > 32 ? chartPlotWidth : 360;
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [graphOpen, setGraphOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -430,7 +432,7 @@ export function FarmMapControllerDetail({
     });
     const downsampled =
       categoriesBase.length > 0
-        ? downsampleTrendAxis(categoriesBase, columnsRaw, period)
+        ? downsampleColumnsForChart(categoriesBase, columnsRaw, plotWidthPx)
         : { categories: [] as string[], columns: [] as (number | null)[][] };
     const series: TrendSeries[] = withData.map((r, i) => ({
       name: r.label,
@@ -476,6 +478,7 @@ export function FarmMapControllerDetail({
     effectiveMetricId,
     controllerTrendByPeriod,
     period,
+    plotWidthPx,
   ]);
 
   return (
@@ -564,6 +567,8 @@ export function FarmMapControllerDetail({
                 referenceLines={overlayMetric.referenceLines}
                 period={period}
                 showLegend={count <= 8}
+                showMarkers={false}
+                onPlotWidthChange={onPlotWidthChange}
               />
             ) : (
               <p className="py-8 text-center text-sm text-muted-foreground">
@@ -600,11 +605,10 @@ export function FarmMapControllerDetail({
                       aria-hidden
                     />
                     <span className="truncate font-semibold">{row.label}</span>
-                    {!isMobileStack ? (
-                      <span className="shrink-0 text-[0.6rem] text-muted-foreground">
-                        EQP{row.eqpmnNo}
-                      </span>
-                    ) : null}
+                    <ControllerNoMark
+                      eqpmnNo={row.eqpmnNo}
+                      className="shrink-0 text-muted-foreground"
+                    />
                     <span
                       className="ml-0.5 shrink-0 font-semibold tabular-nums"
                       style={{ color: SEV_COLOR[row.worst] }}
@@ -623,9 +627,16 @@ export function FarmMapControllerDetail({
               open
               onClose={closeDetailDrawer}
               title={
-                selected.reading
-                  ? `${formatControllerHeaderPrimary(selected.reading)} · ${formatControllerHeaderSecondary(selected.reading)}`
-                  : selected.label
+                selected.reading ? (
+                  <ControllerAffiliationMarks
+                    stallTyCode={selected.reading.stallTyCode}
+                    stallNo={selected.reading.stallNo}
+                    eqpmnNo={selected.reading.eqpmnNo}
+                    compactType
+                  />
+                ) : (
+                  selected.label
+                )
               }
               auditRegion="farm-map-controller-detail-drawer"
               className="h-[92dvh] max-h-[92dvh] md:h-[92dvh] md:max-h-[92dvh]"

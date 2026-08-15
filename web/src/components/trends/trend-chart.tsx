@@ -338,11 +338,14 @@ type TrendChartProps = {
   onScaleEdgeRevert?: () => void;
   scaleEdgeApplyBusy?: boolean;
   scaleEdgeApplyDisabled?: boolean;
+  /** 플롯 CSS 너비(px). 차트 탭 다운샘플 밀도용 */
+  onPlotWidthChange?: (widthPx: number) => void;
 };
 
 const PAD_X = 6;
 const PAD_TOP = 6;
-const VIEW_W = 100;
+/** 측정 전 fallback · 패딩 비율 기준 */
+const VIEW_W_NORM = 100;
 const X_SCOPE_DRAG_PX = 8;
 const X_SCOPE_MIN_SPAN = 3;
 /** 알람 가이드선 hit (화면 px) */
@@ -1349,6 +1352,7 @@ export function TrendChart({
   onScaleEdgeRevert,
   scaleEdgeApplyBusy = false,
   scaleEdgeApplyDisabled = false,
+  onPlotWidthChange,
 }: TrendChartProps) {
   void _layoutKey;
   const clipWipeEnabled = layerClipWipe ?? animate;
@@ -1382,6 +1386,7 @@ export function TrendChart({
     pointerId: number;
   } | null>(null);
   const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
+  const plotWidthNotifyRef = useRef(0);
   const glowFilterId = `tc-glow-${useId().replace(/:/g, "")}`;
   /** 기간 변경 시만 plot wipe — 카테고리 trim/X스코프는 remount 금지 */
   const plotEnterKey = animate ? String(period ?? "p") : "static";
@@ -1481,6 +1486,10 @@ export function TrendChart({
               ? prev
               : { w: rect.width, h: rect.height },
           );
+          if (Math.abs(plotWidthNotifyRef.current - rect.width) >= 4) {
+            plotWidthNotifyRef.current = rect.width;
+            onPlotWidthChange?.(rect.width);
+          }
         }
       }, 100);
     };
@@ -1491,7 +1500,7 @@ export function TrendChart({
       window.clearTimeout(tid);
       ro.disconnect();
     };
-  }, [height, categories.length, series.length]);
+  }, [height, categories.length, series.length, onPlotWidthChange]);
 
   const hasAny =
     series.some((s) => s.data?.some((v) => v != null)) ||
@@ -1510,13 +1519,16 @@ export function TrendChart({
   const chartH = height - axisH;
   /** 원단위 Y축(C2) 또는 모바일 거터 */
   const showNativeLeftAxis = Boolean(leftUnit);
-  const padL = showNativeLeftAxis ? PAD_X : labelGutter ? 4 : PAD_X;
-  const padR = labelGutter ? 20 : PAD_X;
-  const innerW = VIEW_W - padL - padR;
+  const viewW = plotPx.w > 32 ? plotPx.w : VIEW_W_NORM;
+  const padL0 = showNativeLeftAxis ? PAD_X : labelGutter ? 4 : PAD_X;
+  const padR0 = labelGutter ? 20 : PAD_X;
+  const padL = (padL0 / VIEW_W_NORM) * viewW;
+  const padR = (padR0 / VIEW_W_NORM) * viewW;
+  const innerW = viewW - padL - padR;
   const innerH = chartH - PAD_TOP * 2;
 
   /** preserveAspectRatio=none 에서 원이 옆으로 퍼지지 않도록 viewBox rx/ry 보정 */
-  const markerRx = (rPx: number) => (rPx * VIEW_W) / Math.max(1, plotPx.w);
+  const markerRx = (rPx: number) => (rPx * viewW) / Math.max(1, plotPx.w);
   const markerRy = (rPx: number) => (rPx * chartH) / Math.max(1, plotPx.h);
 
   const usesRight = series.some((s) => s.axis === "right") || referenceLines.some((r) => r.axis === "right");
@@ -1642,7 +1654,7 @@ export function TrendChart({
       yView: number,
       seriesKey: string,
     ) => {
-      const sx = (xView / VIEW_W) * plotW;
+      const sx = (xView / viewW) * plotW;
       const sy = (yView / chartH) * plotH;
       const dx = xPx - sx;
       const dy = yPx - sy;
@@ -1664,8 +1676,8 @@ export function TrendChart({
           const baseY = PAD_TOP + innerH;
           const gx = xForBar(i) - barSlotW / 2 + si * barW;
           const barWv = Math.max(0.4, barW * 0.92);
-          const left = (gx / VIEW_W) * plotW;
-          const right = ((gx + barWv) / VIEW_W) * plotW;
+          const left = (gx / viewW) * plotW;
+          const right = ((gx + barWv) / viewW) * plotW;
           const top = (yTop / chartH) * plotH;
           const bottom = (baseY / chartH) * plotH;
           if (xPx >= left && xPx <= right && yPx >= top && yPx <= bottom) {
@@ -1720,8 +1732,8 @@ export function TrendChart({
         const gx = xAtIndex(i) + cluster - barWHist / 2;
         const top = Math.min(yBase, yVal);
         const bottom = Math.max(yBase, yVal);
-        const left = (gx / VIEW_W) * plotW;
-        const right = ((gx + barWHist) / VIEW_W) * plotW;
+        const left = (gx / viewW) * plotW;
+        const right = ((gx + barWHist) / viewW) * plotW;
         const topPx = (top / chartH) * plotH;
         const bottomPx = (bottom / chartH) * plotH;
         /** 모터/편차 막대 — 바 전체 영역 히트 (끝점만 아님) */
@@ -1737,7 +1749,7 @@ export function TrendChart({
         }
         /** 바 근처 완화 히트 (모터 밴드에서 잡기 쉽게) */
         const padHit = isVolume ? hitR * 1.35 : hitR;
-        const sx = ((gx + barWHist / 2) / VIEW_W) * plotW;
+        const sx = ((gx + barWHist / 2) / viewW) * plotW;
         const sy = (tipY / chartH) * plotH;
         const dx = xPx - sx;
         const dy = yPx - sy;
@@ -1778,8 +1790,8 @@ export function TrendChart({
     if (rect.width <= 0) return padL;
     const xPx = clientX - rect.left;
     return Math.min(
-      VIEW_W - padR,
-      Math.max(padL, (xPx / rect.width) * VIEW_W),
+      viewW - padR,
+      Math.max(padL, (xPx / rect.width) * viewW),
     );
   };
 
@@ -2146,7 +2158,7 @@ export function TrendChart({
         id,
         idx: hit.idx,
         seriesKey: hit.seriesKey,
-        nx: hit.xView / VIEW_W,
+        nx: hit.xView / viewW,
         ny: hit.yView / chartH,
         ox: 0,
         oy: 0,
@@ -2323,8 +2335,8 @@ export function TrendChart({
 
     /** 십자선 — 플롯 위에서는 마우스 기준 항상 표시 */
     const xView = Math.min(
-      VIEW_W - padR,
-      Math.max(padL, (xPx / rect.width) * VIEW_W),
+      viewW - padR,
+      Math.max(padL, (xPx / rect.width) * viewW),
     );
     const yView = Math.min(
       PAD_TOP + innerH,
@@ -2342,7 +2354,7 @@ export function TrendChart({
       }
       return;
     }
-    const anchorX = (hit.xView / VIEW_W) * rect.width;
+    const anchorX = (hit.xView / viewW) * rect.width;
     const anchorY = (hit.yView / chartH) * rect.height;
     lastAnchorRef.current = {
       x: anchorX,
@@ -2849,10 +2861,11 @@ export function TrendChart({
         onContextMenu={onPlotContextMenu}
       >
       <svg
-        viewBox={`0 0 ${VIEW_W} ${chartH}`}
+        viewBox={`0 0 ${viewW} ${chartH}`}
         preserveAspectRatio="none"
         className="w-full"
         style={{ height: chartH }}
+        shapeRendering="geometricPrecision"
         role="img"
         aria-label="추이 차트"
       >
@@ -2886,7 +2899,7 @@ export function TrendChart({
           const slot =
             n > 1 ? (innerW) / (n - 1) : innerW;
           const left = Math.max(padL, x0 - slot / 2);
-          const right = Math.min(VIEW_W - padR, x1 + slot / 2);
+          const right = Math.min(viewW - padR, x1 + slot / 2);
           return (
             <rect
               key={`null-gap-${g.i0}-${g.i1}`}
@@ -2908,7 +2921,7 @@ export function TrendChart({
             <line
               key={`band-guide-${gi}-${gy}`}
               x1={padL}
-              x2={VIEW_W - padR}
+              x2={viewW - padR}
               y1={y}
               y2={y}
               stroke="currentColor"
@@ -2954,7 +2967,7 @@ export function TrendChart({
                   {(!isVolume || gi === 0) && !isOverlay ? (
                     <line
                       x1={padL}
-                      x2={VIEW_W - padR}
+                      x2={viewW - padR}
                       y1={yBase}
                       y2={yBase}
                       stroke="#94a3b8"
@@ -2967,7 +2980,7 @@ export function TrendChart({
                   {isOverlay ? (
                     <line
                       x1={padL}
-                      x2={VIEW_W - padR}
+                      x2={viewW - padR}
                       y1={yBase}
                       y2={yBase}
                       stroke="#f87171"
@@ -3050,7 +3063,7 @@ export function TrendChart({
                 <g key={`alarm-${idx}`}>
                   <line
                     x1={padL}
-                    x2={VIEW_W - padR}
+                    x2={viewW - padR}
                     y1={yTop}
                     y2={yTop}
                     stroke={SEV_COLOR.warning}
@@ -3061,7 +3074,7 @@ export function TrendChart({
                   />
                   <line
                     x1={padL}
-                    x2={VIEW_W - padR}
+                    x2={viewW - padR}
                     y1={yBot}
                     y2={yBot}
                     stroke={SEV_COLOR.warning}
@@ -3082,7 +3095,7 @@ export function TrendChart({
             <line
               key={`ref-${idx}`}
               x1={padL}
-              x2={VIEW_W - padR}
+              x2={viewW - padR}
               y1={y}
               y2={y}
               stroke={ref.color}
@@ -3109,7 +3122,7 @@ export function TrendChart({
               <line
                 key={`scale-guide-${guide.id}`}
                 x1={padL}
-                x2={VIEW_W - padR}
+                x2={viewW - padR}
                 y1={y}
                 y2={y}
                 stroke={guide.color}
@@ -3353,7 +3366,7 @@ export function TrendChart({
         <line
           ref={crossHRef}
           x1={padL}
-          x2={VIEW_W - padR}
+          x2={viewW - padR}
           y1={PAD_TOP}
           y2={PAD_TOP}
           stroke="#94a3b8"
@@ -3719,7 +3732,7 @@ export function TrendChart({
             const left = base.left + pin.ox;
             const top = base.top + pin.oy;
             const attachX = left + 84;
-            const attachY = top + 6;
+            const attachY = top + 8;
             return (
               <g key={`pin-link-${pin.id}`}>
                 <line
@@ -3727,15 +3740,9 @@ export function TrendChart({
                   y1={anchorY}
                   x2={attachX}
                   y2={attachY}
-                  stroke="hsl(var(--primary) / 0.55)"
-                  strokeWidth={1.25}
-                  strokeDasharray="4 3"
-                />
-                <circle
-                  cx={anchorX}
-                  cy={anchorY}
-                  r={3}
-                  fill="hsl(var(--primary) / 0.75)"
+                  className="stroke-foreground/55"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 4"
                 />
               </g>
             );
@@ -3764,7 +3771,7 @@ export function TrendChart({
             data-pin-id={pin.id}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <div className="overflow-hidden rounded-md border border-primary/35 bg-popover/95 text-popover-foreground shadow-lg ring-1 ring-primary/15 backdrop-blur-sm">
+            <div className="overflow-hidden rounded-md border border-border/80 bg-popover/95 text-popover-foreground shadow-lg backdrop-blur-sm">
               <div className="flex items-stretch border-b border-border/60 bg-muted/40">
                 <button
                   type="button"
@@ -3899,7 +3906,7 @@ export function TrendChart({
               )}
               style={
                 align === "center" || (align === "right" && labelGutter)
-                  ? { left: `${(xAtIndex(i) / VIEW_W) * 100}%` }
+                  ? { left: `${(xAtIndex(i) / viewW) * 100}%` }
                   : undefined
               }
               title={fullLabel}

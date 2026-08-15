@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -20,7 +20,7 @@ import {
   tempTrendLeftDomain,
 } from "@/lib/farm/trend-chart-series";
 import {
-  downsampleTrendAxis,
+  downsampleColumnsForChart,
   tickEveryForDisplayBars,
 } from "@/lib/farm/trend-display-buckets";
 import { cn } from "@/lib/utils";
@@ -53,6 +53,11 @@ export function BarnEnvTrendPanel({
   const tempDomain = tempTrendLeftDomain(thresholds);
   const humidityDomain = humidityTrendLeftDomain(thresholds);
   const envRefs = envTrendReferenceLines(thresholds);
+  const [chartPlotWidth, setChartPlotWidth] = useState(0);
+  const onPlotWidthChange = useCallback((w: number) => {
+    setChartPlotWidth((prev) => (Math.abs(prev - w) < 8 ? prev : w));
+  }, []);
+  const plotWidthPx = chartPlotWidth > 32 ? chartPlotWidth : 360;
 
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
@@ -88,7 +93,7 @@ export function BarnEnvTrendPanel({
         tickEvery: 1,
       };
     }
-    const { categories, columns } = downsampleTrendAxis(
+    const { categories, columns } = downsampleColumnsForChart(
       categoriesRaw,
       [
         controllerSeries.temp,
@@ -97,7 +102,7 @@ export function BarnEnvTrendPanel({
         controllerSeries.fanExhaust,
         controllerSeries.fanSupply,
       ],
-      period,
+      plotWidthPx,
     );
     return {
       categories,
@@ -113,7 +118,7 @@ export function BarnEnvTrendPanel({
         ? tickEveryForDisplayBars(categories.length, { compact: true })
         : tickEveryForDisplayBars(categories.length),
     };
-  }, [hasDataRaw, controllerSeries, categoriesRaw, period, dense]);
+  }, [hasDataRaw, controllerSeries, categoriesRaw, period, dense, plotWidthPx]);
 
   if (!hasDataRaw || !display.series) {
     return (
@@ -161,6 +166,8 @@ export function BarnEnvTrendPanel({
         tickEvery={display.tickEvery}
         period={period}
         showLegend={!dense}
+        showMarkers={false}
+        onPlotWidthChange={onPlotWidthChange}
       />
     </div>
   );

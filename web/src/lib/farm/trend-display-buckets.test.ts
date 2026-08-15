@@ -4,6 +4,9 @@ import {
   abbreviateTrendAxisLabel,
   formatTrendScopeRangeLabel,
   parseTrendAxisMdLabel,
+  downsampleColumnsForChart,
+  pickLttbIndices,
+  targetChartDisplayBars,
   tickEveryForDisplayBars,
 } from "./trend-display-buckets";
 
@@ -141,5 +144,49 @@ describe("tickEveryForDisplayBars", () => {
   it("targets ~6 ticks on compact charts", () => {
     assert.equal(tickEveryForDisplayBars(30, { compact: true }), 5);
     assert.equal(Math.ceil(30 / tickEveryForDisplayBars(30, { compact: true })), 6);
+  });
+});
+
+describe("targetChartDisplayBars", () => {
+  it("keeps native 15m for a day or less", () => {
+    assert.equal(targetChartDisplayBars(96, 1770), 96);
+    assert.equal(targetChartDisplayBars(48, 800), 48);
+  });
+
+  it("caps 30d by plot pixels", () => {
+    assert.equal(targetChartDisplayBars(2880, 800), 320);
+    assert.equal(targetChartDisplayBars(2880, 1770), 708);
+  });
+});
+
+describe("downsampleColumnsForChart", () => {
+  it("keeps source when already under pixel budget", () => {
+    const cats = ["a", "b", "c"];
+    const cols = [[1, 2, 3]];
+    const out = downsampleColumnsForChart(cats, cols, 800);
+    assert.equal(out.categories.length, 3);
+    assert.deepEqual(out.columns[0], [1, 2, 3]);
+  });
+
+  it("thins long series by LTTB", () => {
+    const cats = Array.from({ length: 200 }, (_, i) => String(i));
+    const vals = cats.map((_, i) => (i === 80 ? 99 : 1));
+    const out = downsampleColumnsForChart(cats, [vals], 100);
+    assert.ok(out.categories.length < 200);
+    assert.ok(out.categories.length >= 32);
+    assert.ok(out.columns[0]?.includes(99));
+  });
+});
+
+describe("pickLttbIndices", () => {
+  it("keeps first and last and a peak", () => {
+    const values = Array.from({ length: 20 }, (_, i) =>
+      i === 10 ? 100 : 1,
+    );
+    const idx = pickLttbIndices(values, 6);
+    assert.equal(idx[0], 0);
+    assert.equal(idx[idx.length - 1], 19);
+    assert.equal(idx.length, 6);
+    assert.ok(idx.includes(10));
   });
 });

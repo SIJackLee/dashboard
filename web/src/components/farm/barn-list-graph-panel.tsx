@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
 import { GraphPanelSkeleton } from "@/components/common/loading-skeletons";
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
@@ -26,7 +26,7 @@ import type { ControllerThermoSettings } from "@/lib/controllers/controller-sett
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import {
-  downsampleTrendAxis,
+  downsampleColumnsForChart,
   tickEveryForDisplayBars,
 } from "@/lib/farm/trend-display-buckets";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,11 @@ export function BarnListGraphPanel({
 }: Props) {
   const sheetCompact = layout === "sheetCompact";
   const envChartHeight = sheetCompact ? 88 : 112;
+  const [chartPlotWidth, setChartPlotWidth] = useState(0);
+  const onPlotWidthChange = useCallback((w: number) => {
+    setChartPlotWidth((prev) => (Math.abs(prev - w) < 8 ? prev : w));
+  }, []);
+  const plotWidthPx = chartPlotWidth > 32 ? chartPlotWidth : 360;
   const showChannels = showChannelSection && !sheetCompact;
   const thresholds = resolveReadingAlarmThresholds(reading, alarmSettings);
   const tempDomain = tempTrendLeftDomain(thresholds);
@@ -104,8 +109,7 @@ export function BarnListGraphPanel({
         tickEvery: tickEveryForPeriod(period, categoriesRaw.length),
       };
     }
-    // sheetCompact뿐 아니라 데스크톱도 다운샘플 — 7d·30d X축·채널과 동일 해상도
-    const { categories, columns } = downsampleTrendAxis(
+    const { categories, columns } = downsampleColumnsForChart(
       categoriesRaw,
       [
         controllerSeries.temp,
@@ -114,7 +118,7 @@ export function BarnListGraphPanel({
         controllerSeries.fanExhaust,
         controllerSeries.fanSupply,
       ],
-      period,
+      plotWidthPx,
     );
     return {
       categories,
@@ -128,7 +132,7 @@ export function BarnListGraphPanel({
       },
       tickEvery: tickEveryForDisplayBars(categories.length),
     };
-  }, [hasDataRaw, controllerSeries, categoriesRaw, period]);
+  }, [hasDataRaw, controllerSeries, categoriesRaw, period, plotWidthPx]);
 
   const categories = display.categories;
   const chartSeries = display.series;
@@ -203,6 +207,8 @@ export function BarnListGraphPanel({
               tickEvery={tickEvery}
               period={period}
               showLegend={!sheetCompact}
+              showMarkers={false}
+              onPlotWidthChange={onPlotWidthChange}
             />
           </div>
           {showChannels ? (

@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { BarnReading } from "@/lib/data/iot";
-import {
-  formatControllerHeaderPrimary,
-  formatControllerHeaderSecondary,
-} from "@/lib/farm/controller-summary-display";
-import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { ControllerAffiliationMarks } from "@/components/farm/controller-summary-parts";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -34,12 +30,12 @@ function centerSelectedInScroller(
   });
 }
 
-/** bottom sheet 상단 — 컨트롤러 EQP 가로 swipe picker (선택 항목 중앙 표시) */
+/** bottom sheet 상단 — 축사·컨트롤러 아이콘+번호 가로 swipe picker (선택 항목 중앙 표시) */
 export function ControllerMobilePickerStrip({
   readings,
   selectedKey,
   onSelect,
-  showAffiliation: _showAffiliation = false,
+  showAffiliation = false,
   className,
   active = true,
 }: Props) {
@@ -117,7 +113,7 @@ export function ControllerMobilePickerStrip({
               aria-current={selected ? "true" : undefined}
               onClick={() => onSelect(r.key)}
               className={cn(
-                "controller-mobile-picker-item inline-flex min-w-[5.5rem] shrink-0 snap-center flex-col items-start rounded-lg border px-2.5 py-1.5 text-left",
+                "controller-mobile-picker-item inline-flex min-w-[8rem] shrink-0 snap-center flex-col items-start rounded-lg border px-2.5 py-1.5 text-left",
                 motionClass.microHover,
                 selected
                   ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200"
@@ -134,16 +130,14 @@ export function ControllerMobilePickerStrip({
                   )}
                   aria-hidden
                 />
-                {formatControllerHeaderPrimary(r)}
-              </span>
-              <span
-                className={cn(
-                  "mt-0.5 max-w-[8rem] truncate",
-                  dashboardTypography.meta,
-                  selected ? "text-emerald-800/80 dark:text-emerald-300/80" : undefined,
-                )}
-              >
-                {formatControllerHeaderSecondary(r)}
+                <ControllerAffiliationMarks
+                  stallTyCode={r.stallTyCode}
+                  stallNo={r.stallNo}
+                  eqpmnNo={r.eqpmnNo}
+                  showType={showAffiliation}
+                  compactType
+                  className="text-inherit"
+                />
               </span>
             </button>
           );

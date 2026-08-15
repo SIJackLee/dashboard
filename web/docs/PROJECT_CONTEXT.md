@@ -19,7 +19,8 @@
 
 ## 3. 실행 방법
 
-> **경로:** `dashboard/web/` (저장소 루트 `dashboard/` 기준). `Operation/simulator` 와 별개 프로젝트.
+> **경로:** `dashboard/web/` (저장소 루트 `dashboard/` 기준).  
+> 집 LIVE 시뮬: [`HOME_SIM_PILOT.md`](./HOME_SIM_PILOT.md) (`simulator/sim_pilot_farm01.py`). 회사 MQTT/RS 없이 raw INSERT + `decode-batch`.
 
 ```bash
 cd web
@@ -173,7 +174,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - 설정: `/settings?tab=barn` → 전송 데이터에 나타난 stallNo 중 **지도 위치·이름만** 지정 (`saveBarnMetasAction`)
 - 집계: `aggregateByBarn(readings, barnMetas)` — `(farmUid, moduleUid, stallNo)` 매칭, 평균값·최악 상태
 - 지도: `FarmMapView` — 4×4 CSS Grid, 게이트웨이 placeholder(중앙 상단), 축사 카드, 범례
-- **그래프 기간:** `?trendPeriod=24h|7d|30d` (기본 **7d**) — 그리드·목록·차트·DELIN 탭 공유. 그리드 히트맵=축사 평균(`farm_trend_history`), 목록/상세=TrendChart 컨트롤러 단위(`farm_trend_history_by_controller`). 버킷 기준 **`mesure_at`** (없으면 `received_at`). **캐노니컬 15분:** 서버는 30d×2880 1회 fetch 후 7d/672·24h/96 slice; UI 차트는 GRAPH_BARS(24/28/30) 다운샘플, PDF는 15m 원본.
+- **그래프 기간:** `?trendPeriod=24h|7d|30d` (기본 **7d**) — 그리드·목록·DELIN 탭 공유. 차트 탭 브러시는 30d 캔버스에서 **임의 구간**을 고르며 `trendPeriod`는 바꾸지 않음(초기 창만 농장 기간으로 시드, 우클릭=30일 전체). 브러시 점선=양호도 75 기준. 그리드 히트맵=축사 평균(`farm_trend_history`), 목록/상세=TrendChart 컨트롤러 단위(`farm_trend_history_by_controller`). 버킷 기준 **`mesure_at`** (없으면 `received_at`). **캐노니컬 15분:** 서버는 30d×2880 1회 fetch 후 7d/672·24h/96 slice; 히트맵은 GRAPH_BARS(24/28/30) 다운샘플, 현장 라인·차트 탭은 플롯 px viewBox + LTTB(약 2.5px/점). 현장 라인은 점 마커 없음(핀·카드는 유지), 구간 줌·브러시 없음. PDF는 15m 원본.
 - **오늘의 리포트 PDF:** 헤더 `DailyReportButton` (`data-tour-id="header-daily-report"`) — 활성 농장 기준 브라우저 생성. 축사(stall) 단위로 KPI → 24h/7d/30d 온도·습도·모터 그래프 → 상세표. 시계열은 `farm_trend_history_by_controller`를 축사 평균으로 집계 (`buildDailyReportPayload`). **이상상황**은 헤더와 동일하게 모듈 에러코드 + 통신두절만 포함(온·습 임계 가이드 이탈은 PDF에 넣지 않음). 렌더 `buildAndDownloadDailyReportPdf` (jspdf + canvas).
 - 클릭: `/farm?tab=ops&…` 딥링크 (레거시 `/controllers`는 redirect)
 - 빈 상태: 축사 미설정 시 설정 탭 CTA

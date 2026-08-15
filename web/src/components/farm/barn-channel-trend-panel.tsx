@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { TrendChart } from "@/components/trends/trend-chart";
 import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import type { BarnReading } from "@/lib/data/iot";
@@ -21,7 +21,7 @@ import {
 } from "@/lib/farm/trend-chart-series";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import {
-  downsampleTrendAxis,
+  downsampleColumnsForChart,
   tickEveryForDisplayBars,
 } from "@/lib/farm/trend-display-buckets";
 import { cn } from "@/lib/utils";
@@ -62,6 +62,7 @@ function ChannelSlotTrendChart({
   period,
   compact,
   dense,
+  onPlotWidthChange,
 }: {
   reading: BarnReading;
   slot: ChannelSlot;
@@ -72,6 +73,7 @@ function ChannelSlotTrendChart({
   period: TrendPeriodId;
   compact?: boolean;
   dense?: boolean;
+  onPlotWidthChange?: (widthPx: number) => void;
 }) {
   const series = channelSlotTrendSeries(controllerSeries, slot, thermo);
   const fanRefs = series.band ? fanTrendReferenceLines(series.band) : [];
@@ -122,6 +124,8 @@ function ChannelSlotTrendChart({
         referenceLines={fanRefs}
         tickEvery={tickEvery}
         period={period}
+        showMarkers={false}
+        onPlotWidthChange={onPlotWidthChange}
       />
     </div>
   );
@@ -140,6 +144,11 @@ export function BarnChannelTrendPanel({
   className,
 }: Props) {
   const resolvedLayout = layout === "split" ? "overlay" : layout;
+  const [chartPlotWidth, setChartPlotWidth] = useState(0);
+  const onPlotWidthChange = useCallback((w: number) => {
+    setChartPlotWidth((prev) => (Math.abs(prev - w) < 8 ? prev : w));
+  }, []);
+  const plotWidthPx = chartPlotWidth > 32 ? chartPlotWidth : 360;
   const periodData = controllerTrendByPeriod?.[period] ?? null;
   const controllerSeries = useMemo(
     () =>
@@ -174,15 +183,14 @@ export function BarnChannelTrendPanel({
         tickEvery: tickEveryForPeriod(period, categoriesRaw.length, dense),
       };
     }
-    // dense/비dense 모두 GRAPH_BARS 다운샘플 — 7d·30d X축 겹침 방지
-    const { categories, columns } = downsampleTrendAxis(
+    const { categories, columns } = downsampleColumnsForChart(
       categoriesRaw,
       [
         controllerSeries.fanIntake,
         controllerSeries.fanExhaust,
         controllerSeries.fanSupply,
       ],
-      period,
+      plotWidthPx,
     );
     return {
       categories,
@@ -196,7 +204,7 @@ export function BarnChannelTrendPanel({
         ? Math.max(1, Math.ceil(categories.length / 4))
         : tickEveryForDisplayBars(categories.length),
     };
-  }, [hasDataRaw, controllerSeries, categoriesRaw, period, dense]);
+  }, [hasDataRaw, controllerSeries, categoriesRaw, period, dense, plotWidthPx]);
 
   const categories = display.categories;
   const chartSeries = display.series;
@@ -240,6 +248,7 @@ export function BarnChannelTrendPanel({
           period={period}
           compact={compact}
           dense={dense}
+          onPlotWidthChange={onPlotWidthChange}
         />
       </div>
     );
@@ -287,6 +296,8 @@ export function BarnChannelTrendPanel({
         tickEvery={tickEvery}
         period={period}
         showLegend={!dense}
+        showMarkers={false}
+        onPlotWidthChange={onPlotWidthChange}
       />
     </div>
   );

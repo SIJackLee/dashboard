@@ -25,11 +25,13 @@ import {
   tempAlarmBreached,
 } from "@/lib/farm/controller-summary-display";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
+import { formatStallTypeLabelCompact } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
+import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -54,18 +56,61 @@ const cardActionSelectedClass =
 const cardActionIdleClass =
   "text-muted-foreground hover:bg-muted/50 hover:text-foreground";
 
-/** 번호 오버레이 — 글자 둘레 아주 얇은 할로(카드 면색)로 아이콘 선과 분리 */
-const noMarkDigitClass = cn(
-  "pointer-events-none absolute bottom-0 right-0 z-[1]",
-  "font-bold tabular-nums leading-none text-foreground",
-  "text-[0.68em]",
-  "[-webkit-text-stroke:1.5px_var(--card)]",
-  "[paint-order:stroke_fill]",
-);
+/** PC: 아이콘 우하단 오버레이. 모바일: 아이콘·숫자 나란히 */
+function NoMarkFrame({
+  label,
+  className,
+  iconClassName,
+  digit,
+  Icon,
+}: {
+  label: string;
+  className?: string;
+  iconClassName?: string;
+  digit: string;
+  Icon: typeof ControllerDeviceIcon | typeof StallUnitIcon;
+}) {
+  const compact = useHydrationSafeDashboardCompact();
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0",
+        compact ? "items-center gap-1" : "relative",
+        className,
+      )}
+      aria-label={label}
+      title={label}
+    >
+      <Icon
+        className={cn(
+          "shrink-0 text-muted-foreground",
+          compact ? "size-6" : "size-[1.35em]",
+          iconClassName,
+          compact && "size-6",
+        )}
+        numberCutout={!compact}
+        aria-hidden
+      />
+      <span
+        className={cn(
+          "font-bold tabular-nums leading-none text-foreground",
+          compact
+            ? "text-base"
+            : cn(
+                "pointer-events-none absolute bottom-0 right-0 z-[1] text-[0.68em]",
+                "[-webkit-text-stroke:1.5px_var(--card)]",
+                "[paint-order:stroke_fill]",
+              ),
+        )}
+        aria-hidden
+      >
+        {digit}
+      </span>
+    </span>
+  );
+}
 
-/** 컨트롤러 번호 — 장치 아이콘 우하단에 번호 오버레이 (aria에 정식 명칭)
- *  B안: 아이콘 muted · 번호 foreground · 글자 둘레 얇은 할로
- */
+/** 컨트롤러 번호 — PC는 장치 아이콘 우하단 오버레이, 모바일은 아이콘+번호 나란히 */
 export function ControllerNoMark({
   eqpmnNo,
   className,
@@ -78,29 +123,17 @@ export function ControllerNoMark({
   const eq = normalizeEqpmnNo(eqpmnNo ?? "01");
   const noLabel = formatControllerNoLabel(eqpmnNo);
   return (
-    <span
-      className={cn("relative inline-flex shrink-0", className)}
-      aria-label={`컨트롤러 ${noLabel}`}
-      title={`컨트롤러 ${noLabel}`}
-    >
-      <ControllerDeviceIcon
-        className={cn(
-          "size-[1.35em] shrink-0 text-muted-foreground",
-          iconClassName,
-        )}
-        numberCutout
-        aria-hidden
-      />
-      <span className={noMarkDigitClass} aria-hidden>
-        {eq}
-      </span>
-    </span>
+    <NoMarkFrame
+      label={`컨트롤러 ${noLabel}`}
+      className={className}
+      iconClassName={iconClassName}
+      digit={eq}
+      Icon={ControllerDeviceIcon}
+    />
   );
 }
 
-/** 축사 번호 — 박공 창고 아이콘 우하단 오버레이 (aria에 「N번 축사」)
- *  B안: 아이콘 muted · 번호 foreground · 글자 둘레 얇은 할로
- */
+/** 축사 번호 — PC는 창고 아이콘 우하단 오버레이, 모바일은 아이콘+번호 나란히 */
 export function StallUnitNoMark({
   stallNo,
   className,
@@ -118,22 +151,44 @@ export function StallUnitNoMark({
     idx: undefined,
   });
   return (
-    <span
-      className={cn("relative inline-flex shrink-0", className)}
-      aria-label={unitLabel}
-      title={unitLabel}
-    >
-      <StallUnitIcon
-        className={cn(
-          "size-[1.35em] shrink-0 text-muted-foreground",
-          iconClassName,
-        )}
-        numberCutout
-        aria-hidden
-      />
-      <span className={noMarkDigitClass} aria-hidden>
-        {display}
-      </span>
+    <NoMarkFrame
+      label={unitLabel}
+      className={className}
+      iconClassName={iconClassName}
+      digit={display}
+      Icon={StallUnitIcon}
+    />
+  );
+}
+
+/** 축사유형 + 축사/컨트롤러 아이콘·번호. PC 카드 헤더와 모바일 피커·시트 공용 */
+export function ControllerAffiliationMarks({
+  stallTyCode,
+  stallNo,
+  eqpmnNo,
+  showType = true,
+  compactType = false,
+  className,
+  typeClassName,
+}: {
+  stallTyCode?: string | null;
+  stallNo?: string | null;
+  eqpmnNo?: string;
+  showType?: boolean;
+  compactType?: boolean;
+  className?: string;
+  typeClassName?: string;
+}) {
+  const typeLabel = compactType
+    ? formatStallTypeLabelCompact(stallTyCode)
+    : formatControllerHeaderStallType({ stallTyCode: stallTyCode ?? "" });
+  return (
+    <span className={cn("inline-flex min-w-0 items-center gap-1.5", className)}>
+      {showType ? (
+        <span className={cn("break-keep", typeClassName)}>{typeLabel}</span>
+      ) : null}
+      <StallUnitNoMark stallNo={stallNo} />
+      <ControllerNoMark eqpmnNo={eqpmnNo} />
     </span>
   );
 }

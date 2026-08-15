@@ -8,8 +8,11 @@ import { EnvChip } from "@/components/common/env-chip";
 import type { StatusTone } from "@/components/common/status-badge";
 import { getStallTypeName, formatStallTypeLabelCompact } from "@/lib/data/stall-type";
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
-import { StallUnitIcon } from "@/components/icons/stall-unit-icon";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
+import {
+  dashboardElevation,
+  dashboardUi,
+} from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 /** 상태별 링/글로우 — 뱃지 대신 카드 자체에 색상 임팩트. 경고는 글로우 강화, 오프라인은 디밍. */
@@ -37,21 +40,25 @@ const STATUS_LABEL: Record<StatusTone, string> = {
   offline: "오프라인",
 };
 
-function displayCardTitle(snapshot: BarnMapSnapshot, compact = false): string {
+function displayCardTypeName(snapshot: BarnMapSnapshot, compact = false): string {
   const entry = parseBarnCatalogKey(snapshot.meta.id);
-  const stallNo = snapshot.meta.stallNo?.trim() ?? "";
   if (entry && entry.stallTyCode !== "UNK") {
     const tyName = compact
       ? formatStallTypeLabelCompact(entry.stallTyCode)
       : getStallTypeName(entry.stallTyCode);
     if (tyName && tyName !== entry.stallTyCode) {
-      return stallNo ? `${tyName} ${stallNo}` : tyName;
+      return tyName;
     }
   }
   const legacy = snapshot.meta.name.trim();
   const stripped = legacy.replace(/^SP\d+\s*/i, "").trim();
-  const base = stripped || legacy || "축사";
-  return stallNo ? `${base} ${stallNo}` : base;
+  return stripped || legacy || "축사";
+}
+
+function displayCardTitle(snapshot: BarnMapSnapshot, compact = false): string {
+  const typeName = displayCardTypeName(snapshot, compact);
+  const stallNo = snapshot.meta.stallNo?.trim() ?? "";
+  return stallNo ? `${typeName} ${stallNo}` : typeName;
 }
 
 type Props = {
@@ -88,8 +95,10 @@ export function FarmMapCard({
   statusCompact = false,
 }: Props) {
   const { meta } = snapshot;
-  const Icon = meta.type === "office" ? Building2 : StallUnitIcon;
   const title = displayCardTitle(snapshot, compact || statusCompact);
+  const typeName = displayCardTypeName(snapshot, compact || statusCompact);
+  const stallNo = meta.stallNo?.trim() || null;
+  const showStallMark = meta.type !== "office" && Boolean(stallNo);
   const showGrip = Boolean(draggable) && !statusCompact;
   const showGraph = Boolean(graphContent) && !statusCompact;
 
@@ -118,27 +127,37 @@ export function FarmMapCard({
           STATUS_SURFACE[snapshot.status],
           STATUS_ACCENT[snapshot.status],
           selectable && "cursor-pointer",
-          selected && "!ring-2 !ring-primary !ring-offset-1",
+          selected &&
+            "!ring-2 !ring-foreground/35 !ring-offset-1 dark:!ring-foreground/30",
           className,
         )}
       >
         <span
-          className="w-full truncate text-center text-sm font-semibold leading-tight text-foreground"
+          className="flex w-full items-center justify-center gap-1 text-sm font-semibold leading-tight text-foreground"
           title={title}
         >
-          {title}
+          <span className="min-w-0 truncate">{typeName}</span>
+          {showStallMark ? (
+            <StallUnitNoMark stallNo={stallNo} className="text-inherit" />
+          ) : null}
         </span>
         <span className="flex w-full flex-nowrap items-baseline justify-center gap-2 whitespace-nowrap leading-none">
           <span className="inline-flex shrink-0 items-baseline gap-px">
             <span
               className={cn(
                 dashboardUi.gridCellValueCompact,
-                "text-orange-500",
+                dashboardUi.channelTextTemp,
               )}
             >
               {tempLabel != null && tempLabel !== "" ? tempLabel : "—"}
             </span>
-            <span className="text-[0.65rem] font-medium text-orange-500/70">
+            <span
+              className={cn(
+                "text-[0.65rem] font-medium",
+                dashboardUi.channelTextTemp,
+                "opacity-70",
+              )}
+            >
               ℃
             </span>
           </span>
@@ -174,9 +193,12 @@ export function FarmMapCard({
         layout === "stack" || !compact ? "h-auto" : "h-full",
         STATUS_ACCENT[snapshot.status],
         isDragging && "!opacity-50 !ring-2 !ring-emerald-400",
-        layout === "grid" && !statusCompact && "hover:shadow-md",
+        layout === "grid" &&
+          !statusCompact &&
+          dashboardElevation.interactiveHover,
         selectable && "cursor-pointer",
-        selected && "!ring-2 !ring-primary !ring-offset-1",
+        selected &&
+          "!ring-2 !ring-foreground/35 !ring-offset-1 dark:!ring-foreground/30",
         className
       )}
       style={
@@ -242,8 +264,8 @@ export function FarmMapCard({
             onSelect && "cursor-pointer"
           )}
         >
-          {!statusCompact ? (
-            <Icon
+          {meta.type === "office" ? (
+            <Building2
               className={cn(
                 "text-emerald-600",
                 compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
@@ -253,14 +275,26 @@ export function FarmMapCard({
           ) : null}
           <span
             className={cn(
-              "min-w-0 flex-1",
+              "flex min-w-0 flex-1 items-center gap-1",
               compact || statusCompact
-                ? cn("line-clamp-2", dashboardUi.gridCellValueCompact)
-                : cn("truncate whitespace-nowrap", dashboardUi.gridCellValueDefault),
+                ? dashboardUi.gridCellValueCompact
+                : dashboardUi.gridCellValueDefault,
             )}
             title={title}
           >
-            {title}
+            <span
+              className={cn(
+                "min-w-0",
+                compact || statusCompact
+                  ? "line-clamp-2"
+                  : "truncate whitespace-nowrap",
+              )}
+            >
+              {typeName}
+            </span>
+            {showStallMark ? (
+              <StallUnitNoMark stallNo={stallNo} className="shrink-0 text-inherit" />
+            ) : null}
           </span>
         </button>
       </div>

@@ -31,16 +31,119 @@ export function downsampleTrendValues(
   return computeBinnedMetricValues(values, bars);
 }
 
+/** 차트 표시 점 — 약 2.5px당 1점. 소스보다 늘리지 않음. */
+export const CHART_PX_PER_POINT = 2.5;
+
+export function targetChartDisplayBars(
+  sourceLen: number,
+  plotWidthPx = 800,
+): number {
+  if (sourceLen <= 1) return Math.max(0, sourceLen);
+  const width = Number.isFinite(plotWidthPx) && plotWidthPx > 32 ? plotWidthPx : 800;
+  const byPixel = Math.max(32, Math.floor(width / CHART_PX_PER_POINT));
+  return Math.min(sourceLen, byPixel);
+}
+
+function lttbY(v: number | null | undefined): number {
+  return v != null && Number.isFinite(v) ? v : 0;
+}
+
+/** LTTB — 첫·끝점 고정, 피크를 남기는 인덱스. */
+export function pickLttbIndices(
+  values: (number | null)[],
+  target: number,
+): number[] {
+  const n = values.length;
+  if (n <= 0) return [];
+  if (target >= n || n <= 2) {
+    return Array.from({ length: n }, (_, i) => i);
+  }
+  const threshold = Math.max(2, Math.min(target, n));
+  if (threshold === 2) return [0, n - 1];
+
+  const sampled: number[] = [0];
+  const bucketSize = (n - 2) / (threshold - 2);
+  let a = 0;
+  for (let i = 0; i < threshold - 2; i++) {
+    const avgRangeStart = Math.floor((i + 1) * bucketSize) + 1;
+    const avgRangeEnd = Math.min(Math.floor((i + 2) * bucketSize) + 1, n);
+    const avgLen = Math.max(1, avgRangeEnd - avgRangeStart);
+    let avgX = 0;
+    let avgY = 0;
+    for (let j = avgRangeStart; j < avgRangeEnd; j++) {
+      avgX += j;
+      avgY += lttbY(values[j]);
+    }
+    avgX /= avgLen;
+    avgY /= avgLen;
+
+    const rangeOffs = Math.floor(i * bucketSize) + 1;
+    const rangeTo = Math.floor((i + 1) * bucketSize) + 1;
+    const ax = a;
+    const ay = lttbY(values[a]);
+    let maxArea = -1;
+    let nextA = rangeOffs;
+    for (let j = rangeOffs; j < rangeTo && j < n - 1; j++) {
+      const area = Math.abs(
+        (ax - avgX) * (lttbY(values[j]) - ay) - (ax - j) * (avgY - ay),
+      );
+      if (area > maxArea) {
+        maxArea = area;
+        nextA = j;
+      }
+    }
+    sampled.push(nextA);
+    a = nextA;
+  }
+  sampled.push(n - 1);
+  return sampled;
+}
+
+export function downsampleByIndices<T>(arr: T[], indices: number[]): T[] {
+  return indices.map((i) => arr[i]!);
+}
+
+export function downsampleTrendAxisToBars(
+  categories: string[],
+  dataColumns: (number | null)[][],
+  bars: number,
+): { categories: string[]; columns: (number | null)[][] } {
+  return {
+    categories: binTrendCategories(categories, bars),
+    columns: dataColumns.map((col) => downsampleTrendValues(col, bars)),
+  };
+}
+
 /** 원본 RPC 버킷 → GRAPH_BARS 표시 해상도(평균 집계). */
 export function downsampleTrendAxis(
   categories: string[],
   dataColumns: (number | null)[][],
   period: TrendPeriodId,
 ): { categories: string[]; columns: (number | null)[][] } {
-  const bars = GRAPH_BARS[period];
+  return downsampleTrendAxisToBars(categories, dataColumns, GRAPH_BARS[period]);
+}
+
+/** 라인 차트용 — 플롯 너비 기준 LTTB. 히트맵은 GRAPH_BARS 유지. */
+export function downsampleColumnsForChart(
+  categories: string[],
+  dataColumns: (number | null)[][],
+  plotWidthPx: number,
+): { categories: string[]; columns: (number | null)[][] } {
+  const n = categories.length;
+  const bars = targetChartDisplayBars(n, plotWidthPx);
+  if (n <= 1 || bars >= n) {
+    return { categories, columns: dataColumns };
+  }
+  const driver =
+    dataColumns.find((col) =>
+      col.some((v) => v != null && Number.isFinite(v)),
+    ) ??
+    dataColumns[0] ??
+    [];
+  const idx = pickLttbIndices(driver, bars);
   return {
-    categories: binTrendCategories(categories, bars),
-    columns: dataColumns.map((col) => downsampleTrendValues(col, bars)),
+    categories: downsampleByIndices(categories, idx),
+    columns: dataColumns.map((col) => downsampleByIndices(col, idx)),
   };
 }
 

@@ -3,67 +3,77 @@
  */
 import assert from "node:assert/strict";
 import {
+  BRUSH_MIN_WIDTH,
   BRUSH_PERIOD_WINDOW,
+  brushWindowFromDraft,
+  clampBrushWindow,
+  displayPeriodFromBrushWindow,
+  formatBrushWindowLabel,
+  moveBrushWindow,
   resolveBrushHighlightWindow,
-  resolveBrushPeriodFromDraft,
-  snapBrushSpanToPeriod,
 } from "./unified-trend-period-brush";
 
 {
-  assert.equal(snapBrushSpanToPeriod(0.03), "24h");
-  assert.equal(snapBrushSpanToPeriod(0.08), "24h");
-  assert.equal(snapBrushSpanToPeriod(0.2), "7d");
-  assert.equal(snapBrushSpanToPeriod(0.35), "7d");
-  assert.equal(snapBrushSpanToPeriod(0.5), "30d");
+  const full = clampBrushWindow(-0.2, 1.4);
+  assert.equal(full.start, 0);
+  assert.equal(full.width, 1);
+
+  const tiny = clampBrushWindow(0.5, 0.0001);
+  assert.ok(tiny.width >= BRUSH_MIN_WIDTH);
+  assert.ok(tiny.start >= 0);
+  assert.ok(tiny.start + tiny.width <= 1 + 1e-9);
 }
 
 {
-  // 폭 우선 — 왼쪽에서 넓게 끌어도 30d (위치가 아닌 폭)
-  assert.equal(resolveBrushPeriodFromDraft(0.05, 0.7), "30d");
-  // 좁은 폭 → 24h, 적용 윈도우는 우측 정렬
-  assert.equal(resolveBrushPeriodFromDraft(0.1, 0.15), "24h");
-  assert.equal(resolveBrushPeriodFromDraft(0.4, 0.55), "7d");
+  assert.equal(brushWindowFromDraft(0.1, 0.11), null);
+  const mid = brushWindowFromDraft(0.2, 0.5);
+  assert.ok(mid);
+  assert.ok(Math.abs(mid.start - 0.2) < 1e-9);
+  assert.ok(Math.abs(mid.width - 0.3) < 1e-9);
+
+  const past = brushWindowFromDraft(0.1, 0.4);
+  assert.ok(past);
+  assert.ok(past.start < 0.2);
 }
 
 {
-  // 거의 클릭 — null (UI에서 기간 순환)
-  const tap24 = BRUSH_PERIOD_WINDOW["24h"].start + 0.005;
-  assert.equal(resolveBrushPeriodFromDraft(tap24, tap24), null);
-  assert.equal(resolveBrushPeriodFromDraft(0.1, 0.11), null);
+  const seven = BRUSH_PERIOD_WINDOW["7d"];
+  const moved = moveBrushWindow(seven, 0.2);
+  assert.ok(Math.abs(moved.width - seven.width) < 1e-9);
+  assert.ok(moved.start < seven.start);
+  assert.ok(moved.start + moved.width <= 1 + 1e-9);
 }
 
 {
-  // 확정 윈도우는 항상 우측(최근) 정렬
-  assert.equal(BRUSH_PERIOD_WINDOW["30d"].start, 0);
-  assert.equal(BRUSH_PERIOD_WINDOW["30d"].width, 1);
-  assert.ok(BRUSH_PERIOD_WINDOW["7d"].start > 0.7);
-  assert.ok(BRUSH_PERIOD_WINDOW["24h"].start > BRUSH_PERIOD_WINDOW["7d"].start);
+  assert.equal(displayPeriodFromBrushWindow({ start: 0.96, width: 1 / 30 }), "24h");
+  assert.equal(displayPeriodFromBrushWindow(BRUSH_PERIOD_WINDOW["7d"]), "7d");
+  assert.equal(displayPeriodFromBrushWindow(BRUSH_PERIOD_WINDOW["30d"]), "30d");
 }
 
 {
-  const full30 = resolveBrushHighlightWindow("30d", null, 100);
-  assert.equal(full30.start, 0);
-  assert.equal(full30.width, 1);
+  assert.equal(formatBrushWindowLabel({ start: 0, width: 1 }), "약 30일");
+  assert.match(formatBrushWindowLabel({ start: 0.9, width: 0.02 }), /시간|1일/);
+}
 
-  const scoped30 = resolveBrushHighlightWindow(
-    "30d",
+{
+  const win = { start: 0.2, width: 0.4 };
+  const full = resolveBrushHighlightWindow(win, null, 100);
+  assert.equal(full.start, 0.2);
+  assert.equal(full.width, 0.4);
+
+  const scoped = resolveBrushHighlightWindow(
+    win,
     { start: 20, end: 80 },
     101,
   );
-  assert.ok(Math.abs(scoped30.start - 0.2) < 0.001);
-  assert.ok(Math.abs(scoped30.width - 0.6) < 0.001);
+  assert.ok(Math.abs(scoped.start - (0.2 + 0.2 * 0.4)) < 0.001);
+  assert.ok(Math.abs(scoped.width - 0.6 * 0.4) < 0.001);
+}
 
-  const scoped7Half = resolveBrushHighlightWindow(
-    "7d",
-    { start: 0, end: 25 },
-    51,
-  );
-  assert.ok(
-    Math.abs(scoped7Half.start - BRUSH_PERIOD_WINDOW["7d"].start) < 0.001,
-  );
-  assert.ok(
-    Math.abs(scoped7Half.width - BRUSH_PERIOD_WINDOW["7d"].width * 0.5) < 0.001,
-  );
+{
+  assert.equal(BRUSH_PERIOD_WINDOW["30d"].start, 0);
+  assert.equal(BRUSH_PERIOD_WINDOW["30d"].width, 1);
+  assert.ok(BRUSH_PERIOD_WINDOW["7d"].start > 0.7);
 }
 
 console.log("unified-trend-period-brush.test.ts: ok");
