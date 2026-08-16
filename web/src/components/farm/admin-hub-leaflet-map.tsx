@@ -136,7 +136,7 @@ export function AdminHubLeafletMap({
 
     const fitSouthKorea = (force = true) => {
       map.invalidateSize();
-      const needed = map.getBoundsZoom(SOUTH_KOREA_VIEW, false, [28, 28]);
+      const needed = map.getBoundsZoom(SOUTH_KOREA_VIEW, false, L.point(28, 28));
       if (!Number.isFinite(needed)) return;
       map.setMinZoom(needed);
       if (force || map.getZoom() <= needed + 0.05) {
