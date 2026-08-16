@@ -1,0 +1,147 @@
+.hub-leaflet {
+  height: 100%;
+  isolation: isolate;
+  min-height: 18rem;
+  width: 100%;
+  background: var(--surface-well, transparent);
+}
+
+.hub-leaflet .leaflet-control-attribution {
+  font-size: 10px;
+  background: color-mix(in oklch, var(--card) 88%, transparent);
+}
+
+.hub-leaflet .leaflet-control-scale-line {
+  border-color: var(--border);
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--card) 88%, transparent);
+}
+
+.hub-leaflet .leaflet-bar a {
+  color: var(--foreground);
+  background: var(--card);
+  border-bottom-color: var(--border);
+}
+
+.hub-leaflet .leaflet-bar a:hover {
+  background: var(--muted);
+}
+
+.hub-map-pin {
+  align-items: center;
+  border: 1px solid color-mix(in oklch, var(--foreground) 20%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 18%, transparent);
+  display: flex;
+  font-size: 11px;
+  font-weight: 650;
+  height: 1.75rem;
+  justify-content: center;
+  line-height: 1;
+  width: 1.75rem;
+}
+
+.hub-map-pin.is-active {
+  box-shadow: 0 0 0 2px var(--foreground);
+  height: 2rem;
+  width: 2rem;
+}
+
+.hub-map-pin--live {
+  background: #10b981;
+  color: #fff;
+}
+
+.hub-map-pin--alert {
+  background: var(--status-danger);
+  color: #fff;
+}
+
+.hub-map-pin--offline {
+  background: var(--muted-foreground);
+  color: var(--background);
+}
+
+.hub-map-pin--location {
+  background: color-mix(in oklch, var(--channel-info) 18%, var(--card));
+  color: var(--channel-info);
+}
+
+.hub-leaflet .hub-map-tip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px color-mix(in oklch, var(--foreground) 14%, transparent);
+  color: var(--foreground);
+  max-width: 12rem;
+  padding: 0;
+  white-space: normal;
+}
+
+.hub-leaflet .leaflet-tooltip-top.hub-map-tip::before {
+  border-top-color: var(--card);
+}
+
+.hub-leaflet .leaflet-tooltip-bottom.hub-map-tip::before {
+  border-bottom-color: var(--card);
+}
+
+.hub-leaflet .leaflet-tooltip-left.hub-map-tip::before {
+  border-left-color: var(--card);
+}
+
+.hub-leaflet .leaflet-tooltip-right.hub-map-tip::before {
+  border-right-color: var(--card);
+}
+
+.hub-map-tip-card {
+  min-width: 8.5rem;
+  padding: 0.4rem 0.55rem 0.45rem;
+}
+
+.hub-map-tip-name {
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.hub-map-tip-status {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  margin-top: 0.1rem;
+}
+
+.hub-map-tip-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+
+.hub-map-tip-metric {
+  align-items: center;
+  display: inline-flex;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  gap: 0.12rem;
+}
+
+.hub-map-tip-icon {
+  fill: none;
+  flex: 0 0 auto;
+  height: 0.85rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 0.85rem;
+}
+
+.hub-map-tip-metric--temp {
+  color: var(--channel-temp);
+}
+
+.hub-map-tip-metric--hum {
+  color: var(--channel-hum);
+}

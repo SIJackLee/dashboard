@@ -21,7 +21,7 @@ export const HEALTH_UI = {
   liveCapDesc: "관리 화면 전역 live 뷰 상한",
   farmModules: "농장 · 모듈",
   farmModulesDesc: "worst rollup · 상태·경과시간 순",
-  actionHint: "조치 권장",
+  actionHint: "ERROR TYPE · RECOMMEND",
   downlink: "명령(downlink)",
   downlinkDesc: "C 프로세스 · uplink rollup 제외",
   externalLink: "외부 연계",

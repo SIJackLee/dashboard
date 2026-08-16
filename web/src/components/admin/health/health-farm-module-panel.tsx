@@ -1,19 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { HealthStatus, ModuleHealthRow } from "@/lib/admin/health/types";
+import { useMemo, useState, type ComponentType } from "react";
+import { AlertTriangle, Clock, List, WifiOff } from "lucide-react";
+import type { ModuleHealthRow } from "@/lib/admin/health/types";
 import { HealthFarmModuleTable } from "@/components/admin/health/health-farm-module-table";
 import { SEVERITY_ORDER } from "@/lib/admin/health/health-ui-labels";
-import { dashboardControl, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = HealthStatus | "all" | "issues";
+type StatusFilter = "all" | "issues" | "critical" | "warn";
 
-const FILTER_OPTIONS: { id: StatusFilter; label: string }[] = [
-  { id: "all", label: "전체" },
-  { id: "issues", label: "이상만" },
-  { id: "critical", label: "장애" },
-  { id: "warn", label: "주의" },
+const FILTER_OPTIONS: {
+  id: StatusFilter;
+  label: string;
+  Icon: ComponentType<{ className?: string }>;
+}[] = [
+  { id: "all", label: "전체", Icon: List },
+  { id: "issues", label: "이상만", Icon: AlertTriangle },
+  { id: "critical", label: "장애", Icon: WifiOff },
+  { id: "warn", label: "주의", Icon: Clock },
 ];
 
 type Props = {
@@ -31,6 +36,18 @@ export function HealthFarmModulePanel({
 }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("issues");
   const [search, setSearch] = useState("");
+
+  const filterCounts = useMemo(() => {
+    const issues = modules.filter(
+      (r) => r.status === "critical" || r.status === "warn",
+    ).length;
+    return {
+      all: modules.length,
+      issues,
+      critical: modules.filter((r) => r.status === "critical").length,
+      warn: modules.filter((r) => r.status === "warn").length,
+    };
+  }, [modules]);
 
   const filtered = useMemo(() => {
     let rows = [...modules];
@@ -60,22 +77,31 @@ export function HealthFarmModulePanel({
     <div className={cn("flex min-h-0 flex-col", embedded ? "h-full gap-2" : "space-y-3 md:space-y-4")}>
       <div className={cn("flex flex-col gap-3", embedded ? "shrink-0 sm:flex-row sm:flex-wrap sm:items-center" : "sm:flex-row sm:flex-wrap sm:items-center")}>
         <div className="flex flex-wrap gap-2">
-          {FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setStatusFilter(opt.id)}
-              className={cn(
-                dashboardControl.buttonOutline,
-                "rounded-lg px-3 py-1.5",
-                statusFilter === opt.id
-                  ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                  : ""
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {FILTER_OPTIONS.map((opt) => {
+            const { Icon } = opt;
+            const pressed = statusFilter === opt.id;
+            const count = filterCounts[opt.id];
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setStatusFilter(opt.id)}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-1.5 py-1",
+                  dashboardTypography.badge,
+                  pressed
+                    ? "bg-muted ring-1 ring-foreground/20"
+                    : "hover:bg-muted/60",
+                )}
+                title={opt.label}
+                aria-label={`${opt.label} ${count}`}
+                aria-pressed={pressed}
+              >
+                <Icon className="size-3.5" aria-hidden />
+                <span className="tabular-nums">{count}</span>
+              </button>
+            );
+          })}
         </div>
         <input
           type="search"

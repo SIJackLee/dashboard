@@ -33,7 +33,7 @@ export async function AdminOpsPageShell({ children }: Props) {
       <main
         className={cn(
           dashboardUi.mainPadWide,
-          "flex min-h-0 min-w-0 flex-col",
+          "flex min-h-0 min-w-0 flex-col overflow-hidden",
         )}
       >
         <div

@@ -5,12 +5,11 @@ import { HealthCommandFailurePanel } from "@/components/admin/health/health-comm
 import { HealthControllerTable } from "@/components/admin/health/health-controller-table";
 import { HealthFarmModuleTable } from "@/components/admin/health/health-farm-module-table";
 import { HealthInsertRateChart } from "@/components/admin/health/health-insert-rate-chart";
+import { HealthNodeDrawer } from "@/components/admin/health/health-node-drawer";
 import { HealthD11Panel, HealthPointTable } from "@/components/admin/health/health-point-table";
 import { HealthSectionCard } from "@/components/admin/health/health-section-card";
 import { HealthUsageBar } from "@/components/admin/health/health-usage-bar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { hintsFromPoints } from "@/lib/admin/health/d11-map";
-import { healthNodeTitle } from "@/lib/admin/health/health-ui-labels";
 import { adminOpsHealthHref } from "@/lib/admin/health/health-routes";
 import type { HealthSnapshot } from "@/lib/admin/health/types";
 import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
@@ -215,41 +214,6 @@ function NodeDetailTech({
   );
 }
 
-function NodeDetailDrawerTabs({
-  nodeId,
-  snapshot,
-  points,
-  hints,
-}: NodeDetailSectionsProps & { hints: ReturnType<typeof hintsFromPoints> }) {
-  const sectionProps = { nodeId, snapshot, points };
-
-  return (
-    <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col gap-4">
-      <TabsList className="grid h-auto w-full shrink-0 grid-cols-4 p-1">
-        <TabsTrigger value="overview">개요</TabsTrigger>
-        <TabsTrigger value="points">포인트</TabsTrigger>
-        <TabsTrigger value="d11">D11</TabsTrigger>
-        <TabsTrigger value="tech">기술</TabsTrigger>
-      </TabsList>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pb-2">
-        <TabsContent value="overview" className="mt-0 space-y-4">
-          <p className={dashboardTypography.meta}>{healthNodeTitle(nodeId)}</p>
-          <NodeDetailOverview {...sectionProps} compactTables />
-        </TabsContent>
-        <TabsContent value="points" className="mt-0 min-w-0">
-          <NodeDetailPoints points={points} />
-        </TabsContent>
-        <TabsContent value="d11" className="mt-0">
-          <HealthD11Panel hints={hints} />
-        </TabsContent>
-        <TabsContent value="tech" className="mt-0">
-          <NodeDetailTech {...sectionProps} collapsible={false} />
-        </TabsContent>
-      </div>
-    </Tabs>
-  );
-}
-
 export function HealthNodeDetailView({
   nodeId,
   snapshot,
@@ -261,12 +225,7 @@ export function HealthNodeDetailView({
   const sectionProps = { nodeId, snapshot, points };
 
   if (variant === "drawer") {
-    return (
-      <NodeDetailDrawerTabs
-        {...sectionProps}
-        hints={hints}
-      />
-    );
+    return <HealthNodeDrawer nodeId={nodeId} snapshot={snapshot} />;
   }
 
   return (

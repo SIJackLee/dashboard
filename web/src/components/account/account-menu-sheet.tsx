@@ -153,10 +153,7 @@ export function AccountMenuSheet({ open, onOpenChange, children }: Props) {
 
   useEffect(() => {
     if (motionState === "open" && visible && panelRef.current) {
-      const closeBtn = panelRef.current.querySelector<HTMLElement>(
-        "[data-account-menu-close]",
-      );
-      closeBtn?.focus({ preventScroll: true });
+      panelRef.current.focus({ preventScroll: true });
     }
   }, [motionState, visible]);
 
@@ -217,6 +214,7 @@ export function AccountMenuSheet({ open, onOpenChange, children }: Props) {
         id="account-menu-sheet"
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-labelledby="account-menu-sheet-title"
         data-state={motionState}
         data-tour-id="account-menu-panel"

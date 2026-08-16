@@ -12,6 +12,7 @@ import { getThermoCommandHistory } from "@/lib/data/commands";
 import { compareFarmKey, farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { fetchFarmOverviewRows } from "@/lib/data/iot-live-fetch";
 import { farmShortLabel } from "@/lib/data/farm-summaries";
+import { OpsInspectorFrame } from "@/components/admin/ops-inspector-frame";
 import { opsLayout, opsTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -99,12 +100,7 @@ async function AriaLogsSection() {
 /** 운영 홈 — 스캔(client defer) + 디렉터리(B) + 슬림 명령 + ARIA 로그. */
 export async function AdminOpsHome() {
   return (
-    <div
-      className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-6",
-        opsLayout.stack,
-      )}
-    >
+    <OpsInspectorFrame>
       <OpsScanClient />
       <Suspense fallback={<AdminOpsTabContentSkeleton label="디렉터리" />}>
         <DirectorySection />
@@ -117,6 +113,6 @@ export async function AdminOpsHome() {
           <AriaLogsSection />
         </Suspense>
       ) : null}
-    </div>
+    </OpsInspectorFrame>
   );
 }

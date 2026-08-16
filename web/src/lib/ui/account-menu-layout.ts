@@ -31,11 +31,7 @@ export const accountMenuLayout = {
     "flex min-w-0 items-center gap-2 border-b border-border/60 px-3 py-2 max-md:pt-safe md:gap-2.5 md:px-4 md:py-2.5",
   sheetHeaderActions: "flex shrink-0 items-center gap-2",
   headerLogout: cn(
-    "text-[10px] font-medium text-destructive hover:underline",
-    motionClass.microInteractive,
-  ),
-  sheetCloseBtn: cn(
-    "inline-flex shrink-0 items-center rounded-md px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+    "inline-flex shrink-0 items-center rounded-md px-2 py-1 text-[10px] font-medium text-destructive hover:bg-muted/60 hover:underline",
     motionClass.microInteractive,
   ),
   hubAvatar: cn(
@@ -64,6 +60,9 @@ export const accountMenuLayout = {
   ),
   liveStrip:
     "flex min-w-0 items-center gap-1 text-[length:var(--density-meta)] leading-snug text-muted-foreground md:text-[length:var(--density-meta-md)]",
+  hubToneStrip: "flex min-w-0 flex-wrap items-center gap-1",
+  hubToneChip:
+    "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[length:var(--density-badge)] tabular-nums md:text-[length:var(--density-badge-md)]",
   liveStatusDot: "size-1.5 shrink-0 rounded-full bg-primary",
   liveStatusDotWarn: "size-1.5 shrink-0 rounded-full bg-amber-500",
   liveStatusDotOffline: "size-1.5 shrink-0 rounded-full bg-muted-foreground/50",
@@ -141,5 +140,8 @@ export const CONTROLLER_STATUS_LABEL: Record<
   offline: "오프라인",
 };
 
-/** Top Sheet backdrop·panel top — `[data-app-header]` 하단 */
-export const ACCOUNT_MENU_SHEET_Z = 45;
+/**
+ * Top Sheet backdrop·panel — `[data-app-header]` 하단.
+ * Leaflet pane/control은 400–1000이라 그 위에 둬야 관제 지도에 가리지 않는다.
+ */
+export const ACCOUNT_MENU_SHEET_Z = 1100;

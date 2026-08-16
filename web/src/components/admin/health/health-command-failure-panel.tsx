@@ -10,19 +10,64 @@ import { cn } from "@/lib/utils";
 type HealthCommandFailurePanelProps = {
   failures: CommandFailureItem[];
   checkpointCount: number;
+  compact?: boolean;
 };
 
 export function HealthCommandFailurePanel({
   failures,
   checkpointCount,
+  compact = false,
 }: HealthCommandFailurePanelProps) {
   const [pending, startTransition] = useTransition();
 
   if (failures.length === 0 && checkpointCount === 0) {
     return (
       <p className={dashboardTypography.meta}>
-        활성 C 실패 이력 없음 (24h 기준)
+        {compact ? "실패 없음" : "활성 C 실패 이력 없음 (24h 기준)"}
       </p>
+    );
+  }
+
+  if (compact) {
+    return (
+      <div className="space-y-1">
+        {checkpointCount > 0 ? (
+          <p className={dashboardTypography.meta}>무시 {checkpointCount}건</p>
+        ) : null}
+        {failures.length === 0 ? (
+          <p className={cn(dashboardTypography.meta, "text-emerald-700")}>
+            미체크 없음
+          </p>
+        ) : (
+          <ul className="space-y-0.5">
+            {failures.slice(0, 5).map((f) => (
+              <li key={f.commandId} className="flex items-center gap-1.5">
+                <span className={cn(dashboardTypography.meta, "min-w-0 flex-1 truncate")}>
+                  {f.farmLabel}
+                  {f.reason ? ` · ${f.reason}` : ""}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {f.ageSec < 60
+                    ? `${Math.round(f.ageSec)}초`
+                    : `${Math.round(f.ageSec / 60)}분`}
+                </span>
+                <button
+                  type="button"
+                  disabled={pending}
+                  className="shrink-0 rounded border px-1.5 py-0.5 text-muted-foreground hover:bg-muted disabled:opacity-50"
+                  onClick={() => {
+                    startTransition(async () => {
+                      await acknowledgeCommandHealthCheckpoint(f.commandId);
+                    });
+                  }}
+                >
+                  무시
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     );
   }
 

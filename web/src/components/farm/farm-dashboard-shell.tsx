@@ -1,8 +1,7 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { AdminAllFarmsGridPanels } from "@/components/farm/admin-all-farms-grid-panels";
-import { AdminHubGridTailLoader } from "@/components/farm/admin-hub-grid-tail-loader";
+import { AdminHubControlView } from "@/components/farm/admin-hub-control-view";
 import { FarmPageContent } from "@/components/farm/farm-page-content";
 import {
   AdminHubGridSkeleton,
@@ -11,6 +10,7 @@ import {
 import { StaleWhileRevalidateShell } from "@/components/common/stale-while-revalidate-shell";
 import { NavContentReadyMarker } from "@/components/layout/nav-content-ready-marker";
 import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
+import type { FarmLocationRow } from "@/lib/data/farm-location-shared";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
@@ -35,6 +35,7 @@ export type FarmDashboardShellProps = {
   farmOptions?: FarmKey[];
   activeFarmKey?: FarmKey | null;
   farmSummaries?: FarmSummaryRow[];
+  hubLocations?: FarmLocationRow[];
   sp?: string | null;
   view?: string | null;
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
@@ -119,26 +120,48 @@ function FarmLivePageContent({
   );
 }
 
+function AdminHubControl({
+  farmOptions,
+  farmSummaries,
+  hubLocations,
+}: {
+  farmOptions: FarmKey[];
+  farmSummaries: FarmSummaryRow[];
+  hubLocations: FarmLocationRow[];
+}) {
+  return (
+    <AdminHubControlView
+      farmOptions={farmOptions}
+      farmSummaries={farmSummaries}
+      locations={hubLocations}
+    />
+  );
+}
+
 function AdminHubBody({
   deferAdminGridLoad,
   children,
-  allFarmGrids,
   view,
   isAdmin,
   hubUrlEpoch,
   onHubUrlChange,
   serverActiveFarmKey,
+  farmOptions,
+  farmSummaries,
+  hubLocations,
   initialWeatherNudge = null,
   weatherNudgeEnabled = false,
 }: {
   deferAdminGridLoad: boolean;
   children?: ReactNode;
-  allFarmGrids: AdminFarmGridPanel[] | null;
   view?: string | null;
   isAdmin: boolean;
   hubUrlEpoch: number;
   onHubUrlChange: () => void;
   serverActiveFarmKey: FarmKey | null;
+  farmOptions: FarmKey[];
+  farmSummaries: FarmSummaryRow[];
+  hubLocations: FarmLocationRow[];
   initialWeatherNudge?: WeatherNudgeView | null;
   weatherNudgeEnabled?: boolean;
 }) {
@@ -172,10 +195,11 @@ function AdminHubBody({
   if (hubClientNav) {
     if (!clientActiveFarmKey) {
       return (
-        <>
-          <AdminAllFarmsGridPanels panels={panels} liveFromContext />
-          <AdminHubGridTailLoader />
-        </>
+        <AdminHubControl
+          farmOptions={farmOptions}
+          farmSummaries={farmSummaries}
+          hubLocations={hubLocations}
+        />
       );
     }
     if (cachedPanel) {
@@ -210,9 +234,19 @@ function AdminHubBody({
     <Suspense fallback={gridFallback}>
       {adminAllFarmsMode ? (
         deferAdminGridLoad ? (
-          children
+          children ?? (
+            <AdminHubControl
+              farmOptions={farmOptions}
+              farmSummaries={farmSummaries}
+              hubLocations={hubLocations}
+            />
+          )
         ) : (
-          <AdminAllFarmsGridPanels panels={allFarmGrids ?? []} />
+          <AdminHubControl
+            farmOptions={farmOptions}
+            farmSummaries={farmSummaries}
+            hubLocations={hubLocations}
+          />
         )
       ) : (
         <FarmLivePageContent
@@ -237,12 +271,13 @@ export function FarmDashboardShell({
   farmOptions = [],
   activeFarmKey: serverActiveFarmKey = null,
   farmSummaries = [],
+  hubLocations = [],
   sp: _sp,
   view,
   trendByPeriod,
   controller,
   layoutsToPersist,
-  allFarmGrids = null,
+  allFarmGrids: _allFarmGrids = null,
   deferAdminGridLoad = false,
   children,
   initialWeatherNudge = null,
@@ -344,12 +379,14 @@ export function FarmDashboardShell({
         {isAdmin && deferAdminGridLoad ? (
           <AdminHubBody
             deferAdminGridLoad={deferAdminGridLoad}
-            allFarmGrids={allFarmGrids}
             view={view}
             isAdmin={isAdmin}
             hubUrlEpoch={hubUrlEpoch}
             onHubUrlChange={onHubUrlChange}
             serverActiveFarmKey={serverActiveFarmKey}
+            farmOptions={farmOptions}
+            farmSummaries={farmSummaries}
+            hubLocations={hubLocations}
             initialWeatherNudge={initialWeatherNudge}
             weatherNudgeEnabled={weatherNudgeEnabled}
           >
@@ -366,10 +403,12 @@ export function FarmDashboardShell({
             }
           >
             {adminAllFarmsMode && !useCachedSingle ? (
-              deferAdminGridLoad ? (
-                children
-              ) : (
-                <AdminAllFarmsGridPanels panels={allFarmGrids ?? []} />
+              children ?? (
+                <AdminHubControl
+                  farmOptions={farmOptions}
+                  farmSummaries={farmSummaries}
+                  hubLocations={hubLocations}
+                />
               )
             ) : (
               <FarmLivePageContent

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { HealthSnapshot, HealthNodeId, HealthStatus } from "@/lib/admin/health/types";
 import {
@@ -10,16 +10,13 @@ import {
 } from "@/lib/admin/health/health-ui-labels";
 import { parseHealthNodeId } from "@/lib/admin/health/health-routes";
 import { farmKeyUrlSlug } from "@/lib/data/farm-key";
-import type {
-  HealthDagNodeSelectPayload,
-  PeekAnchor,
-} from "@/lib/admin/health/health-node-peek-content";
+import type { HealthDagNodeSelectPayload } from "@/lib/admin/health/health-node-peek-content";
 import { fetchHealthSnapshotAction } from "@/app/(dashboard)/admin/ops/health-actions";
 import { HealthDagGraph } from "@/components/admin/health/health-dag-graph";
 import { HealthDataPathStrip } from "@/components/admin/health/health-data-path-strip";
 import { HealthFarmModulePanel } from "@/components/admin/health/health-farm-module-panel";
-import { HealthNodeDetailDialog } from "@/components/admin/health/health-node-detail-dialog";
-import { HealthNodePeekPopover } from "@/components/admin/health/health-node-peek-popover";
+import { HealthNodeInspector } from "@/components/admin/health/health-node-inspector";
+import { useOpsInspectorOptional } from "@/components/admin/ops-inspector-context";
 import { HealthOverallStatus } from "@/components/admin/health/health-overall-status";
 import { HealthRefreshBar } from "@/components/admin/health/health-refresh-bar";
 import { opsControl, opsTypography } from "@/lib/ui/dashboard-page-ui";
@@ -28,11 +25,6 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   snapshot: HealthSnapshot;
-};
-
-type PeekState = {
-  nodeId: HealthNodeId;
-  anchor: PeekAnchor;
 };
 
 function needsAttention(status: HealthStatus): boolean {
@@ -64,9 +56,9 @@ export function HealthSystemShell({ snapshot }: Props) {
   const queryNodeId = parseHealthNodeId(searchParams.get("node"));
   const queryFarmId = searchParams.get("farm")?.trim() || null;
   const queryModulesOpen = searchParams.get("modules") === "1";
+  const pageInspector = useOpsInspectorOptional();
   const [liveSnapshot, setLiveSnapshot] = useState(snapshot);
-  const [peek, setPeek] = useState<PeekState | null>(null);
-  const [manualDialog, setManualDialog] = useState<HealthNodeId | null>(null);
+  const [localNodeId, setLocalNodeId] = useState<HealthNodeId | null>(null);
   const [urlDialogDismissed, setUrlDialogDismissed] = useState(false);
   const [seenQueryNode, setSeenQueryNode] = useState(queryNodeId);
   const [userDetailOpen, setUserDetailOpen] = useState(false);
@@ -79,6 +71,11 @@ export function HealthSystemShell({ snapshot }: Props) {
     setLiveSnapshot(snapshot);
   }
 
+  const liveRef = useRef(liveSnapshot);
+  useEffect(() => {
+    liveRef.current = liveSnapshot;
+  }, [liveSnapshot]);
+
   useEffect(() => {
     queueMicrotask(() => setSuppressAutoKey(readSuppressKey()));
   }, []);
@@ -86,7 +83,8 @@ export function HealthSystemShell({ snapshot }: Props) {
   const patchSnapshot = useCallback(async () => {
     const next = await fetchHealthSnapshotAction();
     setLiveSnapshot(next);
-  }, []);
+    pageInspector?.setSnapshot(next);
+  }, [pageInspector]);
 
   const moduleCounts = useMemo(
     () => countHealthStatuses(liveSnapshot.modules),
@@ -103,11 +101,17 @@ export function HealthSystemShell({ snapshot }: Props) {
   if (queryNodeId !== seenQueryNode) {
     setSeenQueryNode(queryNodeId);
     setUrlDialogDismissed(false);
-    setManualDialog(null);
+    setLocalNodeId(null);
   }
 
-  const dialogNodeId =
-    manualDialog ?? (urlDialogDismissed ? null : queryNodeId);
+  const inspectorNodeId = pageInspector
+    ? pageInspector.nodeId
+    : localNodeId ?? (urlDialogDismissed ? null : queryNodeId);
+
+  useEffect(() => {
+    if (!queryNodeId || urlDialogDismissed || !pageInspector) return;
+    pageInspector.openNode(queryNodeId, liveRef.current);
+  }, [queryNodeId, urlDialogDismissed, pageInspector]);
 
   const capWarn = liveSnapshot.liveRowCount >= liveSnapshot.liveRowLimit * 0.9;
   const showAlert = needsAttention(overallStatus) || pipelineBad;
@@ -115,30 +119,20 @@ export function HealthSystemShell({ snapshot }: Props) {
 
   const handleNodeSelect = useCallback(
     (payload: HealthDagNodeSelectPayload) => {
-      if (isMobileLayout) {
-        setManualDialog(payload.drillId);
-        setPeek(null);
-        return;
-      }
-      setPeek({ nodeId: payload.drillId, anchor: payload.anchor });
-      setManualDialog(null);
+      if (pageInspector) pageInspector.openNode(payload.drillId, liveSnapshot);
+      else setLocalNodeId(payload.drillId);
+      setUserDetailOpen(true);
+      setSuppressAutoKey(null);
+      writeSuppressKey(null);
     },
-    [isMobileLayout],
+    [pageInspector, liveSnapshot],
   );
 
-  const closePeek = useCallback(() => {
-    setPeek(null);
-    setManualDialog(null);
-  }, []);
-
-  const openDialogFromPeek = useCallback(() => {
-    if (peek) setManualDialog(peek.nodeId);
-  }, [peek]);
-
-  const closeDialog = useCallback(() => {
-    setManualDialog(null);
+  const closeInspector = useCallback(() => {
+    pageInspector?.close();
+    setLocalNodeId(null);
     if (queryNodeId) setUrlDialogDismissed(true);
-  }, [queryNodeId]);
+  }, [pageInspector, queryNodeId]);
 
   const toggleDetail = useCallback(() => {
     if (detailOpen) {
@@ -165,7 +159,7 @@ export function HealthSystemShell({ snapshot }: Props) {
     return () => window.clearTimeout(timer);
   }, [queryFarmId, detailOpen, liveSnapshot.modules.length]);
 
-  const activeDrillId = dialogNodeId ?? peek?.nodeId ?? null;
+  const activeDrillId = inspectorNodeId;
 
   const detailPanel = detailOpen ? (
     <div className="mt-3 flex flex-col gap-3 border-t pt-3">
@@ -264,21 +258,14 @@ export function HealthSystemShell({ snapshot }: Props) {
         {detailOpen ? <div className="px-3 pb-3">{detailPanel}</div> : null}
       </div>
 
-      {peek && !dialogNodeId && !isMobileLayout ? (
-        <HealthNodePeekPopover
-          nodeId={peek.nodeId}
-          anchor={peek.anchor}
+      {isMobileLayout ? (
+        <HealthNodeInspector
+          nodeId={inspectorNodeId}
           snapshot={liveSnapshot}
-          onOpenDetail={openDialogFromPeek}
-          onClose={closePeek}
+          placement="sheet"
+          onClose={closeInspector}
         />
       ) : null}
-
-      <HealthNodeDetailDialog
-        nodeId={dialogNodeId}
-        snapshot={liveSnapshot}
-        onClose={closeDialog}
-      />
     </div>
   );
 }

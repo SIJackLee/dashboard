@@ -1,12 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useMemo, useState, type ComponentType } from "react";
+import {
+  Activity,
+  ChevronDown,
+  MapPin,
+  MapPinned,
+  TriangleAlert,
+  WifiOff,
+} from "lucide-react";
 import { AccountMenuPins } from "@/components/account/account-menu-pins";
 import { FarmAddressInput } from "@/components/settings/farm-address-input";
 import { FarmSwitcher } from "@/components/layout/farm-switcher";
 import { isValidFarmKey } from "@/lib/data/barn-catalog";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import {
+  collectAdminHubFarmRows,
+  summarizeAdminHubTones,
+  type AdminHubFarmTone,
+} from "@/lib/farm/admin-hub-farm-status";
 import type { EditableFarmOption } from "@/lib/data/farm-location";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import { formatKst } from "@/lib/datetime/kst";
@@ -33,6 +45,60 @@ type Props = {
   onCloseMenu?: () => void;
   onFarmSaved?: () => void;
 };
+
+const HUB_TONE_CHIP: Record<
+  AdminHubFarmTone | "total",
+  { Icon: ComponentType<{ className?: string }>; label: string; className: string }
+> = {
+  total: { Icon: MapPin, label: "전국 관제", className: "text-muted-foreground" },
+  live: { Icon: Activity, label: "정상", className: "text-emerald-600" },
+  alert: { Icon: TriangleAlert, label: "경보", className: "text-status-danger" },
+  offline: { Icon: WifiOff, label: "오프라인", className: "text-muted-foreground" },
+  location: { Icon: MapPinned, label: "위치만", className: "text-channel-info" },
+};
+
+function HubToneStrip({
+  farmOptions,
+  farmSummaries,
+}: {
+  farmOptions: FarmKey[];
+  farmSummaries: FarmSummaryRow[];
+}) {
+  const tones = useMemo(() => {
+    const rows = collectAdminHubFarmRows(farmOptions, farmSummaries, []);
+    return summarizeAdminHubTones(rows);
+  }, [farmOptions, farmSummaries]);
+
+  if (tones.total === 0) return null;
+
+  const items = [
+    ["total", tones.total],
+    ["live", tones.live],
+    ["alert", tones.alert],
+    ["offline", tones.offline],
+    ["location", tones.location],
+  ] as const;
+
+  return (
+    <ul className={accountMenuLayout.hubToneStrip} aria-label="전국 관제">
+      {items.map(([key, count]) => {
+        const { Icon, label, className } = HUB_TONE_CHIP[key];
+        return (
+          <li key={key}>
+            <span
+              className={accountMenuLayout.hubToneChip}
+              title={label}
+              aria-label={`${label} ${count}`}
+            >
+              <Icon className={cn("size-3.5", className)} aria-hidden />
+              <span>{count}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 function statusDotClass(status: ModuleReceipt["status"] | undefined) {
   if (status === "caution") return accountMenuLayout.liveStatusDotWarn;
@@ -144,7 +210,7 @@ export function AccountMenuSplitBody({
             </div>
           ) : null}
 
-          {liveLine ? (
+          {farmLabel && liveLine ? (
             <p className={accountMenuLayout.liveStrip}>
               <span
                 className={statusDotClass(liveStatus?.status)}
@@ -152,6 +218,13 @@ export function AccountMenuSplitBody({
               />
               <span className="min-w-0 break-words">{liveLine}</span>
             </p>
+          ) : null}
+
+          {!farmLabel ? (
+            <HubToneStrip
+              farmOptions={farmOptions}
+              farmSummaries={farmSummaries}
+            />
           ) : null}
         </div>
 

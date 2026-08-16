@@ -12,6 +12,7 @@ import {
   type HealthDagNodeSelectPayload,
 } from "@/lib/admin/health/health-node-peek-content";
 import { healthStatusBorderClass } from "@/components/admin/health/health-status-badge";
+import { HealthPipelineIcon } from "@/lib/admin/health/health-pipeline-icons";
 import { opsControl, opsTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -94,6 +95,10 @@ export function HealthDataPathStrip({
                   )}
                   aria-hidden
                 />
+                <HealthPipelineIcon
+                  id={node.id}
+                  className="size-3.5 shrink-0 text-foreground"
+                />
                 <span className="min-w-0 md:flex-1">
                   <span className={opsTypography.chipLabel}>{label}</span>
                   <span className={opsTypography.chipMeta}>
@@ -128,6 +133,10 @@ export function HealthDataPathStrip({
                     statusDot(node.status),
                   )}
                   aria-hidden
+                />
+                <HealthPipelineIcon
+                  id={node.id}
+                  className="size-3 shrink-0"
                 />
                 {node.short || node.label}
               </button>

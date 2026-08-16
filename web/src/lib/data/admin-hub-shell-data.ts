@@ -1,6 +1,8 @@
 import "server-only";
 
 import { cache } from "react";
+import { farmKeysFromAccess } from "@/lib/auth/farm-access";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
 import {
   adminHubOverviewCacheKey,
   devSimFarmKeys,
@@ -11,6 +13,8 @@ import {
 } from "@/lib/data/admin-hub-live";
 import type { FarmOverviewDbRow } from "@/lib/data/iot-live-fetch";
 import type { FarmKey } from "@/lib/data/farm-key";
+import { getFarmLocations } from "@/lib/data/farm-location";
+import type { FarmLocationRow } from "@/lib/data/farm-location-shared";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { FarmOverview } from "@/lib/data/iot";
 
@@ -18,6 +22,7 @@ export type AdminHubOverviewContext = {
   overview: FarmOverview;
   farmOptions: FarmKey[];
   farmSummaries: FarmSummaryRow[];
+  locations: FarmLocationRow[];
 };
 
 function overviewFromRows(overviewRows: FarmOverviewDbRow[]): FarmOverview {
@@ -80,23 +85,25 @@ function emptyHubOverview(farmCount: number): FarmOverview {
  */
 export const getAdminHubOverviewContext = cache(
   async (): Promise<AdminHubOverviewContext> => {
+    const user = await getCurrentUser();
+    const assignedKeys = user ? farmKeysFromAccess(user) : [];
     const seedKeys = discoverAdminHubFarmKeys(
       [],
-      process.env.NODE_ENV === "development" ? devSimFarmKeys() : [],
+      [
+        ...assignedKeys,
+        ...(process.env.NODE_ENV === "development" ? devSimFarmKeys() : []),
+      ],
     );
-    const overviewRows = await loadAdminHubOverviewRows(
-      adminHubOverviewCacheKey(seedKeys),
-    );
-    const hubFarmKeys = discoverAdminHubFarmKeys(
-      [],
-      overviewRows.length > 0
-        ? overviewRowsToFarmKeys(overviewRows)
-        : seedKeys,
-    );
-    const farmOptions =
-      overviewRows.length > 0
-        ? overviewRowsToFarmKeys(overviewRows)
-        : hubFarmKeys;
+    const [locations, overviewRows] = await Promise.all([
+      getFarmLocations(),
+      loadAdminHubOverviewRows(adminHubOverviewCacheKey(seedKeys)),
+    ]);
+    const hubFarmKeys = discoverAdminHubFarmKeys(locations, [
+      ...assignedKeys,
+      ...overviewRowsToFarmKeys(overviewRows),
+      ...(process.env.NODE_ENV === "development" ? seedKeys : []),
+    ]);
+    const farmOptions = hubFarmKeys;
     const farmSummaries = resolveAdminHubFarmSummaries(
       [],
       [],
@@ -109,6 +116,6 @@ export const getAdminHubOverviewContext = cache(
         ? overviewFromRows(overviewRows)
         : emptyHubOverview(hubFarmKeys.length);
 
-    return { overview, farmOptions, farmSummaries };
+    return { overview, farmOptions, farmSummaries, locations };
   },
 );

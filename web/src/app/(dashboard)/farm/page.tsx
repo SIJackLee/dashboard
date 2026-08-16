@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { PageShell } from "@/components/layout/page-shell";
 import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
-import { AdminAllFarmsGridLoader } from "@/components/farm/admin-all-farms-grid-loader";
+import { AdminHubControlView } from "@/components/farm/admin-hub-control-view";
 import { FarmContentSkeleton } from "@/components/common/loading-skeletons";
 import { AdminHubPanelsProvider } from "@/lib/navigation/admin-hub-panels-context";
 import { resolveActiveFarmKey, canEditFarmScope } from "@/lib/auth/farm-access";
@@ -97,9 +97,7 @@ export default async function FarmPage({
     view: params.view,
   };
 
-  /** Admin hub는 그리드만 클라이언트 hydrate. 단건 농장 선택은 SSR에서 LIVE 패널을 채운다.
-   *  (이전 adminScopedFarmDefer는 Capacitor에서 빈 허브 문구로 남는 경우가 있었음)
-   */
+  /** Admin hub는 지도·현황 관제. 단건 농장 선택은 SSR에서 LIVE 패널을 채운다. */
   const likelyAdminHub = isAdmin && !activeFarmKey;
   const needsPanelData = Boolean(activeFarmKey);
   const needsHistory = needsPanelData || !likelyAdminHub;
@@ -162,8 +160,12 @@ export default async function FarmPage({
     </div>
   );
 
-  const deferredAdminGrid = adminAllFarmsMode ? (
-    <AdminAllFarmsGridLoader farmOptions={shellCtx.farmOptions} />
+  const deferredAdminHub = adminAllFarmsMode ? (
+    <AdminHubControlView
+      farmOptions={shellCtx.farmOptions}
+      farmSummaries={shellCtx.farmSummaries}
+      locations={shellCtx.hubLocations}
+    />
   ) : null;
 
   return (
@@ -179,6 +181,7 @@ export default async function FarmPage({
             farmOptions={shellCtx.farmOptions}
             activeFarmKey={shellCtx.activeFarmKey}
             farmSummaries={shellCtx.farmSummaries}
+            hubLocations={shellCtx.hubLocations}
             sp={params.sp}
             view={params.view}
             trendByPeriod={scopedPanelData?.trendByPeriod ?? null}
@@ -200,7 +203,7 @@ export default async function FarmPage({
             initialWeatherNudge={initialWeatherNudge}
             weatherNudgeEnabled={weatherNudgeEnabled}
           >
-            {deferredAdminGrid}
+            {deferredAdminHub}
           </FarmDashboardShell>
         </AdminHubPanelsProvider>
       )}

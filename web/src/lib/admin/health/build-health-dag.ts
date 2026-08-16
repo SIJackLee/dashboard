@@ -40,24 +40,19 @@ export const MQTT_BROKER_MOD_CAPACITY = 20;
 /** P2: 농장 펼침 시 zone1 그리드 열 수 (10농장 → 2×5) */
 const DAG_FARM_GRID_COLUMNS = 2;
 
-/** S4 가변폭 노드 스케일 (2×) */
+/** 아이콘 타일 — 5구역 안에 들어가게 고정 */
 const DAG_NODE_WIDTH = {
-  min: 200,
-  base: 280,
-  wide: 336,
-  mqtt: 360,
+  min: 72,
+  base: 88,
 } as const;
 
 export const DAG_S4_LAYOUT = {
   nodeWidth: DAG_NODE_WIDTH.base,
-  nodeHeight: 148,
-  rankGap: 96,
-  nodeGap: 20,
-  padding: 48,
+  nodeHeight: 96,
+  rankGap: 56,
+  nodeGap: 16,
+  padding: 32,
 } as const;
-
-const WIDE_NODE_IDS = new Set(["ui", "ext-link"]);
-const BASE_NODE_IDS = new Set(["field", "rs", "c-cmd", "decode", "db"]);
 
 export type BuildHealthDagNodeWidthsOptions = {
   fieldExpanded?: boolean;
@@ -65,7 +60,7 @@ export type BuildHealthDagNodeWidthsOptions = {
   farmZoneWidth?: number;
 };
 
-/** S4: 라벨·역할에 따라 노드 가로폭 분기 */
+/** 아이콘 타일 폭. 농장 펼침만 구역 2열에 맞춤. */
 export function buildHealthDagNodeWidths(
   graph: HealthDagGraph,
   options: BuildHealthDagNodeWidthsOptions = {}
@@ -79,18 +74,12 @@ export function buildHealthDagNodeWidths(
     farmCellW = Math.floor(
       (farmZoneWidth - DAG_S4_LAYOUT.nodeGap * (cols - 1)) / cols
     );
-    farmCellW = Math.max(180, Math.min(farmCellW, DAG_NODE_WIDTH.min));
+    farmCellW = Math.max(DAG_NODE_WIDTH.min, Math.min(farmCellW, 104));
   }
 
   for (const node of graph.nodes) {
-    if (node.id === "mqtt") {
-      widths[node.id] = DAG_NODE_WIDTH.mqtt;
-    } else if (node.id.startsWith("mod-") && fieldExpanded) {
+    if (node.id.startsWith("mod-") && fieldExpanded) {
       widths[node.id] = farmCellW;
-    } else if (WIDE_NODE_IDS.has(node.id) || node.short.length >= 7) {
-      widths[node.id] = DAG_NODE_WIDTH.wide;
-    } else if (BASE_NODE_IDS.has(node.id)) {
-      widths[node.id] = DAG_NODE_WIDTH.base;
     } else {
       widths[node.id] = DAG_NODE_WIDTH.base;
     }
@@ -204,7 +193,7 @@ function addInfraTail(
     id: "rs",
     drillId: "collector-rs",
     label: rs?.label ?? "수집 서버",
-    short: "수집 서버",
+    short: "수집",
     status: rs?.status ?? "unknown",
     kind: "infra",
     metric: recentInsert(snapshot),
@@ -220,7 +209,7 @@ function addInfraTail(
     id: "decode",
     drillId: "storage",
     label: "decode-batch Edge 함수",
-    short: "Edge 함수",
+    short: "Edge",
     status: decode.status,
     kind: "infra",
     metric: decode.metric,
@@ -245,7 +234,7 @@ function addInfraTail(
     id: "ui",
     drillId: "dashboard",
     label: ui?.label ?? "사용자 화면",
-    short: "사용자 화면",
+    short: "화면",
     status: ui?.status ?? "unknown",
     kind: "infra",
     inUplink: true,
@@ -257,7 +246,7 @@ function addInfraTail(
     id: "c-cmd",
     drillId: "collector-c",
     label: cCmd?.label ?? "명령 서버",
-    short: "명령 서버",
+    short: "명령",
     status: cCmd?.status ?? "unknown",
     kind: "external",
     inUplink: false,
@@ -271,7 +260,7 @@ function addInfraTail(
     id: "ext-link",
     drillId: "external",
     label: "외부연계 서버",
-    short: "외부연계 서버",
+    short: "연계",
     status: worstStatus([
       ek?.status ?? "not_implemented",
       ftp?.status ?? "not_implemented",
@@ -290,7 +279,7 @@ function addMqttLayer(snapshot: HealthSnapshot, nodes: HealthDagNode[]): string[
     id: "mqtt",
     drillId: "collector-mqtt",
     label: mqttBase?.label ?? "MQTT 브로커 서버",
-    short: "MQTT 브로커 서버",
+    short: "MQTT",
     status: mqttBase?.status ?? "unknown",
     kind: "infra",
     metric: `${modCount}/${MQTT_BROKER_MOD_CAPACITY} MOD`,

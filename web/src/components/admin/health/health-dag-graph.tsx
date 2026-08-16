@@ -9,8 +9,10 @@ import {
   buildHealthDagRankOverrides,
   DAG_S4_LAYOUT,
   DAG_ZONE_COUNT,
+  DAG_ZONE_LABELS,
   MQTT_BROKER_MOD_CAPACITY,
 } from "@/lib/admin/health/build-health-dag";
+import { HealthPipelineIcon } from "@/lib/admin/health/health-pipeline-icons";
 import { computeDAGLayout } from "@/lib/admin/health/dag-layout";
 import { layoutBottomY, routeDagEdge } from "@/lib/admin/health/dag-edge-routes";
 import {
@@ -144,7 +146,8 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
   }
 
   const layoutBottom = layoutBottomY(layout.nodes);
-  const channelPad = Math.max(0, layoutBottom + 20 - layout.height);
+  const zoneLabelH = 18;
+  const channelPad = Math.max(0, layoutBottom + 20 - layout.height) + zoneLabelH;
   const svgH = layout.height + NODE_CHROME * 2 + channelPad;
   const svgW = layout.width + NODE_CHROME * 2;
   const sortedRanks = [...layout.ranks].sort((a, b) => a.rank - b.rank);
@@ -191,15 +194,30 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
           aria-label="시스템 데이터 경로 DAG"
         >
           {sortedRanks.map((rank, zoneIndex) => (
-            <rect
-              key={rank.rank}
-              x={DAG_S4_LAYOUT.padding + zoneIndex * zoneW - 12 + NODE_CHROME}
-              y={rank.y - 8 + NODE_CHROME}
-              width={zoneW + 24}
-              height={rank.height + 16}
-              rx={12}
-              className="fill-muted/30"
-            />
+            <g key={rank.rank}>
+              <rect
+                x={DAG_S4_LAYOUT.padding + zoneIndex * zoneW - 12 + NODE_CHROME}
+                y={rank.y - 8 + NODE_CHROME}
+                width={zoneW + 24}
+                height={rank.height + 16}
+                rx={12}
+                className="fill-muted/30"
+              />
+              <text
+                x={
+                  DAG_S4_LAYOUT.padding +
+                  zoneIndex * zoneW +
+                  zoneW / 2 +
+                  NODE_CHROME
+                }
+                y={layoutBottom + 16 + NODE_CHROME}
+                textAnchor="middle"
+                className="fill-muted-foreground"
+                fontSize={10}
+              >
+                {DAG_ZONE_LABELS[zoneIndex] ?? ""}
+              </text>
+            </g>
           ))}
 
           <g transform={`translate(${NODE_CHROME}, ${NODE_CHROME})`}>
@@ -260,28 +278,34 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
             const box = (
               <div
                 className={cn(
-                  "box-border flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl border-4 bg-card px-3 py-2 transition-colors hover:bg-muted/40",
+                  "box-border flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg border-2 bg-card px-1 py-1 transition-colors hover:bg-muted/40",
                   healthStatusBorderClass(meta.status),
                   !meta.inUplink && "border-dashed",
                   meta.togglesField && "bg-emerald-500/5",
                   isActive && "ring-2 ring-primary ring-offset-2 ring-offset-background"
                 )}
               >
-                <span
-                  className={cn(
-                    "size-5 shrink-0 rounded-full",
-                    statusDotClass(meta.status)
-                  )}
-                  aria-hidden
-                />
-                <span className="line-clamp-2 text-center text-xs font-semibold leading-tight md:text-lg lg:text-[28px]">
+                <span className="relative inline-flex">
+                  <HealthPipelineIcon
+                    id={meta.id}
+                    className="size-5 text-foreground"
+                  />
+                  <span
+                    className={cn(
+                      "absolute -right-0.5 -top-0.5 size-1.5 rounded-full",
+                      statusDotClass(meta.status)
+                    )}
+                    aria-hidden
+                  />
+                </span>
+                <span className="line-clamp-1 text-center text-[11px] font-semibold leading-tight">
                   {meta.short}
                 </span>
-                <span className="line-clamp-1 text-center text-[10px] leading-tight text-muted-foreground tabular-nums md:text-sm lg:text-2xl">
+                <span className="line-clamp-1 text-center text-[10px] leading-tight text-muted-foreground tabular-nums">
                   {meta.metric ?? HEALTH_STATUS_LABEL[meta.status]}
                 </span>
                 {meta.id === "mqtt" ? (
-                  <div className="mt-0.5 h-1.5 w-[85%] overflow-hidden rounded-full bg-muted">
+                  <div className="mt-0.5 h-1 w-[80%] overflow-hidden rounded-full bg-muted">
                     <div
                       className="h-full rounded-full bg-channel-info"
                       style={{
@@ -322,6 +346,11 @@ export function HealthDagGraph({ snapshot, onNodeSelect, activeDrillId }: Props)
                   type="button"
                   onClick={handleClick}
                   className="box-border h-full w-full overflow-hidden rounded-xl bg-card p-1"
+                  title={
+                    meta.metric
+                      ? `${meta.label} · ${meta.metric}`
+                      : meta.label
+                  }
                   aria-label={
                     meta.togglesField
                       ? `${meta.label} 펼치기`

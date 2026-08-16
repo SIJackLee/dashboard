@@ -14,3 +14,12 @@ export function formatHealthTime(iso: string): string {
   const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
   return `${hour}:${minute}`;
 }
+
+/** 모듈 last seen. 2995분 대신 2일. */
+export function formatHealthAgeMin(ageMin: number | null): string | null {
+  if (ageMin == null || !Number.isFinite(ageMin) || ageMin < 0) return null;
+  if (ageMin < 1) return "방금";
+  if (ageMin < 60) return `${Math.round(ageMin)}분`;
+  if (ageMin < 24 * 60) return `${Math.round(ageMin / 60)}시간`;
+  return `${Math.round(ageMin / (24 * 60))}일`;
+}

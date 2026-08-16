@@ -37,7 +37,7 @@ export function overviewRowsToFarmKeys(rows: FarmOverviewDbRow[]): FarmKey[] {
   }));
 }
 
-/** Admin 허브 farm key — overview · location · dev sim 순 */
+/** Admin 허브 farm key — 배정 · overview · location · dev sim 순 */
 export function discoverAdminHubFarmKeys(
   locations: Pick<FarmLocationRow, "farmKey">[],
   farmOptions: FarmKey[],

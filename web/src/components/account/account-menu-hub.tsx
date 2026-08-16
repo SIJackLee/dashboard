@@ -9,7 +9,6 @@ type Props = {
   email: string | null;
   roleLabel?: string | null;
   trailing?: ReactNode;
-  onCloseMenu?: () => void;
 };
 
 export function AccountMenuHub({
@@ -18,7 +17,6 @@ export function AccountMenuHub({
   email,
   roleLabel,
   trailing,
-  onCloseMenu,
 }: Props) {
   return (
     <div className={accountMenuLayout.sheetHeader}>
@@ -32,18 +30,9 @@ export function AccountMenuHub({
           <p className={accountMenuLayout.hubMeta}>{roleLabel}</p>
         ) : null}
       </div>
-      <div className={accountMenuLayout.sheetHeaderActions}>
-        {trailing}
-        <button
-          type="button"
-          className={accountMenuLayout.sheetCloseBtn}
-          data-account-menu-close
-          aria-label="계정 메뉴 닫기"
-          onClick={onCloseMenu}
-        >
-          닫기
-        </button>
-      </div>
+      {trailing ? (
+        <div className={accountMenuLayout.sheetHeaderActions}>{trailing}</div>
+      ) : null}
     </div>
   );
 }

@@ -177,7 +177,6 @@ export function AccountMenu({
           email={user.email}
           roleLabel={user.role ? roleLabel[user.role] : null}
           trailing={logoutAction}
-          onCloseMenu={() => handleOpenChange(false)}
         />
 
         <AccountMenuSplitBody

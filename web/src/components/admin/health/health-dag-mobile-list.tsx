@@ -13,6 +13,7 @@ import {
   healthStatusBorderClass,
   HealthStatusBadge,
 } from "@/components/admin/health/health-status-badge";
+import { HealthPipelineIcon } from "@/lib/admin/health/health-pipeline-icons";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -117,8 +118,12 @@ export function HealthDagMobileList({
                       )}
                       aria-hidden
                     />
+                    <HealthPipelineIcon
+                      id={node.id}
+                      className="size-3.5 shrink-0 text-foreground"
+                    />
                     <div className="min-w-0 flex-1 leading-tight">
-                      <p className="truncate font-semibold">{node.label}</p>
+                      <p className="truncate font-semibold">{node.short}</p>
                       {node.metric ? (
                         <p className="truncate text-[10px] text-muted-foreground tabular-nums">
                           {node.metric}

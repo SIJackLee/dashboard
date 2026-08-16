@@ -15,7 +15,8 @@ import {
 } from "@/lib/data/dashboard-summary";
 import { getAdminHubOverviewContext } from "@/lib/data/admin-hub-shell-data";
 import { FIRMWARE_CTRL_COUNT } from "@/lib/data/iot-firmware";
-import type { FarmKey } from "@/lib/data/farm-key";
+import { farmKeyEq, type FarmKey } from "@/lib/data/farm-key";
+import type { FarmLocationRow } from "@/lib/data/farm-location-shared";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
 import type { BarnReading, FarmOverview } from "@/lib/data/iot";
 import {
@@ -34,10 +35,27 @@ export type PageShellContext = {
   alarms: AlarmRow[];
   farmOptions: FarmKey[];
   farmSummaries: FarmSummaryRow[];
+  hubLocations: FarmLocationRow[];
   isAdmin: boolean;
   farmLocationOptions: EditableFarmOption[];
   canEditLocation: boolean;
 };
+
+function applyAlarmCountsToSummaries(
+  summaries: FarmSummaryRow[],
+  alarms: AlarmRow[],
+): FarmSummaryRow[] {
+  if (alarms.length === 0) return summaries;
+  return summaries.map((row) => {
+    const farmAlarms = alarms.filter((a) => farmKeyEq(a.farmKey, row.farmKey));
+    if (farmAlarms.length === 0) return row;
+    return {
+      ...row,
+      alarmCount: farmAlarms.length,
+      criticalCount: farmAlarms.filter((a) => a.severity === "critical").length,
+    };
+  });
+}
 
 export const getPageShellContext = cache(
   async (searchParams: FarmQueryParams = {}): Promise<PageShellContext> => {
@@ -59,7 +77,8 @@ export const getPageShellContext = cache(
         overview: hub.overview,
         alarms,
         farmOptions: hub.farmOptions,
-        farmSummaries: hub.farmSummaries,
+        farmSummaries: applyAlarmCountsToSummaries(hub.farmSummaries, alarms),
+        hubLocations: hub.locations,
         isAdmin: true,
         farmLocationOptions: [],
         canEditLocation: false,
@@ -86,7 +105,8 @@ export const getPageShellContext = cache(
         overview,
         alarms,
         farmOptions: hub.farmOptions,
-        farmSummaries: hub.farmSummaries,
+        farmSummaries: applyAlarmCountsToSummaries(hub.farmSummaries, alarms),
+        hubLocations: hub.locations,
         isAdmin: true,
         farmLocationOptions: [],
         canEditLocation: false,
@@ -118,6 +138,7 @@ export const getPageShellContext = cache(
       alarms,
       farmOptions: [] as FarmKey[],
       farmSummaries: [] as FarmSummaryRow[],
+      hubLocations: [],
       isAdmin,
       farmLocationOptions,
       canEditLocation,
