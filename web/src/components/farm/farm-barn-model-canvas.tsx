@@ -35,7 +35,11 @@ type Props = {
   onMoveBarn?: (barnId: string, x: number, z: number) => void;
   onMoveBarnEnd?: () => void;
   placing?: boolean;
-  placingDraft?: { plan: BarnModelRoomPlan; label: string } | null;
+  placingDraft?: {
+    plan: BarnModelRoomPlan;
+    label: string;
+    stallTyCode: string;
+  } | null;
   onPlaceAt?: (x: number, z: number) => void;
   onRotateBarn?: (barnId: string, rotDeg: number) => void;
   onResizeBarn?: (

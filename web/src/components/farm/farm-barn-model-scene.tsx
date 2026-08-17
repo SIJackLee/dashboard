@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, Line, MapControls } from "@react-three/drei";
+import type { MapControls as MapControlsImpl } from "three-stdlib";
 import { DoorOpen, RotateCw } from "lucide-react";
 import * as THREE from "three";
 import {
@@ -53,7 +54,11 @@ type SceneProps = {
   shot: BarnModelCameraShot;
   selectedBarnId: string | null;
   placing?: boolean;
-  placingDraft?: { plan: BarnModelRoomPlan; label: string } | null;
+  placingDraft?: {
+    plan: BarnModelRoomPlan;
+    label: string;
+    stallTyCode: string;
+  } | null;
   onSelectBarn: (barnId: string) => void;
   onOpenController: (payload: BarnModelOpenController) => void;
   onMoveBarn?: (barnId: string, x: number, z: number) => void;
@@ -118,13 +123,6 @@ function CameraRig({
   return null;
 }
 
-type RoofMapControls = {
-  target: THREE.Vector3;
-  update: () => void;
-  enabled: boolean;
-  enableDamping: boolean;
-};
-
 function roofPoseFor(
   yard: BarnModelYard,
   editingBarnId?: string | null,
@@ -146,7 +144,7 @@ function RoofControls({
   editingBarnId?: string | null;
 }) {
   const { camera } = useThree();
-  const controlsRef = useRef<RoofMapControls>(null);
+  const controlsRef = useRef<MapControlsImpl>(null);
   const origUpdate = useRef<(() => void) | null>(null);
   const destPos = useRef(new THREE.Vector3());
   const destLook = useRef(new THREE.Vector3());

@@ -651,7 +651,9 @@ export function buildBarnModelYard(
     const statuses = matched.map((r) => r.status);
     const status = worstControllerStatus(statuses);
     const primary = primaryReadingForType(matched);
-    const pens = assignPensFromReadings(
+    const penStatus: ControllerStatus | "empty" =
+      matched.length > 0 ? status : "empty";
+    const pens: BarnModelPen[] = assignPensFromReadings(
       matched,
       plan,
       undefined,
@@ -660,7 +662,7 @@ export function buildBarnModelYard(
       ty,
     ).map((pen) => ({
       ...pen,
-      status: matched.length > 0 ? status : "empty",
+      status: penStatus,
       controllerKey: null,
     }));
     return {

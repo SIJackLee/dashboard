@@ -281,9 +281,12 @@ export function FarmBarnModelView({
             typeReadings.find((r) => r.controllerKey === controllerKey) ??
             readings.find((r) => r.controllerKey === controllerKey);
           if (!reading) return;
+          const stallTyCode =
+            reading.stallTyCode ?? selected?.stallTyCode ?? "";
+          if (!stallTyCode) return;
           applyEntranceScope({
             level: "controller",
-            stallTyCode: reading.stallTyCode,
+            stallTyCode,
             stallNo: stallKeyFromReading(reading),
             controllerKey,
           });
