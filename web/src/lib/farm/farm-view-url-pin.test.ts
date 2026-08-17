@@ -45,6 +45,12 @@ import {
 }
 
 {
+  const params = new URLSearchParams("lsind=FARM01&item=P00");
+  pinFarmHubViewParam(params, "model");
+  assert.equal(params.get("view"), "model");
+}
+
+{
   const source = new URLSearchParams(
     "lsind=FARM01&item=P00&view=chart&trendPeriod=7d&sp=SP02&ctrl=x",
   );

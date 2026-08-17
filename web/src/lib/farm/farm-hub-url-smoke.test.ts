@@ -4,6 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { delinEnabled } from "../aria/delin-enabled";
+import { barnModelEnabled } from "./barn-model-enabled";
 import {
   applyFarmChartScopeParams,
   resolveFarmChartScope,
@@ -128,11 +129,15 @@ function clone(q: string) {
 /** 4) 탭 왕복 — applyHubScopedViewParams 순서 map→list→chart→aria→map */
 {
   const params = clone("lsind=FARM01&item=P00&sp=SP01&stall=3&mapLevel=stalls");
-  const order: FarmHubView[] = ["list", "chart", "aria", "map"];
+  const order: FarmHubView[] = ["list", "chart", "model", "aria", "map"];
   for (const v of order) {
     applyHubScopedViewParams(params, v);
     const expected =
-      v === "aria" && !delinEnabled() ? ("map" as FarmHubView) : v;
+      v === "aria" && !delinEnabled()
+        ? ("map" as FarmHubView)
+        : v === "model" && !barnModelEnabled()
+          ? ("map" as FarmHubView)
+          : v;
     assert.equal(resolveFarmHubView(params.get("view")), expected);
   }
   // map 홈: view 없음 · 드릴 제거 · 농장 유지
@@ -145,6 +150,10 @@ function clone(q: string) {
   assert.equal(
     resolveFarmHubView("jarvis"),
     delinEnabled() ? "aria" : "map",
+  );
+  assert.equal(
+    resolveFarmHubView("model"),
+    barnModelEnabled() ? "model" : "map",
   );
   console.log("smoke 4: tab roundtrip URL helpers — ok");
 }

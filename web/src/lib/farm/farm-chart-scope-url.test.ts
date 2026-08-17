@@ -6,8 +6,10 @@ import {
   applyFarmChartScopeParams,
   applyFarmChartZoomParams,
   chartScopeEntryToZoomHint,
+  clampChartScopeToType,
   clearFarmChartScopeParams,
   clearFarmChartZoomParams,
+  filterFarmChartTreeByType,
   resolveFarmChartScope,
   resolveFarmChartZoomHint,
   scopesEqual,
@@ -157,6 +159,36 @@ import {
     chartScopeEntryToZoomHint({ start: 0, end: 10, yBands: null }, 100),
     null,
   );
+}
+
+{
+  assert.deepEqual(
+    clampChartScopeToType({ level: "farm" }, "SP02"),
+    { level: "sp", stallTyCode: "SP02" },
+  );
+  assert.deepEqual(
+    clampChartScopeToType(
+      { level: "sp", stallTyCode: "SP03" },
+      "SP02",
+    ),
+    { level: "sp", stallTyCode: "SP02" },
+  );
+  assert.deepEqual(
+    clampChartScopeToType(
+      { level: "stall", stallTyCode: "SP02", stallNo: "01" },
+      "SP02",
+    ),
+    { level: "stall", stallTyCode: "SP02", stallNo: "01" },
+  );
+  const tree = filterFarmChartTreeByType(
+    [
+      { stallTyCode: "SP02", label: "분만사", stalls: [], controllerCount: 1 },
+      { stallTyCode: "SP03", label: "자돈사", stalls: [], controllerCount: 1 },
+    ],
+    "SP02",
+  );
+  assert.equal(tree.length, 1);
+  assert.equal(tree[0]?.stallTyCode, "SP02");
 }
 
 console.log("farm-chart-scope-url.test.ts: ok");

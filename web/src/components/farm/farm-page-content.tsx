@@ -10,7 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
-import { Map, List, LineChart, Bot } from "lucide-react";
+import { Map, List, LineChart, Bot, Box } from "lucide-react";
 import { StallUnitIcon } from "@/components/icons/stall-unit-icon";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
@@ -18,6 +18,7 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { FarmChartView } from "@/components/farm/farm-chart-view";
 import { FarmAriaView } from "@/components/farm/farm-aria-view";
+import { FarmBarnModelView } from "@/components/farm/farm-barn-model-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import {
   FarmFieldStatusGrid,
@@ -72,6 +73,7 @@ import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { DELIN_NAME } from "@/lib/aria/aria-mode";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
+import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 import { useWeatherNudgePoll } from "@/lib/weather-control/use-weather-nudge-poll";
 import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
@@ -331,7 +333,8 @@ export function FarmPageContent({
         view === "map" ||
         view === "chart" ||
         view === "list" ||
-        view === "aria"
+        view === "aria" ||
+        view === "model"
       ) {
         void prefetchFarmControllerTrend(gridFarmKey);
         void prefetchFarmStallTrend(gridFarmKey).then((trend) => {
@@ -429,7 +432,8 @@ export function FarmPageContent({
         (view === "map" ||
           view === "chart" ||
           view === "list" ||
-          view === "aria"),
+          view === "aria" ||
+          view === "model"),
     });
 
   const shallowParams = useMemo(() => {
@@ -676,6 +680,22 @@ export function FarmPageContent({
         />
         차트
       </button>
+      {barnModelEnabled() ? (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "model"}
+          className={viewTabBtn(view === "model")}
+          onClick={() => setView("model")}
+        >
+          <Box
+            className={dashboardUi.iconSm}
+            strokeWidth={dashboardUi.iconStroke}
+            aria-hidden
+          />
+          모델
+        </button>
+      ) : null}
       {delinEnabled() ? (
         <button
           type="button"
@@ -895,6 +915,31 @@ export function FarmPageContent({
                 layersToolbarActive={view === "chart"}
               />
             </div>
+          </div>
+        ) : null}
+
+        {barnModelEnabled() &&
+        (view === "model" ||
+          viewSlide?.from === "model" ||
+          viewSlide?.to === "model") ? (
+          <div
+            className={panelMotionClass("model")}
+            aria-hidden={view !== "model"}
+            data-farm-view-panel="model"
+            data-farm-view-active={view === "model"}
+          >
+            <FarmBarnModelView
+              barns={barnSnapshots}
+              readings={readings}
+              controllerTrendByPeriod={gridControllerTrend}
+              trendPeriod={trendPeriod}
+              onTrendPeriodChange={onTrendPeriodChange}
+              trendLoading={gridTrendLoading}
+              trendStale={gridTrendStale}
+              alarmSettings={alarmSettings}
+              thermoSettings={thermoSettings}
+              canCommand={controller?.canCommand ?? false}
+            />
           </div>
         ) : null}
 

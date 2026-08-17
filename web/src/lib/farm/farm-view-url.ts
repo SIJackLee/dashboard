@@ -15,6 +15,7 @@ import {
   CHART_X1_PARAM,
 } from "@/lib/farm/farm-chart-scope";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
+import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
 
 export const TREND_PERIOD_PARAM = "trendPeriod";
 
@@ -92,14 +93,17 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
-/** 허브 탭 — 그리드(map) · 목록 · 차트 · 델린(view=aria) */
-export type FarmHubView = "map" | "list" | "chart" | "aria";
+/** 허브 탭 — 그리드(map) · 목록 · 차트 · 모델 · 델린(view=aria) */
+export type FarmHubView = "map" | "list" | "chart" | "model" | "aria";
 
 export function resolveFarmHubView(
   raw: string | null | undefined,
 ): FarmHubView {
   if (raw === "list") return "list";
   if (raw === "chart") return "chart";
+  if (raw === "model") {
+    return barnModelEnabled() ? "model" : "map";
+  }
   if (raw === "aria" || raw === "jarvis") {
     return delinEnabled() ? "aria" : "map";
   }
@@ -121,6 +125,20 @@ export function applyChartViewParams(params: URLSearchParams): void {
   params.delete("listMode");
   params.delete("stall");
   params.delete("mapLevel");
+}
+
+/** 축사 3D 모델 탭. 플래그 off면 그리드로 정규화. */
+export function applyModelViewParams(params: URLSearchParams): void {
+  if (!barnModelEnabled()) {
+    applyMapGridParams(params);
+    return;
+  }
+  params.set("view", "model");
+  params.delete("listMode");
+  params.delete("stall");
+  params.delete("mapLevel");
+  clearFarmChartScopeParams(params);
+  clearFarmChartZoomParams(params);
 }
 
 /** 델린 탭 — DELIN (URL view=aria 호환). 플래그 off면 no-op. */
@@ -185,7 +203,7 @@ export function buildFarmPath(params: URLSearchParams): string {
   return q ? `/farm?${q}` : "/farm";
 }
 
-/** view=list|map|chart|aria 전환 (레거시 tab=ops 쿼리 제거) */
+/** view=list|map|chart|model|aria 전환 (레거시 tab=ops 쿼리 제거) */
 export function applyHubScopedViewParams(
   params: URLSearchParams,
   view: FarmHubView,
@@ -193,6 +211,7 @@ export function applyHubScopedViewParams(
   params.delete("tab");
   if (view === "list") applyListViewParams(params);
   else if (view === "chart") applyChartViewParams(params);
+  else if (view === "model") applyModelViewParams(params);
   else if (view === "aria") applyAriaViewParams(params);
   else applyMapGridParams(params);
 }
@@ -205,7 +224,7 @@ export function pinFarmHubViewParam(
   params: URLSearchParams,
   view: FarmHubView,
 ): void {
-  if (view === "list" || view === "chart" || view === "aria") {
+  if (view === "list" || view === "chart" || view === "model" || view === "aria") {
     params.set("view", view);
   } else {
     params.delete("view");

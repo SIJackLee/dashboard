@@ -24,6 +24,7 @@ import {
   type FarmHubView,
 } from "@/lib/farm/farm-view-url";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
+import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
 import {
   canUnmountKeepAlivePanel,
   FARM_HUB_KEEPALIVE_PANELS,
@@ -38,7 +39,8 @@ const FARM_HUB_VIEW_ORDER: Record<FarmHubView, number> = {
   map: 0,
   list: 1,
   chart: 2,
-  aria: 3,
+  model: 3,
+  aria: 4,
 };
 
 /** globals.css farm-view-slide-* (moderate enter + exit) */
@@ -70,6 +72,7 @@ export type FarmHubViewShell = {
   setUrlTick: Dispatch<SetStateAction<number>>;
   listEverOpened: boolean;
   chartEverOpened: boolean;
+  modelEverOpened: boolean;
   ariaEverOpened: boolean;
   setView: (next: FarmHubView) => void;
   setTourView: (next: FarmHubView) => void;
@@ -97,6 +100,9 @@ export function useFarmHubViewShell({
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [chartEverOpened, setChartEverOpened] = useState(
     bootstrapView === "chart",
+  );
+  const [modelEverOpened, setModelEverOpened] = useState(
+    bootstrapView === "model" && barnModelEnabled(),
   );
   const [ariaEverOpened, setAriaEverOpened] = useState(
     bootstrapView === "aria" && delinEnabled(),
@@ -139,6 +145,10 @@ export function useFarmHubViewShell({
             rewritten = true;
           }
         }
+        if (!barnModelEnabled() && params.get("view") === "model") {
+          applyMapGridParams(params);
+          rewritten = true;
+        }
         if (rewritten) {
           replaceFarmUrlShallow(params);
           setUrlTick((n) => n + 1);
@@ -159,6 +169,7 @@ export function useFarmHubViewShell({
       });
       if (next === "list") setListEverOpened(true);
       if (next === "chart") setChartEverOpened(true);
+      if (next === "model" && barnModelEnabled()) setModelEverOpened(true);
       if (next === "aria" && delinEnabled()) setAriaEverOpened(true);
       if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
     },
@@ -203,6 +214,9 @@ export function useFarmHubViewShell({
   if (view === "chart" && !chartEverOpened) {
     setChartEverOpened(true);
   }
+  if (view === "model" && !modelEverOpened) {
+    if (barnModelEnabled()) setModelEverOpened(true);
+  }
   if (view === "aria" && !ariaEverOpened) {
     if (delinEnabled()) setAriaEverOpened(true);
   }
@@ -237,20 +251,29 @@ export function useFarmHubViewShell({
     const flags = keepAliveFlagsForActiveView(view);
     setListEverOpened(flags.list);
     setChartEverOpened(flags.chart);
+    setModelEverOpened(view === "model" && barnModelEnabled());
     setAriaEverOpened(flags.aria);
     setPanelInactiveSince({});
   }, [keepAliveFarmId, view]);
 
   const applyViewChange = useCallback(
     (next: FarmHubView) => {
-      const target =
-        next === "aria" && !delinEnabled() ? ("map" as FarmHubView) : next;
+      const gated =
+        next === "aria" && !delinEnabled()
+          ? ("map" as FarmHubView)
+          : next === "model" && !barnModelEnabled()
+            ? ("map" as FarmHubView)
+            : next;
+      const target = gated;
       if (target === "list") {
         setListEverOpened(true);
         onOpenListRef.current?.();
       }
       if (target === "chart") {
         setChartEverOpened(true);
+      }
+      if (target === "model") {
+        setModelEverOpened(true);
       }
       if (target === "aria") {
         setAriaEverOpened(true);
@@ -273,6 +296,9 @@ export function useFarmHubViewShell({
         params.set("view", "list");
       } else if (target === "chart") {
         params.set("view", "chart");
+        params.delete("listMode");
+      } else if (target === "model") {
+        params.set("view", "model");
         params.delete("listMode");
       } else if (target === "aria") {
         params.set("view", "aria");
@@ -390,6 +416,7 @@ export function useFarmHubViewShell({
     setUrlTick,
     listEverOpened,
     chartEverOpened,
+    modelEverOpened,
     ariaEverOpened,
     setView,
     setTourView,

@@ -30,6 +30,7 @@
 | [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) | 허브 안정화 P0 게이트·체크리스트 |
 | [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md) | 운영 메모(스냅샷) |
 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) | 작업 맥락·스키마 참고 |
+| [`HOME_SIM_PILOT.md`](./HOME_SIM_PILOT.md) | 집 PC FARM01 LIVE 시뮬 (`sim_pilot_farm01.py`) |
 | [`android-push.md`](./android-push.md) | Android Capacitor + FCM 푸시 1차 |
 
 ### 허브 · DELIN · 디자인
@@ -37,6 +38,7 @@
 | 문서 | 내용 |
 |------|------|
 | [`farm-hub-url.md`](./farm-hub-url.md) | `/farm` URL·탭·epoch |
+| [`BARN_MODEL.md`](./BARN_MODEL.md) | 축사 3D 모델 탭 (P0 · Preview) |
 | [`aria-protocol.md`](./aria-protocol.md) | 델린(DELIN) 판단 정본 |
 | [`weather-ctrl-recommendation-p1.md`](./weather-ctrl-recommendation-p1.md) | 기상 CTRL 권장→승인 P1 (FARM01) |
 | [`weather-ctrl-phase-a.md`](./weather-ctrl-phase-a.md) | Phase A — KMA 스냅샷·cron 상세 |

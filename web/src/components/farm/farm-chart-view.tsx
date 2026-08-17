@@ -21,6 +21,8 @@ import {
   alarmScopeKeyFromFarmChartScope,
   buildFarmChartTree,
   chartScopeLabel,
+  clampChartScopeToType,
+  filterFarmChartTreeByType,
   filterReadingsByChartScope,
   scopesEqual,
   type ChartTrendZoomHint,
@@ -52,6 +54,8 @@ type Props = {
   isMobileStack?: boolean;
   /** 차트 탭 활성 — TopBar 레이어 툴바 enter/exit */
   layersToolbarActive?: boolean;
+  /** 모델 입구 — 해당 축사 유형만 집계 (농장 전체 숨김) */
+  embedStallTyCode?: string;
   className?: string;
 };
 
@@ -130,6 +134,7 @@ export function FarmChartView({
   canCommand = false,
   isMobileStack = false,
   layersToolbarActive = true,
+  embedStallTyCode,
   className,
 }: Props) {
   const [expandedSp, setExpandedSp] = useState<Record<string, boolean>>({});
@@ -142,10 +147,20 @@ export function FarmChartView({
   /** PC — 우측 집계 레일 (필드 현황과 동일 접기 정책) */
   const [scopeRailOpen, setScopeRailOpen] = useState(true);
 
-  const tree = useMemo(() => buildFarmChartTree(readings), [readings]);
+  const lockedTy = embedStallTyCode
+    ? normalizeStallTyCode(embedStallTyCode)
+    : "";
+  const embed = Boolean(lockedTy);
+  const tree = useMemo(() => {
+    const all = buildFarmChartTree(readings);
+    return lockedTy ? filterFarmChartTreeByType(all, lockedTy) : all;
+  }, [readings, lockedTy]);
+  const effectiveScope = lockedTy
+    ? clampChartScopeToType(scope, lockedTy)
+    : scope;
   const scopedReadings = useMemo(
-    () => filterReadingsByChartScope(readings, scope),
-    [readings, scope],
+    () => filterReadingsByChartScope(readings, effectiveScope),
+    [readings, effectiveScope],
   );
 
   const controllers = useMemo(
@@ -216,33 +231,35 @@ export function FarmChartView({
     return { byCtrl, byStall, bySp, farm };
   }, [readings, alarmSettings, controllerTrendByPeriod, period]);
 
-  const label = chartScopeLabel(scope, readings);
-  const chartHeight = isMobileStack ? 320 : 420;
+  const label = chartScopeLabel(effectiveScope, readings);
+  const chartHeight = embed ? 280 : isMobileStack ? 320 : 420;
 
   const stallExpandKey = (ty: string, stallNo: string) => `${ty}::${stallNo}`;
 
   /** 딥링크 범위 변경 시 트리 펼침 (render-time sync) */
   const scopeExpandKey =
-    scope.level === "farm"
+    effectiveScope.level === "farm"
       ? "farm"
-      : scope.level === "sp"
-        ? `sp:${scope.stallTyCode}`
-        : scope.level === "stall"
-          ? `stall:${scope.stallTyCode}:${scope.stallNo}`
-          : `ctrl:${scope.stallTyCode}:${scope.stallNo}:${scope.controllerKey}`;
+      : effectiveScope.level === "sp"
+        ? `sp:${effectiveScope.stallTyCode}`
+        : effectiveScope.level === "stall"
+          ? `stall:${effectiveScope.stallTyCode}:${effectiveScope.stallNo}`
+          : `ctrl:${effectiveScope.stallTyCode}:${effectiveScope.stallNo}:${effectiveScope.controllerKey}`;
   if (scopeExpandKey !== expandScopeKey) {
     setExpandScopeKey(scopeExpandKey);
-    if (scope.level !== "farm") {
-      setExpandedSp((prev) => ({ ...prev, [scope.stallTyCode]: true }));
-      if (scope.level !== "sp") {
-        const sk = stallExpandKey(scope.stallTyCode, scope.stallNo);
+    if (effectiveScope.level !== "farm") {
+      setExpandedSp((prev) => ({ ...prev, [effectiveScope.stallTyCode]: true }));
+      if (effectiveScope.level !== "sp") {
+        const sk = stallExpandKey(effectiveScope.stallTyCode, effectiveScope.stallNo);
         setExpandedStall((prev) => ({ ...prev, [sk]: true }));
       }
     }
   }
 
   const selectScope = (next: FarmChartScope) => {
-    onScopeChange?.(next);
+    const clamped = lockedTy ? clampChartScopeToType(next, lockedTy) : next;
+    if (embed && clamped.level === "farm") return;
+    onScopeChange?.(clamped);
     if (isMobileStack) setScopePanelOpen(false);
   };
 
@@ -251,15 +268,17 @@ export function FarmChartView({
       className="space-y-0.5"
       aria-label="집계 범위 트리"
     >
-      <ScopeRow
-        selected={scopesEqual(scope, { level: "farm" })}
-        onSelect={() => selectScope({ level: "farm" })}
-        depth={0}
-        label="농장 전체"
-        meta={`${readings.length}대`}
-        tone={scopeTones.farm}
-        touchFriendly={isMobileStack}
-      />
+      {embed ? null : (
+        <ScopeRow
+          selected={scopesEqual(effectiveScope, { level: "farm" })}
+          onSelect={() => selectScope({ level: "farm" })}
+          depth={0}
+          label="농장 전체"
+          meta={`${readings.length}대`}
+          tone={scopeTones.farm}
+          touchFriendly={isMobileStack}
+        />
+      )}
 
       {tree.map((sp) => {
         const spOpen = expandedSp[sp.stallTyCode] ?? true;
@@ -270,7 +289,7 @@ export function FarmChartView({
         return (
           <div key={sp.stallTyCode} role="group" aria-label={sp.label}>
             <ScopeRow
-              selected={scopesEqual(scope, spScope)}
+              selected={scopesEqual(effectiveScope, spScope)}
               onSelect={() => selectScope(spScope)}
               depth={0}
               label={sp.label}
@@ -298,7 +317,7 @@ export function FarmChartView({
                   return (
                     <div key={sk}>
                       <ScopeRow
-                        selected={scopesEqual(scope, stallScope)}
+                        selected={scopesEqual(effectiveScope, stallScope)}
                         onSelect={() => selectScope(stallScope)}
                         depth={1}
                         label={
@@ -339,7 +358,7 @@ export function FarmChartView({
                             return (
                               <ScopeRow
                                 key={c.controllerKey}
-                                selected={scopesEqual(scope, ctrlScope)}
+                                selected={scopesEqual(effectiveScope, ctrlScope)}
                                 onSelect={() => selectScope(ctrlScope)}
                                 depth={2}
                                 label={
@@ -376,10 +395,14 @@ export function FarmChartView({
         className={cn(
           "grid min-h-0 grid-cols-1 gap-3 lg:items-stretch",
           "transition-[grid-template-columns] duration-motion-moderate ease-[var(--motion-ease-standard)]",
-          !isMobileStack &&
-            (scopeRailOpen
-              ? "lg:grid-cols-[minmax(0,1fr)_16rem] xl:grid-cols-[minmax(0,1fr)_18rem]"
-              : "lg:grid-cols-[minmax(0,1fr)_2.5rem]"),
+          embed
+            ? scopeRailOpen
+              ? "grid-cols-[minmax(0,1fr)_10.5rem]"
+              : "grid-cols-[minmax(0,1fr)_2.5rem]"
+            : !isMobileStack &&
+              (scopeRailOpen
+                ? "lg:grid-cols-[minmax(0,1fr)_16rem] xl:grid-cols-[minmax(0,1fr)_18rem]"
+                : "lg:grid-cols-[minmax(0,1fr)_2.5rem]"),
           motionClass.farmChartScopeShell,
         )}
         data-farm-chart-scope={
@@ -395,8 +418,8 @@ export function FarmChartView({
             onPeriodChange={onPeriodChange}
             alarmSettings={alarmSettings}
             thermoSettings={thermoSettings}
-            chartScope={scope}
-            onScopeChange={onScopeChange}
+            chartScope={effectiveScope}
+            onScopeChange={selectScope}
             initialZoom={initialZoom}
             onZoomChange={onZoomChange}
             canCommand={canCommand}
@@ -421,14 +444,16 @@ export function FarmChartView({
               className={cn(
                 "ml-auto transition-[width,max-width] duration-motion-moderate ease-[var(--motion-ease-standard)]",
                 scopeRailOpen
-                  ? "w-full max-w-[16rem] xl:max-w-[18rem]"
+                  ? embed
+                    ? "w-full max-w-[10.5rem]"
+                    : "w-full max-w-[16rem] xl:max-w-[18rem]"
                   : "w-10 max-w-10",
               )}
             >
               <aside
                 className={cn(
                   "flex w-full flex-col rounded-xl border bg-card",
-                  "lg:max-h-[min(70dvh,36rem)]",
+                  embed ? "max-h-full" : "lg:max-h-[min(70dvh,36rem)]",
                   farmChartUi.root,
                   motionClass.farmChartPanelShell,
                 )}

@@ -186,6 +186,29 @@ export function buildFarmChartTree(readings: BarnReading[]): FarmChartTreeSp[] {
   });
 }
 
+/** 모델 입구 차트 — 농장 전체를 막고 해당 축사 유형으로 고정 */
+export function clampChartScopeToType(
+  scope: FarmChartScope,
+  stallTyCode: string,
+): FarmChartScope {
+  const ty = normalizeStallTyCode(stallTyCode);
+  if (!ty) return { level: "farm" };
+  if (scope.level === "farm") return { level: "sp", stallTyCode: ty };
+  if (normalizeStallTyCode(scope.stallTyCode) !== ty) {
+    return { level: "sp", stallTyCode: ty };
+  }
+  return scope;
+}
+
+export function filterFarmChartTreeByType(
+  tree: FarmChartTreeSp[],
+  stallTyCode: string,
+): FarmChartTreeSp[] {
+  const ty = normalizeStallTyCode(stallTyCode);
+  if (!ty) return tree;
+  return tree.filter((sp) => normalizeStallTyCode(sp.stallTyCode) === ty);
+}
+
 export function scopesEqual(a: FarmChartScope, b: FarmChartScope): boolean {
   if (a.level !== b.level) return false;
   switch (a.level) {

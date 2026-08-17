@@ -12,9 +12,10 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 환경변수 | 기본 | 설명 |
 |----------|------|------|
 | `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «현장» 탭. off면 현행 4탭 |
+| `NEXT_PUBLIC_BARN_MODEL_ENABLED` | 로컬·Preview on / Production off | 모델 탭. 상세 [`BARN_MODEL.md`](./BARN_MODEL.md) |
 
 통합 on일 때 UI:
-- 상위 탭: **현장 · 차트 · DELIN**
+- 상위 탭: **현장 · 차트 · 모델(게이트) · DELIN**
 - PC 현장: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
 - 모바일 compact: 보기 탭은 **하단 독** (`DashboardViewportShell`)
 - 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
@@ -29,7 +30,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `aria` \| (`jarvis`→aria) | **없음 = 그리드(map)** | 상단 탭. `aria` UI 표기 **델린**. DELIN 플래그 off면 `aria`/`jarvis` → 그리드로 정규화 |
+| `view` | `list` \| `chart` \| `model` \| `aria` \| (`jarvis`→aria) | **없음 = 그리드(map)** | 상단 탭. `aria` UI 표기 **델린**. DELIN off면 `aria`/`jarvis` → 그리드. 모델 플래그 off면 `model` → 그리드 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
@@ -56,6 +57,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 resolveFarmHubView(raw)
   list  → list
   chart → chart
+  model → model   // 게이트 off면 map. 문서: BARN_MODEL.md
   aria | jarvis → aria   // UI 표기: 델린(DELIN)
   else  → map   // view 없음·알 수 없음
 ```
@@ -65,6 +67,7 @@ resolveFarmHubView(raw)
 | `applyMapGridParams` | `view`·`listMode`·drill 제거 |
 | `applyListViewParams` | `view=list`, `stall`·`mapLevel` 제거 (`sp` 유지 가능) |
 | `applyChartViewParams` | `view=chart`, `listMode`·`stall`·`mapLevel` 제거 (`chart*` 유지) |
+| `applyModelViewParams` | `view=model`, 목록/드릴·`chart*` 정리. 게이트 off면 그리드 |
 | `applyAriaViewParams` | `view=aria`, 동일하게 목록/드릴·`chart*` 정리 |
 | `applyHubScopedViewParams(view)` | 위 + 레거시 `tab` 삭제 |
 | `pinFarmHubViewParam(view)` | **탭만** 고정. drill·`chart*` 유지 (기간 변경용) |
