@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
@@ -16,8 +16,18 @@ import {
   cyclePlacedBarnId,
   cycleSameTypeBarnId,
   readingsForStallType,
-  type BarnModelCameraShot,
 } from "@/lib/farm/barn-model-layout";
+import {
+  BARN_MODEL_VIEW_INIT,
+  barnModelEntranceSettled,
+  barnModelFieldTrendTy,
+  barnModelFillEditId,
+  barnModelPlacing,
+  barnModelRoofFocusId,
+  barnModelShot,
+  barnModelYardEditing,
+  reduceBarnModelView,
+} from "@/lib/farm/barn-model-mode";
 import {
   clampChartScopeToType,
   type FarmChartScope,
@@ -25,23 +35,25 @@ import {
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import {
   addPlacedBarn,
+  clonePlacedBarn,
   loadBarnModelPrefs,
   movePlacedBarn,
+  placedFillSessionEqual,
   removePlacedBarn,
+  restorePlacedBarn,
   rotatePlacedBarn,
   saveBarnModelPrefs,
   subscribeBarnModelPrefs,
-  updatePlacedPlan,
+  updatePlacedFill,
+  updatePlacedShell,
   type BarnModelLayoutPrefs,
+  type BarnModelPlacedBarn,
 } from "@/lib/farm/barn-model-prefs";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { FarmChartView } from "@/components/farm/farm-chart-view";
-import {
-  FarmBarnModelPalette,
-  type BarnPlaceDraft,
-} from "@/components/farm/farm-barn-model-layout-panel";
+import { FarmBarnModelPalette } from "@/components/farm/farm-barn-model-layout-panel";
 
 const FarmBarnModelCanvas = dynamic(
   () =>
@@ -67,6 +79,8 @@ type Props = {
   alarmSettings?: AlarmSettings;
   thermoSettings?: Record<string, ControllerThermoSettings>;
   canCommand?: boolean;
+  /** 보고 있는 동의 축사유형 — 델린 뱃지 맥락. 없으면 농장 전체. */
+  onAdviceStallTyChange?: (stallTyCode: string | null) => void;
 };
 
 const HUD =
@@ -83,16 +97,22 @@ export function FarmBarnModelView({
   alarmSettings,
   thermoSettings = {},
   canCommand = false,
+  onAdviceStallTyChange,
 }: Props) {
-  const [shot, setShot] = useState<BarnModelCameraShot>("roof");
-  const [selectedBarnId, setSelectedBarnId] = useState<string | null>(null);
-  const [editingBarnId, setEditingBarnId] = useState<string | null>(null);
+  const [ui, dispatch] = useReducer(reduceBarnModelView, BARN_MODEL_VIEW_INIT);
+  const { mode, selectedBarnId, paletteOpen } = ui;
+  const shot = barnModelShot(mode);
+  const yardEditing = barnModelYardEditing(mode);
+  const placing = barnModelPlacing(mode);
+  const roofFocusId = barnModelRoofFocusId(mode);
+  const fillEditId = barnModelFillEditId(mode);
+  const fieldTrendTy = barnModelFieldTrendTy(mode);
+  const entranceSettled = barnModelEntranceSettled(mode);
+  const [fillSnap, setFillSnap] = useState<BarnModelPlacedBarn | null>(null);
   const [peekKey, setPeekKey] = useState<string | null>(null);
   const [entranceChartScope, setEntranceChartScope] = useState<FarmChartScope>({
     level: "farm",
   });
-  const [paletteOpen, setPaletteOpen] = useState(true);
-  const [placing, setPlacing] = useState<BarnPlaceDraft | null>(null);
   const farmId =
     barns[0]?.meta.farmKey
       ? farmKeyId(barns[0].meta.farmKey)
@@ -112,7 +132,23 @@ export function FarmBarnModelView({
       setDraft(null);
       saveBarnModelPrefs(farmId, next);
     },
-    [farmId],
+    [farmId, setDraft],
+  );
+
+  const closeFillEdit = useCallback(() => {
+    setFillSnap(null);
+    dispatch({ type: "setFillEdit", barnId: null });
+  }, [setFillSnap]);
+
+  const fillCur = fillEditId
+    ? prefs.placed.find((b) => b.id === fillEditId)
+    : null;
+  const fillEditDirty = Boolean(
+    fillEditId &&
+      fillSnap &&
+      fillCur &&
+      fillSnap.id === fillCur.id &&
+      !placedFillSessionEqual(fillSnap, fillCur),
   );
 
   const yard = useMemo(
@@ -131,17 +167,24 @@ export function FarmBarnModelView({
   const selected = yard.barns.find((b) => b.id === activeBarnId) ?? null;
 
   useEffect(() => {
+    onAdviceStallTyChange?.(selected?.stallTyCode ?? null);
+    return () => onAdviceStallTyChange?.(null);
+  }, [selected?.stallTyCode, onAdviceStallTyChange]);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      if (placing) {
-        setPlacing(null);
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
         return;
       }
-      if (editingBarnId) setEditingBarnId(null);
+      dispatch({ type: "escape" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [placing, editingBarnId]);
+  }, []);
 
   const typeReadings = useMemo(() => {
     if (!activeBarnId) return [];
@@ -165,22 +208,15 @@ export function FarmBarnModelView({
   const selectBarn = (barnId: string) => {
     if (placing) return;
     if (!barnId) {
-      setSelectedBarnId(null);
+      dispatch({ type: "selectBarn", barnId: null });
       setPeekKey(null);
-      setEditingBarnId(null);
-      if (shot === "entrance") setShot("roof");
       return;
     }
-    setSelectedBarnId(barnId);
-    if (editingBarnId && editingBarnId !== barnId) setEditingBarnId(null);
+    dispatch({ type: "selectBarn", barnId });
   };
 
   const openEntrance = (barnId: string) => {
-    setPlacing(null);
-    setPaletteOpen(false);
-    setSelectedBarnId(barnId);
-    setEditingBarnId(null);
-    setShot("entrance");
+    dispatch({ type: "openEntrance", barnId });
     const barn = prefs.placed.find((b) => b.id === barnId);
     if (barn) {
       setEntranceChartScope({
@@ -198,14 +234,28 @@ export function FarmBarnModelView({
     if (nextId) openEntrance(nextId);
   };
 
-  const editBarn = (barnId: string) => {
-    if (placing) return;
-    if (editingBarnId === barnId) {
-      setEditingBarnId(null);
-      return;
-    }
-    setSelectedBarnId(barnId);
-    setEditingBarnId(barnId);
+  const toggleYardEdit = () => {
+    dispatch({ type: "toggleEdit" });
+  };
+
+  const focusPlacedBarn = (fromId: string, dir: 1 | -1) => {
+    const nextId = cyclePlacedBarnId(prefs.placed, fromId, dir);
+    if (!nextId || nextId === fromId) return;
+    dispatch({ type: "focusBarn", barnId: nextId });
+  };
+
+  const openFieldTrend = (barnId: string) => {
+    const barn = prefs.placed.find((b) => b.id === barnId);
+    if (!barn) return;
+    dispatch({
+      type: "toggleTrend",
+      barnId,
+      stallTyCode: barn.stallTyCode,
+    });
+    setEntranceChartScope({
+      level: "sp",
+      stallTyCode: barn.stallTyCode,
+    });
   };
 
   const placeAt = (x: number, z: number) => {
@@ -219,21 +269,23 @@ export function FarmBarnModelView({
     });
     const created = next.placed[next.placed.length - 1];
     onPrefsChange(next);
-    setPlacing(null);
-    if (created) setSelectedBarnId(created.id);
+    if (created) dispatch({ type: "placed", barnId: created.id });
+    else dispatch({ type: "cancelPlacing" });
   };
 
   const hint = placing
     ? `${placing.label} · 미리보기를 옮긴 뒤 클릭해 놓습니다 (Esc 취소)`
     : shot === "entrance"
-      ? "입구 구도 · 오른쪽에서 이 축사 유형 차트를 봅니다. 집계에서 축사·컨트롤러를 고르고, 하단 아이콘으로 필드로 나갑니다."
-      : "지붕 카드에서 현황·이력을 보고, 입구 표시로 입구를 봅니다. 우클릭하면 모델링을 편집합니다. 다시 우클릭하거나 Esc로 끝냅니다.";
+      ? "입구 구도 · 오른쪽에서 이 축사 유형 차트를 봅니다. 집계에서 축사·컨트롤러를 고르고, 카드의 격자 아이콘으로 필드로 나갑니다."
+      : yardEditing
+        ? "전체 필드에서 축사를 옮기고 돌립니다. 방 편집을 열면 그 동으로 줌인하고, 되돌리기로 방 값을 복구합니다. 편집 끝 또는 Esc로 나갑니다."
+        : "지붕 카드에서 통합추이를 보고, 입구 표시로 입구를 봅니다. ‹ ›로 다른 동으로 이동합니다. 편집으로 모든 축사 크기·위치를 조절합니다.";
 
   return (
     <div
       className={cn(
         "relative h-[min(92vh,72rem)] min-h-[48rem] overflow-hidden rounded-md border bg-slate-200",
-        placing && shot === "roof" && "cursor-crosshair",
+        placing && "cursor-crosshair",
       )}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -241,24 +293,38 @@ export function FarmBarnModelView({
         yard={yard}
         shot={shot}
         selectedBarnId={activeBarnId}
-        placing={Boolean(placing) && shot === "roof"}
-        placingDraft={placing && shot === "roof" ? placing : null}
+        roofFocusId={roofFocusId}
+        onRoofFocusClear={() => dispatch({ type: "clearRoofFocus" })}
+        onCycleTypeBarn={focusPlacedBarn}
+        onOpenTrend={openFieldTrend}
+        fillEditId={fillEditId}
+        fillEditDirty={fillEditDirty}
+        onFillEditOpenChange={(barnId, open) => {
+          if (!open) {
+            if (fillEditId === barnId) closeFillEdit();
+            return;
+          }
+          const barn = prefs.placed.find((b) => b.id === barnId);
+          if (!barn) return;
+          setFillSnap(clonePlacedBarn(barn));
+          dispatch({ type: "setFillEdit", barnId });
+        }}
+        onFillEditRevert={() => {
+          const snap = fillSnap;
+          if (!snap || snap.id !== fillEditId) return;
+          onPrefsChange(restorePlacedBarn(prefs, snap));
+        }}
+        placing={Boolean(placing)}
+        placingDraft={placing}
         onSelectBarn={selectBarn}
-        onEditBarn={editBarn}
-        editingBarnId={editingBarnId}
+        yardEditing={yardEditing}
         onDeleteBarn={(barnId) => {
           onPrefsChange(removePlacedBarn(prefs, barnId));
-          if (selectedBarnId === barnId) {
-            setSelectedBarnId(null);
-            setPeekKey(null);
-          }
-          if (editingBarnId === barnId) setEditingBarnId(null);
-          if (shot === "entrance") setShot("roof");
+          if (selectedBarnId === barnId) setPeekKey(null);
+          dispatch({ type: "deleteBarn", barnId });
         }}
         onEntranceBarn={openEntrance}
-        onBackToField={() => {
-          setShot("roof");
-        }}
+        onBackToField={() => dispatch({ type: "backToField" })}
         onPrevBarn={() => goPlacedBarn(-1)}
         onNextBarn={() => goPlacedBarn(1)}
         onCycleType={() => goPlacedBarn(1, true)}
@@ -275,8 +341,9 @@ export function FarmBarnModelView({
             ? entranceChartScope.controllerKey
             : null
         }
+        onEntranceArrived={() => dispatch({ type: "entranceArrived" })}
         onOpenController={({ barnId, controllerKey }) => {
-          setSelectedBarnId(barnId);
+          dispatch({ type: "selectBarn", barnId });
           const reading =
             typeReadings.find((r) => r.controllerKey === controllerKey) ??
             readings.find((r) => r.controllerKey === controllerKey);
@@ -310,8 +377,11 @@ export function FarmBarnModelView({
         onRotateBarn={(id, deg) => {
           setDraft((prev) => rotatePlacedBarn(prev ?? stored, id, deg));
         }}
-        onResizeBarn={(id, plan, opts) => {
-          setDraft((prev) => updatePlacedPlan(prev ?? stored, id, plan, opts));
+        onSetBarnShell={(id, axis, meters) => {
+          onPrefsChange(updatePlacedShell(prefs, id, axis, meters));
+        }}
+        onSetBarnFill={(id, patch) => {
+          onPrefsChange(updatePlacedFill(prefs, id, patch));
         }}
         onMoveBarnEnd={() => {
           setDraft((prev) => {
@@ -330,7 +400,7 @@ export function FarmBarnModelView({
             type="button"
             className="absolute top-1.5 right-1.5 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="이 농장 축사 접기"
-            onClick={() => setPaletteOpen(false)}
+            onClick={() => dispatch({ type: "setPaletteOpen", open: false })}
           >
             <ChevronLeft className="size-4" strokeWidth={dashboardUi.iconStroke} />
           </button>
@@ -340,12 +410,9 @@ export function FarmBarnModelView({
             placing={placing}
             readings={readings}
             onPick={(next) => {
-              setPlacing(next);
-              setSelectedBarnId(null);
-              setEditingBarnId(null);
-              setShot("roof");
+              dispatch({ type: "startPlacing", draft: next });
             }}
-            onCancel={() => setPlacing(null)}
+            onCancel={() => dispatch({ type: "cancelPlacing" })}
             onOpenPlaced={openEntrance}
           />
         </aside>
@@ -354,18 +421,38 @@ export function FarmBarnModelView({
           type="button"
           className="pointer-events-auto absolute top-3 left-3 z-10 inline-flex h-9 items-center gap-1 rounded-xl border bg-background/90 px-2.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-background"
           aria-label="이 농장 축사 펼치기"
-          onClick={() => setPaletteOpen(true)}
+          onClick={() => dispatch({ type: "setPaletteOpen", open: true })}
         >
           <ChevronRight className="size-4" strokeWidth={dashboardUi.iconStroke} />
           축사
         </button>
       )}
 
+      {shot === "roof" ? (
+        <button
+          type="button"
+          className={cn(
+            "pointer-events-auto absolute top-3 z-10 inline-flex h-9 items-center gap-1 rounded-xl border px-2.5 text-xs font-medium shadow-sm backdrop-blur-sm",
+            paletteOpen ? "left-[15.5rem]" : "left-[5.75rem]",
+            yardEditing
+              ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+              : "bg-background/90 hover:bg-background",
+          )}
+          aria-pressed={yardEditing}
+          aria-label={yardEditing ? "편집 끝내기" : "축사 편집"}
+          onClick={toggleYardEdit}
+        >
+          <Pencil className="size-3.5" strokeWidth={dashboardUi.iconStroke} />
+          {yardEditing ? "편집 끝" : "편집"}
+        </button>
+      ) : null}
+
       <div
         className={cn(
           "pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center",
-          paletteOpen ? "pl-56" : "pl-4",
-          shot === "entrance" && selected && !editingBarnId
+          paletteOpen ? "pl-56" : "pl-36",
+          (shot === "entrance" && selected && entranceSettled) ||
+            (shot === "roof" && !yardEditing && fieldTrendTy)
             ? "pr-[min(52vw,43rem)]"
             : "pr-4",
         )}
@@ -375,7 +462,8 @@ export function FarmBarnModelView({
         </p>
       </div>
 
-      {shot === "entrance" && selected && !editingBarnId ? (
+      {(shot === "entrance" && selected && entranceSettled) ||
+      (shot === "roof" && !yardEditing && fieldTrendTy) ? (
         <aside
           className="pointer-events-auto absolute top-1/2 right-3 z-10 w-[min(52vw,42rem)] min-w-[22rem] max-h-[calc(100%-1.5rem)] -translate-y-1/2 overflow-y-auto rounded-xl border bg-background/95 p-2 shadow-sm backdrop-blur-sm"
           aria-label="축사 유형 차트"
@@ -390,7 +478,11 @@ export function FarmBarnModelView({
             alarmSettings={alarmSettings}
             thermoSettings={thermoSettings}
             canCommand={canCommand}
-            embedStallTyCode={selected.stallTyCode}
+            embedStallTyCode={
+              shot === "entrance"
+                ? selected!.stallTyCode
+                : fieldTrendTy!
+            }
             layersToolbarActive={false}
           />
         </aside>

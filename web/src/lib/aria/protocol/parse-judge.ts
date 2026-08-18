@@ -10,6 +10,7 @@ import {
   type AriaSayCode,
 } from "@/lib/aria/protocol/types";
 import type { VoiceFarmFacts } from "@/lib/voice-report/types";
+import { pigEnvFitOffBand } from "@/lib/farm/pig-env-recommend";
 
 /** AI judge 텍스트 파싱 — 실패 시 null */
 export function parseFarmJudge(raw: string): AriaFarmJudge | null {
@@ -73,12 +74,20 @@ export function heuristicFarmJudge(
     facts.stalls.find((s) => question.includes(s.stallLabel))?.stallLabel ??
     null;
 
+  const envOff = facts.stalls.some(
+    (s) =>
+      s.env != null &&
+      (pigEnvFitOffBand(s.env.tempFit) || pigEnvFitOffBand(s.env.humidityFit)),
+  );
+
   let judge: AriaJudgeCode = "OK";
   if (facts.alarmCritical > 0) judge = "CRIT";
-  else if (facts.alarmTotal > 0) judge = "WARN";
+  else if (envOff || facts.alarmTotal > 0) judge = "WARN";
 
   const say: AriaSayCode[] =
-    facts.alarmTotal === 0 ? ["OK"] : [...SAY_FOR_DEPTH[depthReq]];
+    judge === "OK" && facts.alarmTotal === 0
+      ? ["OK"]
+      : [...SAY_FOR_DEPTH[depthReq]];
 
   let nextHint: AriaNextHint = "NONE";
   if (depthReq < 3 && facts.alarmTotal > 0) nextHint = "ASK_CTRL";
@@ -97,20 +106,55 @@ export function heuristicFarmJudge(
 
 export function heuristicCtrlJudge(facts: VoiceFarmFacts): AriaCtrlJudge {
   const top = facts.alarmItems[0];
+  if (top?.alarmType.includes("통신")) {
+    return {
+      route: "CTRL",
+      judge: "RECOMMEND",
+      rec: "CHECK_OFFLINE",
+      delta: null,
+      say: ["REC_TEXT"],
+    };
+  }
+  const envHit = facts.stalls.find(
+    (s) =>
+      s.env != null &&
+      (pigEnvFitOffBand(s.env.tempFit) || pigEnvFitOffBand(s.env.humidityFit)),
+  );
+  if (envHit?.env?.tempFit === "high") {
+    return {
+      route: "CTRL",
+      judge: "RECOMMEND",
+      rec: "RAISE_MAX_VENT",
+      delta: null,
+      say: ["REC_TEXT"],
+    };
+  }
+  if (envHit?.env?.tempFit === "low") {
+    return {
+      route: "CTRL",
+      judge: "RECOMMEND",
+      rec: "CHECK_HEATING",
+      delta: null,
+      say: ["REC_TEXT"],
+    };
+  }
+  if (
+    envHit?.env &&
+    pigEnvFitOffBand(envHit.env.humidityFit)
+  ) {
+    return {
+      route: "CTRL",
+      judge: "RECOMMEND",
+      rec: "CHECK_HUMIDITY",
+      delta: null,
+      say: ["REC_TEXT"],
+    };
+  }
   if (!top) {
     return {
       route: "CTRL",
       judge: "RECOMMEND",
       rec: "NONE",
-      delta: null,
-      say: ["REC_TEXT"],
-    };
-  }
-  if (top.alarmType.includes("통신")) {
-    return {
-      route: "CTRL",
-      judge: "RECOMMEND",
-      rec: "CHECK_OFFLINE",
       delta: null,
       say: ["REC_TEXT"],
     };

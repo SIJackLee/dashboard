@@ -6,6 +6,7 @@ import {
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { BarnReading } from "@/lib/data/iot";
 import { STALL_TYPE_NAMES, normalizeStallTyCode } from "@/lib/data/stall-type";
+import { pigEnvVerdictForAverages } from "@/lib/farm/pig-env-recommend";
 import type { VoiceFarmFacts } from "@/lib/voice-report/types";
 
 function controllerDisplayLabel(args: {
@@ -92,15 +93,38 @@ export function assembleFarmFacts(args: {
   }
 
   const stalls = [...byTy.values()]
-    .map((g) => ({
-      stallTyCode: g.stallTyCode,
-      stallLabel: g.stallLabel,
-      controllers: g.controllers,
-      online: g.online,
-      alarmCount: g.alarmCount,
-      tempAvgC: avg(g.temps),
-      humidityAvgPct: avg(g.hums),
-    }))
+    .map((g) => {
+      const tempAvgC = avg(g.temps);
+      const humidityAvgPct = avg(g.hums);
+      const verdict = pigEnvVerdictForAverages({
+        stallTyCode: g.stallTyCode,
+        stallLabel: g.stallLabel,
+        tempAvgC,
+        humidityAvgPct,
+      });
+      return {
+        stallTyCode: g.stallTyCode,
+        stallLabel: g.stallLabel,
+        controllers: g.controllers,
+        online: g.online,
+        alarmCount: g.alarmCount,
+        tempAvgC,
+        humidityAvgPct,
+        env: verdict
+          ? {
+              stageLabel: verdict.stageLabel,
+              tempMinC: verdict.tempMinC,
+              tempMaxC: verdict.tempMaxC,
+              humidityMinPct: verdict.humidityMinPct,
+              humidityMaxPct: verdict.humidityMaxPct,
+              tempFit: verdict.tempFit,
+              humidityFit: verdict.humidityFit,
+              recommendTempC: verdict.recommendTempC,
+              recommendHumidityPct: verdict.recommendHumidityPct,
+            }
+          : null,
+      };
+    })
     .sort((a, b) => a.stallTyCode.localeCompare(b.stallTyCode));
 
   const online = scoped.filter((r) => r.status !== "offline").length;

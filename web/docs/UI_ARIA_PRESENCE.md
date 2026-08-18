@@ -1,7 +1,7 @@
 # UI ARIA Presence (H5 + 갭4)
 
-브랜드 기억점은 **ARIA 탭 프레즌스**와 **로그인 스플래시**에만 둔다.  
-모니터링(그리드·목록·차트·명령)은 H1–H4 차분 톤을 유지한다.
+브랜드 기억점은 **로그인 스플래시**와 허브 **DELIN 뱃지**(현장·차트·모델 우측 하단)에 둔다.  
+전용 델린 탭은 없다. 오브·도크 셸은 코드에 남기되 허브에 마운트하지 않는다.
 
 ## 경계 (Agent 충돌 방지)
 
@@ -21,7 +21,7 @@
 | `speak` / 답변 유지 | 하단 도크 우측 (축소·이동 동시) | 중앙 **scale-up** 리빌 |
 
 시퀀스: 질문 → think → 답변 후 **dock**(하단 도크 우측) → (추이 데이터 ready 대기) → **chart** → **scopeDemo** → ready.
-ARIA 탭에서도 controller 추이 fetch·prefetch 활성. 빈 차트로 chart 비트에 진입하지 않음.
+전용 탭이 없으므로 이 시퀀스는 허브에 마운트되지 않는다. 코드만 유지.
 모션 토큰: `--motion-aria-dock-duration` 1400ms · `--motion-aria-reveal-duration` 1100ms.
 `data-aria-reveal-beat` = `dock` \| `chart` \| `scopeDemo` \| `ready`.
 `data-aria-dock` = `center` \| `dock` (축소 오브는 하단 입력 도크 우측).
@@ -61,9 +61,7 @@ LIVE KPI: `fetchAriaFarmMetricsAction` → `buildFarmFacts` (답변 결과면 �
 U1: 영문 풀네임은 타이틀 `title`만 · 스테이지 힌트 1줄 · 추천 질문 칩 3개(농장 어때?/위험만/환기는?) · CTA「말하기」강조.  
 도크 Progressive disclosure: 상시=말하기·칩 · 「글로 묻기」접기 · 「옵션」(읽어주기·장치 테스트) 더 희미하게.  
 U2: 스테이지에 통합 추이 제자리 + `chartHandoff` 스코프/온도 줌. 보조 CTA만 `view=chart` 딥링크. 로직: `delin-chart-handoff.ts`.  
-U3: PC 차트 위 **DELIN companion** 드로어 (`DelinChartCompanion`, `lg+`). 탭 전환 없이 질문.  
-열림 시 차트 **약한 dim**(`bg-background/15`, 탭하면 닫힘) — 차트 조작은 닫은 뒤.  
-U4: 모바일 차트 **바텀시트** (`mobileSheet` + `BarnPanelBottomSheet`). FAB는 하단 내비 위.
+U3–U4: 차트 companion·모바일 바텀시트는 **미마운트**(파일 삭제). 질문은 뱃지 범위 밖. 음성 도크 코드는 유지.
 
 ## P2 — 온도 레인 스코프
 
@@ -115,4 +113,4 @@ dashboardAriaShell.{ stage, stageGlow, title, eyebrow, hint, dock, … }
 ## 검증
 
 - `npm run verify:design`
-- 수동: ARIA 탭이 그리드/목록과 다른 “브랜드 스테이지”로 보이는지 · dock이 일반 카드보다 또렷한지
+- 수동: 현장·차트·모델 우측 하단 DELIN 뱃지·말풍선. 상단에 델린 탭 없음. `/farm?view=aria` → 현장

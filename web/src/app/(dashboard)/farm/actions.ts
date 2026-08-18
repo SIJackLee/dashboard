@@ -6,6 +6,7 @@ import { canEditFarmScope } from "@/lib/auth/farm-access";
 import type { FarmKey } from "@/lib/data/farm-key";
 import {
   getFarmControllerTrendAllPeriods,
+  getFarmControllerTrendHistory,
   getFarmTrendAllPeriods,
 } from "@/lib/data/farm-trend-history";
 import type {
@@ -125,6 +126,17 @@ export async function fetchFarmScopedPanelDataAction(
     farmKey,
     canCommand: canEditFarmScope(user, farmKey),
   });
+}
+
+/** 통합 추이 progressive — 24h 먼저, 30d는 후속. */
+export async function fetchFarmControllerTrendPeriodAction(
+  farmKey: FarmKey,
+  period: TrendPeriodId,
+): Promise<TrendControllerPeriodData> {
+  if (period !== "24h" && period !== "7d" && period !== "30d") {
+    throw new Error("Invalid trend period");
+  }
+  return getFarmControllerTrendHistory({ farmKey, period });
 }
 
 /** 목록 graph 모드 — 컨트롤러별 추이 (lazy fetch). */

@@ -1,21 +1,23 @@
 "use client";
 
-import { fetchFarmTrendAllPeriodsAction } from "@/app/(dashboard)/farm/actions";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import { stallTrendBundleFromController } from "@/lib/data/trend-period-slice";
 import {
   invalidateTimedCache,
   readTimedCache,
   writeTimedCache,
   type TimedCacheEntry,
 } from "@/lib/farm/client-trend-cache";
+import {
+  prefetchFarmControllerTrend,
+  subscribeFarmControllerTrend,
+} from "@/lib/farm/use-farm-controller-trend";
 
 type StallTrendBundle = Record<TrendPeriodId, TrendPeriodData>;
 
-/** map idle prefetch 공유 — SSR 이탈 후 클라이언트 hydrate · TTL 90s */
+/** map idle prefetch 공유 — 컨트롤러 추이에서 파생 · TTL 90s */
 const stallTrendCache = new Map<string, TimedCacheEntry<StallTrendBundle>>();
-const stallTrendInflight = new Map<string, Promise<StallTrendBundle>>();
-const stallTrendApplyGen = new Map<string, number>();
 
 export function peekFarmStallTrendCache(
   farmKey: FarmKey,
@@ -28,39 +30,31 @@ export function invalidateFarmStallTrendCache(farmKey: FarmKey): void {
   invalidateTimedCache(stallTrendCache, farmKeyId(farmKey));
 }
 
-function bumpApplyGen(scopeId: string): number {
-  const next = (stallTrendApplyGen.get(scopeId) ?? 0) + 1;
-  stallTrendApplyGen.set(scopeId, next);
-  return next;
-}
-
-function fetchStallTrendShared(farmKey: FarmKey): Promise<StallTrendBundle> {
-  const scopeId = farmKeyId(farmKey);
-  const cached = readTimedCache(stallTrendCache, scopeId);
-  if (cached) return Promise.resolve(cached);
-  const pending = stallTrendInflight.get(scopeId);
-  if (pending) return pending;
-
-  const applyGen = bumpApplyGen(scopeId);
-  const req = fetchFarmTrendAllPeriodsAction(farmKey).then((result) => {
-    if (stallTrendApplyGen.get(scopeId) === applyGen) {
-      writeTimedCache(stallTrendCache, scopeId, result);
-    }
-    return result;
-  });
-
-  stallTrendInflight.set(scopeId, req);
-  void req.finally(() => {
-    if (stallTrendInflight.get(scopeId) === req) {
-      stallTrendInflight.delete(scopeId);
-    }
-  });
-  return req;
-}
-
-/** LIVE 안정 후 idle — 그리드 히트맵용 stall trend (SSR critical path 이탈) */
+/** LIVE 안정 후 idle — 그리드 히트맵용 stall trend (컨트롤러 RPC만). */
 export function prefetchFarmStallTrend(
   farmKey: FarmKey,
+  onUpdate?: (trend: StallTrendBundle) => void,
 ): Promise<StallTrendBundle> {
-  return fetchStallTrendShared(farmKey);
+  const scopeId = farmKeyId(farmKey);
+  const cached = readTimedCache(stallTrendCache, scopeId);
+  if (cached) {
+    onUpdate?.(cached);
+  }
+
+  const unsub = subscribeFarmControllerTrend(scopeId, (ctrl) => {
+    const stall = stallTrendBundleFromController(ctrl);
+    writeTimedCache(stallTrendCache, scopeId, stall);
+    onUpdate?.(stall);
+  });
+
+  return prefetchFarmControllerTrend(farmKey)
+    .then((ctrl) => {
+      const stall = stallTrendBundleFromController(ctrl);
+      writeTimedCache(stallTrendCache, scopeId, stall);
+      onUpdate?.(stall);
+      return stall;
+    })
+    .finally(() => {
+      unsub();
+    });
 }

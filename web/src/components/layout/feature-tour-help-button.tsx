@@ -95,7 +95,7 @@ function FeatureTourHelpButtonInner({ tourFarmKey = null }: Props) {
 
 /**
  * 헤더 기능 안내 — 원형 물음표.
- * 현재 탭(현장·차트·델린) 스코프 투어를 시작한다.
+ * 현재 탭(현장·차트) 스코프 투어를 시작한다.
  */
 export function FeatureTourHelpButton(props: Props) {
   return (

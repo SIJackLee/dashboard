@@ -250,4 +250,73 @@ NEXT_HINT: NONE`);
   assert.deepEqual(parsed!.say, ["DIAG"]);
 }
 
+{
+  const pigletFacts: VoiceFarmFacts = {
+    farmKey: { lsindRegistNo: "FARM01", itemCode: "P00" },
+    farmLabel: "햇살농장",
+    totalControllers: 1,
+    onlineControllers: 1,
+    offlineControllers: 0,
+    alarmTotal: 0,
+    alarmCritical: 0,
+    alarmWarning: 0,
+    stalls: [
+      {
+        stallTyCode: "SP05",
+        stallLabel: "자돈사",
+        controllers: 1,
+        online: 1,
+        alarmCount: 0,
+        tempAvgC: 16,
+        humidityAvgPct: 55,
+        env: {
+          stageLabel: "자돈·육성 초기",
+          tempMinC: 18,
+          tempMaxC: 22,
+          humidityMinPct: 50,
+          humidityMaxPct: 80,
+          tempFit: "low",
+          humidityFit: "ok",
+          recommendTempC: 18,
+          recommendHumidityPct: 55,
+        },
+      },
+    ],
+    alarmItems: [],
+    generatedAt: new Date().toISOString(),
+  };
+  const farmJudge = heuristicFarmJudge(pigletFacts, 1, "상황 어때");
+  assert.equal(farmJudge.judge, "WARN");
+  const farmText = unpackFarmJudge(farmJudge, pigletFacts, {
+    seed: "상황 어때",
+  });
+  assert.match(farmText, /자돈사/);
+  assert.match(farmText, /16도/);
+  assert.match(farmText, /18도/);
+  assert.match(farmText, /낮음/);
+  assert.doesNotMatch(farmText, /SP05/);
+  assert.doesNotMatch(farmText, /stallTyCode/);
+  assert.doesNotMatch(farmText, /FARM01\/P00/);
+
+  const ctrlJudge = heuristicCtrlJudge(pigletFacts);
+  assert.equal(ctrlJudge.rec, "CHECK_HEATING");
+  const ctrlText = unpackCtrlJudge(ctrlJudge, pigletFacts);
+  assert.match(ctrlText, /자돈사/);
+  assert.match(ctrlText, /16도/);
+  assert.match(ctrlText, /목표는 18도/);
+  assert.match(ctrlText, /알람 임계값은 바꾸지 마세요/);
+  assert.doesNotMatch(ctrlText, /SP05/);
+  assert.doesNotMatch(ctrlText, /적용했습니다/);
+
+  const pack = packFarmProtocol({
+    question: "상황 어때",
+    depthReq: 1,
+    facts: pigletFacts,
+  });
+  assert.match(pack, /ENV: STALL_TYPE=자돈사/);
+  assert.match(pack, /temp=낮음/);
+  assert.match(pack, /recTemp=18/);
+  assert.doesNotMatch(pack, /SP05/);
+}
+
 console.log("aria protocol tests: ok");

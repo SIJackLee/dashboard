@@ -52,7 +52,7 @@
 | [`UI_ELEVATION.md`](./UI_ELEVATION.md) | elevation |
 | [`UI_CHROMA.md`](./UI_CHROMA.md) | 채도 |
 | [`UI_FEEDBACK.md`](./UI_FEEDBACK.md) | ops-feedback |
-| [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) | 델린 탭 presence |
+| [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) | DELIN 뱃지 presence |
 | [`UI_VISUAL_QA.md`](./UI_VISUAL_QA.md) | 시각 QA |
 
 ### 운영자 매뉴얼

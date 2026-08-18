@@ -27,10 +27,9 @@ import {
 } from "@/components/farm/aria-stage-layout";
 import { VoiceReportFab } from "@/components/farm/voice-report-fab";
 import {
-  DelinWeatherNudgeMobile,
-  DelinWeatherRecommendInline,
-  DelinWeatherRecommendStrip,
-} from "@/components/farm/delin-weather-nudge-bubble";
+  DelinPigEnvPanel,
+  DelinPigEnvStrip,
+} from "@/components/farm/delin-pig-env-panel";
 import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import { DEFAULT_ALARM_SETTINGS } from "@/lib/data/alarms";
@@ -106,7 +105,7 @@ type Props = {
   alarmSettings?: AlarmSettings;
   thermoSettings?: Record<string, ControllerThermoSettings>;
   canCommand?: boolean;
-  /** DELIN 탭 — 기상 권장 (인라인·모바일 패널) */
+  /** 허브 poll 유지. 1차 델린 탭에서는 기상 적용 UI를 숨긴다. */
   weatherNudge?: WeatherNudgeView | null;
   onWeatherNudgeDismiss?: () => void;
   onWeatherNudgeApplied?: (commandId: string) => void;
@@ -128,9 +127,6 @@ export function FarmAriaView({
   alarmSettings,
   thermoSettings,
   canCommand = false,
-  weatherNudge = null,
-  onWeatherNudgeDismiss,
-  onWeatherNudgeApplied,
   className,
 }: Props) {
   const isCompanion = variant === "companion";
@@ -158,11 +154,10 @@ export function FarmAriaView({
   const hasResultSurface = stageAnswer != null;
   const voiceActive = orbMode !== "idle" && orbMode !== "error";
   const mobileLayout = useMobileLayout();
-  const showWeatherNudge =
-    !isCompanion && weatherNudge != null && onWeatherNudgeDismiss != null;
-  const nudgeCompact = showWeatherNudge && (hasResultSurface || voiceActive);
-  /** 좌·우(데스크) / 상·하(모바일) 추천 분할 — 말하기·결과면 제외 */
-  const nudgeSplitLayout = showWeatherNudge && !nudgeCompact;
+  const showPigEnvPanel = !isCompanion && currentFarm != null;
+  const nudgeCompact = showPigEnvPanel && (hasResultSurface || voiceActive);
+  /** 좌·우(데스크) / 상·하(모바일) 권장 환경 분할 — 말하기·결과면 제외 */
+  const nudgeSplitLayout = showPigEnvPanel && !nudgeCompact;
   const focus =
     hasResultSurface && revealBeat !== "idle"
       ? ("metrics" as const)
@@ -616,36 +611,18 @@ export function FarmAriaView({
             {delinStageAndDock}
           </div>
           <div className="flex min-h-0 min-w-0 flex-col overflow-hidden p-3 md:p-4 md:pl-5">
-            <DelinWeatherRecommendInline
-              nudge={weatherNudge}
-              canCommand={canCommand}
-              onDismiss={onWeatherNudgeDismiss}
-              onApplied={onWeatherNudgeApplied}
-              variant="split"
-            />
+            <DelinPigEnvPanel readings={readings} />
           </div>
         </div>
       ) : (
         <>
-          {showWeatherNudge && nudgeCompact && !mobileLayout ? (
-            <DelinWeatherRecommendStrip nudge={weatherNudge} />
-          ) : null}
+          {nudgeCompact ? <DelinPigEnvStrip readings={readings} /> : null}
 
           {delinHeader}
 
           <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
             {delinStageAndDock}
           </div>
-
-          {showWeatherNudge && nudgeCompact && mobileLayout ? (
-            <DelinWeatherNudgeMobile
-              nudge={weatherNudge}
-              canCommand={canCommand}
-              onDismiss={onWeatherNudgeDismiss}
-              onApplied={onWeatherNudgeApplied}
-              compact
-            />
-          ) : null}
         </>
       )}
     </div>

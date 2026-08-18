@@ -6,13 +6,13 @@ import type { BarnReading } from "@/lib/data/iot";
 import { DEFAULT_FARM } from "@/lib/data/farm-key";
 import {
   assignPensFromReadings,
-  barnLengthFromPlan,
   barnModelEditCameraPose,
+  barnModelFillEditCameraPose,
   barnModelCameraPose,
+  barnModelFieldCameraPose,
   barnModelRoofHeight,
   barnModelYardBounds,
   barnModelYardGridSize,
-  barnModelEntranceCardScale,
   barnModelEntranceStandOff,
   barnModelFarmSlots,
   barnModelRoofTitle,
@@ -26,23 +26,23 @@ import {
   primaryReadingForType,
   mountBarnControllers,
   BARN_CTRL_GAP_X,
+  BARN_CTRL_GAP_Y,
+  BARN_CTRL_H,
+  BARN_CTRL_PAD,
   BARN_CTRL_W,
   cyclePlacedBarnId,
   cycleSameTypeBarnId,
-  cycleTypeControllerKey,
   findPlacedBarnId,
   typeControllerCount,
-  nudgePlanSide,
-  planFromRowDrag,
-  planFromSideDrag,
-  planFromSideHandleDelta,
   rotateY,
-  rowsFromDragLength,
   worstControllerStatus,
 } from "./barn-model-layout";
 import {
   barnModelLength,
+  barnModelPenDepth,
+  barnModelShell,
   barnModelWidth,
+  maxRoomCount,
 } from "./barn-model-dim";
 import { addPlacedBarn, emptyBarnModelPrefs } from "./barn-model-prefs";
 
@@ -81,7 +81,6 @@ function reading(
   const farrow = { left: 3, right: 3 };
   assert.equal(barnModelWidth("SP03", farrow), 6.6);
   assert.equal(barnModelLength("SP03", farrow), 5.8);
-  assert.equal(barnLengthFromPlan(farrow, "SP03"), 5.8);
   assert.equal(barnModelWidth("SP02", { left: 1, right: 0 }), 4);
   assert.equal(barnModelLength("SP02", { left: 1, right: 0 }), 1.05);
   assert.equal(barnModelWidth("SP07", { left: 4, right: 4 }), 14.8);
@@ -91,39 +90,8 @@ function reading(
 }
 
 {
-  assert.deepEqual(planFromRowDrag({ left: 3, right: 3 }, 5), {
-    left: 5,
-    right: 5,
-  });
-  assert.deepEqual(planFromRowDrag({ left: 1, right: 0 }, 2), {
-    left: 2,
-    right: 0,
-  });
-  assert.deepEqual(planFromSideDrag({ left: 3, right: 3 }, "left", 1), {
-    left: 1,
-    right: 3,
-  });
-  assert.deepEqual(
-    planFromSideHandleDelta({ left: 3, right: 3 }, "left", 1.8, "SP03"),
-    { left: 4, right: 3 },
-  );
-  assert.deepEqual(
-    planFromSideHandleDelta({ left: 1, right: 0 }, "left", -2, "SP03"),
-    { left: 1, right: 0 },
-  );
-  assert.deepEqual(nudgePlanSide({ left: 3, right: 3 }, "left", 1), {
-    left: 4,
-    right: 3,
-  });
-  assert.deepEqual(nudgePlanSide({ left: 1, right: 0 }, "left", -1), {
-    left: 1,
-    right: 0,
-  });
-  assert.deepEqual(nudgePlanSide({ left: 1, right: 0 }, "right", 1), {
-    left: 1,
-    right: 1,
-  });
-  assert.ok(rowsFromDragLength(8) >= 1);
+  assert.equal(maxRoomCount("SP02"), 184);
+  assert.equal(barnModelLength("SP02", { left: 184, right: 184 }), 120);
 }
 
 {
@@ -227,6 +195,12 @@ function reading(
   assert.ok(Math.abs(roof.position[2] - roof.lookAt[2]) < 4);
   assert.ok(barnModelYardGridSize(roofSpan) <= 60);
   assert.ok(barnModelYardGridSize(12) < barnModelYardGridSize(80));
+  const field = barnModelFieldCameraPose(yard);
+  assert.ok(field.position[1] > roof.position[1]);
+  assert.ok(Math.abs(field.lookAt[0]) < 1);
+  assert.ok(Math.abs(field.lookAt[2]) < 1);
+  const emptyField = barnModelFieldCameraPose({ barns: [] });
+  assert.equal(emptyField.position[1], barnModelRoofHeight(100));
   const edit = barnModelEditCameraPose(yard.barns[0]!);
   assert.deepEqual(edit.lookAt, [
     yard.barns[0]!.origin[0],
@@ -235,12 +209,15 @@ function reading(
   ]);
   assert.ok(edit.position[1] >= 14);
   assert.ok(edit.position[1] <= 42);
+  const fillCam = barnModelFillEditCameraPose(yard.barns[0]!);
+  assert.deepEqual(fillCam.lookAt, edit.lookAt);
+  assert.ok(fillCam.position[1] > edit.position[1]);
+  assert.ok(fillCam.position[1] < field.position[1]);
   const enter = barnModelCameraPose("entrance", yard, yard.barns[0]!.id);
   assert.ok(enter.position[2] !== enter.lookAt[2] || enter.position[0] !== enter.lookAt[0]);
   assert.ok(barnModelEntranceStandOff(6.2) < barnModelEntranceStandOff(11.8));
   assert.ok(barnModelEntranceStandOff(6.2) >= 6.6);
   assert.ok(barnModelEntranceStandOff(14.8) <= 11.2);
-  assert.ok(barnModelEntranceCardScale(6.2) < barnModelEntranceCardScale(12));
 }
 
 {
@@ -354,8 +331,13 @@ function reading(
       );
       if (dy < 0.05) {
         assert.ok(
-          xz >= BARN_CTRL_W + 0.08,
+          xz >= BARN_CTRL_W + BARN_CTRL_GAP_X - 0.02,
           `${a.eqpmnNo} vs ${b.eqpmnNo} overlap xz=${xz}`,
+        );
+      } else if (xz < 0.05) {
+        assert.ok(
+          dy >= BARN_CTRL_H + BARN_CTRL_GAP_Y - 0.02,
+          `${a.eqpmnNo} vs ${b.eqpmnNo} overlap dy=${dy}`,
         );
       }
     }
@@ -377,7 +359,7 @@ function reading(
   });
   const mounts = mountBarnControllers(many, dims);
   const aisleLeft = dims.aisleX - dims.aisleW / 2;
-  const pad = 0.16;
+  const pad = BARN_CTRL_PAD;
   const half = BARN_CTRL_W / 2;
   const xMin = -dims.width / 2 + pad + half;
   const xMax = aisleLeft - pad - half;
@@ -404,12 +386,64 @@ function reading(
   assert.equal(cycleSameTypeBarnId(placed, "c", 1), "a");
   assert.equal(cycleSameTypeBarnId(placed, "a", 1), "c");
   assert.equal(findPlacedBarnId(placed, "SP03", "1"), "c");
-  const keys = [
-    reading({ controllerKey: "SP03:01:01", status: "normal", eqpmnNo: "01" }),
-    reading({ controllerKey: "SP03:01:02", status: "normal", eqpmnNo: "02" }),
-  ];
-  assert.equal(cycleTypeControllerKey(keys, "SP03:01:01", 1), "SP03:01:02");
-  assert.equal(cycleTypeControllerKey(keys, "SP03:01:02", 1), "SP03:01:01");
+}
+
+{
+  const farrow = { left: 3, right: 3 };
+  assert.equal(barnModelPenDepth(farrow, 6.6), 2.4);
+  assert.equal(
+    barnModelShell({ stallTyCode: "SP03", plan: farrow }).wallH,
+    3.2,
+  );
+  const custom = barnModelShell({
+    stallTyCode: "SP03",
+    plan: farrow,
+    lengthM: 20,
+    widthM: 10,
+    wallHM: 4.5,
+  });
+  assert.equal(custom.length, 20);
+  assert.equal(custom.width, 10);
+  assert.equal(custom.wallH, 4.5);
+  const prefs = addPlacedBarn(emptyBarnModelPrefs(), {
+    stallTyCode: "SP03",
+    plan: farrow,
+  });
+  prefs.placed[0]!.lengthM = 20;
+  prefs.placed[0]!.widthM = 10;
+  prefs.placed[0]!.wallHM = 4.5;
+  const yard = buildBarnModelYard([], prefs);
+  assert.equal(yard.barns[0]!.length, 20);
+  assert.equal(yard.barns[0]!.width, 10);
+  assert.equal(yard.barns[0]!.wallH, 4.5);
+  assert.ok(
+    Math.abs(yard.barns[0]!.pens[0]!.size[0] - (10 - 1.8) / 2 + 0.12) < 1e-6,
+  );
+}
+
+{
+  const three = barnModelShell({
+    stallTyCode: "SP03",
+    plan: { left: 3, mid: 3, right: 3 },
+    banks: 3,
+  });
+  assert.equal(three.width, 10.8);
+  assert.equal(three.length, 5.8);
+  const prefs = addPlacedBarn(emptyBarnModelPrefs(), {
+    stallTyCode: "SP03",
+    plan: { left: 3, mid: 3, right: 3 },
+  });
+  const yard = buildBarnModelYard([], prefs);
+  assert.equal(yard.barns[0]!.fill.banks, 3);
+  assert.equal(yard.barns[0]!.width, 10.8);
+  assert.equal(yard.barns[0]!.pens.length, 9);
+  const wideAisle = barnModelShell({
+    stallTyCode: "SP03",
+    plan: { left: 3, mid: 3, right: 3 },
+    banks: 3,
+    aisleWM: 2.4,
+  });
+  assert.equal(wideAisle.width, 12);
 }
 
 console.log("barn-model-layout.test.ts: ok");

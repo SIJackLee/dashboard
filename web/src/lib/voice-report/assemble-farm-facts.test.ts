@@ -41,5 +41,8 @@ assert.equal(facts.totalControllers, 1);
 assert.equal(facts.onlineControllers, 1);
 assert.equal(facts.stalls.length, 1);
 assert.equal(facts.stalls[0]?.tempAvgC, 25);
+assert.equal(facts.stalls[0]?.env?.tempFit, "high");
+assert.equal(facts.stalls[0]?.env?.recommendTempC, 21);
+assert.equal(facts.stalls[0]?.env?.humidityFit, "ok");
 
 console.log("assemble-farm-facts.test.ts: ok");

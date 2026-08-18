@@ -3,7 +3,8 @@
 > **상태:** 결정 확정 · 구현 전  
 > **PoC:** FARM01 · controller 단위 · 기상청 공공데이터 · 규칙 엔진(非 OpenAI)  
 > **UX:** 농장 허브 **첫 화면** · TopBar **DELIN 탭** 근처 **말풍선** · 승인 시에만 명령  
-> **관련:** [`aria-protocol.md`](./aria-protocol.md) · [`CTRL_THERMO_COMMAND_PHASE_B.md`](./CTRL_THERMO_COMMAND_PHASE_B.md) · [`farm-hub-url.md`](./farm-hub-url.md)
+> **관련:** [`aria-protocol.md`](./aria-protocol.md) · [`CTRL_THERMO_COMMAND_PHASE_B.md`](./CTRL_THERMO_COMMAND_PHASE_B.md) · [`farm-hub-url.md`](./farm-hub-url.md)  
+> **델린 허브:** 전용 탭 없음. 현장·차트·모델 우측 하단 뱃지. 기상 승인 적용 UI는 숨김.
 
 ---
 
@@ -113,9 +114,8 @@ sequenceDiagram
 
 ### 6.1 앵커
 
-- **DOM:** TopBar `data-farm-view-toggle-slot="desktop"` 포털된 `data-tour-id="view-toggle"` tablist.
-- **DELIN 탭** (`view=aria` 버튼) 기준 `position: absolute` 말풍선 (아래 또는 좌측, viewport clamp).
-- **모바일:** 동일 tablist(하단 독 또는 헤더) — `UI_ARIA_PRESENCE` 토큰·motion 재사용.
+- **현재 허브:** 기상 말풍선은 마운트하지 않음. DELIN은 현장·차트·모델 **우측 하단 뱃지**(권장 온·습). 전용 탭 없음.
+- **이 절(P1 초안):** 기상 CTRL 말풍선을 탭에 붙이려던 안. 1차 범위에서 제외. 재개 시 뱃지 호스트(`[data-viewport-preview]`)를 기준으로 다시 잡는다.
 
 ### 6.2 말풍선 내용 (템플릿 예)
 
@@ -132,7 +132,7 @@ sequenceDiagram
 ```
 
 - `aria-live="polite"` · 닫기(X) · 무시 시 dismissed.
-- **DELIN 탭으로 이동하지 않아도** 표시 (첫 화면 proactive).
+- 기상 말풍선은 1차에서 허브에 두지 않음. 권장 온·습은 DELIN 뱃지.
 
 ### 6.3 컴포넌트 (예정)
 

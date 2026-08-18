@@ -556,7 +556,9 @@ export function UnifiedBarnTrendPanel({
   const canvasPeriod: TrendPeriodId =
     (controllerTrendByPeriod?.["30d"]?.categories.length ?? 0) > 0
       ? "30d"
-      : period;
+      : (controllerTrendByPeriod?.["24h"]?.categories.length ?? 0) > 0
+        ? "24h"
+        : period;
   const useBrushCanvas = canvasPeriod === "30d";
   const displayPeriod = useBrushCanvas
     ? displayPeriodFromBrushWindow(brushWindow)

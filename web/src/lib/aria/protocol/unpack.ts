@@ -1,4 +1,8 @@
 import type { VoiceFarmFacts } from "@/lib/voice-report/types";
+import {
+  pigEnvFitLabel,
+  pigEnvFitOffBand,
+} from "@/lib/farm/pig-env-recommend";
 import { VOICE_LIMITS } from "@/lib/voice-report/limits";
 import { truncateChars } from "@/lib/voice-report/parse-farm-from-question";
 import {
@@ -27,7 +31,7 @@ export function unpackFarmJudge(
 ): string {
   const seed = opts?.seed ?? `${facts.farmLabel}:${judge.depth}`;
   const criticalOnly = Boolean(opts?.criticalOnly);
-  if (facts.alarmTotal === 0 && judge.say.includes("OK")) {
+  if (judge.say.includes("OK") && judge.judge === "OK") {
     return truncateChars(blockOk(facts, seed), VOICE_LIMITS.maxAnswerChars());
   }
 
@@ -75,6 +79,15 @@ export function unpackCtrlJudge(
   facts: VoiceFarmFacts,
 ): string {
   const top = facts.alarmItems[0];
+  if (top?.alarmType.includes("통신")) {
+    const loc = spokenLocation(top);
+    const text = ctrlActionText(judge.rec, top, loc);
+    return truncateChars(text, VOICE_LIMITS.maxAnswerChars());
+  }
+  const envText = unpackCtrlEnv(judge.rec, facts);
+  if (envText) {
+    return truncateChars(envText, VOICE_LIMITS.maxAnswerChars());
+  }
   if (!top) {
     return truncateChars(
       `${spokenFarm(facts.farmLabel)} 기준 활성 이상상황이 없습니다. 지금은 추가 대응 추천이 없습니다.`,
@@ -85,6 +98,38 @@ export function unpackCtrlJudge(
   const loc = spokenLocation(top);
   const text = ctrlActionText(judge.rec, top, loc);
   return truncateChars(text, VOICE_LIMITS.maxAnswerChars());
+}
+
+function unpackCtrlEnv(
+  rec: AriaRecCode,
+  facts: VoiceFarmFacts,
+): string | null {
+  if (
+    rec !== "RAISE_MAX_VENT" &&
+    rec !== "CHECK_COOLING" &&
+    rec !== "CHECK_HEATING" &&
+    rec !== "CHECK_HUMIDITY"
+  ) {
+    return null;
+  }
+  const stall = facts.stalls.find(
+    (s) =>
+      s.env != null &&
+      (pigEnvFitOffBand(s.env.tempFit) || pigEnvFitOffBand(s.env.humidityFit)),
+  );
+  if (!stall?.env) return null;
+  const bits = spokenEnvStall(stall);
+  if (!bits) return null;
+  const farm = spokenFarm(facts.farmLabel);
+  const action =
+    rec === "RAISE_MAX_VENT"
+      ? "최고환기량을 올려 온도를 낮춰 보세요."
+      : rec === "CHECK_HEATING"
+        ? "난방·보온 상태를 현장에서 확인해 보세요."
+        : rec === "CHECK_HUMIDITY"
+          ? "가습·제습·환기 균형을 현장에서 맞춰 보세요."
+          : "쿨링·입기 상태를 현장에서 확인해 보세요.";
+  return `${farm} 기준, ${bits}. ${action} 알람 임계값은 바꾸지 마세요.`;
 }
 
 export function unpackMoreAtCeiling(): string {
@@ -166,6 +211,15 @@ function filterItems(
 function blockOk(facts: VoiceFarmFacts, seed: string): string {
   const n = facts.onlineControllers;
   const farm = spokenFarm(facts.farmLabel);
+  const mapped = facts.stalls.filter((s) => s.env);
+  if (mapped.length > 0) {
+    const env = "축사유형별 권장 온·습도 안에 있습니다";
+    return pick(seed, [
+      `${farm} 기준, ${env}. 컨트롤러 ${n}대가 온라인입니다.`,
+      `지금은 ${farm}에서 ${env}. 온라인 ${n}대입니다.`,
+      `${farm}은 ${env}. 컨트롤러 ${n}대가 온라인입니다.`,
+    ], "ok");
+  }
   return pick(seed, [
     `${farm} 기준, 현재 확인된 이상상황이 없습니다. 컨트롤러 ${n}대가 온라인입니다.`,
     `지금은 ${farm}에 활성 이상이 없습니다. 온라인 ${n}대입니다.`,
@@ -196,6 +250,10 @@ function blockTypeSummary(
       `위험만 보면 ${farm}에 ${n}건입니다. ${bits}.`,
     ], "d1crit");
   }
+  const env = blockEnvSummary(facts);
+  if (facts.alarmTotal === 0) {
+    return `${farm} 기준, ${env}`;
+  }
   const bits = facts.stalls
     .filter((s) => s.alarmCount > 0)
     .map((s) => `${s.stallLabel} ${s.alarmCount}건`)
@@ -204,11 +262,62 @@ function blockTypeSummary(
     facts.alarmCritical > 0 ? `위험 ${facts.alarmCritical}건 포함` : "위험 없음";
   const n = facts.alarmTotal;
   return pick(seed, [
-    `${farm} 기준, 전체 이상상황 ${n}건입니다(${crit}). ${bits}.`,
-    `지금 ${farm}을 보면 이상상황이 ${n}건입니다(${crit}). 축사별로 ${bits}.`,
-    `${farm} 현황입니다. 이상 ${n}건(${crit}). ${bits} 쪽을 먼저 보시면 됩니다.`,
-    `확인 결과 ${farm}에 이상 ${n}건입니다(${crit}). ${bits}.`,
+    `${farm} 기준, ${env} 이상상황 ${n}건입니다(${crit}). ${bits}.`,
+    `지금 ${farm}을 보면 ${env} 이상상황이 ${n}건입니다(${crit}). 축사별로 ${bits}.`,
+    `${farm} 현황입니다. ${env} 이상 ${n}건(${crit}). ${bits} 쪽을 먼저 보시면 됩니다.`,
+    `확인 결과 ${farm}에 ${env} 이상 ${n}건입니다(${crit}). ${bits}.`,
   ], "d1");
+}
+
+function blockEnvSummary(facts: VoiceFarmFacts): string {
+  const mapped = facts.stalls.filter((s) => s.env);
+  if (mapped.length === 0) {
+    return "권장 환경으로 볼 축사유형이 없습니다.";
+  }
+  const off = mapped.filter(
+    (s) =>
+      s.env != null &&
+      (pigEnvFitOffBand(s.env.tempFit) || pigEnvFitOffBand(s.env.humidityFit)),
+  );
+  if (off.length === 0) {
+    return "축사유형별 권장 온·습도 안에 있습니다.";
+  }
+  const bits = off.map((s) => spokenEnvStall(s)).join(". ");
+  return `${bits}.`;
+}
+
+function spokenEnvStall(
+  s: VoiceFarmFacts["stalls"][number],
+): string {
+  const env = s.env;
+  if (!env) return s.stallLabel;
+  const parts: string[] = [];
+  if (pigEnvFitOffBand(env.tempFit) && s.tempAvgC != null) {
+    const rec =
+      env.recommendTempC != null ? ` 목표는 ${fmtTempSpoken(env.recommendTempC)}입니다` : "";
+    parts.push(
+      `${s.stallLabel} 온도 ${fmtTempSpoken(s.tempAvgC)}로 권장 ${fmtTempSpoken(env.tempMinC)}에서 ${fmtTempSpoken(env.tempMaxC)}보다 ${pigEnvFitLabel(env.tempFit)}입니다${rec}`,
+    );
+  }
+  if (pigEnvFitOffBand(env.humidityFit) && s.humidityAvgPct != null) {
+    const rec =
+      env.recommendHumidityPct != null
+        ? ` 목표는 ${fmtPctSpoken(env.recommendHumidityPct)}입니다`
+        : "";
+    parts.push(
+      `${s.stallLabel} 습도 ${fmtPctSpoken(s.humidityAvgPct)}로 권장 ${fmtPctSpoken(env.humidityMinPct)}에서 ${fmtPctSpoken(env.humidityMaxPct)}보다 ${pigEnvFitLabel(env.humidityFit)}입니다${rec}`,
+    );
+  }
+  return parts.join(". ") || s.stallLabel;
+}
+
+function fmtTempSpoken(n: number): string {
+  const t = Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+  return `${t}도`;
+}
+
+function fmtPctSpoken(n: number): string {
+  return `${Math.round(n)}%`;
 }
 
 function blockAlarmList(

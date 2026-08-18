@@ -69,21 +69,30 @@ Sprint A 재측정 (2026-08-05 · `npm run measure:live`): List farm-scoped p50/
 
 | RPC | When loaded | Cache tag | Typical rows (24h) |
 | --- | --- | --- | --- |
-| `farm_trend_history` | Client idle (grid heatmap hydrate) | `live:trend:{scope}` | SP × stall × 96 buckets · **`mesure_at` bin** |
-| `farm_trend_history_by_controller` | Client lazy (list graph) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets · **`mesure_at` bin** |
+| `farm_trend_history_by_controller_json` | Client lazy (list / 통합 추이 / 히트맵 파생) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets · **`mesure_at` bin** · jsonb 1행 |
+| `farm_trend_history_json` | PDF/SSR fallback via controller convert | `live:trend:{scope}` | unused on hub idle path |
 
-- Bucket policy (canonical 15 min → UI display via `binWorst` / avg downsample): fetch **30d × 2880** once, slice 7d=672 / 24h=96; UI bars 24h→24, 7d→28, 30d→30 (`farm-trend-types.ts` + `GRAPH_BARS`). PDF uses full 15m resolution (no GRAPH_BARS).
+- Bucket policy (canonical 15 min → UI display via `binWorst` / avg downsample): fetch **24h first**, then **30d × 2880**, slice 7d=672 / 24h=96; UI bars 24h→24, 7d→28, 30d→30 (`farm-trend-types.ts` + `GRAPH_BARS`). PDF uses full 15m resolution (no GRAPH_BARS).
+- App fetch uses `*_json` RPCs (one PostgREST row). Table-returning `farm_trend_history*` remain for SQL/EXPLAIN; do **not** `.range()` them — `max_rows=1000` re-runs the 30d `GROUP BY` per page.
+- Hub UI: **controller json only**. Stall heatmap is derived (`stallTrendFromControllerPeriod`).
 - Map tab SSR skips stall trend + controller-trend (Phase B idle hydrate / P4 lazy)
 - Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch; stall trend client-idle when map opens
 
-### Measured (dev, 2026-08-11) — `npm run measure:trend` · FARM01/P00 · 30d @ 15m
+### Measured (dev, 2026-08-18) — `npm run measure:trend` · FARM01/P00 · 30d @ 15m · `*_json`
+
+| RPC | p50 | p95 | rows |
+| --- | --- | --- | --- |
+| `farm_trend_history_json` | 248 ms | 496 ms | 1283 |
+| `farm_trend_history_by_controller_json` | 491 ms | 599 ms | 5554 |
+
+App cold path was 15–40s when `.range()` re-ran the SETOF RPC per 1000-row page (FARM01 decoded ~77k). Direct SQL SETOF 30d ≈ 307 ms · 5602 groups.
+
+### Measured (dev, 2026-08-11) — table-returning RPC · PostgREST first page only
 
 | RPC | p50 | p95 | rows (note) |
 | --- | --- | --- | --- |
 | `farm_trend_history` | 110 ms | 182 ms | 942 (PostgREST `max_rows=1000` cap) |
 | `farm_trend_history_by_controller` | 102 ms | 172 ms | 1000 (cap) |
-
-Follow-up: trend RPC responses are **paginated** in app code (`.range` 1000/page) — do not rely on a single PostgREST page for 15m windows.
 
 ## Soft refresh tiers (H2)
 

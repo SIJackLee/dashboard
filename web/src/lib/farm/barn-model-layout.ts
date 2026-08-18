@@ -8,8 +8,6 @@ import {
   stallTyCodeSortKey,
 } from "@/lib/data/stall-type";
 import {
-  BARN_MODEL_ROOM_MAX,
-  clampRoomCount,
   emptyBarnModelPrefs,
   slotKey,
   type BarnModelLayoutPrefs,
@@ -18,16 +16,19 @@ import {
 } from "@/lib/farm/barn-model-prefs";
 import {
   BARN_MODEL_DIM,
-  barnModelAisleX,
+  barnModelAisleCenters,
+  barnModelBankCenters,
+  barnModelFill,
   barnModelLength,
-  barnModelTypeSpec,
+  barnModelShell,
   barnModelWidth,
+  type BarnModelFill,
 } from "@/lib/farm/barn-model-dim";
 
 export type { BarnModelRoomPlan };
 export { BARN_MODEL_DIM };
 
-export type BarnModelPenSide = "left" | "right";
+export type BarnModelPenSide = "left" | "right" | "mid";
 
 export type BarnModelPen = {
   id: string;
@@ -50,12 +51,14 @@ export type BarnModelBuilding = {
   rotDeg: number;
   width: number;
   length: number;
+  wallH: number;
   status: ControllerStatus;
   /** 유형 LIVE 중 대표(가장 나쁜 상태). 방 단위 매핑 없음. */
   controllerKey: string | null;
   tempC: number | null;
   humidityPct: number | null;
   plan: BarnModelRoomPlan;
+  fill: BarnModelFill;
   pens: BarnModelPen[];
 };
 
@@ -107,13 +110,6 @@ export function barnModelStatusHex(
   if (status === "caution") return "#f59e0b";
   if (status === "offline") return "#94a3b8";
   return "#34d399";
-}
-
-export function barnModelLabel(barn: BarnMapSnapshot): string {
-  const entry = parseBarnCatalogKey(barn.meta.id);
-  const tyName = getStallTypeName(entry?.stallTyCode ?? barn.meta.name);
-  const stallNo = barn.meta.stallNo?.trim() ?? "";
-  return stallNo ? `${tyName} ${stallNo}` : tyName;
 }
 
 const DEFAULT_TYPE_PLAN: Record<string, BarnModelRoomPlan> = {
@@ -218,20 +214,6 @@ export function placedBarnLabel(placed: BarnModelPlacedBarn): string {
   return stallNo ? `${tyName} ${stallNo}` : tyName;
 }
 
-export function readingsForBarnModel(
-  barn: BarnMapSnapshot,
-  readings: BarnReading[],
-): BarnReading[] {
-  const entry = parseBarnCatalogKey(barn.meta.id);
-  const stallTy = normalizeStallTyCode(entry?.stallTyCode ?? "");
-  const stallNo = barn.meta.stallNo ?? "";
-  return readings.filter(
-    (r) =>
-      normalizeStallTyCode(r.stallTyCode ?? "") === stallTy &&
-      (r.stallNo ?? "") === stallNo,
-  );
-}
-
 export function readingsForPlacedBarn(
   placed: Pick<BarnModelPlacedBarn, "stallTyCode" | "stallNo">,
   readings: BarnReading[],
@@ -259,10 +241,13 @@ export function primaryReadingForType(
   return ranked.find((r) => r.status === worst) ?? ranked[0] ?? null;
 }
 
-export const BARN_CTRL_W = 0.88;
-export const BARN_CTRL_H = 0.62;
-export const BARN_CTRL_GAP_X = 0.2;
-export const BARN_CTRL_GAP_Y = 0.18;
+/** 입구 거리에서 번호·채널이 읽히게. 1.15m는 자돈사 6.6m 왼쪽 벽 2열에 안 들어감. */
+export const BARN_CTRL_W = 0.96;
+export const BARN_CTRL_H = 0.74;
+/** 상자 사이 빈 간격(m). 벽에 맞추며 이 값 아래로 줄이지 않는다. */
+export const BARN_CTRL_GAP_X = 0.24;
+export const BARN_CTRL_GAP_Y = 0.24;
+export const BARN_CTRL_PAD = 0.12;
 export const BARN_CTRL_COLS = 2;
 
 export type BarnControllerMount = {
@@ -295,17 +280,24 @@ function uniqueTypeReadings(readings: BarnReading[]): BarnReading[] {
 
 function frontWallGrid(
   count: number,
-  dims: { width: number; length: number; aisleX: number; aisleW: number },
+  dims: {
+    width: number;
+    length: number;
+    aisleX: number;
+    aisleW: number;
+    wallH?: number;
+  },
   side: "left" | "right",
   tileW: number,
   tileH: number,
 ): { position: [number, number, number]; rotY: number }[] {
   if (count <= 0) return [];
   const { width, length, aisleX, aisleW } = dims;
+  const wallH = dims.wallH ?? BARN_MODEL_DIM.wallH;
   const aisleLeft = aisleX - aisleW / 2;
   const aisleRight = aisleX + aisleW / 2;
   const face = 0.07;
-  const pad = 0.16;
+  const pad = BARN_CTRL_PAD;
   const half = tileW / 2;
   const xMin =
     side === "left" ? -width / 2 + pad + half : aisleRight + pad + half;
@@ -318,18 +310,17 @@ function frontWallGrid(
   const firstX = midX - ((cols - 1) * pitchX) / 2;
   const xs = Array.from({ length: cols }, (_, c) => firstX + c * pitchX);
   const rows = Math.ceil(count / cols);
-  const yTop = BARN_MODEL_DIM.wallH - pad - tileH / 2;
-  const yBot = 1.08;
+  const yTop = wallH - pad - tileH / 2;
+  const yBot = 0.36 + tileH / 2;
   const pitchY = tileH + BARN_CTRL_GAP_Y;
   const packH = (rows - 1) * pitchY;
-  const fits = rows <= 1 || yTop - packH >= yBot - 0.01;
-  const yStep = rows <= 1 ? 0 : fits ? pitchY : (yTop - yBot) / (rows - 1);
-  const yFirst = fits ? Math.min(yTop, (yTop + yBot + packH) / 2) : yTop;
+  const yFirst =
+    rows <= 1 ? Math.min(yTop, (yTop + yBot) / 2) : Math.min(yTop, yBot + packH);
   return Array.from({ length: count }, (_, i) => {
     const row = Math.floor(i / cols);
     const col = i % cols;
     return {
-      position: [xs[col] ?? xs[0]!, yFirst - row * yStep, length / 2 + face],
+      position: [xs[col] ?? xs[0]!, yFirst - row * pitchY, length / 2 + face],
       rotY: 0,
     };
   });
@@ -353,7 +344,13 @@ function mountsFromReadings(
 /** 유형 LIVE 컨트롤러를 입구 왼쪽 벽에 2열 그리드로 배치. 묶음은 벽면 중앙, 왼쪽 위=01. */
 export function mountBarnControllers(
   readings: BarnReading[],
-  dims: { width: number; length: number; aisleX: number; aisleW: number },
+  dims: {
+    width: number;
+    length: number;
+    aisleX: number;
+    aisleW: number;
+    wallH?: number;
+  },
 ): BarnControllerMount[] {
   const unique = uniqueTypeReadings(readings);
   return mountsFromReadings(
@@ -431,84 +428,6 @@ export function typeControllerCount(readings: BarnReading[]): number {
   return uniqueTypeReadings(readings).length;
 }
 
-export function cycleTypeControllerKey(
-  readings: BarnReading[],
-  currentKey: string | null,
-  dir: 1 | -1,
-): string | null {
-  const keys = uniqueTypeReadings(readings).map((r) => r.controllerKey);
-  if (keys.length === 0) return null;
-  if (!currentKey) return keys[0] ?? null;
-  return cycleListItem(keys, currentKey, dir);
-}
-
-export function barnLengthFromPlan(
-  plan: BarnModelRoomPlan,
-  stallTyCode = "",
-): number {
-  return barnModelLength(stallTyCode, plan);
-}
-
-export function rowsFromDragLength(
-  length: number,
-  stallTyCode = "",
-): number {
-  const spec = barnModelTypeSpec(stallTyCode);
-  const rows = Math.round(
-    (Math.max(length, spec.penAlong) - spec.endPad) / spec.penAlong,
-  );
-  return Math.max(1, Math.min(BARN_MODEL_ROOM_MAX, rows));
-}
-
-/** 길이 핸들 — 방이 있는 쪽만 칸 수를 맞춤. */
-export function planFromRowDrag(
-  prev: BarnModelRoomPlan,
-  rows: number,
-): BarnModelRoomPlan {
-  const r = Math.max(1, clampRoomCount(rows) || 1);
-  const leftOn = prev.left > 0;
-  const rightOn = prev.right > 0;
-  if (leftOn && rightOn) return { left: r, right: r };
-  if (rightOn && !leftOn) return { left: 0, right: r };
-  return { left: r, right: 0 };
-}
-
-export function planFromSideDrag(
-  prev: BarnModelRoomPlan,
-  side: "left" | "right",
-  rows: number,
-): BarnModelRoomPlan {
-  const r = clampRoomCount(rows);
-  return side === "left" ? { ...prev, left: r } : { ...prev, right: r };
-}
-
-/** 방 줄 끝 핸들. dAlong > 0 이면 뒤쪽으로 칸이 늘어난다. */
-export function planFromSideHandleDelta(
-  prev: BarnModelRoomPlan,
-  side: "left" | "right",
-  dAlong: number,
-  stallTyCode = "",
-): BarnModelRoomPlan {
-  const spec = barnModelTypeSpec(stallTyCode);
-  const start = side === "left" ? prev.left : prev.right;
-  const rows = start + Math.round(dAlong / spec.penAlong);
-  const next = planFromSideDrag(prev, side, rows);
-  if (next.left + next.right === 0) return prev;
-  return next;
-}
-
-/** 한쪽 방 수를 ±1. 전체 방이 0이 되면 그대로 둔다. */
-export function nudgePlanSide(
-  prev: BarnModelRoomPlan,
-  side: "left" | "right",
-  delta: 1 | -1,
-): BarnModelRoomPlan {
-  const cur = side === "left" ? prev.left : prev.right;
-  const next = planFromSideDrag(prev, side, cur + delta);
-  if (next.left + next.right === 0) return prev;
-  return next;
-}
-
 export function ghostBuildingFromPlan(
   plan: BarnModelRoomPlan,
   label: string,
@@ -516,8 +435,8 @@ export function ghostBuildingFromPlan(
   rotDeg = 0,
   stallTyCode = "",
 ): BarnModelBuilding {
-  const length = barnModelLength(stallTyCode, plan);
-  const width = barnModelWidth(stallTyCode, plan);
+  const fill = barnModelFill({ stallTyCode, plan });
+  const { length, width, wallH } = barnModelShell({ stallTyCode, plan });
   return {
     id: "__ghost__",
     label,
@@ -527,40 +446,61 @@ export function ghostBuildingFromPlan(
     rotDeg,
     width,
     length,
+    wallH,
     status: "normal",
     tempC: null,
     humidityPct: null,
     controllerKey: null,
     plan,
-    pens: assignPensFromReadings([], plan, undefined, length, false, stallTyCode),
+    fill,
+    pens: assignPensFromReadings(
+      [],
+      plan,
+      undefined,
+      length,
+      false,
+      stallTyCode,
+      width,
+      wallH,
+      fill,
+    ),
   };
+}
+
+function penSideLabel(side: BarnModelPenSide): string {
+  if (side === "mid") return "중";
+  return side === "left" ? "좌" : "우";
 }
 
 function penLocalPos(
   side: BarnModelPenSide,
   index: number,
-  plan: BarnModelRoomPlan,
   length: number,
-  stallTyCode: string,
+  width: number,
+  wallH: number,
+  fill: BarnModelFill,
 ): {
   localPos: [number, number, number];
   gatePos: [number, number, number];
   size: [number, number];
 } {
-  const { aisleW, wallH } = BARN_MODEL_DIM;
-  const spec = barnModelTypeSpec(stallTyCode);
-  const width = barnModelWidth(stallTyCode, plan);
-  const aisleX = barnModelAisleX(plan, width);
-  const rows = Math.max(plan.left, plan.right, 1);
-  const penLen = (length - spec.endPad * 0.24) / rows;
+  const banks = fill.banks;
+  const bankIndex =
+    side === "left" ? 0 : side === "right" ? banks - 1 : Math.min(1, banks - 1);
+  const xs = barnModelBankCenters(width, banks, fill.penDepth, fill.aisleW);
+  const x = xs[bankIndex] ?? 0;
+  const rows = fill.roomCount;
+  const penLen = (length - fill.endPad * 0.24) / rows;
   const z = length / 2 - penLen * (index + 0.5);
-  const xSign = side === "left" ? -1 : 1;
-  const x = aisleX + xSign * (aisleW / 2 + spec.penDepth / 2);
-  const gateX = aisleX + xSign * (aisleW / 2 + 0.28);
+  const aisleXs = barnModelAisleCenters(width, banks, fill.penDepth, fill.aisleW);
+  const gateX = aisleXs.reduce(
+    (best, ax) => (Math.abs(ax - x) < Math.abs(best - x) ? ax : best),
+    aisleXs[0] ?? x,
+  );
   return {
     localPos: [x, 0.05, z],
     gatePos: [gateX, wallH * 0.38, z],
-    size: [spec.penDepth - 0.12, Math.max(penLen - 0.08, 0.2)],
+    size: [fill.penDepth - 0.12, Math.max(penLen - 0.08, 0.2)],
   };
 }
 
@@ -568,10 +508,13 @@ export function listPlanSlots(
   plan: BarnModelRoomPlan,
 ): { side: BarnModelPenSide; index: number; id: string }[] {
   const slots: { side: BarnModelPenSide; index: number; id: string }[] = [];
-  const rows = Math.max(plan.left, plan.right);
+  const rows = Math.max(plan.left, plan.right, plan.mid ?? 0);
   for (let i = 0; i < rows; i += 1) {
     if (i < plan.left) {
       slots.push({ side: "left", index: i, id: slotKey("left", i) });
+    }
+    if ((plan.mid ?? 0) > i) {
+      slots.push({ side: "mid", index: i, id: slotKey("mid", i) });
     }
     if (i < plan.right) {
       slots.push({ side: "right", index: i, id: slotKey("right", i) });
@@ -588,6 +531,9 @@ export function assignPensFromReadings(
   length = barnModelLength("", plan),
   autoFill = false,
   stallTyCode = "",
+  width = barnModelWidth(stallTyCode, plan),
+  wallH: number = BARN_MODEL_DIM.wallH,
+  fill = barnModelFill({ stallTyCode, plan }),
 ): BarnModelPen[] {
   const sorted = [...readings].sort(compareReadings);
   const byKey = new Map(sorted.map((r) => [r.controllerKey, r]));
@@ -601,7 +547,7 @@ export function assignPensFromReadings(
     if (!hasSaved && autoFill && !reading) {
       reading = auto[orderIdx];
     }
-    const pos = penLocalPos(slot.side, slot.index, plan, length, stallTyCode);
+    const pos = penLocalPos(slot.side, slot.index, length, width, wallH, fill);
     return {
       id: slot.id,
       side: slot.side,
@@ -609,22 +555,10 @@ export function assignPensFromReadings(
       status: reading?.status ?? "empty",
       controllerKey: reading?.controllerKey ?? null,
       label:
-        reading?.label ?? `${slot.side === "left" ? "좌" : "우"} ${slot.index + 1}`,
+        reading?.label ?? `${penSideLabel(slot.side)} ${slot.index + 1}`,
       ...pos,
     };
   });
-}
-
-export function unassignedReadings(
-  readings: BarnReading[],
-  pens: BarnModelPen[],
-): BarnReading[] {
-  const used = new Set(
-    pens.map((p) => p.controllerKey).filter((k): k is string => Boolean(k)),
-  );
-  return [...readings]
-    .sort(compareReadings)
-    .filter((r) => !used.has(r.controllerKey));
 }
 
 export function rotateY(
@@ -646,8 +580,8 @@ export function buildBarnModelYard(
     const matched = readingsForPlacedBarn(placed, readings);
     const plan = placed.plan;
     const ty = normalizeStallTyCode(placed.stallTyCode);
-    const length = barnModelLength(ty, plan);
-    const width = barnModelWidth(ty, plan);
+    const { length, width, wallH } = barnModelShell(placed);
+    const fill = barnModelFill(placed);
     const statuses = matched.map((r) => r.status);
     const status = worstControllerStatus(statuses);
     const primary = primaryReadingForType(matched);
@@ -660,6 +594,9 @@ export function buildBarnModelYard(
       length,
       false,
       ty,
+      width,
+      wallH,
+      fill,
     ).map((pen) => ({
       ...pen,
       status: penStatus,
@@ -674,11 +611,13 @@ export function buildBarnModelYard(
       rotDeg: placed.rotDeg,
       width,
       length,
+      wallH,
       status,
       controllerKey: primary?.controllerKey ?? null,
       tempC: primary?.tempC ?? null,
       humidityPct: primary?.humidityPct ?? null,
       plan,
+      fill,
       pens,
     };
   });
@@ -737,10 +676,31 @@ export function barnModelYardBounds(yard: Pick<BarnModelYard, "barns">): {
   return { minX, maxX, minZ, maxZ, span };
 }
 
+/** 전체 필드(작업 격자) 한 변. 편집 카메라는 동 묶음이 아니라 이 범위를 본다. */
+export const BARN_MODEL_FIELD_M = 100;
+
+export function barnModelFieldView(yard: Pick<BarnModelYard, "barns">): {
+  centerX: number;
+  centerZ: number;
+  span: number;
+} {
+  const bounds = barnModelYardBounds(yard);
+  const half = BARN_MODEL_FIELD_M / 2;
+  const minX = Math.min(bounds.minX, -half);
+  const maxX = Math.max(bounds.maxX, half);
+  const minZ = Math.min(bounds.minZ, -half);
+  const maxZ = Math.max(bounds.maxZ, half);
+  return {
+    centerX: (minX + maxX) / 2,
+    centerZ: (minZ + maxZ) / 2,
+    span: Math.max(maxX - minX, maxZ - minZ, BARN_MODEL_FIELD_M),
+  };
+}
+
 /** 놓은 동 묶음이 화면에 차도록. */
 export function barnModelRoofHeight(span: number): number {
   const s = Number.isFinite(span) ? span : 32;
-  return Math.round(Math.min(42, Math.max(14, s / 0.78 + 4)) * 10) / 10;
+  return Math.round(Math.min(160, Math.max(14, s / 0.78 + 4)) * 10) / 10;
 }
 
 /** 필드 격자 — 작업 범위만. 5m 굵은 선이 맞게 10m 단위. */
@@ -755,28 +715,45 @@ export function barnModelEntranceStandOff(width: number): number {
   return Math.round(Math.min(11.2, Math.max(6.6, 4.2 + w * 0.48)) * 10) / 10;
 }
 
-/** 입구 상단 벽 카드 스케일. 좁은 동은 벽을 덮지 않게 줄인다. */
-export function barnModelEntranceCardScale(width: number): number {
-  const w = Number.isFinite(width) ? width : 6.6;
-  if (w < 8) return 0.26;
-  if (w < 12) return 0.3;
-  return 0.32;
+function barnModelRoofLookAt(
+  centerX: number,
+  centerZ: number,
+  span: number,
+): { position: [number, number, number]; lookAt: [number, number, number] } {
+  const h = barnModelRoofHeight(span);
+  const zOff = h * (ROOF_POLAR_RUN / ROOF_POLAR_RISE);
+  return {
+    position: [centerX, h, centerZ + zOff],
+    lookAt: [centerX, 0, centerZ],
+  };
 }
 
-/** 편집 카메라 — 그 동만 화면 가운데, 회전 고리까지 보이게. */
+/** 편집 카메라 — 전체 필드. 동 묶음에 붙지 않음. */
+export function barnModelFieldCameraPose(
+  yard: Pick<BarnModelYard, "barns">,
+): { position: [number, number, number]; lookAt: [number, number, number] } {
+  const { centerX, centerZ, span } = barnModelFieldView(yard);
+  return barnModelRoofLookAt(centerX, centerZ, span);
+}
+
+/** 한 동만 화면 가운데(레거시). */
 export function barnModelEditCameraPose(barn: {
   origin: [number, number, number];
   width: number;
   length: number;
 }): { position: [number, number, number]; lookAt: [number, number, number] } {
   const [cx, , cz] = barn.origin;
-  const span = Math.max(barn.width, barn.length, 8) + 10;
-  const h = barnModelRoofHeight(span);
-  const zOff = h * (ROOF_POLAR_RUN / ROOF_POLAR_RISE);
-  return {
-    position: [cx, h, cz + zOff],
-    lookAt: [cx, 0, cz],
-  };
+  return barnModelRoofLookAt(cx, cz, Math.max(barn.width, barn.length, 8) + 10);
+}
+
+/** 방 편집 — 동·아래 카드가 들어가게. 필드보다 가깝고 레거시 한 동 줌보다 여유. */
+export function barnModelFillEditCameraPose(barn: {
+  origin: [number, number, number];
+  width: number;
+  length: number;
+}): { position: [number, number, number]; lookAt: [number, number, number] } {
+  const [cx, , cz] = barn.origin;
+  return barnModelRoofLookAt(cx, cz, Math.max(barn.width, barn.length, 12) + 24);
 }
 
 export function barnModelCameraPose(
@@ -798,12 +775,6 @@ export function barnModelCameraPose(
     }
   }
   const [cx, , cz] = yard.center;
-  const { span } = barnModelYardBounds(yard);
-  const h = barnModelRoofHeight(span);
-  const zOff = h * (ROOF_POLAR_RUN / ROOF_POLAR_RISE);
-  return {
-    position: [cx, h, cz + zOff],
-    lookAt: [cx, 0, cz],
-  };
+  return barnModelRoofLookAt(cx, cz, barnModelYardBounds(yard).span);
 }
 

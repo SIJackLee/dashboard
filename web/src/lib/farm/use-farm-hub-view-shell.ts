@@ -23,7 +23,6 @@ import {
   subscribeFarmHubViewResync,
   type FarmHubView,
 } from "@/lib/farm/farm-view-url";
-import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
 import {
   canUnmountKeepAlivePanel,
@@ -104,9 +103,7 @@ export function useFarmHubViewShell({
   const [modelEverOpened, setModelEverOpened] = useState(
     bootstrapView === "model" && barnModelEnabled(),
   );
-  const [ariaEverOpened, setAriaEverOpened] = useState(
-    bootstrapView === "aria" && delinEnabled(),
-  );
+  const [ariaEverOpened, setAriaEverOpened] = useState(false);
   const [panelInactiveSince, setPanelInactiveSince] = useState<
     Partial<Record<FarmHubKeepAlivePanel, number>>
   >({});
@@ -138,12 +135,10 @@ export function useFarmHubViewShell({
       if (hubMode && opts?.viewRaw === undefined) {
         const params = currentFarmSearchParams();
         let rewritten = normalizeLegacyListModeParam(params);
-        if (!delinEnabled()) {
-          const raw = params.get("view");
-          if (raw === "aria" || raw === "jarvis") {
-            applyMapGridParams(params);
-            rewritten = true;
-          }
+        const raw = params.get("view");
+        if (raw === "aria" || raw === "jarvis") {
+          applyMapGridParams(params);
+          rewritten = true;
         }
         if (!barnModelEnabled() && params.get("view") === "model") {
           applyMapGridParams(params);
@@ -170,7 +165,6 @@ export function useFarmHubViewShell({
       if (next === "list") setListEverOpened(true);
       if (next === "chart") setChartEverOpened(true);
       if (next === "model" && barnModelEnabled()) setModelEverOpened(true);
-      if (next === "aria" && delinEnabled()) setAriaEverOpened(true);
       if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
     },
     [beginViewSlide, hubMode],
@@ -217,9 +211,6 @@ export function useFarmHubViewShell({
   if (view === "model" && !modelEverOpened) {
     if (barnModelEnabled()) setModelEverOpened(true);
   }
-  if (view === "aria" && !ariaEverOpened) {
-    if (delinEnabled()) setAriaEverOpened(true);
-  }
 
   useEffect(() => {
     const from = prevViewForKeepAliveRef.current;
@@ -259,7 +250,7 @@ export function useFarmHubViewShell({
   const applyViewChange = useCallback(
     (next: FarmHubView) => {
       const gated =
-        next === "aria" && !delinEnabled()
+        next === "aria"
           ? ("map" as FarmHubView)
           : next === "model" && !barnModelEnabled()
             ? ("map" as FarmHubView)
@@ -274,9 +265,6 @@ export function useFarmHubViewShell({
       }
       if (target === "model") {
         setModelEverOpened(true);
-      }
-      if (target === "aria") {
-        setAriaEverOpened(true);
       }
       beginViewSlide(view, target);
       setViewState(target);
@@ -299,9 +287,6 @@ export function useFarmHubViewShell({
         params.delete("listMode");
       } else if (target === "model") {
         params.set("view", "model");
-        params.delete("listMode");
-      } else if (target === "aria") {
-        params.set("view", "aria");
         params.delete("listMode");
       } else {
         params.delete("view");

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, LayoutGrid, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, LineChart, X } from "lucide-react";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
@@ -12,6 +12,7 @@ import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { formatStallTypeLabelCompact } from "@/lib/data/stall-type";
 import type { StatusTone } from "@/components/common/status-badge";
 import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
+import { barnModelHud } from "@/lib/farm/barn-model-hud";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,7 @@ export function BarnModelRoofCard({
   onNextBarn,
   onCycleType,
   onPeekControllers,
+  onTrend,
 }: {
   stallTyCode: string;
   stallNo: string;
@@ -76,6 +78,7 @@ export function BarnModelRoofCard({
   onNextBarn?: () => void;
   onCycleType?: () => void;
   onPeekControllers?: () => void;
+  onTrend?: () => void;
 }) {
   const sensorStatus = status === "empty" ? "offline" : status;
   const tone = roofStatusTone(status);
@@ -83,8 +86,9 @@ export function BarnModelRoofCard({
   const no = stallNo.trim() || "01";
   const tempLabel = formatSensorNumberForDisplay(sensorStatus, tempC);
   const humLabel = formatSensorNumberForDisplay(sensorStatus, humidityPct);
-  const iconBtn =
-    "inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-background/80 hover:text-foreground";
+  const hudBtn = barnModelHud.icon;
+
+  const showTools = Boolean(onTrend || onDelete);
 
   return (
     <div
@@ -95,24 +99,47 @@ export function BarnModelRoofCard({
       )}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      {onDelete ? (
-        <div className="flex w-full justify-end">
-          <button
-            type="button"
-            className={iconBtn}
-            aria-label="축사 삭제"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            <X
-              className="size-3.5"
-              strokeWidth={dashboardUi.iconStroke}
-              aria-hidden
-            />
-          </button>
+      {showTools ? (
+        <div className="flex w-full items-center">
+          <div className="flex items-center gap-0.5">
+            {onTrend ? (
+              <button
+                type="button"
+                className={hudBtn}
+                aria-label="통합 추이"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onTrend();
+                }}
+              >
+                <LineChart
+                  className="size-3.5"
+                  strokeWidth={dashboardUi.iconStroke}
+                  aria-hidden
+                />
+              </button>
+            ) : null}
+          </div>
+          <span className="min-w-0 flex-1" />
+          {onDelete ? (
+            <button
+              type="button"
+              className={hudBtn}
+              aria-label="축사 삭제"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+            >
+              <X
+                className="size-3.5"
+                strokeWidth={dashboardUi.iconStroke}
+                aria-hidden
+              />
+            </button>
+          ) : null}
         </div>
       ) : null}
       <span
@@ -124,7 +151,7 @@ export function BarnModelRoofCard({
         {onPrevBarn ? (
           <button
             type="button"
-            className={iconBtn}
+            className={hudBtn}
             aria-label="이전 축사"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
@@ -171,7 +198,7 @@ export function BarnModelRoofCard({
         {onNextBarn ? (
           <button
             type="button"
-            className={iconBtn}
+            className={hudBtn}
             aria-label="다음 축사"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
@@ -221,8 +248,9 @@ export function BarnModelRoofCard({
       {onBackToField ? (
         <button
           type="button"
-          className="mt-1 inline-flex size-7 items-center justify-center rounded-md bg-background/80 text-foreground ring-1 ring-border hover:bg-background"
+          className={cn("mt-1", hudBtn)}
           aria-label="필드로"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onBackToField();

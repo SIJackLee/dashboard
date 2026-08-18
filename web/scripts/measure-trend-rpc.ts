@@ -1,5 +1,6 @@
 /**
  * Trend RPC baseline — 30d @ 15m canonical fetch (local dev).
+ * Uses `*_json` RPCs (one PostgREST row; no max_rows paging).
  *
  * Usage (from dashboard/web):
  *   npm run measure:trend
@@ -90,8 +91,8 @@ async function main() {
 
   const summary: Record<string, unknown> = {};
 
-  summary.stall = await timedRpc("farm_trend_history (stall avg)", async (supabase) => {
-    const { data, error } = await supabase.rpc("farm_trend_history", {
+  summary.stall = await timedRpc("farm_trend_history_json (stall avg)", async (supabase) => {
+    const { data, error } = await supabase.rpc("farm_trend_history_json", {
       p_lsind: FARM_LSIND,
       p_item: FARM_ITEM,
       p_from: fromIso,
@@ -103,10 +104,10 @@ async function main() {
   });
 
   summary.controller = await timedRpc(
-    "farm_trend_history_by_controller",
+    "farm_trend_history_by_controller_json",
     async (supabase) => {
       const { data, error } = await supabase.rpc(
-        "farm_trend_history_by_controller",
+        "farm_trend_history_by_controller_json",
         {
           p_lsind: FARM_LSIND,
           p_item: FARM_ITEM,

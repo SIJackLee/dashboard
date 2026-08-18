@@ -15,7 +15,8 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `NEXT_PUBLIC_BARN_MODEL_ENABLED` | 로컬·Preview on / Production off | 모델 탭. 상세 [`BARN_MODEL.md`](./BARN_MODEL.md) |
 
 통합 on일 때 UI:
-- 상위 탭: **현장 · 차트 · 모델(게이트) · DELIN**
+- 상위 탭: **현장 · 차트 · 모델(게이트)**
+- DELIN: 현장·차트·모델 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 전용 탭 없음. `view=aria`/`jarvis` → 현장
 - PC 현장: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
 - 모바일 compact: 보기 탭은 **하단 독** (`DashboardViewportShell`)
 - 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
@@ -30,7 +31,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `model` \| `aria` \| (`jarvis`→aria) | **없음 = 그리드(map)** | 상단 탭. `aria` UI 표기 **델린**. DELIN off면 `aria`/`jarvis` → 그리드. 모델 플래그 off면 `model` → 그리드 |
+| `view` | `list` \| `chart` \| `model` \| (`aria`/`jarvis`→현장) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 현장. 모델 플래그 off면 `model` → 그리드. 현장·차트·모델에서 DELIN 권장 뱃지 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
@@ -58,7 +59,7 @@ resolveFarmHubView(raw)
   list  → list
   chart → chart
   model → model   // 게이트 off면 map. 문서: BARN_MODEL.md
-  aria | jarvis → aria   // UI 표기: 델린(DELIN)
+  aria | jarvis → map   // 옛 델린 탭
   else  → map   // view 없음·알 수 없음
 ```
 
@@ -68,7 +69,7 @@ resolveFarmHubView(raw)
 | `applyListViewParams` | `view=list`, `stall`·`mapLevel` 제거 (`sp` 유지 가능) |
 | `applyChartViewParams` | `view=chart`, `listMode`·`stall`·`mapLevel` 제거 (`chart*` 유지) |
 | `applyModelViewParams` | `view=model`, 목록/드릴·`chart*` 정리. 게이트 off면 그리드 |
-| `applyAriaViewParams` | `view=aria`, 동일하게 목록/드릴·`chart*` 정리 |
+| `applyAriaViewParams` | 현장(그리드)으로 정규화. 옛 `view=aria` 호환 |
 | `applyHubScopedViewParams(view)` | 위 + 레거시 `tab` 삭제 |
 | `pinFarmHubViewParam(view)` | **탭만** 고정. drill·`chart*` 유지 (기간 변경용) |
 
@@ -172,7 +173,7 @@ flowchart LR
 |------|-----------|
 | 쿼리 키·의미·soft home·epoch | 본 문서 (정본) |
 | 탭 슬라이드·패널 모션 | `UI_MOTION.md` · `motionClass`만 소비 |
-| `view=aria` NLP·음성 | `aria-protocol.md` |
+| `view=aria` (호환) | 현장 정규화. 추천 UI는 뱃지 · `aria-protocol.md` |
 
 ---
 

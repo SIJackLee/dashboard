@@ -4,6 +4,7 @@ import { TREND_PERIODS } from "@/lib/data/farm-trend-types";
 import {
   sliceControllerTrendFromLonger,
   sliceStallTrendFromLonger,
+  stallTrendFromControllerPeriod,
 } from "@/lib/data/trend-period-slice";
 import type {
   TrendControllerPeriodData,
@@ -118,5 +119,59 @@ describe("sliceControllerTrendFromLonger", () => {
     const out = sliceControllerTrendFromLonger(src, "24h");
     assert.ok(out);
     assert.equal(out!.sp[0]!.stalls[0]!.controllers[0]!.temp.length, 96);
+  });
+});
+
+describe("stallTrendFromControllerPeriod", () => {
+  it("weights stall avg by sampleCount", () => {
+    const src: TrendControllerPeriodData = {
+      period: "24h",
+      categories: ["a", "b"],
+      bucketAts: ["t0", "t1"],
+      totalSamples: 3,
+      sp: [
+        {
+          stallTyCode: "SP03",
+          label: "분만사",
+          stalls: [
+            {
+              stallNo: "01",
+              controllers: [
+                {
+                  stallNo: "01",
+                  controllerKey: "k1",
+                  eqpmnNo: "01",
+                  temp: [20, 22],
+                  humidity: [50, null],
+                  fanSupply: [null, null],
+                  fanExhaust: [10, 10],
+                  fanIntake: [null, null],
+                  sampleCount: [2, 1],
+                },
+                {
+                  stallNo: "01",
+                  controllerKey: "k2",
+                  eqpmnNo: "02",
+                  temp: [10, null],
+                  humidity: [70, 60],
+                  fanSupply: [null, null],
+                  fanExhaust: [30, 20],
+                  fanIntake: [null, null],
+                  sampleCount: [2, 0],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const out = stallTrendFromControllerPeriod(src);
+    assert.equal(out.period, "24h");
+    const stall = out.sp[0]!.stalls[0]!;
+    assert.equal(stall.temp[0], 15);
+    assert.equal(stall.temp[1], 22);
+    assert.equal(stall.humidity[0], 60);
+    assert.equal(stall.sampleCount[0], 4);
+    assert.equal(stall.sampleCount[1], 1);
   });
 });

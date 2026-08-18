@@ -10,15 +10,11 @@ import {
   typeControllerCount,
   type BarnModelFarmSlot,
 } from "@/lib/farm/barn-model-layout";
+import type { BarnPlaceDraft } from "@/lib/farm/barn-model-mode";
 import type { BarnModelPlacedBarn, BarnModelRoomPlan } from "@/lib/farm/barn-model-prefs";
 import { cn } from "@/lib/utils";
 
-export type BarnPlaceDraft = {
-  stallTyCode: string;
-  stallNo: string;
-  plan: BarnModelRoomPlan;
-  label: string;
-};
+export type { BarnPlaceDraft };
 
 function BarnPlanThumb({
   plan,

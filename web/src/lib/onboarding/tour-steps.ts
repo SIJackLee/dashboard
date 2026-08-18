@@ -5,7 +5,7 @@
  * 스코프:
  *   field(현장) — 병합 UI(좌 현황·우 목록) PC 1차 루트
  *   chart(차트) — 통합 추이 · 레이어 · 설정모드 · 구간/양호도
- *   aria(델린) — 스테이지·음성 입력 (2단계 예정)
+ *   DELIN 뱃지는 현장·차트 투어에 포함 (전용 탭 없음)
  *
  * 큰 컨테이너는 hole로 쓰지 않음 — 개별 카드/툴바만 스포트라이트.
  */
@@ -23,7 +23,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 26;
+export const TOUR_VERSION = 27;
 
 export type TourScrollPolicy =
   | "none"
@@ -46,7 +46,6 @@ export const TOUR_READY_SELECTOR = '[data-tour-id="barn-card"]';
 export const TOUR_READY_HEATMAP_SELECTOR = '[data-tour-id="heatmap"]';
 export const TOUR_READY_MIN_CARDS = 1;
 export const TOUR_READY_CHART_SELECTOR = '[data-tour-id="farm-chart-view"]';
-export const TOUR_READY_ARIA_SELECTOR = '[data-tour-id="farm-aria-view"]';
 
 /** 단일 농장 스코프 URL — admin 허브에서 투어 재시작 시 사용. */
 export function buildFarmTourPath(farmKey: FarmKey): string {
@@ -66,26 +65,25 @@ export const FARM_TOUR_RESTART_FLAG = "farm-tour-restart";
 /** 재시작 스코프 — sessionStorage 키. */
 export const FARM_TOUR_RESTART_SCOPE_KEY = "farm-tour-restart-scope";
 
-/** 현장(그리드·목록) · 차트 · 델린 */
-export type TourScope = "field" | "chart" | "aria";
+/** 현장(그리드·목록) · 차트 */
+export type TourScope = "field" | "chart";
 
 /** 스텝 진입 시 전환할 허브 탭. */
 export type TourView = FarmHubView;
 
 export function tourScopeFromHubView(view: FarmHubView): TourScope {
   if (view === "chart") return "chart";
-  if (view === "aria") return "aria";
   return "field";
 }
 
 export function parseTourScope(raw: string | null | undefined): TourScope {
-  if (raw === "chart" || raw === "aria" || raw === "field") return raw;
+  if (raw === "chart") return "chart";
   return "field";
 }
 
 export type TourStepDef = {
   id: string;
-  /** 현장 / 차트 / 델린 */
+  /** 현장 / 차트 */
   scope: TourScope;
   /** 스포트라이트 대상 — document.querySelector 첫 매치. */
   selector: string;
@@ -158,18 +156,18 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     mobileScrollPolicy: "none",
     title: "보기 탭",
-    body: "현장·차트·델린을 바꿉니다. 물음표는 지금 켠 탭 안내만 엽니다.",
+    body: "현장·차트·모델을 바꿉니다. 물음표는 지금 켠 탭 안내만 엽니다.",
     mobileTitle: "하단 보기 탭",
-    mobileBody: "화면 아래에서 현장·차트·델린을 바꿉니다. 물음표는 지금 켠 탭만 안내합니다.",
+    mobileBody: "화면 아래에서 현장·차트·모델을 바꿉니다. 물음표는 지금 켠 탭만 안내합니다.",
     bullets: [
       "현장 — 현황과 컨트롤러",
       "차트 — 농장 통합 추이",
-      "델린 — 음성·글 질의",
+      "모델 — 축사 3D",
     ],
     mobileBullets: [
       "현장 — 축사 카드와 컨트롤러 시트",
       "차트 — 농장 통합 추이",
-      "델린 — 음성·글 질의",
+      "모델 — 축사 3D",
     ],
   },
   {
@@ -329,6 +327,20 @@ export const TOUR_STEPS: TourStepDef[] = [
     skipIfMissing: true,
   },
   {
+    id: "f-delin",
+    scope: "field",
+    selector: '[data-tour-id="delin-env-badge"]',
+    view: "map",
+    scrollPolicy: "none",
+    skipIfMissing: true,
+    title: "DELIN",
+    body: "보고 있는 축사유형의 권장 온·습도를 알려 줍니다.",
+    bullets: [
+      "우측 하단 뱃지 · 말풍선",
+      "현장·차트·모델에서 동일합니다",
+    ],
+  },
+  {
     id: "f-end",
     scope: "field",
     selector: '[data-tour-id="header-feature-tour"]',
@@ -339,11 +351,13 @@ export const TOUR_STEPS: TourStepDef[] = [
     body: "기능 안내는 헤더 물음표로 언제든 다시 열 수 있습니다.",
     mobileBody: "안내가 끝나면 위쪽 물음표로 언제든 다시 볼 수 있습니다.",
     bullets: [
-      "차트·델린 안내는 해당 탭에서 물음표를 누르세요",
+      "차트 안내는 차트 탭에서 물음표를 누르세요",
+      "DELIN은 우측 하단 뱃지입니다",
       "현장 안내는 여기까지입니다",
     ],
     mobileBullets: [
-      "차트·델린은 해당 탭에서 물음표를 누르세요",
+      "차트는 해당 탭에서 물음표를 누르세요",
+      "DELIN은 우측 하단 뱃지입니다",
       "현장 안내는 여기까지입니다",
     ],
   },
@@ -411,34 +425,18 @@ export const TOUR_STEPS: TourStepDef[] = [
       "옅은 점선 — 양호도 75점 기준. 숫자는 호버 카드",
     ],
   },
-
-  // —— 델린 (2단계 재설계 예정 — 현행 유지) ——
   {
-    id: "delin-stage",
-    scope: "aria",
-    selector: '[data-tour-id="farm-aria-view"]',
-    view: "aria",
+    id: "c-delin",
+    scope: "chart",
+    selector: '[data-tour-id="delin-env-badge"]',
+    view: "chart",
     scrollPolicy: "none",
-    title: "델린",
-    body: "음성이나 글으로 농장 상태를 물으면, 측정값 기준으로 답합니다.",
-    bullets: [
-      "가운데 오브 — 듣는 중·생각 중·말하는 중 표시",
-      "답변 후 — 근거 수치·차트 연결을 확인할 수 있습니다",
-    ],
-  },
-  {
-    id: "delin-voice",
-    scope: "aria",
-    selector: '[data-tour-id="delin-voice-fab"]',
-    view: "aria",
-    scrollPolicy: "anchor-top",
-    title: "말하기 · 입력",
-    body: "아래 버튼으로 음성을 보내거나 글 질문을 엽니다.",
     skipIfMissing: true,
+    title: "DELIN",
+    body: "지금 집계 중인 축사유형의 권장 온·습도를 알려 줍니다.",
     bullets: [
-      "말하기 · 입력 패널",
-      "추천 문구 칩 — 자주 쓰는 질문",
-      "투어는 여기까지 — 헤더 물음표로 다시 보기",
+      "우측 하단 뱃지 · 말풍선",
+      "유형을 바꾸면 권장도 따라갑니다",
     ],
   },
 ];

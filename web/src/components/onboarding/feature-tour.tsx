@@ -15,7 +15,6 @@ import {
   FARM_TOUR_RESTART_EVENT,
   FARM_TOUR_RESTART_FLAG,
   FARM_TOUR_RESTART_SCOPE_KEY,
-  TOUR_READY_ARIA_SELECTOR,
   TOUR_READY_CHART_SELECTOR,
   TOUR_READY_CONTROLLER_SELECTOR,
   TOUR_READY_FIELD_STATUS_SELECTOR,
@@ -101,9 +100,6 @@ function isTourContentReady(scope: TourScope): boolean {
   if (countPresentTourTargets(TOUR_READY_VIEW_TOGGLE_SELECTOR) < 1) return false;
   if (scope === "chart") {
     return countPresentTourTargets(TOUR_READY_CHART_SELECTOR) >= 1;
-  }
-  if (scope === "aria") {
-    return countPresentTourTargets(TOUR_READY_ARIA_SELECTOR) >= 1;
   }
   if (countPresentTourTargets(TOUR_READY_FIELD_STATUS_SELECTOR) >= 1) {
     return true;
@@ -938,7 +934,7 @@ function TourOverlay({
 
 /**
  * 투어 런처 — 첫 로그인(미완료·버전 갱신) 시 현장 투어 자동 시작,
- * 헤더 물음표로 현재 탭(현장·차트·델린) 안내 수동 시작.
+ * 헤더 물음표로 현재 탭(현장·차트) 안내 수동 시작.
  * FarmPageContent 안에 마운트되어 뷰 전환(setView)을 직접 제어한다.
  */
 export function FarmFeatureTour({
@@ -972,7 +968,6 @@ export function FarmFeatureTour({
       // 스코프 탭 DOM이 보이도록 전환 — 현장은 병합 패널(map)로 맞춤.
       if (scope === "field") setView("map");
       else if (scope === "chart") setView("chart");
-      else if (scope === "aria") setView("aria");
 
       const activate = () => {
         dispatchGridAction("close-header-tools");

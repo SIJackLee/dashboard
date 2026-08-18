@@ -21,7 +21,7 @@
 | 09 | [09-역할별-차이.md](./09-역할별-차이.md) | admin / operator / viewer |
 | 10 | [10-메뉴구조도.md](./10-메뉴구조도.md) | 라우트·헤더·하단 내비 · Mermaid IA |
 | 11 | [11-모니터링-차트.md](./11-모니터링-차트.md) | 차트 보기 · 집계 범위 · 기간 공유 |
-| 12 | [12-ARIA.md](./12-ARIA.md) | 델린(DELIN) 음성 어시스턴트 (PoC) |
+| 12 | [12-ARIA.md](./12-ARIA.md) | DELIN 권장 뱃지 (현장·차트·모델) |
 
 메뉴 전체 구조는 [10-메뉴구조도.md](./10-메뉴구조도.md)를 먼저 보세요.  
 개발용 `/farm` URL 계약: [`../farm-hub-url.md`](../farm-hub-url.md) · 문서 허브: [`../README.md`](../README.md)

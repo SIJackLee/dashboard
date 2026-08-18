@@ -1,4 +1,5 @@
 import type { FarmKey } from "@/lib/data/farm-key";
+import type { PigEnvFit } from "@/lib/farm/pig-env-recommend";
 
 export type VoiceAskMode = "text" | "audio";
 
@@ -19,6 +20,17 @@ export type VoiceFarmFacts = {
     alarmCount: number;
     tempAvgC: number | null;
     humidityAvgPct: number | null;
+    env?: {
+      stageLabel: string;
+      tempMinC: number;
+      tempMaxC: number;
+      humidityMinPct: number;
+      humidityMaxPct: number;
+      tempFit: PigEnvFit;
+      humidityFit: PigEnvFit;
+      recommendTempC: number | null;
+      recommendHumidityPct: number | null;
+    } | null;
   }[];
   /**
    * 활성 알람 상세 — 「어느 컨트롤러?」 후속 질문용.

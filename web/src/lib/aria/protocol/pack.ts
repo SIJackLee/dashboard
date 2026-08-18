@@ -1,5 +1,9 @@
 import type { VoiceFarmFacts } from "@/lib/voice-report/types";
 import type { AriaDepth, AriaSession } from "@/lib/aria/protocol/types";
+import {
+  pigEnvFitLabel,
+  pigEnvFitOffBand,
+} from "@/lib/farm/pig-env-recommend";
 
 /** 서버 → AI/로그용 pack 문자열 */
 export function packFarmProtocol(args: {
@@ -28,6 +32,10 @@ export function packFarmProtocol(args: {
     lines.push(
       `  STALL_TYPE=${s.stallLabel}; alarm=${s.alarmCount}; tempAvg=${s.tempAvgC ?? "—"}; humAvg=${s.humidityAvgPct ?? "—"}`,
     );
+    if (!s.env) continue;
+    lines.push(
+      `  ENV: STALL_TYPE=${s.stallLabel}; stage=${s.env.stageLabel}; temp=${pigEnvFitLabel(s.env.tempFit)}; recTemp=${s.env.recommendTempC ?? "—"}; hum=${pigEnvFitLabel(s.env.humidityFit)}; recHum=${s.env.recommendHumidityPct ?? "—"}; bandTemp=${s.env.tempMinC}~${s.env.tempMaxC}; bandHum=${s.env.humidityMinPct}~${s.env.humidityMaxPct}`,
+    );
   }
 
   const items = filterItems(facts, scopeStall).slice(0, 16);
@@ -52,6 +60,14 @@ export function packCtrlProtocol(args: {
   const { question, facts } = args;
   const top = facts.alarmItems[0];
   const stall = facts.stalls.find((s) => s.alarmCount > 0) ?? facts.stalls[0];
+  const envStall = facts.stalls.find(
+    (s) =>
+      s.env != null &&
+      (pigEnvFitOffBand(s.env.tempFit) || pigEnvFitOffBand(s.env.humidityFit)),
+  );
+  const envFact = envStall?.env
+    ? `FACT: stall=${envStall.stallLabel}; temp=${pigEnvFitLabel(envStall.env.tempFit)}; recTemp=${envStall.env.recommendTempC ?? "—"}; hum=${pigEnvFitLabel(envStall.env.humidityFit)}; recHum=${envStall.env.recommendHumidityPct ?? "—"}`
+    : null;
 
   return [
     "ROUTE: CTRL",
@@ -59,7 +75,8 @@ export function packCtrlProtocol(args: {
     `FARM: ${facts.farmLabel}`,
     top
       ? `FACT: ctrl=${top.controllerLabel}; stall=${top.stallNo ?? "—"}; eq=${top.eqpmnNo}; type=${top.alarmType}; detail=${top.detail}; sev=${top.severity === "critical" ? "위험" : "주의"}; maxVent=${top.maxVentPct ?? "—"}`
-      : `FACT: tempAvg=${stall?.tempAvgC ?? "—"}; humAvg=${stall?.humidityAvgPct ?? "—"}; alarms=없음`,
+      : envFact ??
+        `FACT: tempAvg=${stall?.tempAvgC ?? "—"}; humAvg=${stall?.humidityAvgPct ?? "—"}; alarms=없음`,
     "NOTE: 현장 대응만. 알람 임계·적용·명령 금지. maxVent이 최대(100)면 현장확인.",
   ].join("\n");
 }

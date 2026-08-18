@@ -22,8 +22,9 @@ import {
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import {
   sliceControllerTrendFromLonger,
-  sliceStallTrendFromLonger,
+  stallTrendBundleFromController,
 } from "@/lib/data/trend-period-slice";
+import { coerceTrendRpcJson } from "@/lib/data/farm-trend-rpc-json";
 
 export type {
   TrendPeriodId,
@@ -72,29 +73,15 @@ function alignedToMs(now: number): number {
   return Math.floor(now / CACHE_SLOT_MS) * CACHE_SLOT_MS;
 }
 
-/** PostgREST page size — must match supabase/config.toml max_rows. */
-const RPC_PAGE_SIZE = 1000;
-/** Safety cap: 30d×15m×~20 controllers ≈ 38 pages. */
-const RPC_MAX_PAGES = 50;
-
-async function fetchRpcAllPages<T>(
+async function fetchRpcJsonRows<T>(
   accessToken: string,
   rpcName: string,
   args: Record<string, string>,
 ): Promise<T[]> {
   const supabase = createRlsClient(accessToken);
-  const out: T[] = [];
-  for (let page = 0; page < RPC_MAX_PAGES; page++) {
-    const from = page * RPC_PAGE_SIZE;
-    const to = from + RPC_PAGE_SIZE - 1;
-    const { data, error } = await supabase
-      .rpc(rpcName as never, args as never)
-      .range(from, to);
-    if (error || !data?.length) break;
-    out.push(...(data as T[]));
-    if (data.length < RPC_PAGE_SIZE) break;
-  }
-  return out;
+  const { data, error } = await supabase.rpc(rpcName as never, args as never);
+  if (error || data == null) return [];
+  return coerceTrendRpcJson<T>(data);
 }
 
 async function fetchTrendRows(
@@ -104,7 +91,7 @@ async function fetchTrendRows(
   toIso: string,
   bucket: string,
 ): Promise<RpcRow[]> {
-  return fetchRpcAllPages<RpcRow>(accessToken, "farm_trend_history", {
+  return fetchRpcJsonRows<RpcRow>(accessToken, "farm_trend_history_json", {
     p_lsind: farmKey.lsindRegistNo,
     p_item: farmKey.itemCode,
     p_from: fromIso,
@@ -120,9 +107,9 @@ async function fetchControllerTrendRows(
   toIso: string,
   bucket: string,
 ): Promise<ControllerRpcRow[]> {
-  return fetchRpcAllPages<ControllerRpcRow>(
+  return fetchRpcJsonRows<ControllerRpcRow>(
     accessToken,
-    "farm_trend_history_by_controller",
+    "farm_trend_history_by_controller_json",
     {
       p_lsind: farmKey.lsindRegistNo,
       p_item: farmKey.itemCode,
@@ -335,7 +322,7 @@ export async function getFarmTrendHistory(params: {
   const scopeKey = farmKeyId(params.farmKey);
 
   const rows = await cachedLiveQuery(
-    ["farm-trend", userId, scopeKey, params.period, String(toMs), "rpc-paged"],
+    ["farm-trend", userId, scopeKey, params.period, String(toMs), "rpc-json"],
     ["live", `trend:${scopeKey}`],
     () =>
       fetchTrendRows(
@@ -350,28 +337,13 @@ export async function getFarmTrendHistory(params: {
   return buildPeriodData(rows, params.period, fromMs);
 }
 
-/** SSR — canonical 30d(15m) 1회 → 7d/24h slice. */
+/** SSR / PDF — 컨트롤러 30d 1회 → 축사 평균 변환. stall RPC 없음. */
 export async function getFarmTrendAllPeriods(params: {
   farmKey: FarmKey;
   now?: number;
 }): Promise<Record<TrendPeriodId, TrendPeriodData>> {
-  const now = params.now ?? Date.now();
-  const d30 = await getFarmTrendHistory({
-    farmKey: params.farmKey,
-    period: "30d",
-    now,
-  });
-  const d7Slice = sliceStallTrendFromLonger(d30, "7d");
-  const d7 =
-    d7Slice && d7Slice.totalSamples > 0
-      ? d7Slice
-      : await getFarmTrendHistory({ farmKey: params.farmKey, period: "7d", now });
-  const h24Slice = sliceStallTrendFromLonger(d30, "24h");
-  const h24 =
-    h24Slice && h24Slice.totalSamples > 0
-      ? h24Slice
-      : await getFarmTrendHistory({ farmKey: params.farmKey, period: "24h", now });
-  return { "24h": h24, "7d": d7, "30d": d30 };
+  const ctrl = await getFarmControllerTrendAllPeriods(params);
+  return stallTrendBundleFromController(ctrl);
 }
 
 export async function getFarmControllerTrendHistory(params: {
@@ -404,7 +376,7 @@ export async function getFarmControllerTrendHistory(params: {
       scopeKey,
       params.period,
       String(toMs),
-      "rpc-paged",
+      "rpc-json",
     ],
     ["live", `controller-trend:${scopeKey}`],
     () =>

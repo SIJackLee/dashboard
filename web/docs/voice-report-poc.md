@@ -13,7 +13,7 @@ Cursor 규칙: 워크스페이스 `.cursor/rules/voice-protocol.mdc`.
 - **델린** — 데이터 기반 축사 환경·가축 지능형 안내자
 - 유래: 목동·가축의 수호성인 성 벤델리노(Wendelin)
 - 슬로건: 축사를 이해하고, 농장을 지키는 AI — DELIN
-- 허브 탭 UI 표기: **델린** (`view=aria` 호환)
+- 허브 UI: 현장·차트·모델 **우측 하단 DELIN 뱃지**. 전용 탭 없음 (`view=aria`/`jarvis` → 현장)
 
 ## 출시 게이트
 정식 RELEASE(그리드·목록·차트)에서는 **기본 숨김**.  
@@ -21,10 +21,10 @@ Cursor 규칙: 워크스페이스 `.cursor/rules/voice-protocol.mdc`.
 강제: `NEXT_PUBLIC_DELIN_ENABLED=true|false`.
 
 ## 목적
-농장 허브 **델린** 탭에서 **단일 농장** 환경 요약을  
-마이크 질문 → STT → **판단 프로토콜** → 서버 UNPACK 문장 → TTS 음성 안내.
+허브에서는 음성·질문 도크를 붙이지 않는다. 프로토콜·음성 코드는 유지한다.  
+현장·차트·모델 **DELIN 뱃지**가 권장 온·습을 보여 준다.
 
-탭 구성: 그리드 · 목록 · 차트 · **델린**(플래그 on 시). URL 계약은 [`farm-hub-url.md`](./farm-hub-url.md).
+상단 탭: 현장(그리드·목록) · 차트 · 모델. URL 계약은 [`farm-hub-url.md`](./farm-hub-url.md).
 
 ## 판단 프로토콜
 

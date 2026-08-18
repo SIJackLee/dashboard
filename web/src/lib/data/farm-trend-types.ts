@@ -96,6 +96,10 @@ export type TrendPeriodData = {
   totalSamples: number;
 };
 
+export function emptyTrendPeriodData(period: TrendPeriodId): TrendPeriodData {
+  return { period, categories: [], bucketAts: [], sp: [], totalSamples: 0 };
+}
+
 /** 히트맵/그래프 활성 여부 — 빈 `{}`는 falsy로 취급 */
 export function hasStallTrendByPeriod(
   trend: Partial<Record<TrendPeriodId, TrendPeriodData>> | null | undefined,
@@ -134,3 +138,17 @@ export type TrendControllerPeriodData = {
   sp: TrendControllerSpSeries[];
   totalSamples: number;
 };
+
+export function emptyTrendControllerPeriodData(
+  period: TrendPeriodId,
+): TrendControllerPeriodData {
+  return { period, categories: [], bucketAts: [], sp: [], totalSamples: 0 };
+}
+
+export function isCompleteControllerTrendBundle(
+  bundle: Record<TrendPeriodId, TrendControllerPeriodData> | null | undefined,
+): boolean {
+  return (
+    (bundle?.["30d"]?.categories.length ?? 0) === TREND_PERIODS["30d"].bucketCount
+  );
+}

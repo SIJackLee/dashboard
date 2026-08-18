@@ -14,7 +14,6 @@ import {
   CHART_X0_PARAM,
   CHART_X1_PARAM,
 } from "@/lib/farm/farm-chart-scope";
-import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
 
 export const TREND_PERIOD_PARAM = "trendPeriod";
@@ -93,7 +92,7 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
-/** 허브 탭 — 그리드(map) · 목록 · 차트 · 모델 · 델린(view=aria) */
+/** 허브 탭 — 그리드(map) · 목록 · 차트 · 모델. `aria`는 옛 URL 호환(현장으로 정규화). */
 export type FarmHubView = "map" | "list" | "chart" | "model" | "aria";
 
 export function resolveFarmHubView(
@@ -105,7 +104,7 @@ export function resolveFarmHubView(
     return barnModelEnabled() ? "model" : "map";
   }
   if (raw === "aria" || raw === "jarvis") {
-    return delinEnabled() ? "aria" : "map";
+    return "map";
   }
   return "map";
 }
@@ -141,18 +140,9 @@ export function applyModelViewParams(params: URLSearchParams): void {
   clearFarmChartZoomParams(params);
 }
 
-/** 델린 탭 — DELIN (URL view=aria 호환). 플래그 off면 no-op. */
+/** 옛 델린 탭 주소 — 현장(그리드)으로 보냄. */
 export function applyAriaViewParams(params: URLSearchParams): void {
-  if (!delinEnabled()) {
-    applyMapGridParams(params);
-    return;
-  }
-  params.set("view", "aria");
-  params.delete("listMode");
-  params.delete("stall");
-  params.delete("mapLevel");
-  clearFarmChartScopeParams(params);
-  clearFarmChartZoomParams(params);
+  applyMapGridParams(params);
 }
 
 /** 지도 탭 — 그리드 진입(드릴 쿼리 제거) */
@@ -224,7 +214,7 @@ export function pinFarmHubViewParam(
   params: URLSearchParams,
   view: FarmHubView,
 ): void {
-  if (view === "list" || view === "chart" || view === "model" || view === "aria") {
+  if (view === "list" || view === "chart" || view === "model") {
     params.set("view", view);
   } else {
     params.delete("view");

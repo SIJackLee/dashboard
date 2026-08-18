@@ -1,18 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchFarmControllerTrendAllPeriodsAction } from "@/app/(dashboard)/farm/actions";
+import { fetchFarmControllerTrendPeriodAction } from "@/app/(dashboard)/farm/actions";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
-import type {
-  TrendControllerPeriodData,
-  TrendPeriodId,
+import {
+  emptyTrendControllerPeriodData,
+  isCompleteControllerTrendBundle,
+  type TrendControllerPeriodData,
+  type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import { sliceControllerTrendFromLonger } from "@/lib/data/trend-period-slice";
 import {
   invalidateTimedCache,
   readTimedCache,
   writeTimedCache,
   type TimedCacheEntry,
 } from "@/lib/farm/client-trend-cache";
+import { startSharedInflight } from "@/lib/farm/shared-inflight";
 import { useDeferredLoading } from "@/lib/ui/use-deferred-loading";
 
 type TrendBundle = Record<TrendPeriodId, TrendControllerPeriodData>;
@@ -20,10 +24,8 @@ type TrendBundle = Record<TrendPeriodId, TrendControllerPeriodData>;
 /** map/list 훅 인스턴스 간 공유 — 탭 전환 시 이중 fetch 방지 · TTL 90s */
 const trendCache = new Map<string, TimedCacheEntry<TrendBundle>>();
 const trendInflight = new Map<string, Promise<TrendBundle>>();
-/** soft refresh coalesce — 연속 refresh는 동일 Promise */
 const trendRefreshInflight = new Map<string, Promise<TrendBundle>>();
-/** scope별 결과 적용 세대 — 빠른 농장 전환 시 stale setState 방지 */
-const trendApplyGen = new Map<string, number>();
+const trendListeners = new Map<string, Set<(bundle: TrendBundle) => void>>();
 
 export function peekFarmControllerTrendCache(
   farmKey: FarmKey,
@@ -35,19 +37,60 @@ export function invalidateFarmControllerTrendCache(farmKey: FarmKey): void {
   invalidateTimedCache(trendCache, farmKeyId(farmKey));
 }
 
-/** 로그인·농장 LIVE 이후 idle 시 호출 — 그래프 탭 대기 제거 */
-export function prefetchFarmControllerTrend(farmKey: FarmKey): Promise<TrendBundle> {
-  return fetchTrendShared(farmKey, farmKeyId(farmKey), false);
-}
-
 function readTrendCache(scopeId: string): TrendBundle | null {
   return readTimedCache(trendCache, scopeId);
 }
 
-function bumpApplyGen(scopeId: string): number {
-  const next = (trendApplyGen.get(scopeId) ?? 0) + 1;
-  trendApplyGen.set(scopeId, next);
-  return next;
+function emptyBundle(): TrendBundle {
+  return {
+    "24h": emptyTrendControllerPeriodData("24h"),
+    "7d": emptyTrendControllerPeriodData("7d"),
+    "30d": emptyTrendControllerPeriodData("30d"),
+  };
+}
+
+function notifyTrend(scopeId: string, bundle: TrendBundle): void {
+  writeTimedCache(trendCache, scopeId, bundle);
+  const listeners = trendListeners.get(scopeId);
+  if (!listeners) return;
+  for (const cb of listeners) cb(bundle);
+}
+
+export function subscribeFarmControllerTrend(
+  scopeId: string,
+  cb: (bundle: TrendBundle) => void,
+): () => void {
+  let set = trendListeners.get(scopeId);
+  if (!set) {
+    set = new Set();
+    trendListeners.set(scopeId, set);
+  }
+  set.add(cb);
+  return () => {
+    set!.delete(cb);
+    if (set!.size === 0) trendListeners.delete(scopeId);
+  };
+}
+
+async function loadProgressiveBundle(farmKey: FarmKey): Promise<TrendBundle> {
+  const h24 = await fetchFarmControllerTrendPeriodAction(farmKey, "24h");
+  const partial: TrendBundle = {
+    ...emptyBundle(),
+    "24h": h24,
+  };
+  notifyTrend(farmKeyId(farmKey), partial);
+
+  const d30 = await fetchFarmControllerTrendPeriodAction(farmKey, "30d");
+  const d7Slice = sliceControllerTrendFromLonger(d30, "7d");
+  const h24Slice = sliceControllerTrendFromLonger(d30, "24h");
+  const full: TrendBundle = {
+    "24h":
+      h24Slice && h24Slice.totalSamples > 0 ? h24Slice : h24,
+    "7d": d7Slice ?? emptyTrendControllerPeriodData("7d"),
+    "30d": d30,
+  };
+  notifyTrend(farmKeyId(farmKey), full);
+  return full;
 }
 
 function fetchTrendShared(
@@ -57,40 +100,18 @@ function fetchTrendShared(
 ): Promise<TrendBundle> {
   if (!refresh) {
     const cached = readTrendCache(scopeId);
-    if (cached) return Promise.resolve(cached);
-    const pending = trendInflight.get(scopeId);
-    if (pending) return pending;
-  } else {
-    const pendingRefresh = trendRefreshInflight.get(scopeId);
-    if (pendingRefresh) return pendingRefresh;
-  }
-
-  const applyGen = bumpApplyGen(scopeId);
-
-  const req = fetchFarmControllerTrendAllPeriodsAction(farmKey, {
-    refresh: refresh || undefined,
-  }).then((result) => {
-    if (trendApplyGen.get(scopeId) === applyGen) {
-      writeTimedCache(trendCache, scopeId, result);
+    if (cached && isCompleteControllerTrendBundle(cached)) {
+      return Promise.resolve(cached);
     }
-    return result;
-  });
-
-  if (!refresh) {
-    trendInflight.set(scopeId, req);
-    void req.finally(() => {
-      if (trendInflight.get(scopeId) === req) trendInflight.delete(scopeId);
-    });
-  } else {
-    trendRefreshInflight.set(scopeId, req);
-    void req.finally(() => {
-      if (trendRefreshInflight.get(scopeId) === req) {
-        trendRefreshInflight.delete(scopeId);
-      }
-    });
   }
 
-  return req;
+  const map = refresh ? trendRefreshInflight : trendInflight;
+  return startSharedInflight(map, scopeId, () => loadProgressiveBundle(farmKey));
+}
+
+/** 로그인·농장 LIVE 이후 idle 시 호출 — 그래프 탭 대기 제거 */
+export function prefetchFarmControllerTrend(farmKey: FarmKey): Promise<TrendBundle> {
+  return fetchTrendShared(farmKey, farmKeyId(farmKey), false);
 }
 
 export function useFarmControllerTrend(params: {
@@ -111,7 +132,6 @@ export function useFarmControllerTrend(params: {
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Cache hit — sync during render (lazy init covers first mount)
   if (active && scopeId) {
     const cached = readTrendCache(scopeId);
     if (cached && bundle?.scopeId !== scopeId) {
@@ -122,19 +142,21 @@ export function useFarmControllerTrend(params: {
 
   useEffect(() => {
     if (!active || !params.farmKey) return;
-    if (readTrendCache(scopeId)) return;
     const token = ++applyTokenRef.current;
-    void fetchTrendShared(params.farmKey, scopeId, false)
-      .then((result) => {
-        if (token !== applyTokenRef.current) return;
-        setBundle({ scopeId, data: result });
-        setError(false);
-      })
-      .catch(() => {
+    const unsub = subscribeFarmControllerTrend(scopeId, (data) => {
+      if (token !== applyTokenRef.current) return;
+      setBundle({ scopeId, data });
+      setError(false);
+    });
+    const cached = readTrendCache(scopeId);
+    if (!isCompleteControllerTrendBundle(cached)) {
+      void fetchTrendShared(params.farmKey, scopeId, false).catch(() => {
         if (token !== applyTokenRef.current) return;
         setError(true);
       });
+    }
     return () => {
+      unsub();
       applyTokenRef.current += 1;
     };
   }, [active, scopeId, params.farmKey]);
@@ -158,8 +180,6 @@ export function useFarmControllerTrend(params: {
       });
   }, [params.farmKey, scopeId]);
 
-  // enabled=false여도 캐시는 유지 — 투어 pause 등으로 active가 꺼져도
-  // 이미 받은 controllerTrend를 null로 지우지 않는다.
   const data = bundle?.scopeId === scopeId ? bundle.data : null;
   const initialPending = active && data === null && !error;
   const showInitialLoading = useDeferredLoading(initialPending);

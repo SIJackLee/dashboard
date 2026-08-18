@@ -10,14 +10,14 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
-import { Map, List, LineChart, Bot, Box } from "lucide-react";
+import { Map, List, LineChart, Box } from "lucide-react";
 import { StallUnitIcon } from "@/components/icons/stall-unit-icon";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
+import { DelinEnvBadge } from "@/components/farm/delin-env-badge";
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { FarmChartView } from "@/components/farm/farm-chart-view";
-import { FarmAriaView } from "@/components/farm/farm-aria-view";
 import { FarmBarnModelView } from "@/components/farm/farm-barn-model-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import {
@@ -50,7 +50,8 @@ import { useFarmHubViewShell } from "@/lib/farm/use-farm-hub-view-shell";
 import { farmFieldMergeEnabled } from "@/lib/farm/farm-field-merge-enabled";
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { farmKeyId, parseFarmKeyFromQuery, parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { farmKeyId, parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import {
   invalidateFarmControllerTrendCache,
   prefetchFarmControllerTrend,
@@ -71,13 +72,10 @@ import { cn } from "@/lib/utils";
 import { useFieldListFilterMotion } from "@/components/farm/use-field-list-filter-motion";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
-import { DELIN_NAME } from "@/lib/aria/aria-mode";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
-import { useWeatherNudgePoll } from "@/lib/weather-control/use-weather-nudge-poll";
 import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
-import { fetchThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
 
 type Props = {
   readings: BarnReading[];
@@ -94,7 +92,7 @@ type Props = {
   liveRefreshManaged?: boolean;
   /** hub 캐시 단일 농장 — 목록 탭 첫 진입 시 scoped panel 보강 */
   lazyListEnrichment?: boolean;
-  /** SSR과 일치하는 초기 그리드/목록/차트/ARIA 탭 (hubMode) */
+  /** SSR과 일치하는 초기 그리드/목록/차트 탭 (hubMode) */
   initialHubView?: FarmHubView;
   lazyListFarmKey?: FarmKey | null;
   /** Phase C — 기상 CTRL pending 말풍선 (SSR) */
@@ -118,8 +116,6 @@ export function FarmPageContent({
   lazyListEnrichment = false,
   lazyListFarmKey = null,
   initialHubView,
-  initialWeatherNudge = null,
-  weatherNudgeEnabled = false,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const tourActive = useFarmTourActive();
@@ -217,7 +213,6 @@ export function FarmPageContent({
     setUrlTick,
     listEverOpened,
     chartEverOpened,
-    ariaEverOpened,
     setView,
   } = useFarmHubViewShell({
     hubMode,
@@ -231,33 +226,6 @@ export function FarmPageContent({
     },
   });
 
-  const nudgeFarmKey = lazyListFarmKey ?? gridFarmKey;
-  const nudgeGate =
-    weatherNudgeEnabled &&
-    delinEnabled() &&
-    !tourActive &&
-    Boolean(nudgeFarmKey);
-  const { nudge: weatherNudge, dismissLocal: dismissWeatherNudge } =
-    useWeatherNudgePoll(nudgeFarmKey, initialWeatherNudge, nudgeGate);
-  const hasWeatherNudge =
-    nudgeGate && weatherNudge != null && !weatherNudge.stale;
-
-  const onWeatherNudgeApplied = useCallback(
-    async (commandId: string) => {
-      dismissWeatherNudge();
-      const lr = liveRefreshRef.current;
-      if (!lr) return;
-      try {
-        const cmd = await fetchThermoCommandAction(commandId);
-        if (cmd) lr.patchThermoFromCommand(cmd);
-      } catch {
-        // patch 실패해도 soft refresh 시도
-      }
-      void lr.revalidateFarmLive({ mode: "live" });
-    },
-    [dismissWeatherNudge],
-  );
-
   const fieldMerge = farmFieldMergeEnabled();
   const fieldActive = view === "map" || view === "list";
   const openChartFromField = useCallback(() => {
@@ -269,6 +237,9 @@ export function FarmPageContent({
   );
   /** PC 스플릿 — 좌측 현황 열 표시 */
   const [fieldStatusOpen, setFieldStatusOpen] = useState(true);
+  const [modelAdviceStallTy, setModelAdviceStallTy] = useState<string | null>(
+    null,
+  );
 
   const selectBarnForList = useCallback(
     (barn: BarnMapSnapshot) => {
@@ -333,11 +304,10 @@ export function FarmPageContent({
         view === "map" ||
         view === "chart" ||
         view === "list" ||
-        view === "aria" ||
         view === "model"
       ) {
         void prefetchFarmControllerTrend(gridFarmKey);
-        void prefetchFarmStallTrend(gridFarmKey).then((trend) => {
+        void prefetchFarmStallTrend(gridFarmKey, (trend) => {
           if (cancelled) return;
           liveRefreshRef.current?.hydrateStallTrend(gridFarmKey, trend);
         });
@@ -412,18 +382,6 @@ export function FarmPageContent({
     enrichListIfNeeded,
   ]);
 
-  const ariaFarm = useMemo<FarmKey | null>(() => {
-    void urlTick;
-    void hubUrlEpoch;
-    const params = urlHydrated
-      ? currentFarmSearchParams()
-      : new URLSearchParams(searchParams.toString());
-    return (
-      parseFarmKeyFromQuery(params.get("lsind"), params.get("item")) ??
-      gridFarmKey
-    );
-  }, [urlHydrated, hubUrlEpoch, urlTick, searchParams, gridFarmKey]);
-
   const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } =
     useFarmControllerTrend({
       farmKey: gridFarmKey,
@@ -432,7 +390,6 @@ export function FarmPageContent({
         (view === "map" ||
           view === "chart" ||
           view === "list" ||
-          view === "aria" ||
           view === "model"),
     });
 
@@ -466,6 +423,38 @@ export function FarmPageContent({
     () => resolveFarmChartZoomHint(shallowParams),
     [shallowParams],
   );
+
+  const showDelinEnvBadge =
+    delinEnabled() &&
+    Boolean(gridFarmKey) &&
+    (view === "map" || view === "chart" || view === "model");
+  const delinBadgeStallTy = useMemo(() => {
+    if (!showDelinEnvBadge) return null;
+    if (view === "chart" && chartScope.level !== "farm") {
+      return chartScope.stallTyCode;
+    }
+    if (view === "map") {
+      if (fieldMerge && fieldSelectedBarnId) {
+        const barn = barnSnapshots.find((b) => b.meta.id === fieldSelectedBarnId);
+        const ty = barn
+          ? parseBarnCatalogKey(barn.meta.id)?.stallTyCode
+          : null;
+        if (ty) return ty;
+      }
+      return shallowParams.get("sp");
+    }
+    if (view === "model") return modelAdviceStallTy;
+    return null;
+  }, [
+    showDelinEnvBadge,
+    view,
+    chartScope,
+    fieldMerge,
+    fieldSelectedBarnId,
+    barnSnapshots,
+    shallowParams,
+    modelAdviceStallTy,
+  ]);
 
   const onTrendPeriodChange = useCallback(
     (period: TrendPeriodId) => {
@@ -696,26 +685,6 @@ export function FarmPageContent({
           모델
         </button>
       ) : null}
-      {delinEnabled() ? (
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "aria"}
-          className={viewTabBtn(view === "aria")}
-          onClick={() => setView("aria")}
-          data-delin-tab-anchor="1"
-          data-delin-nudge-pending={
-            hasWeatherNudge && view !== "aria" ? "1" : undefined
-          }
-        >
-          <Bot
-            className={dashboardUi.iconSm}
-            strokeWidth={dashboardUi.iconStroke}
-            aria-hidden
-          />
-          {DELIN_NAME}
-        </button>
-      ) : null}
     </div>
   ) : null;
 
@@ -939,36 +908,13 @@ export function FarmPageContent({
               alarmSettings={alarmSettings}
               thermoSettings={thermoSettings}
               canCommand={controller?.canCommand ?? false}
+              onAdviceStallTyChange={setModelAdviceStallTy}
             />
           </div>
         ) : null}
 
-        {delinEnabled() && ariaEverOpened ? (
-          <div
-            className={panelMotionClass("aria")}
-            aria-hidden={view !== "aria"}
-            data-farm-view-panel="aria"
-            data-farm-view-active={view === "aria"}
-          >
-            <FarmAriaView
-              currentFarm={ariaFarm}
-              isMobileStack={viewportCompact}
-              panelLiveActive={isFarmHubPanelLiveActive(view, "aria")}
-              readings={readings}
-              controllerTrendByPeriod={gridControllerTrend}
-              trendLoading={gridTrendLoading && !gridControllerTrend}
-              trendPeriod={trendPeriod}
-              onTrendPeriodChange={onTrendPeriodChange}
-              alarmSettings={alarmSettings}
-              thermoSettings={thermoSettings}
-              canCommand={controller?.canCommand ?? false}
-              weatherNudge={hasWeatherNudge ? weatherNudge : null}
-              onWeatherNudgeDismiss={dismissWeatherNudge}
-              onWeatherNudgeApplied={(commandId) =>
-                void onWeatherNudgeApplied(commandId)
-              }
-            />
-          </div>
+        {showDelinEnvBadge ? (
+          <DelinEnvBadge readings={readings} stallTyCode={delinBadgeStallTy} />
         ) : null}
       </div>
     </div>

@@ -3,7 +3,6 @@
  * 실행: npx tsx src/lib/farm/farm-hub-url-smoke.test.ts
  */
 import assert from "node:assert/strict";
-import { delinEnabled } from "../aria/delin-enabled";
 import { barnModelEnabled } from "./barn-model-enabled";
 import {
   applyFarmChartScopeParams,
@@ -133,7 +132,7 @@ function clone(q: string) {
   for (const v of order) {
     applyHubScopedViewParams(params, v);
     const expected =
-      v === "aria" && !delinEnabled()
+      v === "aria"
         ? ("map" as FarmHubView)
         : v === "model" && !barnModelEnabled()
           ? ("map" as FarmHubView)
@@ -146,11 +145,8 @@ function clone(q: string) {
   assert.equal(params.get("stall"), null);
   assert.equal(params.get("lsind"), "FARM01");
   assert.equal(params.get("item"), "P00");
-  // jarvis → aria (게이트 on) / map (게이트 off · Production)
-  assert.equal(
-    resolveFarmHubView("jarvis"),
-    delinEnabled() ? "aria" : "map",
-  );
+  assert.equal(resolveFarmHubView("jarvis"), "map");
+  assert.equal(resolveFarmHubView("aria"), "map");
   assert.equal(
     resolveFarmHubView("model"),
     barnModelEnabled() ? "model" : "map",
