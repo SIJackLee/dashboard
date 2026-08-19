@@ -72,10 +72,11 @@ Sprint A 재측정 (2026-08-05 · `npm run measure:live`): List farm-scoped p50/
 | `farm_trend_history_by_controller_json` | Client lazy (list / 통합 추이 / 히트맵 파생) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets · **`mesure_at` bin** · jsonb 1행 |
 | `farm_trend_history_json` | PDF/SSR fallback via controller convert | `live:trend:{scope}` | unused on hub idle path |
 
-- Bucket policy (canonical 15 min → UI display via `binWorst` / avg downsample): fetch **24h first**, then **30d × 2880**, slice 7d=672 / 24h=96; UI bars 24h→24, 7d→28, 30d→30 (`farm-trend-types.ts` + `GRAPH_BARS`). PDF uses full 15m resolution (no GRAPH_BARS).
+- Bucket policy: hub **and PDF/list all-periods** fetch **24h 15m → 30d 1h (24h RPC chunks, newest first)**. 7d is a tail slice of 30d 1h. **Window ≤ 48h** (brush) fetches **15m for that range only** (`TREND_15M_PERIODS`). PDF print LTTB-caps each stacked chart at 96 points. Wire format is sparse compact. UI bars 24h→24, 7d→28, 30d→30 (`farm-trend-types.ts` + `GRAPH_BARS`).
 - App fetch uses `*_json` RPCs (one PostgREST row). Table-returning `farm_trend_history*` remain for SQL/EXPLAIN; do **not** `.range()` them — `max_rows=1000` re-runs the 30d `GROUP BY` per page.
 - Hub UI: **controller json only**. Stall heatmap is derived (`stallTrendFromControllerPeriod`).
 - Map tab SSR skips stall trend + controller-trend (Phase B idle hydrate / P4 lazy)
+- **Post-login:** farmer client warms scoped panel + 24h controller trend during brand splash (`warmPostLoginFarmHub`). Splash waits for field LIVE bootstrap + paint, not chart 30d / 3D.
 - Admin ops Z3 (`FarmScopedPanel`) uses per-farm scoped fetch; stall trend client-idle when map opens
 
 ### Measured (dev, 2026-08-18) — `npm run measure:trend` · FARM01/P00 · 30d @ 15m · `*_json`

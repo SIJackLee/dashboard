@@ -14,8 +14,6 @@ export type DailyReportControllerRow = {
   motorB: number | null;
   motorC: number | null;
   status: string;
-  /** 첨부용 컨트롤러 단위 시리즈 (24h / 7d / 30d) */
-  periods: Record<TrendPeriodId, DailyReportSeries>;
 };
 
 export type DailyReportSeries = {
@@ -45,13 +43,14 @@ export type DailyReportBarn = {
   };
   controllers: DailyReportControllerRow[];
   periods: Record<TrendPeriodId, DailyReportSeries>;
-  /** 24h 발췌 표 — RPC 15분 버킷 시리즈에서 약 8포인트 샘플 */
+  /** 24h 발췌 표 — 15분 버킷에서 약 8포인트 샘플 */
   detailRows: {
     label: string;
     temp: number | null;
     humidity: number | null;
     motorA: number | null;
     motorB: number | null;
+    motorC: number | null;
   }[];
 };
 
@@ -70,6 +69,8 @@ export type DailyReportAlarmRow = {
 
 export type DailyReportPayload = {
   farmKey: FarmKey;
+  /** 표지·헤더용 농장 표시명 (내부 키 비노출) */
+  farmLabel: string;
   reportDate: string;
   generatedAt: string;
   overview: {
@@ -83,4 +84,20 @@ export type DailyReportPayload = {
   barns: DailyReportBarn[];
   /** LIVE 기준 이상상황 (모듈 에러코드 + 통신두절) */
   alarms: DailyReportAlarmRow[];
+  /**
+   * 표지 그래프 가이드 — 이 농장에 저장된 알람 상·하한
+   * (농장 스코프 → 없으면 계정 전역 → 기본 10~35℃ / 30~90%).
+   */
+  alarmGuide: {
+    tempLow: number;
+    tempHigh: number;
+    humidityLow: number;
+    humidityHigh: number;
+  };
 };
+
+export function dailyReportPdfFilename(payload: DailyReportPayload): string {
+  const raw = payload.farmLabel.trim() || "농장";
+  const safe = raw.replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80);
+  return `${safe}_일보_${payload.reportDate}.pdf`;
+}

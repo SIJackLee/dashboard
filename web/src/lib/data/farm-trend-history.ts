@@ -10,15 +10,22 @@ import {
   stallTyCodeSortKey,
 } from "@/lib/data/stall-type";
 import {
+  TREND_OVERVIEW_30D,
   TREND_PERIODS,
+  TREND_ZOOM_15M_MAX_DAYS,
   type TrendControllerPeriodData,
-  type TrendControllerSeries,
-  type TrendControllerSpSeries,
+  type TrendPeriodConfig,
   type TrendPeriodData,
   type TrendPeriodId,
   type TrendSpSeries,
   type TrendStallSeries,
 } from "@/lib/data/farm-trend-types";
+import {
+  expandCompactControllerPeriod,
+  emptyCompactControllerPeriod,
+  type CompactControllerPeriod,
+  type CompactControllerSeries,
+} from "@/lib/data/farm-trend-compact";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import {
   sliceControllerTrendFromLonger,
@@ -81,7 +88,12 @@ async function fetchRpcJsonRows<T>(
   const supabase = createRlsClient(accessToken);
   const { data, error } = await supabase.rpc(rpcName as never, args as never);
   if (error) {
-    throw new Error(error.message || `${rpcName} failed`);
+    const message = error.message || `${rpcName} failed`;
+    if (/statement timeout/i.test(message)) {
+      console.warn(`[trend] ${rpcName} statement timeout`, args.p_from, args.p_to);
+      return [];
+    }
+    throw new Error(message);
   }
   if (data == null) return [];
   return coerceTrendRpcJson<T>(data);
@@ -123,9 +135,37 @@ async function fetchControllerTrendRows(
   );
 }
 
-function eqpmnSortKey(eqpmnNo: string): number {
-  const n = Number(normalizeEqpmnNo(eqpmnNo));
-  return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
+/** 하루보다 긴 창은 24h RPC로 나눠 스캔 — statement timeout 회피. 최신 구간부터. */
+async function fetchControllerTrendRowsChunked(
+  accessToken: string,
+  farmKey: FarmKey,
+  fromMs: number,
+  toMs: number,
+  bucket: string,
+): Promise<ControllerRpcRow[]> {
+  const chunkMs = TREND_PERIODS["24h"].durationMs;
+  if (toMs - fromMs <= chunkMs + 1000) {
+    return fetchControllerTrendRows(
+      accessToken,
+      farmKey,
+      new Date(fromMs).toISOString(),
+      new Date(toMs).toISOString(),
+      bucket,
+    );
+  }
+  const rows: ControllerRpcRow[] = [];
+  for (let chunkTo = toMs; chunkTo > fromMs; chunkTo -= chunkMs) {
+    const chunkFrom = Math.max(fromMs, chunkTo - chunkMs);
+    const part = await fetchControllerTrendRows(
+      accessToken,
+      farmKey,
+      new Date(chunkFrom).toISOString(),
+      new Date(chunkTo).toISOString(),
+      bucket,
+    );
+    rows.push(...part);
+  }
+  return rows;
 }
 
 function newEmptyStallSeries(stallNo: string, bucketCount: number): TrendStallSeries {
@@ -147,7 +187,7 @@ function formatBucketLabel(date: Date, period: TrendPeriodId): string {
   const hh = String(date.getHours()).padStart(2, "0");
   const min = String(date.getMinutes()).padStart(2, "0");
   if (period === "24h") return `${hh}:${min}`;
-  // 7d/30d — 15m canonical · M/D HH (툴팁·호버; tick은 abbreviateTrendAxisLabel)
+  // 7d/30d — 1h hub·PDF · M/D HH:mm (tick은 abbreviateTrendAxisLabel)
   return `${mm}/${dd} ${hh}:${min}`;
 }
 
@@ -224,81 +264,59 @@ function buildPeriodData(
   return { period, categories, bucketAts, sp, totalSamples };
 }
 
-/** Build controller-level series grouped by SP → stall → controller. */
-function buildControllerPeriodData(
+/** RPC 희소 행 → 와이어 compact. 빈 칸 배열을 만들지 않는다. */
+function compactFromControllerRows(
   rows: ControllerRpcRow[],
   period: TrendPeriodId,
   fromMs: number,
-): TrendControllerPeriodData {
-  const cfg = TREND_PERIODS[period];
-
-  const bucketAts: string[] = [];
-  const categories: string[] = [];
-  for (let i = 0; i < cfg.bucketCount; i++) {
-    const ms = fromMs + i * cfg.strideMs;
-    const d = new Date(ms);
-    bucketAts.push(d.toISOString());
-    categories.push(formatBucketLabel(d, period));
-  }
-
-  type StallBucket = { stallNo: string; controllers: Map<string, TrendControllerSeries> };
-  type SpBucket = { stallTyCode: string; label: string; stalls: Map<string, StallBucket> };
-  const spMap = new Map<string, SpBucket>();
+  bucketCount: number,
+  strideMs: number,
+): CompactControllerPeriod {
+  const byKey = new Map<string, CompactControllerSeries>();
   let totalSamples = 0;
+  const stride = strideMs > 0 ? strideMs : 1;
 
   for (const row of rows) {
-    const code = normalizeStallTyCode(row.stall_ty_code);
-    let sp = spMap.get(code);
-    if (!sp) {
-      sp = { stallTyCode: code, label: getStallTypeName(code), stalls: new Map() };
-      spMap.set(code, sp);
-    }
-    const stallNo = (row.stall_no ?? "").trim() || "—";
-    let stall = sp.stalls.get(stallNo);
-    if (!stall) {
-      stall = { stallNo, controllers: new Map() };
-      sp.stalls.set(stallNo, stall);
-    }
     const controllerKey = (row.controller_key ?? "").trim();
     if (!controllerKey) continue;
-    let ctrl = stall.controllers.get(controllerKey);
-    if (!ctrl) {
-      ctrl = {
-        ...newEmptyStallSeries(stallNo, cfg.bucketCount),
-        controllerKey,
-        eqpmnNo: normalizeEqpmnNo(row.eqpmn_no ?? "01"),
-      };
-      stall.controllers.set(controllerKey, ctrl);
-    }
     const bucketMs = Date.parse(row.bucket_at);
-    const slot = Math.round((bucketMs - fromMs) / cfg.strideMs);
-    if (slot < 0 || slot >= cfg.bucketCount) continue;
-    ctrl.temp[slot] = toNum(row.avg_temp_c);
-    ctrl.humidity[slot] = toNum(row.avg_humidity_pct);
-    ctrl.fanSupply[slot] = toNum(row.avg_fan_supply);
-    ctrl.fanExhaust[slot] = toNum(row.avg_fan_exhaust);
-    ctrl.fanIntake[slot] = toNum(row.avg_fan_intake);
+    const slot = Math.round((bucketMs - fromMs) / stride);
+    if (slot < 0 || slot >= bucketCount) continue;
+    const code = normalizeStallTyCode(row.stall_ty_code);
+    let series = byKey.get(controllerKey);
+    if (!series) {
+      series = {
+        ty: code,
+        lb: getStallTypeName(code),
+        sn: (row.stall_no ?? "").trim() || "—",
+        k: controllerKey,
+        e: normalizeEqpmnNo(row.eqpmn_no ?? "01"),
+        p: [],
+      };
+      byKey.set(controllerKey, series);
+    }
     const n = toNum(row.sample_count) ?? 0;
-    ctrl.sampleCount[slot] = n;
     totalSamples += n;
+    series.p.push([
+      slot,
+      toNum(row.avg_temp_c),
+      toNum(row.avg_humidity_pct),
+      toNum(row.avg_fan_supply),
+      toNum(row.avg_fan_exhaust),
+      toNum(row.avg_fan_intake),
+      n,
+    ]);
   }
 
-  const sp: TrendControllerSpSeries[] = [...spMap.values()]
-    .sort((a, b) => stallTyCodeSortKey(a.stallTyCode) - stallTyCodeSortKey(b.stallTyCode))
-    .map((s) => ({
-      stallTyCode: s.stallTyCode,
-      label: s.label,
-      stalls: [...s.stalls.values()]
-        .sort((a, b) => stallNoSortKey(a.stallNo) - stallNoSortKey(b.stallNo))
-        .map((st) => ({
-          stallNo: st.stallNo,
-          controllers: [...st.controllers.values()].sort(
-            (a, b) => eqpmnSortKey(a.eqpmnNo) - eqpmnSortKey(b.eqpmnNo),
-          ),
-        })),
-    }));
-
-  return { period, categories, bucketAts, sp, totalSamples };
+  return {
+    v: 1,
+    period,
+    fromMs,
+    bucketCount,
+    strideMs,
+    totalSamples,
+    series: [...byKey.values()],
+  };
 }
 
 export async function getFarmTrendHistory(params: {
@@ -340,7 +358,7 @@ export async function getFarmTrendHistory(params: {
   return buildPeriodData(rows, params.period, fromMs);
 }
 
-/** SSR / PDF — 컨트롤러 30d 1회 → 축사 평균 변환. stall RPC 없음. */
+/** SSR / PDF — 허브와 같은 30d 1h → 축사 평균. stall RPC 없음. */
 export async function getFarmTrendAllPeriods(params: {
   farmKey: FarmKey;
   now?: number;
@@ -349,28 +367,41 @@ export async function getFarmTrendAllPeriods(params: {
   return stallTrendBundleFromController(ctrl);
 }
 
-export async function getFarmControllerTrendHistory(params: {
+function trendCacheKind(cfg: TrendPeriodConfig, overview?: boolean): string {
+  if (overview) return "rpc-json-overview-1d-chunk24h";
+  const bucket = cfg.bucket.replace(/\s+/g, "");
+  return `rpc-json-chunk24h-${bucket}-${cfg.bucketCount}`;
+}
+
+export async function getFarmControllerTrendHistoryCompact(params: {
   farmKey: FarmKey;
   period: TrendPeriodId;
   now?: number;
-}): Promise<TrendControllerPeriodData> {
-  const cfg = TREND_PERIODS[params.period];
+  overview?: boolean;
+  /** 테스트·특수 축. 허브·PDF 기본은 TREND_PERIODS. */
+  cfg?: TrendPeriodConfig;
+}): Promise<CompactControllerPeriod> {
+  const cfg =
+    params.cfg ??
+    (params.overview && params.period === "30d"
+      ? TREND_OVERVIEW_30D
+      : TREND_PERIODS[params.period]);
   const toMs = alignedToMs(params.now ?? Date.now());
   const fromMs = toMs - cfg.durationMs;
-  const emptyResult: TrendControllerPeriodData = {
-    period: params.period,
-    categories: [],
-    bucketAts: [],
-    sp: [],
-    totalSamples: 0,
-  };
+  const empty = emptyCompactControllerPeriod(
+    params.period,
+    fromMs,
+    cfg.bucketCount,
+    cfg.strideMs,
+  );
 
   const accessToken = await getAccessTokenOrNull();
-  if (!accessToken) return emptyResult;
+  if (!accessToken) return empty;
 
   const user = await getCurrentUser();
   const userId = user?.id ?? "anon";
   const scopeKey = farmKeyId(params.farmKey);
+  const cacheKind = trendCacheKind(cfg, params.overview);
 
   const rows = await cachedLiveQuery(
     [
@@ -379,23 +410,39 @@ export async function getFarmControllerTrendHistory(params: {
       scopeKey,
       params.period,
       String(toMs),
-      "rpc-json",
+      cacheKind,
     ],
     ["live", `controller-trend:${scopeKey}`],
     () =>
-      fetchControllerTrendRows(
+      fetchControllerTrendRowsChunked(
         accessToken,
         params.farmKey,
-        new Date(fromMs).toISOString(),
-        new Date(toMs).toISOString(),
+        fromMs,
+        toMs,
         cfg.bucket,
       ),
   );
 
-  return buildControllerPeriodData(rows, params.period, fromMs);
+  return compactFromControllerRows(
+    rows,
+    params.period,
+    fromMs,
+    cfg.bucketCount,
+    cfg.strideMs,
+  );
 }
 
-/** 목록 그래프 — canonical 30d(15m) 1회 → 7d/24h slice. */
+export async function getFarmControllerTrendHistory(params: {
+  farmKey: FarmKey;
+  period: TrendPeriodId;
+  now?: number;
+}): Promise<TrendControllerPeriodData> {
+  return expandCompactControllerPeriod(
+    await getFarmControllerTrendHistoryCompact(params),
+  );
+}
+
+/** PDF·목록 — 허브와 동일. 30d 1h → 7d 슬라이스, 24h는 15분(1시간 축에서 슬라이스 불가). */
 export async function getFarmControllerTrendAllPeriods(params: {
   farmKey: FarmKey;
   now?: number;
@@ -415,14 +462,96 @@ export async function getFarmControllerTrendAllPeriods(params: {
           period: "7d",
           now,
         });
-  const h24Slice = sliceControllerTrendFromLonger(d30, "24h");
-  const h24 =
-    h24Slice && h24Slice.totalSamples > 0
-      ? h24Slice
-      : await getFarmControllerTrendHistory({
-          farmKey: params.farmKey,
-          period: "24h",
-          now,
-        });
+  const h24 = await getFarmControllerTrendHistory({
+    farmKey: params.farmKey,
+    period: "24h",
+    now,
+  });
   return { "24h": h24, "7d": d7, "30d": d30 };
+}
+
+const WINDOW_15M_STRIDE_MS = 15 * 60 * 1000;
+const WINDOW_15M_MAX_MS =
+  TREND_ZOOM_15M_MAX_DAYS * 24 * 60 * 60 * 1000 + WINDOW_15M_STRIDE_MS;
+
+function alignTrendWindowBounds(fromMs: number, toMs: number): {
+  fromMs: number;
+  toMs: number;
+} | null {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) {
+    return null;
+  }
+  const alignedFrom =
+    Math.floor(fromMs / WINDOW_15M_STRIDE_MS) * WINDOW_15M_STRIDE_MS;
+  let alignedTo = Math.ceil(toMs / WINDOW_15M_STRIDE_MS) * WINDOW_15M_STRIDE_MS;
+  if (alignedTo <= alignedFrom) {
+    alignedTo = alignedFrom + WINDOW_15M_STRIDE_MS * 2;
+  }
+  if (alignedTo - alignedFrom > WINDOW_15M_MAX_MS) {
+    return {
+      fromMs: alignedTo - TREND_ZOOM_15M_MAX_DAYS * 24 * 60 * 60 * 1000,
+      toMs: alignedTo,
+    };
+  }
+  return { fromMs: alignedFrom, toMs: alignedTo };
+}
+
+/** 브러시 창 ≤ 48h — 그 구간만 15분 스캔. */
+export async function getFarmControllerTrendWindowCompact(params: {
+  farmKey: FarmKey;
+  fromMs: number;
+  toMs: number;
+}): Promise<CompactControllerPeriod> {
+  const aligned = alignTrendWindowBounds(params.fromMs, params.toMs);
+  const strideMs = WINDOW_15M_STRIDE_MS;
+  if (!aligned) {
+    return emptyCompactControllerPeriod("24h", params.fromMs, 0, strideMs);
+  }
+  const bucketCount = Math.max(
+    2,
+    Math.round((aligned.toMs - aligned.fromMs) / strideMs),
+  );
+  const period: TrendPeriodId =
+    aligned.toMs - aligned.fromMs > 24 * 60 * 60 * 1000 + 1000 ? "7d" : "24h";
+  const empty = emptyCompactControllerPeriod(
+    period,
+    aligned.fromMs,
+    bucketCount,
+    strideMs,
+  );
+
+  const accessToken = await getAccessTokenOrNull();
+  if (!accessToken) return empty;
+
+  const user = await getCurrentUser();
+  const userId = user?.id ?? "anon";
+  const scopeKey = farmKeyId(params.farmKey);
+
+  const rows = await cachedLiveQuery(
+    [
+      "farm-controller-trend-window",
+      userId,
+      scopeKey,
+      String(aligned.fromMs),
+      String(aligned.toMs),
+      "rpc-json-window15m-chunk24h",
+    ],
+    ["live", `controller-trend:${scopeKey}`],
+    () =>
+      fetchControllerTrendRowsChunked(
+        accessToken,
+        params.farmKey,
+        aligned.fromMs,
+        aligned.toMs,
+        "15 minutes",
+      ),
+  );
+
+  return compactFromControllerRows(
+    rows,
+    period,
+    aligned.fromMs,
+    bucketCount,
+    strideMs,
+  );
 }

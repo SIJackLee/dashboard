@@ -6,6 +6,7 @@ import { signInWithEmail } from "@/app/auth/actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoginSubmitButton } from "@/components/login/login-submit-button";
+import type { FarmKey } from "@/lib/data/farm-key";
 
 const ERROR_MESSAGES: Record<string, string> = {
   credentials: "이메일 또는 비밀번호가 올바르지 않습니다.",
@@ -15,7 +16,10 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 type LoginFormProps = {
   initialError?: string | null;
-  onSuccessNavigate?: (nextPath: "/farm" | "/pending") => void | Promise<void>;
+  onSuccessNavigate?: (
+    nextPath: "/farm" | "/pending",
+    farmKey: FarmKey | null,
+  ) => void | Promise<void>;
 };
 
 export function LoginForm({
@@ -34,7 +38,7 @@ export function LoginForm({
       await router.refresh();
 
       if (onSuccessNavigate) {
-        await onSuccessNavigate(result.nextPath);
+        await onSuccessNavigate(result.nextPath, result.farmKey);
       } else {
         router.push(result.nextPath);
       }

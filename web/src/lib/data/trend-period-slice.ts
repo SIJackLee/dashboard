@@ -1,15 +1,19 @@
 /**
- * Canonical 30d(15m) → shorter periods — 동일 bucket·stride only.
+ * Longer period → shorter tail — 동일 bucket·stride only.
+ * Hub·PDF: 30d 1h → 7d 1h. 15분 축은 줌 창·테스트만 TREND_15M_PERIODS.
  */
 import {
   TREND_PERIODS,
   emptyTrendPeriodData,
   type TrendControllerPeriodData,
   type TrendControllerSeries,
+  type TrendPeriodConfig,
   type TrendPeriodData,
   type TrendPeriodId,
   type TrendStallSeries,
 } from "@/lib/data/farm-trend-types";
+
+type PeriodTable = Record<TrendPeriodId, TrendPeriodConfig>;
 
 function sliceNumericCols<T extends TrendStallSeries>(
   series: T,
@@ -30,24 +34,26 @@ function sliceNumericCols<T extends TrendStallSeries>(
 function tailSliceStart(
   sourceLength: number,
   targetPeriod: Exclude<TrendPeriodId, "30d">,
+  periods: PeriodTable = TREND_PERIODS,
 ): number | null {
-  const dstCfg = TREND_PERIODS[targetPeriod];
+  const dstCfg = periods[targetPeriod];
   if (sourceLength < dstCfg.bucketCount) return null;
   return sourceLength - dstCfg.bucketCount;
 }
 
-/** 30d(15m×2880) → 7d(672) | 24h(96). bucket 불일치·길이 부족 시 null. */
+/** 동일 bucket·stride 인 더 짧은 기간 tail. 30d 1h → 24h 15m 은 null. */
 export function sliceControllerTrendFromLonger(
   source: TrendControllerPeriodData,
   targetPeriod: Exclude<TrendPeriodId, "30d">,
+  periods: PeriodTable = TREND_PERIODS,
 ): TrendControllerPeriodData | null {
-  if (source.period !== "30d") return null;
-  const srcCfg = TREND_PERIODS[source.period];
-  const dstCfg = TREND_PERIODS[targetPeriod];
+  if (source.period === targetPeriod) return source;
+  const srcCfg = periods[source.period];
+  const dstCfg = periods[targetPeriod];
   if (srcCfg.bucket !== dstCfg.bucket) return null;
   if (srcCfg.strideMs !== dstCfg.strideMs) return null;
 
-  const start = tailSliceStart(source.bucketAts.length, targetPeriod);
+  const start = tailSliceStart(source.bucketAts.length, targetPeriod, periods);
   if (start == null) return null;
 
   let totalSamples = 0;
@@ -75,14 +81,15 @@ export function sliceControllerTrendFromLonger(
 export function sliceStallTrendFromLonger(
   source: TrendPeriodData,
   targetPeriod: Exclude<TrendPeriodId, "30d">,
+  periods: PeriodTable = TREND_PERIODS,
 ): TrendPeriodData | null {
   if (source.period !== "30d") return null;
-  const srcCfg = TREND_PERIODS[source.period];
-  const dstCfg = TREND_PERIODS[targetPeriod];
+  const srcCfg = periods[source.period];
+  const dstCfg = periods[targetPeriod];
   if (srcCfg.bucket !== dstCfg.bucket) return null;
   if (srcCfg.strideMs !== dstCfg.strideMs) return null;
 
-  const start = tailSliceStart(source.bucketAts.length, targetPeriod);
+  const start = tailSliceStart(source.bucketAts.length, targetPeriod, periods);
   if (start == null) return null;
 
   let totalSamples = 0;
@@ -99,6 +106,47 @@ export function sliceStallTrendFromLonger(
     period: targetPeriod,
     categories: source.categories.slice(start),
     bucketAts: source.bucketAts.slice(start),
+    sp,
+    totalSamples,
+  };
+}
+
+/** 구간 15분 — bucketAt 이 [fromMs, toMs) 인 칸만. */
+export function sliceControllerTrendByTime(
+  source: TrendControllerPeriodData,
+  fromMs: number,
+  toMs: number,
+): TrendControllerPeriodData | null {
+  if (!(toMs > fromMs) || source.bucketAts.length < 2) return null;
+  let start = 0;
+  let end = source.bucketAts.length;
+  for (let i = 0; i < source.bucketAts.length; i++) {
+    const t = Date.parse(source.bucketAts[i] ?? "");
+    if (!Number.isFinite(t)) continue;
+    if (t < fromMs) start = i + 1;
+    if (t < toMs) end = i + 1;
+  }
+  if (end - start < 2) return null;
+  if (start === 0 && end === source.bucketAts.length) return source;
+
+  let totalSamples = 0;
+  const count = end - start;
+  const sp = source.sp.map((s) => ({
+    ...s,
+    stalls: s.stalls.map((st) => ({
+      stallNo: st.stallNo,
+      controllers: st.controllers.map((c) => {
+        const sliced = sliceNumericCols(c, start, count);
+        totalSamples += sliced.sampleCount.reduce((a, n) => a + n, 0);
+        return sliced as TrendControllerSeries;
+      }),
+    })),
+  }));
+
+  return {
+    period: source.period,
+    categories: source.categories.slice(start, end),
+    bucketAts: source.bucketAts.slice(start, end),
     sp,
     totalSamples,
   };

@@ -3,12 +3,15 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { resolvePostLoginPath } from "@/lib/auth/resolve-post-login-path";
+import { resolveFixedFarmKey } from "@/lib/auth/farm-access";
+import { getCurrentUser } from "@/lib/auth/get-current-user";
+import type { FarmKey } from "@/lib/data/farm-key";
 import { createClient } from "@/lib/supabase/server";
 
 export type SignInErrorCode = "missing" | "credentials" | "auth";
 
 export type SignInResult =
-  | { ok: true; nextPath: "/farm" | "/pending" }
+  | { ok: true; nextPath: "/farm" | "/pending"; farmKey: FarmKey | null }
   | { ok: false; error: SignInErrorCode };
 
 export type OAuthProvider = "google" | "kakao";
@@ -23,6 +26,29 @@ async function warmAdminHubOverviewCache(): Promise<void> {
   } catch {
     /* best-effort — /farm이 다시 조회 */
   }
+}
+
+async function farmKeyForPostLoginWarm(): Promise<FarmKey | null> {
+  const user = await getCurrentUser();
+  if (!user?.hasAccess || user.isAdmin) return null;
+  return resolveFixedFarmKey(user);
+}
+
+async function okSignIn(nextPath: "/farm" | "/pending"): Promise<{
+  ok: true;
+  nextPath: "/farm" | "/pending";
+  farmKey: FarmKey | null;
+}> {
+  return {
+    ok: true,
+    nextPath,
+    farmKey: nextPath === "/farm" ? await farmKeyForPostLoginWarm() : null,
+  };
+}
+
+/** OAuth enter — 세션이 이미 있을 때 필드 warm 대상. */
+export async function getPostLoginFarmWarmKeyAction(): Promise<FarmKey | null> {
+  return farmKeyForPostLoginWarm();
 }
 
 function appOriginFromHeaders(headerStore: Headers): string {
@@ -68,7 +94,7 @@ export async function signInWithEmail(formData: FormData): Promise<SignInResult>
   ) {
     await warmAdminHubOverviewCache();
   }
-  return { ok: true, nextPath };
+  return okSignIn(nextPath);
 }
 
 export async function signInWithOAuthProvider(provider: OAuthProvider) {
@@ -130,7 +156,7 @@ export async function finalizeNativeOAuthLogin(): Promise<SignInResult> {
   ) {
     await warmAdminHubOverviewCache();
   }
-  return { ok: true, nextPath };
+  return okSignIn(nextPath);
 }
 
 export async function signOut() {

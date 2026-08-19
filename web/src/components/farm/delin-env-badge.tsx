@@ -6,7 +6,10 @@ import { Bot } from "lucide-react";
 import type { BarnReading } from "@/lib/data/iot";
 import { DELIN_NAME } from "@/lib/aria/aria-mode";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
-import { pigEnvBadgeAdvice } from "@/lib/farm/pig-env-recommend";
+import {
+  pigEnvAdviceListPreview,
+  pigEnvBadgeAdvice,
+} from "@/lib/farm/pig-env-recommend";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +56,7 @@ export function DelinEnvBadge({
   const docked = compact && !open;
   const noticeCount = advice.offBand ? advice.noticeCount : 0;
   const showNotice = docked && noticeCount > 0;
+  const listPreview = pigEnvAdviceListPreview(advice.items);
   const noticeLabel = noticeCount > 9 ? "9+" : String(noticeCount);
   const host = useSyncExternalStore(
     () => () => {},
@@ -93,7 +97,7 @@ export function DelinEnvBadge({
           id="delin-env-badge-bubble"
           data-testid="delin-env-badge-bubble"
         >
-          <p className="text-[length:var(--density-readout-label)] font-medium tracking-[var(--tracking-readout-label)] text-primary/70">
+          <p className="text-[length:var(--density-readout-label)] font-medium tracking-[var(--tracking-readout-label)] text-primary">
             {DELIN_NAME}
           </p>
           <p
@@ -108,9 +112,16 @@ export function DelinEnvBadge({
           >
             {advice.summary}
           </p>
-          {advice.detail ? (
-            <p className="mt-1.5 text-[length:var(--density-meta)] leading-snug text-muted-foreground break-keep">
-              {advice.detail}
+          {listPreview.shown.length > 0 ? (
+            <ul className="mt-1.5 list-disc space-y-1 pl-4 text-[length:var(--density-meta)] leading-snug text-muted-foreground break-keep">
+              {listPreview.shown.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+          {listPreview.extraCount > 0 ? (
+            <p className="mt-1 text-[length:var(--density-meta)] leading-snug text-muted-foreground break-keep">
+              외 {listPreview.extraCount}건
             </p>
           ) : null}
         </div>
@@ -122,11 +133,7 @@ export function DelinEnvBadge({
         className={cn(
           "pointer-events-auto inline-flex h-10 min-w-10 items-center overflow-hidden rounded-full border bg-card/95 text-sm font-medium shadow-[var(--surface-shadow-tile)] backdrop-blur-md",
           docked ? "justify-center gap-0 px-2.5" : "gap-2 px-3.5",
-          danger
-            ? "border-[color-mix(in_oklch,var(--status-danger)_50%,var(--border))] text-[var(--status-danger)]"
-            : advice.offBand
-              ? "border-[color-mix(in_oklch,var(--status-warn)_45%,var(--border))] text-[var(--status-warn)]"
-              : "border-primary/30 text-primary",
+          "border-primary/35 text-primary",
           "hover:bg-muted/40",
           dockChip,
         )}

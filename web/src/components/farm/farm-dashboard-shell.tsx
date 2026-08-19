@@ -90,14 +90,18 @@ function FarmLivePageContent({
 
   if (isBootstrapping) {
     return (
-      <FarmContentSkeleton
-        view={initialHubView === "list" ? "list" : undefined}
-      />
+      <>
+        <NavContentReadyMarker ready={false} />
+        <FarmContentSkeleton
+          view={initialHubView === "list" ? "list" : undefined}
+        />
+      </>
     );
   }
 
   return (
     <StaleWhileRevalidateShell stale={isStale}>
+      <NavContentReadyMarker ready />
       <FarmPageContent
         readings={slice.readings}
         barnSnapshots={slice.barnSnapshots}
@@ -374,7 +378,6 @@ export function FarmDashboardShell({
 
   return (
     <FarmLiveRefreshProvider farmKey={farmKey} initial={initialSlice}>
-      <NavContentReadyMarker />
       <div className="space-y-4 md:space-y-5">
         {isAdmin && deferAdminGridLoad ? (
           <AdminHubBody

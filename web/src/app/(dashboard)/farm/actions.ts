@@ -6,9 +6,11 @@ import { canEditFarmScope } from "@/lib/auth/farm-access";
 import type { FarmKey } from "@/lib/data/farm-key";
 import {
   getFarmControllerTrendAllPeriods,
-  getFarmControllerTrendHistory,
+  getFarmControllerTrendHistoryCompact,
+  getFarmControllerTrendWindowCompact,
   getFarmTrendAllPeriods,
 } from "@/lib/data/farm-trend-history";
+import type { CompactControllerPeriod } from "@/lib/data/farm-trend-compact";
 import type {
   TrendControllerPeriodData,
   TrendPeriodData,
@@ -128,15 +130,32 @@ export async function fetchFarmScopedPanelDataAction(
   });
 }
 
-/** 통합 추이 progressive — 24h 먼저, 30d는 후속. */
+/** 통합 추이 progressive — compact 희소 JSON. 허브 24h 15분 · 7d/30d 1시간. */
 export async function fetchFarmControllerTrendPeriodAction(
   farmKey: FarmKey,
   period: TrendPeriodId,
-): Promise<TrendControllerPeriodData> {
+): Promise<CompactControllerPeriod> {
   if (period !== "24h" && period !== "7d" && period !== "30d") {
     throw new Error("Invalid trend period");
   }
-  return getFarmControllerTrendHistory({ farmKey, period });
+  return getFarmControllerTrendHistoryCompact({ farmKey, period });
+}
+
+const WINDOW_15M_MAX_MS = 2.5 * 24 * 60 * 60 * 1000;
+
+/** 브러시 창 ≤ 48h — 구간 15분만. */
+export async function fetchFarmControllerTrendWindowAction(
+  farmKey: FarmKey,
+  fromMs: number,
+  toMs: number,
+): Promise<CompactControllerPeriod> {
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs) || toMs <= fromMs) {
+    throw new Error("Invalid trend window");
+  }
+  if (toMs - fromMs > WINDOW_15M_MAX_MS) {
+    throw new Error("Trend window too long");
+  }
+  return getFarmControllerTrendWindowCompact({ farmKey, fromMs, toMs });
 }
 
 /** 목록 graph 모드 — 컨트롤러별 추이 (lazy fetch). */

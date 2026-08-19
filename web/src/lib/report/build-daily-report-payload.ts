@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { FarmKey } from "@/lib/data/farm-key";
+import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { getFarmControllerTrendAllPeriods } from "@/lib/data/farm-trend-history";
 import type {
   TrendControllerPeriodData,
@@ -9,7 +9,11 @@ import type {
 } from "@/lib/data/farm-trend-types";
 import { fetchLiveReadings } from "@/lib/data/iot-live-fetch";
 import { mergeSituationAlarms } from "@/lib/data/alarms";
+import { buildAlarmScopeKey, resolveThresholdsForScope } from "@/lib/data/alarm-scope";
+import { getAlarmSettings } from "@/lib/data/alarm-settings";
 import { fetchActiveModuleAlarms } from "@/lib/data/module-alarms";
+import { getFarmLocation } from "@/lib/data/farm-location";
+import { farmDisplayLabel } from "@/lib/data/farm-summaries";
 import { getStallTypeName } from "@/lib/data/stall-type";
 import {
   barnJudgeFromControllerStatuses,
@@ -72,9 +76,8 @@ function avgColumns(
 }
 
 /**
- * PDF용 시리즈 — UI GRAPH_BARS(24/28/30) 다운샘플 없이
- * RPC 정렬 버킷 그대로 (24h×96 / 7d×672 / 30d×2880 · 15분).
- * 축사 내 컨트롤러는 슬롯 평균만 적용.
+ * PDF용 시리즈 — 허브 TREND_PERIODS 그대로 (24h×96 15분 / 7d×168 1h / 30d×720 1h).
+ * 인쇄 다운샘플은 캔버스에서 LTTB. 축사 내 컨트롤러는 슬롯 평균.
  */
 function seriesFromControllers(
   categories: string[],
@@ -101,43 +104,6 @@ function seriesFromControllers(
   };
 }
 
-function emptySeries(): DailyReportSeries {
-  return {
-    categories: [],
-    temp: [],
-    humidity: [],
-    motorA: [],
-    motorB: [],
-    motorC: [],
-  };
-}
-
-function seriesFromOneController(
-  categories: string[],
-  c: TrendControllerSeries | undefined,
-): DailyReportSeries {
-  if (!c || !categories.length) return emptySeries();
-  return {
-    categories: categories.slice(),
-    temp: c.temp.slice(),
-    humidity: c.humidity.slice(),
-    motorA: c.fanIntake.slice(),
-    motorB: c.fanExhaust.slice(),
-    motorC: c.fanSupply.slice(),
-  };
-}
-
-function matchTrendController(
-  ctrls: TrendControllerSeries[],
-  controllerKey: string,
-  eqpmnNo: string,
-): TrendControllerSeries | undefined {
-  const byKey = ctrls.find((c) => c.controllerKey === controllerKey);
-  if (byKey) return byKey;
-  const eq = String(eqpmnNo).trim();
-  return ctrls.find((c) => String(c.eqpmnNo).trim() === eq);
-}
-
 function detailFrom24h(series: DailyReportSeries): DailyReportBarn["detailRows"] {
   const finiteIdx: number[] = [];
   for (let i = 0; i < series.categories.length; i++) {
@@ -145,7 +111,8 @@ function detailFrom24h(series: DailyReportSeries): DailyReportBarn["detailRows"]
       series.temp[i] != null ||
       series.humidity[i] != null ||
       series.motorA[i] != null ||
-      series.motorB[i] != null
+      series.motorB[i] != null ||
+      series.motorC[i] != null
     ) {
       finiteIdx.push(i);
     }
@@ -167,6 +134,7 @@ function detailFrom24h(series: DailyReportSeries): DailyReportBarn["detailRows"]
     humidity: series.humidity[i] ?? null,
     motorA: series.motorA[i] ?? null,
     motorB: series.motorB[i] ?? null,
+    motorC: series.motorC[i] ?? null,
   }));
 }
 
@@ -213,11 +181,19 @@ function countFinite(values: (number | null)[]): number {
 export async function buildDailyReportPayload(
   farmKey: FarmKey,
 ): Promise<DailyReportPayload> {
-  const [trends, readings, moduleAlarms] = await Promise.all([
-    getFarmControllerTrendAllPeriods({ farmKey }),
-    fetchLiveReadings({ farmKey }),
-    fetchActiveModuleAlarms(farmKey),
-  ]);
+  const [trends, readings, moduleAlarms, location, alarmSettings] =
+    await Promise.all([
+      getFarmControllerTrendAllPeriods({ farmKey }),
+      fetchLiveReadings({ farmKey }),
+      fetchActiveModuleAlarms(farmKey),
+      getFarmLocation(farmKey),
+      getAlarmSettings(),
+    ]);
+
+  const alarmGuide = resolveThresholdsForScope(
+    alarmSettings,
+    buildAlarmScopeKey({ farmId: farmKeyId(farmKey) }),
+  );
 
   const alarms = toDailyReportAlarmRows(
     mergeSituationAlarms(moduleAlarms, readings),
@@ -283,17 +259,6 @@ export async function buildDailyReportPayload(
           chB?.fanPct ?? r.fanExhaust ?? r.fanExhaustSeries.at(-1) ?? null;
         const motorC =
           chC?.fanPct ?? r.fanSupply ?? r.fanSupplySeries.at(-1) ?? null;
-        const periods = {} as Record<TrendPeriodId, DailyReportSeries>;
-        for (const period of PERIODS) {
-          const cats = trends[period].categories;
-          const ctrls = findStallControllers(trends[period], stallTyCode, stallNo);
-          const trend = matchTrendController(
-            ctrls,
-            r.controllerKey,
-            r.eqpmnNo,
-          );
-          periods[period] = seriesFromOneController(cats, trend);
-        }
         return {
           controllerKey: r.controllerKey,
           eqpmnNo: r.eqpmnNo,
@@ -303,7 +268,6 @@ export async function buildDailyReportPayload(
           motorB,
           motorC,
           status: r.status,
-          periods,
         };
       });
 
@@ -349,6 +313,7 @@ export async function buildDailyReportPayload(
 
   return {
     farmKey,
+    farmLabel: farmDisplayLabel(farmKey, location?.farmName),
     reportDate: formatKstDate(),
     generatedAt: formatKstDateTime(),
     overview: {
@@ -360,6 +325,7 @@ export async function buildDailyReportPayload(
     },
     barns,
     alarms,
+    alarmGuide,
   };
 }
 
@@ -370,5 +336,6 @@ export function dailyReportSeriesPointCount(series: DailyReportSeries): number {
     countFinite(series.humidity),
     countFinite(series.motorA),
     countFinite(series.motorB),
+    countFinite(series.motorC),
   );
 }

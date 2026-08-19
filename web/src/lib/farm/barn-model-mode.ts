@@ -85,6 +85,13 @@ export function barnModelEntranceSettled(mode: BarnModelViewMode): boolean {
   return mode.kind === "entrance" && mode.settled;
 }
 
+/** compact 시트 — 입구 정착 또는 전체 보기 통합 추이일 때 차트 페이지 */
+export function barnModelMobileChartReady(mode: BarnModelViewMode): boolean {
+  if (mode.kind === "entrance") return mode.settled;
+  if (mode.kind === "field") return Boolean(mode.fieldTrendTy);
+  return false;
+}
+
 export function reduceBarnModelView(
   state: BarnModelViewState,
   action: BarnModelViewAction,

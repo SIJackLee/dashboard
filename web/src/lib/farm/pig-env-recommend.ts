@@ -252,8 +252,37 @@ export type PigEnvAdviceCopy = {
   noticeCount: number;
   stallLabel: string | null;
   summary: string;
+  /** 말풍선 목록 — 축사유형 1줄. 화면은 최대 `PIG_ENV_ADVICE_LIST_CAP`. */
+  items: string[];
+  /** items를 이은 호환 문장. 화면은 items를 쓴다. */
   detail: string | null;
 };
+
+/** 말풍선에 바로 보여줄 유형 줄 수. 나머지는 「외 N건」. */
+export const PIG_ENV_ADVICE_LIST_CAP = 3;
+
+export function pigEnvAdviceListPreview(
+  items: string[],
+  cap = PIG_ENV_ADVICE_LIST_CAP,
+): { shown: string[]; extraCount: number } {
+  const limit = Math.max(0, cap);
+  const shown = items.slice(0, limit);
+  return {
+    shown,
+    extraCount: Math.max(0, items.length - shown.length),
+  };
+}
+
+function withAdviceItems(
+  base: Omit<PigEnvAdviceCopy, "items" | "detail">,
+  items: string[],
+): PigEnvAdviceCopy {
+  return {
+    ...base,
+    items,
+    detail: items.length ? `${items.join(". ")}.` : null,
+  };
+}
 
 export type PigEnvAdviceTier =
   | "offline"
@@ -326,61 +355,93 @@ function fmtPctSpoken(n: number): string {
   return `${Math.round(n)}%`;
 }
 
+function pigEnvOffBandRank(v: PigEnvTypeVerdict): number {
+  let score = 0;
+  if (pigEnvFitOffBand(v.tempFit) && v.tempAvgC != null) {
+    const d =
+      v.tempFit === "high"
+        ? v.tempAvgC - v.tempMaxC
+        : v.tempMinC - v.tempAvgC;
+    score += 1000 + Math.max(0, d);
+  }
+  if (pigEnvFitOffBand(v.humidityFit) && v.humidityAvgPct != null) {
+    const d =
+      v.humidityFit === "high"
+        ? v.humidityAvgPct - v.humidityMaxPct
+        : v.humidityMinPct - v.humidityAvgPct;
+    score += Math.max(0, d);
+  }
+  return score;
+}
+
+/** 이탈 유형 1줄. 온·습이 같이 벗어나면 한 줄에 이음. 내부 코드 없음. */
+function pigEnvTypeOffLine(v: PigEnvTypeVerdict): string {
+  const parts: string[] = [];
+  if (pigEnvFitOffBand(v.tempFit) && v.tempAvgC != null) {
+    parts.push(
+      `온도 ${fmtTempSpoken(v.tempAvgC)}(권장 ${fmtTempSpoken(v.tempMinC)}~${fmtTempSpoken(v.tempMaxC)})`,
+    );
+  }
+  if (pigEnvFitOffBand(v.humidityFit) && v.humidityAvgPct != null) {
+    parts.push(
+      `습도 ${fmtPctSpoken(v.humidityAvgPct)}(권장 ${fmtPctSpoken(v.humidityMinPct)}~${fmtPctSpoken(v.humidityMaxPct)})`,
+    );
+  }
+  return `${v.stallLabel} ${parts.join(" · ")}`.trim();
+}
+
 /** 뱃지 말풍선 — 내부 코드·영문 필드 없음. */
 export function pigEnvAdviceCopy(
   verdicts: PigEnvTypeVerdict[],
 ): PigEnvAdviceCopy {
   const worst = pigEnvWorstVerdict(verdicts);
   if (!worst) {
-    return {
-      offBand: false,
-      tier: "none",
-      noticeCount: 0,
-      stallLabel: null,
-      summary: "권장 환경으로 볼 축사유형이 없습니다.",
-      detail: null,
-    };
+    return withAdviceItems(
+      {
+        offBand: false,
+        tier: "none",
+        noticeCount: 0,
+        stallLabel: null,
+        summary: "권장 환경으로 볼 축사유형이 없습니다.",
+      },
+      [],
+    );
   }
   if (!pigEnvVerdictOffBand(worst)) {
-    return {
-      offBand: false,
-      tier: "ok",
-      noticeCount: 0,
-      stallLabel: worst.stallLabel,
-      summary: "축사유형별 권장 온·습도 안에 있습니다.",
-      detail: null,
-    };
-  }
-  const parts: string[] = [];
-  if (pigEnvFitOffBand(worst.tempFit) && worst.tempAvgC != null) {
-    const rec =
-      worst.recommendTempC != null
-        ? ` 목표는 ${fmtTempSpoken(worst.recommendTempC)}입니다`
-        : "";
-    parts.push(
-      `${worst.stallLabel} 온도 ${fmtTempSpoken(worst.tempAvgC)}로 권장 ${fmtTempSpoken(worst.tempMinC)}에서 ${fmtTempSpoken(worst.tempMaxC)}보다 ${pigEnvFitLabel(worst.tempFit)}입니다${rec}`,
+    return withAdviceItems(
+      {
+        offBand: false,
+        tier: "ok",
+        noticeCount: 0,
+        stallLabel: worst.stallLabel,
+        summary: "축사유형별 권장 온·습도 안에 있습니다.",
+      },
+      [],
     );
   }
-  if (pigEnvFitOffBand(worst.humidityFit) && worst.humidityAvgPct != null) {
-    const rec =
-      worst.recommendHumidityPct != null
-        ? ` 목표는 ${fmtPctSpoken(worst.recommendHumidityPct)}입니다`
-        : "";
-    parts.push(
-      `${worst.stallLabel} 습도 ${fmtPctSpoken(worst.humidityAvgPct)}로 권장 ${fmtPctSpoken(worst.humidityMinPct)}에서 ${fmtPctSpoken(worst.humidityMaxPct)}보다 ${pigEnvFitLabel(worst.humidityFit)}입니다${rec}`,
-    );
-  }
-  return {
-    offBand: true,
-    tier: "offband",
-    noticeCount: Math.max(
-      1,
-      verdicts.filter(pigEnvVerdictOffBand).length,
-    ),
-    stallLabel: worst.stallLabel,
-    summary: `${worst.stallLabel} 권장 온·습도를 벗어났습니다.`,
-    detail: parts.length ? `${parts.join(". ")}.` : null,
-  };
+  const off = verdicts
+    .filter(pigEnvVerdictOffBand)
+    .sort((a, b) => {
+      const rank = pigEnvOffBandRank(b) - pigEnvOffBandRank(a);
+      if (rank !== 0) return rank;
+      return stallTyCodeSortKey(a.stallTyCode) - stallTyCodeSortKey(b.stallTyCode);
+    });
+  const items = off.map(pigEnvTypeOffLine);
+  const noticeCount = Math.max(1, off.length);
+  const top = off[0] ?? worst;
+  return withAdviceItems(
+    {
+      offBand: true,
+      tier: "offband",
+      noticeCount,
+      stallLabel: top.stallLabel,
+      summary:
+        off.length === 1
+          ? `${top.stallLabel} 권장 온·습도를 벗어났습니다.`
+          : `권장 온·습도를 벗어난 축사유형이 ${off.length}곳입니다.`,
+    },
+    items,
+  );
 }
 
 type PigEnvBadgeReading = Pick<
@@ -425,16 +486,22 @@ export function pigEnvBadgeAdvice(
 
   const offlineCount = focus.filter((r) => r.status === "offline").length;
   if (offlineCount > 0) {
-    return {
-      offBand: true,
-      tier: "offline",
-      noticeCount: offlineCount,
-      stallLabel: scopeLabel,
-      summary: `통신이 두절된 컨트롤러가 ${offlineCount}대 있습니다.`,
-      detail: "통신·전원을 확인하세요.",
-    };
+    return withAdviceItems(
+      {
+        offBand: true,
+        tier: "offline",
+        noticeCount: offlineCount,
+        stallLabel: scopeLabel,
+        summary: `통신이 두절된 컨트롤러가 ${offlineCount}대 있습니다.`,
+      },
+      ["통신·전원을 확인하세요"],
+    );
   }
 
+  const alarmByType = new Map<
+    string,
+    { label: string; hit: PigEnvSafetyHit }
+  >();
   let worstHit: { hit: PigEnvSafetyHit; label: string } | null = null;
   let alarmCount = 0;
   for (const r of focus) {
@@ -442,20 +509,35 @@ export function pigEnvBadgeAdvice(
     const hit = pigEnvSafetyHit(r);
     if (!hit) continue;
     alarmCount += 1;
+    const code = normalizeStallTyCode(r.stallTyCode);
+    const label = formatStallTypeLabel(code);
+    const prev = alarmByType.get(code);
+    if (!prev || pigEnvSafetyRank(hit) > pigEnvSafetyRank(prev.hit)) {
+      alarmByType.set(code, { label, hit });
+    }
     if (!worstHit || pigEnvSafetyRank(hit) > pigEnvSafetyRank(worstHit.hit)) {
-      const label = formatStallTypeLabel(normalizeStallTyCode(r.stallTyCode));
       worstHit = { hit, label };
     }
   }
   if (worstHit) {
-    return {
-      offBand: true,
-      tier: "alarm",
-      noticeCount: Math.max(1, alarmCount),
-      stallLabel: worstHit.label,
-      summary: `${pigEnvSafetyKindLabel(worstHit.hit.kind)}을 벗어난 장비 경보가 있습니다.`,
-      detail: `${pigEnvSafetyHitSentence(worstHit.label, worstHit.hit)}. 즉시 확인하세요.`,
-    };
+    const items = [...alarmByType.entries()]
+      .sort((a, b) => {
+        const rank =
+          pigEnvSafetyRank(b[1].hit) - pigEnvSafetyRank(a[1].hit);
+        if (rank !== 0) return rank;
+        return stallTyCodeSortKey(a[0]) - stallTyCodeSortKey(b[0]);
+      })
+      .map(([, row]) => pigEnvSafetyHitSentence(row.label, row.hit));
+    return withAdviceItems(
+      {
+        offBand: true,
+        tier: "alarm",
+        noticeCount: Math.max(1, alarmCount),
+        stallLabel: worstHit.label,
+        summary: `${pigEnvSafetyKindLabel(worstHit.hit.kind)}을 벗어난 장비 경보가 있습니다.`,
+      },
+      items,
+    );
   }
 
   return pigEnvAdviceCopy(verdicts);

@@ -7,17 +7,17 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 
 ---
 
-## Feature flag — 현장 통합 (P0)
+## Feature flag — 필드 통합 (P0)
 
 | 환경변수 | 기본 | 설명 |
 |----------|------|------|
-| `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «현장» 탭. off면 현행 4탭 |
-| `NEXT_PUBLIC_BARN_MODEL_ENABLED` | 로컬·Preview on / Production은 env `true`로 노출 | 모델 탭. 상세 [`BARN_MODEL.md`](./BARN_MODEL.md) |
+| `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «필드» 탭. off면 현행 4탭 |
+| `NEXT_PUBLIC_BARN_MODEL_ENABLED` | 로컬·Preview on / Production **숨김** | 모델 탭. 상세 [`BARN_MODEL.md`](./BARN_MODEL.md) |
 
 통합 on일 때 UI:
-- 상위 탭: **현장 · 차트 · 모델(게이트)**
-- DELIN: 현장·차트·모델 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 전용 탭 없음. `view=aria`/`jarvis` → 현장
-- PC 현장: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
+- 상위 탭: **필드 · 차트 · 모델(게이트)**
+- DELIN: 필드·차트·모델 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 전용 탭 없음. `view=aria`/`jarvis` → 필드
+- PC 필드: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
 - 모바일 compact: 보기 탭은 **하단 독** (`DashboardViewportShell`)
 - 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
 - 좌 현황 숨기기/나타내기 · 카드 헤더 단일 순환 버튼
@@ -31,7 +31,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `model` \| (`aria`/`jarvis`→현장) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 현장. 모델 플래그 off면 `model` → 그리드. 현장·차트·모델에서 DELIN 권장 뱃지 |
+| `view` | `list` \| `chart` \| `model` \| (`aria`/`jarvis`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 필드. 모델 플래그 off면 `model` → 그리드. 필드·차트·모델에서 DELIN 권장 뱃지 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
@@ -69,7 +69,7 @@ resolveFarmHubView(raw)
 | `applyListViewParams` | `view=list`, `stall`·`mapLevel` 제거 (`sp` 유지 가능) |
 | `applyChartViewParams` | `view=chart`, `listMode`·`stall`·`mapLevel` 제거 (`chart*` 유지) |
 | `applyModelViewParams` | `view=model`, 목록/드릴·`chart*` 정리. 게이트 off면 그리드 |
-| `applyAriaViewParams` | 현장(그리드)으로 정규화. 옛 `view=aria` 호환 |
+| `applyAriaViewParams` | 필드(그리드)로 정규화. 옛 `view=aria` 호환 |
 | `applyHubScopedViewParams(view)` | 위 + 레거시 `tab` 삭제 |
 | `pinFarmHubViewParam(view)` | **탭만** 고정. drill·`chart*` 유지 (기간 변경용) |
 
@@ -173,7 +173,7 @@ flowchart LR
 |------|-----------|
 | 쿼리 키·의미·soft home·epoch | 본 문서 (정본) |
 | 탭 슬라이드·패널 모션 | `UI_MOTION.md` · `motionClass`만 소비 |
-| `view=aria` (호환) | 현장 정규화. 추천 UI는 뱃지 · `aria-protocol.md` |
+| `view=aria` (호환) | 필드 정규화. 추천 UI는 뱃지 · `aria-protocol.md` |
 
 ---
 

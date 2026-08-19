@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { TREND_PERIODS } from "@/lib/data/farm-trend-types";
+import { TREND_15M_PERIODS, TREND_PERIODS } from "@/lib/data/farm-trend-types";
 import {
+  sliceControllerTrendByTime,
   sliceControllerTrendFromLonger,
   sliceStallTrendFromLonger,
   stallTrendFromControllerPeriod,
@@ -91,12 +92,10 @@ describe("sliceStallTrendFromLonger", () => {
     );
   });
 
-  it("30d → 24h tail slice", () => {
+  it("30d 1h → 24h 15m is rejected", () => {
     const src = makeStallTrend30d();
     const out = sliceStallTrendFromLonger(src, "24h");
-    assert.ok(out);
-    assert.equal(out!.period, "24h");
-    assert.equal(out!.categories.length, TREND_PERIODS["24h"].bucketCount);
+    assert.equal(out, null);
   });
 
   it("rejects non-30d source", () => {
@@ -111,14 +110,52 @@ describe("sliceControllerTrendFromLonger", () => {
     const src = makeControllerTrend30d();
     const out = sliceControllerTrendFromLonger(src, "7d");
     assert.ok(out);
-    assert.equal(out!.sp[0]!.stalls[0]!.controllers[0]!.temp.length, 672);
+    assert.equal(out!.sp[0]!.stalls[0]!.controllers[0]!.temp.length, 168);
   });
 
-  it("30d → 24h tail slice", () => {
+  it("30d 1h → 24h 15m is rejected", () => {
     const src = makeControllerTrend30d();
     const out = sliceControllerTrendFromLonger(src, "24h");
+    assert.equal(out, null);
+  });
+
+  it("15m 30d → 24h tail slice", () => {
+    const n = TREND_15M_PERIODS["30d"].bucketCount;
+    const src = makeControllerTrend30d();
+    src.categories = Array.from({ length: n }, (_, i) => String(i));
+    src.bucketAts = Array.from({ length: n }, (_, i) =>
+      new Date(Date.UTC(2026, 7, 1, 0, i * 15, 0)).toISOString(),
+    );
+    src.sp[0]!.stalls[0]!.controllers[0]!.temp = new Array(n).fill(null);
+    src.sp[0]!.stalls[0]!.controllers[0]!.humidity = new Array(n).fill(null);
+    src.sp[0]!.stalls[0]!.controllers[0]!.fanSupply = new Array(n).fill(null);
+    src.sp[0]!.stalls[0]!.controllers[0]!.fanExhaust = new Array(n).fill(null);
+    src.sp[0]!.stalls[0]!.controllers[0]!.fanIntake = new Array(n).fill(null);
+    src.sp[0]!.stalls[0]!.controllers[0]!.sampleCount = new Array(n).fill(0);
+    const out = sliceControllerTrendFromLonger(src, "24h", TREND_15M_PERIODS);
     assert.ok(out);
     assert.equal(out!.sp[0]!.stalls[0]!.controllers[0]!.temp.length, 96);
+  });
+
+  it("7d 1h → 24h 15m is rejected", () => {
+    const src = makeControllerTrend30d();
+    const d7 = sliceControllerTrendFromLonger(src, "7d");
+    assert.ok(d7);
+    const h24 = sliceControllerTrendFromLonger(d7!, "24h");
+    assert.equal(h24, null);
+  });
+});
+
+describe("sliceControllerTrendByTime", () => {
+  it("keeps slots whose start is in [from, to)", () => {
+    const src = makeControllerTrend30d();
+    const fromMs = Date.parse(src.bucketAts[2]!);
+    const toMs = Date.parse(src.bucketAts[6]!);
+    const out = sliceControllerTrendByTime(src, fromMs, toMs);
+    assert.ok(out);
+    assert.equal(out!.bucketAts.length, 4);
+    assert.equal(out!.bucketAts[0], src.bucketAts[2]);
+    assert.equal(out!.bucketAts[3], src.bucketAts[5]);
   });
 });
 

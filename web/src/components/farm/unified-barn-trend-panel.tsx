@@ -39,11 +39,20 @@ import {
 import type { BarnReading } from "@/lib/data/iot";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
+  emptyTrendControllerPeriodData,
+  isContextControllerTrend30d,
   pickTrendCanvasPeriod,
+  TREND_PERIODS,
   type TrendControllerPeriodData,
   type TrendControllerSeries,
   type TrendPeriodId,
+  type TrendWindow15m,
 } from "@/lib/data/farm-trend-types";
+import {
+  brushWindowNeeds15m,
+  brushWindowToRangeMs,
+  window15mCovers,
+} from "@/lib/farm/trend-brush-coverage";
 import {
   findControllerTrendSeries,
   formatControllerHeaderPrimary,
@@ -80,6 +89,7 @@ import {
   EDIT_START_DRAFT,
 } from "@/lib/controllers/controller-panel-map";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
+import { sliceControllerTrendByTime } from "@/lib/data/trend-period-slice";
 import {
   downsampleByIndices,
   pickLttbIndices,
@@ -370,6 +380,12 @@ type Props = {
   /** 추이 fetch 중 — 빈 화면을 '데이터 없음'과 구분 */
   trendLoading?: boolean;
   trendError?: boolean;
+  /** 24시간 이후 30일 1시간을 이어 받는 중 */
+  trendExtending?: boolean;
+  /** 브러시 확대(≤48h) 구간 15분 */
+  window15mLoading?: boolean;
+  window15m?: TrendWindow15m | null;
+  onNeedWindow15m?: (fromMs: number, toMs: number) => void;
   className?: string;
 };
 
@@ -396,6 +412,10 @@ export function UnifiedBarnTrendPanel({
   mobileScopeHandle = null,
   trendLoading = false,
   trendError = false,
+  trendExtending = false,
+  window15mLoading = false,
+  window15m = null,
+  onNeedWindow15m,
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -559,16 +579,23 @@ export function UnifiedBarnTrendPanel({
     [layerVisibility, mappingThresholds],
   );
 
-  /** 브러시 — 30d 온·습 양호도(B안) · 컨트롤러 평균 · 모터 제외 */
+  /** 브러시 — 30일 1시간 양호도 */
+  const brushSourceByPeriod = useMemo(() => {
+    if (isContextControllerTrend30d(controllerTrendByPeriod?.["30d"])) {
+      return controllerTrendByPeriod ?? null;
+    }
+    return null;
+  }, [controllerTrendByPeriod]);
+
   const brushOverview = useMemo(() => {
-    const periodData = controllerTrendByPeriod?.["30d"] ?? null;
+    const periodData = brushSourceByPeriod?.["30d"] ?? null;
     if (!periodData) return [];
     const paired = controllers
       .map((c) => {
         const r = c.reading;
         if (!r) return null;
         const series = findControllerTrendSeries(
-          controllerTrendByPeriod,
+          brushSourceByPeriod,
           "30d",
           r.stallTyCode,
           r.stallNo,
@@ -605,7 +632,7 @@ export function UnifiedBarnTrendPanel({
       );
     }
     return out;
-  }, [controllers, controllerTrendByPeriod, alarmSettings]);
+  }, [controllers, brushSourceByPeriod, alarmSettings]);
 
   const splitBandGuides = useMemo(() => {
     const guides: number[] = [];
@@ -623,25 +650,44 @@ export function UnifiedBarnTrendPanel({
     controllerTrendByPeriod,
     period,
   );
-  const useBrushCanvas = canvasPeriod === "30d";
+  const context30d = isContextControllerTrend30d(controllerTrendByPeriod?.["30d"]);
+  const useBrushCanvas = context30d;
   const displayPeriod = useBrushCanvas
     ? displayPeriodFromBrushWindow(brushWindow)
     : canvasPeriod;
+  const d30FromMs = Date.parse(
+    controllerTrendByPeriod?.["30d"]?.bucketAts[0] ?? "",
+  );
+  const brushRangeMs =
+    useBrushCanvas && Number.isFinite(d30FromMs)
+      ? brushWindowToRangeMs(
+          brushWindow,
+          d30FromMs,
+          TREND_PERIODS["30d"].durationMs,
+        )
+      : null;
+  const brushFromMs = brushRangeMs?.fromMs ?? null;
+  const brushToMs = brushRangeMs?.toMs ?? null;
+  const brushNeedsWindow15m =
+    brushFromMs != null &&
+    brushToMs != null &&
+    brushWindowNeeds15m(brushWindow) &&
+    !window15mCovers(window15m, brushFromMs, brushToMs);
 
-  /** 브러시 창의 15분 원본 — 줌 시 다시 다운샘플 */
+  useEffect(() => {
+    if (!brushNeedsWindow15m || brushFromMs == null || brushToMs == null) return;
+    const timer = window.setTimeout(() => {
+      onNeedWindow15m?.(brushFromMs, brushToMs);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [brushNeedsWindow15m, brushFromMs, brushToMs, onNeedWindow15m]);
+
+  /** 브러시 창 — ≤48h이면 구간 15분, 아니면 30일 1시간 슬라이스 */
   const windowBundle = useMemo(() => {
-    const collect = (periodId: TrendPeriodId, brush: boolean) => {
+    const collectRange = (periodId: TrendPeriodId, from: number, to: number) => {
       const periodData = controllerTrendByPeriod?.[periodId] ?? null;
       const categoriesRaw = periodData?.categories ?? [];
       if (!categoriesRaw.length) return null;
-
-      let from = 0;
-      let to = categoriesRaw.length;
-      if (brush) {
-        const range = brushSliceRange(categoriesRaw.length, brushWindow);
-        from = range.from;
-        to = range.to;
-      }
       const windowCategories = categoriesRaw.slice(from, to);
       if (windowCategories.length < 2) return null;
 
@@ -657,11 +703,8 @@ export function UnifiedBarnTrendPanel({
             r.controllerKey,
           );
           if (!found) return null;
-          const series = brush
-            ? sliceControllerSeries(found, from, to)
-            : found;
           return {
-            ...series,
+            ...sliceControllerSeries(found, from, to),
             zoneLabel: formatControllerHeaderPrimary(r),
             equipmentLabel: formatControllerHeaderSecondary(r),
             stallTyCode: r.stallTyCode
@@ -675,7 +718,75 @@ export function UnifiedBarnTrendPanel({
       return { categories: windowCategories, seriesList };
     };
 
-    const primary = collect(canvasPeriod, useBrushCanvas);
+    const collectFromData = (
+      periodData: TrendControllerPeriodData,
+      from: number,
+      to: number,
+    ) => {
+      const fake: Record<TrendPeriodId, TrendControllerPeriodData> = {
+        "24h": emptyTrendControllerPeriodData("24h"),
+        "7d": emptyTrendControllerPeriodData("7d"),
+        "30d": emptyTrendControllerPeriodData("30d"),
+        [periodData.period]: periodData,
+      };
+      const categoriesRaw = periodData.categories;
+      const windowCategories = categoriesRaw.slice(from, to);
+      if (windowCategories.length < 2) return null;
+      const seriesList = controllers
+        .map((c) => {
+          const r = c.reading;
+          if (!r) return null;
+          const found = findControllerTrendSeries(
+            fake,
+            periodData.period,
+            r.stallTyCode,
+            r.stallNo,
+            r.controllerKey,
+          );
+          if (!found) return null;
+          return {
+            ...sliceControllerSeries(found, from, to),
+            zoneLabel: formatControllerHeaderPrimary(r),
+            equipmentLabel: formatControllerHeaderSecondary(r),
+            stallTyCode: r.stallTyCode
+              ? normalizeStallTyCode(r.stallTyCode)
+              : undefined,
+          };
+        })
+        .filter((s): s is NonNullable<typeof s> => s != null);
+      if (!seriesList.length) return null;
+      return { categories: windowCategories, seriesList };
+    };
+
+    const collect = (periodId: TrendPeriodId, brush: boolean) => {
+      const periodData = controllerTrendByPeriod?.[periodId] ?? null;
+      const categoriesRaw = periodData?.categories ?? [];
+      if (!categoriesRaw.length) return null;
+      if (!brush) return collectRange(periodId, 0, categoriesRaw.length);
+      const range = brushSliceRange(categoriesRaw.length, brushWindow);
+      return collectRange(periodId, range.from, range.to);
+    };
+
+    if (
+      useBrushCanvas &&
+      brushFromMs != null &&
+      brushToMs != null &&
+      window15mCovers(window15m, brushFromMs, brushToMs) &&
+      window15m
+    ) {
+      const sliced =
+        sliceControllerTrendByTime(window15m.data, brushFromMs, brushToMs) ??
+        window15m.data;
+      const fromWindow = collectFromData(sliced, 0, sliced.categories.length);
+      if (fromWindow) return fromWindow;
+    }
+
+    if (useBrushCanvas && context30d) {
+      const primary = collect("30d", true);
+      if (primary) return primary;
+    }
+
+    const primary = collect(canvasPeriod, false);
     if (primary) return primary;
     if (canvasPeriod !== "24h") return collect("24h", false);
     return null;
@@ -684,6 +795,10 @@ export function UnifiedBarnTrendPanel({
     controllerTrendByPeriod,
     canvasPeriod,
     useBrushCanvas,
+    context30d,
+    window15m,
+    brushFromMs,
+    brushToMs,
     brushWindow,
   ]);
 
@@ -1981,6 +2096,17 @@ export function UnifiedBarnTrendPanel({
         </div>
       </div>
 
+      {trendExtending || window15mLoading ? (
+        <p
+          className={cn("text-muted-foreground", farmChartUi.fsMeta)}
+          role="status"
+        >
+          {window15mLoading
+            ? "선택한 구간을 자세히 불러오는 중."
+            : "최근 이력을 이어 받는 중."}
+        </p>
+      ) : null}
+
       {built &&
       scoped &&
       picked &&
@@ -2123,9 +2249,13 @@ export function UnifiedBarnTrendPanel({
             ? "표시할 레이어를 선택하세요."
             : trendLoading
               ? "통합 추이를 불러오는 중."
-              : trendError
-                ? "통합 추이를 불러오지 못했습니다."
-                : "통합 추이 데이터가 없습니다."}
+                : trendExtending
+                ? "최근 이력을 이어 받는 중."
+                : window15mLoading
+                  ? "선택한 구간을 자세히 불러오는 중."
+                  : trendError
+                    ? "통합 추이를 불러오지 못했습니다."
+                    : "통합 추이 데이터가 없습니다."}
         </p>
       )}
 

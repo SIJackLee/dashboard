@@ -166,6 +166,7 @@ function BarnMesh({
   fillEditDirty,
   onFillEditOpenChange,
   onFillEditRevert,
+  compactHud,
 }: {
   building: BarnModelBuilding;
   selected: boolean;
@@ -201,6 +202,7 @@ function BarnMesh({
   fillEditDirty?: boolean;
   onFillEditOpenChange?: (open: boolean) => void;
   onFillEditRevert?: () => void;
+  compactHud?: boolean;
 }) {
   const { roofRise } = BARN_MODEL_DIM;
   const { width, length, wallH, fill } = building;
@@ -388,7 +390,7 @@ function BarnMesh({
         );
       })}
 
-      {editing && editMode && !ghost ? (
+      {editing && editMode && !ghost && !compactHud ? (
         <BarnEditGizmos
           width={width}
           length={length}
@@ -401,7 +403,7 @@ function BarnMesh({
         />
       ) : null}
 
-      {editing && editMode && !ghost ? (
+      {editing && editMode && !ghost && !compactHud ? (
         <Html
           position={[
             0,
@@ -522,6 +524,10 @@ type EditDrag =
 
 function YardContents(props: BarnModelSceneProps & { dragging: boolean; setDragging: (v: boolean) => void }) {
   const showLabels = props.shot === "roof";
+  const compactHud = Boolean(props.compactHud);
+  const hudBarnId = props.selectedBarnId ?? props.roofFocusId ?? null;
+  const showBarnHud = (id: string) =>
+    showLabels && (!compactHud || id === hudBarnId);
   const editMode = props.shot === "roof";
   const yardBounds = barnModelYardBounds(props.yard);
   const field = barnModelFieldView(props.yard);
@@ -650,23 +656,16 @@ function YardContents(props: BarnModelSceneProps & { dragging: boolean; setDragg
             props.onRoofFocusClear?.();
             return;
           }
-          if (props.placing && props.onPlaceAt) {
-            if (ghostAt) {
-              props.onPlaceAt(ghostAt[0], ghostAt[1]);
-              return;
-            }
-            if (props.placingDraft) {
-              const [sx, sz] = snapBarnFootprint(
-                e.point.x,
-                e.point.z,
-                props.placingDraft.plan,
-                props.placingDraft.stallTyCode,
-                undefined,
-                BARN_MODEL_SNAP_FINE_M,
-              );
-              props.onPlaceAt(sx, sz);
-              return;
-            }
+          if (props.placing && props.onPlaceAt && props.placingDraft) {
+            const [sx, sz] = snapBarnFootprint(
+              e.point.x,
+              e.point.z,
+              props.placingDraft.plan,
+              props.placingDraft.stallTyCode,
+              undefined,
+              BARN_MODEL_SNAP_FINE_M,
+            );
+            props.onPlaceAt(sx, sz);
             return;
           }
           props.onSelectBarn("");
@@ -681,7 +680,7 @@ function YardContents(props: BarnModelSceneProps & { dragging: boolean; setDragg
           building={building}
           selected={props.selectedBarnId === building.id}
           editing={Boolean(props.yardEditing)}
-          showLabels={showLabels}
+          showLabels={showBarnHud(building.id)}
           showEntranceCard={
             props.shot === "entrance" &&
             props.selectedBarnId === building.id
@@ -711,6 +710,7 @@ function YardContents(props: BarnModelSceneProps & { dragging: boolean; setDragg
           fillEditDirty={
             props.fillEditId === building.id && Boolean(props.fillEditDirty)
           }
+          compactHud={compactHud}
           onFillEditOpenChange={(open) =>
             props.onFillEditOpenChange?.(building.id, open)
           }
@@ -741,9 +741,10 @@ function YardContents(props: BarnModelSceneProps & { dragging: boolean; setDragg
           building={ghost}
           selected={false}
           editing={false}
-          showLabels
+          showLabels={!compactHud}
           editMode={false}
           ghost
+          compactHud={compactHud}
           typeReadings={[]}
           peekKey={null}
           onSelectBarn={() => undefined}

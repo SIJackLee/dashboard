@@ -3,6 +3,7 @@
  */
 import assert from "node:assert/strict";
 import {
+  pigEnvAdviceListPreview,
   pigEnvBadgeAdvice,
   pigEnvBandForStallTy,
   pigEnvFitToBand,
@@ -113,17 +114,53 @@ import {
   );
   assert.equal(off.offBand, true);
   assert.equal(off.stallLabel, "자돈사");
+  assert.equal(off.items.length, 1);
   assert.match(off.summary, /자돈사/);
-  assert.match(off.detail ?? "", /16도/);
-  assert.match(off.detail ?? "", /목표는 18도/);
+  assert.match(off.items[0] ?? "", /16도/);
+  assert.match(off.items[0] ?? "", /18도/);
+  assert.match(off.items[0] ?? "", /22도/);
   assert.doesNotMatch(off.summary, /SP05/);
-  assert.doesNotMatch(off.detail ?? "", /SP05/);
+  assert.doesNotMatch(off.items[0] ?? "", /SP05/);
+
+  const both = pigEnvAdviceCopy(
+    pigEnvTypeVerdicts([{ stallTyCode: "SP02", tempC: 24, humidityPct: 61 }]),
+  );
+  assert.equal(both.items.length, 1);
+  assert.match(both.items[0] ?? "", /임신사/);
+  assert.match(both.items[0] ?? "", /24도/);
+  assert.match(both.items[0] ?? "", /61%/);
+  assert.match(both.items[0] ?? "", /16도~21도/);
+  assert.match(both.items[0] ?? "", /50%~60%/);
 
   const ok = pigEnvAdviceCopy(
     pigEnvTypeVerdicts([{ stallTyCode: "SP07", tempC: 18, humidityPct: 50 }]),
   );
   assert.equal(ok.offBand, false);
+  assert.deepEqual(ok.items, []);
   assert.match(ok.summary, /권장 온·습도 안에/);
+}
+
+{
+  const many = pigEnvAdviceCopy(
+    pigEnvTypeVerdicts([
+      { stallTyCode: "SP02", tempC: 24, humidityPct: 55 },
+      { stallTyCode: "SP03", tempC: 25, humidityPct: 55 },
+      { stallTyCode: "SP04", tempC: 20, humidityPct: 70 },
+      { stallTyCode: "SP08", tempC: 35, humidityPct: 50 },
+    ]),
+  );
+  assert.equal(many.offBand, true);
+  assert.equal(many.items.length, 4);
+  assert.equal(many.stallLabel, "검정사");
+  assert.match(many.summary, /4곳/);
+  assert.match(many.items[0] ?? "", /검정사/);
+  assert.match(many.items[0] ?? "", /35도/);
+  const preview = pigEnvAdviceListPreview(many.items);
+  assert.equal(preview.shown.length, 3);
+  assert.equal(preview.extraCount, 1);
+  for (const line of many.items) {
+    assert.doesNotMatch(line, /SP0/);
+  }
 }
 
 {
@@ -149,7 +186,8 @@ import {
   assert.equal(offline.offBand, true);
   assert.equal(offline.noticeCount, 1);
   assert.match(offline.summary, /통신이 두절/);
-  assert.match(offline.detail ?? "", /전원/);
+  assert.equal(offline.items.length, 1);
+  assert.match(offline.items[0] ?? "", /전원/);
   assert.doesNotMatch(offline.summary, /SP02/);
 }
 
@@ -162,8 +200,9 @@ import {
   assert.equal(alarm.tier, "alarm");
   assert.equal(alarm.noticeCount, 1);
   assert.equal(alarm.stallLabel, "임신사");
-  assert.match(alarm.detail ?? "", /상한 35도/);
-  assert.match(alarm.detail ?? "", /즉시 확인/);
+  assert.equal(alarm.items.length, 1);
+  assert.match(alarm.items[0] ?? "", /상한 35도/);
+  assert.doesNotMatch(alarm.items[0] ?? "", /SP02/);
 }
 
 {
@@ -174,7 +213,8 @@ import {
   );
   assert.equal(off.tier, "offband");
   assert.equal(off.noticeCount, 1);
-  assert.match(off.detail ?? "", /목표는 21도/);
+  assert.match(off.items[0] ?? "", /24도/);
+  assert.match(off.items[0] ?? "", /16도~21도/);
 
   // 모두 적정
   const ok = pigEnvBadgeAdvice(

@@ -292,7 +292,12 @@ export function FarmPageContent({
     enrichFarmRef.current = null;
   }, [lazyListFarmKey]);
 
-  /** LIVE 안정 후 idle — 활성 탭에 맞는 stall·controller 추이·list enrich만 */
+  /** LIVE 안정 후 — 24시간 추이는 스플래시와 겹치게 즉시, 히트맵·목록은 idle */
+  useEffect(() => {
+    if (!gridFarmKey || tourActive) return;
+    void prefetchFarmControllerTrend(gridFarmKey);
+  }, [gridFarmKey, tourActive]);
+
   useEffect(() => {
     if (!gridFarmKey || tourActive) return;
     let cancelled = false;
@@ -305,7 +310,6 @@ export function FarmPageContent({
         view === "list" ||
         view === "model"
       ) {
-        void prefetchFarmControllerTrend(gridFarmKey);
         void prefetchFarmStallTrend(gridFarmKey, (trend) => {
           if (cancelled) return;
           liveRefreshRef.current?.hydrateStallTrend(gridFarmKey, trend);
@@ -381,8 +385,16 @@ export function FarmPageContent({
     enrichListIfNeeded,
   ]);
 
-  const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale, error: gridTrendError } =
-    useFarmControllerTrend({
+  const {
+    data: gridControllerTrend,
+    loading: gridTrendLoading,
+    isStale: gridTrendStale,
+    error: gridTrendError,
+    window15m: gridTrendWindow15m,
+    extending: gridTrendExtending,
+    window15mLoading: gridTrendWindowLoading,
+    ensureWindow15m: ensureGridTrendWindow15m,
+  } = useFarmControllerTrend({
       farmKey: gridFarmKey,
       enabled:
         Boolean(gridFarmKey) &&
@@ -642,7 +654,7 @@ export function FarmPageContent({
             strokeWidth={dashboardUi.iconStroke}
             aria-hidden
           />
-          현장
+          필드
         </button>
       ) : (
         <>
@@ -894,6 +906,10 @@ export function FarmPageContent({
                 controllerTrendByPeriod={gridControllerTrend}
                 trendLoading={gridTrendLoading}
                 trendError={Boolean(gridTrendError)}
+                trendExtending={gridTrendExtending}
+                window15mLoading={gridTrendWindowLoading}
+                window15m={gridTrendWindow15m}
+                onNeedWindow15m={ensureGridTrendWindow15m}
                 period={trendPeriod}
                 onPeriodChange={onTrendPeriodChange}
                 scope={chartScope}
@@ -928,6 +944,10 @@ export function FarmPageContent({
               onTrendPeriodChange={onTrendPeriodChange}
               trendLoading={gridTrendLoading}
               trendStale={gridTrendStale}
+              trendExtending={gridTrendExtending}
+              window15mLoading={gridTrendWindowLoading}
+              onNeedWindow15m={ensureGridTrendWindow15m}
+              window15m={gridTrendWindow15m}
               alarmSettings={alarmSettings}
               thermoSettings={thermoSettings}
               canCommand={controller?.canCommand ?? false}

@@ -64,6 +64,7 @@ type Props = {
   peek?: boolean;
   onPeek?: () => void;
   onExpand?: () => void;
+  peekAriaLabel?: string;
 };
 
 /** 모바일 stack — bottom sheet shell (설정·컨트롤러 carousel 공용). */
@@ -81,6 +82,7 @@ export function BarnPanelBottomSheet({
   peek = false,
   onPeek,
   onExpand,
+  peekAriaLabel = "컨트롤러 시트 열기",
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const [dragY, setDragY] = useState(0);
@@ -203,7 +205,7 @@ export function BarnPanelBottomSheet({
                 "rounded-t-xl border border-b-0 border-border/80",
                 motionClass.microInteractive,
               )}
-              aria-label="컨트롤러 시트 열기"
+              aria-label={peekAriaLabel}
               aria-expanded={false}
               data-testid="barn-sheet-peek-handle"
               data-sheet-drag-handle

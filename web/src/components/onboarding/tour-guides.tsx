@@ -287,7 +287,7 @@ const HEADER_ICON_ITEMS: {
   {
     key: "help",
     label: "기능 안내",
-    desc: "물음표를 누르면 지금 보고 있는 탭(현장·차트) 안내가 시작됩니다.",
+    desc: "물음표를 누르면 지금 보고 있는 탭(필드·차트) 안내가 시작됩니다.",
     Icon: CircleHelp,
   },
   {

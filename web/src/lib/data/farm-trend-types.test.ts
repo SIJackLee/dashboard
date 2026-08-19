@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   controllerTrendPeriodHasSeries,
   emptyTrendControllerPeriodData,
+  isCompleteControllerTrendBundle,
   pickTrendCanvasPeriod,
   type TrendControllerPeriodData,
 } from "./farm-trend-types";
@@ -58,7 +59,7 @@ function withSamples(
 
 describe("controllerTrendPeriodHasSeries", () => {
   it("treats a full empty axis as having no series", () => {
-    assert.equal(controllerTrendPeriodHasSeries(axisOnly("30d", 2880)), false);
+    assert.equal(controllerTrendPeriodHasSeries(axisOnly("30d", 720)), false);
     assert.equal(
       controllerTrendPeriodHasSeries(emptyTrendControllerPeriodData("30d")),
       false,
@@ -81,7 +82,7 @@ describe("pickTrendCanvasPeriod", () => {
     const bundle = {
       "24h": withSamples("24h", 96),
       "7d": emptyTrendControllerPeriodData("7d"),
-      "30d": axisOnly("30d", 2880),
+      "30d": axisOnly("30d", 720),
     };
     assert.equal(pickTrendCanvasPeriod(bundle, "7d"), "24h");
   });
@@ -90,17 +91,50 @@ describe("pickTrendCanvasPeriod", () => {
     const bundle = {
       "24h": withSamples("24h", 96),
       "7d": emptyTrendControllerPeriodData("7d"),
-      "30d": withSamples("30d", 2880),
+      "30d": withSamples("30d", 720),
     };
     assert.equal(pickTrendCanvasPeriod(bundle, "7d"), "30d");
+  });
+
+  it("uses 7d when it has series even if 24h is already loaded", () => {
+    const bundle = {
+      "24h": withSamples("24h", 96),
+      "7d": withSamples("7d", 168),
+      "30d": emptyTrendControllerPeriodData("30d"),
+    };
+    assert.equal(pickTrendCanvasPeriod(bundle, "7d"), "7d");
   });
 
   it("falls through to the selected period when nothing has series", () => {
     const bundle = {
       "24h": axisOnly("24h", 96),
       "7d": emptyTrendControllerPeriodData("7d"),
-      "30d": axisOnly("30d", 2880),
+      "30d": axisOnly("30d", 720),
     };
     assert.equal(pickTrendCanvasPeriod(bundle, "7d"), "7d");
+  });
+});
+
+describe("isCompleteControllerTrendBundle", () => {
+  it("is complete when the 30d 1h axis is filled", () => {
+    assert.equal(
+      isCompleteControllerTrendBundle({
+        "24h": withSamples("24h", 96),
+        "7d": withSamples("7d", 168),
+        "30d": withSamples("30d", 720),
+      }),
+      true,
+    );
+  });
+
+  it("is incomplete without a 30d axis", () => {
+    assert.equal(
+      isCompleteControllerTrendBundle({
+        "24h": withSamples("24h", 96),
+        "7d": withSamples("7d", 168),
+        "30d": emptyTrendControllerPeriodData("30d"),
+      }),
+      false,
+    );
   });
 });

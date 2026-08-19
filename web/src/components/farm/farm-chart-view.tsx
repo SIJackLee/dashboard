@@ -14,6 +14,7 @@ import type { BarnReading } from "@/lib/data/iot";
 import type {
   TrendControllerPeriodData,
   TrendPeriodId,
+  TrendWindow15m,
 } from "@/lib/data/farm-trend-types";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { findControllerTrendSeries } from "@/lib/farm/controller-summary-display";
@@ -40,6 +41,10 @@ type Props = {
   /** 추이 fetch — 빈 화면을 로딩/실패와 구분 */
   trendLoading?: boolean;
   trendError?: boolean;
+  trendExtending?: boolean;
+  window15mLoading?: boolean;
+  window15m?: TrendWindow15m | null;
+  onNeedWindow15m?: (fromMs: number, toMs: number) => void;
   period: TrendPeriodId;
   onPeriodChange?: (period: TrendPeriodId) => void;
   /** URL 딥링크 집계 범위 (제어 컴포넌트) */
@@ -128,6 +133,10 @@ export function FarmChartView({
   controllerTrendByPeriod,
   trendLoading = false,
   trendError = false,
+  trendExtending = false,
+  window15mLoading = false,
+  window15m = null,
+  onNeedWindow15m,
   period,
   onPeriodChange,
   scope,
@@ -298,7 +307,6 @@ export function FarmChartView({
               onSelect={() => selectScope(spScope)}
               depth={0}
               label={sp.label}
-              meta={`${sp.controllerCount}대`}
               tone={scopeTones.bySp.get(sp.stallTyCode) ?? null}
               expandable
               expanded={spOpen}
@@ -421,6 +429,10 @@ export function FarmChartView({
             controllerTrendByPeriod={controllerTrendByPeriod}
             trendLoading={trendLoading}
             trendError={trendError}
+            trendExtending={trendExtending}
+            window15mLoading={window15mLoading}
+            window15m={window15m}
+            onNeedWindow15m={onNeedWindow15m}
             period={period}
             onPeriodChange={onPeriodChange}
             alarmSettings={alarmSettings}

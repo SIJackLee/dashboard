@@ -14,6 +14,7 @@ import {
   TriangleAlert,
   WifiOff,
 } from "lucide-react";
+import { NavContentReadyMarker } from "@/components/layout/nav-content-ready-marker";
 import { appendFarmKeyParams, farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import type { FarmLocationRow } from "@/lib/data/farm-location-shared";
 import {
@@ -130,6 +131,7 @@ export function AdminHubControlView({
 
   return (
     <section className="flex min-h-0 flex-col gap-3">
+      <NavContentReadyMarker />
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h2
           className={cn(

@@ -7,6 +7,7 @@ import {
   barnModelEntranceSettled,
   barnModelFieldTrendTy,
   barnModelFillEditId,
+  barnModelMobileChartReady,
   barnModelPlacing,
   barnModelRoofFocusId,
   barnModelShot,
@@ -106,6 +107,23 @@ function apply(
   const del = apply(ent, { type: "deleteBarn", barnId: "b1" });
   assert.equal(del.mode.kind, "field");
   assert.equal(del.selectedBarnId, null);
+}
+
+{
+  const ent = apply(BARN_MODEL_VIEW_INIT, {
+    type: "openEntrance",
+    barnId: "b1",
+  });
+  assert.equal(barnModelMobileChartReady(ent.mode), false);
+  const arrived = apply(ent, { type: "entranceArrived" });
+  assert.equal(barnModelMobileChartReady(arrived.mode), true);
+  const trend = apply(BARN_MODEL_VIEW_INIT, {
+    type: "toggleTrend",
+    barnId: "b1",
+    stallTyCode: "SP02",
+  });
+  assert.equal(barnModelMobileChartReady(trend.mode), true);
+  assert.equal(barnModelMobileChartReady(BARN_MODEL_VIEW_INIT.mode), false);
 }
 
 console.log("barn-model-mode.test.ts: ok");

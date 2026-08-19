@@ -57,4 +57,6 @@ export type BarnModelSceneProps = {
   fillEditDirty?: boolean;
   onFillEditOpenChange?: (barnId: string, open: boolean) => void;
   onFillEditRevert?: () => void;
+  /** compact — 지붕 카드·방 편집 HTML을 고른 동만 (시트 HUD) */
+  compactHud?: boolean;
 };

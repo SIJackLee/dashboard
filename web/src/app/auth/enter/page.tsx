@@ -3,7 +3,9 @@
 import { Suspense, useLayoutEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
+import { getPostLoginFarmWarmKeyAction } from "@/app/auth/actions";
 import { safePostLoginPath } from "@/lib/auth/resolve-post-login-path";
+import { warmPostLoginFarmHub } from "@/lib/farm/warm-post-login-farm-hub";
 
 function AuthEnterContent() {
   const searchParams = useSearchParams();
@@ -14,6 +16,11 @@ function AuthEnterContent() {
     if (startedRef.current) return;
     startedRef.current = true;
     const next = safePostLoginPath(searchParams.get("next"));
+    if (next === "/farm") {
+      void getPostLoginFarmWarmKeyAction().then((farmKey) => {
+        if (farmKey) warmPostLoginFarmHub(farmKey);
+      });
+    }
     navigate(next, { waitForContentReady: true, variant: "brand" });
   }, [navigate, searchParams]);
 

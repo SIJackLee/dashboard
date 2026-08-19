@@ -9,6 +9,7 @@ import {
   type InlineStatusTone,
 } from "@/components/common/inline-status-toast";
 import { parseFarmKeyFromQuery, type FarmKey } from "@/lib/data/farm-key";
+import { dailyReportPdfFilename } from "@/lib/report/daily-report-payload";
 import {
   currentFarmSearchParams,
   getFarmUrlEpoch,
@@ -23,6 +24,7 @@ type Props = {
   farmKey: FarmKey | null;
   /** icon = 헤더 단독 · row = 간단 행 · tools-card = 헤더 카드 · hub-detail = FAB 상세 */
   presentation?: "icon" | "row" | "tools-card" | "hub-detail";
+  className?: string;
 };
 
 const NO_FARM_TOAST =
@@ -37,6 +39,7 @@ function resolveReportFarmKey(serverFarmKey: FarmKey | null): FarmKey | null {
 export function DailyReportButton({
   farmKey: serverFarmKey,
   presentation = "icon",
+  className,
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);
@@ -92,7 +95,7 @@ export function DailyReportButton({
           }
           setOverlay((o) => ({
             ...o,
-            detail: `표지 + 축사 ${payload.barns.length}곳 PDF 구성 중`,
+            detail: `주간 브리핑 PDF 구성 중`,
           }));
           const { buildAndDownloadDailyReportPdf } = await import(
             "@/lib/report/build-daily-report-pdf"
@@ -109,7 +112,7 @@ export function DailyReportButton({
             visible: true,
             phase: "success",
             title: "PDF 다운로드 완료",
-            detail: `${key.lsindRegistNo}_${key.itemCode}_일보_${payload.reportDate}.pdf`,
+            detail: dailyReportPdfFilename(payload),
           });
         } catch (err) {
           const message =
@@ -135,7 +138,6 @@ export function DailyReportButton({
           presentation === "tools-card"
             ? cn(
                 dashboardUi.headerToolsCard,
-                "w-full",
                 needsFarm && "opacity-40",
               )
             : presentation === "hub-detail"
@@ -154,6 +156,7 @@ export function DailyReportButton({
                     dashboardUi.topHeaderActionBtnReport,
                     needsFarm && "opacity-40",
                   ),
+          className,
         )}
         data-tour-id="header-daily-report"
         aria-label={

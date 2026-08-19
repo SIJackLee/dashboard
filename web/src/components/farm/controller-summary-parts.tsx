@@ -323,7 +323,7 @@ export function ChannelStrip({
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   period?: TrendPeriodId;
   thermoSettings?: Record<string, ControllerThermoSettings>;
-  /** 모바일 sheet — 채널 탭 시 BarnChannelTrendPanel 펼침 비활성. */
+  /** 표시 전용. 탭 시 채널 그래프는 차트 탭. */
   hideChannelTrendExpand?: boolean;
 }) {
   const channels = channelPercentsFromReading(reading);

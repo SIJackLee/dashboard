@@ -3,9 +3,9 @@
  * 서버 액션·클라이언트 엔진 양쪽에서 import 하므로 "use client"/"server-only" 금지.
  *
  * 스코프:
- *   field(현장) — 병합 UI(좌 현황·우 목록) PC 1차 루트
+ *   field(필드) — 병합 UI(좌 현황·우 목록) PC 1차 루트
  *   chart(차트) — 통합 추이 · 레이어 · 설정모드 · 구간/양호도
- *   DELIN 뱃지는 현장·차트 투어에 포함 (전용 탭 없음)
+ *   DELIN 뱃지는 필드·차트 투어에 포함 (전용 탭 없음)
  *
  * 큰 컨테이너는 hole로 쓰지 않음 — 개별 카드/툴바만 스포트라이트.
  */
@@ -23,7 +23,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 27;
+export const TOUR_VERSION = 28;
 
 export type TourScrollPolicy =
   | "none"
@@ -33,12 +33,12 @@ export type TourScrollPolicy =
 
 /** 자동 시작 전 DOM 준비 — 보기 탭. */
 export const TOUR_READY_VIEW_TOGGLE_SELECTOR = '[data-tour-id="view-toggle"]';
-/** 현장 병합 — 좌측 현황. */
+/** 필드 병합 — 좌측 현황. */
 export const TOUR_READY_FIELD_STATUS_SELECTOR =
   '[data-tour-id="field-status-grid"]';
-/** 현장 모바일 — 맵 카드 그리드. */
+/** 필드 모바일 — 맵 카드 그리드. */
 export const TOUR_READY_MAP_GRID_SELECTOR = '[data-tour-id="map-grid"]';
-/** 현장 — 컨트롤러 카드(우측 목록). */
+/** 필드 — 컨트롤러 카드(우측 목록). */
 export const TOUR_READY_CONTROLLER_SELECTOR =
   '[data-tour-id="controller-card"]';
 /** @deprecated 레거시 그리드 — 히트맵 있을 때만 보조 ready */
@@ -65,7 +65,7 @@ export const FARM_TOUR_RESTART_FLAG = "farm-tour-restart";
 /** 재시작 스코프 — sessionStorage 키. */
 export const FARM_TOUR_RESTART_SCOPE_KEY = "farm-tour-restart-scope";
 
-/** 현장(그리드·목록) · 차트 */
+/** 필드(그리드·목록) · 차트 */
 export type TourScope = "field" | "chart";
 
 /** 스텝 진입 시 전환할 허브 탭. */
@@ -83,7 +83,7 @@ export function parseTourScope(raw: string | null | undefined): TourScope {
 
 export type TourStepDef = {
   id: string;
-  /** 현장 / 차트 */
+  /** 필드 / 차트 */
   scope: TourScope;
   /** 스포트라이트 대상 — document.querySelector 첫 매치. */
   selector: string;
@@ -123,7 +123,7 @@ export type TourStepDef = {
 };
 
 export const TOUR_STEPS: TourStepDef[] = [
-  // —— 현장 (PC 스플릿 · 모바일 맵+시트) ——
+  // —— 필드 (PC 스플릿 · 모바일 맵+시트) ——
   {
     id: "f-header",
     scope: "field",
@@ -156,16 +156,16 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     mobileScrollPolicy: "none",
     title: "보기 탭",
-    body: "현장·차트·모델을 바꿉니다. 물음표는 지금 켠 탭 안내만 엽니다.",
+    body: "필드·차트·모델을 바꿉니다. 물음표는 지금 켠 탭 안내만 엽니다.",
     mobileTitle: "하단 보기 탭",
-    mobileBody: "화면 아래에서 현장·차트·모델을 바꿉니다. 물음표는 지금 켠 탭만 안내합니다.",
+    mobileBody: "화면 아래에서 필드·차트·모델을 바꿉니다. 물음표는 지금 켠 탭만 안내합니다.",
     bullets: [
-      "현장 — 현황과 컨트롤러",
+      "필드 — 현황과 컨트롤러",
       "차트 — 농장 통합 추이",
       "모델 — 축사 3D",
     ],
     mobileBullets: [
-      "현장 — 축사 카드와 컨트롤러 시트",
+      "필드 — 축사 카드와 컨트롤러 시트",
       "차트 — 농장 통합 추이",
       "모델 — 축사 3D",
     ],
@@ -331,7 +331,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     body: "보고 있는 축사유형의 권장 온·습도를 알려 줍니다.",
     bullets: [
       "우측 하단 뱃지 · 말풍선",
-      "현장·차트·모델에서 동일합니다",
+      "필드·차트·모델에서 동일합니다",
     ],
   },
   {
@@ -347,12 +347,12 @@ export const TOUR_STEPS: TourStepDef[] = [
     bullets: [
       "차트 안내는 차트 탭에서 물음표를 누르세요",
       "DELIN은 우측 하단 뱃지입니다",
-      "현장 안내는 여기까지입니다",
+      "필드 안내는 여기까지입니다",
     ],
     mobileBullets: [
       "차트는 해당 탭에서 물음표를 누르세요",
       "DELIN은 우측 하단 뱃지입니다",
-      "현장 안내는 여기까지입니다",
+      "필드 안내는 여기까지입니다",
     ],
   },
 

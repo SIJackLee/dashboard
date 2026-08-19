@@ -220,7 +220,7 @@ export function AccountMenuPins({
   if (variant === "tile") {
     return (
       <div
-        className="shrink-0"
+        className="flex w-full min-w-0 shrink-0 flex-col gap-2"
         data-tour-id="account-menu-pins"
         onDragOver={(e) => {
           if (!editMode) return;
@@ -242,7 +242,11 @@ export function AccountMenuPins({
           />
         ) : null}
         {!editMode && expandedPanel === "pdf" && pinned.includes("pdf") ? (
-          <DailyReportButton farmKey={farmKey} presentation="tools-card" />
+          <DailyReportButton
+            farmKey={farmKey}
+            presentation="tools-card"
+            className="mx-0 mb-0 mt-0 w-full"
+          />
         ) : null}
       </div>
     );

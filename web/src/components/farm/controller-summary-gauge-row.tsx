@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
-import type { ChannelSlot } from "@/lib/data/iot-channel";
 import {
   DEFAULT_TREND_PERIOD,
   type TrendControllerPeriodData,
@@ -101,13 +100,6 @@ export function ControllerSummaryGaugeRow({
   onSheetPickerSelect,
   showSheetPickerAffiliation = false,
 }: Props) {
-  const [expandedChannel, setExpandedChannel] = useState<ChannelSlot | null>(null);
-  const [expandedForKey, setExpandedForKey] = useState(reading.key);
-  if (reading.key !== expandedForKey) {
-    setExpandedForKey(reading.key);
-    setExpandedChannel(null);
-  }
-
   const {
     offline,
     thermo,
@@ -145,16 +137,11 @@ export function ControllerSummaryGaugeRow({
   /** 카드 인라인 추이 — 하단 BarnListGraphPanel과 기간·차트 중복 방지. */
   const inlineEnvWithChannels = hideGraphToggle;
 
-  const toggleChannel = useCallback((slot: ChannelSlot) => {
-    setExpandedChannel((prev) => (prev === slot ? null : slot));
-  }, []);
-
   const setpoint = thermo?.setpointTemp;
   const setDev = thermo?.tempDeviation;
 
   const cardClass = cn(
-    "flex h-full min-w-0 flex-col rounded-xl border bg-card",
-    expandedChannel ? "overflow-visible" : "overflow-hidden",
+    "flex h-full min-w-0 flex-col rounded-xl border bg-card overflow-hidden",
     !toolbarSheetSelected && statusRingClass(reading.status),
     toolbarSheetSelected && "ring-2 ring-emerald-500/70",
     !toolbarSheetSelected && settingsExpanded && "ring-2 ring-violet-500/40",
@@ -190,11 +177,7 @@ export function ControllerSummaryGaugeRow({
         reading={reading}
         thermo={thermo}
         compact
-        expandedChannel={expandedChannel}
-        onToggleChannel={toggleChannel}
-        controllerTrendByPeriod={controllerTrendByPeriod}
-        period={panelPeriod}
-        thermoSettings={thermoSettings}
+        hideChannelTrendExpand
       />
     </>
   );
