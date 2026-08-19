@@ -209,6 +209,15 @@ export function findStallTrendSeries(
 }
 
 /** 목록 그래프 — controller_key 단위 시계열 (stall 집계와 분리). */
+function stallNoKeysMatch(a: string, b: string): boolean {
+  const x = a.trim();
+  const y = b.trim();
+  if (x === y) return true;
+  const nx = Number(x);
+  const ny = Number(y);
+  return Number.isFinite(nx) && Number.isFinite(ny) && nx === ny;
+}
+
 export function findControllerTrendSeries(
   trendByPeriod: Record<TrendPeriodId, TrendControllerPeriodData> | null | undefined,
   period: TrendPeriodId,
@@ -224,7 +233,7 @@ export function findControllerTrendSeries(
       normalizeStallTyCode(g.stallTyCode) ===
       normalizeStallTyCode(stallTyCode)
   );
-  const stall = sp?.stalls.find((s) => s.stallNo === stallNo);
+  const stall = sp?.stalls.find((s) => stallNoKeysMatch(s.stallNo, stallNo));
   return (
     stall?.controllers.find((c) => c.controllerKey === controllerKey) ?? null
   );

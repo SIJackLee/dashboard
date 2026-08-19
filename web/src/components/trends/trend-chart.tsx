@@ -17,9 +17,10 @@ import { Check, GripHorizontal, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
-  abbreviateTrendAxisLabel,
-  TREND_CHART_TICK_TARGET,
-  trendChartTickMinGap,
+  buildTrendAxisMarks,
+  formatTrendAxisTickParts,
+  parseCategoryTimelineMs,
+  trendChartTickTargetForWidth,
 } from "@/lib/farm/trend-display-buckets";
 import {
   type Band,
@@ -344,6 +345,8 @@ type TrendChartProps = {
 
 const PAD_X = 6;
 const PAD_TOP = 6;
+/** 모터 0%를 회색 시간축에 붙임 — 하단 여백 없음 */
+const PAD_BOTTOM = 0;
 /** 측정 전 fallback · 패딩 비율 기준 */
 const VIEW_W_NORM = 100;
 const X_SCOPE_DRAG_PX = 8;
@@ -1350,6 +1353,7 @@ export function TrendChart({
   onPlotWidthChange,
 }: TrendChartProps) {
   void _layoutKey;
+  void tickEvery;
   const clipWipeEnabled = layerClipWipe ?? animate;
   /** 호버 — 인덱스 변경 시에만 setState (mousemove 전량 리렌더 방지) */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -1512,6 +1516,10 @@ export function TrendChart({
     series.some((s) => s.data?.some((v) => v != null)) ||
     histograms.some((h) => h.values.some((v) => v != null));
   const n = categories.length;
+  const timeAxisMs = useMemo(
+    () => (mode === "bar" ? null : parseCategoryTimelineMs(categories)),
+    [categories, mode],
+  );
 
   /** Prop sync during render — 기간·데이터 바뀌면 고정 카드 초기화 */
   const pinResetKey = `${period ?? ""}|${n}`;
@@ -1531,7 +1539,7 @@ export function TrendChart({
   const padL = (padL0 / VIEW_W_NORM) * viewW;
   const padR = (padR0 / VIEW_W_NORM) * viewW;
   const innerW = viewW - padL - padR;
-  const innerH = chartH - PAD_TOP * 2;
+  const innerH = chartH - PAD_TOP - PAD_BOTTOM;
 
   /** preserveAspectRatio=none 에서 원이 옆으로 퍼지지 않도록 viewBox rx/ry 보정 */
   const markerRx = (rPx: number) => (rPx * viewW) / Math.max(1, plotPx.w);
@@ -1564,6 +1572,14 @@ export function TrendChart({
 
   const xFor = (i: number): number => {
     if (n <= 1) return padL + innerW / 2;
+    if (timeAxisMs && timeAxisMs.length === n) {
+      const t0 = timeAxisMs[0]!;
+      const span = timeAxisMs[n - 1]! - t0;
+      if (span > 0) {
+        const t = (timeAxisMs[i]! - t0) / span;
+        return padL + Math.min(1, Math.max(0, t)) * innerW;
+      }
+    }
     return padL + (i / (n - 1)) * innerW;
   };
 
@@ -2393,34 +2409,38 @@ export function TrendChart({
     return i % markerStride === 0;
   };
 
-  const autoTick = tickEvery ?? Math.max(1, Math.ceil(n / TREND_CHART_TICK_TARGET));
-  const tickIndices = useMemo(() => {
-    if (n <= 0) return [] as number[];
-    if (n === 1) return [0];
+  const stackedAxis = labelGutter || (plotPx.w > 0 && plotPx.w < 480);
+  const tickTarget = trendChartTickTargetForWidth(
+    plotPx.w > 32 ? plotPx.w : labelGutter ? 360 : 800,
+    { stacked: stackedAxis },
+  );
+  const axisMarks = useMemo(
+    () => buildTrendAxisMarks(categories, tickTarget),
+    [categories, tickTarget],
+  );
+  const axisTicks = axisMarks.majors;
 
-    const every = Math.max(1, autoTick);
-    const tickTarget =
-      tickEvery != null ? Math.max(1, Math.ceil(n / every)) : TREND_CHART_TICK_TARGET;
-    const candidates: number[] = [];
-    for (let i = 0; i < n; i += every) candidates.push(i);
-    if (candidates[candidates.length - 1] !== n - 1) {
-      candidates.push(n - 1);
-    }
-
-    const minGap = trendChartTickMinGap(n, every, tickTarget);
-    const out: number[] = [candidates[0]!];
-    for (let k = 1; k < candidates.length; k++) {
-      const idx = candidates[k]!;
-      const prev = out[out.length - 1]!;
-      const isLast = k === candidates.length - 1;
-      if (idx - prev >= minGap) {
-        out.push(idx);
-      } else if (isLast) {
-        out[out.length - 1] = idx;
-      }
-    }
-    return out;
-  }, [autoTick, n]);
+  const axisTickViews = useMemo(() => {
+    const last = axisTicks.length - 1;
+    return axisTicks.map((mark, tickOrd) => {
+      const prevLabel =
+        tickOrd > 0 ? (axisTicks[tickOrd - 1]?.fullLabel ?? null) : null;
+      const parts = period
+        ? formatTrendAxisTickParts(period, mark.fullLabel, {
+            endpoint: tickOrd === 0 || tickOrd === last,
+            prevLabel,
+            stacked: true,
+          })
+        : { date: null, time: mark.fullLabel };
+      const xView = padL + mark.t * innerW;
+      return {
+        key: `${tickOrd}-${mark.fullLabel}`,
+        fullLabel: mark.fullLabel,
+        parts,
+        leftPct: viewW > 0 ? (xView / viewW) * 100 : 0,
+      };
+    });
+  }, [axisTicks, innerW, padL, period, viewW]);
 
   /** 알람/한계 점선 — 동일 axis·밴드 1회. */
   const uniqueAlarmBands = useMemo(() => {
@@ -2844,6 +2864,7 @@ export function TrendChart({
       </div>
       ) : null}
 
+      <div className="min-w-0">
       <div
         ref={plotRef}
         className={cn(
@@ -2970,7 +2991,9 @@ export function TrendChart({
                   className={clipWipeClass(phase)}
                   data-clip-phase={phase}
                 >
-                  {(!isVolume || gi === 0) && !isOverlay ? (
+                  {(!isVolume || gi === 0) &&
+                  !isOverlay &&
+                  Math.abs(yBase - (PAD_TOP + innerH)) > 0.6 ? (
                     <line
                       x1={padL}
                       x2={viewW - padR}
@@ -3882,48 +3905,57 @@ export function TrendChart({
       ) : null}
       </div>
 
-      <div className="relative farm-chart-tick-rail overflow-hidden border-t pt-1">
-        {tickIndices.map((i, tickOrd) => {
-          const fullLabel = categories[i] ?? "";
-          if (!fullLabel) return null;
-          const endpoint = i === 0 || i === n - 1;
-          const prevTickIdx = tickOrd > 0 ? tickIndices[tickOrd - 1] : undefined;
-          const prevLabel =
-            prevTickIdx != null ? (categories[prevTickIdx] ?? null) : null;
-          const label = period
-            ? abbreviateTrendAxisLabel(period, fullLabel, {
-                endpoint,
-                prevLabel,
-              })
-            : fullLabel;
-          const align =
-            i === 0 ? "left" : i === n - 1 ? "right" : "center";
-          return (
+      <div className="relative overflow-visible border-t border-border">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-[1]" aria-hidden>
+          {axisMarks.minors.map((t) => (
             <span
-              key={`tick-${i}-${fullLabel}`}
-              className={cn(
-                "pointer-events-none absolute top-1 farm-chart-fs-axis leading-none text-muted-foreground",
-                align === "left" && "left-0 max-w-[18%] truncate text-left",
-                align === "right" &&
-                  !labelGutter &&
-                  "right-0 max-w-[18%] truncate text-right",
-                align === "right" &&
-                  labelGutter &&
-                  "max-w-[18%] -translate-x-full truncate text-right",
-                align === "center" &&
-                  "max-w-[12%] -translate-x-1/2 truncate text-center",
-              )}
-              style={
-                align === "center" || (align === "right" && labelGutter)
-                  ? { left: `${(xAtIndex(i) / viewW) * 100}%` }
-                  : undefined
-              }
-              title={fullLabel}
-            >
-              {label}
-            </span>
-          );
-        })}
+              key={`axis-minor-${t}`}
+              className="absolute top-0 w-px h-1.5 -translate-x-1/2 bg-muted-foreground/30"
+              style={{ left: `${viewW > 0 ? ((padL + t * innerW) / viewW) * 100 : 0}%` }}
+            />
+          ))}
+          {axisTicks.map((m) => (
+            <span
+              key={`axis-major-${m.t}-${m.fullLabel}`}
+              className="absolute top-0 w-px h-2 -translate-x-1/2 bg-muted-foreground/55"
+              style={{
+                left: `${viewW > 0 ? ((padL + m.t * innerW) / viewW) * 100 : 0}%`,
+              }}
+            />
+          ))}
+          <span
+            className="absolute top-0 w-0.5 h-2.5 -translate-x-1/2 bg-muted-foreground/70"
+            style={{
+              left: `${viewW > 0 ? ((padL + innerW) / viewW) * 100 : 100}%`,
+            }}
+          />
+        </div>
+        <div className="relative farm-chart-tick-rail-stacked overflow-visible">
+          {axisTickViews.map((v) =>
+            v.parts.date ? (
+              <span
+                key={`tick-date-${v.key}`}
+                className="pointer-events-none absolute top-0.5 -translate-x-1/2 text-center farm-chart-fs-axis leading-none text-muted-foreground tabular-nums whitespace-nowrap"
+                style={{ left: `${v.leftPct}%` }}
+              >
+                {v.parts.date}
+              </span>
+            ) : null,
+          )}
+          {axisTickViews.map((v) =>
+            v.parts.time ? (
+              <span
+                key={`tick-time-${v.key}`}
+                className="pointer-events-none absolute bottom-0.5 -translate-x-1/2 text-center farm-chart-fs-axis leading-none text-muted-foreground tabular-nums whitespace-nowrap"
+                style={{ left: `${v.leftPct}%` }}
+                title={v.fullLabel}
+              >
+                {v.parts.time}
+              </span>
+            ) : null,
+          )}
+        </div>
+      </div>
       </div>
     </div>
   );

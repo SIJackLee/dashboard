@@ -37,6 +37,9 @@ import type { ReactNode } from "react";
 type Props = {
   readings: BarnReading[];
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
+  /** 추이 fetch — 빈 화면을 로딩/실패와 구분 */
+  trendLoading?: boolean;
+  trendError?: boolean;
   period: TrendPeriodId;
   onPeriodChange?: (period: TrendPeriodId) => void;
   /** URL 딥링크 집계 범위 (제어 컴포넌트) */
@@ -123,6 +126,8 @@ function guideToneFromPeriodSeries(
 export function FarmChartView({
   readings,
   controllerTrendByPeriod,
+  trendLoading = false,
+  trendError = false,
   period,
   onPeriodChange,
   scope,
@@ -414,6 +419,8 @@ export function FarmChartView({
             label={label}
             controllers={controllers}
             controllerTrendByPeriod={controllerTrendByPeriod}
+            trendLoading={trendLoading}
+            trendError={trendError}
             period={period}
             onPeriodChange={onPeriodChange}
             alarmSettings={alarmSettings}

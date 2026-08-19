@@ -145,6 +145,34 @@ export function emptyTrendControllerPeriodData(
   return { period, categories: [], bucketAts: [], sp: [], totalSamples: 0 };
 }
 
+/** 빈 시간축(카테고리만)이 아니라 실제 컨트롤러 시계열이 있는지. */
+export function controllerTrendPeriodHasSeries(
+  data: TrendControllerPeriodData | null | undefined,
+): boolean {
+  if (!data) return false;
+  if (data.totalSamples > 0) return true;
+  for (const sp of data.sp) {
+    for (const stall of sp.stalls) {
+      if (stall.controllers.length > 0) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 브러시 캔버스는 30d에 시계열이 있을 때만.
+ * 30d가 빈 축이면 24h를 유지해 차트가 비지 않게 한다.
+ */
+export function pickTrendCanvasPeriod(
+  bundle: Partial<Record<TrendPeriodId, TrendControllerPeriodData>> | null | undefined,
+  period: TrendPeriodId,
+): TrendPeriodId {
+  if (controllerTrendPeriodHasSeries(bundle?.["30d"])) return "30d";
+  if (controllerTrendPeriodHasSeries(bundle?.["24h"])) return "24h";
+  if (controllerTrendPeriodHasSeries(bundle?.[period])) return period;
+  return period;
+}
+
 export function isCompleteControllerTrendBundle(
   bundle: Record<TrendPeriodId, TrendControllerPeriodData> | null | undefined,
 ): boolean {

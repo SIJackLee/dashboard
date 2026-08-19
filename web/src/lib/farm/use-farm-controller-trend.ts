@@ -80,17 +80,30 @@ async function loadProgressiveBundle(farmKey: FarmKey): Promise<TrendBundle> {
   };
   notifyTrend(farmKeyId(farmKey), partial);
 
-  const d30 = await fetchFarmControllerTrendPeriodAction(farmKey, "30d");
-  const d7Slice = sliceControllerTrendFromLonger(d30, "7d");
-  const h24Slice = sliceControllerTrendFromLonger(d30, "24h");
-  const full: TrendBundle = {
-    "24h":
-      h24Slice && h24Slice.totalSamples > 0 ? h24Slice : h24,
-    "7d": d7Slice ?? emptyTrendControllerPeriodData("7d"),
-    "30d": d30,
-  };
-  notifyTrend(farmKeyId(farmKey), full);
-  return full;
+  try {
+    const d30 = await fetchFarmControllerTrendPeriodAction(farmKey, "30d");
+    const d7Slice = sliceControllerTrendFromLonger(d30, "7d");
+    const h24Slice = sliceControllerTrendFromLonger(d30, "24h");
+    const full: TrendBundle = {
+      "24h":
+        h24Slice && h24Slice.totalSamples > 0 ? h24Slice : h24,
+      "7d":
+        d7Slice && d7Slice.totalSamples > 0
+          ? d7Slice
+          : emptyTrendControllerPeriodData("7d"),
+      "30d": d30,
+    };
+    notifyTrend(farmKeyId(farmKey), full);
+    return full;
+  } catch {
+    const fallback: TrendBundle = {
+      "24h": h24,
+      "7d": emptyTrendControllerPeriodData("7d"),
+      "30d": emptyTrendControllerPeriodData("30d"),
+    };
+    notifyTrend(farmKeyId(farmKey), fallback);
+    return fallback;
+  }
 }
 
 function fetchTrendShared(

@@ -80,7 +80,10 @@ async function fetchRpcJsonRows<T>(
 ): Promise<T[]> {
   const supabase = createRlsClient(accessToken);
   const { data, error } = await supabase.rpc(rpcName as never, args as never);
-  if (error || data == null) return [];
+  if (error) {
+    throw new Error(error.message || `${rpcName} failed`);
+  }
+  if (data == null) return [];
   return coerceTrendRpcJson<T>(data);
 }
 

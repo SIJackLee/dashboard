@@ -38,10 +38,11 @@ import {
 } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
-import type {
-  TrendControllerPeriodData,
-  TrendControllerSeries,
-  TrendPeriodId,
+import {
+  pickTrendCanvasPeriod,
+  type TrendControllerPeriodData,
+  type TrendControllerSeries,
+  type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import {
   findControllerTrendSeries,
@@ -306,6 +307,9 @@ type Props = {
     open: boolean;
     onOpen: () => void;
   } | null;
+  /** 추이 fetch 중 — 빈 화면을 '데이터 없음'과 구분 */
+  trendLoading?: boolean;
+  trendError?: boolean;
   className?: string;
 };
 
@@ -330,6 +334,8 @@ export function UnifiedBarnTrendPanel({
   chartHeight,
   layersToolbarActive = true,
   mobileScopeHandle = null,
+  trendLoading = false,
+  trendError = false,
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -553,61 +559,66 @@ export function UnifiedBarnTrendPanel({
     return guides;
   }, [layout]);
 
-  const canvasPeriod: TrendPeriodId =
-    (controllerTrendByPeriod?.["30d"]?.categories.length ?? 0) > 0
-      ? "30d"
-      : (controllerTrendByPeriod?.["24h"]?.categories.length ?? 0) > 0
-        ? "24h"
-        : period;
+  const canvasPeriod: TrendPeriodId = pickTrendCanvasPeriod(
+    controllerTrendByPeriod,
+    period,
+  );
   const useBrushCanvas = canvasPeriod === "30d";
   const displayPeriod = useBrushCanvas
     ? displayPeriodFromBrushWindow(brushWindow)
-    : period;
+    : canvasPeriod;
 
   /** 브러시 창의 15분 원본 — 줌 시 다시 다운샘플 */
   const windowBundle = useMemo(() => {
-    const periodData = controllerTrendByPeriod?.[canvasPeriod] ?? null;
-    const categoriesRaw = periodData?.categories ?? [];
-    if (!categoriesRaw.length) return null;
+    const collect = (periodId: TrendPeriodId, brush: boolean) => {
+      const periodData = controllerTrendByPeriod?.[periodId] ?? null;
+      const categoriesRaw = periodData?.categories ?? [];
+      if (!categoriesRaw.length) return null;
 
-    let from = 0;
-    let to = categoriesRaw.length;
-    if (useBrushCanvas) {
-      const range = brushSliceRange(categoriesRaw.length, brushWindow);
-      from = range.from;
-      to = range.to;
-    }
-    const windowCategories = categoriesRaw.slice(from, to);
-    if (windowCategories.length < 2) return null;
+      let from = 0;
+      let to = categoriesRaw.length;
+      if (brush) {
+        const range = brushSliceRange(categoriesRaw.length, brushWindow);
+        from = range.from;
+        to = range.to;
+      }
+      const windowCategories = categoriesRaw.slice(from, to);
+      if (windowCategories.length < 2) return null;
 
-    const seriesList = controllers
-      .map((c) => {
-        const r = c.reading;
-        if (!r) return null;
-        const found = findControllerTrendSeries(
-          controllerTrendByPeriod,
-          canvasPeriod,
-          r.stallTyCode,
-          r.stallNo,
-          r.controllerKey,
-        );
-        if (!found) return null;
-        const series = useBrushCanvas
-          ? sliceControllerSeries(found, from, to)
-          : found;
-        return {
-          ...series,
-          zoneLabel: formatControllerHeaderPrimary(r),
-          equipmentLabel: formatControllerHeaderSecondary(r),
-          stallTyCode: r.stallTyCode
-            ? normalizeStallTyCode(r.stallTyCode)
-            : undefined,
-        };
-      })
-      .filter((s): s is NonNullable<typeof s> => s != null);
+      const seriesList = controllers
+        .map((c) => {
+          const r = c.reading;
+          if (!r) return null;
+          const found = findControllerTrendSeries(
+            controllerTrendByPeriod,
+            periodId,
+            r.stallTyCode,
+            r.stallNo,
+            r.controllerKey,
+          );
+          if (!found) return null;
+          const series = brush
+            ? sliceControllerSeries(found, from, to)
+            : found;
+          return {
+            ...series,
+            zoneLabel: formatControllerHeaderPrimary(r),
+            equipmentLabel: formatControllerHeaderSecondary(r),
+            stallTyCode: r.stallTyCode
+              ? normalizeStallTyCode(r.stallTyCode)
+              : undefined,
+          };
+        })
+        .filter((s): s is NonNullable<typeof s> => s != null);
 
-    if (!seriesList.length) return null;
-    return { categories: windowCategories, seriesList };
+      if (!seriesList.length) return null;
+      return { categories: windowCategories, seriesList };
+    };
+
+    const primary = collect(canvasPeriod, useBrushCanvas);
+    if (primary) return primary;
+    if (canvasPeriod !== "24h") return collect("24h", false);
+    return null;
   }, [
     controllers,
     controllerTrendByPeriod,
@@ -1874,7 +1885,7 @@ export function UnifiedBarnTrendPanel({
                     {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
                     {useBrushCanvas
                       ? formatBrushWindowLabel(brushWindow)
-                      : trendPeriodLabel(period)}
+                      : trendPeriodLabel(canvasPeriod)}
                     {picked?.trimmed ? " · 실데이터 구간" : ""}
                   </span>
                 </div>
@@ -1911,7 +1922,9 @@ export function UnifiedBarnTrendPanel({
           leftUnit={chartLeftUnit}
           leftDomain={built.leftDomain}
           period={displayPeriod}
-          tickEvery={tickEveryForDisplayBars(chartCategories.length)}
+          tickEvery={tickEveryForDisplayBars(chartCategories.length, {
+            compact: isMobileStack,
+          })}
           showLegend
           legendTrailing={
             xScope != null && picked ? (
@@ -2027,7 +2040,11 @@ export function UnifiedBarnTrendPanel({
         <p className="py-6 text-center text-xs text-muted-foreground">
           {built
             ? "표시할 레이어를 선택하세요."
-            : "통합 추이 데이터가 없습니다."}
+            : trendLoading
+              ? "통합 추이를 불러오는 중."
+              : trendError
+                ? "통합 추이를 불러오지 못했습니다."
+                : "통합 추이 데이터가 없습니다."}
         </p>
       )}
 

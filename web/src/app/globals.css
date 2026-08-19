@@ -1452,6 +1452,11 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   height: calc(1rem * var(--farm-chart-ui-scale, 1));
 }
 
+/** 날짜·시간 2줄을 항상 같은 높이로 예약. 같은 날은 날짜 행만 비운다. */
+.farm-chart-tick-rail-stacked {
+  height: calc(1.6rem * var(--farm-chart-ui-scale, 1));
+}
+
 @keyframes farm-chart-layers-enter {
   from {
     opacity: 0;

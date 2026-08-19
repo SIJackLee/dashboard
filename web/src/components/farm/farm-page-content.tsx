@@ -382,7 +382,7 @@ export function FarmPageContent({
     enrichListIfNeeded,
   ]);
 
-  const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale } =
+  const { data: gridControllerTrend, loading: gridTrendLoading, isStale: gridTrendStale, error: gridTrendError } =
     useFarmControllerTrend({
       farmKey: gridFarmKey,
       enabled:
@@ -871,6 +871,8 @@ export function FarmPageContent({
               <FarmChartView
                 readings={readings}
                 controllerTrendByPeriod={gridControllerTrend}
+                trendLoading={gridTrendLoading}
+                trendError={Boolean(gridTrendError)}
                 period={trendPeriod}
                 onPeriodChange={onTrendPeriodChange}
                 scope={chartScope}
