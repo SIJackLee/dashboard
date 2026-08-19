@@ -3,11 +3,14 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
   type TouchEvent as ReactTouchEvent,
 } from "react";
+import { createPortal } from "react-dom";
+import { XIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +20,26 @@ import {
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { motionDuration } from "@/lib/ui/motion-tokens";
 
 const DISMISS_DRAG_PX = 88;
+const PEEK_EXPAND_DRAG_PX = 36;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+function sheetPeekHost(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return (
+    document.querySelector<HTMLElement>("[data-delin-badge-host]") ??
+    document.querySelector<HTMLElement>("[data-viewport-preview]") ??
+    document.body
+  );
+}
 
 type Props = {
   open: boolean;
@@ -36,6 +57,13 @@ type Props = {
    * 운영 명령 상세 등에는 false(기본)로 두어 오버레이/ESC 닫기를 허용.
    */
   suppressFocusOutClose?: boolean;
+  /**
+   * 차트 이동 후 흐름 유지 — 본문 없이 하단 핸들만.
+   * 핸들 탭·위로 끌기 → onExpand, 펼친 뒤 아래로 끌기·배경 → onPeek.
+   */
+  peek?: boolean;
+  onPeek?: () => void;
+  onExpand?: () => void;
 };
 
 /** 모바일 stack — bottom sheet shell (설정·컨트롤러 carousel 공용). */
@@ -50,20 +78,50 @@ export function BarnPanelBottomSheet({
   onBack,
   backLabel = "뒤로",
   suppressFocusOutClose = false,
+  peek = false,
+  onPeek,
+  onExpand,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startYRef = useRef<number | null>(null);
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [peekVisible, setPeekVisible] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    setHost(sheetPeekHost());
+  }, [open, peek]);
 
   useEffect(() => {
-    if (!open || typeof document === "undefined") return;
+    if (!open) {
+      setPeekVisible(false);
+      return;
+    }
+    if (peek) {
+      setPeekVisible(true);
+      return;
+    }
+    if (prefersReducedMotion()) {
+      setPeekVisible(false);
+      return;
+    }
+    const t = window.setTimeout(
+      () => setPeekVisible(false),
+      motionDuration.emphasis,
+    );
+    return () => window.clearTimeout(t);
+  }, [open, peek]);
+
+  useEffect(() => {
+    if (!open || peek || typeof document === "undefined") return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [open, peek]);
 
   const resetDrag = useCallback(() => {
     setDragY(0);
@@ -75,6 +133,11 @@ export function BarnPanelBottomSheet({
     resetDrag();
     onClose();
   }, [onClose, resetDrag]);
+
+  const handlePeek = useCallback(() => {
+    resetDrag();
+    onPeek?.();
+  }, [onPeek, resetDrag]);
 
   const onHandleTouchStart = useCallback((e: ReactTouchEvent) => {
     const t = e.touches[0];
@@ -96,31 +159,96 @@ export function BarnPanelBottomSheet({
     startYRef.current = null;
     setDragging(false);
     if (dy >= DISMISS_DRAG_PX) {
-      handleClose();
+      if (onPeek) handlePeek();
+      else handleClose();
       return;
     }
     setDragY(0);
-  }, [dragY, handleClose]);
+  }, [dragY, handleClose, handlePeek, onPeek]);
+
+  const onPeekTouchStart = useCallback((e: ReactTouchEvent) => {
+    const t = e.touches[0];
+    if (!t) return;
+    startYRef.current = t.clientY;
+  }, []);
+
+  const onPeekTouchEnd = useCallback(
+    (e: ReactTouchEvent) => {
+      const start = startYRef.current;
+      startYRef.current = null;
+      const t = e.changedTouches[0];
+      if (start == null || !t) return;
+      if (start - t.clientY >= PEEK_EXPAND_DRAG_PX) {
+        onExpand?.();
+      }
+    },
+    [onExpand],
+  );
 
   if (!open) return null;
 
+  const peekHandle =
+    peekVisible && host
+      ? createPortal(
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-[45] flex justify-center"
+            data-audit-region={`${auditRegion}-peek`}
+            data-testid="barn-sheet-peek"
+          >
+            <button
+              type="button"
+              className={cn(
+                "pointer-events-auto flex min-h-12 w-full max-w-lg cursor-grab touch-none flex-col items-center pt-4 pb-3.5",
+                "bg-card/95 backdrop-blur-md",
+                "rounded-t-xl border border-b-0 border-border/80",
+                motionClass.microInteractive,
+              )}
+              aria-label="컨트롤러 시트 열기"
+              aria-expanded={false}
+              data-testid="barn-sheet-peek-handle"
+              data-sheet-drag-handle
+              onClick={() => onExpand?.()}
+              onTouchStart={onPeekTouchStart}
+              onTouchEnd={onPeekTouchEnd}
+              onTouchCancel={() => {
+                startYRef.current = null;
+              }}
+            >
+              <span
+                className="h-2 w-14 rounded-full bg-muted-foreground/50"
+                aria-hidden
+              />
+            </button>
+          </div>,
+          host,
+        )
+      : null;
+
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next, eventDetails) => {
-        if (next) return;
-        if (suppressFocusOutClose && eventDetails.reason === "focus-out") {
-          eventDetails.cancel();
-          return;
-        }
-        handleClose();
-      }}
-    >
+    <>
+      {peekHandle}
+      <Dialog
+        open={open && !peek}
+        onOpenChange={(next, eventDetails) => {
+          if (next) return;
+          if (suppressFocusOutClose && eventDetails.reason === "focus-out") {
+            eventDetails.cancel();
+            return;
+          }
+          if (onPeek && eventDetails.reason !== "close-press") {
+            eventDetails.cancel();
+            handlePeek();
+            return;
+          }
+          handleClose();
+        }}
+      >
       <DialogContent
-        showCloseButton
+        showCloseButton={!onPeek}
         className={cn(
           "top-auto flex max-h-none flex-col gap-0 overflow-hidden rounded-b-none rounded-t-xl p-0 pb-[env(safe-area-inset-bottom,0px)]",
-          motionClass.durationModerate,
+          motionClass.durationEmphasis,
+          motionClass.easeEmphasis,
           motionClass.sheetEnter,
           viewportCompact
             ? "bottom-auto left-1/2 h-full w-full -translate-x-1/2 translate-y-0"
@@ -138,19 +266,18 @@ export function BarnPanelBottomSheet({
         data-mobile-viewport-sheet={viewportCompact || undefined}
         data-audit-region={auditRegion}
       >
-        {/* 핸들 — 아래로 끌어 닫기 (가로 페이지 스와이프와 축 분리) */}
         <div
-          className="flex shrink-0 cursor-grab touch-none justify-center pt-2 active:cursor-grabbing"
+          className="flex shrink-0 cursor-grab touch-none justify-center pt-3 pb-2 active:cursor-grabbing"
           data-sheet-drag-handle
-          aria-label="시트를 아래로 끌어 닫기"
+          aria-label={onPeek ? "시트를 아래로 끌어 접기" : "시트를 아래로 끌어 닫기"}
           onTouchStart={onHandleTouchStart}
           onTouchMove={onHandleTouchMove}
           onTouchEnd={onHandleTouchEnd}
           onTouchCancel={onHandleTouchEnd}
         >
-          <span className="h-1 w-10 rounded-full bg-muted-foreground/35" aria-hidden />
+          <span className="h-1.5 w-12 rounded-full bg-muted-foreground/40" aria-hidden />
         </div>
-        <DialogHeader className="shrink-0 border-b px-4 py-3">
+        <DialogHeader className="relative shrink-0 border-b px-4 py-3">
           <div className="flex items-center gap-2 pr-8">
             {onBack ? (
               <button
@@ -165,6 +292,16 @@ export function BarnPanelBottomSheet({
               {title}
             </DialogTitle>
           </div>
+          {onPeek ? (
+            <button
+              type="button"
+              className="absolute top-2 right-2 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              aria-label="시트 닫기"
+              onClick={handleClose}
+            >
+              <XIcon className="size-4" aria-hidden />
+            </button>
+          ) : null}
         </DialogHeader>
         <div
           className={cn(
@@ -176,5 +313,6 @@ export function BarnPanelBottomSheet({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

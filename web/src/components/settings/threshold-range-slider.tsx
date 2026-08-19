@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useId } from "react";
+import { useCallback, useId, useRef } from "react";
 import {
   SliderThumbLabel,
   sliderTrackRailBgClass,
   sliderTrackRailClass,
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
+import { useDualThumbLabelPositions } from "@/lib/ui/use-dual-thumb-label-positions";
 import {
-  SliderValueInput,
+  SliderBoundFields,
   type SliderValueInputSize,
 } from "@/components/ui/slider-value-input";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -30,7 +31,7 @@ type ThresholdRangeSliderProps = {
   disabled?: boolean;
   compact?: boolean;
   accentClass?: string;
-  /** 트랙 양끝 축 — domain=정적 min/max, editable=하한·상한 입력 */
+  /** 트랙 양끝 축 — domain=정적 min/max, editable=트랙 위 하한·상한 필드 */
   axisMode?: "hidden" | "domain" | "editable";
   /** @deprecated axisMode="domain" 사용 */
   showAxis?: boolean;
@@ -102,8 +103,26 @@ export function ThresholdRangeSlider({
   const lowText = `${fmtValue(low, step)}${unit}`;
   const highText = `${fmtValue(high, step)}${unit}`;
   const mobileDrag = mobile && dragging;
+
   const resolvedAxisMode = axisMode ?? (showAxis ? "domain" : "hidden");
   const inputSize = axisInputSize ?? (compact ? "compact" : "dashboard");
+  const showBoundFields = resolvedAxisMode === "editable";
+  const hideTrackOnPc = showBoundFields && compact && !mobile;
+  const showThumbLabels = !hideTrackOnPc && (!showBoundFields || mobileDrag);
+
+  const railRef = useRef<HTMLDivElement>(null);
+  const lowLabelRef = useRef<HTMLSpanElement>(null);
+  const highLabelRef = useRef<HTMLSpanElement>(null);
+  // 모바일 drag 중에는 한쪽 라벨만 확대 표시 → 겹침 회피 비활성
+  const labelPos = useDualThumbLabelPositions({
+    railRef,
+    lowRef: lowLabelRef,
+    highRef: highLabelRef,
+    lowPct,
+    highPct,
+    deps: [lowText, highText, mobileDrag],
+    enabled: showThumbLabels && !mobileDrag,
+  });
 
   const setLow = useCallback(
     (raw: number) => {
@@ -152,16 +171,44 @@ export function ThresholdRangeSlider({
         </p>
       </div>
 
+      {showBoundFields ? (
+        <SliderBoundFields
+          low={low}
+          high={high}
+          lowMin={min}
+          lowMax={high}
+          highMin={low}
+          highMax={max}
+          step={step}
+          unit={unit}
+          lowCaption={lowLabel}
+          highCaption={highLabel}
+          lowAria={`${title} ${lowLabel}`}
+          highAria={`${title} ${highLabel}`}
+          disabled={disabled}
+          size={inputSize}
+          domainText={`${min}–${max}${unit}`}
+          domainClassName={axisClassName}
+          onLowCommit={setLow}
+          onHighCommit={setHigh}
+        />
+      ) : null}
+
+      {hideTrackOnPc ? null : (
       <div
         className={cn(
-          sliderTrackShellClass(compact),
+          sliderTrackShellClass(compact, "dual", false, showThumbLabels),
           mobileDrag && "max-md:pt-11",
           trackShellClassName
         )}
       >
-        <div className={sliderTrackRailClass()}>
+        <div className={sliderTrackRailClass()} ref={railRef}>
+          {showThumbLabels ? (
+            <>
           <SliderThumbLabel
             leftPct={lowPct}
+            leftPx={labelPos?.lowPx}
+            labelRef={lowLabelRef}
             compact={compact}
             className={thumbLabelClassName}
             visible={!mobileDrag || dragThumb !== "high"}
@@ -171,6 +218,8 @@ export function ThresholdRangeSlider({
           </SliderThumbLabel>
           <SliderThumbLabel
             leftPct={highPct}
+            leftPx={labelPos?.highPx}
+            labelRef={highLabelRef}
             compact={compact}
             className={thumbLabelClassName}
             visible={!mobileDrag || dragThumb !== "low"}
@@ -178,6 +227,8 @@ export function ThresholdRangeSlider({
           >
             {highText}
           </SliderThumbLabel>
+            </>
+          ) : null}
           <div className={sliderTrackRailBgClass()} aria-hidden />
           <div
             className={cn(
@@ -220,8 +271,9 @@ export function ThresholdRangeSlider({
           />
         </div>
       </div>
+      )}
 
-      {resolvedAxisMode !== "hidden" ? (
+      {resolvedAxisMode === "domain" ? (
         <div
           className={cn(
             "relative mt-1 flex items-end justify-between gap-2 px-3 sm:px-4 tabular-nums",
@@ -231,51 +283,14 @@ export function ThresholdRangeSlider({
                 : dashboardTypography.meta)
           )}
         >
-          {resolvedAxisMode === "editable" ? (
-            <SliderValueInput
-              value={low}
-              min={min}
-              max={high}
-              step={step}
-              unit={unit}
-              aria-label={`${title} ${lowLabel}`}
-              disabled={disabled}
-              size={inputSize}
-              onCommit={setLow}
-            />
-          ) : (
-            <span aria-hidden>
-              {min}
-              {unit}
-            </span>
-          )}
-          {resolvedAxisMode === "editable" ? (
-            <span
-              className="mb-1 shrink-0 text-center text-muted-foreground"
-              aria-hidden
-            >
-              {min}–{max}
-              {unit}
-            </span>
-          ) : null}
-          {resolvedAxisMode === "editable" ? (
-            <SliderValueInput
-              value={high}
-              min={low}
-              max={max}
-              step={step}
-              unit={unit}
-              aria-label={`${title} ${highLabel}`}
-              disabled={disabled}
-              size={inputSize}
-              onCommit={setHigh}
-            />
-          ) : (
-            <span aria-hidden>
-              {max}
-              {unit}
-            </span>
-          )}
+          <span aria-hidden>
+            {min}
+            {unit}
+          </span>
+          <span aria-hidden>
+            {max}
+            {unit}
+          </span>
         </div>
       ) : null}
     </div>

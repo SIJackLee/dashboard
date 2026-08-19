@@ -193,11 +193,6 @@ export function settleSelectorsForGridAction(
         '[data-tour-id="controller-card"]',
         '[data-tour-id="controller-gauge-metrics"]',
       ];
-    case "list-mode-graph":
-      return [
-        '[data-tour-id="list-graph-panel"]',
-        '[data-audit-region="controller-mobile-sheet-channel-trend"]',
-      ];
     case "list-mode-settings":
       return [
         '[data-tour-id="list-settings-tour-target"]',
@@ -223,11 +218,6 @@ export function settleSelectorsForGridAction(
       return [
         '[data-tour-id="controller-gauge-metrics"]',
         '[data-audit-region="controller-mobile-sheet-controller"]',
-      ];
-    case "field-mobile-sheet-graph":
-      return [
-        '[data-audit-region="controller-mobile-sheet-channel-trend"]',
-        '[data-tour-id="list-graph-panel"]',
       ];
     case "field-mobile-sheet-settings":
       return [

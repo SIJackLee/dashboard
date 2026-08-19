@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import type { BarnMapSnapshot } from "@/lib/data/iot";
+import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import { patchBarnGridsAction } from "@/app/(dashboard)/farm/actions";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { type FarmKey } from "@/lib/data/farm-key";
@@ -25,14 +25,12 @@ import { useFarmTourGridAction } from "@/lib/onboarding/use-farm-tour-grid-actio
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { FarmMapCard } from "./farm-map-card";
-import { TrendPeriodToggle } from "./trend-period-toggle";
 import {
   InlineStatusToast,
   type InlineStatusTone,
 } from "@/components/common/inline-status-toast";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { scheduleSafeRouterRefresh } from "@/lib/navigation/safe-router-refresh";
-import { GridMetricLabel } from "@/lib/farm/grid-metric-label";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -48,43 +46,6 @@ const FarmMapBulkApply = dynamic(
     ),
   },
 );
-const LEGEND_METRICS = [
-  { id: "T", label: "온도" },
-  { id: "H", label: "습도" },
-  { id: "A", label: "A" },
-  { id: "B", label: "B" },
-  { id: "C", label: "C" },
-] as const;
-
-/** 히트맵 — 지표(행)·심각도 색 범례 */
-function GraphModeLegend() {
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.65rem] text-muted-foreground">
-      <span className="inline-flex items-center gap-1">
-        <span>행</span>
-        {LEGEND_METRICS.map((m) => (
-          <GridMetricLabel
-            key={m.id}
-            id={m.id}
-            label={m.label}
-            mode="icon"
-            iconClassName="size-3"
-          />
-        ))}
-      </span>
-      <span className="inline-flex items-center gap-1">
-        <span className="inline-block size-2 rounded-sm bg-emerald-500/60" />정상
-      </span>
-      <span className="inline-flex items-center gap-1">
-        <span className="inline-block size-2 rounded-sm bg-amber-500" />주의
-      </span>
-      <span className="inline-flex items-center gap-1">
-        <span className="inline-block size-2 rounded-sm bg-red-500" />경고
-      </span>
-    </div>
-  );
-}
-
 type Props = {
   initialBarns: BarnMapSnapshot[];
   gridCols: number;
@@ -103,7 +64,7 @@ type Props = {
   trendLoading?: boolean;
   trendStale?: boolean;
   fieldMerge?: boolean;
-  onOpenChart?: () => void;
+  onOpenChart?: (reading: BarnReading) => void;
 };
 
 const GRID_COL_MIN = "4.75rem";
@@ -466,16 +427,6 @@ export function FarmMapCanvas({
               scheduleSafeRouterRefresh(router);
             }
           }}
-          trailing={
-            graphMode && barns.length > 0 ? (
-              <TrendPeriodToggle
-                value={graphPeriod}
-                onChange={setGraphPeriod}
-                density="map"
-                tourTarget
-              />
-            ) : undefined
-          }
         />
       ) : null}
       {pendingSaves > 0 && (
@@ -487,22 +438,6 @@ export function FarmMapCanvas({
       {saveError ? (
         <div className="absolute bottom-3 right-3 z-30 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive shadow">
           {saveError}
-        </div>
-      ) : null}
-      {graphMode && barns.length > 0 ? (
-        <div
-          className="flex flex-wrap items-center gap-2 border-b px-3 py-2"
-          data-tour-id={bulkEnabled ? undefined : "farm-command-bar"}
-        >
-          {!bulkEnabled ? (
-            <TrendPeriodToggle
-              value={graphPeriod}
-              onChange={setGraphPeriod}
-              density="map"
-              tourTarget
-            />
-          ) : null}
-          <GraphModeLegend />
         </div>
       ) : null}
       <div

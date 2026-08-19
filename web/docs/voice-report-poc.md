@@ -13,16 +13,19 @@ Cursor 규칙: 워크스페이스 `.cursor/rules/voice-protocol.mdc`.
 - **델린** — 데이터 기반 축사 환경·가축 지능형 안내자
 - 유래: 목동·가축의 수호성인 성 벤델리노(Wendelin)
 - 슬로건: 축사를 이해하고, 농장을 지키는 AI — DELIN
-- 허브 UI: 현장·차트·모델 **우측 하단 DELIN 뱃지**. 전용 탭 없음 (`view=aria`/`jarvis` → 현장)
+- 허브 UI: 현장·차트·모델 **우측 하단 DELIN 뱃지**. 전용 탭 없음 (`view=aria`/`jarvis` → 현장). 모바일은 말풍선 숨김 시 오른쪽 끝 아이콘만, 탭하면 펼침.
 
 ## 출시 게이트
-정식 RELEASE(그리드·목록·차트)에서는 **기본 숨김**.  
+정식 RELEASE에서는 **코드 기본 숨김**.  
 `src/lib/aria/delin-enabled.ts` — 로컬 `development` · Vercel `preview` 기본 on, Production 기본 off.  
-강제: `NEXT_PUBLIC_DELIN_ENABLED=true|false`.
+강제: `NEXT_PUBLIC_DELIN_ENABLED=true|false`. Production 노출은 Vercel Production에 `true`.
 
 ## 목적
-허브에서는 음성·질문 도크를 붙이지 않는다. 프로토콜·음성 코드는 유지한다.  
-현장·차트·모델 **DELIN 뱃지**가 권장 온·습을 보여 준다.
+DELIN은 **뱃지 BOT 단독**으로 운영한다. 오브·TTS·말하기 도크는 은퇴하고,  
+현장·차트·모델 우측 하단 **DELIN 뱃지**가 사용자가 보는 화면에서 조언한다.  
+근거는 **한국 양돈 표준 권장 온·습도표**이며, 조언 우선순위는  
+**통신두절 → 장비 경보(안전망 임계) → 권장표 이탈 → 적정** 이다.  
+프로토콜·음성 코드는 되돌리기 쉽게 **보존**하되 `VOICE_REPORT_ENABLED=false`로 끈다.
 
 상단 탭: 현장(그리드·목록) · 차트 · 모델. URL 계약은 [`farm-hub-url.md`](./farm-hub-url.md).
 
@@ -35,12 +38,14 @@ AI는 코드만, 문장·수치는 서버 pack/unpack.
 세션: 요청 바디 `ariaSession` (탭 유지, DB 미저장).  
 Flag: `ARIA_PROTOCOL_V1` 기본 **on**. `false`/`0`/`off` → 레거시 Chat 요약.
 
-## UI (P1 · A안)
-- 중앙 **AriaOrb** — 호흡 강화, 청취 시 마이크 RMS 파동
-- 하단 **도크** (`layout="dock"`) — FAB 제거, **말하기** CTA 중앙 · 추천 칩 3개 · 장치 테스트 접기
-- Full Name은 타이틀 `title` 툴팁만 (본문 eyebrow는 「델린」)
-- VoiceReport 상태 → 오브 모드 (`lib/aria/aria-mode.ts`)
-- `prefers-reduced-motion` 시 애니메이션 정지
+## UI (현행 · 뱃지 BOT)
+- 현장·차트·모델 우측 하단 **DELIN 뱃지** (`delin-env-badge.tsx`) — Bot 아이콘 + 말풍선. 음성·적용 없음.
+- 조언 톤: 통신두절·장비경보 = danger, 권장표 이탈 = warn, 적정 = 기본.
+- 화면 맥락(축사유형)만 판정. 내부 ID·영문 필드 노출 없음.
+
+### (은퇴) 오브·TTS UI
+- `AriaOrb`·말하기 도크·`view=aria` 오브 화면은 사용하지 않는다(코드 보존, 플래그 off).
+- `resolveFarmHubView`가 `aria`/`jarvis`를 현장으로 정규화하므로 탭·오브는 노출되지 않는다.
 
 ## 사용
 1. `.env.local`에 `OPENAI_API_KEY` 설정

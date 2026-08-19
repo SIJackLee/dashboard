@@ -17,7 +17,7 @@ DELIN과 동일.
 |------|------|
 | 로컬 `development` | 노출 |
 | Vercel Preview | 노출 |
-| Production | **숨김** |
+| Production | **숨김** (코드 기본). 강제 on: Vercel `NEXT_PUBLIC_BARN_MODEL_ENABLED=true` |
 
 강제: `NEXT_PUBLIC_BARN_MODEL_ENABLED` = `true` \| `false` (이름만 `.env.example`).
 
@@ -50,7 +50,7 @@ DELIN과 동일.
 - 필드 구도에서 팬/줌. 축사 입구 GUI로 「입구 보기」
 - 패키지: `three`, `@react-three/fiber`, `@react-three/drei`
 
-넣지 않음: 돼지·급이선·분뇨피트·실측 CAD·제품 메시·Production 노출·서버 저장.
+넣지 않음: 돼지·급이선·분뇨피트·실측 CAD·제품 메시·서버 저장.
 
 ---
 

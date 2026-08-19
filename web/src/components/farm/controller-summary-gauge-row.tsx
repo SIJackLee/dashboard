@@ -11,17 +11,11 @@ import {
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
-import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
-import {
-  BarnControllerMobileSheet,
-  controllerMobileSheetPageFromFlags,
-} from "@/components/farm/barn-controller-mobile-sheet";
-import { ControllerMobilePage } from "@/components/farm/controller-mobile-page";
+import { BarnControllerMobileSheet } from "@/components/farm/barn-controller-mobile-sheet";
 import { ControllerMobileSettingsPage } from "@/components/farm/controller-mobile-settings-page";
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnEnvTrendPanel } from "@/components/farm/barn-env-trend-panel";
-import { BarnListGraphPanel } from "@/components/farm/barn-list-graph-panel";
 import { BarnListAccordionPanel } from "@/components/farm/barn-list-accordion-panel";
 import {
   ChannelStrip,
@@ -43,18 +37,13 @@ type Props = {
   alarmSettings?: AlarmSettings;
   canCommand?: boolean;
   listMode?: BarnListViewMode;
-  graphExpanded?: boolean;
   settingsExpanded?: boolean;
-  /** 모바일 — panelSets 기반 sheet만 열림 (미전달 시 graph/settingsExpanded로 판단) */
+  /** 모바일 — panelSets 기반 sheet만 열림 (미전달 시 settingsExpanded로 판단) */
   mobileSheetOpen?: boolean;
-  onToggleGraph?: () => void;
   onToggleSettings?: () => void;
-  /** 그래프 모드 — 게이지/채널 본문 접기·펼치기 */
-  cardBodyCollapsed?: boolean;
-  onToggleCardBody?: () => void;
-  /** 모바일 sheet carousel — 스와이프·segment 시 pill 상태 동기화 */
-  onSheetPageChange?: (page: ControllerMobileSheetPage) => void;
-  /** 그리드 stack — 그래프 pill 숨김(차트 tap으로 sheet 진입). 목록 stack에서는 false. */
+  /** «차트에서 보기» — 해당 컨트롤러 스코프로 차트 탭 이동 */
+  onOpenChart?: () => void;
+  /** 그리드 상세 등 — 카드 헤더 액션(차트/설정) 숨김 */
   hideGraphToggle?: boolean;
   panelPlacement?: "bottom" | "right";
   gridCols?: number;
@@ -90,24 +79,18 @@ export function ControllerSummaryGaugeRow({
   alarmSettings,
   canCommand = false,
   listMode = "controller",
-  graphExpanded = false,
   settingsExpanded = false,
   mobileSheetOpen: mobileSheetOpenProp,
-  onToggleGraph,
   onToggleSettings,
-  cardBodyCollapsed = false,
-  onToggleCardBody,
-  onSheetPageChange,
+  onOpenChart,
   hideGraphToggle = false,
   panelPlacement = "bottom",
   gridCols,
   panelLayoutVariant,
   controllerTrendByPeriod = null,
   trendLoading = false,
-  trendStale = false,
   bulkPeriod = DEFAULT_TREND_PERIOD,
   panelPeriodOverrides = {},
-  onPanelPeriodChange,
   showAffiliation = false,
   className,
   suppressMobileInlinePanels = false,
@@ -144,15 +127,8 @@ export function ControllerSummaryGaugeRow({
   const useMobileSheet = resolvedPanelLayout === "stack";
   const mobileSheetOpen =
     useMobileSheet &&
-    (mobileSheetOpenProp !== undefined
-      ? mobileSheetOpenProp
-      : graphExpanded || settingsExpanded);
+    (mobileSheetOpenProp !== undefined ? mobileSheetOpenProp : settingsExpanded);
 
-  const showInlineGraphOnMobile =
-    useMobileSheet &&
-    graphExpanded &&
-    !mobileSheetOpen &&
-    !suppressMobileInlinePanels;
   const showInlineSettingsOnMobile =
     useMobileSheet &&
     settingsExpanded &&
@@ -181,7 +157,6 @@ export function ControllerSummaryGaugeRow({
     expandedChannel ? "overflow-visible" : "overflow-hidden",
     !toolbarSheetSelected && statusRingClass(reading.status),
     toolbarSheetSelected && "ring-2 ring-emerald-500/70",
-    !toolbarSheetSelected && graphExpanded && "ring-2 ring-primary/40",
     !toolbarSheetSelected && settingsExpanded && "ring-2 ring-violet-500/40",
     onCardActivate && "cursor-pointer",
     className,
@@ -224,99 +199,38 @@ export function ControllerSummaryGaugeRow({
     </>
   );
 
-  const sheetMetricsBlock = (
-    <>
-      <div data-tour-id="controller-gauge-metrics">
-        <EnvMetricPanel
-          className="mb-2"
-          offline={offline}
-          setpoint={setpoint}
-          setDev={setDev}
-          temp={{
-            value: reading.tempC,
-            displayValue: temp ?? "—",
-            low: thresholds.tempLow,
-            high: thresholds.tempHigh,
-            breached: tempAlarmBreached,
-          }}
-          humidity={{
-            value: reading.humidityPct,
-            displayValue: humidity ?? "—",
-            low: thresholds.humidityLow,
-            high: thresholds.humidityHigh,
-            breached: humidityAlarmBreached,
-          }}
-        />
-      </div>
-      <ChannelStrip reading={reading} thermo={thermo} compact hideChannelTrendExpand />
-    </>
-  );
-
   const cardBody = (
     <>
-      <div
-        className={cn(
-          "px-2.5 pt-2.5 sm:px-3 sm:pt-3",
-          cardBodyCollapsed && "pb-2.5 sm:pb-3",
-        )}
-      >
+      <div className="px-2.5 pt-2.5 sm:px-3 sm:pt-3">
         <ControllerSummaryHeader
           reading={reading}
-          graphActive={graphExpanded}
           settingsActive={settingsExpanded}
-          listMode={listMode}
-          hideGraphToggle={hideGraphToggle}
+          hideActions={hideGraphToggle}
           showAffiliation={showAffiliation}
-          cardBodyCollapsed={cardBodyCollapsed}
-          onToggleGraph={onToggleGraph}
           onToggleSettings={onToggleSettings}
-          onToggleCardBody={
-            listMode === "graph" ? onToggleCardBody : undefined
-          }
+          onOpenChart={onOpenChart}
           className="mb-2 w-full"
         />
       </div>
-      {!cardBodyCollapsed ? (
-        <div className="shrink-0 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
-          {metricsBlock}
-        </div>
-      ) : null}
+      <div className="shrink-0 px-2.5 pb-2.5 sm:px-3 sm:pb-3">
+        {metricsBlock}
+      </div>
     </>
   );
 
   const handleSheetClose = useCallback(() => {
     if (settingsExpanded) onToggleSettings?.();
-    else if (graphExpanded) onToggleGraph?.();
-  }, [graphExpanded, settingsExpanded, onToggleGraph, onToggleSettings]);
-
-  const handleSheetPageSettled = useCallback(
-    (page: ControllerMobileSheetPage) => {
-      onSheetPageChange?.(page);
-    },
-    [onSheetPageChange],
-  );
+  }, [settingsExpanded, onToggleSettings]);
 
   const mobileSheet = useMobileSheet && !suppressPerCardMobileSheet ? (
     <BarnControllerMobileSheet
       open={mobileSheetOpen}
-      initialPage={controllerMobileSheetPageFromFlags(settingsExpanded)}
       onClose={handleSheetClose}
-      onPageSettled={handleSheetPageSettled}
       reading={reading}
       pickerReadings={sheetPickerReadings}
       selectedReadingKey={reading.key}
       onSelectReading={onSheetPickerSelect}
       showPickerAffiliation={showSheetPickerAffiliation}
-      controllerPage={
-        <ControllerMobilePage
-          key={reading.key}
-          metricsSection={sheetMetricsBlock}
-          reading={reading}
-          controllerTrendByPeriod={controllerTrendByPeriod}
-          period={panelPeriod}
-          thermoSettings={thermoSettings}
-        />
-      }
       settingsPage={
         <ControllerMobileSettingsPage
           key={reading.key}
@@ -326,44 +240,26 @@ export function ControllerSummaryGaugeRow({
           commands={commands}
           alarmSettings={alarmSettings}
           canCommand={canCommand}
-          controllerTrendByPeriod={controllerTrendByPeriod}
-          period={panelPeriod}
-          onPeriodChange={(p) => onPanelPeriodChange?.(reading.key, p)}
-          trendLoading={trendLoading}
-          trendStale={trendStale}
+          onOpenChart={
+            onOpenChart
+              ? () => {
+                  onOpenChart();
+                  handleSheetClose();
+                }
+              : undefined
+          }
         />
       }
     />
   ) : null;
 
-  const graphPanel = hideGraphToggle ? null : (
-    <BarnListPanelShell
-      open={graphExpanded}
-      panelKind="graph"
-      keepMounted
-    >
-      {graphExpanded ? (
-        <BarnListGraphPanel
-          reading={reading}
-          controllerTrendByPeriod={controllerTrendByPeriod ?? null}
-          period={panelPeriod}
-          onPeriodChange={(p) => onPanelPeriodChange?.(reading.key, p)}
-          alarmSettings={alarmSettings}
-          thermoSettings={thermoSettings}
-          loading={trendLoading}
-          stale={trendStale}
-        />
-      ) : null}
-    </BarnListPanelShell>
-  );
-
   const settingsPanel = (
     <BarnListPanelShell
-      open={settingsExpanded && !cardBodyCollapsed}
+      open={settingsExpanded}
       panelKind="settings"
       keepMounted
     >
-      {settingsExpanded && !cardBodyCollapsed ? (
+      {settingsExpanded ? (
         <BarnListAccordionPanel
           reading={reading}
           readings={readings}
@@ -428,7 +324,7 @@ export function ControllerSummaryGaugeRow({
             data-controller-card-key={reading.key}
             data-controller-key={reading.controllerKey}
             data-list-mode={listMode}
-            data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
+            data-card-body="expanded"
             data-panel-layout="grid"
           >
             {cardBody}
@@ -456,7 +352,7 @@ export function ControllerSummaryGaugeRow({
           data-controller-card-key={reading.key}
           data-controller-key={reading.controllerKey}
           data-list-mode={listMode}
-          data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
+          data-card-body="expanded"
           data-panel-layout="stack"
         >
           {cardBody}
@@ -481,7 +377,7 @@ export function ControllerSummaryGaugeRow({
           data-controller-card-key={reading.key}
           data-controller-key={reading.controllerKey}
           data-list-mode={listMode}
-          data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
+          data-card-body="expanded"
           data-panel-layout="stack"
           onClick={onCardActivate}
           onKeyDown={
@@ -498,7 +394,6 @@ export function ControllerSummaryGaugeRow({
           tabIndex={onCardActivate ? 0 : undefined}
         >
           {cardBody}
-          {showInlineGraphOnMobile ? graphPanel : null}
           {showInlineSettingsOnMobile ? settingsPanel : null}
         </div>
         {mobileSheet}
@@ -513,10 +408,9 @@ export function ControllerSummaryGaugeRow({
       data-controller-card-key={reading.key}
       data-controller-key={reading.controllerKey}
       data-list-mode={listMode}
-      data-card-body={cardBodyCollapsed ? "collapsed" : "expanded"}
+      data-card-body="expanded"
     >
       {cardBody}
-      {graphPanel}
       {settingsPanel}
     </div>
   );

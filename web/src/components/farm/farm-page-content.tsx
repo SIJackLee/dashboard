@@ -14,6 +14,8 @@ import { Map, List, LineChart, Box } from "lucide-react";
 import { StallUnitIcon } from "@/components/icons/stall-unit-icon";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import type { BarnReading } from "@/lib/data/iot";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { DelinEnvBadge } from "@/components/farm/delin-env-badge";
 import { FarmMapView } from "@/components/farm/farm-map-view";
@@ -228,9 +230,6 @@ export function FarmPageContent({
 
   const fieldMerge = farmFieldMergeEnabled();
   const fieldActive = view === "map" || view === "list";
-  const openChartFromField = useCallback(() => {
-    setView("chart");
-  }, [setView]);
   const [fieldFocusCtrl, setFieldFocusCtrl] = useState<string | null>(null);
   const [fieldSelectedBarnId, setFieldSelectedBarnId] = useState<string | null>(
     null,
@@ -478,6 +477,28 @@ export function FarmPageContent({
       setUrlTick((n) => n + 1);
     },
     [setUrlTick],
+  );
+
+  /** 현장 카드 «차트에서 보기» — 해당 컨트롤러 스코프로 차트 탭 이동 */
+  const onOpenControllerChart = useCallback(
+    (reading: BarnReading) => {
+      const sp = normalizeStallTyCode(reading.stallTyCode ?? "");
+      const stallNo = stallKeyFromReading(reading);
+      const scope: FarmChartScope =
+        sp && stallNo && reading.controllerKey
+          ? {
+              level: "controller",
+              stallTyCode: sp,
+              stallNo,
+              controllerKey: reading.controllerKey,
+            }
+          : sp
+            ? { level: "sp", stallTyCode: sp }
+            : { level: "farm" };
+      onChartScopeChange(scope);
+      setView("chart");
+    },
+    [onChartScopeChange, setView],
   );
 
   const onChartZoomChange = useCallback(
@@ -731,7 +752,7 @@ export function FarmPageContent({
                 trendLoading={gridTrendLoading}
                 trendStale={gridTrendStale}
                 fieldMerge
-                onOpenChart={openChartFromField}
+                onOpenChart={onOpenControllerChart}
               />
             ) : (
               <div
@@ -792,7 +813,7 @@ export function FarmPageContent({
                       staggerMount={readings.length > STAGGER_MOUNT_MIN_READINGS}
                       onRequestPanelEnrichment={enrichListIfNeeded}
                       trendPeriod={trendPeriod}
-                      onTrendPeriodChange={onTrendPeriodChange}
+                      onOpenChart={onOpenControllerChart}
                       panelLiveActive={fieldActive}
                       listFilterEnterEpoch={fieldFilterEnterEpoch}
                     />
@@ -852,7 +873,7 @@ export function FarmPageContent({
                   staggerMount={readings.length > STAGGER_MOUNT_MIN_READINGS}
                   onRequestPanelEnrichment={enrichListIfNeeded}
                   trendPeriod={trendPeriod}
-                  onTrendPeriodChange={onTrendPeriodChange}
+                  onOpenChart={onOpenControllerChart}
                   panelLiveActive={isFarmHubPanelLiveActive(view, "list")}
                 />
               </div>
@@ -916,7 +937,11 @@ export function FarmPageContent({
         ) : null}
 
         {showDelinEnvBadge ? (
-          <DelinEnvBadge readings={readings} stallTyCode={delinBadgeStallTy} />
+          <DelinEnvBadge
+            readings={readings}
+            stallTyCode={delinBadgeStallTy}
+            liftAboveBrush={view === "chart"}
+          />
         ) : null}
       </div>
     </div>

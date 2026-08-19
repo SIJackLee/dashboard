@@ -48,9 +48,14 @@ import {
   findControllerTrendSeries,
   formatControllerHeaderPrimary,
   formatControllerHeaderSecondary,
+  formatControllerHeaderStallType,
   resolveReadingAlarmThresholds,
   resolveReadingThermo,
 } from "@/lib/farm/controller-summary-display";
+import {
+  ControllerAffiliationMarks,
+  StallUnitNoMark,
+} from "@/components/farm/controller-summary-parts";
 import {
   alarmScopeKeyFromFarmChartScope,
   chartScopeEntryToZoomHint,
@@ -260,6 +265,61 @@ type ScopeEntry = {
   /** null = Y필터 없음 · ["temp","hum"] = 걸린 밴드만 */
   yBands: UnifiedYBandId[] | null;
 };
+
+/** 모바일 차트 대상 — 축사유형 + 축사/컨트롤러 아이콘·번호 */
+function ChartScopeTargetMarks({
+  chartScope,
+  controllers,
+  fallbackLabel,
+  typeClassName,
+}: {
+  chartScope: FarmChartScope;
+  controllers: UnifiedBarnTrendControllerRef[];
+  fallbackLabel: string;
+  typeClassName?: string;
+}) {
+  if (chartScope.level === "farm") {
+    return fallbackLabel;
+  }
+
+  const typeLabel = formatControllerHeaderStallType({
+    stallTyCode: chartScope.stallTyCode,
+  });
+
+  if (chartScope.level === "sp") {
+    return <span className={cn("break-keep", typeClassName)}>{typeLabel}</span>;
+  }
+
+  const stallNo = chartScope.stallNo.startsWith("__")
+    ? null
+    : chartScope.stallNo;
+
+  const controllerReading =
+    chartScope.level === "controller"
+      ? (controllers.find((c) => c.key === chartScope.controllerKey)?.reading ??
+        controllers[0]?.reading)
+      : controllers.length === 1
+        ? controllers[0]?.reading
+        : null;
+
+  if (controllerReading) {
+    return (
+      <ControllerAffiliationMarks
+        stallTyCode={chartScope.stallTyCode}
+        stallNo={stallNo ?? controllerReading.stallNo}
+        eqpmnNo={controllerReading.eqpmnNo}
+        typeClassName={typeClassName}
+      />
+    );
+  }
+
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className={cn("break-keep", typeClassName)}>{typeLabel}</span>
+      <StallUnitNoMark stallNo={stallNo} />
+    </span>
+  );
+}
 
 type Props = {
   label: string;
@@ -1848,26 +1908,47 @@ export function UnifiedBarnTrendPanel({
       >
         <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
           {isMobileStack ? (
-            <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1">
-              {layerToolbar}
-              {controlModeCluster}
-              {mobileScopeHandle ? (
-                <button
-                  type="button"
+            <div className="flex w-full min-w-0 flex-col gap-1">
+              <div className="flex w-full min-w-0 items-center gap-2">
+                <div
                   className={cn(
-                    "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-                    farmChartUi.fsBody,
-                    "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
-                    motionClass.microHover,
+                    "min-w-0 flex-1 overflow-hidden",
+                    "font-semibold leading-snug",
+                    farmChartUi.fsTitle,
                   )}
-                  data-tour-id="farm-chart-scope-handle"
-                  aria-label={`집계 범위 열기 · ${label}`}
                   title={label}
-                  aria-expanded={mobileScopeHandle.open}
-                  onClick={mobileScopeHandle.onOpen}
                 >
-                  <PanelRight className="size-[1em] shrink-0" aria-hidden />
-                </button>
+                  <ChartScopeTargetMarks
+                    chartScope={chartScope}
+                    controllers={controllers}
+                    fallbackLabel={label}
+                    typeClassName={cn("font-semibold", farmChartUi.fsTitle)}
+                  />
+                </div>
+                {mobileScopeHandle ? (
+                  <button
+                    type="button"
+                    className={cn(
+                      "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+                      farmChartUi.fsBody,
+                      "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
+                      motionClass.microHover,
+                    )}
+                    data-tour-id="farm-chart-scope-handle"
+                    aria-label={`집계 범위 열기 · ${label}`}
+                    title={label}
+                    aria-expanded={mobileScopeHandle.open}
+                    onClick={mobileScopeHandle.onOpen}
+                  >
+                    <PanelRight className="size-[1em] shrink-0" aria-hidden />
+                  </button>
+                ) : null}
+              </div>
+              {layerToolbar || controlModeCluster ? (
+                <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1">
+                  {layerToolbar}
+                  {controlModeCluster}
+                </div>
               ) : null}
             </div>
           ) : (

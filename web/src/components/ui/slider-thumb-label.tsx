@@ -19,6 +19,13 @@ type SliderThumbLabelProps = {
   visible?: boolean;
   /** 모바일 drag 중 active thumb — 20px bold + lift */
   magnified?: boolean;
+  /**
+   * 충돌 회피 — 측정된 left(px, rail 기준). 지정 시 translate 정렬 대신
+   * 라벨 왼쪽 모서리를 이 px에 고정한다. (dual-thumb 라벨 겹침 방지)
+   */
+  leftPx?: number;
+  /** leftPx 측정용 ref */
+  labelRef?: React.Ref<HTMLSpanElement>;
   className?: string;
 };
 
@@ -67,13 +74,18 @@ export function SliderThumbLabel({
   dense = false,
   visible = true,
   magnified = false,
+  leftPx,
+  labelRef,
   className,
 }: SliderThumbLabelProps) {
+  const resolved = leftPx != null;
   return (
     <span
+      ref={labelRef}
       className={cn(
         "pointer-events-none absolute tabular-nums whitespace-nowrap",
-        thumbLabelAlignClass(leftPct),
+        // leftPx 지정 시 라벨 왼쪽 모서리를 px에 고정 — translate 정렬 생략
+        resolved ? "translate-x-0" : thumbLabelAlignClass(leftPct),
         thumbLabelPlacementClass(placement),
         labelTypography(variant, compact, dense),
         !visible && "max-md:invisible max-md:opacity-0",
@@ -87,7 +99,7 @@ export function SliderThumbLabel({
           "max-md:!top-full max-md:!mt-9",
         className
       )}
-      style={thumbLabelPositionStyle(leftPct)}
+      style={resolved ? { left: `${leftPx}px` } : thumbLabelPositionStyle(leftPct)}
       aria-hidden={!visible ? true : undefined}
     >
       {children}
@@ -99,9 +111,13 @@ export function SliderThumbLabel({
 export function sliderTrackShellClass(
   compact?: boolean,
   layout: SliderTrackLayout = "dual",
-  dense?: boolean
+  dense?: boolean,
+  thumbLabels = true,
 ) {
   const pad = "px-3 sm:px-4";
+  if (!thumbLabels) {
+    return cn("relative", pad, compact ? "py-2" : "py-3");
+  }
   if (layout === "triple") {
     if (dense) return cn("relative", pad, "py-7");
     return cn("relative", pad, compact ? "py-8" : "py-9");

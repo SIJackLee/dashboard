@@ -314,20 +314,20 @@ export function BarnListAccordionPanel({
     <div className="space-y-3">
       {channelPicker}
       <div>
-        <div className="mb-2 flex items-center gap-2">
-          <Thermometer className="size-4 text-orange-600" aria-hidden />
-          <p className={LIST_SLIDER_TITLE}>설정온도 · 편차</p>
-          {panel.currentValues ? (
-            <span
-              className={cn(
-                "ml-auto tabular-nums text-muted-foreground",
-                LIST_PANEL_META,
-              )}
-            >
-              현재 {panel.currentValues.setpoint}℃ +
-              {panel.currentValues.deviation}℃
-            </span>
-          ) : null}
+        <div className="mb-2 flex items-start gap-2">
+          <Thermometer
+            className="mt-0.5 size-4 shrink-0 text-orange-600"
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
+            <p className={LIST_SLIDER_TITLE}>설정온도 · 편차</p>
+            {panel.currentValues ? (
+              <p className={cn("tabular-nums", LIST_PANEL_META)}>
+                현재 {panel.currentValues.setpoint}℃ +
+                {panel.currentValues.deviation}℃
+              </p>
+            ) : null}
+          </div>
         </div>
         <ControllerTempDualSlider
           setpoint={panel.sliderValues.setpoint}

@@ -61,7 +61,7 @@ type Props = {
   trendStale?: boolean;
   /** 그리드·목록 통합 — 카드 선택·차트 이동 */
   fieldMerge?: boolean;
-  onOpenChart?: () => void;
+  onOpenChart?: (reading: BarnReading) => void;
 };
 
 export function FarmMapView({

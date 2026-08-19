@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
-import { LineChart, Loader2, Settings } from "lucide-react";
+import { Loader2, Settings } from "lucide-react";
 import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -20,7 +20,6 @@ const MODES: {
   Icon: ModeIcon;
 }[] = [
   { id: "controller", label: "컨트롤러", Icon: ControllerDeviceIcon },
-  { id: "graph", label: "그래프", Icon: LineChart },
   { id: "settings", label: "설정", Icon: Settings },
 ];
 

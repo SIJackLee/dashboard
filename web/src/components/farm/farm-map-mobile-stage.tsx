@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import type { BarnMapSnapshot } from "@/lib/data/iot";
+import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import {
   DEFAULT_TREND_PERIOD,
@@ -16,12 +16,12 @@ import type { ControllerMobileSheetPage } from "@/lib/farm/barn-list-panel-state
 import { GRAPH_BARS, barnIdForReading, useBarnGraphs } from "@/lib/farm/use-barn-graphs";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { motionDuration } from "@/lib/ui/motion-tokens";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import { firstReadingKeyForBarn } from "./farm-field-status-grid";
 import { FarmMapCard } from "./farm-map-card";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { BarnListToolbarMobileSheet } from "./barn-list-toolbar-mobile-sheet";
-import { TrendPeriodToggle } from "./trend-period-toggle";
 import {
   InlineStatusToast,
   type InlineStatusTone,
@@ -49,6 +49,11 @@ const FarmMapBulkApply = dynamic(
     ),
   },
 );
+
+/** 차트 탭 등장(moderate) + 인지 여유(emphasis) 뒤에 시트 접힘 */
+const CHART_THEN_PEEK_MS =
+  motionDuration.moderate + motionDuration.emphasis;
+
 type Props = {
   barns: BarnMapSnapshot[];
   trendByPeriod?: Record<TrendPeriodId, TrendPeriodData> | null;
@@ -60,7 +65,7 @@ type Props = {
   trendLoading?: boolean;
   trendStale?: boolean;
   fieldMerge?: boolean;
-  onOpenChart?: () => void;
+  onOpenChart?: (reading: BarnReading) => void;
 };
 
 /**
@@ -109,6 +114,17 @@ export function FarmMapMobileStage({
     string | null
   >(null);
   const [hostedSheetOpen, setHostedSheetOpen] = useState(false);
+  const [hostedSheetPeek, setHostedSheetPeek] = useState(false);
+  const [sheetFollowsChart, setSheetFollowsChart] = useState(false);
+  const peekAfterChartRef = useRef<number | null>(null);
+
+  const clearPeekAfterChart = useCallback(() => {
+    if (peekAfterChartRef.current == null) return;
+    window.clearTimeout(peekAfterChartRef.current);
+    peekAfterChartRef.current = null;
+  }, []);
+
+  useEffect(() => () => clearPeekAfterChart(), [clearPeekAfterChart]);
   const [hostedSheetPage, setHostedSheetPage] =
     useState<ControllerMobileSheetPage>(0);
   /** sheet 설정 페이지 그래프 — 카드별 기간 오버라이드 (미전달 시 토글 no-op 버그) */
@@ -122,11 +138,25 @@ export function FarmMapMobileStage({
     [],
   );
 
+  const closeHostedSheet = useCallback(() => {
+    clearPeekAfterChart();
+    setHostedSheetOpen(false);
+    setHostedSheetPeek(false);
+    setSheetFollowsChart(false);
+    if (fieldMerge) {
+      setExpanded(null);
+      setDetailSelectedReadingKey(null);
+    }
+  }, [clearPeekAfterChart, fieldMerge, setExpanded]);
+
   const handleDetailClose = useCallback(() => {
+    clearPeekAfterChart();
     setExpanded(null);
     setDetailSelectedReadingKey(null);
     setHostedSheetOpen(false);
-  }, [setExpanded]);
+    setHostedSheetPeek(false);
+    setSheetFollowsChart(false);
+  }, [clearPeekAfterChart, setExpanded]);
 
   /** 현장 통합 모바일 — 인라인 상세 없이 Bottom sheet 직행 */
   const openFieldMergeSheet = useCallback(
@@ -140,9 +170,12 @@ export function FarmMapMobileStage({
       setExpanded({ barnId: barn.meta.id, metricId });
       setDetailSelectedReadingKey(readingKey);
       setHostedSheetPage(0);
+      clearPeekAfterChart();
+      setHostedSheetPeek(false);
+      setSheetFollowsChart(false);
       setHostedSheetOpen(true);
     },
-    [controller?.readings, metricIdsByBarnId, setExpanded],
+    [clearPeekAfterChart, controller?.readings, metricIdsByBarnId, setExpanded],
   );
 
   const handlePickerNavigateReading = useCallback(
@@ -173,8 +206,16 @@ export function FarmMapMobileStage({
       if (targetBarnId && targetBarnId !== expanded.barnId) {
         setExpanded((e) => (e ? { ...e, barnId: targetBarnId } : e));
       }
+      if (sheetFollowsChart) onOpenChart?.(reading);
     },
-    [barns, controller?.readings, expanded, setExpanded],
+    [
+      barns,
+      controller?.readings,
+      expanded,
+      onOpenChart,
+      setExpanded,
+      sheetFollowsChart,
+    ],
   );
 
   useFarmTourGridAction({ barns, metricIdsByBarnId, setExpanded });
@@ -210,6 +251,9 @@ export function FarmMapMobileStage({
       setExpanded({ barnId: barn.meta.id, metricId });
       setDetailSelectedReadingKey(readingKey);
       setHostedSheetPage(page);
+      clearPeekAfterChart();
+      setHostedSheetPeek(false);
+      setSheetFollowsChart(false);
       setHostedSheetOpen(true);
       return true;
     };
@@ -219,7 +263,6 @@ export function FarmMapMobileStage({
         ?.action;
       if (
         action !== "field-mobile-sheet-controller" &&
-        action !== "field-mobile-sheet-graph" &&
         action !== "field-mobile-sheet-settings" &&
         action !== "field-mobile-sheet-close"
       ) {
@@ -227,7 +270,10 @@ export function FarmMapMobileStage({
       }
 
       if (action === "field-mobile-sheet-close") {
+        clearPeekAfterChart();
         setHostedSheetOpen(false);
+        setHostedSheetPeek(false);
+        setSheetFollowsChart(false);
         setExpanded(null);
         setDetailSelectedReadingKey(null);
         void (async () => {
@@ -255,15 +301,10 @@ export function FarmMapMobileStage({
                   '[data-tour-id="list-settings-host"]',
                   '[data-audit-region="controller-mobile-sheet-settings"]',
                 ]
-              : action === "field-mobile-sheet-graph"
-                ? [
-                    '[data-audit-region="controller-mobile-sheet-channel-trend"]',
-                    '[data-tour-id="list-graph-panel"]',
-                  ]
-                : [
-                    '[data-tour-id="controller-gauge-metrics"]',
-                    '[data-audit-region="controller-mobile-sheet-controller"]',
-                  ];
+              : [
+                  '[data-tour-id="controller-gauge-metrics"]',
+                  '[data-audit-region="controller-mobile-sheet-controller"]',
+                ];
           await waitForTourTarget(settle);
         }
         dispatchTourGridActionDone(action);
@@ -272,7 +313,7 @@ export function FarmMapMobileStage({
 
     window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
     return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-  }, [fieldMerge, setExpanded]);
+  }, [clearPeekAfterChart, fieldMerge, setExpanded]);
 
   const toggleSp = useCallback((sp: string) => {
     setSelectedSps((prev) => {
@@ -320,31 +361,7 @@ export function FarmMapMobileStage({
               scheduleSafeRouterRefresh(router);
             }
           }}
-          trailing={
-            graphMode && barns.length > 0 ? (
-              <TrendPeriodToggle
-                value={graphPeriod}
-                onChange={setGraphPeriod}
-                density="map"
-                tourTarget
-              />
-            ) : undefined
-          }
         />
-      ) : null}
-
-      {!bulkEnabled && graphMode && barns.length > 0 && !fieldMerge ? (
-        <div
-          className="flex flex-wrap items-center gap-2 border-b px-3 py-2"
-          data-tour-id="farm-command-bar"
-        >
-          <TrendPeriodToggle
-            value={graphPeriod}
-            onChange={setGraphPeriod}
-            density="map"
-            tourTarget
-          />
-        </div>
       ) : null}
 
       <div className="flex flex-col gap-2 p-2" data-tour-id="map-grid">
@@ -426,18 +443,13 @@ export function FarmMapMobileStage({
       {/* Detail remount와 무관하게 sheet 유지 — 축사유형 전환 시 닫힘/재오픈 방지 */}
       <BarnListToolbarMobileSheet
         open={hostedSheetOpen}
+        peek={hostedSheetPeek}
         readings={controller?.readings ?? []}
         selectedKey={detailSelectedReadingKey}
-        sheetPage={hostedSheetPage}
         onSelectKey={handleHostedSheetSelectKey}
-        onPageSettled={setHostedSheetPage}
-        onClose={() => {
-          setHostedSheetOpen(false);
-          if (fieldMerge) {
-            setExpanded(null);
-            setDetailSelectedReadingKey(null);
-          }
-        }}
+        onClose={closeHostedSheet}
+        onPeek={() => setHostedSheetPeek(true)}
+        onExpand={() => setHostedSheetPeek(false)}
         thermoSettings={controller?.thermoSettings ?? {}}
         commands={controller?.commands}
         alarmSettings={controller?.alarmSettings}
@@ -448,6 +460,30 @@ export function FarmMapMobileStage({
         bulkPeriod={graphPeriod}
         panelPeriodOverrides={panelPeriodOverrides}
         onPanelPeriodChange={handlePanelPeriodChange}
+        onOpenChart={
+          onOpenChart
+            ? (reading) => {
+                setSheetFollowsChart(true);
+                onOpenChart(reading);
+                clearPeekAfterChart();
+                const peek = () => {
+                  peekAfterChartRef.current = null;
+                  setHostedSheetPeek(true);
+                };
+                if (
+                  typeof window !== "undefined" &&
+                  window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                ) {
+                  peek();
+                  return;
+                }
+                peekAfterChartRef.current = window.setTimeout(
+                  peek,
+                  CHART_THEN_PEEK_MS,
+                );
+              }
+            : undefined
+        }
         showPickerAffiliation
       />
       <InlineStatusToast

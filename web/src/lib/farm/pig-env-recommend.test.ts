@@ -3,11 +3,13 @@
  */
 import assert from "node:assert/strict";
 import {
+  pigEnvBadgeAdvice,
   pigEnvBandForStallTy,
   pigEnvFitToBand,
   pigEnvRecommendInBand,
   pigEnvAdviceCopy,
   pigEnvFocusReadings,
+  pigEnvSafetyHit,
   pigEnvTypeVerdicts,
   pigEnvVerdictForAverages,
   pigEnvVerdictOffBand,
@@ -122,6 +124,66 @@ import {
   );
   assert.equal(ok.offBand, false);
   assert.match(ok.summary, /권장 온·습도 안에/);
+}
+
+{
+  assert.equal(pigEnvSafetyHit({ tempC: 36, humidityPct: 55 })?.kind, "tempHigh");
+  assert.equal(pigEnvSafetyHit({ tempC: 9, humidityPct: 55 })?.kind, "tempLow");
+  assert.equal(
+    pigEnvSafetyHit({ tempC: 20, humidityPct: 95 })?.kind,
+    "humidityHigh",
+  );
+  assert.equal(pigEnvSafetyHit({ tempC: 20, humidityPct: 55 }), null);
+}
+
+{
+  // 통신두절이 최우선
+  const offline = pigEnvBadgeAdvice(
+    [
+      { stallTyCode: "SP02", tempC: 36, humidityPct: 55, status: "offline" },
+      { stallTyCode: "SP02", tempC: 19, humidityPct: 55, status: "normal" },
+    ],
+    "SP02",
+  );
+  assert.equal(offline.tier, "offline");
+  assert.equal(offline.offBand, true);
+  assert.equal(offline.noticeCount, 1);
+  assert.match(offline.summary, /통신이 두절/);
+  assert.match(offline.detail ?? "", /전원/);
+  assert.doesNotMatch(offline.summary, /SP02/);
+}
+
+{
+  // 장비 경보(안전망)가 권장표 이탈보다 우선
+  const alarm = pigEnvBadgeAdvice(
+    [{ stallTyCode: "SP02", tempC: 36, humidityPct: 55, status: "normal" }],
+    "SP02",
+  );
+  assert.equal(alarm.tier, "alarm");
+  assert.equal(alarm.noticeCount, 1);
+  assert.equal(alarm.stallLabel, "임신사");
+  assert.match(alarm.detail ?? "", /상한 35도/);
+  assert.match(alarm.detail ?? "", /즉시 확인/);
+}
+
+{
+  // 경보 없으면 권장표 이탈
+  const off = pigEnvBadgeAdvice(
+    [{ stallTyCode: "SP02", tempC: 24, humidityPct: 55, status: "normal" }],
+    "SP02",
+  );
+  assert.equal(off.tier, "offband");
+  assert.equal(off.noticeCount, 1);
+  assert.match(off.detail ?? "", /목표는 21도/);
+
+  // 모두 적정
+  const ok = pigEnvBadgeAdvice(
+    [{ stallTyCode: "SP07", tempC: 18, humidityPct: 50, status: "normal" }],
+    "SP07",
+  );
+  assert.equal(ok.tier, "ok");
+  assert.equal(ok.offBand, false);
+  assert.equal(ok.noticeCount, 0);
 }
 
 console.log("pig-env-recommend.test.ts: ok");

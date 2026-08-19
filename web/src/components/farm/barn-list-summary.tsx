@@ -12,12 +12,9 @@ import type { TrendControllerPeriodData, TrendPeriodId } from "@/lib/data/farm-t
 import { groupReadingsByHierarchy } from "@/lib/data/reading-hierarchy";
 import { summarizeReadings } from "@/lib/data/hierarchy-summary";
 import {
-  isBarnListCardBodyCollapsed,
-  isBarnListGraphExpanded,
   isBarnListMobileSheetOpen,
   isBarnListSettingsExpanded,
   type BarnListPanelSets,
-  type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
 import { BarnListToolbarMobileSheet } from "@/components/farm/barn-list-toolbar-mobile-sheet";
 import type { BarnListViewMode, ListLayout } from "@/lib/farm/farm-view-url";
@@ -48,11 +45,9 @@ type Props = {
   panelPeriodOverrides?: Record<string, TrendPeriodId>;
   onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   panelSets: BarnListPanelSets;
-  cardBodyExpandedKeys?: ReadonlySet<string>;
-  onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
-  onToggleCardBody?: (key: string) => void;
-  onSheetPageChange?: (key: string, page: ControllerMobileSheetPage) => void;
+  /** «차트에서 보기» — 카드 → 차트 탭 이동 */
+  onOpenChart?: (reading: BarnReading) => void;
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
   onToggleSp?: (stallTyCode: string) => void;
@@ -62,14 +57,12 @@ type Props = {
   narrowControllerGrid?: boolean;
   /** 현장 축사 필터 — 스태거 입장 epoch */
   listFilterEnterEpoch?: number;
-  /** 모바일 Graph/Set — 단일 toolbar sheet */
+  /** 모바일 설정 — 단일 toolbar sheet */
   mobileToolbarSheetMode?: boolean;
   toolbarSheetKey?: string | null;
   /** Dialog open — key 전환과 분리해 sheet 유지 */
   toolbarSheetOpen?: boolean;
-  toolbarSheetPage?: ControllerMobileSheetPage;
-  onToolbarSheetKeyChange?: (key: string, page?: ControllerMobileSheetPage) => void;
-  onToolbarSheetPageChange?: (page: ControllerMobileSheetPage) => void;
+  onToolbarSheetKeyChange?: (key: string) => void;
   onToolbarSheetClose?: () => void;
 };
 
@@ -142,10 +135,8 @@ function ControllerCardGrid({
   onPanelPeriodChange,
   panelSets,
   listMode,
-  onToggleGraph,
   onToggleSettings,
-  onToggleCardBody,
-  onSheetPageChange,
+  onOpenChart,
   inSpSection = false,
   bulkMode = false,
   selectedSps,
@@ -156,7 +147,6 @@ function ControllerCardGrid({
   mobileToolbarSheetMode = false,
   toolbarSheetKey = null,
   onToolbarSheetKeyChange,
-  cardBodyExpandedKeys,
   tourFocusKey,
 }: {
   readings: BarnReading[];
@@ -173,10 +163,8 @@ function ControllerCardGrid({
   onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   panelSets: BarnListPanelSets;
   listMode: BarnListViewMode;
-  onToggleGraph: (key: string) => void;
   onToggleSettings: (key: string) => void;
-  onToggleCardBody?: (key: string) => void;
-  onSheetPageChange?: (key: string, page: ControllerMobileSheetPage) => void;
+  onOpenChart?: (reading: BarnReading) => void;
   inSpSection?: boolean;
   bulkMode?: boolean;
   selectedSps?: ReadonlySet<string>;
@@ -187,9 +175,8 @@ function ControllerCardGrid({
   showAffiliation?: boolean;
   mobileToolbarSheetMode?: boolean;
   toolbarSheetKey?: string | null;
-  onToolbarSheetKeyChange?: (key: string, page?: ControllerMobileSheetPage) => void;
-  cardBodyExpandedKeys?: ReadonlySet<string>;
-  /** 투어 — 그래프/설정 모드에서 펼칠 단일 카드 */
+  onToolbarSheetKeyChange?: (key: string) => void;
+  /** 투어 — 설정 모드에서 펼칠 단일 카드 */
   tourFocusKey?: string;
 }) {
   const tourActive = useFarmTourActive();
@@ -238,13 +225,6 @@ function ControllerCardGrid({
           canCommand={canCommand}
           listMode={listMode}
           className={bulkMode && !spSelected ? "opacity-50" : undefined}
-          graphExpanded={
-            mobileToolbarSheetMode
-              ? listMode === "graph"
-              : tourFocusKey != null && listMode === "graph"
-                ? r.key === tourFocusKey
-                : isBarnListGraphExpanded(r.key, listMode, panelSets)
-          }
           settingsExpanded={
             mobileToolbarSheetMode
               ? listMode === "settings"
@@ -262,24 +242,11 @@ function ControllerCardGrid({
           toolbarSheetSelected={
             mobileToolbarSheetMode && toolbarSheetKey === r.key
           }
-          cardBodyCollapsed={isBarnListCardBodyCollapsed(
-            r.key,
-            listMode,
-            cardBodyExpandedKeys ?? new Set(),
-          )}
-          onToggleGraph={!bulkMode ? () => onToggleGraph(r.key) : undefined}
           onToggleSettings={
             !bulkMode ? () => onToggleSettings(r.key) : undefined
           }
-          onToggleCardBody={
-            !bulkMode && onToggleCardBody
-              ? () => onToggleCardBody(r.key)
-              : undefined
-          }
-          onSheetPageChange={
-            !bulkMode && onSheetPageChange && !mobileToolbarSheetMode
-              ? (page) => onSheetPageChange(r.key, page)
-              : undefined
+          onOpenChart={
+            !bulkMode && onOpenChart ? () => onOpenChart(r) : undefined
           }
           panelLayoutVariant={panelLayoutVariant}
           controllerTrendByPeriod={controllerTrendByPeriod}
@@ -363,11 +330,8 @@ export function BarnListSummary({
   panelPeriodOverrides = {},
   onPanelPeriodChange,
   panelSets,
-  cardBodyExpandedKeys,
-  onToggleGraph,
   onToggleSettings,
-  onToggleCardBody,
-  onSheetPageChange,
+  onOpenChart,
   bulkMode = false,
   selectedSps = new Set(),
   onToggleSp,
@@ -377,9 +341,7 @@ export function BarnListSummary({
   mobileToolbarSheetMode = false,
   toolbarSheetKey = null,
   toolbarSheetOpen = false,
-  toolbarSheetPage = 0,
   onToolbarSheetKeyChange,
-  onToolbarSheetPageChange,
   onToolbarSheetClose,
 }: Props) {
   const tourActiveState = useFarmTourActive();
@@ -415,10 +377,8 @@ export function BarnListSummary({
     onPanelPeriodChange,
     panelSets,
     listMode,
-    onToggleGraph,
     onToggleSettings,
-    onToggleCardBody,
-    onSheetPageChange,
+    onOpenChart,
     bulkMode,
     selectedSps,
     staggerMount,
@@ -427,7 +387,6 @@ export function BarnListSummary({
     mobileToolbarSheetMode,
     toolbarSheetKey,
     onToolbarSheetKeyChange,
-    cardBodyExpandedKeys,
     tourFocusKey,
   };
 
@@ -436,9 +395,7 @@ export function BarnListSummary({
       open={toolbarSheetOpen}
       readings={readings}
       selectedKey={toolbarSheetKey}
-      sheetPage={toolbarSheetPage}
       onSelectKey={(key) => onToolbarSheetKeyChange?.(key)}
-      onPageSettled={(page) => onToolbarSheetPageChange?.(page)}
       onClose={onToolbarSheetClose}
       thermoSettings={thermoSettings}
       commands={commands}
@@ -450,6 +407,7 @@ export function BarnListSummary({
       bulkPeriod={bulkPeriod}
       panelPeriodOverrides={panelPeriodOverrides}
       onPanelPeriodChange={onPanelPeriodChange}
+      onOpenChart={onOpenChart}
       showPickerAffiliation
     />
   ) : null;

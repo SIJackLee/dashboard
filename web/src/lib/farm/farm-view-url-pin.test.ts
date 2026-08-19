@@ -83,11 +83,13 @@ import {
 }
 
 {
+  // 레거시 listMode=channel|graph → controller (그래프 모드 은퇴, 이력은 차트 탭)
   const params = new URLSearchParams("view=list&listMode=channel");
-  assert.equal(parseListViewMode("channel"), "graph");
-  assert.equal(resolveListViewMode(params), "graph");
+  assert.equal(parseListViewMode("channel"), "controller");
+  assert.equal(parseListViewMode("graph"), "controller");
+  assert.equal(resolveListViewMode(params), "controller");
   assert.equal(normalizeLegacyListModeParam(params), true);
-  assert.equal(params.get("listMode"), "graph");
+  assert.equal(params.get("listMode"), null);
   assert.equal(normalizeLegacyListModeParam(params), false);
   setListViewMode(params, "settings");
   assert.equal(params.get("listMode"), "settings");

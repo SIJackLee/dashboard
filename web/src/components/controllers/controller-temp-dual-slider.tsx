@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId } from "react";
+import { useCallback, useId, useRef } from "react";
 import { Thermometer } from "lucide-react";
 import { clampMenuValue, MENU_STEPS } from "@/lib/controllers/controller-panel-map";
 import {
@@ -10,8 +10,9 @@ import {
   sliderTrackRailClass,
   sliderTrackShellClass,
 } from "@/components/ui/slider-thumb-label";
+import { useDualThumbLabelPositions } from "@/lib/ui/use-dual-thumb-label-positions";
 import {
-  SliderValueInput,
+  SliderBoundFields,
   type SliderValueInputSize,
 } from "@/components/ui/slider-value-input";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -35,7 +36,7 @@ type ControllerTempDualSliderProps = {
   title?: string;
   thumbLabelClassName?: string;
   trackShellClassName?: string;
-  /** 트랙 아래 설정·편차 숫자 입력 */
+  /** 트랙 위 설정·편차 숫자 입력 (B안 반반 필드) */
   axisMode?: "hidden" | "editable";
   axisInputSize?: SliderValueInputSize;
   axisClassName?: string;
@@ -83,8 +84,24 @@ export function ControllerTempDualSlider({
   const highPct = pct(displayMaxTemp, TRACK_MIN, TRACK_MAX);
   const devLabel = fmtTempLabel(deviation);
   const inputSize = axisInputSize ?? (compact ? "compact" : "dashboard");
+  const showBoundFields = axisMode === "editable";
+  const hideTrackOnPc = showBoundFields && compact && !mobile;
+  const showThumbLabels = !hideTrackOnPc && (!showBoundFields || mobileDrag);
   const devMin = MENU_STEPS.deviation.min;
   const devMax = Math.max(devMin, TRACK_MAX - setpoint);
+
+  const railRef = useRef<HTMLDivElement>(null);
+  const lowLabelRef = useRef<HTMLSpanElement>(null);
+  const highLabelRef = useRef<HTMLSpanElement>(null);
+  const labelPos = useDualThumbLabelPositions({
+    railRef,
+    lowRef: lowLabelRef,
+    highRef: highLabelRef,
+    lowPct,
+    highPct,
+    deps: [setpoint, devLabel, mobileDrag],
+    enabled: showThumbLabels && !mobileDrag,
+  });
 
   const setDeviationFromInput = useCallback(
     (raw: number) => {
@@ -135,16 +152,45 @@ export function ControllerTempDualSlider({
   );
 
   const track = (
+    <>
+      {showBoundFields ? (
+        <SliderBoundFields
+          low={setpoint}
+          high={deviation}
+          lowMin={TRACK_MIN}
+          lowMax={Math.min(TRACK_MAX - deviation, MENU_STEPS.setpoint.max)}
+          highMin={devMin}
+          highMax={devMax}
+          step={STEP}
+          unit="℃"
+          lowCaption="설정"
+          highCaption="편차"
+          lowAria="설정온도"
+          highAria="온도 편차"
+          highPrefix="+"
+          disabled={disabled}
+          size={inputSize}
+          domainText={`${TRACK_MIN}–${TRACK_MAX}℃`}
+          domainClassName={axisClassName}
+          onLowCommit={setLow}
+          onHighCommit={setDeviationFromInput}
+        />
+      ) : null}
+    {hideTrackOnPc ? null : (
     <div
       className={cn(
-        sliderTrackShellClass(compact, "dual", dense),
+        sliderTrackShellClass(compact, "dual", dense, showThumbLabels),
         mobileDrag && "max-md:pt-11",
         trackShellClassName
       )}
     >
-      <div className={sliderTrackRailClass()}>
+      <div className={sliderTrackRailClass()} ref={railRef}>
+        {showThumbLabels ? (
+          <>
         <SliderThumbLabel
           leftPct={lowPct}
+          leftPx={labelPos?.lowPx}
+          labelRef={lowLabelRef}
           placement="above"
           variant="center"
           compact={compact}
@@ -157,6 +203,8 @@ export function ControllerTempDualSlider({
         </SliderThumbLabel>
         <SliderThumbLabel
           leftPct={highPct}
+          leftPx={labelPos?.highPx}
+          labelRef={highLabelRef}
           placement="above"
           compact={compact}
           dense={dense}
@@ -166,6 +214,8 @@ export function ControllerTempDualSlider({
         >
           +{devLabel}℃
         </SliderThumbLabel>
+          </>
+        ) : null}
         <div className={sliderTrackRailBgClass()} aria-hidden />
         <div
           className="pointer-events-none absolute top-0 h-full rounded-full bg-orange-500/35"
@@ -204,48 +254,9 @@ export function ControllerTempDualSlider({
           onChange={(e) => setHigh(Number(e.target.value))}
         />
       </div>
-      {axisMode === "editable" ? (
-        <div
-          className={cn(
-            "relative mt-1 flex items-end justify-between gap-2 tabular-nums",
-            axisClassName ??
-              (compact
-                ? "text-xs leading-snug text-muted-foreground"
-                : dashboardTypography.meta)
-          )}
-        >
-          <SliderValueInput
-            value={setpoint}
-            min={TRACK_MIN}
-            max={Math.min(TRACK_MAX - deviation, MENU_STEPS.setpoint.max)}
-            step={STEP}
-            unit="℃"
-            aria-label="설정온도"
-            disabled={disabled}
-            size={inputSize}
-            onCommit={setLow}
-          />
-          <span
-            className="mb-1 shrink-0 text-center text-muted-foreground"
-            aria-hidden
-          >
-            {TRACK_MIN}–{TRACK_MAX}℃
-          </span>
-          <SliderValueInput
-            value={deviation}
-            min={devMin}
-            max={devMax}
-            step={STEP}
-            unit="℃"
-            prefix="+"
-            aria-label="온도 편차"
-            disabled={disabled}
-            size={inputSize}
-            onCommit={setDeviationFromInput}
-          />
-        </div>
-      ) : null}
     </div>
+    )}
+    </>
   );
 
   return (

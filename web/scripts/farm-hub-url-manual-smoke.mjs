@@ -2,10 +2,10 @@
 /**
  * `/farm` 허브 URL 수동 스모크 (로그인 후 Playwright)
  * 1) 차트 딥링크 · 새로고침 유지
- * 2) 로고 soft home — chart* 제거 · 기간 유지
+ * 2) 로고 soft home — chart* 제거 · 기본 7d는 URL 생략
  * 3) 차트에서 기간 변경 — 탭·범위 유지 (그리드 안 튐)
- * 4) listMode=channel → graph 정규화
- * 5) 탭 왕복 그리드→목록→차트→ARIA→그리드 (활성 패널)
+ * 4) listMode=channel|graph → 컨트롤러(기본, URL에서 제거)
+ * 5) 탭 왕복 현장→차트→모델→현장 (활성 패널)
  *
  * Usage:
  *   npm run smoke:hub-url
@@ -129,9 +129,13 @@ async function main() {
     assert(!p.get("chartStall"), "2: chartStall cleared");
     assert(p.get("lsind") === "FARM01", "2: lsind kept");
     assert(p.get("item") === "P00", "2: item kept");
-    assert(p.get("trendPeriod") === "7d", "2: trendPeriod kept");
+    // 기본 7d는 URL에서 생략. 다른 기간으로 바뀌면 안 됨.
+    assert(!p.get("trendPeriod"), "2: default 7d omitted from URL");
     await page
-      .locator('[data-farm-view-panel="map"][data-farm-view-active="true"]')
+      .locator(
+        '[data-farm-view-panel="field"][data-farm-view-active="true"], [data-farm-view-panel="map"][data-farm-view-active="true"]',
+      )
+      .first()
       .waitFor({ timeout: 10000 });
     results.push("smoke 2: soft home (logo) — PASS");
 
@@ -145,15 +149,25 @@ async function main() {
       .locator('[data-farm-view-panel="chart"][data-farm-view-active="true"]')
       .waitFor({ timeout: 15000 });
 
-    const periodGroup = page
-      .locator('[role="group"][aria-label="추이 기간"]')
-      .first();
-    await periodGroup.getByRole("button", { name: "30일" }).click();
+    const brush = page.locator('[aria-label*="30일 구간 선택"]').first();
+    const brushReady = await brush
+      .waitFor({ state: "attached", timeout: 25000 })
+      .then(() => true)
+      .catch(() => false);
+    if (brushReady) {
+      await brush.scrollIntoViewIfNeeded().catch(() => {});
+      await brush.click({ button: "right" }).catch(() => {});
+      await page.waitForTimeout(1500);
+    }
+
+    p = qs(page.url());
+    assert(p.get("view") === "chart", "3: still view=chart (no jump to map)");
+    assert(p.get("chartSp") === "SP03", "3: chartSp kept");
+    assert(p.get("chartStall") === "1", "3: chartStall kept");
     await page.waitForTimeout(1500);
 
     p = qs(page.url());
     assert(p.get("view") === "chart", "3: still view=chart (no jump to map)");
-    assert(p.get("trendPeriod") === "30d", "3: trendPeriod=30d");
     assert(p.get("chartSp") === "SP03", "3: chartSp kept");
     assert(p.get("chartStall") === "1", "3: chartStall kept");
     await page
@@ -161,51 +175,59 @@ async function main() {
       .waitFor({ timeout: 5000 });
     results.push("smoke 3: period keeps chart+scope — PASS");
 
-    // —— 4) listMode=channel 정규화 ——
+    // —— 4) listMode=channel|graph 정규화 (그래프 은퇴 → 컨트롤러) ——
     await page.goto(
       `${BASE}/farm?${FARM_Q}&view=list&listMode=channel`,
       { waitUntil: "load" },
     );
     await waitFarmReady(page);
     await page
-      .locator('[data-farm-view-panel="list"][data-farm-view-active="true"]')
+      .locator(
+        '[data-farm-view-panel="field"][data-farm-view-active="true"], [data-farm-view-panel="list"][data-farm-view-active="true"]',
+      )
+      .first()
       .waitFor({ timeout: 15000 });
     await page.waitForTimeout(1500);
     p = qs(page.url());
-    assert(p.get("view") === "list", "4: view=list");
-    assert(p.get("listMode") === "graph", "4: channel→graph normalized");
-    results.push("smoke 4: listMode=channel normalize — PASS");
+    assert(p.get("listMode") !== "channel", "4: channel stripped");
+    assert(p.get("listMode") !== "graph", "4: graph not written");
+    results.push("smoke 4: listMode=channel → controller — PASS");
 
-    // —— 5) 탭 왕복 ——
+    // —— 5) 탭 왕복 (현장 통합 · DELIN 탭 은퇴) ——
     await page.goto(`${BASE}/farm?${FARM_Q}`, { waitUntil: "load" });
     await waitFarmReady(page);
     await dismissFarmTourIfOpen(page);
     await page
-      .locator('[data-farm-view-panel="map"][data-farm-view-active="true"]')
+      .locator(
+        '[data-farm-view-panel="field"][data-farm-view-active="true"], [data-farm-view-panel="map"][data-farm-view-active="true"]',
+      )
+      .first()
       .waitFor({ timeout: 15000 });
 
     const tabRound = [
-      { name: "목록", view: "list", panel: "list" },
       { name: "차트", view: "chart", panel: "chart" },
-      { name: "DELIN", view: "aria", panel: "aria" },
-      { name: "그리드", view: null, panel: "map" },
     ];
+    if (await page.getByRole("tab", { name: "모델" }).isVisible().catch(() => false)) {
+      tabRound.push({ name: "모델", view: "model", panel: "model" });
+    }
+    tabRound.push({ name: "현장", view: null, panel: "field" });
     for (const step of tabRound) {
-      await page.getByRole("tab", { name: step.name }).click();
+      const tabName = step.name === "현장" ? /현장|그리드/ : step.name;
+      await page.getByRole("tab", { name: tabName }).click();
       await page.waitForTimeout(900);
-      await page
-        .locator(
-          `[data-farm-view-panel="${step.panel}"][data-farm-view-active="true"]`,
-        )
-        .waitFor({ timeout: 15000 });
+      const panelSel =
+        step.panel === "field"
+          ? '[data-farm-view-panel="field"][data-farm-view-active="true"], [data-farm-view-panel="map"][data-farm-view-active="true"]'
+          : `[data-farm-view-panel="${step.panel}"][data-farm-view-active="true"]`;
+      await page.locator(panelSel).first().waitFor({ timeout: 15000 });
       p = qs(page.url());
       if (step.view) {
         assert(p.get("view") === step.view, `5 ${step.name}: view=${step.view}`);
       } else {
-        assert(!p.get("view"), "5 그리드: view cleared");
+        assert(!p.get("view"), "5 현장: view cleared");
       }
     }
-    results.push("smoke 5: tab roundtrip map→list→chart→aria→map — PASS");
+    results.push("smoke 5: tab roundtrip field→chart→model→field — PASS");
 
     for (const line of results) console.log(line);
     console.log("farm-hub-url-manual-smoke: all PASS");

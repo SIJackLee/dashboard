@@ -109,8 +109,8 @@ type Props = {
   trendStale?: boolean;
   onChangeMetric: (metricId: string) => void;
   onClose: () => void;
-  /** 현장 통합 — 차트 탭으로 이동 (시드 없음) */
-  onOpenChart?: () => void;
+  /** 현장 통합 — 선택 컨트롤러 스코프로 차트 탭 이동 */
+  onOpenChart?: (reading: BarnReading) => void;
   /** picker·외부 동기화 — BarnReading.key */
   selectedReadingKey?: string | null;
   onSelectedReadingKeyChange?: (readingKey: string | null) => void;
@@ -533,7 +533,13 @@ export function FarmMapControllerDetail({
           {onOpenChart ? (
             <button
               type="button"
-              onClick={onOpenChart}
+              onClick={() => {
+                const reading =
+                  selected?.reading ??
+                  readings.find((r) => r.key === selectedReadingKey) ??
+                  null;
+                if (reading) onOpenChart(reading);
+              }}
               className={cn(
                 "rounded-md border bg-background px-2 py-1 text-xs font-medium text-foreground",
                 motionClass.microHover,
@@ -683,9 +689,7 @@ export function FarmMapControllerDetail({
                       gridCols={gridCols}
                       panelLayoutVariant="stack"
                       hideGraphToggle
-                      graphExpanded={false}
                       settingsExpanded
-                      onToggleGraph={() => {}}
                       onToggleSettings={() => {}}
                       suppressPerCardMobileSheet
                       showDesktopGraph={false}
@@ -730,11 +734,8 @@ type ControllerDetailSlideBodyProps = {
   gridCols?: number;
   panelLayoutVariant: "stack" | "grid";
   hideGraphToggle?: boolean;
-  graphExpanded: boolean;
   settingsExpanded: boolean;
-  onToggleGraph?: () => void;
   onToggleSettings?: () => void;
-  onSheetPageChange?: (page: ControllerMobileSheetPage) => void;
   sheetPickerReadings?: BarnReading[];
   onSheetPickerSelect?: (readingKey: string) => void;
   showSheetPickerAffiliation?: boolean;
@@ -767,11 +768,8 @@ function ControllerDetailSlideBody({
   gridCols,
   panelLayoutVariant,
   hideGraphToggle = false,
-  graphExpanded,
   settingsExpanded,
-  onToggleGraph,
   onToggleSettings,
-  onSheetPageChange,
   sheetPickerReadings,
   onSheetPickerSelect,
   showSheetPickerAffiliation,
@@ -848,11 +846,8 @@ function ControllerDetailSlideBody({
         panelPlacement="right"
         gridCols={gridCols}
         panelLayoutVariant={panelLayoutVariant}
-        graphExpanded={graphExpanded}
         settingsExpanded={settingsExpanded}
-        onToggleGraph={interactive ? onToggleGraph : undefined}
         onToggleSettings={interactive ? onToggleSettings : undefined}
-        onSheetPageChange={interactive ? onSheetPageChange : undefined}
         sheetPickerReadings={interactive ? sheetPickerReadings : undefined}
         onSheetPickerSelect={interactive ? onSheetPickerSelect : undefined}
         showSheetPickerAffiliation={showSheetPickerAffiliation}

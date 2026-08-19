@@ -14,6 +14,10 @@ import {
   type ReactNode,
 } from "react";
 import { Check, GripHorizontal, RotateCcw, X } from "lucide-react";
+import {
+  ControllerNoMark,
+  StallUnitNoMark,
+} from "@/components/farm/controller-no-marks";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
@@ -441,6 +445,22 @@ const HOVER_GROUP_LABEL: Record<HoverMetricGroup, string> = {
   hum: "습도",
   motor: "모터",
 };
+
+/** "분만사 01번 축사" → { prefix: "분만사", stallNo: "01" } */
+function splitSpreadZoneLabel(zoneLabel: string): {
+  prefix: string;
+  stallNo: string | null;
+} {
+  const m = zoneLabel.match(/^(.*?)\s*(\S+)\s*번\s*축사\s*$/);
+  if (m) return { prefix: (m[1] ?? "").trim(), stallNo: m[2] ?? null };
+  return { prefix: zoneLabel, stallNo: null };
+}
+
+/** "컨트롤러 06" → "06" */
+function spreadControllerNo(equipmentLabel: string): string | null {
+  const m = equipmentLabel.match(/컨트롤러\s*(\S+)\s*$/);
+  return m ? (m[1] ?? null) : null;
+}
 
 function MiniSpark({
   values,
@@ -1099,17 +1119,29 @@ function TrendPointCardBody({
                   delta != null && delta >= -1e-9
                     ? formatLimitBreachDelta(Math.max(0, delta), spreadUnit, side)
                     : null;
+                const zone = splitSpreadZoneLabel(c.zoneLabel);
+                const ctrlNo = spreadControllerNo(c.equipmentLabel);
                 return (
                   <>
-                    {c.zoneLabel}
-                    <span className="text-muted-foreground"> · </span>
-                    {c.equipmentLabel}
-                    <span className="ml-1 tabular-nums text-muted-foreground">
+                    {zone.stallNo ? (
+                      <>
+                        {zone.prefix ? <span>{zone.prefix}</span> : null}
+                        <StallUnitNoMark stallNo={zone.stallNo} />
+                      </>
+                    ) : (
+                      <span>{c.zoneLabel}</span>
+                    )}
+                    {ctrlNo ? (
+                      <ControllerNoMark eqpmnNo={ctrlNo} />
+                    ) : (
+                      <span>{c.equipmentLabel}</span>
+                    )}
+                    <span className="tabular-nums text-muted-foreground">
                       {c.value.toFixed(1)}
                       {spreadUnit}
                     </span>
                     {deltaText ? (
-                      <span className="ml-1 tabular-nums font-medium text-amber-600 dark:text-amber-400">
+                      <span className="tabular-nums font-medium text-amber-600 dark:text-amber-400">
                         {deltaText}
                       </span>
                     ) : null}
@@ -1262,24 +1294,24 @@ function TrendPointCardBody({
                         임계 초과 구간
                       </div>
                       {spreadSame && spreadHigh ? (
-                        <div className="farm-chart-fs-legend leading-snug text-foreground/90">
-                          <span className="text-muted-foreground">산포 · </span>
+                        <div className="farm-chart-fs-legend flex flex-wrap items-center gap-x-1 leading-snug text-foreground/90">
+                          <span className="text-muted-foreground">산포 ·</span>
                           {formatSpreadRow("high", spreadHigh)}
                         </div>
                       ) : (
                         <>
                           {showSpreadHigh && spreadHigh ? (
-                            <div className="farm-chart-fs-legend leading-snug text-foreground/90">
+                            <div className="farm-chart-fs-legend flex flex-wrap items-center gap-x-1 leading-snug text-foreground/90">
                               <span className="text-muted-foreground">
-                                상단 ·{" "}
+                                상단 ·
                               </span>
                               {formatSpreadRow("high", spreadHigh)}
                             </div>
                           ) : null}
                           {showSpreadLow && spreadLow ? (
-                            <div className="farm-chart-fs-legend leading-snug text-foreground/90">
+                            <div className="farm-chart-fs-legend flex flex-wrap items-center gap-x-1 leading-snug text-foreground/90">
                               <span className="text-muted-foreground">
-                                하단 ·{" "}
+                                하단 ·
                               </span>
                               {formatSpreadRow("low", spreadLow)}
                             </div>
@@ -1552,6 +1584,13 @@ export function TrendChart({
 
   const yFor = (value: number, axis: TrendAxis): number => {
     const [mn, mx] = axis === "right" ? [rMin, rMax] : [lMin, lMax];
+    if (
+      !Number.isFinite(value) ||
+      !Number.isFinite(mn) ||
+      !Number.isFinite(mx)
+    ) {
+      return PAD_TOP + innerH;
+    }
     const t = (value - mn) / (mx - mn || 1);
     return PAD_TOP + innerH - t * innerH;
   };
@@ -1574,9 +1613,10 @@ export function TrendChart({
     if (n <= 1) return padL + innerW / 2;
     if (timeAxisMs && timeAxisMs.length === n) {
       const t0 = timeAxisMs[0]!;
+      const ti = timeAxisMs[i];
       const span = timeAxisMs[n - 1]! - t0;
-      if (span > 0) {
-        const t = (timeAxisMs[i]! - t0) / span;
+      if (span > 0 && ti != null && Number.isFinite(ti) && Number.isFinite(t0)) {
+        const t = (ti - t0) / span;
         return padL + Math.min(1, Math.max(0, t)) * innerW;
       }
     }

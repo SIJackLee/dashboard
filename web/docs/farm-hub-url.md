@@ -12,7 +12,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 환경변수 | 기본 | 설명 |
 |----------|------|------|
 | `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «현장» 탭. off면 현행 4탭 |
-| `NEXT_PUBLIC_BARN_MODEL_ENABLED` | 로컬·Preview on / Production off | 모델 탭. 상세 [`BARN_MODEL.md`](./BARN_MODEL.md) |
+| `NEXT_PUBLIC_BARN_MODEL_ENABLED` | 로컬·Preview on / Production은 env `true`로 노출 | 모델 탭. 상세 [`BARN_MODEL.md`](./BARN_MODEL.md) |
 
 통합 on일 때 UI:
 - 상위 탭: **현장 · 차트 · 모델(게이트)**

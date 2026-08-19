@@ -3,12 +3,16 @@
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
-import type {
-  TrendControllerPeriodData,
-  TrendPeriodId,
-} from "@/lib/data/farm-trend-types";
+import { LineChart } from "lucide-react";
 import { BarnListAccordionPanel } from "@/components/farm/barn-list-accordion-panel";
-import { BarnListGraphPanel } from "@/components/farm/barn-list-graph-panel";
+import { EnvMetricPanel } from "@/components/farm/controller-summary-gauge-parts";
+import {
+  ChannelStrip,
+  useControllerSummaryData,
+} from "@/components/farm/controller-summary-parts";
+import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { motionClass } from "@/lib/ui/motion-classes";
+import { cn } from "@/lib/utils";
 
 type Props = {
   reading: BarnReading;
@@ -17,14 +21,11 @@ type Props = {
   commands?: import("@/lib/data/commands").ThermoCommand[];
   alarmSettings?: AlarmSettings;
   canCommand?: boolean;
-  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
-  period: TrendPeriodId;
-  onPeriodChange?: (period: TrendPeriodId) => void;
-  trendLoading?: boolean;
-  trendStale?: boolean;
+  /** «차트에서 보기» — 해당 컨트롤러 스코프로 차트 탭 이동 (그래프 모드 은퇴 대체) */
+  onOpenChart?: () => void;
 };
 
-/** 모바일 sheet page[1] — 온·습 추이 + 설정 (sheet 전체 높이 단일 세로 스크롤). */
+/** 모바일 sheet — 현황 요약 + 차트 이동 + 설정. */
 export function ControllerMobileSettingsPage({
   reading,
   readings,
@@ -32,30 +33,72 @@ export function ControllerMobileSettingsPage({
   commands,
   alarmSettings,
   canCommand = false,
-  controllerTrendByPeriod = null,
-  period,
-  onPeriodChange,
-  trendLoading = false,
-  trendStale = false,
+  onOpenChart,
 }: Props) {
+  const {
+    offline,
+    thermo,
+    thresholds,
+    temp,
+    humidity,
+    tempAlarmBreached,
+    humidityAlarmBreached,
+  } = useControllerSummaryData(reading, thermoSettings, alarmSettings);
+
   return (
     <div
       className="min-h-min w-full pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
       data-audit-region="controller-mobile-sheet-settings"
       data-tour-id="list-settings-host"
     >
-      <BarnListGraphPanel
-        reading={reading}
-        controllerTrendByPeriod={controllerTrendByPeriod}
-        period={period}
-        onPeriodChange={onPeriodChange ?? (() => {})}
-        alarmSettings={alarmSettings}
-        thermoSettings={thermoSettings}
-        loading={trendLoading}
-        stale={trendStale}
-        showChannelSection={false}
-        layout="sheetCompact"
-      />
+      <div className="px-3 pb-2 pt-3" data-tour-id="controller-gauge-metrics">
+        <EnvMetricPanel
+          className="mb-2"
+          offline={offline}
+          setpoint={thermo?.setpointTemp}
+          setDev={thermo?.tempDeviation}
+          temp={{
+            value: reading.tempC,
+            displayValue: temp ?? "—",
+            low: thresholds.tempLow,
+            high: thresholds.tempHigh,
+            breached: tempAlarmBreached,
+          }}
+          humidity={{
+            value: reading.humidityPct,
+            displayValue: humidity ?? "—",
+            low: thresholds.humidityLow,
+            high: thresholds.humidityHigh,
+            breached: humidityAlarmBreached,
+          }}
+        />
+        <ChannelStrip
+          reading={reading}
+          thermo={thermo}
+          compact
+          hideChannelTrendExpand
+        />
+      </div>
+      {onOpenChart ? (
+        <div className="border-b bg-muted/20 px-3 py-2">
+          <button
+            type="button"
+            onClick={onOpenChart}
+            data-tour-id="panel-chart"
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded-lg border bg-background px-3 py-2.5 text-sm font-medium text-foreground",
+              motionClass.microHover,
+            )}
+          >
+            <LineChart
+              className="size-4 text-muted-foreground"
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
+            차트에서 추이 보기
+          </button>
+        </div>
+      ) : null}
       <BarnListAccordionPanel
           reading={reading}
           readings={readings}
@@ -68,4 +111,3 @@ export function ControllerMobileSettingsPage({
     </div>
   );
 }
-

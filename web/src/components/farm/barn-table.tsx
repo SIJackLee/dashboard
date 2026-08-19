@@ -11,7 +11,6 @@ import { SectionCard } from "@/components/common/section-card";
 import { PageActionButton } from "@/components/common/page-action-button";
 import { BarnListSummary } from "@/components/farm/barn-list-summary";
 import { BarnListModeToolbar } from "@/components/farm/barn-list-mode-toolbar";
-import { BarnListTrendRefreshBar } from "@/components/farm/barn-list-trend-refresh-bar";
 import type {
   ApplyResult,
   BulkApplyFeedback,
@@ -40,23 +39,15 @@ import {
   resolveListViewMode,
   resolveListLayoutParam,
   resolveTrendPeriodParam,
-  setTrendPeriodParam,
   type BarnListViewMode,
   type ListLayout,
 } from "@/lib/farm/farm-view-url";
 import { farmFieldMergeEnabled } from "@/lib/farm/farm-field-merge-enabled";
 import {
   EMPTY_BARN_LIST_PANEL_SETS,
-  toggleBarnListGraph,
   toggleBarnListSettings,
-  setBarnListSheetPage,
   isBarnListMobileToolbarSheetMode,
-  barnListToolbarSheetInitialPage,
-  toggleBarnListCardBody,
-  expandBarnListCardBody,
-  closeBarnListSettingsForKey,
   type BarnListPanelSets,
-  type ControllerMobileSheetPage,
 } from "@/lib/farm/barn-list-panel-state";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { useFarmControllerTrend } from "@/lib/farm/use-farm-controller-trend";
@@ -107,7 +98,8 @@ type Props = {
   listFilterEnterEpoch?: number;
   /** 그리드·목록 공유 추이 기간 (URL 동기화). */
   trendPeriod?: TrendPeriodId;
-  onTrendPeriodChange?: (period: TrendPeriodId) => void;
+  /** «차트에서 보기» — 카드 → 차트 탭 이동 (컨트롤러 스코프) */
+  onOpenChart?: (reading: BarnReading) => void;
   /**
    * 허브 keep-alive: false면 컨트롤러 추이 fetch/refresh 중지 (캐시 유지).
    * 비허브·기본 true.
@@ -145,7 +137,7 @@ export function BarnTable({
   narrowControllerGrid = false,
   listFilterEnterEpoch = 0,
   trendPeriod: trendPeriodProp,
-  onTrendPeriodChange,
+  onOpenChart,
   panelLiveActive = true,
 }: Props) {
   const router = useRouter();
@@ -175,14 +167,8 @@ export function BarnTable({
   const [panelSets, setPanelSets] = useState<BarnListPanelSets>(
     EMPTY_BARN_LIST_PANEL_SETS
   );
-  /** 그래프(graph) 모드 — 본문이 펼쳐진 컨트롤러 키 */
-  const [cardBodyExpandedKeys, setCardBodyExpandedKeys] = useState<
-    ReadonlySet<string>
-  >(() => new Set());
   const [toolbarSheetKey, setToolbarSheetKey] = useState<string | null>(null);
   const [toolbarSheetOpen, setToolbarSheetOpen] = useState(false);
-  const [toolbarSheetPage, setToolbarSheetPage] =
-    useState<ControllerMobileSheetPage>(0);
   const [statusToast, setStatusToast] = useState<{
     message: string;
     tone: InlineStatusTone;
@@ -226,11 +212,7 @@ export function BarnTable({
       setListLayout((prev) => (prev === nextLayout ? prev : nextLayout));
       if (getFarmTourActiveSync()) return;
       const fromUrl = resolveListViewMode(params);
-      setListMode((prev) => {
-        if (prev === fromUrl) return prev;
-        setCardBodyExpandedKeys(new Set());
-        return fromUrl;
-      });
+      setListMode((prev) => (prev === fromUrl ? prev : fromUrl));
     });
   }, [urlTick, hubParamsTick, resolveListLayout]);
 
@@ -242,9 +224,6 @@ export function BarnTable({
     bulkMode,
   );
 
-  const graphToolbarMode = effectiveListMode === "graph";
-  const graphPanelsOpen = panelSets.graphKeys.size > 0;
-  const hasTrendToolbarRow = graphToolbarMode || graphPanelsOpen;
   const settingsPanelsOpen = panelSets.settingsKeys.size > 0;
   const farmKey = rows[0]?.farmKey ?? null;
   const trendEnabled = Boolean(farmKey) && !bulkMode && panelLiveActive;
@@ -252,29 +231,13 @@ export function BarnTable({
   const {
     data: lazyControllerTrend,
     loading: trendInitialLoading,
-    refreshing: trendRefreshing,
     isStale: trendIsStale,
-    error: trendError,
-    refresh: refreshTrend,
   } = useFarmControllerTrend({
     farmKey,
     enabled: trendEnabled,
   });
 
-  const onTrendRefresh = useCallback(() => {
-    const trendDone = Promise.resolve(refreshTrend());
-    if (!hubMode) refreshList();
-    return trendDone;
-  }, [hubMode, refreshList, refreshTrend]);
-
-  const {
-    run: runTrendRefresh,
-    busy: trendRefreshBusy,
-    showProgress: trendRefreshVisible,
-  } = useSoftRefresh(onTrendRefresh);
-
   const controllerTrendByPeriod = trendEnabled ? lazyControllerTrend : null;
-  const trendRefreshSpinner = trendRefreshVisible || trendRefreshing;
 
   // 그리드 히트맵 '컨트롤러 이동' 도착 — controllerKey 카드로 스크롤 + 하이라이트.
   useEffect(() => {
@@ -326,21 +289,6 @@ export function BarnTable({
     };
   }, []);
 
-  const onBulkPeriodChange = useCallback(
-    (period: TrendPeriodId) => {
-      setPanelPeriodOverrides({});
-      if (onTrendPeriodChange) {
-        onTrendPeriodChange(period);
-        return;
-      }
-      const params = new URLSearchParams(currentFarmSearchParams().toString());
-      setTrendPeriodParam(params, period);
-      replaceFarmUrlShallow(params);
-      setUrlTick((n) => n + 1);
-    },
-    [onTrendPeriodChange],
-  );
-
   const onPanelPeriodChange = useCallback((key: string, period: TrendPeriodId) => {
     setPanelPeriodOverrides((prev) => ({ ...prev, [key]: period }));
   }, []);
@@ -356,43 +304,6 @@ export function BarnTable({
     panelEnrichRequestedRef.current = true;
     void onRequestPanelEnrichment();
   }, [settingsPanelsOpen, alarmSettings, onRequestPanelEnrichment]);
-
-  const toggleGraphPanel = useCallback((key: string) => {
-    setPanelSets((prev) => toggleBarnListGraph(prev, key));
-  }, []);
-
-  const handleToggleCardBody = useCallback((key: string) => {
-    setCardBodyExpandedKeys((prev) => {
-      const collapsing = prev.has(key);
-      if (collapsing) {
-        setPanelSets((ps) => closeBarnListSettingsForKey(ps, key));
-      }
-      return toggleBarnListCardBody(prev, key);
-    });
-  }, []);
-
-  const handleSheetPageChange = useCallback(
-    (key: string, page: ControllerMobileSheetPage) => {
-      setPanelSets((prev) => {
-        if (
-          page === 0 &&
-          prev.graphKeys.has(key) &&
-          !prev.settingsKeys.has(key)
-        ) {
-          return prev;
-        }
-        if (
-          page === 1 &&
-          prev.settingsKeys.has(key) &&
-          !prev.graphKeys.has(key)
-        ) {
-          return prev;
-        }
-        return setBarnListSheetPage(prev, key, page);
-      });
-    },
-    [],
-  );
 
   const filteredRows = useMemo(() => {
     if (isFilterAll(initialSp)) return rows;
@@ -417,9 +328,6 @@ export function BarnTable({
 
   if (toolbarSheetModeKey !== prevToolbarSheetModeKey) {
     setPrevToolbarSheetModeKey(toolbarSheetModeKey);
-    if (mobileToolbarSheetMode) {
-      setToolbarSheetPage(barnListToolbarSheetInitialPage(effectiveListMode));
-    }
   }
 
   const visibleSpCodes = useMemo(
@@ -464,45 +372,25 @@ export function BarnTable({
   );
 
   const openMobileToolbarSheet = useCallback(
-    (key: string, page: ControllerMobileSheetPage) => {
-      const mode: BarnListViewMode = page === 1 ? "settings" : "graph";
-      setListMode(mode);
+    (key: string) => {
+      setListMode("settings");
       setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
-      setCardBodyExpandedKeys(new Set());
       setToolbarSheetKey(key);
-      setToolbarSheetPage(page);
       setToolbarSheetOpen(true);
-      replaceListParams({ listMode: mode });
+      replaceListParams({ listMode: "settings" });
     },
     [replaceListParams],
-  );
-
-  const handleToggleGraph = useCallback(
-    (key: string) => {
-      if (compact && !bulkMode) {
-        openMobileToolbarSheet(key, 0);
-        return;
-      }
-      toggleGraphPanel(key);
-    },
-    [bulkMode, compact, openMobileToolbarSheet, toggleGraphPanel],
   );
 
   const handleToggleSettings = useCallback(
     (key: string) => {
       if (compact && !bulkMode) {
-        openMobileToolbarSheet(key, 1);
+        openMobileToolbarSheet(key);
         return;
       }
-      setPanelSets((prev) => {
-        const opening = !prev.settingsKeys.has(key);
-        if (opening && listMode === "graph") {
-          setCardBodyExpandedKeys((keys) => expandBarnListCardBody(keys, key));
-        }
-        return toggleBarnListSettings(prev, key);
-      });
+      setPanelSets((prev) => toggleBarnListSettings(prev, key));
     },
-    [bulkMode, compact, listMode, openMobileToolbarSheet],
+    [bulkMode, compact, openMobileToolbarSheet],
   );
 
   const toggleListLayout = () => {
@@ -521,8 +409,6 @@ export function BarnTable({
     if (bulkMode) return;
     setListMode(mode);
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
-    setCardBodyExpandedKeys(new Set());
-    setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
     startListParamsTransition(() => {
       replaceListParams({
         listMode: mode === "controller" ? null : mode,
@@ -535,23 +421,18 @@ export function BarnTable({
     filteredRowsRef.current = filteredRows;
   }, [filteredRows]);
 
-  /** 스포트라이트 투어 — 목록 보기 모드(컨트롤러/그래프/설정) 전환 */
+  /** 스포트라이트 투어 — 목록 보기 모드(컨트롤러/설정) 전환 (그래프 은퇴) */
   useEffect(() => {
     const onTourAction = (e: Event) => {
       const action = (e as CustomEvent).detail?.action as string | undefined;
       if (
         action !== "list-mode-controller" &&
-        action !== "list-mode-graph" &&
         action !== "list-mode-settings"
       ) {
         return;
       }
       const mode: BarnListViewMode =
-        action === "list-mode-graph"
-          ? "graph"
-          : action === "list-mode-settings"
-            ? "settings"
-            : "controller";
+        action === "list-mode-settings" ? "settings" : "controller";
       const firstKey = filteredRowsRef.current[0]?.key;
       const tourActive = getFarmTourActiveSync();
       if (!bulkMode) {
@@ -563,22 +444,9 @@ export function BarnTable({
         });
         // 투어 — 첫 카드만 패널 열어 hole 과대·마운트 폭주 방지
         if (tourActive && firstKey && mode === "settings") {
-          setPanelSets({
-            graphKeys: new Set(),
-            settingsKeys: new Set([firstKey]),
-          });
-        } else if (tourActive && firstKey && mode === "graph") {
-          setPanelSets({
-            graphKeys: new Set([firstKey]),
-            settingsKeys: new Set(),
-          });
-          setCardBodyExpandedKeys(new Set());
+          setPanelSets({ settingsKeys: new Set([firstKey]) });
         } else if (changed) {
           setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
-          setCardBodyExpandedKeys(new Set());
-        }
-        if (changed || tourActive) {
-          setToolbarSheetPage(barnListToolbarSheetInitialPage(mode));
         }
         // 투어 중 URL listMode 생략 — shallow 갱신이 모드를 되돌리거나 RSC 경합 유발
         if (changed && !tourActive) {
@@ -591,22 +459,17 @@ export function BarnTable({
       void (async () => {
         await afterFrames(2);
         const settle =
-          mode === "graph"
+          mode === "settings"
             ? [
-                '[data-tour-id="list-graph-panel"]',
-                '[data-audit-region="controller-mobile-sheet-channel-trend"]',
+                '[data-tour-id="list-settings-tour-target"]',
+                '[data-tour-id="list-settings-panel"]',
+                '[data-audit-region="controller-mobile-sheet-settings"]',
+                '[data-tour-id="controller-card"]',
               ]
-            : mode === "settings"
-              ? [
-                  '[data-tour-id="list-settings-tour-target"]',
-                  '[data-tour-id="list-settings-panel"]',
-                  '[data-audit-region="controller-mobile-sheet-settings"]',
-                  '[data-tour-id="controller-card"]',
-                ]
-              : [
-                  '[data-tour-id="controller-card"]',
-                  '[data-tour-id="controller-gauge-metrics"]',
-                ];
+            : [
+                '[data-tour-id="controller-card"]',
+                '[data-tour-id="controller-gauge-metrics"]',
+              ];
         await waitForTourTarget(settle, {
           timeoutMs: tourActive ? 3_200 : undefined,
         });
@@ -618,16 +481,8 @@ export function BarnTable({
   }, [bulkMode, replaceListParams]);
 
   const handleToolbarSheetKeyChange = useCallback(
-    (key: string, page?: ControllerMobileSheetPage) => {
+    (key: string) => {
       setToolbarSheetKey(key);
-      if (page !== undefined) setToolbarSheetPage(page);
-    },
-    [],
-  );
-
-  const handleToolbarSheetPageChange = useCallback(
-    (page: ControllerMobileSheetPage) => {
-      setToolbarSheetPage((prev) => (prev === page ? prev : page));
     },
     [],
   );
@@ -637,7 +492,6 @@ export function BarnTable({
     setToolbarSheetOpen(false);
     setListMode("controller");
     setPanelSets(EMPTY_BARN_LIST_PANEL_SETS);
-    setCardBodyExpandedKeys(new Set());
     setToolbarSheetKey(null);
     replaceListParams({ listMode: null });
   }, [bulkMode, replaceListParams]);
@@ -759,28 +613,10 @@ export function BarnTable({
           trailingCompact={compact && toolbarInBulkBar}
         />
       ) : null}
-      {hasTrendToolbarRow ? (
-        <div
-          className={cn(
-            bulkEnabled && "px-4 md:px-6",
-            bulkEnabled && !bulkMode && "pt-4 md:pt-6",
-          )}
-        >
-          <BarnListTrendRefreshBar
-            onRefresh={runTrendRefresh}
-            bulkPeriod={bulkPeriod}
-            onBulkPeriodChange={onBulkPeriodChange}
-            busy={trendRefreshBusy}
-            showSpinner={trendRefreshSpinner}
-            showProgress={trendRefreshVisible}
-            error={trendError}
-          />
-        </div>
-      ) : null}
       <div
         className={cn(
           bulkEnabled && "px-4 pb-4 md:px-6 md:pb-6",
-          bulkEnabled && !hasTrendToolbarRow && "pt-3 md:pt-4",
+          bulkEnabled && "pt-3 md:pt-4",
           bulkMode && "data-[bulk=list]",
         )}
         data-bulk={bulkMode ? "list" : undefined}
@@ -801,11 +637,8 @@ export function BarnTable({
           panelPeriodOverrides={panelPeriodOverrides}
           onPanelPeriodChange={onPanelPeriodChange}
           panelSets={panelSets}
-          cardBodyExpandedKeys={cardBodyExpandedKeys}
-          onToggleGraph={handleToggleGraph}
           onToggleSettings={handleToggleSettings}
-          onToggleCardBody={handleToggleCardBody}
-          onSheetPageChange={handleSheetPageChange}
+          onOpenChart={onOpenChart}
           bulkMode={bulkMode}
           selectedSps={selectedSps}
           onToggleSp={toggleSp}
@@ -815,9 +648,7 @@ export function BarnTable({
           mobileToolbarSheetMode={mobileToolbarSheetMode}
           toolbarSheetKey={toolbarSheetKey}
           toolbarSheetOpen={toolbarSheetOpen}
-          toolbarSheetPage={toolbarSheetPage}
           onToolbarSheetKeyChange={handleToolbarSheetKeyChange}
-          onToolbarSheetPageChange={handleToolbarSheetPageChange}
           onToolbarSheetClose={handleToolbarSheetClose}
         />
       </StaleWhileRevalidateShell>

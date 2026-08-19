@@ -154,7 +154,7 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | 항목 | 정책 |
 |------|------|
 | duration / easing | **동일** |
-| bottom sheet | `motionClass.sheetEnter` + `durationModerate` |
+| bottom sheet | `motionClass.sheetEnter` + `durationEmphasis` (접힘·펼침 360ms). 차트에서 추이 보기: 탭 전환 280ms + 인지 360ms 뒤 시트 접힘 360ms |
 | portal (dialog) | `motionClass.portalEnter` + `durationNormal` |
 | scroll-driven | 모바일 `auto` (투어·vv 대응), duration은 동일 |
 | preview frame | `[data-viewport-preview="mobile"]` — duration 동일, max-height만 조정 |

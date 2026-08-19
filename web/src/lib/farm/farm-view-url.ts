@@ -44,20 +44,19 @@ export function trendPeriodLabel(period: TrendPeriodId): string {
 
 export type FarmMapDrillLevel = "sp" | "stalls";
 
-/** 목록 탭 — 카드 그리드 전역 보기 모드 */
-export type BarnListViewMode = "controller" | "graph" | "settings";
+/** 목록 탭 — 카드 그리드 전역 보기 모드 (그래프 은퇴 → 컨트롤러/설정) */
+export type BarnListViewMode = "controller" | "settings";
 
 const LIST_VIEW_MODES: BarnListViewMode[] = [
   "controller",
-  "graph",
   "settings",
 ];
 
 export function parseListViewMode(
   raw: string | null | undefined
 ): BarnListViewMode {
-  // 레거시 listMode=channel → graph (읽기만; 쓰기는 graph)
-  if (raw === "channel") return "graph";
+  // 레거시 listMode=channel|graph → controller (그래프 모드 은퇴, 이력은 차트 탭)
+  if (raw === "channel" || raw === "graph") return "controller";
   if (raw && LIST_VIEW_MODES.includes(raw as BarnListViewMode)) {
     return raw as BarnListViewMode;
   }
@@ -75,12 +74,13 @@ export function resolveListViewMode(
 }
 
 /**
- * URL에 남은 `listMode=channel` → `graph` 정규화.
+ * URL에 남은 레거시 `listMode=channel|graph` 제거 (그래프 모드 은퇴 → 컨트롤러).
  * @returns 변경 여부
  */
 export function normalizeLegacyListModeParam(params: URLSearchParams): boolean {
-  if (params.get("listMode") !== "channel") return false;
-  params.set("listMode", "graph");
+  const raw = params.get("listMode");
+  if (raw !== "channel" && raw !== "graph") return false;
+  params.delete("listMode");
   return true;
 }
 

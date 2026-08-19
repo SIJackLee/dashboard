@@ -3,12 +3,9 @@ export type TourGridAction =
   | "expand-first"
   | "collapse"
   | "list-mode-controller"
-  | "list-mode-graph"
   | "list-mode-settings"
   /** 모바일 fieldMerge — 축사 시트 컨트롤러(게이지) 페이지 */
   | "field-mobile-sheet-controller"
-  /** 모바일 fieldMerge — 축사 시트 추이 페이지 */
-  | "field-mobile-sheet-graph"
   /** 모바일 fieldMerge — 축사 시트 설정 페이지 */
   | "field-mobile-sheet-settings"
   /** 모바일 fieldMerge — 축사 시트 닫기 */

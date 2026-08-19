@@ -246,10 +246,76 @@ export function pigEnvFocusReadings<
 
 export type PigEnvAdviceCopy = {
   offBand: boolean;
+  /** 조언 단계: 통신두절 > 장비경보 > 권장표 이탈 > 적정 > 대상 없음 */
+  tier: PigEnvAdviceTier;
+  /** 접힌 뱃지 숫자 — 통신두절 대수 · 경보 대수 · 이탈 축사유형 수. 적정은 0. */
+  noticeCount: number;
   stallLabel: string | null;
   summary: string;
   detail: string | null;
 };
+
+export type PigEnvAdviceTier =
+  | "offline"
+  | "alarm"
+  | "offband"
+  | "ok"
+  | "none";
+
+/** 장비 경보 안전망 임계 (권장표와 별개, 임계는 바꾸지 않는다). */
+export const PIG_ENV_SAFETY = {
+  tempHighC: 35,
+  tempLowC: 10,
+  humidityHighPct: 90,
+  humidityLowPct: 30,
+} as const;
+
+export type PigEnvSafetyHit = {
+  kind: "tempHigh" | "tempLow" | "humidityHigh" | "humidityLow";
+  value: number;
+  limit: number;
+};
+
+/** 안전망 임계 초과 1건 (온도 우선, 상한 우선). 없으면 null. */
+export function pigEnvSafetyHit(
+  reading: Pick<BarnReading, "tempC" | "humidityPct">,
+): PigEnvSafetyHit | null {
+  const t = reading.tempC;
+  if (t != null && Number.isFinite(t)) {
+    if (t >= PIG_ENV_SAFETY.tempHighC) {
+      return { kind: "tempHigh", value: t, limit: PIG_ENV_SAFETY.tempHighC };
+    }
+    if (t <= PIG_ENV_SAFETY.tempLowC) {
+      return { kind: "tempLow", value: t, limit: PIG_ENV_SAFETY.tempLowC };
+    }
+  }
+  const h = reading.humidityPct;
+  if (h != null && Number.isFinite(h)) {
+    if (h >= PIG_ENV_SAFETY.humidityHighPct) {
+      return {
+        kind: "humidityHigh",
+        value: h,
+        limit: PIG_ENV_SAFETY.humidityHighPct,
+      };
+    }
+    if (h <= PIG_ENV_SAFETY.humidityLowPct) {
+      return {
+        kind: "humidityLow",
+        value: h,
+        limit: PIG_ENV_SAFETY.humidityLowPct,
+      };
+    }
+  }
+  return null;
+}
+
+function pigEnvSafetyRank(hit: PigEnvSafetyHit): number {
+  // 온도 경보를 습도보다, 이탈 폭이 클수록 우선.
+  const dev = Math.abs(hit.value - hit.limit);
+  const base =
+    hit.kind === "tempHigh" || hit.kind === "tempLow" ? 1000 : 0;
+  return base + dev;
+}
 
 function fmtTempSpoken(n: number): string {
   const t = Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
@@ -268,6 +334,8 @@ export function pigEnvAdviceCopy(
   if (!worst) {
     return {
       offBand: false,
+      tier: "none",
+      noticeCount: 0,
       stallLabel: null,
       summary: "권장 환경으로 볼 축사유형이 없습니다.",
       detail: null,
@@ -276,6 +344,8 @@ export function pigEnvAdviceCopy(
   if (!pigEnvVerdictOffBand(worst)) {
     return {
       offBand: false,
+      tier: "ok",
+      noticeCount: 0,
       stallLabel: worst.stallLabel,
       summary: "축사유형별 권장 온·습도 안에 있습니다.",
       detail: null,
@@ -302,8 +372,91 @@ export function pigEnvAdviceCopy(
   }
   return {
     offBand: true,
+    tier: "offband",
+    noticeCount: Math.max(
+      1,
+      verdicts.filter(pigEnvVerdictOffBand).length,
+    ),
     stallLabel: worst.stallLabel,
     summary: `${worst.stallLabel} 권장 온·습도를 벗어났습니다.`,
     detail: parts.length ? `${parts.join(". ")}.` : null,
   };
+}
+
+type PigEnvBadgeReading = Pick<
+  BarnReading,
+  "stallTyCode" | "tempC" | "humidityPct" | "status"
+>;
+
+function pigEnvSafetyKindLabel(kind: PigEnvSafetyHit["kind"]): string {
+  if (kind === "tempHigh") return "온도 상한";
+  if (kind === "tempLow") return "온도 하한";
+  if (kind === "humidityHigh") return "습도 상한";
+  return "습도 하한";
+}
+
+function pigEnvSafetyHitSentence(
+  stallLabel: string,
+  hit: PigEnvSafetyHit,
+): string {
+  const dir = hit.kind.endsWith("High") ? "넘었습니다" : "밑돌았습니다";
+  const bound = hit.kind.endsWith("High") ? "상한" : "하한";
+  if (hit.kind.startsWith("temp")) {
+    return `${stallLabel} 온도 ${fmtTempSpoken(hit.value)}로 ${bound} ${fmtTempSpoken(hit.limit)}를 ${dir}`;
+  }
+  return `${stallLabel} 습도 ${fmtPctSpoken(hit.value)}로 ${bound} ${fmtPctSpoken(hit.limit)}를 ${dir}`;
+}
+
+/**
+ * 뱃지 조언 — 우선순위: 통신두절 > 장비경보(안전망 임계) > 권장표 이탈 > 적정.
+ * 화면 맥락(stallTyCode)이 있으면 그 유형만 본다.
+ */
+export function pigEnvBadgeAdvice(
+  readings: PigEnvBadgeReading[],
+  stallTyCode?: string | null,
+): PigEnvAdviceCopy {
+  const focus = pigEnvFocusReadings(readings, stallTyCode);
+  const verdicts = pigEnvTypeVerdicts(focus);
+  const scopeLabel =
+    pigEnvWorstVerdict(verdicts)?.stallLabel ??
+    (normalizeStallTyCode(stallTyCode) !== "UNK"
+      ? formatStallTypeLabel(normalizeStallTyCode(stallTyCode))
+      : null);
+
+  const offlineCount = focus.filter((r) => r.status === "offline").length;
+  if (offlineCount > 0) {
+    return {
+      offBand: true,
+      tier: "offline",
+      noticeCount: offlineCount,
+      stallLabel: scopeLabel,
+      summary: `통신이 두절된 컨트롤러가 ${offlineCount}대 있습니다.`,
+      detail: "통신·전원을 확인하세요.",
+    };
+  }
+
+  let worstHit: { hit: PigEnvSafetyHit; label: string } | null = null;
+  let alarmCount = 0;
+  for (const r of focus) {
+    if (r.status === "offline") continue;
+    const hit = pigEnvSafetyHit(r);
+    if (!hit) continue;
+    alarmCount += 1;
+    if (!worstHit || pigEnvSafetyRank(hit) > pigEnvSafetyRank(worstHit.hit)) {
+      const label = formatStallTypeLabel(normalizeStallTyCode(r.stallTyCode));
+      worstHit = { hit, label };
+    }
+  }
+  if (worstHit) {
+    return {
+      offBand: true,
+      tier: "alarm",
+      noticeCount: Math.max(1, alarmCount),
+      stallLabel: worstHit.label,
+      summary: `${pigEnvSafetyKindLabel(worstHit.hit.kind)}을 벗어난 장비 경보가 있습니다.`,
+      detail: `${pigEnvSafetyHitSentence(worstHit.label, worstHit.hit)}. 즉시 확인하세요.`,
+    };
+  }
+
+  return pigEnvAdviceCopy(verdicts);
 }

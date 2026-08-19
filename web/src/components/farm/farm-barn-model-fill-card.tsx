@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import { BARN_MODEL_DIM, type BarnModelFill } from "@/lib/farm/barn-model-dim";
 import { barnModelHud } from "@/lib/farm/barn-model-hud";
@@ -20,14 +20,17 @@ function MeterChip({
   value: number;
   onCommit: (n: number) => void;
 }) {
-  const [text, setText] = useState(value.toFixed(2));
-  useEffect(() => {
-    setText(value.toFixed(2));
-  }, [value]);
+  const source = value.toFixed(2);
+  const [text, setText] = useState(source);
+  const [prev, setPrev] = useState(source);
+  if (source !== prev) {
+    setPrev(source);
+    setText(source);
+  }
   const commit = () => {
     const n = Number(text.replace(",", ".").trim());
     if (!Number.isFinite(n)) {
-      setText(value.toFixed(2));
+      setText(source);
       return;
     }
     onCommit(n);
@@ -59,14 +62,17 @@ function CountChip({
   value: number;
   onCommit: (n: number) => void;
 }) {
-  const [text, setText] = useState(String(value));
-  useEffect(() => {
-    setText(String(value));
-  }, [value]);
+  const source = String(value);
+  const [text, setText] = useState(source);
+  const [prev, setPrev] = useState(source);
+  if (source !== prev) {
+    setPrev(source);
+    setText(source);
+  }
   const commit = () => {
     const n = Number(text.trim());
     if (!Number.isFinite(n)) {
-      setText(String(value));
+      setText(source);
       return;
     }
     onCommit(n);

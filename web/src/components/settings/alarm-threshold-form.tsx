@@ -547,6 +547,7 @@ export function AlarmThresholdForm({
               accentClass="bg-orange-500/35"
               disabled={fieldsDisabled}
               compact
+              bare
               titleClassName={sliderTitleClassName}
               thumbLabelClassName={
                 sliderThumbLabelClassName ?? "md:text-[1.75rem]"
@@ -570,6 +571,7 @@ export function AlarmThresholdForm({
               accentClass="bg-channel-info/35"
               disabled={fieldsDisabled}
               compact
+              bare
               titleClassName={sliderTitleClassName}
               thumbLabelClassName={
                 sliderThumbLabelClassName ?? "md:text-[1.75rem]"

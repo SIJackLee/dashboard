@@ -60,7 +60,7 @@ export function SettingsCollapsibleSection({
         />
       </button>
       <div
-        className="settings-collapsible-body border-t"
+        className="settings-collapsible-body"
         data-open={open ? "true" : undefined}
       >
         <div className="settings-collapsible-body-inner">
