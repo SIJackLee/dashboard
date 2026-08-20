@@ -48,7 +48,9 @@ export const BARN_MODEL_HEIGHT_MAX_M = 12;
 
 export type BarnModelDimAxis = "length" | "width" | "height";
 
-export type BarnModelBanks = 1 | 2 | 3;
+export const BARN_MODEL_BANKS = [1, 2, 3, 4, 5] as const;
+export type BarnModelBanks = (typeof BARN_MODEL_BANKS)[number];
+export const BARN_MODEL_BANKS_MAX = 5;
 
 export type BarnModelShellLike = {
   stallTyCode: string;
@@ -103,8 +105,8 @@ export function clampBarnAisleW(n: number): number {
 
 export function clampBarnBanks(n: number): BarnModelBanks {
   if (!Number.isFinite(n) || n <= 1) return 1;
-  if (n >= 3) return 3;
-  return 2;
+  if (n >= BARN_MODEL_BANKS_MAX) return BARN_MODEL_BANKS_MAX;
+  return Math.round(n) as BarnModelBanks;
 }
 
 export function aisleCountForBanks(banks: BarnModelBanks): number {

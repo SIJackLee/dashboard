@@ -76,6 +76,7 @@ function FarmLivePageContent({
   initialHubView,
   initialWeatherNudge = null,
   weatherNudgeEnabled = false,
+  hubLocations = [],
 }: {
   gridCompactShell: boolean;
   hubUrlEpoch: number;
@@ -85,6 +86,7 @@ function FarmLivePageContent({
   initialHubView?: ReturnType<typeof resolveFarmHubView>;
   initialWeatherNudge?: WeatherNudgeView | null;
   weatherNudgeEnabled?: boolean;
+  hubLocations?: FarmLocationRow[];
 }) {
   const { slice, isStale, isBootstrapping } = useFarmLiveRefresh();
 
@@ -100,7 +102,10 @@ function FarmLivePageContent({
   }
 
   return (
-    <StaleWhileRevalidateShell stale={isStale}>
+    <StaleWhileRevalidateShell
+      stale={isStale}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <NavContentReadyMarker ready />
       <FarmPageContent
         readings={slice.readings}
@@ -119,6 +124,7 @@ function FarmLivePageContent({
         initialHubView={initialHubView}
         initialWeatherNudge={initialWeatherNudge}
         weatherNudgeEnabled={weatherNudgeEnabled}
+        hubLocations={hubLocations}
       />
     </StaleWhileRevalidateShell>
   );
@@ -217,6 +223,7 @@ function AdminHubBody({
           initialHubView={resolveFarmHubView(view)}
           initialWeatherNudge={initialWeatherNudge}
           weatherNudgeEnabled={weatherNudgeEnabled}
+          hubLocations={hubLocations}
         />
       );
     }
@@ -228,6 +235,7 @@ function AdminHubBody({
         initialHubView={resolveFarmHubView(view)}
         initialWeatherNudge={initialWeatherNudge}
         weatherNudgeEnabled={weatherNudgeEnabled}
+        hubLocations={hubLocations}
       />
     );
   }
@@ -260,6 +268,7 @@ function AdminHubBody({
           initialHubView={resolveFarmHubView(view)}
           initialWeatherNudge={initialWeatherNudge}
           weatherNudgeEnabled={weatherNudgeEnabled}
+          hubLocations={hubLocations}
         />
       )}
     </Suspense>
@@ -378,7 +387,7 @@ export function FarmDashboardShell({
 
   return (
     <FarmLiveRefreshProvider farmKey={farmKey} initial={initialSlice}>
-      <div className="space-y-4 md:space-y-5">
+      <div className="flex min-h-0 flex-1 flex-col space-y-4 md:space-y-5">
         {isAdmin && deferAdminGridLoad ? (
           <AdminHubBody
             deferAdminGridLoad={deferAdminGridLoad}
@@ -423,6 +432,7 @@ export function FarmDashboardShell({
                 initialHubView={resolveFarmHubView(view)}
                 initialWeatherNudge={initialWeatherNudge}
                 weatherNudgeEnabled={weatherNudgeEnabled}
+                hubLocations={hubLocations}
               />
             )}
           </Suspense>

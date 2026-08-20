@@ -3,7 +3,7 @@
  * 실행: npx tsx src/lib/farm/farm-hub-url-smoke.test.ts
  */
 import assert from "node:assert/strict";
-import { barnModelEnabled } from "./barn-model-enabled";
+import { barnPlanEnabled } from "./barn-plan-enabled";
 import {
   applyFarmChartScopeParams,
   resolveFarmChartScope,
@@ -125,17 +125,19 @@ function clone(q: string) {
   console.log("smoke 3: period change keeps chart view+scope — ok");
 }
 
-/** 4) 탭 왕복 — applyHubScopedViewParams 순서 map→list→chart→aria→map */
+/** 4) 탭 왕복 — applyHubScopedViewParams 순서 map→list→chart→plan→model→aria→map */
 {
   const params = clone("lsind=FARM01&item=P00&sp=SP01&stall=3&mapLevel=stalls");
-  const order: FarmHubView[] = ["list", "chart", "model", "aria", "map"];
+  const order: FarmHubView[] = ["list", "chart", "plan", "model", "aria", "map"];
   for (const v of order) {
     applyHubScopedViewParams(params, v);
     const expected =
       v === "aria"
         ? ("map" as FarmHubView)
-        : v === "model" && !barnModelEnabled()
-          ? ("map" as FarmHubView)
+        : v === "plan" || v === "model"
+          ? barnPlanEnabled()
+            ? ("model" as FarmHubView)
+            : ("map" as FarmHubView)
           : v;
     assert.equal(resolveFarmHubView(params.get("view")), expected);
   }
@@ -148,8 +150,12 @@ function clone(q: string) {
   assert.equal(resolveFarmHubView("jarvis"), "map");
   assert.equal(resolveFarmHubView("aria"), "map");
   assert.equal(
+    resolveFarmHubView("plan"),
+    barnPlanEnabled() ? "model" : "map",
+  );
+  assert.equal(
     resolveFarmHubView("model"),
-    barnModelEnabled() ? "model" : "map",
+    barnPlanEnabled() ? "model" : "map",
   );
   console.log("smoke 4: tab roundtrip URL helpers — ok");
 }
@@ -157,7 +163,7 @@ function clone(q: string) {
 /** 5) 농장 전환 — drill/탭/chart* 제거 후 새 키 */
 {
   const params = clone(
-    "lsind=FARM01&item=P00&view=list&listMode=graph&sp=SP02&stall=1&ctrl=a%2Fb&chartSp=SP03&trendPeriod=7d",
+    "lsind=FARM01&item=P00&view=list&listMode=graph&sp=SP02&stall=1&ctrl=a%2Fb&chartSp=SP03&planBldg=bd-1&planSp=SP02&trendPeriod=7d",
   );
   clearHubFarmDrillParams(params);
   params.set("lsind", "FARM02");
@@ -167,10 +173,37 @@ function clone(q: string) {
   assert.equal(params.get("sp"), null);
   assert.equal(params.get("ctrl"), null);
   assert.equal(params.get("chartSp"), null);
+  assert.equal(params.get("planBldg"), null);
+  assert.equal(params.get("planSp"), null);
   assert.equal(params.get("lsind"), "FARM02");
   assert.equal(params.get("trendPeriod"), "7d");
   assert.equal(resolveFarmHubView(params.get("view")), "map");
   console.log("smoke 5: farm switch clears hub drill — ok");
+}
+
+/** 6) 차트 ↔ 모델 — chart* / plan* 서로 지움 */
+{
+  const toPlan = clone(
+    "lsind=FARM01&item=P00&view=chart&chartSp=SP03&chartStall=1",
+  );
+  applyHubScopedViewParams(toPlan, "plan");
+  if (barnPlanEnabled()) {
+    assert.equal(toPlan.get("view"), "model");
+    assert.equal(toPlan.get("chartSp"), null);
+    assert.equal(toPlan.get("chartStall"), null);
+  } else {
+    assert.equal(resolveFarmHubView(toPlan.get("view")), "map");
+  }
+
+  const toChart = clone(
+    "lsind=FARM01&item=P00&view=plan&planBldg=bd-1&planSp=SP02&planStall=1",
+  );
+  applyHubScopedViewParams(toChart, "chart");
+  assert.equal(toChart.get("view"), "chart");
+  assert.equal(toChart.get("planBldg"), null);
+  assert.equal(toChart.get("planSp"), null);
+  assert.equal(toChart.get("planStall"), null);
+  console.log("smoke 6: chart/plan params stay isolated — ok");
 }
 
 console.log("farm-hub-url-smoke.test.ts: all ok");

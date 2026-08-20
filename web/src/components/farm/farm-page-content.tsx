@@ -20,7 +20,7 @@ import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types
 import { DelinEnvBadge } from "@/components/farm/delin-env-badge";
 import { FarmMapView } from "@/components/farm/farm-map-view";
 import { FarmChartView } from "@/components/farm/farm-chart-view";
-import { FarmBarnModelView } from "@/components/farm/farm-barn-model-view";
+import { FarmPlanView } from "@/components/farm/farm-plan-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import {
   FarmFieldStatusGrid,
@@ -52,7 +52,13 @@ import { useFarmHubViewShell } from "@/lib/farm/use-farm-hub-view-shell";
 import { farmFieldMergeEnabled } from "@/lib/farm/farm-field-merge-enabled";
 import { isScopedControllerEnriched } from "@/lib/farm/farm-scoped-panel-utils";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { farmKeyId, parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import {
+  farmKeyId,
+  parseFarmKeyFromQuery,
+  parseFarmKeyId,
+  type FarmKey,
+} from "@/lib/data/farm-key";
+import type { FarmLocationRow } from "@/lib/data/farm-location-shared";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import {
   invalidateFarmControllerTrendCache,
@@ -75,7 +81,8 @@ import { useFieldListFilterMotion } from "@/components/farm/use-field-list-filte
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
-import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
+import { barnPlanEnabled } from "@/lib/farm/barn-plan-enabled";
+import { PLAN_SP_PARAM } from "@/lib/farm/barn-plan-url";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 
@@ -100,6 +107,7 @@ type Props = {
   /** Phase C — 기상 CTRL pending 말풍선 (SSR) */
   initialWeatherNudge?: WeatherNudgeView | null;
   weatherNudgeEnabled?: boolean;
+  hubLocations?: FarmLocationRow[];
 };
 
 export function FarmPageContent({
@@ -118,6 +126,7 @@ export function FarmPageContent({
   lazyListEnrichment = false,
   lazyListFarmKey = null,
   initialHubView,
+  hubLocations = [],
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const tourActive = useFarmTourActive();
@@ -236,9 +245,6 @@ export function FarmPageContent({
   );
   /** PC 스플릿 — 좌측 현황 열 표시 */
   const [fieldStatusOpen, setFieldStatusOpen] = useState(true);
-  const [modelAdviceStallTy, setModelAdviceStallTy] = useState<string | null>(
-    null,
-  );
 
   const selectBarnForList = useCallback(
     (barn: BarnMapSnapshot) => {
@@ -307,8 +313,7 @@ export function FarmPageContent({
       if (
         view === "map" ||
         view === "chart" ||
-        view === "list" ||
-        view === "model"
+        view === "list"
       ) {
         void prefetchFarmStallTrend(gridFarmKey, (trend) => {
           if (cancelled) return;
@@ -400,8 +405,7 @@ export function FarmPageContent({
         Boolean(gridFarmKey) &&
         (view === "map" ||
           view === "chart" ||
-          view === "list" ||
-          view === "model"),
+          view === "list"),
     });
 
   const shallowParams = useMemo(() => {
@@ -414,6 +418,14 @@ export function FarmPageContent({
   }, [urlHydrated, hubUrlEpoch, urlTick, searchParams]);
 
   const urlCtrl = shallowParams.get("ctrl");
+  const planFarmKey =
+    lazyListFarmKey ??
+    gridFarmKey ??
+    parseFarmKeyFromQuery(
+      shallowParams.get("lsind"),
+      shallowParams.get("item"),
+    );
+  const planFarmId = planFarmKey ? farmKeyId(planFarmKey) : "";
   const listSp =
     fieldMerge || view === "list"
       ? shallowParams.get("sp") ?? undefined
@@ -454,7 +466,7 @@ export function FarmPageContent({
       }
       return shallowParams.get("sp");
     }
-    if (view === "model") return modelAdviceStallTy;
+    if (view === "model") return shallowParams.get(PLAN_SP_PARAM);
     return null;
   }, [
     showDelinEnvBadge,
@@ -464,7 +476,6 @@ export function FarmPageContent({
     fieldSelectedBarnId,
     barnSnapshots,
     shallowParams,
-    modelAdviceStallTy,
   ]);
 
   const onTrendPeriodChange = useCallback(
@@ -550,6 +561,11 @@ export function FarmPageContent({
     const exiting = viewSlide?.from === panel;
     const entering = viewSlide?.to === panel;
     if (!active && !exiting) return "hidden";
+    /* Leaflet는 탭 슬라이드 transform 안에서 타일 크기를 잘못 잡음 */
+    if (panel === "model") {
+      if (!active) return "hidden";
+      return "relative z-[1] w-full";
+    }
     return cn(
       exiting && "pointer-events-none absolute inset-x-0 top-0 z-0 w-full",
       active && "relative z-[1] w-full",
@@ -702,7 +718,7 @@ export function FarmPageContent({
         />
         차트
       </button>
-      {barnModelEnabled() ? (
+      {barnPlanEnabled() ? (
         <button
           type="button"
           role="tab"
@@ -728,7 +744,12 @@ export function FarmPageContent({
       : null;
 
   return (
-    <div className={cn(embedInScopeHeader ? "space-y-3" : "space-y-4")}>
+    <div
+      className={cn(
+        embedInScopeHeader ? "space-y-3" : "space-y-4",
+        "flex min-h-0 flex-1 flex-col",
+      )}
+    >
       <FarmFeatureTour
         view={view}
         setView={setView}
@@ -740,7 +761,13 @@ export function FarmPageContent({
           ? null
           : viewToggle}
 
-      <div className="relative min-h-0 overflow-hidden" data-farm-view-slot>
+      <div
+        className={cn(
+          "relative min-h-0 overflow-hidden",
+          view === "model" && "flex min-h-0 flex-1 flex-col",
+        )}
+        data-farm-view-slot
+      >
         {fieldMerge ? (
           <div
             className={cn("min-h-0 lg:min-h-[16rem]", fieldPanelMotionClass())}
@@ -926,32 +953,24 @@ export function FarmPageContent({
           </div>
         ) : null}
 
-        {barnModelEnabled() &&
+        {barnPlanEnabled() &&
         (view === "model" ||
           viewSlide?.from === "model" ||
           viewSlide?.to === "model") ? (
           <div
-            className={panelMotionClass("model")}
+            className={cn(
+              panelMotionClass("model"),
+              view === "model" && "flex min-h-0 min-w-0 flex-1 flex-col",
+            )}
             aria-hidden={view !== "model"}
             data-farm-view-panel="model"
             data-farm-view-active={view === "model"}
           >
-            <FarmBarnModelView
+            <FarmPlanView
+              farmId={planFarmId}
+              locations={hubLocations}
               barns={barnSnapshots}
               readings={readings}
-              controllerTrendByPeriod={gridControllerTrend}
-              trendPeriod={trendPeriod}
-              onTrendPeriodChange={onTrendPeriodChange}
-              trendLoading={gridTrendLoading}
-              trendStale={gridTrendStale}
-              trendExtending={gridTrendExtending}
-              window15mLoading={gridTrendWindowLoading}
-              onNeedWindow15m={ensureGridTrendWindow15m}
-              window15m={gridTrendWindow15m}
-              alarmSettings={alarmSettings}
-              thermoSettings={thermoSettings}
-              canCommand={controller?.canCommand ?? false}
-              onAdviceStallTyChange={setModelAdviceStallTy}
             />
           </div>
         ) : null}

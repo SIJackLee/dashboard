@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
-import { BARN_MODEL_DIM, type BarnModelFill } from "@/lib/farm/barn-model-dim";
+import { BARN_MODEL_BANKS, BARN_MODEL_DIM, type BarnModelBanks, type BarnModelFill } from "@/lib/farm/barn-model-dim";
 import { barnModelHud } from "@/lib/farm/barn-model-hud";
 import type { BarnModelFillPatch } from "@/lib/farm/barn-model-prefs";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
@@ -141,7 +141,7 @@ function DimLine({
   );
 }
 
-function BanksGlyph({ banks }: { banks: 1 | 2 | 3 }) {
+function BanksGlyph({ banks }: { banks: BarnModelBanks }) {
   const cols = banks * 2 - 1;
   return (
     <span className="flex h-5 items-stretch gap-px" aria-hidden>
@@ -162,19 +162,22 @@ export function BarnModelFillCard({
   fill,
   open,
   dirty = false,
+  chrome = true,
   onOpenChange,
   onRevert,
   onChange,
 }: {
   fill: BarnModelFill;
-  open: boolean;
+  open?: boolean;
   dirty?: boolean;
-  onOpenChange: (open: boolean) => void;
+  /** false면 접기 헤더 없이 도형만. 평면 건물 옆 편집. */
+  chrome?: boolean;
+  onOpenChange?: (open: boolean) => void;
   onRevert?: () => void;
   onChange: (patch: BarnModelFillPatch) => void;
 }) {
-  const planOpen = open;
-  const roomH = 44;
+  const planOpen = chrome ? Boolean(open) : true;
+  const roomH = chrome ? 44 : 56;
   const roomW = Math.round(
     Math.min(64, Math.max(36, roomH * (fill.penDepth / fill.penAlong))),
   );
@@ -185,12 +188,16 @@ export function BarnModelFillCard({
   return (
     <div
       className={cn(
-        "w-max rounded-xl bg-transparent",
-        planOpen ? "p-3 ring-1 ring-foreground/30" : "p-0",
+        "bg-transparent",
+        chrome ? "w-max rounded-xl" : "flex w-max flex-col items-center justify-center",
+        chrome && planOpen ? "p-3 ring-1 ring-foreground/30" : null,
+        chrome && !planOpen ? "p-0" : null,
+        !chrome ? "min-h-0 p-1" : null,
       )}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
+      {chrome ? (
       <div className={cn("flex items-center justify-center gap-1", planOpen && "mb-2.5")}>
         {planOpen ? (
           <button
@@ -218,7 +225,7 @@ export function BarnModelFillCard({
               ? "rounded-md bg-primary text-primary-foreground ring-1 ring-primary"
               : cn(HUD_BTN, "h-8 gap-1 px-2.5 text-xs font-medium"),
           )}
-          onClick={() => onOpenChange(!planOpen)}
+          onClick={() => onOpenChange?.(!planOpen)}
         >
           방 편집
           {planOpen ? (
@@ -228,32 +235,39 @@ export function BarnModelFillCard({
           )}
         </button>
       </div>
+      ) : null}
 
       {planOpen ? (
         <>
-          <div className="mb-2.5 flex justify-center gap-1">
-            {([1, 2, 3] as const).map((n) => (
-              <button
-                key={n}
-                type="button"
-                aria-label={`${n}열`}
-                aria-pressed={fill.banks === n}
-                className={cn(
-                  "flex h-8 min-w-9 items-center justify-center rounded-md px-1.5",
-                  fill.banks === n
-                    ? "bg-primary text-primary-foreground ring-1 ring-primary"
-                    : cn(HUD_BTN, "h-8 min-w-9 text-foreground/70"),
-                )}
-                onClick={() => onChange({ banks: n })}
-              >
-                <BanksGlyph banks={n} />
-              </button>
-            ))}
+          <div className="mb-2.5 flex flex-col items-center gap-1">
+            {[BARN_MODEL_BANKS.slice(0, 3), BARN_MODEL_BANKS.slice(3)].map(
+              (row, rowIdx) => (
+                <div key={rowIdx} className="flex justify-center gap-1">
+                  {row.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      aria-label={`${n}열`}
+                      aria-pressed={fill.banks === n}
+                      className={cn(
+                        "flex h-8 min-w-9 items-center justify-center rounded-md px-1.5",
+                        fill.banks === n
+                          ? "bg-primary text-primary-foreground ring-1 ring-primary"
+                          : cn(HUD_BTN, "h-8 min-w-9 text-foreground/70"),
+                      )}
+                      onClick={() => onChange({ banks: n })}
+                    >
+                      <BanksGlyph banks={n} />
+                    </button>
+                  ))}
+                </div>
+              ),
+            )}
           </div>
 
           <div className="flex items-start gap-2">
             <div
-              className="flex flex-col items-center justify-center gap-0.5"
+              className="flex w-7 flex-col items-stretch justify-center gap-0.5"
               style={{ height: roomH }}
             >
               <button

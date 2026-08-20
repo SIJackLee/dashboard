@@ -46,8 +46,25 @@ import {
 
 {
   const params = new URLSearchParams("lsind=FARM01&item=P00");
+  pinFarmHubViewParam(params, "plan");
+  assert.equal(params.get("view"), "model");
+}
+
+{
+  const params = new URLSearchParams("lsind=FARM01&item=P00");
   pinFarmHubViewParam(params, "model");
   assert.equal(params.get("view"), "model");
+}
+
+{
+  const source = new URLSearchParams(
+    "lsind=FARM01&item=P00&view=plan&planBldg=bd-1&planSp=SP02&planStall=1",
+  );
+  assert.equal(isFarmMonitoringSoftHome(source), false);
+  const home = buildFarmMonitoringHomeParams(source);
+  assert.equal(home.get("view"), null);
+  assert.equal(home.get("planBldg"), null);
+  assert.equal(isFarmMonitoringSoftHome(home), true);
 }
 
 {

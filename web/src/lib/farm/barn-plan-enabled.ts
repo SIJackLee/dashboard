@@ -1,10 +1,10 @@
 /**
- * 축사 3D 모델 탭 출시 게이트.
- * DELIN과 동일: 로컬 development · Vercel Preview 기본 노출, Production 숨김.
- * NEXT_PUBLIC_BARN_MODEL_ENABLED 로 강제 on/off.
+ * 허브 **모델** 탭(2D 부지·건물) 출시 게이트.
+ * 로컬 development · Vercel Preview 기본 노출, Production 숨김.
+ * NEXT_PUBLIC_BARN_PLAN_ENABLED 로 강제 on/off.
  */
-export function barnModelEnabled(): boolean {
-  const raw = process.env.NEXT_PUBLIC_BARN_MODEL_ENABLED?.trim().toLowerCase();
+export function barnPlanEnabled(): boolean {
+  const raw = process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED?.trim().toLowerCase();
   if (raw === "0" || raw === "false" || raw === "off") return false;
   if (raw === "1" || raw === "true" || raw === "on") return true;
 

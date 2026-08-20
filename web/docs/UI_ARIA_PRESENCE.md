@@ -114,4 +114,4 @@ dashboardAriaShell.{ stage, stageGlow, title, eyebrow, hint, dock, … }
 
 - `npm run verify:design`
 - 수동: 필드·차트·모델 우측 하단 DELIN 뱃지·말풍선(유형별 목록 최대 3줄). 상단에 델린 탭 없음. `/farm?view=aria` → 필드
-- 모바일: 말풍선 숨김 → 뱃지가 오른쪽 끝으로 접혀 아이콘만. 안내가 있으면 아이콘 우측 상단 숫자. 아이콘 탭 → 펼침 + 말풍선. PC는 전체 뱃지 유지.
+- 말풍선 숨김 → 아이콘만. 안내가 있으면 아이콘 우측 상단 숫자. 아이콘 탭 → 펼침 + 말풍선. 모바일만 오른쪽 끝으로 접힘.

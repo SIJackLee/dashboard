@@ -53,7 +53,7 @@ export function DelinEnvBadge({
     ? dismissedKey !== adviceKey
     : dismissedKey === `open:${adviceKey}`;
   const compact = useHydrationSafeDashboardCompact();
-  const docked = compact && !open;
+  const docked = !open;
   const noticeCount = advice.offBand ? advice.noticeCount : 0;
   const showNotice = docked && noticeCount > 0;
   const listPreview = pigEnvAdviceListPreview(advice.items);

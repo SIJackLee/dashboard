@@ -14,7 +14,13 @@ import {
   CHART_X0_PARAM,
   CHART_X1_PARAM,
 } from "@/lib/farm/farm-chart-scope";
-import { barnModelEnabled } from "@/lib/farm/barn-model-enabled";
+import { barnPlanEnabled } from "@/lib/farm/barn-plan-enabled";
+import {
+  PLAN_BLDG_PARAM,
+  PLAN_SP_PARAM,
+  PLAN_STALL_PARAM,
+  clearBarnPlanParams,
+} from "@/lib/farm/barn-plan-url";
 
 export const TREND_PERIOD_PARAM = "trendPeriod";
 
@@ -92,16 +98,16 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
-/** 허브 탭 — 그리드(map) · 목록 · 차트 · 모델. `aria`는 옛 URL 호환(현장으로 정규화). */
-export type FarmHubView = "map" | "list" | "chart" | "model" | "aria";
+/** 허브 탭 — 그리드(map) · 목록 · 차트 · 모델(2D 평면). `plan`은 옛 URL. `aria`는 현장으로 정규화. */
+export type FarmHubView = "map" | "list" | "chart" | "plan" | "model" | "aria";
 
 export function resolveFarmHubView(
   raw: string | null | undefined,
 ): FarmHubView {
   if (raw === "list") return "list";
   if (raw === "chart") return "chart";
-  if (raw === "model") {
-    return barnModelEnabled() ? "model" : "map";
+  if (raw === "plan" || raw === "model") {
+    return barnPlanEnabled() ? "model" : "map";
   }
   if (raw === "aria" || raw === "jarvis") {
     return "map";
@@ -116,6 +122,7 @@ export function applyListViewParams(params: URLSearchParams): void {
   params.delete("mapLevel");
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
+  clearBarnPlanParams(params);
 }
 
 /** 차트 탭 — 전폭 통합 추이. chart* 딥링크·줌 힌트는 유지 */
@@ -124,11 +131,16 @@ export function applyChartViewParams(params: URLSearchParams): void {
   params.delete("listMode");
   params.delete("stall");
   params.delete("mapLevel");
+  clearBarnPlanParams(params);
 }
 
-/** 축사 3D 모델 탭. 플래그 off면 그리드로 정규화. */
+/** 모델 탭 — 2D 부지·건물. `view=plan`은 호환 별칭. 플래그 off면 그리드. */
+export function applyPlanViewParams(params: URLSearchParams): void {
+  applyModelViewParams(params);
+}
+
 export function applyModelViewParams(params: URLSearchParams): void {
-  if (!barnModelEnabled()) {
+  if (!barnPlanEnabled()) {
     applyMapGridParams(params);
     return;
   }
@@ -152,6 +164,7 @@ export function applyMapGridParams(params: URLSearchParams): void {
   clearMapDrillParams(params);
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
+  clearBarnPlanParams(params);
 }
 
 export function clearMapDrillParams(params: URLSearchParams): void {
@@ -193,7 +206,7 @@ export function buildFarmPath(params: URLSearchParams): string {
   return q ? `/farm?${q}` : "/farm";
 }
 
-/** view=list|map|chart|model|aria 전환 (레거시 tab=ops 쿼리 제거) */
+/** view=list|map|chart|plan|model|aria 전환 (레거시 tab=ops 쿼리 제거) */
 export function applyHubScopedViewParams(
   params: URLSearchParams,
   view: FarmHubView,
@@ -201,6 +214,7 @@ export function applyHubScopedViewParams(
   params.delete("tab");
   if (view === "list") applyListViewParams(params);
   else if (view === "chart") applyChartViewParams(params);
+  else if (view === "plan") applyPlanViewParams(params);
   else if (view === "model") applyModelViewParams(params);
   else if (view === "aria") applyAriaViewParams(params);
   else applyMapGridParams(params);
@@ -214,8 +228,13 @@ export function pinFarmHubViewParam(
   params: URLSearchParams,
   view: FarmHubView,
 ): void {
-  if (view === "list" || view === "chart" || view === "model") {
-    params.set("view", view);
+  if (
+    view === "list" ||
+    view === "chart" ||
+    view === "plan" ||
+    view === "model"
+  ) {
+    params.set("view", view === "plan" ? "model" : view);
   } else {
     params.delete("view");
   }
@@ -230,6 +249,7 @@ export function clearHubFarmDrillParams(params: URLSearchParams): void {
   params.delete("alarm");
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
+  clearBarnPlanParams(params);
 }
 
 /**
@@ -301,6 +321,13 @@ export function isFarmMonitoringSoftHome(params: URLSearchParams): boolean {
     params.get(CHART_Y_BAND_PARAM) ||
     params.get(CHART_X0_PARAM) ||
     params.get(CHART_X1_PARAM)
+  ) {
+    return false;
+  }
+  if (
+    params.get(PLAN_BLDG_PARAM) ||
+    params.get(PLAN_SP_PARAM) ||
+    params.get(PLAN_STALL_PARAM)
   ) {
     return false;
   }

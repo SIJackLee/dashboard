@@ -2617,6 +2617,16 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     width var(--motion-duration-moderate) var(--motion-ease-emphasis);
 }
 
+/* Leaflet 타일 — Tailwind img preflight·leaflet width:auto 가 위성 격자를 깨뜨림 */
+.farm-plan-leaflet.leaflet-container .leaflet-tile,
+.farm-plan-leaflet img.leaflet-tile {
+  height: 256px !important;
+  max-height: none !important;
+  max-width: none !important;
+  mix-blend-mode: normal !important;
+  width: 256px !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .farm-view-slide-enter-next,
   .farm-view-slide-enter-prev,

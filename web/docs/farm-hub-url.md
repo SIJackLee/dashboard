@@ -12,7 +12,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 환경변수 | 기본 | 설명 |
 |----------|------|------|
 | `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «필드» 탭. off면 현행 4탭 |
-| `NEXT_PUBLIC_BARN_MODEL_ENABLED` | 로컬·Preview on / Production **숨김** | 모델 탭. 상세 [`BARN_MODEL.md`](./BARN_MODEL.md) |
+| `NEXT_PUBLIC_BARN_PLAN_ENABLED` | 로컬·Preview on / Production **숨김** | 모델 탭(2D). 상세 [`BARN_PLAN.md`](./BARN_PLAN.md) |
 
 통합 on일 때 UI:
 - 상위 탭: **필드 · 차트 · 모델(게이트)**
@@ -31,7 +31,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `model` \| (`aria`/`jarvis`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 필드. 모델 플래그 off면 `model` → 그리드. 필드·차트·모델에서 DELIN 권장 뱃지 |
+| `view` | `list` \| `chart` \| `plan` \| `model` \| (`aria`/`jarvis`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 필드. 모델 플래그 off면 그리드. 필드·차트·모델에서 DELIN 권장 뱃지. `plan`은 `model`로 정규화 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
@@ -45,6 +45,9 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 (컨트롤러). `chartSp`+`chartStall` 필요 |
 | `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수) | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
 | `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |
+| `planBldg` | 건물 id | — | 모델 포커스(건물). **3단계(배치) 이후.** 지금은 미사용 |
+| `planSp` | 축사유형 코드 | — | 모델 구역(유형). **3단계 이후.** 지금은 미사용 |
+| `planStall` | 축사번호 | — | 모델 구역(번호). **3단계 이후.** 지금은 미사용 |
 
 레거시 `tab=ops|…` 는 미들웨어·페이지에서 `/farm`으로 정리. 신규 코드는 `tab` 쓰지 않음.
 
@@ -58,20 +61,22 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 resolveFarmHubView(raw)
   list  → list
   chart → chart
-  model → model   // 게이트 off면 map. 문서: BARN_MODEL.md
+  plan  → model  // 게이트 off면 map. 옛 URL. 문서: BARN_PLAN.md
+  model → model  // 게이트 off면 map. 문서: BARN_PLAN.md
   aria | jarvis → map   // 옛 델린 탭
   else  → map   // view 없음·알 수 없음
 ```
 
 | 전환 헬퍼 | 부수 효과 |
 |-----------|-----------|
-| `applyMapGridParams` | `view`·`listMode`·drill 제거 |
-| `applyListViewParams` | `view=list`, `stall`·`mapLevel` 제거 (`sp` 유지 가능) |
-| `applyChartViewParams` | `view=chart`, `listMode`·`stall`·`mapLevel` 제거 (`chart*` 유지) |
-| `applyModelViewParams` | `view=model`, 목록/드릴·`chart*` 정리. 게이트 off면 그리드 |
+| `applyMapGridParams` | `view`·`listMode`·drill·`chart*`·`plan*` 제거 |
+| `applyListViewParams` | `view=list`, `stall`·`mapLevel` 제거 (`sp` 유지 가능). `plan*` 정리 |
+| `applyChartViewParams` | `view=chart`, `listMode`·`stall`·`mapLevel` 제거 (`chart*` 유지). `plan*` 정리 |
+| `applyPlanViewParams` | `applyModelViewParams`와 동일 (`view=model`). 게이트 off면 그리드 |
+| `applyModelViewParams` | `view=model`, 목록/드릴·`chart*` 정리. `plan*` 유지. 게이트 off면 그리드 |
 | `applyAriaViewParams` | 필드(그리드)로 정규화. 옛 `view=aria` 호환 |
 | `applyHubScopedViewParams(view)` | 위 + 레거시 `tab` 삭제 |
-| `pinFarmHubViewParam(view)` | **탭만** 고정. drill·`chart*` 유지 (기간 변경용) |
+| `pinFarmHubViewParam(view)` | **탭만** 고정. drill·`chart*`·`plan*` 유지 (기간 변경용) |
 
 ### 차트 집계 딥링크
 
@@ -91,7 +96,7 @@ resolveFarmHubView(raw)
   - PC: 좌측 상단 로고 (`AppHeaderBrand`)
   - 모바일 compact: 로고 홈 · 하단 보기 독은 탭 전환용 (구 «모니터링» 하단 내비와 별개)
 - 유지: `lsind`, `item`, `trendPeriod`(7d|30d)
-- 제거: `view`, drill, `listMode`, `ctrl`, `alarm`, `chart*`
+- 제거: `view`, drill, `listMode`, `ctrl`, `alarm`, `chart*`, `plan*`
 - 이미 soft home이면 no-op
 
 농장 전환 시: `clearHubFarmDrillParams` + 새 `lsind`/`item` (기간은 유지하는 편이 일반적).
@@ -149,7 +154,7 @@ flowchart LR
 목록 탭에서 개별 카드가 공유 `trendPeriod`와 **다른** 기간을 잠깐 볼 수 있다(URL에 쓰지 않음).  
 공유 기간 변경·목록 탭 언마운트 시 로컬 override는 초기화된다.
 
-그리드(`map`)는 **항상** 마운트. 목록·차트·ARIA는 첫 방문 후 DOM에 남겨 재진입을 빠르게 하고, 이탈 후 TTL이 지나면 언마운트한다.
+그리드(`map`)는 **항상** 마운트. 목록·차트·ARIA는 첫 방문 후 DOM에 남겨 재진입을 빠르게 하고, 이탈 후 TTL이 지나면 언마운트한다. **모델은 keep-alive 아님** (활성·슬라이드 중에만 마운트).
 
 | 패널 | TTL | 비고 |
 |------|-----|------|
@@ -174,12 +179,16 @@ flowchart LR
 | 쿼리 키·의미·soft home·epoch | 본 문서 (정본) |
 | 탭 슬라이드·패널 모션 | `UI_MOTION.md` · `motionClass`만 소비 |
 | `view=aria` (호환) | 필드 정규화. 추천 UI는 뱃지 · `aria-protocol.md` |
+| `view=plan` | 호환 별칭 → `view=model`. [`BARN_PLAN.md`](./BARN_PLAN.md) |
+| `view=model` | [`BARN_PLAN.md`](./BARN_PLAN.md). 옛 3D: [`BARN_MODEL.md`](./BARN_MODEL.md) |
 
 ---
 
 ## 관련 문서
 
 - 사용설명서 IA: [user-manual/10-메뉴구조도.md](./user-manual/10-메뉴구조도.md)
+- 모델: [BARN_PLAN.md](./BARN_PLAN.md)
+- 옛 3D: [BARN_MODEL.md](./BARN_MODEL.md)
 - ARIA: [aria-protocol.md](./aria-protocol.md) (**정본**) · [voice-report-poc.md](./voice-report-poc.md) (**보조**)
 - 문서 진입점: [README.md](./README.md)
 - Preview 게이트 절차: [VERCEL_PREVIEW_GATE.md](./VERCEL_PREVIEW_GATE.md)

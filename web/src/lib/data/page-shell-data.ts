@@ -138,7 +138,9 @@ export const getPageShellContext = cache(
       alarms,
       farmOptions: [] as FarmKey[],
       farmSummaries: [] as FarmSummaryRow[],
-      hubLocations: [],
+      hubLocations: farmLocationOptions
+        .map((o) => o.location)
+        .filter((loc): loc is FarmLocationRow => loc != null),
       isAdmin,
       farmLocationOptions,
       canEditLocation,
