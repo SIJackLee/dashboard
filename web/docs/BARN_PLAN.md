@@ -1,6 +1,6 @@
 # 축사 모델 (2D 평면)
 
-농장 허브 **모델** 탭. 위성 위에 부지 경계를 그리고, 그 안에 축사를 놓는 **2D 정본**.
+농장 허브 **모델** 탭. 위성 위에 부지 구획을 고르고, 그 안에 축사를 놓는 **2D 정본**.
 
 옛 3D 탭은 은퇴. [`BARN_MODEL.md`](./BARN_MODEL.md)
 
@@ -47,8 +47,7 @@ URL: [`farm-hub-url.md`](./farm-hub-url.md) (`view=model`, 옛 `view=plan`은 �
 
 `KAKAO_JS_KEY`(또는 `NEXT_PUBLIC_KAKAO_JS_KEY`)가 있으면 **카카오맵** (위성=하이브리드, 지도=로드맵, 지적편집도 오버레이). 없거나 SDK 실패 시 Leaflet (SAT=Esri, MAP=OSM 한국). 카카오 JS 도메인: `http://localhost:3000`, `https://smart.autofankorea.com`.
 
-- 클릭으로 꼭짓점. 3점 이상이면 첫 점 재클릭 또는 **닫기**로 폐합
-- 닫힌 뒤 꼭짓점 드래그. **다시 그리기**로 초기화
+- 확대 후 **구획을 눌러 선택**. **선택 해제**로 고른 구획을 비움
 - 면적은 구면 근사(m² / ha). 맵 수치 토큰(`--density-map-value*`)
 - 농장 주소 → 좌표: 카카오 도로명 검색이 필지. 실패하면 시·면 중심을 필지로 쓰지 않음. 키: `KAKAO_REST_API_KEY` (`.env.example` 이름만)
 - 주소 경계: 확대 후 **구획을 눌러 선택**. **필드로 만들기** → 1m 격자만 남고 지번·지목은 표시하지 않음. 키: `VWORLD_API_KEY`. 저장본은 다시 열면 선택 복원

@@ -482,20 +482,6 @@ export function FarmPlanView({
     void loadParcel();
   }, [siteReady, farmId, center, cityOnly, loadParcel]);
 
-  const closeRing = useCallback(() => {
-    if (points.length < BARN_PLAN_BOUNDARY_MIN) return;
-    setClosed(true);
-    persist(points, true);
-  }, [persist, points]);
-
-  const onPointsChange = useCallback(
-    (next: BarnPlanLatLng[]) => {
-      setPoints(next);
-      if (closed) persist(next, true);
-    },
-    [closed, persist],
-  );
-
   const onToggleLot = useCallback(
     (id: string) => {
       const next = selectedLotIds.includes(id)
@@ -1446,9 +1432,7 @@ export function FarmPlanView({
             selectedLotIds={selectedLotIds}
             closed={closed}
             kakaoAppKey={kakaoAppKey ?? null}
-            onPointsChange={onPointsChange}
             onToggleLot={onToggleLot}
-            onClose={closeRing}
           />
         </div>
         {field && (stage === "field" || stageT > 0.001) ? (
@@ -1715,37 +1699,19 @@ export function FarmPlanView({
           </div>
         ) : null}
 
-        {stageT < 0.45 &&
-        ((!closed && lots.length === 0 && points.length >= BARN_PLAN_BOUNDARY_MIN) ||
-          selectedLotIds.length > 0 ||
-          (lots.length === 0 && points.length > 0)) ? (
+        {stageT < 0.45 && selectedLotIds.length > 0 ? (
         <div className="absolute right-3 bottom-3 z-[400] flex items-center justify-end gap-2">
-          {!closed && lots.length === 0 && points.length >= BARN_PLAN_BOUNDARY_MIN ? (
-            <button
-              type="button"
-              className={cn(
-                dashboardControl.button,
-                motionClass.microInteractive,
-                "rounded-lg border bg-primary text-primary-foreground",
-              )}
-              onClick={closeRing}
-            >
-              닫기 ({points.length}점)
-            </button>
-          ) : null}
-          {selectedLotIds.length > 0 || (lots.length === 0 && points.length > 0) ? (
-            <button
-              type="button"
-              className={cn(
-                dashboardControl.button,
-                motionClass.microInteractive,
-                "rounded-lg border bg-card/95",
-              )}
-              onClick={reset}
-            >
-              {lots.length > 0 ? "선택 해제" : "다시 그리기"}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className={cn(
+              dashboardControl.button,
+              motionClass.microInteractive,
+              "rounded-lg border bg-card/95",
+            )}
+            onClick={reset}
+          >
+            선택 해제
+          </button>
         </div>
         ) : null}
       </div>
@@ -1759,18 +1725,16 @@ export function FarmPlanView({
               ? `구획 ${selectedLotIds.length}개를 골랐습니다. 칸을 다시 누르면 빠집니다.`
               : "지도를 확대하고 부지 구획을 눌러 고르세요."
             : closed
-              ? "경계 확정. 꼭짓점을 끌어 고칠 수 있습니다."
-              : points.length < BARN_PLAN_BOUNDARY_MIN
-                ? `지도를 눌러 경계를 그립니다. 닫으려면 ${BARN_PLAN_BOUNDARY_MIN}점 이상.`
-                : "첫 점을 다시 누르거나 닫기를 누르면 구역이 확정됩니다."}
+              ? "저장한 경계를 표시합니다. 구획이 보이면 눌러 다시 고를 수 있습니다."
+              : "지도를 확대하고 부지 구획을 눌러 고르세요."}
         {!center
           ? " 이 농장 위치가 없어 한반도 보기로 시작합니다. 설정에서 주소를 지정하면 해당 지점으로 열립니다."
           : cityOnly
             ? location && isStreetLevelAddress(locationAddressQuery(location))
-              ? " 이 주소의 필지 좌표는 아직 없습니다. 지도를 옮겨 경계를 그리세요."
+              ? " 이 주소의 필지 좌표는 아직 없습니다. 설정에서 도로명·지번을 확인하세요."
               : " 시·군 중심으로 열었습니다. 도로명·지번이 있으면 농장 위치로 맞춥니다."
             : parcelHint === "missing"
-              ? " 구획 선을 가져오지 못했습니다. 지도를 눌러 그리세요."
+              ? " 구획 선을 가져오지 못했습니다. 확대하거나 주소를 확인한 뒤 다시 열어 주세요."
               : null}
       </p>
       )}

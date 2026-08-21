@@ -5,7 +5,6 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./farm-plan-site-map.css";
 import {
-  BARN_PLAN_BOUNDARY_MAX,
   BARN_PLAN_BOUNDARY_MIN,
   type BarnPlanLatLng,
   type BarnPlanLot,
@@ -36,9 +35,7 @@ type Props = {
   closed: boolean;
   kakaoAppKey?: string | null;
   active?: boolean;
-  onPointsChange: (points: BarnPlanLatLng[]) => void;
   onToggleLot?: (id: string) => void;
-  onClose: () => void;
 };
 
 function pathMutedColor(): string {
@@ -56,15 +53,6 @@ function pathColor(): string {
     getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() ||
     "oklch(0.5 0.15 145)"
   );
-}
-
-function vertexIcon(first: boolean): L.DivIcon {
-  return L.divIcon({
-    className: "",
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-    html: `<span class="farm-plan-vertex${first ? " farm-plan-vertex--first" : ""}"></span>`,
-  });
 }
 
 function toLatLngs(points: BarnPlanLatLng[]): L.LatLng[] {
@@ -86,9 +74,7 @@ export function FarmPlanSiteMap(props: Props) {
         selectedLotIds={props.selectedLotIds}
         closed={props.closed}
         active={props.active}
-        onPointsChange={props.onPointsChange}
         onToggleLot={props.onToggleLot}
-        onClose={props.onClose}
         onFail={onKakaoFail}
       />
     );
@@ -105,9 +91,7 @@ function FarmPlanLeafletMap({
   selectedLotIds = [],
   closed,
   active = true,
-  onPointsChange,
   onToggleLot,
-  onClose,
 }: Props) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -115,31 +99,17 @@ function FarmPlanLeafletMap({
   const satRef = useRef<L.TileLayer | null>(null);
   const drawRef = useRef<L.LayerGroup | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const onPointsChangeRef = useRef(onPointsChange);
-  const onCloseRef = useRef(onClose);
   const onToggleLotRef = useRef(onToggleLot);
-  const pointsRef = useRef(points);
-  const lotsRef = useRef(lots);
-  const closedRef = useRef(closed);
   const centerRef = useRef(center);
   const centerZoomRef = useRef(centerZoom);
 
   useEffect(() => {
-    onPointsChangeRef.current = onPointsChange;
-  }, [onPointsChange]);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-  useEffect(() => {
     onToggleLotRef.current = onToggleLot;
   }, [onToggleLot]);
   useEffect(() => {
-    pointsRef.current = points;
-    lotsRef.current = lots;
-    closedRef.current = closed;
     centerRef.current = center;
     centerZoomRef.current = centerZoom;
-  }, [points, lots, closed, center, centerZoom]);
+  }, [center, centerZoom]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -220,31 +190,9 @@ function FarmPlanLeafletMap({
       satRef.current = sat;
       sat.addTo(map);
 
-      map.doubleClickZoom.disable();
-      map.getContainer().style.cursor =
-        lotsRef.current.length > 0 ? "" : "crosshair";
-
       const draw = L.layerGroup().addTo(map);
       drawRef.current = draw;
 
-      const onClick = (e: L.LeafletMouseEvent) => {
-        if (!map || lotsRef.current.length > 0) return;
-        if (closedRef.current) return;
-        const current = pointsRef.current;
-        if (current.length >= BARN_PLAN_BOUNDARY_MAX) return;
-        const next = { lat: e.latlng.lat, lng: e.latlng.lng };
-        if (current.length >= BARN_PLAN_BOUNDARY_MIN) {
-          const first = current[0]!;
-          const a = map.latLngToContainerPoint(L.latLng(first.lat, first.lng));
-          const b = map.latLngToContainerPoint(e.latlng);
-          if (a.distanceTo(b) <= 16) {
-            onCloseRef.current();
-            return;
-          }
-        }
-        onPointsChangeRef.current([...current, next]);
-      };
-      map.on("click", onClick);
       mapRef.current = map;
       setMapReady(true);
       applyCamera(true);
@@ -279,14 +227,6 @@ function FarmPlanLeafletMap({
     if (!map || !center) return;
     map.setView([center.lat, center.lng], centerZoom, { animate: false });
   }, [center, centerZoom]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    if (closed || lots.length > 0) map.doubleClickZoom.enable();
-    else map.doubleClickZoom.disable();
-    map.getContainer().style.cursor = lots.length > 0 || closed ? "" : "crosshair";
-  }, [closed, lots.length]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -336,49 +276,15 @@ function FarmPlanLeafletMap({
     }
 
     if (pickable) return;
-    if (points.length === 0) return;
-
-    const latlngs = toLatLngs(points);
     if (closed && points.length >= BARN_PLAN_BOUNDARY_MIN) {
-      L.polygon(latlngs, {
+      L.polygon(toLatLngs(points), {
         color,
         weight: 2,
         fillColor: color,
         fillOpacity: 0.22,
         interactive: false,
       }).addTo(draw);
-    } else {
-      L.polyline(latlngs, {
-        color,
-        weight: 2,
-        dashArray: "6 6",
-        interactive: false,
-      }).addTo(draw);
     }
-
-    points.forEach((point, index) => {
-      const marker = L.marker([point.lat, point.lng], {
-        icon: vertexIcon(index === 0),
-        draggable: closed,
-        keyboard: false,
-        zIndexOffset: 200,
-      });
-      marker.on("click", (e) => {
-        L.DomEvent.stopPropagation(e);
-        if (closed) return;
-        if (index === 0 && points.length >= BARN_PLAN_BOUNDARY_MIN) {
-          onCloseRef.current();
-        }
-      });
-      marker.on("dragend", () => {
-        const ll = marker.getLatLng();
-        const next = pointsRef.current.map((p, i) =>
-          i === index ? { lat: ll.lat, lng: ll.lng } : p,
-        );
-        onPointsChangeRef.current(next);
-      });
-      marker.addTo(draw);
-    });
   }, [points, closed, lots, selectedLotIds, mapReady, active]);
 
   return (

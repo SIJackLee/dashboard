@@ -48,16 +48,3 @@
 .farm-plan-leaflet .leaflet-bar a:hover {
   background: var(--muted);
 }
-
-.farm-plan-vertex {
-  background: var(--background);
-  border: 2px solid var(--primary);
-  border-radius: 999px;
-  box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground) 12%, transparent);
-  height: 14px;
-  width: 14px;
-}
-
-.farm-plan-vertex--first {
-  background: var(--primary);
-}
