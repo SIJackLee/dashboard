@@ -73,6 +73,7 @@ SELECT count(*) FROM public.v_iot_raw_live;
 | Repo | `github.com/SIJackLee/dashboard` |
 | Branch (Production) | `main` |
 | Root Directory | `web` |
+| Functions | `icn1` (서울). 브이월드·카카오 서버 조회. 기본 `iad1`이면 지적 구획이 비어 보임 |
 
 `main` push → 자동 build. 대시보드 **Redeploy** / CLI는 특수 케이스.
 
@@ -93,6 +94,6 @@ npm run lint
 
 | 날짜 | 내용 |
 |------|------|
-| 2026-07-30 | 배포 기준 명시: commit→push→main→자동배포 / CLI는 특수 |
+| 2026-08-21 | 모델 구획: Vercel Functions `icn1`(서울). `web/vercel.json` |
 | 2026-06-14 | RS-DB-C raw LIVE 조회 |
 | 2026-06-14 | Cloud Agent 지침 제거 (EC2 전용으로 분리) |

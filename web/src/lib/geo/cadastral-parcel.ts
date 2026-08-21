@@ -59,6 +59,7 @@ async function vworldGetFeatures(params: {
   const res = await fetch(url.toString(), {
     headers: { Referer: params.domain, Accept: "application/json" },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) return { ok: false };
   const body = (await res.json()) as {
