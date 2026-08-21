@@ -6,6 +6,7 @@ import {
   cadastralLotLabel,
   cadastralPnu,
   isCadastralSiteNeighbor,
+  vworldDomainCandidates,
   vworldLonLatBox,
 } from "./cadastral-pnu";
 import { barnPlanRingFromCoords, simplifyBarnPlanRing } from "../farm/barn-plan-boundary";
@@ -38,6 +39,21 @@ assert.equal(
 assert.equal(
   vworldLonLatBox(127.343, 38.006, 0.0005),
   "BOX(127.3425,38.0055,127.3435,38.0065)",
+);
+
+assert.deepEqual(
+  vworldDomainCandidates({
+    vworldDomain: "https://smart.autofankorea.com/",
+    siteUrl: "https://smart.autofankorea.com",
+  }),
+  ["https://smart.autofankorea.com", "http://localhost:3000"],
+);
+assert.deepEqual(
+  vworldDomainCandidates({
+    vworldDomain: null,
+    siteUrl: "http://localhost:3000",
+  }),
+  ["http://localhost:3000", "https://smart.autofankorea.com"],
 );
 assert.equal(isCadastralSiteNeighbor("588-4목"), true);
 assert.equal(isCadastralSiteNeighbor("588-5 답"), true);

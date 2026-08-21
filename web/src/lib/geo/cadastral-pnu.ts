@@ -16,6 +16,28 @@ export function vworldLonLatBox(
   return `BOX(${lng - deltaDeg},${lat - deltaDeg},${lng + deltaDeg},${lat + deltaDeg})`;
 }
 
+/** 브이월드 인증키에 등록된 도메인. 운영 URL이 아직 미등록이면 localhost를 이어서 시도. */
+export function vworldDomainCandidates(env?: {
+  siteUrl?: string | null;
+  vworldDomain?: string | null;
+}): string[] {
+  const listed = [
+    env?.vworldDomain ?? process.env.VWORLD_DOMAIN,
+    env?.siteUrl ?? process.env.NEXT_PUBLIC_SITE_URL,
+    "https://smart.autofankorea.com",
+    "http://localhost:3000",
+  ];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of listed) {
+    const domain = raw?.trim().replace(/\/$/, "") ?? "";
+    if (!domain || seen.has(domain)) continue;
+    seen.add(domain);
+    out.push(domain);
+  }
+  return out;
+}
+
 /** 도로·하천 필지는 부지 참고선에서 제외. */
 export function isCadastralSiteNeighbor(jibun: string): boolean {
   const compact = jibun.replace(/\s+/g, "");
