@@ -33,6 +33,16 @@ export type BarnSiteFill = {
   aisleWM: number;
 };
 
+/** 컨트롤러가 맡는 방. 옛 저장본의 banks는 읽을 때만 연다. */
+export type BarnSiteControllerCover = {
+  stallTyCode: string;
+  stallNo: string;
+  eqpmnNo: string;
+  rooms: BarnSiteRoomRef[];
+  /** @deprecated 열 전체. 파서만 사용 */
+  banks?: number[];
+};
+
 /** 건물 — 현장의 한 덩어리. LIVE 평균을 내지 않는다. */
 export type BarnSiteBuilding = {
   id: string;
@@ -42,6 +52,7 @@ export type BarnSiteBuilding = {
   rotDeg: number;
   zones: BarnSiteZone[];
   fill?: BarnSiteFill;
+  controllerCovers?: BarnSiteControllerCover[];
 };
 
 export const BARN_SITE_PREFS_VERSION = 1;
@@ -69,6 +80,17 @@ export function barnSiteZoneKey(
 
 export function barnSiteRoomKey(bank: number, index: number): string {
   return `${bank}:${index}`;
+}
+
+export function barnSiteCoverKey(
+  stallTyCode: string | null | undefined,
+  stallNo: string | null | undefined,
+  eqpmnNo: string | null | undefined,
+): string | null {
+  const zone = barnSiteZoneKey(stallTyCode, stallNo);
+  const eq = (eqpmnNo ?? "").trim();
+  if (!zone || !eq) return null;
+  return `${zone}:${eq}`;
 }
 
 export function zoneKeyOf(zone: Pick<BarnSiteZone, "stallTyCode" | "stallNo">): string | null {

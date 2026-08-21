@@ -8,6 +8,10 @@
 
 대상 컨트롤러(iot-cloud FARM01 실측): `SP02:01:01`, `SP03:01:01`~`06`, `SP05:01:01`~`06`.
 
+기본은 컨트롤러마다 온·습 시나리오를 **20초**씩 순환한다(위상만 어긋남). `--mqtt`만 켜면 적용된다. 권장 띠 안·유형 이탈(경고)·안전망 이탈(위험)을 한 화면에 같이 보여 생성의 알람/권장 색을 확인한다.
+
+차트용 이력은 같은 시나리오를 **6시간** 칸으로 `iot_room_state_decoded`에 덮어 썼다(iot-cloud, 이 농장만. raw는 그대로). 24시간·7일·30일 차트에서 계단이 보이도록.
+
 실측 규격(전부 `wire_ver=12` / 79바이트 live):
 
 | 항목 | FARM01 실데이터 |
@@ -25,7 +29,7 @@
 ```bash
 cd dashboard
 python simulator/sim_pilot_farm01.py --self-test
-python simulator/sim_pilot_farm01.py --mqtt          # 54.116.16.1:1883 /raw + /cmd
+python simulator/sim_pilot_farm01.py --mqtt          # 시나리오 순환 (20초)
 python simulator/sim_pilot_farm01.py --mqtt --once
 ```
 

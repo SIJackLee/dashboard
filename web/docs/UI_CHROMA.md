@@ -24,7 +24,7 @@
 | `dashboardChroma.chromeActiveText` | 활성 탭/내비 라벨 |
 | `dashboardChroma.chromeIdleText` | 비활성 + hover |
 | `dashboardChroma.chromeSelected` | 선택 면(칩·행) |
-| `dashboardChroma.viewTabPill` | 뷰 탭 슬라이딩 필 (border ring, primary 약화) |
+| `dashboardChroma.viewTabPill` | 뷰 탭 슬라이딩 필 (카드 면 + ring, 라이트·다크 공통) |
 | `dashboardChroma.emptyState` | 데이터 없음 문구 |
 | `dashboardChroma.skeletonBone` | 로딩 본 |
 
@@ -35,6 +35,8 @@
 
 **Do** — 차트 시리즈·알람 배지·심각도 링에 채널/status 색  
 **Don't** — 탭 활성에 solid primary, 헤더 전체에 primary/15 배경 남발
+
+모델 평면의 컨트롤러 구간은 `--plan-cover-0` … `5` (인접만 다르게). `channel-temp|hum|motor` 를 구간 식별에 쓰지 않는다. 생성에서 칸 안쪽 틴트는 필드 카드와 같다. 정상=`emerald-500`, 경고=`amber-500`, 위험=`red-500`. `--status-ok`(=`primary`, 색상각 145)는 노란 녹색이라 쓰지 않는다.
 
 ## 변경 시
 

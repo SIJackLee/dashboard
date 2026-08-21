@@ -51,7 +51,7 @@ RS-DB-C: EC2는 raw INSERT, **decode·LIVE UI는 이 앱**. 배포 요약: [`CLO
 | Raw / pipeline | `v_iot_raw_live` 등 (Edge·앱 decode) |
 | 대시보드 list tier (기본) | `v_iot_dashboard_list` — `NEXT_PUBLIC_LIVE_READ_TIER` 미설정 시 |
 | Farm-scoped full / bulk | `v_iot_decoded_latest` (channels[] 필요) |
-| Overview | `v_iot_farm_overview` |
+| Overview | `v_iot_farm_overview` (list 집계 · 최근 2시간 최신 1행) |
 | 레거시 롤백 | `NEXT_PUBLIC_LIVE_READ_TIER=legacy` → decoded_latest + decoded_json 중심 |
 
 구현: `web/src/lib/data/iot-live-fetch.ts`, `live-config.ts`, `iot-raw-live.ts`.

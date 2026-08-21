@@ -30,41 +30,93 @@ export function FarmPlanPlaceDock({
   onSelectBuilding,
   onNewBuilding,
   mode = "place",
-  selecting = false,
-  onToggleSelect,
+  assignTool = "idle",
+  onAssignTool,
+  canClearBarn = false,
+  canClearCtrl = false,
+  onClearBarn,
+  onClearCtrl,
 }: {
   buildings: FarmPlanDockBuilding[];
   selectedBuildingId: string | "draft" | null;
   onSelectBuilding: (id: string) => void;
   onNewBuilding: () => void;
   mode?: "place" | "assign";
-  selecting?: boolean;
-  onToggleSelect?: () => void;
+  assignTool?: "idle" | "barn" | "ctrl";
+  onAssignTool?: (tool: "idle" | "barn" | "ctrl") => void;
+  canClearBarn?: boolean;
+  canClearCtrl?: boolean;
+  onClearBarn?: () => void;
+  onClearCtrl?: () => void;
 }) {
   const draftOn = selectedBuildingId === "draft";
   const assign = mode === "assign";
   if (assign) {
     return (
       <div
-        className="flex w-max flex-col gap-1 rounded-lg border bg-card/95 p-2"
+        className="grid w-max grid-cols-2 gap-1 rounded-lg border bg-card/95 p-2"
         data-testid="farm-plan-place-dock"
         data-dock-mode="assign"
       >
         <button
           type="button"
-          aria-pressed={selecting}
+          aria-pressed={assignTool === "barn"}
           className={cn(
             ASSIGN_BTN,
             motionClass.microInteractive,
-            "w-auto min-w-[5.5rem]",
-            selecting
+            "w-auto min-w-[6.5rem]",
+            assignTool === "barn"
               ? "bg-primary text-primary-foreground"
               : "border bg-card text-foreground",
           )}
-          onClick={onToggleSelect}
-          data-testid="farm-plan-select-rooms"
+          onClick={() => onAssignTool?.(assignTool === "barn" ? "idle" : "barn")}
+          data-testid="farm-plan-assign-barn"
         >
-          방 선택
+          축사 연결
+        </button>
+        <button
+          type="button"
+          disabled={!canClearBarn}
+          className={cn(
+            ASSIGN_BTN,
+            motionClass.microInteractive,
+            "w-auto min-w-[6.5rem] border bg-card text-foreground",
+            !canClearBarn && "opacity-40",
+          )}
+          onClick={() => onClearBarn?.()}
+          data-testid="farm-plan-clear-barn"
+        >
+          축사 해제
+        </button>
+        <button
+          type="button"
+          aria-pressed={assignTool === "ctrl"}
+          className={cn(
+            ASSIGN_BTN,
+            motionClass.microInteractive,
+            "w-auto min-w-[6.5rem]",
+            assignTool === "ctrl"
+              ? "bg-primary text-primary-foreground"
+              : "border bg-card text-foreground",
+          )}
+          onClick={() => onAssignTool?.(assignTool === "ctrl" ? "idle" : "ctrl")}
+          data-testid="farm-plan-assign-ctrl"
+        >
+          컨트롤러 연결
+        </button>
+        <button
+          type="button"
+          disabled={!canClearCtrl}
+          className={cn(
+            ASSIGN_BTN,
+            motionClass.microInteractive,
+            "w-auto min-w-[6.5rem] border bg-card text-foreground",
+            !canClearCtrl && "opacity-40",
+          )}
+          onClick={() => onClearCtrl?.()}
+          data-testid="farm-plan-clear-ctrl"
+        >
+          컨트롤러 해제
         </button>
       </div>
     );
@@ -120,17 +172,23 @@ export function FarmPlanAssignCard({
   connectedKeys,
   connecting,
   at,
+  listTitle = "이 농장 축사",
+  emptyText = "붙일 축사가 없습니다.",
   onConnect,
   onClear,
   onPick,
+  pickedCount = 0,
 }: {
   liveZones: FarmPlanDockLive[];
   connectedKeys: ReadonlySet<string>;
   connecting: boolean;
   at: { x: number; y: number };
+  listTitle?: string;
+  emptyText?: string;
   onConnect: () => void;
   onClear: () => void;
   onPick: (key: string) => void;
+  pickedCount?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ left: at.x + 8, top: at.y + 8 });
@@ -153,7 +211,7 @@ export function FarmPlanAssignCard({
     if (top + h > ph - pad) top = at.y - gap - h;
     top = Math.min(Math.max(top, pad), Math.max(pad, ph - pad - h));
     setBox({ left, top });
-  }, [at.x, at.y, connecting, liveZones.length]);
+  }, [at.x, at.y, connecting, liveZones.length, pickedCount]);
   return (
     <div
       ref={ref}
@@ -165,6 +223,12 @@ export function FarmPlanAssignCard({
       data-testid="farm-plan-assign-card"
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <p
+        className={cn(dashboardTypography.meta, "px-0.5 tabular-nums")}
+        data-testid="farm-plan-picked-count"
+      >
+        {pickedCount}개 방
+      </p>
       <div className="flex gap-1">
         <button
           type="button"
@@ -201,11 +265,11 @@ export function FarmPlanAssignCard({
           data-testid="farm-plan-assign-live"
         >
           <p className={cn(ASSIGN_ROW, "px-0.5 py-0.5 text-muted-foreground")}>
-            이 농장 축사
+            {listTitle}
           </p>
           {liveZones.length === 0 ? (
             <p className={cn(ASSIGN_ROW, "px-0.5 py-0.5 text-muted-foreground")}>
-              붙일 축사가 없습니다.
+              {emptyText}
             </p>
           ) : (
             liveZones.map((row) => {

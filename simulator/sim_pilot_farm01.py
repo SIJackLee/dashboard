@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 import struct
 import sys
 import time
@@ -52,6 +53,24 @@ CONTROLLERS = (
     (5, 1, 4),
     (5, 1, 5),
     (5, 1, 6),
+)
+CTRL_SLOT = {ctrl: i for i, ctrl in enumerate(CONTROLLERS)}
+
+# 축사유형 권장 띠 (x10). web/src/lib/farm/pig-env-recommend.ts 와 맞춤.
+TYPE_BAND_X10 = {
+    2: (160, 210, 500, 600),
+    3: (180, 210, 500, 600),
+    5: (180, 220, 500, 800),
+}
+HOLD_SEC_DEFAULT = 20.0
+SCENARIO_NAMES = (
+    "ok",
+    "temp_warn",
+    "hum_warn",
+    "both_warn",
+    "temp_danger",
+    "hum_danger",
+    "both_danger",
 )
 
 
@@ -230,12 +249,49 @@ def invoke_decode_batch(url: str, cron_secret: str) -> object:
     )
 
 
-def sample_metrics(index: int, tick: int) -> tuple[int, int, int, int]:
-    temp = 250 + ((tick + index) % 7) * 3
-    humid = 560 + ((tick + index * 2) % 5) * 4
-    exhaust = 20 + ((tick + index) % 6) * 5
-    intake = 15 + ((tick + index * 3) % 5) * 4
-    return temp, humid, exhaust, intake
+def scenario_targets(stall_ty: int, kind: str) -> tuple[int, int]:
+    t_lo, t_hi, h_lo, h_hi = TYPE_BAND_X10.get(stall_ty, TYPE_BAND_X10[5])
+    t_mid = (t_lo + t_hi) // 2
+    h_mid = (h_lo + h_hi) // 2
+    t_warn = min(t_hi + 40, 320)
+    h_warn = min(h_hi + 80, 850)
+    t_dang = 365
+    h_dang = 930
+    if kind == "ok":
+        return t_mid, h_mid
+    if kind == "temp_warn":
+        return t_warn, h_mid
+    if kind == "hum_warn":
+        return t_mid, h_warn
+    if kind == "both_warn":
+        return t_warn, h_warn
+    if kind == "temp_danger":
+        return t_dang, h_mid
+    if kind == "hum_danger":
+        return t_mid, h_dang
+    return t_dang, h_dang
+
+
+def sample_metrics(
+    *,
+    stall_ty: int,
+    stall_no: int,
+    eqpmn_no: int,
+    index: int,
+    now: float,
+    hold_sec: float,
+) -> tuple[int, int, int, int, str]:
+    hold = hold_sec if hold_sec > 0 else HOLD_SEC_DEFAULT
+    slot = CTRL_SLOT.get((stall_ty, stall_no, eqpmn_no), index)
+    phase = int(now // hold)
+    kind = SCENARIO_NAMES[(phase + slot) % len(SCENARIO_NAMES)]
+    temp, humid = scenario_targets(stall_ty, kind)
+    rng = random.Random((phase << 16) ^ (slot << 8) ^ stall_ty ^ (eqpmn_no << 4))
+    temp += rng.randint(-2, 2)
+    humid += rng.randint(-10, 10)
+    exhaust = max(10, min(90, 18 + (temp - 160) // 4))
+    intake = max(10, min(90, 12 + (temp - 160) // 5))
+    return temp, humid, exhaust, intake, kind
 
 
 def self_test() -> None:
@@ -253,6 +309,47 @@ def self_test() -> None:
     assert wire[0] == VER_V0C
     body, crc = wire[:-2], int.from_bytes(wire[-2:], "little")
     assert crc16_ccitt_false(body) == crc
+    t, h, _, _, name = sample_metrics(
+        stall_ty=5,
+        stall_no=1,
+        eqpmn_no=1,
+        index=7,
+        now=0.0,
+        hold_sec=HOLD_SEC_DEFAULT,
+    )
+    assert name == "ok", name
+    assert 180 <= t <= 220, t
+    assert 500 <= h <= 800, h
+    t2, h2, _, _, name2 = sample_metrics(
+        stall_ty=5,
+        stall_no=1,
+        eqpmn_no=2,
+        index=8,
+        now=0.0,
+        hold_sec=HOLD_SEC_DEFAULT,
+    )
+    assert name2 == "temp_warn", name2
+    assert t2 > 220, t2
+    assert t2 < 350, t2
+    t3, h3, _, _, name3 = sample_metrics(
+        stall_ty=3,
+        stall_no=1,
+        eqpmn_no=1,
+        index=1,
+        now=0.0,
+        hold_sec=HOLD_SEC_DEFAULT,
+    )
+    assert name3 == "temp_warn", name3
+    t4, _, _, _, name4 = sample_metrics(
+        stall_ty=2,
+        stall_no=1,
+        eqpmn_no=1,
+        index=0,
+        now=HOLD_SEC_DEFAULT * 4,
+        hold_sec=HOLD_SEC_DEFAULT,
+    )
+    assert name4 == "temp_danger", name4
+    assert t4 >= 350, t4
     print("self-test ok", len(wire), "bytes")
 
 
@@ -344,10 +441,18 @@ def publish_one(
     stall_ty: int,
     stall_no: int,
     eqpmn_no: int,
-    tick: int,
     index: int,
+    now: float,
+    hold_sec: float,
 ) -> None:
-    temp, humid, exhaust, intake = sample_metrics(index, tick)
+    temp, humid, exhaust, intake, scene = sample_metrics(
+        stall_ty=stall_ty,
+        stall_no=stall_no,
+        eqpmn_no=eqpmn_no,
+        index=index,
+        now=now,
+        hold_sec=hold_sec,
+    )
     epoch_sec = int(time.time())
     payload = encode_live_row(
         epoch_sec=epoch_sec,
@@ -362,15 +467,15 @@ def publish_one(
     key = f"SP{stall_ty:02d}:{stall_no:02d}:{eqpmn_no:02d}"
     if mqtt_client is not None:
         mqtt_publish(mqtt_client, payload)
-        print(f"mqtt {key} temp={temp/10:.1f} {len(payload)}B")
+        print(f"mqtt {key} {scene} temp={temp/10:.1f} hum={humid/10:.1f} {len(payload)}B")
         return
     if not write:
-        print(f"dry-run {key} temp={temp/10:.1f} {len(payload)}B")
+        print(f"dry-run {key} {scene} temp={temp/10:.1f} hum={humid/10:.1f} {len(payload)}B")
         return
     assert url and service_key
     raw_id = insert_raw(url, service_key, payload)
     decoded = invoke_decode_batch(url, cron_secret or fetch_cron_secret(url, service_key))
-    print(f"write {key} raw_id={raw_id} decode={decoded}")
+    print(f"write {key} {scene} raw_id={raw_id} decode={decoded}")
 
 
 def main() -> int:
@@ -390,6 +495,12 @@ def main() -> int:
     )
     parser.add_argument("--once", action="store_true", help="컨트롤러 1바퀴만")
     parser.add_argument("--interval", type=float, default=2.0)
+    parser.add_argument(
+        "--hold",
+        type=float,
+        default=HOLD_SEC_DEFAULT,
+        help="시나리오 단계 유지 초 (기본 20)",
+    )
     args = parser.parse_args()
 
     if args.self_test:
@@ -408,7 +519,6 @@ def main() -> int:
     else:
         print("dry-run. 브로커 전송은 --mqtt")
 
-    tick = 0
     try:
         while True:
             queue = list(CONTROLLERS)
@@ -425,14 +535,14 @@ def main() -> int:
                         stall_ty=ctrl[0],
                         stall_no=ctrl[1],
                         eqpmn_no=ctrl[2],
-                        tick=tick,
                         index=index,
+                        now=time.time(),
+                        hold_sec=args.hold,
                     )
                 except Exception as exc:
                     print(f"publish skip {ctrl}: {exc}")
                 if args.mqtt or args.write or not args.once:
                     time.sleep(args.interval)
-            tick += 1
             if args.once:
                 return 0
     finally:

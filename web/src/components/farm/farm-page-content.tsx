@@ -82,7 +82,6 @@ import { motionClass } from "@/lib/ui/motion-classes";
 import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { barnPlanEnabled } from "@/lib/farm/barn-plan-enabled";
-import { PLAN_SP_PARAM } from "@/lib/farm/barn-plan-url";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
 import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 
@@ -450,7 +449,7 @@ export function FarmPageContent({
   const showDelinEnvBadge =
     delinEnabled() &&
     Boolean(gridFarmKey) &&
-    (view === "map" || view === "chart" || view === "model");
+    (view === "map" || view === "chart");
   const delinBadgeStallTy = useMemo(() => {
     if (!showDelinEnvBadge) return null;
     if (view === "chart" && chartScope.level !== "farm") {
@@ -466,7 +465,6 @@ export function FarmPageContent({
       }
       return shallowParams.get("sp");
     }
-    if (view === "model") return shallowParams.get(PLAN_SP_PARAM);
     return null;
   }, [
     showDelinEnvBadge,
@@ -971,6 +969,7 @@ export function FarmPageContent({
               locations={hubLocations}
               barns={barnSnapshots}
               readings={readings}
+              alarmSettings={alarmSettings}
             />
           </div>
         ) : null}

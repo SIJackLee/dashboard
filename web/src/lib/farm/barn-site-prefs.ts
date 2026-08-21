@@ -1,14 +1,17 @@
 /**
  * 모델 탭 배치 — 로컬만 (DB 없음). 옛 3D v2 키와 분리.
  */
+import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
+  barnSiteCoverKey,
   barnSiteRoomKey,
   barnSiteZoneKey,
   defaultBarnSiteRoomPlan,
   emptyBarnSitePrefs,
   BARN_SITE_PREFS_VERSION,
   type BarnSiteBuilding,
+  type BarnSiteControllerCover,
   type BarnSiteFill,
   type BarnSitePrefs,
   type BarnSiteRoomPlan,
@@ -194,11 +197,255 @@ function pruneZone(
   };
 }
 
+function uniqueBanks(
+  banks: readonly number[],
+  fill: Pick<BarnSiteFill, "banks"> | undefined,
+): number[] {
+  const max = fill?.banks ?? BARN_MODEL_BANKS_MAX;
+  const seen = new Set<number>();
+  const out: number[] = [];
+  for (const raw of banks) {
+    const bank = Math.round(Number(raw));
+    if (!Number.isFinite(bank) || bank < 0 || bank >= max) continue;
+    if (seen.has(bank)) continue;
+    seen.add(bank);
+    out.push(bank);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+
+function zoneKeyOnRoom(
+  building: Pick<BarnSiteBuilding, "zones" | "fill">,
+  room: BarnSiteRoomRef,
+): string | null {
+  for (const zone of building.zones) {
+    const key = barnSiteZoneKey(zone.stallTyCode, zone.stallNo);
+    if (!key) continue;
+    const hit = zoneRoomsForFill(zone, building.fill).some(
+      (row) => row.bank === room.bank && row.index === room.index,
+    );
+    if (hit) return key;
+  }
+  return null;
+}
+
+/** 고른 방이 같은 축사에 붙어 있으면 그 축사. */
+export function zoneOnRooms(
+  building: Pick<BarnSiteBuilding, "zones" | "fill">,
+  rooms: readonly BarnSiteRoomRef[],
+): Pick<BarnSiteZone, "stallTyCode" | "stallNo"> | null {
+  const picked = uniqueFitRooms(rooms, building.fill);
+  if (picked.length === 0) return null;
+  let key: string | null = null;
+  for (const room of picked) {
+    const next = zoneKeyOnRoom(building, room);
+    if (!next) return null;
+    if (key == null) key = next;
+    else if (key !== next) return null;
+  }
+  if (!key) return null;
+  const split = key.indexOf("#");
+  return {
+    stallTyCode: key.slice(0, split),
+    stallNo: key.slice(split + 1),
+  };
+}
+
+export function roomsFromCover(
+  cover: Pick<BarnSiteControllerCover, "rooms" | "banks">,
+  fill: BarnSiteFill | undefined,
+): BarnSiteRoomRef[] {
+  if (cover.rooms && cover.rooms.length > 0) {
+    return uniqueFitRooms(cover.rooms, fill);
+  }
+  if (!fill) return [];
+  const out: BarnSiteRoomRef[] = [];
+  for (const bank of uniqueBanks(cover.banks ?? [], fill)) {
+    for (let index = 0; index < fill.roomCount; index++) {
+      out.push({ bank, index });
+    }
+  }
+  return uniqueFitRooms(out, fill);
+}
+
+function coverFirstRoom(
+  rooms: readonly BarnSiteRoomRef[],
+): BarnSiteRoomRef | null {
+  let best: BarnSiteRoomRef | null = null;
+  for (const room of rooms) {
+    if (
+      !best ||
+      room.bank < best.bank ||
+      (room.bank === best.bank && room.index < best.index)
+    ) {
+      best = room;
+    }
+  }
+  return best;
+}
+
+/** 컨트롤러 구간. slot은 맞닿은 구간과 다른 색 번호(0–5). */
+export type BarnPlanCoverMark = {
+  slot: number;
+  stallTyCode: string;
+  stallNo: string;
+  eqpmnNo: string;
+  rooms: BarnSiteRoomRef[];
+};
+
+/** 평면 구간 식별색 개수. 채널·알람·브랜드와 겹치지 않는다. */
+export const PLAN_COVER_COLOR_COUNT = 6;
+
+function coverRoomKeys(rooms: readonly BarnSiteRoomRef[]): Set<string> {
+  return new Set(rooms.map((room) => barnSiteRoomKey(room.bank, room.index)));
+}
+
+function coversTouch(
+  aKeys: ReadonlySet<string>,
+  bRooms: readonly BarnSiteRoomRef[],
+): boolean {
+  for (const room of bRooms) {
+    if (
+      aKeys.has(barnSiteRoomKey(room.bank, room.index - 1)) ||
+      aKeys.has(barnSiteRoomKey(room.bank, room.index + 1)) ||
+      aKeys.has(barnSiteRoomKey(room.bank - 1, room.index)) ||
+      aKeys.has(barnSiteRoomKey(room.bank + 1, room.index))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function colorCoverMarks(
+  rows: Omit<BarnPlanCoverMark, "slot">[],
+): BarnPlanCoverMark[] {
+  const keys = rows.map((row) => coverRoomKeys(row.rooms));
+  const usedByIndex: number[][] = rows.map(() => []);
+  for (let i = 0; i < rows.length; i++) {
+    for (let j = i + 1; j < rows.length; j++) {
+      if (
+        coversTouch(keys[i]!, rows[j]!.rooms) ||
+        coversTouch(keys[j]!, rows[i]!.rooms)
+      ) {
+        usedByIndex[i]!.push(j);
+        usedByIndex[j]!.push(i);
+      }
+    }
+  }
+  const colors: number[] = rows.map(() => -1);
+  for (let i = 0; i < rows.length; i++) {
+    const taken = new Set<number>();
+    for (const j of usedByIndex[i]!) {
+      if (colors[j]! >= 0) taken.add(colors[j]!);
+    }
+    let color = 0;
+    while (taken.has(color)) color += 1;
+    colors[i] = color % PLAN_COVER_COLOR_COUNT;
+  }
+  return rows.map((row, i) => ({ ...row, slot: colors[i]! }));
+}
+
+export function barnPlanCoverMarks(
+  covers: readonly BarnSiteControllerCover[],
+  fill: BarnSiteFill | undefined,
+): BarnPlanCoverMark[] {
+  const rows = covers
+    .map((cover) => ({
+      stallTyCode: cover.stallTyCode,
+      stallNo: cover.stallNo,
+      eqpmnNo: cover.eqpmnNo,
+      rooms: roomsFromCover(cover, fill),
+    }))
+    .filter((row) => row.rooms.length > 0);
+  rows.sort((a, b) => {
+    const fa = coverFirstRoom(a.rooms);
+    const fb = coverFirstRoom(b.rooms);
+    if (!fa || !fb) return 0;
+    return fa.bank - fb.bank || fa.index - fb.index;
+  });
+  return colorCoverMarks(rows);
+}
+
+export function barnPlanCoverSlots(
+  marks: readonly BarnPlanCoverMark[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const mark of marks) {
+    for (const room of mark.rooms) {
+      out[barnSiteRoomKey(room.bank, room.index)] = mark.slot;
+    }
+  }
+  return out;
+}
+
+function parseCover(raw: unknown): BarnSiteControllerCover | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const stallTyCode = normalizeStallTyCode(
+    typeof o.stallTyCode === "string" ? o.stallTyCode : "",
+  );
+  const stallNo =
+    typeof o.stallNo === "string" ? o.stallNo.trim() : String(o.stallNo ?? "").trim();
+  const zoneKey = barnSiteZoneKey(stallTyCode, stallNo);
+  if (!zoneKey) return null;
+  const eqpmnNo = normalizeEqpmnNo(o.eqpmnNo);
+  const rooms = parseRooms(o.rooms) ?? [];
+  const banksRaw = Array.isArray(o.banks) ? o.banks.map((n) => Number(n)) : [];
+  const banks = uniqueBanks(banksRaw, undefined);
+  if (rooms.length === 0 && banks.length === 0) return null;
+  return {
+    stallTyCode: zoneKey.slice(0, zoneKey.indexOf("#")),
+    stallNo: zoneKey.slice(zoneKey.indexOf("#") + 1),
+    eqpmnNo,
+    rooms,
+    ...(rooms.length === 0 && banks.length > 0 ? { banks } : {}),
+  };
+}
+
+function pruneCovers(
+  building: BarnSiteBuilding,
+): BarnSiteControllerCover[] | undefined {
+  const raw = building.controllerCovers ?? [];
+  if (raw.length === 0) return undefined;
+  const seen = new Map<string, BarnSiteControllerCover>();
+  const out: BarnSiteControllerCover[] = [];
+  for (const cover of raw) {
+    const key = barnSiteCoverKey(cover.stallTyCode, cover.stallNo, cover.eqpmnNo);
+    if (!key) continue;
+    const zoneKey = barnSiteZoneKey(cover.stallTyCode, cover.stallNo);
+    const rooms = roomsFromCover(cover, building.fill).filter(
+      (room) => zoneKeyOnRoom(building, room) === zoneKey,
+    );
+    if (rooms.length === 0) continue;
+    const prev = seen.get(key);
+    if (prev) {
+      prev.rooms = uniqueFitRooms([...prev.rooms, ...rooms], building.fill);
+      continue;
+    }
+    const next = {
+      stallTyCode: cover.stallTyCode,
+      stallNo: cover.stallNo,
+      eqpmnNo: cover.eqpmnNo,
+      rooms,
+    };
+    seen.set(key, next);
+    out.push(next);
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 function pruneBuilding(building: BarnSiteBuilding): BarnSiteBuilding {
   const zones = building.zones
     .map((zone) => pruneZone(zone, building.fill))
     .filter((zone): zone is BarnSiteZone => Boolean(zone));
-  return { ...building, zones };
+  const next = { ...building, zones };
+  const controllerCovers = pruneCovers(next);
+  if (controllerCovers) return { ...next, controllerCovers };
+  const rest = { ...next };
+  delete rest.controllerCovers;
+  return rest;
 }
 
 function parseZone(raw: unknown): BarnSiteZone | null {
@@ -238,6 +485,17 @@ function parseBuilding(raw: unknown): BarnSiteBuilding | null {
   }
   const name = typeof o.name === "string" ? o.name.trim().slice(0, 24) : "";
   const fill = parseFill(o.fill);
+  const coversRaw = Array.isArray(o.controllerCovers) ? o.controllerCovers : [];
+  const controllerCovers: BarnSiteControllerCover[] = [];
+  const seenCover = new Set<string>();
+  for (const row of coversRaw) {
+    const cover = parseCover(row);
+    if (!cover) continue;
+    const key = barnSiteCoverKey(cover.stallTyCode, cover.stallNo, cover.eqpmnNo);
+    if (!key || seenCover.has(key)) continue;
+    seenCover.add(key);
+    controllerCovers.push(cover);
+  }
   return {
     id,
     ...(name ? { name } : {}),
@@ -246,6 +504,7 @@ function parseBuilding(raw: unknown): BarnSiteBuilding | null {
     rotDeg: Number.isFinite(Number(o.rotDeg)) ? Number(o.rotDeg) : 0,
     zones,
     ...(fill ? { fill } : {}),
+    ...(controllerCovers.length > 0 ? { controllerCovers } : {}),
   };
 }
 
@@ -570,7 +829,7 @@ export function paintRoomsOnBuilding(
           const zones = b.zones
             .map((z) => withoutRooms(z, picked, b.fill))
             .filter((z): z is BarnSiteZone => Boolean(z));
-          return { ...b, zones };
+          return pruneBuilding({ ...b, zones });
         }),
       },
     };
@@ -589,7 +848,7 @@ export function paintRoomsOnBuilding(
       const zones = b.zones.filter(
         (z) => barnSiteZoneKey(z.stallTyCode, z.stallNo) !== key,
       );
-      return { ...b, zones };
+      return pruneBuilding({ ...b, zones });
     }
     const stripped = b.zones
       .map((z) => withoutRooms(z, picked, b.fill))
@@ -610,9 +869,124 @@ export function paintRoomsOnBuilding(
       rooms: merged,
       plan: planFromRooms(merged),
     };
-    return { ...b, zones: [...rest, nextZone] };
+    return pruneBuilding({ ...b, zones: [...rest, nextZone] });
   });
   return { ok: true, site: { ...site, buildings } };
+}
+
+export type AssignCtrlError =
+  | "missing-building"
+  | "out-of-fill"
+  | "no-zone"
+  | "not-in-live";
+
+/** 고른 방에 컨트롤러를 붙이거나 뗀다. 그 방에 축사가 있어야 한다. */
+export function paintControllerRoomsOnBuilding(
+  site: BarnSitePrefs,
+  buildingId: string,
+  rooms: readonly BarnSiteRoomRef[],
+  paint: { eqpmnNo: string } | null,
+  liveCoverKeys?: ReadonlySet<string> | null,
+): { ok: true; site: BarnSitePrefs } | { ok: false; error: AssignCtrlError } {
+  const target = site.buildings.find((b) => b.id === buildingId);
+  if (!target) return { ok: false, error: "missing-building" };
+  const picked = uniqueFitRooms(rooms, target.fill);
+  if (picked.length === 0) return { ok: false, error: "out-of-fill" };
+  const drop = new Set(picked.map((room) => barnSiteRoomKey(room.bank, room.index)));
+
+  if (!paint) {
+    return {
+      ok: true,
+      site: {
+        ...site,
+        buildings: site.buildings.map((b) => {
+          if (b.id !== buildingId) return b;
+          const controllerCovers = (b.controllerCovers ?? [])
+            .map((cover) => ({
+              ...cover,
+              rooms: roomsFromCover(cover, b.fill).filter(
+                (room) => !drop.has(barnSiteRoomKey(room.bank, room.index)),
+              ),
+            }))
+            .filter((cover) => cover.rooms.length > 0);
+          return pruneBuilding({
+            ...b,
+            ...(controllerCovers.length > 0
+              ? { controllerCovers }
+              : { controllerCovers: undefined }),
+          });
+        }),
+      },
+    };
+  }
+
+  const zone = zoneOnRooms(target, picked);
+  if (!zone) return { ok: false, error: "no-zone" };
+  const eqpmnNo = normalizeEqpmnNo(paint.eqpmnNo);
+  const coverKey = barnSiteCoverKey(zone.stallTyCode, zone.stallNo, eqpmnNo);
+  if (!coverKey) return { ok: false, error: "no-zone" };
+  if (liveCoverKeys && !liveCoverKeys.has(coverKey)) {
+    return { ok: false, error: "not-in-live" };
+  }
+
+  const buildings = site.buildings.map((b) => {
+    if (b.id !== buildingId) return b;
+    const rest = (b.controllerCovers ?? [])
+      .filter(
+        (cover) =>
+          barnSiteCoverKey(cover.stallTyCode, cover.stallNo, cover.eqpmnNo) !==
+          coverKey,
+      )
+      .map((cover) => ({
+        ...cover,
+        rooms: roomsFromCover(cover, b.fill).filter(
+          (room) => !drop.has(barnSiteRoomKey(room.bank, room.index)),
+        ),
+      }))
+      .filter((cover) => cover.rooms.length > 0);
+    const current = (b.controllerCovers ?? []).find(
+      (cover) =>
+        barnSiteCoverKey(cover.stallTyCode, cover.stallNo, cover.eqpmnNo) ===
+        coverKey,
+    );
+    const merged = uniqueFitRooms(
+      [...(current ? roomsFromCover(current, b.fill) : []), ...picked],
+      b.fill,
+    );
+    const nextCover: BarnSiteControllerCover = {
+      stallTyCode: zone.stallTyCode,
+      stallNo: zone.stallNo,
+      eqpmnNo,
+      rooms: merged,
+    };
+    return pruneBuilding({
+      ...b,
+      controllerCovers: [...rest, nextCover],
+    });
+  });
+  return { ok: true, site: { ...site, buildings } };
+}
+
+/** 모든 동의 축사 연결을 뗀다. 그 방에 붙었던 컨트롤러도 같이 떨어진다. */
+export function clearAllZonesOnSite(site: BarnSitePrefs): BarnSitePrefs {
+  return {
+    ...site,
+    buildings: site.buildings.map((b) => pruneBuilding({ ...b, zones: [] })),
+  };
+}
+
+/** 모든 동의 컨트롤러 연결만 뗀다. 축사는 남는다. */
+export function clearAllControllerCoversOnSite(
+  site: BarnSitePrefs,
+): BarnSitePrefs {
+  return {
+    ...site,
+    buildings: site.buildings.map((b) => {
+      const rest = { ...b };
+      delete rest.controllerCovers;
+      return pruneBuilding(rest);
+    }),
+  };
 }
 
 /** 클릭한 방에 LIVE 축사를 붙이거나, 같은 칸을 다시 누르면 뗀다. 한 LIVE는 한 동만. */

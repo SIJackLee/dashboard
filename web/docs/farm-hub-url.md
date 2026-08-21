@@ -12,11 +12,11 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 환경변수 | 기본 | 설명 |
 |----------|------|------|
 | `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «필드» 탭. off면 현행 4탭 |
-| `NEXT_PUBLIC_BARN_PLAN_ENABLED` | 로컬·Preview on / Production **숨김** | 모델 탭(2D). 상세 [`BARN_PLAN.md`](./BARN_PLAN.md) |
+| `NEXT_PUBLIC_BARN_PLAN_ENABLED` | **on** (Production 포함). `false`면 숨김 | 모델 탭(2D). 상세 [`BARN_PLAN.md`](./BARN_PLAN.md) |
 
 통합 on일 때 UI:
-- 상위 탭: **필드 · 차트 · 모델(게이트)**
-- DELIN: 필드·차트·모델 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 전용 탭 없음. `view=aria`/`jarvis` → 필드
+- 상위 탭: **필드 · 차트 · 모델**
+- DELIN: 필드·차트 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 모델 탭에서는 숨김. 전용 탭 없음. `view=aria`/`jarvis` → 필드
 - PC 필드: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
 - 모바일 compact: 보기 탭은 **하단 독** (`DashboardViewportShell`)
 - 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
@@ -31,7 +31,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `plan` \| `model` \| (`aria`/`jarvis`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 필드. 모델 플래그 off면 그리드. 필드·차트·모델에서 DELIN 권장 뱃지. `plan`은 `model`로 정규화 |
+| `view` | `list` \| `chart` \| `plan` \| `model` \| (`aria`/`jarvis`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 필드. 모델 플래그 off면 그리드. 필드·차트에서 DELIN 권장 뱃지(모델 탭은 숨김). `plan`은 `model`로 정규화 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |

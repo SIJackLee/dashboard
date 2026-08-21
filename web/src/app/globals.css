@@ -200,6 +200,13 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --channel-fan-intake: oklch(0.70 0.14 75);
   --channel-fan-exhaust: oklch(0.55 0.17 295);
   --channel-fan-supply: oklch(0.58 0.12 165);
+  /* 모델 평면 구간. 채널·알람·브랜드와 겹치지 않는 식별색 */
+  --plan-cover-0: oklch(0.58 0.10 195);
+  --plan-cover-1: oklch(0.56 0.11 275);
+  --plan-cover-2: oklch(0.60 0.10 330);
+  --plan-cover-3: oklch(0.58 0.09 115);
+  --plan-cover-4: oklch(0.56 0.10 250);
+  --plan-cover-5: oklch(0.62 0.08 355);
   --status-ok: var(--primary);
   --status-warn: oklch(0.70 0.15 70);
   --status-danger: var(--destructive);
@@ -392,6 +399,13 @@ html[data-density="compact"] {
   --channel-fan-intake: oklch(0.78 0.14 75);
   --channel-fan-exhaust: oklch(0.72 0.14 295);
   --channel-fan-supply: oklch(0.72 0.12 165);
+  /* 모델 평면 구간. 채널·알람·브랜드와 겹치지 않는 식별색 */
+  --plan-cover-0: oklch(0.72 0.10 195);
+  --plan-cover-1: oklch(0.70 0.11 275);
+  --plan-cover-2: oklch(0.74 0.10 330);
+  --plan-cover-3: oklch(0.74 0.09 115);
+  --plan-cover-4: oklch(0.70 0.10 250);
+  --plan-cover-5: oklch(0.76 0.08 355);
   --status-ok: var(--primary);
   --status-warn: oklch(0.78 0.14 70);
   --status-danger: var(--destructive);

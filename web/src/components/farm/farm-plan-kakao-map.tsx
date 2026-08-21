@@ -72,6 +72,7 @@ type Props = {
   lots?: BarnPlanLot[];
   selectedLotIds?: string[];
   closed: boolean;
+  active?: boolean;
   onPointsChange: (points: BarnPlanLatLng[]) => void;
   onToggleLot?: (id: string) => void;
   onClose: () => void;
@@ -122,6 +123,7 @@ export function FarmPlanKakaoMap({
   lots = [],
   selectedLotIds = [],
   closed,
+  active = true,
   onPointsChange,
   onToggleLot,
   onClose,
@@ -288,6 +290,12 @@ export function FarmPlanKakaoMap({
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !active || !mapReady) return;
+    map.relayout();
+  }, [active, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     const maps = mapsRef.current;
     if (!map || !maps) return;
     for (const layerObj of overlaysRef.current) layerObj.setMap(null);
@@ -376,7 +384,7 @@ export function FarmPlanKakaoMap({
         onPointsChangeRef.current(next);
       });
     });
-  }, [points, closed, lots, selectedLotIds, mapReady]);
+  }, [points, closed, lots, selectedLotIds, mapReady, active]);
 
   return (
     <div

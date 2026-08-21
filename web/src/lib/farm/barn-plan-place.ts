@@ -14,6 +14,8 @@ import {
 } from "@/lib/farm/barn-model-dim";
 import type { BarnPlanField, BarnPlanMetricPt } from "@/lib/farm/barn-plan-field";
 import {
+  barnSiteCoverKey,
+  barnSiteZoneKey,
   defaultBarnSiteRoomPlanForType,
   type BarnSiteFill,
 } from "@/lib/farm/barn-site-types";
@@ -228,7 +230,12 @@ export function barnPlanAssignStaggerT(
 
 /** 부여 단계용 — 동은 세로(긴 축), 동끼리는 가로 일렬. 배치 좌표는 건드리지 않는다. */
 export function barnPlanAssignRowLayout(
-  buildings: readonly { id: string; fill?: BarnSiteFill; x?: number }[],
+  buildings: readonly {
+    id: string;
+    fill?: BarnSiteFill;
+    x?: number;
+    footprint?: BarnPlanFootprint;
+  }[],
   gapM = ASSIGN_GAP_M,
   padM = ASSIGN_PAD_M,
 ): {
@@ -244,7 +251,8 @@ export function barnPlanAssignRowLayout(
   }
   const ordered = [...buildings].sort((a, b) => (a.x ?? 0) - (b.x ?? 0));
   const rows = ordered.map((b) => {
-    const fp = barnPlanFootprint("", barnPlanFillFromBuilding(b.fill));
+    const fp =
+      b.footprint ?? barnPlanFootprint("", barnPlanFillFromBuilding(b.fill));
     const span = barnPlanAxisSpan(fp, 90);
     return { id: b.id, span };
   });
@@ -258,6 +266,85 @@ export function barnPlanAssignRowLayout(
     cursor += halfX + gap;
   }
   const widthM = snap1(cursor - gap + pad);
+  const heightM = snap1(pad * 2 + maxH);
+  return { widthM: Math.max(widthM, 1), heightM: Math.max(heightM, 1), items };
+}
+
+/** 생성: 방 패킹 AABB + 위쪽 이름 태그 자리. 동 좌표는 이 크기로 먼저 잡는다. */
+export function barnPlanModelPackedFootprint(
+  fill: BarnModelFill,
+  covers: readonly BarnPlanModelCoverIn[] = [],
+  tagReserveM = barnPlanZoneTagReserveM(),
+): BarnPlanFootprint {
+  return modelPackedMeta(fill, covers, tagReserveM).fp;
+}
+
+function modelPackedMeta(
+  fill: BarnModelFill,
+  covers: readonly BarnPlanModelCoverIn[],
+  tagReserveM = barnPlanZoneTagReserveM(),
+): { fp: BarnPlanFootprint; shortM: number } {
+  const packed = barnPlanModelLayout(fill, covers, tagReserveM);
+  const bounds = barnPlanCellsBounds(packed.cells);
+  if (!bounds) {
+    const fp = barnPlanFootprint("", fill);
+    return { fp, shortM: Math.min(fp.lengthM, fp.widthM) };
+  }
+  return {
+    fp: {
+      lengthM: bounds.w + tagReserveM,
+      widthM: bounds.h,
+    },
+    shortM: Math.min(bounds.w, bounds.h),
+  };
+}
+
+/** 생성: 패킹된 동 크기로 가로 일렬. 동 사이는 가장 작은 동 짧은 변 100%. */
+export function barnPlanModelRowLayout(
+  buildings: readonly {
+    id: string;
+    fill?: BarnSiteFill;
+    x?: number;
+    covers?: readonly BarnPlanModelCoverIn[];
+  }[],
+  padM = ASSIGN_PAD_M,
+  tagReserveM = barnPlanZoneTagReserveM(),
+): {
+  widthM: number;
+  heightM: number;
+  items: Record<string, BarnPlanPlacePos & { rotDeg: number }>;
+} {
+  const pad = Math.max(1, snap1(padM));
+  const items: Record<string, BarnPlanPlacePos & { rotDeg: number }> = {};
+  if (buildings.length === 0) {
+    return { widthM: pad * 2, heightM: pad * 2, items };
+  }
+  const ordered = [...buildings]
+    .sort((a, b) => (a.x ?? 0) - (b.x ?? 0))
+    .map((b) => {
+      const fill = barnPlanFillFromBuilding(b.fill);
+      const meta = modelPackedMeta(fill, b.covers ?? [], tagReserveM);
+      return {
+        id: b.id,
+        span: barnPlanAxisSpan(meta.fp, 90),
+        shortM: meta.shortM,
+      };
+    });
+  const maxH = Math.max(...ordered.map((r) => r.span.widthM), 1);
+  const gapM =
+    Math.min(...ordered.map((r) => r.shortM)) *
+    BARN_PLAN_MODEL_BUILDING_GAP_RATIO;
+  let cursor = pad;
+  const z = snap1(pad + maxH / 2);
+  for (let i = 0; i < ordered.length; i++) {
+    const row = ordered[i]!;
+    const halfX = row.span.lengthM / 2;
+    cursor += halfX;
+    items[row.id] = { x: snap1(cursor), z, rotDeg: 90 };
+    cursor += halfX;
+    if (i < ordered.length - 1) cursor += gapM;
+  }
+  const widthM = snap1(cursor + pad);
   const heightM = snap1(pad * 2 + maxH);
   return { widthM: Math.max(widthM, 1), heightM: Math.max(heightM, 1), items };
 }
@@ -354,6 +441,30 @@ export function barnPlanFillCells(fill: BarnModelFill): BarnPlanFillCell[] {
     }
   }
   return cells;
+}
+
+/** 고른 방이 차지하는 로컬 사각형. */
+export function barnPlanRoomBounds(
+  fill: BarnModelFill,
+  rooms: readonly { bank: number; index: number }[],
+): { x: number; y: number; w: number; h: number } | null {
+  const wanted = new Set(rooms.map((row) => `${row.bank}:${row.index}`));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const cell of barnPlanFillCells(fill)) {
+    if (cell.kind !== "room" || cell.bank == null || cell.index == null) {
+      continue;
+    }
+    if (!wanted.has(`${cell.bank}:${cell.index}`)) continue;
+    minX = Math.min(minX, cell.x);
+    minY = Math.min(minY, cell.y);
+    maxX = Math.max(maxX, cell.x + cell.w);
+    maxY = Math.max(maxY, cell.y + cell.h);
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
 export type BarnPlanWindow = {
@@ -495,6 +606,673 @@ export function barnPlanRoomClusters(
     clusters.push({ rooms: group, x: sx / n, y: sy / n });
   }
   return clusters;
+}
+
+/** 생성: 동(그룹1) 사이 — 가장 작은 동 짧은 변의 비율. */
+export const BARN_PLAN_MODEL_BUILDING_GAP_RATIO = 1;
+/** 생성: 동 전체를 감싼 뒤 사방 여유. */
+export const BARN_PLAN_MODEL_WELL_PAD_RATIO = 0.2;
+/** 생성 줌. 1 = 배경 맞춤, 최대 = 기본의 3배. */
+export const BARN_PLAN_MODEL_ZOOM_MIN = 1;
+export const BARN_PLAN_MODEL_ZOOM_MAX = 3;
+export const BARN_PLAN_ZONE_TAG_H_M = 3.2;
+export const BARN_PLAN_ZONE_TAG_GAP_M = 0.5;
+/** 태그 위·위 구획 사이. 테두리가 방에 걸치지 않게. */
+export const BARN_PLAN_ZONE_TAG_CLEARANCE_M = 1;
+/** 생성: 측정한 태그 높이로 간격을 늘릴 때 상한. */
+export const BARN_PLAN_ZONE_TAG_RESERVE_MAX_M = 12;
+
+/** 구획 위쪽에 이름 태그가 들어갈 간격. */
+export function barnPlanZoneTagReserveM(
+  tagHM = BARN_PLAN_ZONE_TAG_H_M,
+): number {
+  return tagHM + BARN_PLAN_ZONE_TAG_GAP_M + BARN_PLAN_ZONE_TAG_CLEARANCE_M;
+}
+
+export type BarnPlanCamera = {
+  k: number;
+  cx: number;
+  cz: number;
+};
+
+export type BarnPlanViewBox = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+/** 동 전체 사방 여유. pad만큼 좌표를 밀면 동이 가운데 남는다. */
+export function barnPlanPadField(
+  field: { widthM: number; heightM: number },
+  ratio = BARN_PLAN_MODEL_WELL_PAD_RATIO,
+): { widthM: number; heightM: number; padX: number; padZ: number } {
+  const r = Math.max(0, ratio);
+  const padX = field.widthM * r;
+  const padZ = field.heightM * r;
+  return {
+    widthM: field.widthM + 2 * padX,
+    heightM: field.heightM + 2 * padZ,
+    padX,
+    padZ,
+  };
+}
+
+export function barnPlanCameraViewBox(
+  field: { widthM: number; heightM: number },
+  cam: BarnPlanCamera,
+): BarnPlanViewBox {
+  const k = Math.min(
+    BARN_PLAN_MODEL_ZOOM_MAX,
+    Math.max(BARN_PLAN_MODEL_ZOOM_MIN, cam.k),
+  );
+  const w = field.widthM / k;
+  const h = field.heightM / k;
+  const x = Math.min(Math.max(0, cam.cx - w / 2), Math.max(0, field.widthM - w));
+  const svgCy = field.heightM - cam.cz;
+  const y = Math.min(Math.max(0, svgCy - h / 2), Math.max(0, field.heightM - h));
+  return { x, y, w, h };
+}
+
+export function barnPlanClampCamera(
+  field: { widthM: number; heightM: number },
+  cam: BarnPlanCamera,
+): BarnPlanCamera {
+  const k = Math.min(
+    BARN_PLAN_MODEL_ZOOM_MAX,
+    Math.max(BARN_PLAN_MODEL_ZOOM_MIN, cam.k),
+  );
+  const vb = barnPlanCameraViewBox(field, { ...cam, k });
+  return {
+    k,
+    cx: vb.x + vb.w / 2,
+    cz: field.heightM - (vb.y + vb.h / 2),
+  };
+}
+
+export function barnPlanCameraFit(
+  field: { widthM: number; heightM: number },
+): BarnPlanCamera {
+  return barnPlanClampCamera(field, {
+    k: BARN_PLAN_MODEL_ZOOM_MIN,
+    cx: field.widthM / 2,
+    cz: field.heightM / 2,
+  });
+}
+
+/** 생성 태그 실측·추정 너비가 구획 화면폭을 넘지 않는 최소 k. */
+export function barnPlanCameraTagFitK(
+  field: { widthM: number },
+  viewWpx: number,
+  tags: readonly { widthM: number; needPx: number }[],
+): number {
+  if (!(viewWpx > 0) || !(field.widthM > 0)) return BARN_PLAN_MODEL_ZOOM_MIN;
+  let k = BARN_PLAN_MODEL_ZOOM_MIN;
+  for (const tag of tags) {
+    if (!(tag.widthM > 0) || !(tag.needPx > 0)) continue;
+    const atMin = (tag.widthM / field.widthM) * viewWpx;
+    if (atMin < 1) continue;
+    k = Math.max(k, tag.needPx / atMin);
+  }
+  return Math.min(BARN_PLAN_MODEL_ZOOM_MAX, k);
+}
+
+const TAG_FIT_FONT_PX = 13;
+const TAG_FIT_PAD_PX = 12;
+const TAG_FIT_MARK_PX = 22;
+
+/** 축사유형·번호 태그 예상 너비(px). DOM 실측 전에 씀. */
+export function barnPlanZoneTagNeedPx(tag: {
+  label: string;
+  stallNo?: string;
+  eqpmnNo?: string;
+  envCount?: number;
+}): number {
+  const line1 = tag.label.length * TAG_FIT_FONT_PX + TAG_FIT_PAD_PX;
+  const marks =
+    (tag.stallNo ? TAG_FIT_MARK_PX : 0) +
+    (tag.eqpmnNo ? TAG_FIT_MARK_PX : 0) +
+    (tag.stallNo && tag.eqpmnNo ? 4 : 0);
+  const line2 = marks > 0 ? marks + TAG_FIT_PAD_PX : 0;
+  const env = (tag.envCount ?? 0) * 18;
+  return Math.ceil(Math.max(line1, line2, env + TAG_FIT_PAD_PX) * 1.08);
+}
+
+export function barnPlanCameraZoomAt(
+  field: { widthM: number; heightM: number },
+  cam: BarnPlanCamera,
+  at: { x: number; z: number },
+  nextK: number,
+): BarnPlanCamera {
+  const from = barnPlanClampCamera(field, cam);
+  const k = Math.min(
+    BARN_PLAN_MODEL_ZOOM_MAX,
+    Math.max(BARN_PLAN_MODEL_ZOOM_MIN, nextK),
+  );
+  if (from.k === k) return from;
+  const t = from.k / k;
+  return barnPlanClampCamera(field, {
+    k,
+    cx: at.x + (from.cx - at.x) * t,
+    cz: at.z + (from.cz - at.z) * t,
+  });
+}
+
+export type BarnPlanModelCoverIn = {
+  rooms: readonly { bank: number; index: number }[];
+  stallTyCode?: string;
+  stallNo?: string;
+  eqpmnNo?: string;
+};
+
+function roomKey(bank: number, index: number): string {
+  return `${bank}:${index}`;
+}
+
+function coverZoneKey(cover: BarnPlanModelCoverIn): string {
+  return barnSiteZoneKey(cover.stallTyCode, cover.stallNo) ?? "";
+}
+
+function fitCoverRooms(
+  fill: BarnModelFill,
+  rooms: readonly { bank: number; index: number }[],
+): { bank: number; index: number }[] {
+  const seen = new Set<string>();
+  const out: { bank: number; index: number }[] = [];
+  for (const row of rooms) {
+    if (
+      row.bank < 0 ||
+      row.bank >= fill.banks ||
+      row.index < 0 ||
+      row.index >= fill.roomCount
+    ) {
+      continue;
+    }
+    const key = roomKey(row.bank, row.index);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ bank: row.bank, index: row.index });
+  }
+  return out;
+}
+
+function collapsedRoomCells(fill: BarnModelFill): BarnPlanFillCell[] {
+  const length = fill.roomCount * fill.penAlong + fill.endPad;
+  const width = fill.banks * fill.penDepth;
+  const cells: BarnPlanFillCell[] = [];
+  for (let b = 0; b < fill.banks; b++) {
+    for (let i = 0; i < fill.roomCount; i++) {
+      cells.push({
+        kind: "room",
+        bank: b,
+        index: i,
+        x: -length / 2 + i * fill.penAlong,
+        y: -width / 2 + b * fill.penDepth,
+        w: fill.penAlong,
+        h: fill.penDepth,
+      });
+    }
+  }
+  return cells;
+}
+
+function roomCoverMap(
+  fill: BarnModelFill,
+  covers: readonly BarnPlanModelCoverIn[],
+): Map<string, { zone: string; cover: string }> {
+  const out = new Map<string, { zone: string; cover: string }>();
+  covers.forEach((cover, i) => {
+    const zone = coverZoneKey(cover);
+    const coverId =
+      barnSiteCoverKey(cover.stallTyCode, cover.stallNo, cover.eqpmnNo) ??
+      `cover:${i}`;
+    for (const row of fitCoverRooms(fill, cover.rooms)) {
+      out.set(roomKey(row.bank, row.index), { zone, cover: coverId });
+    }
+  });
+  return out;
+}
+
+/** 방 AABB의 짧은 변 (m). 여유율 간격의 기준. */
+export function barnPlanRoomsShortSideM(
+  fill: BarnModelFill,
+  rooms: readonly { bank: number; index: number }[],
+  cells?: BarnPlanFillCell[],
+): number {
+  const fitted = fitCoverRooms(fill, rooms);
+  const bounds = barnPlanCellsBounds(
+    cells ?? collapsedRoomCells(fill),
+    fitted,
+  );
+  if (!bounds) return Math.min(fill.penAlong, fill.penDepth);
+  return Math.min(bounds.w, bounds.h);
+}
+
+function neighborGapM(
+  a: { cover: string } | undefined,
+  b: { cover: string } | undefined,
+  aisleW: number,
+  alongRooms: boolean,
+  tagReserveM: number,
+): number {
+  if (!a || !b) return 0;
+  if (a.cover === b.cover) return 0;
+  if (alongRooms) return Math.max(aisleW, tagReserveM);
+  return aisleW;
+}
+
+/** 방 번호마다 폭이 다르면 동 안 가로 중앙에 맞춘다. 90° 후 화면 좌우. */
+function centerPackedStripsAlongY(cells: BarnPlanFillCell[]): void {
+  const byIndex = new Map<number, BarnPlanFillCell[]>();
+  for (const cell of cells) {
+    if (cell.kind !== "room" || cell.index == null) continue;
+    const list = byIndex.get(cell.index);
+    if (list) list.push(cell);
+    else byIndex.set(cell.index, [cell]);
+  }
+  if (byIndex.size === 0) return;
+  const bounds = barnPlanCellsBounds(cells);
+  if (!bounds) return;
+  const mid = bounds.y + bounds.h / 2;
+  for (const list of byIndex.values()) {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const cell of list) {
+      min = Math.min(min, cell.y);
+      max = Math.max(max, cell.y + cell.h);
+    }
+    const shift = mid - (min + max) / 2;
+    if (Math.abs(shift) < 1e-9) continue;
+    for (const cell of list) cell.y += shift;
+  }
+}
+
+/**
+ * 생성용 칸. 복도만 걷고 방 격자는 유지한다.
+ * 같은 컨트롤러(그룹2)는 붙인다. 옆으로 다른 컨트롤러는 복도 너비,
+ * 위아래로 다른 컨트롤러는 태그 높이만큼 띄워 구획 위에 태그가 앉게 한다.
+ * 한 열의 그룹2가 더 좁으면 동 안 가로 중앙에 둔다.
+ */
+export function barnPlanModelLayout(
+  fill: BarnModelFill,
+  covers: readonly BarnPlanModelCoverIn[],
+  tagReserveM = barnPlanZoneTagReserveM(),
+): { cells: BarnPlanFillCell[]; extraLengthM: number; extraWidthM: number } {
+  const wanted = new Set<string>();
+  for (const cover of covers) {
+    for (const row of fitCoverRooms(fill, cover.rooms)) {
+      wanted.add(roomKey(row.bank, row.index));
+    }
+  }
+  const byRoom = roomCoverMap(fill, covers);
+  const aisleW = fill.aisleW;
+  const xAt: number[][] = [];
+  const yAt: number[][] = [];
+  for (let b = 0; b < fill.banks; b++) {
+    xAt[b] = [];
+    yAt[b] = [];
+    for (let i = 0; i < fill.roomCount; i++) {
+      const left =
+        i === 0
+          ? 0
+          : (xAt[b]![i - 1] ?? 0) +
+            neighborGapM(
+              byRoom.get(roomKey(b, i - 1)),
+              byRoom.get(roomKey(b, i)),
+              aisleW,
+              true,
+              tagReserveM,
+            );
+      const above =
+        b === 0
+          ? 0
+          : (yAt[b - 1]![i] ?? 0) +
+            neighborGapM(
+              byRoom.get(roomKey(b - 1, i)),
+              byRoom.get(roomKey(b, i)),
+              aisleW,
+              false,
+              tagReserveM,
+            );
+      xAt[b]![i] = left;
+      yAt[b]![i] = above;
+    }
+  }
+  let extraLengthM = 0;
+  let extraWidthM = 0;
+  for (let b = 0; b < fill.banks; b++) {
+    extraLengthM = Math.max(
+      extraLengthM,
+      xAt[b]![fill.roomCount - 1] ?? 0,
+    );
+  }
+  for (let i = 0; i < fill.roomCount; i++) {
+    extraWidthM = Math.max(extraWidthM, yAt[fill.banks - 1]![i] ?? 0);
+  }
+  const cells: BarnPlanFillCell[] = [];
+  for (const cell of collapsedRoomCells(fill)) {
+    if (cell.bank == null || cell.index == null) continue;
+    if (wanted.size > 0 && !wanted.has(roomKey(cell.bank, cell.index))) {
+      continue;
+    }
+    cells.push({
+      ...cell,
+      x: cell.x + (xAt[cell.bank]![cell.index] ?? 0),
+      y: cell.y + (yAt[cell.bank]![cell.index] ?? 0),
+    });
+  }
+  centerPackedStripsAlongY(cells);
+  const bounds = barnPlanCellsBounds(cells);
+  if (bounds) {
+    const cx = bounds.x + bounds.w / 2;
+    const cy = bounds.y + bounds.h / 2;
+    for (const cell of cells) {
+      cell.x -= cx;
+      cell.y -= cy;
+    }
+  }
+  return { cells, extraLengthM, extraWidthM };
+}
+
+export function barnPlanLerpModelCells(
+  fill: BarnModelFill,
+  covers: readonly BarnPlanModelCoverIn[],
+  t: number,
+  tagReserveM = barnPlanZoneTagReserveM(),
+): BarnPlanFillCell[] {
+  const u0 = t <= 0 ? 0 : t >= 1 ? 1 : t;
+  const from = barnPlanFillCells(fill);
+  if (u0 <= 0) return from;
+  const to = barnPlanModelLayout(fill, covers, tagReserveM).cells;
+  if (u0 >= 1) return to;
+  const dest = new Map<string, BarnPlanFillCell>();
+  for (const cell of to) {
+    if (cell.kind !== "room" || cell.bank == null || cell.index == null) {
+      continue;
+    }
+    dest.set(roomKey(cell.bank, cell.index), cell);
+  }
+  const coverAt = new Map<string, number>();
+  covers.forEach((cover, i) => {
+    for (const row of cover.rooms) {
+      const key = roomKey(row.bank, row.index);
+      if (!coverAt.has(key)) coverAt.set(key, i);
+    }
+  });
+  const n = Math.max(covers.length, 1);
+  const fade = barnPlanEmphasisT(u0);
+  const cells: BarnPlanFillCell[] = [];
+  for (const cell of from) {
+    if (cell.kind === "aisle") {
+      const s = 1 - fade;
+      if (s <= 0.001) continue;
+      cells.push({
+        ...cell,
+        y: cell.y + (cell.h * (1 - s)) / 2,
+        h: cell.h * s,
+      });
+      continue;
+    }
+    if (cell.bank == null || cell.index == null) continue;
+    const next = dest.get(roomKey(cell.bank, cell.index));
+    if (!next) {
+      if (u0 < 1) cells.push(cell);
+      continue;
+    }
+    const slot = coverAt.get(roomKey(cell.bank, cell.index)) ?? n - 1;
+    const u = barnPlanEmphasisT(barnPlanAssignStaggerT(u0, slot, n));
+    cells.push({
+      ...cell,
+      x: barnPlanLerp(cell.x, next.x, u),
+      y: barnPlanLerp(cell.y, next.y, u),
+      w: barnPlanLerp(cell.w, next.w, u),
+      h: barnPlanLerp(cell.h, next.h, u),
+    });
+  }
+  return cells;
+}
+
+export type BarnPlanFieldBox = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+export function barnPlanLocalRectToFieldBox(
+  origin: BarnPlanPlacePos,
+  rotDeg: number,
+  rect: { x: number; y: number; w: number; h: number },
+): BarnPlanFieldBox {
+  const pts = [
+    barnPlanLocalToField(origin, rotDeg, rect.x, rect.y),
+    barnPlanLocalToField(origin, rotDeg, rect.x + rect.w, rect.y),
+    barnPlanLocalToField(origin, rotDeg, rect.x + rect.w, rect.y + rect.h),
+    barnPlanLocalToField(origin, rotDeg, rect.x, rect.y + rect.h),
+  ];
+  return {
+    minX: Math.min(pts[0]!.x, pts[1]!.x, pts[2]!.x, pts[3]!.x),
+    maxX: Math.max(pts[0]!.x, pts[1]!.x, pts[2]!.x, pts[3]!.x),
+    minZ: Math.min(pts[0]!.z, pts[1]!.z, pts[2]!.z, pts[3]!.z),
+    maxZ: Math.max(pts[0]!.z, pts[1]!.z, pts[2]!.z, pts[3]!.z),
+  };
+}
+
+const TAG_W_MIN_M = 7;
+
+export function barnPlanSpreadZoneLabels(
+  seeds: readonly {
+    id: string;
+    label: string;
+    detail?: string;
+    box: BarnPlanFieldBox;
+    /** 생성: 구획 위 바깥. 배치·연결: 구획 안쪽 중앙. */
+    outside: boolean;
+    /** 있으면 동 위 한 줄(방법 B). 생성 화면은 쓰지 않음. */
+    group?: string;
+    order?: string;
+  }[],
+  field: { widthM: number; heightM: number },
+): { id: string; label: string; detail?: string; x: number; z: number }[] {
+  const result: {
+    id: string;
+    label: string;
+    detail?: string;
+    x: number;
+    z: number;
+    group?: string;
+  }[] = new Array(seeds.length);
+  const grouped = new Map<string, number[]>();
+  for (let i = 0; i < seeds.length; i++) {
+    const seed = seeds[i]!;
+    if (!seed.outside) {
+      const cx = (seed.box.minX + seed.box.maxX) / 2;
+      const cz = (seed.box.minZ + seed.box.maxZ) / 2;
+      result[i] = {
+        id: seed.id,
+        label: seed.label,
+        detail: seed.detail,
+        x: cx,
+        z: cz,
+      };
+      continue;
+    }
+    const key = seed.group?.trim() || `__${i}`;
+    const list = grouped.get(key) ?? [];
+    list.push(i);
+    grouped.set(key, list);
+  }
+  const th = BARN_PLAN_ZONE_TAG_H_M;
+  const gap = BARN_PLAN_ZONE_TAG_GAP_M;
+  for (const [key, idxs] of grouped) {
+    const named = !key.startsWith("__");
+    if (named && idxs.length > 0) {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let maxZ = -Infinity;
+      for (const i of idxs) {
+        const box = seeds[i]!.box;
+        minX = Math.min(minX, box.minX);
+        maxX = Math.max(maxX, box.maxX);
+        maxZ = Math.max(maxZ, box.maxZ);
+      }
+      const span = Math.max(maxX - minX, TAG_W_MIN_M);
+      const z = Math.min(
+        field.heightM - th / 2,
+        Math.max(th / 2, maxZ + gap + th / 2),
+      );
+      const ordered = [...idxs].sort((a, b) => {
+        const oa = seeds[a]!.order ?? "";
+        const ob = seeds[b]!.order ?? "";
+        const byOrder = oa.localeCompare(ob, undefined, { numeric: true });
+        if (byOrder !== 0) return byOrder;
+        return seeds[a]!.box.minX - seeds[b]!.box.minX;
+      });
+      const n = ordered.length;
+      for (let k = 0; k < n; k++) {
+        const i = ordered[k]!;
+        const seed = seeds[i]!;
+        result[i] = {
+          id: seed.id,
+          label: seed.label,
+          detail: seed.detail,
+          x: minX + ((k + 0.5) / n) * span,
+          z,
+          group: key,
+        };
+      }
+      continue;
+    }
+    for (const i of idxs) {
+      const seed = seeds[i]!;
+      const box = seed.box;
+      const cx = (box.minX + box.maxX) / 2;
+      const z = box.maxZ + gap;
+      result[i] = {
+        id: seed.id,
+        label: seed.label,
+        detail: seed.detail,
+        x: cx,
+        z,
+      };
+    }
+  }
+  spreadOutsideLabels(result, TAG_W_MIN_M, BARN_PLAN_ZONE_TAG_H_M, field);
+  return result.map(({ id, label, detail, x, z }) => ({
+    id,
+    label,
+    detail,
+    x,
+    z,
+  }));
+}
+
+function spreadOutsideLabels(
+  pts: { x: number; z: number; group?: string }[],
+  minW: number,
+  minH: number,
+  field: { widthM: number; heightM: number },
+): void {
+  const used = new Set<number>();
+  for (let i = 0; i < pts.length; i++) {
+    if (used.has(i) || pts[i] == null) continue;
+    const row = [i];
+    used.add(i);
+    for (let j = i + 1; j < pts.length; j++) {
+      if (used.has(j) || pts[j] == null) continue;
+      const gi = pts[i]!.group;
+      const gj = pts[j]!.group;
+      if (!gi || gi !== gj) continue;
+      if (Math.abs(pts[j]!.z - pts[i]!.z) > minH * 0.8) continue;
+      row.push(j);
+      used.add(j);
+    }
+    if (row.length < 2) continue;
+    row.sort((a, b) => pts[a]!.x - pts[b]!.x);
+    for (let k = 1; k < row.length; k++) {
+      const prev = pts[row[k - 1]!]!;
+      const cur = pts[row[k]!]!;
+      const need = prev.x + minW;
+      if (cur.x < need) cur.x = need;
+    }
+    const last = pts[row[row.length - 1]!]!;
+    const overflow = last.x - (field.widthM - minW / 2);
+    if (overflow > 0) {
+      for (const idx of row) pts[idx]!.x -= overflow;
+    }
+    const first = pts[row[0]!]!;
+    if (first.x < minW / 2) {
+      const shift = minW / 2 - first.x;
+      for (const idx of row) pts[idx]!.x += shift;
+    }
+  }
+}
+
+export function barnPlanCellsBounds(
+  cells: readonly BarnPlanFillCell[],
+  rooms?: readonly { bank: number; index: number }[],
+): { x: number; y: number; w: number; h: number } | null {
+  const wanted =
+    rooms == null
+      ? null
+      : new Set(rooms.map((row) => `${row.bank}:${row.index}`));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const cell of cells) {
+    if (wanted) {
+      if (cell.kind !== "room" || cell.bank == null || cell.index == null) {
+        continue;
+      }
+      if (!wanted.has(`${cell.bank}:${cell.index}`)) continue;
+    }
+    minX = Math.min(minX, cell.x);
+    minY = Math.min(minY, cell.y);
+    maxX = Math.max(maxX, cell.x + cell.w);
+    maxY = Math.max(maxY, cell.y + cell.h);
+  }
+  if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+export function barnPlanCellsCentroid(
+  cells: readonly BarnPlanFillCell[],
+  rooms: readonly { bank: number; index: number }[],
+): { x: number; y: number } | null {
+  const wanted = new Set(rooms.map((row) => `${row.bank}:${row.index}`));
+  let sx = 0;
+  let sy = 0;
+  let n = 0;
+  for (const cell of cells) {
+    if (cell.kind !== "room" || cell.bank == null || cell.index == null) {
+      continue;
+    }
+    if (!wanted.has(`${cell.bank}:${cell.index}`)) continue;
+    sx += cell.x + cell.w / 2;
+    sy += cell.y + cell.h / 2;
+    n += 1;
+  }
+  if (n === 0) return null;
+  return { x: sx / n, y: sy / n };
+}
+
+/** 컨트롤러 구간(+남은 방)을 서로 떨어진 사각형으로 나눈다. */
+export function barnPlanModelSections(
+  fill: BarnModelFill,
+  covers: readonly { rooms: readonly { bank: number; index: number }[] }[],
+  leftover: readonly { bank: number; index: number }[],
+): { x: number; y: number; w: number; h: number }[] {
+  const boxes: { x: number; y: number; w: number; h: number }[] = [];
+  for (const cover of covers) {
+    const bounds = barnPlanRoomBounds(fill, cover.rooms);
+    if (bounds) boxes.push(bounds);
+  }
+  for (const cluster of barnPlanRoomClusters(fill, leftover)) {
+    const bounds = barnPlanRoomBounds(fill, cluster.rooms);
+    if (bounds) boxes.push(bounds);
+  }
+  return boxes;
 }
 
 export function pointInMetricRing(

@@ -20,19 +20,23 @@ function NoMarkFrame({
   iconClassName,
   digit,
   Icon,
+  dense = false,
 }: {
   label: string;
   className?: string;
   iconClassName?: string;
   digit: string;
   Icon: typeof ControllerDeviceIcon | typeof StallUnitIcon;
+  /** 맵 오버레이 — 작은 아이콘+우하단 숫자 */
+  dense?: boolean;
 }) {
   const compact = useHydrationSafeDashboardCompact();
+  const overlay = dense || !compact;
   return (
     <span
       className={cn(
         "inline-flex shrink-0 align-middle",
-        compact ? "items-center gap-1" : "relative items-center",
+        overlay ? "relative items-center" : "items-center gap-1",
         className,
       )}
       aria-label={label}
@@ -41,23 +45,22 @@ function NoMarkFrame({
       <Icon
         className={cn(
           "shrink-0 text-muted-foreground",
-          compact ? "size-6" : "size-[1.35em]",
+          dense ? "size-3.5" : compact ? "size-6" : "size-[1.35em]",
           iconClassName,
-          compact && "size-6",
         )}
-        numberCutout={!compact}
+        numberCutout={overlay}
         aria-hidden
       />
       <span
         className={cn(
           "font-bold tabular-nums leading-none text-foreground",
-          compact
-            ? "text-base"
-            : cn(
+          overlay
+            ? cn(
                 "pointer-events-none absolute bottom-0 right-0 z-[1] text-[0.68em]",
                 "[-webkit-text-stroke:1.5px_var(--card)]",
                 "[paint-order:stroke_fill]",
-              ),
+              )
+            : "text-base",
         )}
         aria-hidden
       >
@@ -72,10 +75,12 @@ export function ControllerNoMark({
   eqpmnNo,
   className,
   iconClassName,
+  dense,
 }: {
   eqpmnNo: string | undefined;
   className?: string;
   iconClassName?: string;
+  dense?: boolean;
 }) {
   const eq = normalizeEqpmnNo(eqpmnNo ?? "01");
   const noLabel = formatControllerNoLabel(eqpmnNo);
@@ -86,6 +91,7 @@ export function ControllerNoMark({
       iconClassName={iconClassName}
       digit={eq}
       Icon={ControllerDeviceIcon}
+      dense={dense}
     />
   );
 }
@@ -95,10 +101,12 @@ export function StallUnitNoMark({
   stallNo,
   className,
   iconClassName,
+  dense,
 }: {
   stallNo: string | null | undefined;
   className?: string;
   iconClassName?: string;
+  dense?: boolean;
 }) {
   const key = stallKeyFromReading({ stallNo: stallNo ?? null });
   const display = key.startsWith("__") ? "—" : key;
@@ -114,6 +122,7 @@ export function StallUnitNoMark({
       iconClassName={iconClassName}
       digit={display}
       Icon={StallUnitIcon}
+      dense={dense}
     />
   );
 }

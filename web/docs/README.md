@@ -38,7 +38,7 @@
 | 문서 | 내용 |
 |------|------|
 | [`farm-hub-url.md`](./farm-hub-url.md) | `/farm` URL·탭·epoch |
-| [`BARN_PLAN.md`](./BARN_PLAN.md) | 축사 모델 탭 (2D 위성 부지 · Preview) |
+| [`BARN_PLAN.md`](./BARN_PLAN.md) | 축사 모델 탭 (2D 위성 부지) |
 | [`BARN_MODEL.md`](./BARN_MODEL.md) | 옛 3D 모델 탭 은퇴 포인터 |
 | [`aria-protocol.md`](./aria-protocol.md) | 델린(DELIN) 판단 정본 |
 | [`weather-ctrl-recommendation-p1.md`](./weather-ctrl-recommendation-p1.md) | 기상 CTRL 권장→승인 P1 (FARM01) |

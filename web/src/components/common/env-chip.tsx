@@ -29,6 +29,8 @@ type EnvChipProps = {
   /** 그리드 카드 — 라벨 없이 아이콘+값만 */
   valueOnly?: boolean;
   compact?: boolean;
+  /** 맵 태그 등 — 칩 테두리·최소높이 없이 아이콘+값만 */
+  bare?: boolean;
 };
 
 export function EnvChip({
@@ -37,10 +39,52 @@ export function EnvChip({
   tone,
   valueOnly = false,
   compact = false,
+  bare = false,
 }: EnvChipProps) {
   const conf = kindMap[kind];
   const Icon = conf.icon;
   const hasValue = value != null && value !== "" && value !== "--";
+  const iconClass = compact
+    ? dashboardUi.gridCellIconCompact
+    : dashboardUi.gridCellIconDefault;
+  const valueClass = compact
+    ? dashboardUi.gridCellValueCompact
+    : dashboardUi.gridCellValueDefault;
+  const unitClass = compact
+    ? dashboardUi.gridCellMetaCompact
+    : dashboardUi.tableMeta;
+  const aria = hasValue ? `${conf.label} ${value}${conf.unit}` : conf.label;
+  const readout = (
+    <>
+      <Icon className={cn(iconClass, conf.className)} aria-hidden />
+      <span
+        className={cn(
+          "min-w-0 truncate whitespace-nowrap text-foreground",
+          valueClass,
+        )}
+      >
+        {hasValue ? (
+          <>
+            {value}
+            <span className={cn("ml-0.5 font-normal text-muted-foreground", unitClass)}>
+              {conf.unit}
+            </span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </span>
+      {tone ? <span className="sr-only">{tone}</span> : null}
+    </>
+  );
+
+  if (bare) {
+    return (
+      <span className="inline-flex min-w-0 items-center gap-1" aria-label={aria}>
+        {readout}
+      </span>
+    );
+  }
 
   if (valueOnly) {
     return (
@@ -51,42 +95,9 @@ export function EnvChip({
             ? "min-h-[3rem] gap-1 px-1.5 py-1 sm:min-h-[3.25rem]"
             : "px-2 py-1.5",
         )}
-        aria-label={
-          hasValue ? `${conf.label} ${value}${conf.unit}` : conf.label
-        }
+        aria-label={aria}
       >
-        <Icon
-          className={cn(
-            compact ? dashboardUi.gridCellIconCompact : dashboardUi.gridCellIconDefault,
-            conf.className,
-          )}
-          aria-hidden
-        />
-        <span
-          className={cn(
-            "min-w-0 truncate whitespace-nowrap text-foreground",
-            compact ? dashboardUi.gridCellValueCompact : dashboardUi.gridCellValueDefault,
-          )}
-        >
-          {hasValue ? (
-            <>
-              {value}
-              <span
-                className={cn(
-                  "ml-0.5 font-normal text-muted-foreground",
-                  compact ? dashboardUi.gridCellMetaCompact : dashboardUi.tableMeta,
-                )}
-              >
-                {conf.unit}
-              </span>
-            </>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
-        </span>
-        {tone ? (
-          <span className="sr-only">{tone}</span>
-        ) : null}
+        {readout}
       </div>
     );
   }

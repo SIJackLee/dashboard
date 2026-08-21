@@ -35,6 +35,7 @@ type Props = {
   selectedLotIds?: string[];
   closed: boolean;
   kakaoAppKey?: string | null;
+  active?: boolean;
   onPointsChange: (points: BarnPlanLatLng[]) => void;
   onToggleLot?: (id: string) => void;
   onClose: () => void;
@@ -84,6 +85,7 @@ export function FarmPlanSiteMap(props: Props) {
         lots={props.lots}
         selectedLotIds={props.selectedLotIds}
         closed={props.closed}
+        active={props.active}
         onPointsChange={props.onPointsChange}
         onToggleLot={props.onToggleLot}
         onClose={props.onClose}
@@ -102,6 +104,7 @@ function FarmPlanLeafletMap({
   lots = [],
   selectedLotIds = [],
   closed,
+  active = true,
   onPointsChange,
   onToggleLot,
   onClose,
@@ -111,6 +114,7 @@ function FarmPlanLeafletMap({
   const osmRef = useRef<L.TileLayer | null>(null);
   const satRef = useRef<L.TileLayer | null>(null);
   const drawRef = useRef<L.LayerGroup | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const onPointsChangeRef = useRef(onPointsChange);
   const onCloseRef = useRef(onClose);
   const onToggleLotRef = useRef(onToggleLot);
@@ -242,6 +246,7 @@ function FarmPlanLeafletMap({
       };
       map.on("click", onClick);
       mapRef.current = map;
+      setMapReady(true);
       applyCamera(true);
     };
 
@@ -265,6 +270,7 @@ function FarmPlanLeafletMap({
       drawRef.current = null;
       osmRef.current = null;
       satRef.current = null;
+      setMapReady(false);
     };
   }, []);
 
@@ -298,6 +304,12 @@ function FarmPlanLeafletMap({
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || !active || !mapReady) return;
+    map.invalidateSize({ animate: false });
+  }, [active, mapReady]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     const draw = drawRef.current;
     if (!map || !draw) return;
     draw.clearLayers();
@@ -320,7 +332,6 @@ function FarmPlanLeafletMap({
         L.DomEvent.stopPropagation(e);
         onToggleLotRef.current?.(lot.id);
       });
-      if (lot.label) poly.bindTooltip(lot.label, { sticky: true });
       poly.addTo(draw);
     }
 
@@ -368,7 +379,7 @@ function FarmPlanLeafletMap({
       });
       marker.addTo(draw);
     });
-  }, [points, closed, lots, selectedLotIds]);
+  }, [points, closed, lots, selectedLotIds, mapReady, active]);
 
   return (
     <div

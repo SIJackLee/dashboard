@@ -48,8 +48,10 @@ const cardActionBtnClass = cn(
   motionClass.microHover,
 );
 
+const cardActionWellClass =
+  "inline-flex overflow-hidden rounded-md border bg-muted/60 shadow-sm dark:bg-background dark:shadow-none dark:ring-1 dark:ring-border";
 const cardActionSelectedClass =
-  "bg-background text-foreground dark:bg-primary/10 dark:text-primary";
+  "bg-background text-foreground dark:bg-primary/10 dark:text-foreground";
 const cardActionIdleClass =
   "text-muted-foreground hover:bg-muted/50 hover:text-foreground";
 
@@ -82,7 +84,7 @@ function CardPanelModeToggle({
     <div className="flex shrink-0 items-center gap-1">
       {canChart ? (
         <div
-          className="inline-flex overflow-hidden rounded-md border bg-muted/30"
+          className={cardActionWellClass}
           data-tour-id="panel-chart"
         >
           <button
@@ -105,7 +107,7 @@ function CardPanelModeToggle({
       ) : null}
       {canSettings ? (
         <div
-          className="inline-flex overflow-hidden rounded-md border bg-muted/30"
+          className={cardActionWellClass}
           data-tour-id="panel-pills"
         >
           <button

@@ -58,6 +58,11 @@ Sprint A 재측정 (2026-08-05 · `npm run measure:live`): List farm-scoped p50/
 
 † overview p95는 cold spike; p50·min은 ~85–106 ms대.
 
+## 2026-08-21 · overview timeout
+
+FARM01 LIVE ~12.8만 행에서 `v_iot_farm_overview`(전체 `DISTINCT ON`)이 **9.6s** → PostgREST statement timeout.  
+핫 뷰는 최근 2시간 키 + LATERAL 최신 1행으로 교체 (`20260821061828_live_hot_views_recent_latest.sql`). 적용 직후 overview EXPLAIN **605 ms** (이전 9.6 s).
+
 ## 정책
 
 - 서버 캐시: `unstable_cache` 300 s + `revalidateTag('live')` on thermo save

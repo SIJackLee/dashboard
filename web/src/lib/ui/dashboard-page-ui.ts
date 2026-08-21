@@ -512,9 +512,9 @@ export const dashboardChroma = {
   /** 크롬 선택 면 */
   chromeSelected:
     "border-primary/30 bg-primary/5 text-foreground dark:bg-primary/10",
-  /** 뷰 탭 슬라이딩 필 — 카드 lift, primary ring 약화 */
+  /** 뷰 탭 슬라이딩 필 — 카드 면 + ring. 다크도 트랙(muted)과 층을 나눔 */
   viewTabPill:
-    "bg-card shadow-sm ring-1 ring-border/80 dark:bg-muted/50 dark:shadow-none dark:ring-0",
+    "bg-card shadow-sm ring-1 ring-border/80 dark:shadow-none",
   /** 빈 상태 본문 */
   emptyState:
     "px-4 py-8 text-center text-[length:var(--density-meta)] text-muted-foreground leading-snug md:text-[length:var(--density-meta-md)]",

@@ -2,12 +2,15 @@
 
 import {
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { Droplets, Thermometer } from "lucide-react";
 import type { BarnModelFill } from "@/lib/farm/barn-model-dim";
 import type { BarnPlanField } from "@/lib/farm/barn-plan-field";
 import {
@@ -16,18 +19,36 @@ import {
 } from "@/lib/farm/barn-plan-sat-overlay";
 import {
   barnPlanBanksFromWidth,
+  barnPlanCameraFit,
+  barnPlanCameraTagFitK,
+  barnPlanCameraViewBox,
+  barnPlanCameraZoomAt,
+  barnPlanClampCamera,
   barnPlanFieldToLocal,
   barnPlanFillCells,
   barnPlanLocalToField,
   barnPlanRoomCountFromLength,
   barnPlanRoomsInWindow,
   barnPlanRotateDeg,
+  barnPlanZoneTagNeedPx,
+  BARN_PLAN_ZONE_TAG_CLEARANCE_M,
+  BARN_PLAN_ZONE_TAG_GAP_M,
+  type BarnPlanCamera,
+  type BarnPlanFillCell,
   type BarnPlanFillPatch,
   type BarnPlanFootprint,
   type BarnPlanPlacePos,
 } from "@/lib/farm/barn-plan-place";
+import {
+  ControllerNoMark,
+  StallUnitNoMark,
+} from "@/components/farm/controller-summary-parts";
 import { barnSiteRoomKey } from "@/lib/farm/barn-site-types";
 import type { BarnPlanRoomTone } from "@/lib/farm/barn-site-prefs";
+import type {
+  BarnPlanRoomEnvChannels,
+  BarnPlanRoomEnvTint,
+} from "@/lib/farm/barn-site-live";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -41,6 +62,22 @@ export type FarmPlanFieldPlaced = BarnPlanPlacePos &
     preview?: boolean;
     fill?: BarnModelFill;
     roomTones?: Record<string, BarnPlanRoomTone>;
+    coverSlots?: Record<string, number>;
+    /** 생성: 칸 안쪽 온도·습도 판정. */
+    envMarks?: Record<string, BarnPlanRoomEnvChannels>;
+    coverBoxes?: {
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      slot: number;
+    }[];
+    /** 모델 생성: 복도를 걷고 방 격자는 유지. */
+    modelCells?: BarnPlanFillCell[];
+    /** 모델 생성: 동 외곽·복도·식별색 없이 방만. */
+    modelView?: boolean;
+    /** 연결 편집 → 모델 생성 모션(0–1). */
+    modelT?: number;
   };
 
 export type FarmPlanPickedRoom = {
@@ -58,9 +95,21 @@ type ResizeKind = "banks" | "rooms";
 
 export type FarmPlanZoneLabel = {
   id: string;
+  /** 축사유형 표시명. 번호는 stallNo 아이콘. */
   label: string;
+  stallNo?: string;
+  eqpmnNo?: string;
+  /** 컨트롤러가 없을 때(남은 방). */
+  detail?: string;
+  /** 생성: 이 구획 온도 경고·위험. */
+  envTemp?: "warn" | "danger";
+  /** 생성: 이 구획 습도 경고·위험. */
+  envHumidity?: "warn" | "danger";
   x: number;
   z: number;
+  /** 구획 필드 폭. 태그 최대 너비. */
+  minX?: number;
+  maxX?: number;
 };
 
 type Props = {
@@ -87,8 +136,23 @@ type Props = {
   /** true면 이동·회전·리사이즈 없음. */
   layoutLocked?: boolean;
   zoneLabels?: FarmPlanZoneLabel[];
+  /** 연결→생성. 0=태그 중앙, 1=구획 위(아래변 앵커). */
+  labelPinT?: number;
+  /** 연결→생성 모션. 0이면 1m·10m 격자 없음. */
+  gridOpacity?: number;
+  /** 생성: 휠·핀치 줌, 드래그 팬. */
+  cameraEnabled?: boolean;
+  /** 생성: 최소 줌 기준 태그 높이(m). 위아래 그룹2 간격. */
+  onTagReserveM?: (heightM: number) => void;
   children?: ReactNode;
 };
+
+function pointerDist(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
 
 function pointsAttr(ring: { x: number; y: number }[]): string {
   return ring.map((p) => `${p.x},${p.y}`).join(" ");
@@ -133,7 +197,70 @@ function fieldToOverlay(
   return { x: screen.x - box.left, y: screen.y - box.top };
 }
 
-function roomFill(tone: BarnPlanRoomTone | undefined): string {
+function sameOverlayPts(
+  a: readonly (FarmPlanZoneLabel & { x: number; y: number; maxW: number })[],
+  b: readonly (FarmPlanZoneLabel & { x: number; y: number; maxW: number })[],
+): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const p = a[i]!;
+    const q = b[i]!;
+    if (p.id !== q.id) return false;
+    if (p.envTemp !== q.envTemp) return false;
+    if (p.envHumidity !== q.envHumidity) return false;
+    if (Math.round(p.x) !== Math.round(q.x)) return false;
+    if (Math.round(p.y) !== Math.round(q.y)) return false;
+    if (Math.round(p.maxW) !== Math.round(q.maxW)) return false;
+  }
+  return true;
+}
+
+const COVER_CHANNEL = [
+  "var(--plan-cover-0)",
+  "var(--plan-cover-1)",
+  "var(--plan-cover-2)",
+  "var(--plan-cover-3)",
+  "var(--plan-cover-4)",
+  "var(--plan-cover-5)",
+] as const;
+
+function coverChannel(slot: number): string {
+  return COVER_CHANNEL[((slot % COVER_CHANNEL.length) + COVER_CHANNEL.length) % COVER_CHANNEL.length]!;
+}
+
+const ROOM_ENV_INSET_M = 0.16;
+
+function roomEnvFillClass(status: BarnPlanRoomEnvTint): string {
+  if (status === "warn") return "fill-amber-500";
+  if (status === "danger") return "fill-red-500";
+  return "fill-emerald-500";
+}
+
+function roomEnvIconClass(status: "warn" | "danger"): string {
+  return status === "danger"
+    ? "text-[var(--status-danger)]"
+    : "text-[var(--status-warn)]";
+}
+
+function envChannelAlert(
+  tint: BarnPlanRoomEnvTint | null | undefined,
+): "warn" | "danger" | null {
+  return tint === "warn" || tint === "danger" ? tint : null;
+}
+
+function envAlertLabel(kind: "온도" | "습도", status: "warn" | "danger"): string {
+  return `${kind} ${status === "danger" ? "위험" : "경고"}`;
+}
+
+function roomFill(
+  tone: BarnPlanRoomTone | undefined,
+  coverSlot: number | undefined,
+  modelT = 0,
+): string {
+  if (coverSlot != null && modelT < 1) {
+    const mix = Math.round(42 * (1 - modelT));
+    return `color-mix(in oklch, ${coverChannel(coverSlot)} ${mix}%, transparent)`;
+  }
   if (tone === "paint" || tone === "other") {
     return "color-mix(in oklch, var(--foreground) 48%, transparent)";
   }
@@ -216,6 +343,10 @@ export function FarmPlanFieldCanvas({
   overlayTiles = [],
   layoutLocked = false,
   zoneLabels = [],
+  labelPinT = 0,
+  gridOpacity = 1,
+  cameraEnabled = false,
+  onTagReserveM,
   children,
 }: Props) {
   const uid = useId().replace(/:/g, "");
@@ -241,9 +372,102 @@ export function FarmPlanFieldCanvas({
     z1: number;
   } | null>(null);
   const rotateRef = useRef<{ id: string; rotDeg: number } | null>(null);
-  const pickedKey = new Set(
-    pickedRooms.map((r) => `${r.id}|${r.bank}|${r.index}`),
+  const [userCam, setUserCam] = useState<BarnPlanCamera | null>(null);
+  const [viewW, setViewW] = useState(0);
+  const tagFitOn = cameraEnabled && labelPinT >= 0.98;
+  const [tagFitSession, setTagFitSession] = useState(tagFitOn);
+  if (tagFitSession !== tagFitOn) {
+    setTagFitSession(tagFitOn);
+    if (!tagFitOn && userCam != null) setUserCam(null);
+  }
+  const tagFitCam = useMemo(() => {
+    if (!tagFitOn || viewW < 8) return null;
+    const board = { widthM: field.widthM, heightM: field.heightM };
+    const k = barnPlanCameraTagFitK(
+      { widthM: field.widthM },
+      viewW,
+      zoneLabels.map((row) => ({
+        widthM: Math.max(0, (row.maxX ?? row.x) - (row.minX ?? row.x)),
+        needPx: barnPlanZoneTagNeedPx({
+          label: row.label,
+          stallNo: row.stallNo,
+          eqpmnNo: row.eqpmnNo,
+          envCount:
+            Number(Boolean(row.envTemp)) + Number(Boolean(row.envHumidity)),
+        }),
+      })),
+    );
+    return barnPlanCameraZoomAt(
+      board,
+      barnPlanCameraFit(board),
+      { x: field.widthM / 2, z: field.heightM / 2 },
+      k,
+    );
+  }, [field.heightM, field.widthM, tagFitOn, viewW, zoneLabels]);
+  const cam = useMemo(() => {
+    const board = { widthM: field.widthM, heightM: field.heightM };
+    const fit = barnPlanCameraFit(board);
+    if (!cameraEnabled) return fit;
+    return barnPlanClampCamera(board, userCam ?? tagFitCam ?? fit);
+  }, [cameraEnabled, field.heightM, field.widthM, tagFitCam, userCam]);
+  const camRef = useRef(cam);
+  const fieldRef = useRef(field);
+  const panRef = useRef<{
+    lastX: number;
+    lastY: number;
+  } | null>(null);
+  const pinchRef = useRef<{
+    dist: number;
+    k: number;
+    mid: { x: number; z: number };
+  } | null>(null);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+
+  useEffect(() => {
+    camRef.current = cam;
+    fieldRef.current = field;
+  });
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? el.clientWidth;
+      setViewW((prev) => (Math.abs(prev - w) < 0.5 ? prev : w));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!cameraEnabled) return;
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const svg = svgRef.current;
+      const board = fieldRef.current;
+      if (!svg) return;
+      const at = clientToField(svg, e.clientX, e.clientY, board);
+      if (!at) return;
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      setUserCam((prev) => {
+        const from = prev ?? camRef.current;
+        return barnPlanCameraZoomAt(board, from, at, from.k * factor);
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [cameraEnabled]);
+
+  const hoverRooms = useMemo(
+    () => (marquee ? barnPlanRoomsInWindow(buildings, marquee) : pickedRooms),
+    [buildings, marquee, pickedRooms],
   );
+  const pickedKey = new Set(
+    hoverRooms.map((r) => `${r.id}|${r.bank}|${r.index}`),
+  );
+  const pickedCount = hoverRooms.length;
   const overlayKey = overlayTiles
     .map((t) => `${t.z}/${t.x}/${t.y}`)
     .join(",");
@@ -342,26 +566,89 @@ export function FarmPlanFieldCanvas({
   }, [field, layoutLocked, selected]);
 
   const [labelPts, setLabelPts] = useState<
-    { id: string; label: string; x: number; y: number }[]
+    (FarmPlanZoneLabel & { x: number; y: number; maxW: number })[]
   >([]);
   useLayoutEffect(() => {
     const svg = svgRef.current;
     const wrap = wrapRef.current;
     if (!svg || !wrap || zoneLabels.length === 0) {
-      setLabelPts([]);
+      setLabelPts((prev) => (prev.length === 0 ? prev : []));
       return;
     }
     const read = () =>
       zoneLabels.flatMap((row) => {
         const at = fieldToOverlay(svg, wrap, field, row.x, row.z);
         if (!at) return [];
-        return [{ id: row.id, label: row.label, x: at.x, y: at.y }];
+        const minX = row.minX ?? row.x;
+        const maxX = row.maxX ?? row.x;
+        const left = fieldToOverlay(svg, wrap, field, minX, row.z);
+        const right = fieldToOverlay(svg, wrap, field, maxX, row.z);
+        const maxW =
+          left && right ? Math.max(0, Math.abs(right.x - left.x)) : 0;
+        return [
+          {
+            ...row,
+            x: at.x,
+            y: at.y,
+            maxW,
+          },
+        ];
       });
-    setLabelPts(read());
-    const ro = new ResizeObserver(() => setLabelPts(read()));
+    const apply = (
+      next: (FarmPlanZoneLabel & { x: number; y: number; maxW: number })[],
+    ) => {
+      setLabelPts((prev) => (sameOverlayPts(prev, next) ? prev : next));
+    };
+    apply(read());
+    const ro = new ResizeObserver(() => apply(read()));
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [field, zoneLabels]);
+  }, [cam.cx, cam.cz, cam.k, field, zoneLabels]);
+
+  useLayoutEffect(() => {
+    if (labelPinT < 0.98 || !onTagReserveM) return;
+    const svg = svgRef.current;
+    const wrap = wrapRef.current;
+    if (!svg || !wrap) return;
+    let px = 0;
+    wrap.querySelectorAll("[data-plan-zone-tag]").forEach((node) => {
+      px = Math.max(px, (node as HTMLElement).offsetHeight);
+    });
+    if (px < 4) return;
+    const midZ = field.heightM / 2;
+    const at = fieldToOverlay(svg, wrap, field, field.widthM / 2, midZ);
+    const up = fieldToOverlay(svg, wrap, field, field.widthM / 2, midZ + 1);
+    if (!at || !up) return;
+    const ppm = Math.abs(up.y - at.y);
+    if (ppm < 0.05) return;
+    const tagM = (px * cam.k) / ppm;
+    onTagReserveM(
+      tagM * 1.2 + BARN_PLAN_ZONE_TAG_GAP_M + BARN_PLAN_ZONE_TAG_CLEARANCE_M,
+    );
+  }, [cam.k, field, labelPinT, labelPts, onTagReserveM]);
+
+  const [countPt, setCountPt] = useState<OverlayPt | null>(null);
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    const wrap = wrapRef.current;
+    if (!svg || !wrap || !marquee || pickedCount === 0) {
+      setCountPt(null);
+      return;
+    }
+    setCountPt(
+      fieldToOverlay(
+        svg,
+        wrap,
+        field,
+        Math.max(marquee.x0, marquee.x1),
+        Math.max(marquee.z0, marquee.z1),
+      ),
+    );
+  }, [cam.cx, cam.cz, cam.k, field, marquee, pickedCount]);
+
+  const vb = cameraEnabled
+    ? barnPlanCameraViewBox(field, cam)
+    : { x: 0, y: 0, w: field.widthM, h: field.heightM };
 
   return (
     <div
@@ -374,22 +661,53 @@ export function FarmPlanFieldCanvas({
         className={cn(
           "h-full w-full touch-none",
           selectEnabled && "cursor-crosshair",
+          cameraEnabled && !selectEnabled && "cursor-grab",
         )}
-        viewBox={`0 0 ${field.widthM} ${field.heightM}`}
+        viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
         xmlnsXlink="http://www.w3.org/1999/xlink"
         aria-label={`1m 격자 필드 ${field.widthM}×${field.heightM}m`}
         onPointerDownCapture={(e) => {
-          if (!selectEnabled) return;
+          if (selectEnabled) {
+            const svg = svgRef.current;
+            if (!svg) return;
+            const at = clientToField(svg, e.clientX, e.clientY, field);
+            if (!at) return;
+            e.stopPropagation();
+            onSelectBegin?.();
+            const next = { x0: at.x, z0: at.z, x1: at.x, z1: at.z };
+            marqueeLive.current = next;
+            setMarquee(next);
+            svg.setPointerCapture(e.pointerId);
+            return;
+          }
+          if (!cameraEnabled) return;
           const svg = svgRef.current;
           if (!svg) return;
-          const at = clientToField(svg, e.clientX, e.clientY, field);
-          if (!at) return;
-          e.stopPropagation();
-          onSelectBegin?.();
-          const next = { x0: at.x, z0: at.z, x1: at.x, z1: at.z };
-          marqueeLive.current = next;
-          setMarquee(next);
+          pointersRef.current.set(e.pointerId, {
+            x: e.clientX,
+            y: e.clientY,
+          });
           svg.setPointerCapture(e.pointerId);
+          const pts = [...pointersRef.current.values()];
+          if (pts.length >= 2) {
+            panRef.current = null;
+            const a = pts[0]!;
+            const b = pts[1]!;
+            const mid = clientToField(
+              svg,
+              (a.x + b.x) / 2,
+              (a.y + b.y) / 2,
+              field,
+            );
+            pinchRef.current = {
+              dist: Math.max(1, pointerDist(a, b)),
+              k: camRef.current.k,
+              mid: mid ?? { x: camRef.current.cx, z: camRef.current.cz },
+            };
+            return;
+          }
+          pinchRef.current = null;
+          panRef.current = { lastX: e.clientX, lastY: e.clientY };
         }}
         onPointerMove={(e) => {
           if (marqueeLive.current) {
@@ -406,6 +724,45 @@ export function FarmPlanFieldCanvas({
             setMarquee(next);
             return;
           }
+          if (cameraEnabled && pointersRef.current.has(e.pointerId)) {
+            pointersRef.current.set(e.pointerId, {
+              x: e.clientX,
+              y: e.clientY,
+            });
+            const svg = svgRef.current;
+            if (!svg) return;
+            const pts = [...pointersRef.current.values()];
+            const pinch = pinchRef.current;
+            if (pinch && pts.length >= 2) {
+              const dist = Math.max(1, pointerDist(pts[0]!, pts[1]!));
+              setUserCam(
+                barnPlanCameraZoomAt(
+                  field,
+                  { ...camRef.current, k: pinch.k },
+                  pinch.mid,
+                  pinch.k * (dist / pinch.dist),
+                ),
+              );
+              return;
+            }
+            const pan = panRef.current;
+            if (pan && camRef.current.k > 1.001) {
+              const at0 = clientToField(svg, pan.lastX, pan.lastY, field);
+              const at1 = clientToField(svg, e.clientX, e.clientY, field);
+              pan.lastX = e.clientX;
+              pan.lastY = e.clientY;
+              if (at0 && at1) {
+                setUserCam((prev) =>
+                  barnPlanClampCamera(field, {
+                    ...(prev ?? camRef.current),
+                    cx: (prev ?? camRef.current).cx + (at0.x - at1.x),
+                    cz: (prev ?? camRef.current).cz + (at0.z - at1.z),
+                  }),
+                );
+              }
+              return;
+            }
+          }
           const drag = dragRef.current;
           const svg = svgRef.current;
           if (!drag || !svg) return;
@@ -415,6 +772,9 @@ export function FarmPlanFieldCanvas({
           onMoveBuilding?.(drag.id, at.x + drag.dx, at.z + drag.dz);
         }}
         onPointerUp={(e) => {
+          pointersRef.current.delete(e.pointerId);
+          if (pointersRef.current.size < 2) pinchRef.current = null;
+          if (pointersRef.current.size === 0) panRef.current = null;
           const box = marqueeLive.current;
           if (box) {
             marqueeLive.current = null;
@@ -435,6 +795,15 @@ export function FarmPlanFieldCanvas({
             );
             return;
           }
+          if (cameraEnabled) {
+            try {
+              (e.currentTarget as SVGSVGElement).releasePointerCapture(
+                e.pointerId,
+              );
+            } catch {
+              /* already released */
+            }
+          }
           const drag = dragRef.current;
           const svg = svgRef.current;
           dragRef.current = null;
@@ -452,6 +821,9 @@ export function FarmPlanFieldCanvas({
         onPointerCancel={() => {
           dragRef.current = null;
           marqueeLive.current = null;
+          panRef.current = null;
+          pinchRef.current = null;
+          pointersRef.current.clear();
           setMarquee(null);
         }}
       >
@@ -488,7 +860,11 @@ export function FarmPlanFieldCanvas({
             </clipPath>
           ) : null}
         </defs>
-        <g transform={`translate(0 ${field.heightM}) scale(1 -1)`}>
+        <g
+          transform={`translate(0 ${field.heightM}) scale(1 -1)`}
+          opacity={Math.max(0, Math.min(1, gridOpacity))}
+          pointerEvents="none"
+        >
           <rect
             width={field.widthM}
             height={field.heightM}
@@ -540,7 +916,9 @@ export function FarmPlanFieldCanvas({
             />
           )}
           {buildings.map((b) => {
-            const cells = b.fill ? barnPlanFillCells(b.fill) : [];
+            const modelT = b.modelT ?? (b.modelView ? 1 : 0);
+            const packed = modelT >= 0.999;
+            const cells = b.modelCells ?? (b.fill ? barnPlanFillCells(b.fill) : []);
             return (
               <g
                 key={b.id}
@@ -548,11 +926,13 @@ export function FarmPlanFieldCanvas({
                 opacity={b.preview ? 0.72 : 1}
                 aria-label={b.label}
               >
+                {packed ? null : (
                 <rect
                   x={-b.lengthM / 2}
                   y={-b.widthM / 2}
                   width={b.lengthM}
                   height={b.widthM}
+                  opacity={1 - modelT}
                   fill="color-mix(in oklch, var(--card) 70%, transparent)"
                   stroke={
                     b.selected ? "var(--primary)" : "var(--foreground)"
@@ -578,8 +958,10 @@ export function FarmPlanFieldCanvas({
                     svg.setPointerCapture(e.pointerId);
                   }}
                 />
+                )}
                 {cells.map((cell, i) => {
                   const tone =
+                    !packed &&
                     cell.kind === "room" &&
                     cell.bank != null &&
                     cell.index != null
@@ -593,12 +975,36 @@ export function FarmPlanFieldCanvas({
                     cell.index != null
                       ? { bank: cell.bank, index: cell.index }
                       : null;
+                  const coverSlot =
+                    !packed && room != null
+                      ? b.coverSlots?.[barnSiteRoomKey(room.bank, room.index)]
+                      : undefined;
                   const picked =
+                    !packed &&
                     room != null &&
                     pickedKey.has(`${b.id}|${room.bank}|${room.index}`);
+                  const envMark =
+                    room != null && modelT > 0.05
+                      ? b.envMarks?.[barnSiteRoomKey(room.bank, room.index)]
+                      : undefined;
+                  const tempAlert = envChannelAlert(envMark?.temp);
+                  const humidityAlert = envChannelAlert(envMark?.humidity);
+                  const envOk =
+                    Boolean(envMark) && !tempAlert && !humidityAlert;
+                  const inset =
+                    (envOk || tempAlert || humidityAlert) &&
+                    cell.w > ROOM_ENV_INSET_M * 2.4 &&
+                    cell.h > ROOM_ENV_INSET_M * 2.4
+                      ? ROOM_ENV_INSET_M
+                      : 0;
+                  const ix = cell.x + inset;
+                  const iy = cell.y + inset;
+                  const iw = cell.w - inset * 2;
+                  const ih = cell.h - inset * 2;
+                  const split = Boolean(tempAlert && humidityAlert);
                   return (
+                    <g key={`${cell.kind}-${i}`}>
                     <rect
-                      key={`${cell.kind}-${i}`}
                       x={cell.x}
                       y={cell.y}
                       width={cell.w}
@@ -614,15 +1020,76 @@ export function FarmPlanFieldCanvas({
                           ? "color-mix(in oklch, var(--foreground) 28%, transparent)"
                           : picked
                             ? "color-mix(in oklch, var(--primary) 48%, transparent)"
-                            : roomFill(tone)
+                            : roomFill(tone, coverSlot, modelT)
                       }
                       stroke={
-                        picked ? "var(--primary)" : "var(--foreground)"
+                        picked
+                          ? "var(--primary)"
+                          : coverSlot != null
+                            ? coverChannel(coverSlot)
+                            : "var(--foreground)"
                       }
-                      strokeWidth={picked ? 0.12 : 0.06}
+                      strokeWidth={picked ? 0.12 : coverSlot != null ? 0.08 : 0.06}
+                      opacity={cell.kind === "aisle" ? Math.max(0, 1 - modelT) : 1}
                     />
+                    {inset > 0 && envOk ? (
+                      <rect
+                        x={ix}
+                        y={iy}
+                        width={iw}
+                        height={ih}
+                        className={cn(
+                          "pointer-events-none",
+                          roomEnvFillClass("ok"),
+                        )}
+                        opacity={modelT * 0.85}
+                      />
+                    ) : null}
+                    {inset > 0 && tempAlert ? (
+                      <rect
+                        x={ix}
+                        y={iy}
+                        width={split ? iw / 2 : iw}
+                        height={ih}
+                        className={cn(
+                          "pointer-events-none",
+                          roomEnvFillClass(tempAlert),
+                        )}
+                        opacity={modelT * 0.85}
+                      />
+                    ) : null}
+                    {inset > 0 && humidityAlert ? (
+                      <rect
+                        x={split ? ix + iw / 2 : ix}
+                        y={iy}
+                        width={split ? iw / 2 : iw}
+                        height={ih}
+                        className={cn(
+                          "pointer-events-none",
+                          roomEnvFillClass(humidityAlert),
+                        )}
+                        opacity={modelT * 0.85}
+                      />
+                    ) : null}
+                    </g>
                   );
                 })}
+                {packed
+                  ? null
+                  : (b.coverBoxes ?? []).map((box, i) => (
+                  <rect
+                    key={`cover-${i}`}
+                    x={box.x}
+                    y={box.y}
+                    width={box.w}
+                    height={box.h}
+                    fill="none"
+                    opacity={1 - modelT}
+                    stroke={coverChannel(box.slot)}
+                    strokeWidth={0.22}
+                    className="pointer-events-none"
+                  />
+                ))}
               </g>
             );
           })}
@@ -716,17 +1183,109 @@ export function FarmPlanFieldCanvas({
           {anchor.rotDeg}°
         </button>
       ) : null}
-      {labelPts.map((row) => (
+      {labelPts.map((row) => {
+        const tagTypeClass =
+          "text-[length:var(--density-readout-label)] font-semibold leading-none md:text-[length:var(--density-readout-label-md)]";
+        const hasNos = Boolean(row.stallNo || row.eqpmnNo);
+        const pin = Math.max(0, Math.min(1, labelPinT));
+        return (
+          <div
+            key={row.id}
+            className="pointer-events-none absolute z-10"
+            data-plan-zone-tag
+            style={{
+              left: row.x,
+              top: row.y,
+              transform: `translate(-50%, -${50 + 50 * pin}%)`,
+              maxWidth: row.maxW > 0 ? row.maxW : undefined,
+            }}
+          >
+            <span className="flex w-full min-w-0 flex-col items-center gap-px overflow-hidden rounded-sm bg-card px-1 py-0.5 text-center ring-1 ring-foreground/20">
+              <span
+                className={cn(
+                  tagTypeClass,
+                  "w-full min-w-0 truncate text-foreground",
+                )}
+              >
+                {row.label}
+              </span>
+              {hasNos ? (
+                <span className="flex max-w-full items-center justify-center gap-1 overflow-hidden text-sm text-muted-foreground">
+                  {row.stallNo ? (
+                    <StallUnitNoMark
+                      stallNo={row.stallNo}
+                      className="text-inherit"
+                    />
+                  ) : null}
+                  {row.eqpmnNo ? (
+                    <ControllerNoMark
+                      eqpmnNo={row.eqpmnNo}
+                      className="text-inherit"
+                    />
+                  ) : null}
+                </span>
+              ) : row.detail ? (
+                <span
+                  className={cn(
+                    tagTypeClass,
+                    "w-full truncate font-medium text-muted-foreground",
+                  )}
+                >
+                  {row.detail}
+                </span>
+              ) : null}
+              {row.envTemp || row.envHumidity ? (
+                <span
+                  className="flex items-center justify-center gap-0.5"
+                  aria-label={[
+                    row.envTemp ? envAlertLabel("온도", row.envTemp) : null,
+                    row.envHumidity
+                      ? envAlertLabel("습도", row.envHumidity)
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(", ")}
+                >
+                  {row.envTemp ? (
+                    <Thermometer
+                      className={cn(
+                        dashboardUi.gridCellIconDefault,
+                        roomEnvIconClass(row.envTemp),
+                      )}
+                      aria-hidden
+                    />
+                  ) : null}
+                  {row.envHumidity ? (
+                    <Droplets
+                      className={cn(
+                        dashboardUi.gridCellIconDefault,
+                        roomEnvIconClass(row.envHumidity),
+                      )}
+                      aria-hidden
+                    />
+                  ) : null}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        );
+      })}
+      {countPt && pickedCount > 0 ? (
         <div
-          key={row.id}
-          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2"
-          style={{ left: row.x, top: row.y }}
+          className="pointer-events-none absolute z-20 -translate-y-1/2"
+          style={{ left: countPt.x + 8, top: countPt.y }}
+          data-testid="farm-plan-marquee-count"
         >
-          <span className="block max-w-[7rem] truncate rounded-sm bg-card px-1 py-0.5 text-center text-[10px] font-medium leading-tight text-foreground ring-1 ring-foreground/20">
-            {row.label}
+          <span
+            className={cn(
+              dashboardUi.gridCellValueCompact,
+              "rounded-sm bg-card px-1.5 py-0.5 text-foreground ring-1 ring-primary/40",
+            )}
+          >
+            {pickedCount}개 방
           </span>
         </div>
-      ))}
+      ) : null}
       {children}
     </div>
   );

@@ -3,7 +3,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -88,27 +87,21 @@ export function BarnPanelBottomSheet({
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startYRef = useRef<number | null>(null);
-  const [host, setHost] = useState<HTMLElement | null>(null);
+  const host = open ? sheetPeekHost() : null;
   const [peekVisible, setPeekVisible] = useState(false);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    setHost(sheetPeekHost());
-  }, [open, peek]);
+  if (open && peek && !peekVisible) setPeekVisible(true);
+  if (!open && peekVisible) setPeekVisible(false);
+  if (
+    open &&
+    !peek &&
+    peekVisible &&
+    prefersReducedMotion()
+  ) {
+    setPeekVisible(false);
+  }
 
   useEffect(() => {
-    if (!open) {
-      setPeekVisible(false);
-      return;
-    }
-    if (peek) {
-      setPeekVisible(true);
-      return;
-    }
-    if (prefersReducedMotion()) {
-      setPeekVisible(false);
-      return;
-    }
+    if (!open || peek || prefersReducedMotion()) return;
     const t = window.setTimeout(
       () => setPeekVisible(false),
       motionDuration.emphasis,

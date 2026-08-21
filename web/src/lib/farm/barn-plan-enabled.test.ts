@@ -19,6 +19,9 @@ assert.equal(barnPlanEnabled(), false);
 process.env[FLAG] = "off";
 assert.equal(barnPlanEnabled(), false);
 
+delete process.env[FLAG];
+assert.equal(barnPlanEnabled(), true);
+
 if (prev === undefined) delete process.env[FLAG];
 else process.env[FLAG] = prev;
 

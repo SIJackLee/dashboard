@@ -9,14 +9,20 @@ import {
   buildingIdForZone,
   moveBuilding,
   parseBarnSitePrefs,
+  paintControllerRoomsOnBuilding,
   paintRoomsOnBuilding,
+  clearAllControllerCoversOnSite,
+  clearAllZonesOnSite,
   removeBuilding,
   removeZoneFromBuilding,
   rotateBuilding,
   updateZonePlan,
   upsertLiveBuilding,
   upsertShellBuilding,
+  zoneOnRooms,
   zonesForBuilding,
+  barnPlanCoverMarks,
+  barnPlanCoverSlots,
   barnPlanRoomTones,
 } from "./barn-site-prefs";
 import { emptyBarnSitePrefs, defaultBarnSiteRoomPlanForType } from "./barn-site-types";
@@ -392,6 +398,202 @@ import { emptyBarnSitePrefs, defaultBarnSiteRoomPlanForType } from "./barn-site-
   assert.equal(cleared.ok, true);
   if (!cleared.ok) throw new Error("paint-clear");
   assert.equal(zonesForBuilding(cleared.site, second.buildingId).length, 0);
+}
+
+{
+  const fill = {
+    banks: 4 as const,
+    roomCount: 12,
+    penAlongM: 1,
+    penDepthM: 2,
+    aisleWM: 1.2,
+  };
+  const first = upsertShellBuilding(emptyBarnSitePrefs(), {
+    fill,
+    x: 20,
+    z: 12,
+  });
+  const live = new Set(["SP02#1"]);
+  const painted = paintRoomsOnBuilding(
+    first.site,
+    first.buildingId,
+    Array.from({ length: 12 }, (_, index) => ({ bank: 0, index })),
+    { stallTyCode: "SP02", stallNo: "1" },
+    live,
+  );
+  assert.equal(painted.ok, true);
+  if (!painted.ok) throw new Error("ctrl-zone");
+  const building = painted.site.buildings[0]!;
+  const ten = Array.from({ length: 10 }, (_, index) => ({ bank: 0, index }));
+  const zone = zoneOnRooms(building, ten);
+  assert.equal(zone?.stallTyCode, "SP02");
+  assert.equal(zone?.stallNo, "1");
+  assert.equal(zoneOnRooms(building, [{ bank: 2, index: 0 }]), null);
+  const covers = new Set(["SP02#1:01", "SP02#1:02"]);
+  const attached = paintControllerRoomsOnBuilding(
+    painted.site,
+    first.buildingId,
+    ten,
+    { eqpmnNo: "1" },
+    covers,
+  );
+  assert.equal(attached.ok, true);
+  if (!attached.ok) throw new Error("ctrl-paint");
+  const cover = attached.site.buildings[0]?.controllerCovers?.[0];
+  assert.equal(cover?.eqpmnNo, "01");
+  assert.deepEqual(
+    cover?.rooms,
+    ten,
+  );
+  assert.equal(
+    cover?.rooms.some((room) => room.bank === 0 && room.index >= 10),
+    false,
+  );
+  const round = parseBarnSitePrefs(JSON.parse(JSON.stringify(attached.site)));
+  assert.deepEqual(round.buildings[0]?.controllerCovers?.[0]?.rooms, ten);
+  assert.equal(round.buildings[0]?.controllerCovers?.[0]?.banks, undefined);
+  const missingRoom = paintControllerRoomsOnBuilding(
+    attached.site,
+    first.buildingId,
+    [{ bank: 2, index: 0 }],
+    { eqpmnNo: "1" },
+    covers,
+  );
+  assert.equal(missingRoom.ok, false);
+  if (missingRoom.ok) throw new Error("ctrl-empty-bank");
+  assert.equal(missingRoom.error, "no-zone");
+  const clearedCtrl = paintControllerRoomsOnBuilding(
+    attached.site,
+    first.buildingId,
+    [{ bank: 0, index: 0 }],
+    null,
+    covers,
+  );
+  assert.equal(clearedCtrl.ok, true);
+  if (!clearedCtrl.ok) throw new Error("ctrl-clear");
+  assert.deepEqual(
+    clearedCtrl.site.buildings[0]?.controllerCovers?.[0]?.rooms,
+    ten.slice(1),
+  );
+  const stripped = paintRoomsOnBuilding(
+    clearedCtrl.site,
+    first.buildingId,
+    ten.slice(1),
+    null,
+    live,
+  );
+  assert.equal(stripped.ok, true);
+  if (!stripped.ok) throw new Error("ctrl-prune");
+  assert.equal(stripped.site.buildings[0]?.controllerCovers, undefined);
+
+  const legacy = parseBarnSitePrefs({
+    v: 1,
+    buildings: [
+      {
+        id: first.buildingId,
+        x: 20,
+        z: 12,
+        rotDeg: 0,
+        fill,
+        zones: [
+          {
+            stallTyCode: "SP02",
+            stallNo: "1",
+            rooms: ten,
+            plan: { left: 1, right: 0 },
+          },
+        ],
+        controllerCovers: [
+          { stallTyCode: "SP02", stallNo: "1", eqpmnNo: "01", banks: [0] },
+        ],
+      },
+    ],
+  });
+  const legacyCover = legacy.buildings[0]?.controllerCovers?.[0];
+  assert.deepEqual(legacyCover?.rooms, ten);
+  assert.equal(legacyCover?.banks, undefined);
+
+  const ctrlOnly = clearAllControllerCoversOnSite(attached.site);
+  assert.equal(ctrlOnly.buildings[0]?.controllerCovers, undefined);
+  assert.equal(ctrlOnly.buildings[0]?.zones.length, 1);
+  const barnGone = clearAllZonesOnSite(attached.site);
+  assert.equal(barnGone.buildings[0]?.zones.length, 0);
+  assert.equal(barnGone.buildings[0]?.controllerCovers, undefined);
+}
+
+{
+  const fill = {
+    banks: 4 as const,
+    roomCount: 16,
+    penAlongM: 1,
+    penDepthM: 2,
+    aisleWM: 1.2,
+  };
+  const ten = Array.from({ length: 10 }, (_, index) => ({ bank: 0, index }));
+  const six = Array.from({ length: 6 }, (_, i) => ({ bank: 0, index: i + 10 }));
+  const marks = barnPlanCoverMarks(
+    [
+      {
+        stallTyCode: "SP03",
+        stallNo: "1",
+        eqpmnNo: "05",
+        rooms: six,
+      },
+      {
+        stallTyCode: "SP03",
+        stallNo: "1",
+        eqpmnNo: "01",
+        rooms: ten,
+      },
+    ],
+    fill,
+  );
+  assert.equal(marks.length, 2);
+  assert.equal(marks[0]?.eqpmnNo, "01");
+  assert.equal(marks[0]?.rooms.length, 10);
+  assert.equal(marks[1]?.eqpmnNo, "05");
+  assert.equal(marks[1]?.rooms.length, 6);
+  const slots = barnPlanCoverSlots(marks);
+  assert.equal(slots["0:0"], 0);
+  assert.equal(slots["0:9"], 0);
+  assert.notEqual(slots["0:10"], slots["0:0"]);
+}
+
+{
+  const fill = {
+    banks: 4 as const,
+    roomCount: 4,
+    penAlongM: 1,
+    penDepthM: 2,
+    aisleWM: 1.2,
+  };
+  const cell = (bank: number, index: number, no: string) => ({
+    stallTyCode: "SP03",
+    stallNo: "1",
+    eqpmnNo: no,
+    rooms: [{ bank, index }],
+  });
+  const grid = barnPlanCoverMarks(
+    [
+      cell(0, 0, "01"),
+      cell(1, 0, "02"),
+      cell(0, 1, "03"),
+      cell(1, 1, "04"),
+    ],
+    fill,
+  );
+  const byNo = Object.fromEntries(grid.map((row) => [row.eqpmnNo, row.slot]));
+  assert.notEqual(byNo["01"], byNo["02"]);
+  assert.notEqual(byNo["01"], byNo["03"]);
+  assert.notEqual(byNo["04"], byNo["02"]);
+  assert.notEqual(byNo["04"], byNo["03"]);
+  assert.equal(byNo["01"], byNo["04"]);
+  assert.equal(byNo["02"], byNo["03"]);
+  const far = barnPlanCoverMarks(
+    [cell(0, 0, "01"), cell(2, 0, "03")],
+    fill,
+  );
+  assert.equal(far[0]?.slot, far[1]?.slot);
 }
 
 console.log("barn-site-prefs.test.ts: ok");
