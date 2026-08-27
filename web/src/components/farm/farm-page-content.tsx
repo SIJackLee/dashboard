@@ -656,20 +656,22 @@ export function FarmPageContent({
         }}
       />
       {fieldMerge ? (
-        <button
-          type="button"
-          role="tab"
-          aria-selected={fieldActive}
-          className={viewTabBtn(fieldActive)}
-          onClick={() => setView("map")}
-        >
-          <StallUnitIcon
-            className={dashboardUi.iconSm}
-            strokeWidth={dashboardUi.iconStroke}
-            aria-hidden
-          />
-          필드
-        </button>
+        <>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={fieldActive}
+            className={viewTabBtn(fieldActive)}
+            onClick={() => setView("map")}
+          >
+            <StallUnitIcon
+              className={dashboardUi.iconSm}
+              strokeWidth={dashboardUi.iconStroke}
+              aria-hidden
+            />
+            필드
+          </button>
+        </>
       ) : (
         <>
           <button

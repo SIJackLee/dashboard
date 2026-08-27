@@ -24,6 +24,8 @@ import {
 } from "@/components/farm/controller-summary-parts";
 import { EnvMetricPanel } from "@/components/farm/controller-summary-gauge-parts";
 import { cn } from "@/lib/utils";
+import { ControllerEnvCover } from "@/components/farm/controller-env-cover";
+import { controllerEnvCoverLevel } from "@/lib/farm/controller-env-cover";
 
 /** 그리드 상세 — PC 2단(grid) vs 모바일 stack(+ carousel sheet). */
 export type ControllerPanelLayoutVariant = "grid" | "stack";
@@ -54,6 +56,11 @@ type Props = {
   panelPeriodOverrides?: Record<string, TrendPeriodId>;
   onPanelPeriodChange?: (key: string, period: TrendPeriodId) => void;
   showAffiliation?: boolean;
+  /** 필드 카드 — 상태색 덮개 (클릭하면 걷힘) */
+  envCoverEnabled?: boolean;
+  envCoverOpen?: boolean;
+  onEnvCoverOpen?: () => void;
+  onEnvCoverClose?: () => void;
   className?: string;
   /** 모바일 목록 Graph/Set toolbar — 인라인 패널 숨김 */
   suppressMobileInlinePanels?: boolean;
@@ -91,6 +98,10 @@ export function ControllerSummaryGaugeRow({
   bulkPeriod = DEFAULT_TREND_PERIOD,
   panelPeriodOverrides = {},
   showAffiliation = false,
+  envCoverEnabled = false,
+  envCoverOpen = false,
+  onEnvCoverOpen,
+  onEnvCoverClose,
   className,
   suppressMobileInlinePanels = false,
   suppressPerCardMobileSheet = false,
@@ -141,13 +152,26 @@ export function ControllerSummaryGaugeRow({
   const setDev = thermo?.tempDeviation;
 
   const cardClass = cn(
-    "flex h-full min-w-0 flex-col rounded-xl border bg-card overflow-hidden",
+    "relative flex h-full min-w-0 flex-col rounded-xl border bg-card overflow-hidden",
     !toolbarSheetSelected && statusRingClass(reading.status),
     toolbarSheetSelected && "ring-2 ring-emerald-500/70",
     !toolbarSheetSelected && settingsExpanded && "ring-2 ring-violet-500/40",
     onCardActivate && "cursor-pointer",
     className,
   );
+
+  const showEnvCover =
+    envCoverEnabled && !envCoverOpen && !settingsExpanded;
+  const envCoverLevel = showEnvCover
+    ? controllerEnvCoverLevel(reading, alarmSettings)
+    : null;
+  const envCover = envCoverLevel ? (
+    <ControllerEnvCover
+      reading={reading}
+      level={envCoverLevel}
+      onOpen={() => onEnvCoverOpen?.()}
+    />
+  ) : null;
 
   const metricsBlock = (
     <>
@@ -192,6 +216,11 @@ export function ControllerSummaryGaugeRow({
           showAffiliation={showAffiliation}
           onToggleSettings={onToggleSettings}
           onOpenChart={onOpenChart}
+          onConcealDetail={
+            envCoverEnabled && envCoverOpen && !settingsExpanded
+              ? onEnvCoverClose
+              : undefined
+          }
           className="mb-2 w-full"
         />
       </div>
@@ -310,6 +339,7 @@ export function ControllerSummaryGaugeRow({
             data-card-body="expanded"
             data-panel-layout="grid"
           >
+            {envCover}
             {cardBody}
             {channelTrendBottom ? (
               <div className="mt-auto flex min-h-0 flex-1 flex-col">{channelTrendBottom}</div>
@@ -338,6 +368,7 @@ export function ControllerSummaryGaugeRow({
           data-card-body="expanded"
           data-panel-layout="stack"
         >
+          {envCover}
           {cardBody}
           {channelTrendBottom}
         </div>
@@ -376,6 +407,7 @@ export function ControllerSummaryGaugeRow({
           role={onCardActivate ? "button" : undefined}
           tabIndex={onCardActivate ? 0 : undefined}
         >
+          {envCover}
           {cardBody}
           {showInlineSettingsOnMobile ? settingsPanel : null}
         </div>
@@ -393,6 +425,7 @@ export function ControllerSummaryGaugeRow({
       data-list-mode={listMode}
       data-card-body="expanded"
     >
+      {envCover}
       {cardBody}
       {settingsPanel}
     </div>

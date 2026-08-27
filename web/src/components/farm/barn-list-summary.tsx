@@ -181,6 +181,8 @@ function ControllerCardGrid({
 }) {
   const tourActive = useFarmTourActive();
   const compact = useHydrationSafeDashboardCompact();
+  const [envOpenKey, setEnvOpenKey] = useState<string | null>(null);
+  const envCoverEnabled = !bulkMode && !tourActive && listMode !== "settings";
   const panelLayoutVariant = compact ? ("stack" as const) : ("grid" as const);
   const staggerEnabled =
     Boolean(staggerMount) &&
@@ -256,6 +258,12 @@ function ControllerCardGrid({
           panelPeriodOverrides={panelPeriodOverrides}
           onPanelPeriodChange={onPanelPeriodChange}
           showAffiliation={showAffiliation}
+          envCoverEnabled={envCoverEnabled}
+          envCoverOpen={envOpenKey === r.key}
+          onEnvCoverOpen={() => setEnvOpenKey(r.key)}
+          onEnvCoverClose={() =>
+            setEnvOpenKey((cur) => (cur === r.key ? null : cur))
+          }
           onCardActivate={
             mobileToolbarSheetMode && onToolbarSheetKeyChange
               ? () => onToolbarSheetKeyChange(r.key)

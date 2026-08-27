@@ -149,6 +149,7 @@ function clone(q: string) {
   assert.equal(params.get("item"), "P00");
   assert.equal(resolveFarmHubView("jarvis"), "map");
   assert.equal(resolveFarmHubView("aria"), "map");
+  assert.equal(resolveFarmHubView("status"), "map");
   assert.equal(
     resolveFarmHubView("plan"),
     barnPlanEnabled() ? "model" : "map",

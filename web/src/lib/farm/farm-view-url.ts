@@ -98,8 +98,14 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
-/** 허브 탭 — 그리드(map) · 목록 · 차트 · 모델(2D 평면). `plan`은 옛 URL. `aria`는 현장으로 정규화. */
-export type FarmHubView = "map" | "list" | "chart" | "plan" | "model" | "aria";
+/** 허브 탭 — 그리드(map/필드) · 목록 · 차트 · 모델(2D 평면). `plan`은 옛 URL. `aria`·`status`는 필드로 정규화. */
+export type FarmHubView =
+  | "map"
+  | "list"
+  | "chart"
+  | "plan"
+  | "model"
+  | "aria";
 
 export function resolveFarmHubView(
   raw: string | null | undefined,
@@ -110,6 +116,10 @@ export function resolveFarmHubView(
     return barnPlanEnabled() ? "model" : "map";
   }
   if (raw === "aria" || raw === "jarvis") {
+    return "map";
+  }
+  /** 레거시 현황(방 칸 히트맵) 탭 — 필드(그리드)로. */
+  if (raw === "status") {
     return "map";
   }
   return "map";
@@ -206,7 +216,7 @@ export function buildFarmPath(params: URLSearchParams): string {
   return q ? `/farm?${q}` : "/farm";
 }
 
-/** view=list|map|chart|plan|model|aria 전환 (레거시 tab=ops 쿼리 제거) */
+/** view=list|map|chart|plan|model|aria 전환 (레거시 tab=ops · view=status 쿼리 제거) */
 export function applyHubScopedViewParams(
   params: URLSearchParams,
   view: FarmHubView,

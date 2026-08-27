@@ -16,6 +16,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 
 통합 on일 때 UI:
 - 상위 탭: **필드 · 차트 · 모델**
+- 판정 단위는 **컨트롤러 영향범위**(카드 1장). 방 칸 히트맵 탭(`view=status`)은 제거. 옛 주소는 필드로 정규화
 - DELIN: 필드·차트 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 모델 탭에서는 숨김. 전용 탭 없음. `view=aria`/`jarvis` → 필드
 - PC 필드: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
 - 모바일 compact: 보기 탭은 **하단 독** (`DashboardViewportShell`)
@@ -31,7 +32,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `plan` \| `model` \| (`aria`/`jarvis`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린 주소는 필드. 모델 플래그 off면 그리드. 필드·차트에서 DELIN 권장 뱃지(모델 탭은 숨김). `plan`은 `model`로 정규화 |
+| `view` | `list` \| `chart` \| `plan` \| `model` \| (`aria`/`jarvis`/`status`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린·현황 히트맵 주소는 필드. 모델 플래그 off면 그리드. 필드·차트에서 DELIN 권장 뱃지(모델 탭은 숨김). `plan`은 `model`로 정규화 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
@@ -64,6 +65,7 @@ resolveFarmHubView(raw)
   plan  → model  // 게이트 off면 map. 옛 URL. 문서: BARN_PLAN.md
   model → model  // 게이트 off면 map. 문서: BARN_PLAN.md
   aria | jarvis → map   // 옛 델린 탭
+  status → map          // 레거시 현황(방 칸 히트맵) 탭
   else  → map   // view 없음·알 수 없음
 ```
 
@@ -76,7 +78,7 @@ resolveFarmHubView(raw)
 | `applyModelViewParams` | `view=model`, 목록/드릴·`chart*` 정리. `plan*` 유지. 게이트 off면 그리드 |
 | `applyAriaViewParams` | 필드(그리드)로 정규화. 옛 `view=aria` 호환 |
 | `applyHubScopedViewParams(view)` | 위 + 레거시 `tab` 삭제 |
-| `pinFarmHubViewParam(view)` | **탭만** 고정. drill·`chart*`·`plan*` 유지 (기간 변경용) |
+| `pinFarmHubViewParam(view)` | **탭만** 고정. `list`/`chart`/`model`은 `view` 유지. drill·`chart*`·`plan*` 유지 (기간 변경용) |
 
 ### 차트 집계 딥링크
 

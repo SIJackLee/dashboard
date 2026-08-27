@@ -41,7 +41,7 @@ const FARM_HUB_VIEW_ORDER: Record<FarmHubView, number> = {
   chart: 2,
   plan: 3,
   model: 3,
-  aria: 5,
+  aria: 4,
 };
 
 /** globals.css farm-view-slide-* (moderate enter + exit) */

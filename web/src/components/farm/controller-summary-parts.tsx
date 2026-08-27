@@ -142,6 +142,7 @@ export function ControllerSummaryHeader({
   showAffiliation = false,
   onToggleSettings,
   onOpenChart,
+  onConcealDetail,
   className,
 }: {
   reading: BarnReading;
@@ -156,9 +157,59 @@ export function ControllerSummaryHeader({
   onToggleSettings?: () => void;
   /** «차트에서 보기» — 해당 컨트롤러 스코프로 차트 탭 이동 */
   onOpenChart?: () => void;
+  /** 덮개 연 뒤 — 명칭·번호를 눌러 다시 덮음 */
+  onConcealDetail?: () => void;
   className?: string;
 }) {
   const stallTypeLabel = formatControllerHeaderStallType(reading);
+  const concealBtn = onConcealDetail ? (
+    <button
+      type="button"
+      className="flex min-w-0 flex-col gap-0.5 text-left"
+      aria-label="상세 숨기기"
+      onClick={(e) => {
+        e.stopPropagation();
+        onConcealDetail();
+      }}
+    >
+      {showAffiliation ? (
+        <>
+          <span
+            className={cn(
+              "break-keep text-foreground",
+              dashboardTypography.cardTitle,
+            )}
+          >
+            {stallTypeLabel}
+          </span>
+          <span className="mt-0.5 flex min-w-0 items-center gap-2">
+            <StallUnitNoMark
+              stallNo={reading.stallNo}
+              className={cn(
+                "text-muted-foreground",
+                dashboardTypography.cardDesc,
+              )}
+            />
+            <ControllerNoMark
+              eqpmnNo={reading.eqpmnNo}
+              className={cn(
+                "text-muted-foreground",
+                dashboardTypography.cardDesc,
+              )}
+            />
+          </span>
+        </>
+      ) : (
+        <ControllerNoMark
+          eqpmnNo={reading.eqpmnNo}
+          className={cn(
+            "text-foreground",
+            dashboardTypography.cardTitle,
+          )}
+        />
+      )}
+    </button>
+  ) : null;
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
@@ -173,7 +224,17 @@ export function ControllerSummaryHeader({
           aria-hidden
         />
         <div className="min-w-0 flex-1">
-          {showAffiliation ? (
+          {concealBtn ? (
+            <div className="flex min-w-0 items-start gap-2">
+              <div className="min-w-0 flex-1">{concealBtn}</div>
+              <CardPanelModeToggle
+                hideActions={hideActions}
+                settingsActive={settingsActive}
+                onToggleSettings={onToggleSettings}
+                onOpenChart={onOpenChart}
+              />
+            </div>
+          ) : showAffiliation ? (
             <>
               <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
                 <span

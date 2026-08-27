@@ -57,6 +57,13 @@ import {
 }
 
 {
+  const params = new URLSearchParams("lsind=FARM01&item=P00&view=status");
+  assert.equal(resolveFarmHubView(params.get("view")), "map");
+  pinFarmHubViewParam(params, "map");
+  assert.equal(params.get("view"), null);
+}
+
+{
   const source = new URLSearchParams(
     "lsind=FARM01&item=P00&view=plan&planBldg=bd-1&planSp=SP02&planStall=1",
   );
