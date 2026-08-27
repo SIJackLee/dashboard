@@ -118,7 +118,7 @@ export function BarnEnvTrendPanel({
         ? tickEveryForDisplayBars(categories.length, { compact: true })
         : tickEveryForDisplayBars(categories.length),
     };
-  }, [hasDataRaw, controllerSeries, categoriesRaw, period, dense, plotWidthPx]);
+  }, [hasDataRaw, controllerSeries, categoriesRaw, dense, plotWidthPx]);
 
   if (!hasDataRaw || !display.series) {
     return (

@@ -1091,6 +1091,7 @@ export type UnifiedBarnTrendBuild = {
   tempRangeLabel: string;
   humidityRangeLabel: string;
   thresholds: AlarmThresholds;
+  /** hum/motors: 시계열이 없어도 밴드·가이드를 연다. 본선 유무는 series/histogram 길이. */
   available: {
     motors: boolean;
     motorCh: boolean;
@@ -1445,14 +1446,14 @@ export function mapUnifiedBarnTrendRawToSplitY(
     hoverChannels: motorHoverChannels,
   }));
 
-  const hasMotors =
+  const hasMotorSeries =
     histogramMotorsMax.length > 0 || histogramMotorsChannels.length > 0;
 
   if (
     !Object.keys(seriesByKey).length &&
     !hasFinite(tempDevPlot) &&
     !hasFinite(humDevPlot) &&
-    !hasMotors
+    !hasMotorSeries
   ) {
     return null;
   }
@@ -1534,10 +1535,11 @@ export function mapUnifiedBarnTrendRawToSplitY(
     humidityRangeLabel: raw.humidityRangeLabel,
     thresholds: raw.thresholds,
     available: {
-      motors: hasMotors,
+      // 측정 시계열이 없어도 밴드·상하한·환기 가이드는 연다.
+      motors: true,
       motorCh: histogramMotorsChannels.length > 0,
       temp: Boolean(seriesByKey.temp),
-      hum: Boolean(seriesByKey.hum),
+      hum: true,
       band: Boolean(envelopesBand),
       dev: Boolean(histogramDev),
       ema: Boolean(seriesByKey.emaShort),

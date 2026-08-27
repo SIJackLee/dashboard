@@ -252,7 +252,7 @@ export function FarmMapBulkApply({
   onAfterApply,
   onRefreshLive,
   trailing,
-  trailingCompact = false,
+  trailingCompact: _trailingCompact = false,
 }: Props) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const isMobile = useMobileLayout();
@@ -1147,20 +1147,11 @@ export function FarmMapBulkApply({
     <>
       {/* 그리드 상단 커맨드 바 — FarmMapCard·지도 카드와 동일 타이포 스케일 */}
       <div
-        className={cn(
-          "flex min-w-0 shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b bg-muted/30 px-3 py-2 lg:gap-x-4 lg:px-4 lg:py-2.5",
-          trailingCompact &&
-            !bulkMode &&
-            trailing &&
-            "flex-nowrap justify-between gap-2",
-        )}
+        className="flex min-w-0 shrink-0 flex-nowrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2 lg:gap-3 lg:px-4 lg:py-2.5"
         data-tour-id="farm-command-bar"
       >
         <div
-          className={cn(
-            "flex min-w-0 items-center gap-2 lg:gap-2.5",
-            trailingCompact && !bulkMode && trailing && "min-w-0 shrink",
-          )}
+          className="flex min-w-0 items-center gap-2 lg:gap-2.5"
           data-tour-id="bulk-apply"
         >
           <SlidersHorizontal
@@ -1195,41 +1186,36 @@ export function FarmMapBulkApply({
           </button>
         </div>
 
-        {bulkMode ? (
-          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={onClearSelection}
-              disabled={selectedSps.length === 0}
-              className={cn(
-                bulkModalBtn,
-                "border hover:bg-muted disabled:opacity-50"
-              )}
-            >
-              선택해제
-            </button>
-            <button
-              type="button"
-              onClick={openSettingsWithCurrent}
-              disabled={selectedSps.length === 0}
-              className={cn(
-                bulkModalBtn,
-                "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-              )}
-            >
-              설정입력
-            </button>
-          </div>
-        ) : trailing ? (
-          <div
-            className={cn(
-              "flex shrink-0 items-center gap-2",
-              trailingCompact ? "ml-0" : "ml-auto",
-            )}
-          >
-            {trailing}
-          </div>
-        ) : null}
+        <div className="flex shrink-0 flex-nowrap items-center justify-end gap-2">
+          {bulkMode ? (
+            <>
+              <button
+                type="button"
+                onClick={onClearSelection}
+                disabled={selectedSps.length === 0}
+                className={cn(
+                  bulkModalBtn,
+                  "shrink-0 border hover:bg-muted disabled:opacity-50"
+                )}
+              >
+                선택해제
+              </button>
+              <button
+                type="button"
+                onClick={openSettingsWithCurrent}
+                disabled={selectedSps.length === 0}
+                className={cn(
+                  bulkModalBtn,
+                  "shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                )}
+              >
+                설정입력
+              </button>
+            </>
+          ) : trailing ? (
+            trailing
+          ) : null}
+        </div>
       </div>
 
       {mounted && modalContent ? createPortal(modalContent, document.body) : null}

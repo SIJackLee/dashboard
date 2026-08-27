@@ -431,12 +431,12 @@ export function BarnListAccordionPanel({
     <div className="space-y-2">
       {canCommand ? (
         <>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={defaultsDisabled}
               onClick={handleApplyDefaults}
-              className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50 sm:text-sm"
+              className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50 sm:text-sm"
             >
               기본값
             </button>
@@ -446,7 +446,7 @@ export function BarnListAccordionPanel({
               title={saveDisabledReason ?? undefined}
               onClick={handleSaveAll}
               aria-busy={isSaving || undefined}
-              className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50 sm:text-sm"
+              className="inline-flex min-w-0 items-center justify-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50 sm:text-sm"
             >
               <BusyButtonLabel
                 busy={isSaving}

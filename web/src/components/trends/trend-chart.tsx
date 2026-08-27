@@ -918,7 +918,7 @@ function TrendPointCardBody({
   histograms,
   leftUnit,
   rightUnit,
-  onBreachEquipmentNavigate,
+  onBreachEquipmentNavigate: _onBreachEquipmentNavigate,
 }: {
   idx: number;
   seriesKey: string | null;

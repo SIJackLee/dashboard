@@ -19,13 +19,16 @@ import { BarnListAccordionPanel } from "@/components/farm/barn-list-accordion-pa
 import {
   ChannelStrip,
   ControllerSummaryHeader,
-  statusRingClass,
   useControllerSummaryData,
 } from "@/components/farm/controller-summary-parts";
 import { EnvMetricPanel } from "@/components/farm/controller-summary-gauge-parts";
 import { cn } from "@/lib/utils";
 import { ControllerEnvCover } from "@/components/farm/controller-env-cover";
-import { controllerEnvCoverLevel } from "@/lib/farm/controller-env-cover";
+import {
+  controllerEnvCoverLevel,
+  controllerEnvCoverRingClass,
+  isControllerPanelInteractiveTarget,
+} from "@/lib/farm/controller-env-cover";
 
 /** 그리드 상세 — PC 2단(grid) vs 모바일 stack(+ carousel sheet). */
 export type ControllerPanelLayoutVariant = "grid" | "stack";
@@ -150,22 +153,46 @@ export function ControllerSummaryGaugeRow({
 
   const setpoint = thermo?.setpointTemp;
   const setDev = thermo?.tempDeviation;
+  const envCoverLevel = controllerEnvCoverLevel(reading, alarmSettings);
+  const concealOnIdleClick = Boolean(
+    envCoverEnabled && envCoverOpen && onEnvCoverClose,
+  );
+
+  const closeEnvCover = useCallback(() => {
+    onEnvCoverClose?.();
+    if (settingsExpanded) onToggleSettings?.();
+  }, [onEnvCoverClose, onToggleSettings, settingsExpanded]);
+
+  const handleCardSurfaceClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (
+        concealOnIdleClick &&
+        !isControllerPanelInteractiveTarget(e.target)
+      ) {
+        e.stopPropagation();
+        closeEnvCover();
+        return;
+      }
+      onCardActivate?.();
+    },
+    [closeEnvCover, concealOnIdleClick, onCardActivate],
+  );
 
   const cardClass = cn(
     "relative flex h-full min-w-0 flex-col rounded-xl border bg-card overflow-hidden",
-    !toolbarSheetSelected && statusRingClass(reading.status),
+    !toolbarSheetSelected && controllerEnvCoverRingClass(envCoverLevel),
     toolbarSheetSelected && "ring-2 ring-emerald-500/70",
     !toolbarSheetSelected && settingsExpanded && "ring-2 ring-violet-500/40",
-    onCardActivate && "cursor-pointer",
+    (onCardActivate || concealOnIdleClick) && "cursor-pointer",
     className,
   );
 
+  const cardSurfaceClick =
+    concealOnIdleClick || onCardActivate ? handleCardSurfaceClick : undefined;
+
   const showEnvCover =
     envCoverEnabled && !envCoverOpen && !settingsExpanded;
-  const envCoverLevel = showEnvCover
-    ? controllerEnvCoverLevel(reading, alarmSettings)
-    : null;
-  const envCover = envCoverLevel ? (
+  const envCover = showEnvCover ? (
     <ControllerEnvCover
       reading={reading}
       level={envCoverLevel}
@@ -211,15 +238,14 @@ export function ControllerSummaryGaugeRow({
       <div className="px-2.5 pt-2.5 sm:px-3 sm:pt-3">
         <ControllerSummaryHeader
           reading={reading}
+          alarmSettings={alarmSettings}
           settingsActive={settingsExpanded}
           hideActions={hideGraphToggle}
           showAffiliation={showAffiliation}
           onToggleSettings={onToggleSettings}
           onOpenChart={onOpenChart}
           onConcealDetail={
-            envCoverEnabled && envCoverOpen && !settingsExpanded
-              ? onEnvCoverClose
-              : undefined
+            envCoverEnabled && envCoverOpen ? closeEnvCover : undefined
           }
           className="mb-2 w-full"
         />
@@ -338,6 +364,7 @@ export function ControllerSummaryGaugeRow({
             data-list-mode={listMode}
             data-card-body="expanded"
             data-panel-layout="grid"
+            onClick={cardSurfaceClick}
           >
             {envCover}
             {cardBody}
@@ -367,6 +394,7 @@ export function ControllerSummaryGaugeRow({
           data-list-mode={listMode}
           data-card-body="expanded"
           data-panel-layout="stack"
+          onClick={cardSurfaceClick}
         >
           {envCover}
           {cardBody}
@@ -393,7 +421,7 @@ export function ControllerSummaryGaugeRow({
           data-list-mode={listMode}
           data-card-body="expanded"
           data-panel-layout="stack"
-          onClick={onCardActivate}
+          onClick={cardSurfaceClick}
           onKeyDown={
             onCardActivate
               ? (e) => {
@@ -424,6 +452,7 @@ export function ControllerSummaryGaugeRow({
       data-controller-key={reading.controllerKey}
       data-list-mode={listMode}
       data-card-body="expanded"
+      onClick={cardSurfaceClick}
     >
       {envCover}
       {cardBody}

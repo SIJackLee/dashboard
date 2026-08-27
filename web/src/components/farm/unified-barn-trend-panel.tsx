@@ -456,10 +456,10 @@ export function UnifiedBarnTrendPanel({
   const thermoDraftRef = useRef<ChartThermoDraft | null>(null);
   const [scopeMotionKey, setScopeMotionKey] = useState(0);
   const [scopeMotionDir, setScopeMotionDir] = useState<"in" | "out">("in");
-  const bumpScopeMotion = (dir: "in" | "out") => {
+  const bumpScopeMotion = useCallback((dir: "in" | "out") => {
     setScopeMotionDir(dir);
     setScopeMotionKey((k) => k + 1);
-  };
+  }, []);
   const initialZoomKeyRef = useRef<string>("");
 
   if (layersToolbarActive !== toolbarActiveSeen) {
@@ -917,7 +917,7 @@ export function UnifiedBarnTrendPanel({
       },
     ]);
     bumpScopeMotion("in");
-  }, [initialZoom, picked, period]);
+  }, [initialZoom, picked, period, bumpScopeMotion]);
 
   const scoped = useMemo(() => {
     if (!picked) return null;
@@ -1052,14 +1052,14 @@ export function UnifiedBarnTrendPanel({
     deferEmitZoom(next);
   };
 
-  const popXScope = () => {
+  const popXScope = useCallback(() => {
     if (xScopeStack.length === 0) return;
     const nextStack = xScopeStack.slice(0, -1);
     const entry = nextStack.length > 0 ? nextStack[nextStack.length - 1]! : null;
     setXScopeStack(nextStack);
     bumpScopeMotion(xScopeStack.length <= 1 ? "out" : "in");
     deferEmitZoom(entry);
-  };
+  }, [xScopeStack, bumpScopeMotion, deferEmitZoom]);
 
   const clearXScope = () => {
     if (xScopeStack.length > 0) bumpScopeMotion("out");
@@ -1075,7 +1075,7 @@ export function UnifiedBarnTrendPanel({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [xScopeStack.length]);
+  }, [xScopeStack.length, popXScope]);
 
   const alarmDragEnabled =
     canCommand &&
@@ -1701,10 +1701,10 @@ export function UnifiedBarnTrendPanel({
       );
     };
 
-    if (scopeVisibility.showMotors && layers.motors && built.available.motors) {
+    if (scopeVisibility.showMotors && (layers.motors || layers.motorCh)) {
+      const minV = thermo.minVentPct;
+      const maxV = thermo.maxVentPct;
       if (controlMode) {
-        const minV = thermo.minVentPct;
-        const maxV = thermo.maxVentPct;
         pushThermoControl(
           CHART_THERMO_EDGE_IDS.maxVentPct,
           mapMotorPctToSplitY(maxV, layout),
@@ -1732,20 +1732,20 @@ export function UnifiedBarnTrendPanel({
       } else {
         push(
           "motor-hi",
-          mapMotorPctToSplitY(100, layout),
-          "100%",
+          mapMotorPctToSplitY(maxV, layout),
+          `${maxV}%`,
           "#64748b",
           "overline",
-          "모터 상한",
+          "최고환기",
           false,
         );
         push(
           "motor-lo",
-          mapMotorPctToSplitY(0, layout),
-          "0%",
+          mapMotorPctToSplitY(minV, layout),
+          `${minV}%`,
           "#64748b",
           "underline",
-          "모터 하한",
+          "최저환기",
           false,
         );
       }
@@ -1814,46 +1814,44 @@ export function UnifiedBarnTrendPanel({
       scopeVisibility.showHum &&
       (layers.hum || layers.humDev || layers.humBand || layers.humEma)
     ) {
-      if (built.available.hum || built.available.humDev || built.available.humBand) {
-        push(
-          "hum-hi",
-          mapHumPctToSplitY(
-            thresholds.humidityHigh,
-            mapHumLo,
-            mapHumHi,
-            layout,
-          ),
-          `${thresholds.humidityHigh}%`,
-          TREND_CHART_COLORS.humidity,
-          "overline",
-          "습도 상한(가이드)",
-          true,
-          alarmDragEnabled,
+      push(
+        "hum-hi",
+        mapHumPctToSplitY(
           thresholds.humidityHigh,
-          {
-            leadingText: controlMode ? "습도상한" : undefined,
-          },
-        );
-        push(
-          "hum-lo",
-          mapHumPctToSplitY(
-            thresholds.humidityLow,
-            mapHumLo,
-            mapHumHi,
-            layout,
-          ),
-          `${thresholds.humidityLow}%`,
-          TREND_CHART_COLORS.humidity,
-          "underline",
-          "습도 하한(가이드)",
-          true,
-          alarmDragEnabled,
+          mapHumLo,
+          mapHumHi,
+          layout,
+        ),
+        `${thresholds.humidityHigh}%`,
+        TREND_CHART_COLORS.humidity,
+        "overline",
+        "습도 상한(가이드)",
+        true,
+        alarmDragEnabled,
+        thresholds.humidityHigh,
+        {
+          leadingText: controlMode ? "습도상한" : undefined,
+        },
+      );
+      push(
+        "hum-lo",
+        mapHumPctToSplitY(
           thresholds.humidityLow,
-          {
-            leadingText: controlMode ? "습도하한" : undefined,
-          },
-        );
-      }
+          mapHumLo,
+          mapHumHi,
+          layout,
+        ),
+        `${thresholds.humidityLow}%`,
+        TREND_CHART_COLORS.humidity,
+        "underline",
+        "습도 하한(가이드)",
+        true,
+        alarmDragEnabled,
+        thresholds.humidityLow,
+        {
+          leadingText: controlMode ? "습도하한" : undefined,
+        },
+      );
     }
     return out;
   }, [
@@ -1867,7 +1865,6 @@ export function UnifiedBarnTrendPanel({
     controlMode,
     thermo,
     thermoDragEnabled,
-    thermoDirty,
   ]);
 
   const cycleGroupLayers = (group: "temp" | "hum" | "motor") => {
@@ -2015,31 +2012,28 @@ export function UnifiedBarnTrendPanel({
           : "false"
       }
     >
-      <div
-        className={cn(
-          "flex w-full flex-col items-stretch gap-1",
-          "sm:flex-row sm:flex-wrap sm:items-center sm:gap-2",
-        )}
-      >
-        <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+      <div className="flex w-full flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
+        <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
           {isMobileStack ? (
-            <div className="flex w-full min-w-0 flex-col gap-1">
-              <div className="flex w-full min-w-0 items-center gap-2">
-                <div
-                  className={cn(
-                    "min-w-0 flex-1 overflow-hidden",
-                    "font-semibold leading-snug",
-                    farmChartUi.fsTitle,
-                  )}
-                  title={label}
-                >
-                  <ChartScopeTargetMarks
-                    chartScope={chartScope}
-                    controllers={controllers}
-                    fallbackLabel={label}
-                    typeClassName={cn("font-semibold", farmChartUi.fsTitle)}
-                  />
-                </div>
+            <div className="flex w-full min-w-0 flex-nowrap items-center gap-2">
+              <div
+                className={cn(
+                  "min-w-0 flex-1 overflow-hidden",
+                  "font-semibold leading-snug",
+                  farmChartUi.fsTitle,
+                )}
+                title={label}
+              >
+                <ChartScopeTargetMarks
+                  chartScope={chartScope}
+                  controllers={controllers}
+                  fallbackLabel={label}
+                  typeClassName={cn("font-semibold", farmChartUi.fsTitle)}
+                />
+              </div>
+              <div className="flex shrink-0 flex-nowrap items-center gap-1">
+                {layerToolbar}
+                {controlModeCluster}
                 {mobileScopeHandle ? (
                   <button
                     type="button"
@@ -2059,12 +2053,6 @@ export function UnifiedBarnTrendPanel({
                   </button>
                 ) : null}
               </div>
-              {layerToolbar || controlModeCluster ? (
-                <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1">
-                  {layerToolbar}
-                  {controlModeCluster}
-                </div>
-              ) : null}
             </div>
           ) : (
             <div className="flex min-w-0 w-full items-center gap-2">

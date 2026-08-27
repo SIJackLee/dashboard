@@ -3,8 +3,11 @@
  */
 import assert from "node:assert/strict";
 import {
+  CONTROLLER_PANEL_INTERACTIVE_SELECTOR,
+  controllerEnvCoverFillClass,
   controllerEnvCoverLabel,
   controllerEnvCoverLevel,
+  controllerEnvCoverRingClass,
 } from "./controller-env-cover";
 
 {
@@ -44,6 +47,22 @@ import {
     stallTyCode: "SP05",
   });
   assert.equal(level, "ok");
+}
+
+{
+  assert.equal(controllerEnvCoverFillClass("ok"), "bg-[var(--status-ok)]");
+  assert.equal(controllerEnvCoverFillClass("warn"), "bg-[var(--status-warn)]");
+  assert.equal(controllerEnvCoverFillClass("danger"), "bg-[var(--status-danger)]");
+  assert.equal(controllerEnvCoverFillClass("offline"), "bg-muted-foreground");
+  assert.match(controllerEnvCoverRingClass("danger"), /--status-danger/);
+  assert.match(controllerEnvCoverRingClass("ok"), /--status-ok/);
+}
+
+{
+  assert.match(CONTROLLER_PANEL_INTERACTIVE_SELECTOR, /\bbutton\b/);
+  assert.match(CONTROLLER_PANEL_INTERACTIVE_SELECTOR, /\ba\b/);
+  assert.match(CONTROLLER_PANEL_INTERACTIVE_SELECTOR, /\blabel\b/);
+  assert.doesNotMatch(CONTROLLER_PANEL_INTERACTIVE_SELECTOR, /role='img'/);
 }
 
 console.log("controller-env-cover.test.ts: ok");

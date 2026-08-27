@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmSummaryRow } from "@/lib/data/farm-summaries";
@@ -59,7 +59,7 @@ function ScopeChip({
       aria-current={active ? "true" : undefined}
       className={cn(
         dashboardUi.scopeChip,
-        "inline-flex items-center gap-1.5 transition-colors disabled:cursor-wait disabled:opacity-80",
+        "inline-flex shrink-0 items-center gap-1.5 transition-colors disabled:cursor-wait disabled:opacity-80",
         active
           ? "border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
           : "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -70,6 +70,28 @@ function ScopeChip({
       ) : null}
       {busy ? `${label}…` : label}
     </button>
+  );
+}
+
+function ScopeChipStrip({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className={cn("shrink-0", dashboardUi.scopeLabel)}>{label}</span>
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-nowrap items-center overflow-x-auto",
+          dashboardUi.chipStripGap,
+        )}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -135,8 +157,7 @@ export function ScopeBar({
     adminFarmSwitcher != null
       ? null
       : multiFarm && onFarmChange ? (
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-        <span className={dashboardUi.scopeLabel}>농장</span>
+      <ScopeChipStrip label="농장">
         {farmOptions.map((f) => (
           <ScopeChip
             key={f.value}
@@ -154,7 +175,7 @@ export function ScopeBar({
             }}
           />
         ))}
-      </div>
+      </ScopeChipStrip>
     ) : showFarmMeta ? (
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <p className="min-w-0 text-muted-foreground">
@@ -192,12 +213,7 @@ export function ScopeBar({
         ) : null}
 
         {showSpChips ? (
-          <div
-            className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}
-          >
-            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>
-              축사유형
-            </span>
+          <ScopeChipStrip label="축사유형">
             {spOptions.map((sp) => (
               <ScopeChip
                 key={sp.value}
@@ -213,16 +229,11 @@ export function ScopeBar({
                 }}
               />
             ))}
-          </div>
+          </ScopeChipStrip>
         ) : null}
 
         {showStallRow ? (
-          <div
-            className={cn("flex flex-wrap items-center", dashboardUi.chipStripGap)}
-          >
-            <span className={cn("w-full sm:w-auto", dashboardUi.scopeLabel)}>
-              축사번호
-            </span>
+          <ScopeChipStrip label="축사번호">
             {stallOptions.map((stall) => (
               <ScopeChip
                 key={stall.value}
@@ -243,7 +254,7 @@ export function ScopeBar({
                 }}
               />
             ))}
-          </div>
+          </ScopeChipStrip>
         ) : null}
       </div>
     </div>

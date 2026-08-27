@@ -10,7 +10,7 @@ import { evaluateWeatherDraft } from "../src/lib/weather-control/evaluate-draft"
 import { forecastStats3h } from "../src/lib/weather-control/forecast-stats";
 import { pickController } from "../src/lib/weather-control/pick-controller";
 import { proposeDropHeat, proposeHumidVent, proposeRiseVent } from "../src/lib/weather-control/propose";
-import { buildRuleContext, evaluateRules } from "../src/lib/weather-control/rules";
+import { buildRuleContext } from "../src/lib/weather-control/rules";
 import type {
   ControllerCandidate,
   SettingsSource,
@@ -332,7 +332,6 @@ async function main() {
     return;
   }
 
-  const rule = evaluateRules(ctx)!;
   console.log("\n| | 현재 | 권장 |");
   console.log("|--|------|------|");
   console.log(

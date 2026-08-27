@@ -497,7 +497,7 @@ export function BarnListSummary({
                   : undefined
               }
               className={cn(
-                "flex min-w-0 w-full flex-wrap items-center gap-2 border-b bg-muted/40 px-3 py-2.5 text-left sm:px-4",
+                "flex min-w-0 w-full flex-nowrap items-center gap-2 border-b bg-muted/40 px-3 py-2.5 text-left sm:px-4",
                 bulkMode && onToggleSp && "cursor-pointer hover:bg-muted/60",
                 bulkMode && spSelected && "bg-emerald-500/5 ring-2 ring-inset ring-emerald-500/40"
               )}
@@ -515,11 +515,11 @@ export function BarnListSummary({
                   {spSelected ? <Check className="size-3.5" /> : null}
                 </span>
               ) : null}
-              <h3 className={cn("font-semibold", dashboardUi.cardTitle)}>{sp.label}</h3>
-              <span className={cn("text-muted-foreground", dashboardTypography.meta)}>
+              <h3 className={cn("min-w-0 truncate font-semibold", dashboardUi.cardTitle)}>{sp.label}</h3>
+              <span className={cn("shrink-0 text-muted-foreground", dashboardTypography.meta)}>
                 {ctrlCount}대
               </span>
-              <div className="ml-auto flex flex-wrap items-center gap-2">
+              <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2">
                 <StatusBadge tone={summary.status} compact />
                 <EnvChip
                   kind="temp"

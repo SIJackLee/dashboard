@@ -1,7 +1,7 @@
 "use client";
 
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
-import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
+import type { BarnReading } from "@/lib/data/iot";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 import type {
@@ -35,12 +35,10 @@ import {
   ControllerNoMark,
   StallUnitNoMark,
 } from "@/components/farm/controller-no-marks";
-
-export function statusRingClass(status: ControllerStatus): string {
-  if (status === "normal") return "outline outline-2 outline-emerald-500/70 -outline-offset-1";
-  if (status === "caution") return "outline outline-2 outline-amber-500/80 -outline-offset-1";
-  return "outline outline-2 outline-muted-foreground/40 -outline-offset-1";
-}
+import {
+  controllerEnvCoverFillClass,
+  controllerEnvCoverLevel,
+} from "@/lib/farm/controller-env-cover";
 
 const cardActionBtnClass = cn(
   "inline-flex size-7 shrink-0 items-center justify-center p-0 font-medium",
@@ -81,7 +79,7 @@ function CardPanelModeToggle({
   const SettingsIcon = settingsActive ? ControllerDeviceIcon : Settings;
 
   return (
-    <div className="flex shrink-0 items-center gap-1">
+    <div className="flex shrink-0 flex-nowrap items-center gap-1">
       {canChart ? (
         <div
           className={cardActionWellClass}
@@ -137,6 +135,7 @@ function CardPanelModeToggle({
 
 export function ControllerSummaryHeader({
   reading,
+  alarmSettings,
   settingsActive,
   hideActions = false,
   showAffiliation = false,
@@ -146,6 +145,7 @@ export function ControllerSummaryHeader({
   className,
 }: {
   reading: BarnReading;
+  alarmSettings?: AlarmSettings;
   settingsActive?: boolean;
   /** 그리드 상세 등 — 카드 헤더 액션(차트/설정) 숨김 */
   hideActions?: boolean;
@@ -162,132 +162,78 @@ export function ControllerSummaryHeader({
   className?: string;
 }) {
   const stallTypeLabel = formatControllerHeaderStallType(reading);
-  const concealBtn = onConcealDetail ? (
+  const envCoverLevel = controllerEnvCoverLevel(reading, alarmSettings);
+  const titleBlock = showAffiliation ? (
+    <>
+      <span
+        className={cn(
+          "break-keep text-foreground",
+          dashboardTypography.cardTitle,
+        )}
+      >
+        {stallTypeLabel}
+      </span>
+      <span className="mt-0.5 flex min-w-0 items-center gap-2">
+        <StallUnitNoMark
+          stallNo={reading.stallNo}
+          className={cn(
+            "text-muted-foreground",
+            dashboardTypography.cardDesc,
+          )}
+        />
+        <ControllerNoMark
+          eqpmnNo={reading.eqpmnNo}
+          className={cn(
+            "text-muted-foreground",
+            dashboardTypography.cardDesc,
+          )}
+        />
+      </span>
+    </>
+  ) : (
+    <ControllerNoMark
+      eqpmnNo={reading.eqpmnNo}
+      className={cn(
+        "text-foreground",
+        dashboardTypography.cardTitle,
+      )}
+    />
+  );
+
+  const identity = onConcealDetail ? (
     <button
       type="button"
-      className="flex min-w-0 flex-col gap-0.5 text-left"
+      className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
       aria-label="상세 숨기기"
       onClick={(e) => {
         e.stopPropagation();
         onConcealDetail();
       }}
     >
-      {showAffiliation ? (
-        <>
-          <span
-            className={cn(
-              "break-keep text-foreground",
-              dashboardTypography.cardTitle,
-            )}
-          >
-            {stallTypeLabel}
-          </span>
-          <span className="mt-0.5 flex min-w-0 items-center gap-2">
-            <StallUnitNoMark
-              stallNo={reading.stallNo}
-              className={cn(
-                "text-muted-foreground",
-                dashboardTypography.cardDesc,
-              )}
-            />
-            <ControllerNoMark
-              eqpmnNo={reading.eqpmnNo}
-              className={cn(
-                "text-muted-foreground",
-                dashboardTypography.cardDesc,
-              )}
-            />
-          </span>
-        </>
-      ) : (
-        <ControllerNoMark
-          eqpmnNo={reading.eqpmnNo}
-          className={cn(
-            "text-foreground",
-            dashboardTypography.cardTitle,
-          )}
-        />
-      )}
+      {titleBlock}
     </button>
-  ) : null;
+  ) : (
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5">{titleBlock}</div>
+  );
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
-      <div className="flex min-w-0 items-start gap-2">
+      <div className="flex min-w-0 flex-nowrap items-start gap-2">
         <span
           className={cn(
             "mt-1.5 size-2.5 shrink-0 rounded-sm",
-            reading.status === "normal" && "bg-emerald-500",
-            reading.status === "caution" && "bg-amber-500",
-            reading.status === "offline" && "bg-muted-foreground"
+            controllerEnvCoverFillClass(envCoverLevel),
           )}
           aria-hidden
         />
-        <div className="min-w-0 flex-1">
-          {concealBtn ? (
-            <div className="flex min-w-0 items-start gap-2">
-              <div className="min-w-0 flex-1">{concealBtn}</div>
-              <CardPanelModeToggle
-                hideActions={hideActions}
-                settingsActive={settingsActive}
-                onToggleSettings={onToggleSettings}
-                onOpenChart={onOpenChart}
-              />
-            </div>
-          ) : showAffiliation ? (
-            <>
-              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
-                <span
-                  className={cn(
-                    "break-keep text-foreground",
-                    dashboardTypography.cardTitle,
-                  )}
-                >
-                  {stallTypeLabel}
-                </span>
-              </div>
-              <div className="mt-0.5 flex min-w-0 items-center gap-2">
-                <StallUnitNoMark
-                  stallNo={reading.stallNo}
-                  className={cn(
-                    "text-muted-foreground",
-                    dashboardTypography.cardDesc,
-                  )}
-                />
-                <ControllerNoMark
-                  eqpmnNo={reading.eqpmnNo}
-                  className={cn(
-                    "text-muted-foreground",
-                    dashboardTypography.cardDesc,
-                  )}
-                />
-                <div className="min-w-0 flex-1" />
-                <CardPanelModeToggle
-                  hideActions={hideActions}
-                  settingsActive={settingsActive}
-                  onToggleSettings={onToggleSettings}
-                  onOpenChart={onOpenChart}
-                />
-              </div>
-            </>
-          ) : (
-            <div className="flex min-w-0 items-center gap-2">
-              <ControllerNoMark
-                eqpmnNo={reading.eqpmnNo}
-                className={cn(
-                  "text-foreground",
-                  dashboardTypography.cardTitle,
-                )}
-              />
-              <div className="min-w-0 flex-1" />
-              <CardPanelModeToggle
-                hideActions={hideActions}
-                settingsActive={settingsActive}
-                onToggleSettings={onToggleSettings}
-                onOpenChart={onOpenChart}
-              />
-            </div>
-          )}
+        <div className="flex min-w-0 flex-1 flex-nowrap items-start gap-2">
+          {identity}
+          <CardPanelModeToggle
+            hideActions={hideActions}
+            settingsActive={settingsActive}
+            onToggleSettings={onToggleSettings}
+            onOpenChart={onOpenChart}
+          />
         </div>
       </div>
     </div>

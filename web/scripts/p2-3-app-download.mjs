@@ -8,9 +8,7 @@ import dotenv from "dotenv";
 import { chromium } from "playwright";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import { writeFileSync, mkdirSync, createWriteStream } from "fs";
-import { pipeline } from "stream/promises";
-import { Readable } from "stream";
+import { writeFileSync, mkdirSync } from "fs";
 
 dotenv.config({
   path: join(dirname(fileURLToPath(import.meta.url)), "../.env.local"),

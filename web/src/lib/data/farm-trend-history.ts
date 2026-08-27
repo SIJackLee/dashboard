@@ -46,7 +46,7 @@ export { TREND_PERIODS, DEFAULT_TREND_PERIOD } from "@/lib/data/farm-trend-types
 /** Cache/query alignment slot — keeps `now` stable for 5 minutes. */
 const CACHE_SLOT_MS = 5 * 60 * 1000;
 
-/** RPC buckets by mesure_at (sensor time); live card freshness stays on received_at. */
+/** RPC buckets by mesure_at (sensor time). Decode corrects KST-as-UTC clocks. */
 
 type RpcRow = {
   bucket_at: string;
@@ -166,19 +166,6 @@ async function fetchControllerTrendRowsChunked(
     rows.push(...part);
   }
   return rows;
-}
-
-function newEmptyStallSeries(stallNo: string, bucketCount: number): TrendStallSeries {
-  const emptyCol = () => new Array<number | null>(bucketCount).fill(null);
-  return {
-    stallNo,
-    temp: emptyCol(),
-    humidity: emptyCol(),
-    fanSupply: emptyCol(),
-    fanExhaust: emptyCol(),
-    fanIntake: emptyCol(),
-    sampleCount: new Array<number>(bucketCount).fill(0),
-  };
 }
 
 function formatBucketLabel(date: Date, period: TrendPeriodId): string {
@@ -368,9 +355,9 @@ export async function getFarmTrendAllPeriods(params: {
 }
 
 function trendCacheKind(cfg: TrendPeriodConfig, overview?: boolean): string {
-  if (overview) return "rpc-json-overview-1d-chunk24h";
+  if (overview) return "rpc-json-overview-1d-chunk24h-mst";
   const bucket = cfg.bucket.replace(/\s+/g, "");
-  return `rpc-json-chunk24h-${bucket}-${cfg.bucketCount}`;
+  return `rpc-json-chunk24h-${bucket}-${cfg.bucketCount}-mst`;
 }
 
 export async function getFarmControllerTrendHistoryCompact(params: {
@@ -534,7 +521,7 @@ export async function getFarmControllerTrendWindowCompact(params: {
       scopeKey,
       String(aligned.fromMs),
       String(aligned.toMs),
-      "rpc-json-window15m-chunk24h",
+      "rpc-json-window15m-chunk24h-mst",
     ],
     ["live", `controller-trend:${scopeKey}`],
     () =>

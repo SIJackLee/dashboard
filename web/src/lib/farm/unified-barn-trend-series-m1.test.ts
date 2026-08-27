@@ -156,4 +156,33 @@ const layoutTempOnly = resolveSplitYLayout({
   }
 }
 
+{
+  /** 습도·모터 시계열이 없어도 밴드·가이드용 available 은 연다 */
+  const emptyEnv = [
+    {
+      stallNo: "1",
+      controllerKey: "c-empty",
+      eqpmnNo: "1",
+      fanIntake: [null, null, null, null],
+      fanExhaust: [null, null, null, null],
+      fanSupply: [null, null, null, null],
+      temp: [31, 31.2, 31.4, 31.1],
+      humidity: [null, null, null, null],
+      sampleCount: [1, 1, 1, 1],
+    } satisfies TrendControllerSeries,
+  ];
+  const builtEmpty = buildUnifiedBarnTrendSeries(
+    emptyEnv,
+    categories,
+    thresholds,
+    { layout: layoutFull },
+  );
+  assert.ok(builtEmpty);
+  assert.equal(builtEmpty!.available.hum, true);
+  assert.equal(builtEmpty!.available.motors, true);
+  assert.equal(builtEmpty!.available.temp, true);
+  assert.equal(builtEmpty!.histogramMotorsMax.length, 0);
+  assert.equal(builtEmpty!.seriesByKey.hum, undefined);
+}
+
 console.log("unified-barn-trend-series-m1.test.ts: ok");
