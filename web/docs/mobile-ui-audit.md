@@ -45,7 +45,7 @@ audit 실행 전 `npm run set:test-passwords`로 Supabase에 반영할 수 있�
 
 ### 제외 영역 (오탐 방지)
 
-- **Shell**: `header`, `aria-label="모바일 앱 메뉴"`, `운영 탭`, `모니터링 탭` 등 — 44px+ 터치 타겟 허용
+- **Shell**: `header`, `운영 탭`, `모니터링 탭` 등 — 44px+ 터치 타겟 허용
 - **지도**: Leaflet 컨트롤 (`.leaflet-control`, `.leaflet-bar`)
 - **Farm map 리스트**: `[data-audit-region="farm-map-list"]`
 

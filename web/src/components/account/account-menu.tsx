@@ -87,9 +87,7 @@ export function AccountMenu({
   const navigateToFarm = useCallback(
     (farmKey: FarmKey) => {
       setOpen(false);
-      const params = new URLSearchParams(
-        typeof window !== "undefined" ? window.location.search : "",
-      );
+      const params = new URLSearchParams(window.location.search);
       params.delete("lsind");
       params.delete("item");
       appendFarmKeyParams(params, farmKey);
@@ -119,8 +117,10 @@ export function AccountMenu({
     <>
       <span className={dashboardUi.headerAccountAvatar}>{initial}</span>
       <div className="hidden min-w-0 leading-tight sm:block">
-        <p className={dashboardUi.headerAccountName}>{name}</p>
-        <p className={dashboardUi.headerAccountRole}>
+        <p className={dashboardUi.headerAccountName} suppressHydrationWarning>
+          {name}
+        </p>
+        <p className={dashboardUi.headerAccountRole} suppressHydrationWarning>
           {user.role ? roleLabel[user.role] : "권한 없음"}
         </p>
       </div>
@@ -161,8 +161,8 @@ export function AccountMenu({
         className={triggerClassName}
         data-tour-id="header-account"
         aria-label="계정 메뉴"
-        aria-expanded={mounted ? open : undefined}
-        aria-controls={mounted ? "account-menu-sheet" : undefined}
+        aria-expanded={open}
+        aria-controls="account-menu-sheet"
         onClick={() => handleOpenChange(!open)}
         suppressHydrationWarning
       >

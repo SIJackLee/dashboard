@@ -6,6 +6,11 @@ import { AlertCircle, CheckCircle2, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motionDuration } from "@/lib/ui/motion-tokens";
 import { FEEDBACK_Z } from "@/lib/ui/feedback-layers";
+import {
+  feedbackToneFromPipeline,
+  opsFeedbackIcon,
+  opsFeedbackTone,
+} from "@/lib/ui/ops-feedback";
 
 export type CommandPipelineOverlayPhase = "loading" | "success" | "info" | "error";
 
@@ -84,6 +89,7 @@ export function CommandPipelineOverlay({
 
   if (!mounted || typeof document === "undefined") return null;
 
+  const tone = feedbackToneFromPipeline(phase);
   const Icon =
     phase === "loading"
       ? Loader2
@@ -122,20 +128,12 @@ export function CommandPipelineOverlay({
       <div
         className={cn(
           "ui-motion-command-card max-w-[min(100vw-2rem,22rem)] rounded-xl border bg-background/95 px-5 py-4 text-center shadow-xl ring-1 ring-border/60 backdrop-blur-sm",
+          opsFeedbackTone[tone],
           show ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-95 opacity-0",
-          phase === "success" && "border-emerald-200/80",
-          phase === "error" && "border-red-200/80",
-          phase === "info" && "border-channel-info/40",
         )}
       >
         <Icon
-          className={cn(
-            "mx-auto mb-2.5 size-8",
-            phase === "loading" && "animate-spin text-muted-foreground",
-            phase === "success" && "text-emerald-600 dark:text-emerald-400",
-            phase === "error" && "text-red-600 dark:text-red-400",
-            phase === "info" && "text-channel-info",
-          )}
+          className={cn("mx-auto mb-2.5 size-8", opsFeedbackIcon[tone])}
           aria-hidden
         />
         <p className="text-sm font-semibold leading-snug">{title}</p>

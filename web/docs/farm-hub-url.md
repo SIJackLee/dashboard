@@ -12,10 +12,10 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 환경변수 | 기본 | 설명 |
 |----------|------|------|
 | `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «필드» 탭. off면 현행 4탭 |
-| `NEXT_PUBLIC_BARN_PLAN_ENABLED` | **on** (Production 포함). `false`면 숨김 | 모델 탭(2D). 상세 [`BARN_PLAN.md`](./BARN_PLAN.md) |
+| `NEXT_PUBLIC_BARN_PLAN_ENABLED` | 로컬·Preview **on**, Production **off**. 강제 `true`/`false` | 모델 탭(2D). 상세 [`BARN_PLAN.md`](./BARN_PLAN.md) |
 
 통합 on일 때 UI:
-- 상위 탭: **필드 · 차트 · 모델**
+- 상위 탭: **필드 · 차트 · 모델**(Production에서는 모델 기본 숨김)
 - 판정 단위는 **컨트롤러 영향범위**(카드 1장). 방 칸 히트맵 탭(`view=status`)은 제거. 옛 주소는 필드로 정규화
 - DELIN: 필드·차트 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 모델 탭에서는 숨김. 전용 탭 없음. `view=aria`/`jarvis` → 필드
 - PC 필드: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**

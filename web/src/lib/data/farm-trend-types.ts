@@ -208,9 +208,6 @@ export function isContextControllerTrend30d(
   );
 }
 
-/** @deprecated 허브는 1시간 30일 컨텍스트. */
-export const isFineControllerTrend30d = isContextControllerTrend30d;
-
 export function isControllerTrendPeriodComplete(
   data: TrendControllerPeriodData | null | undefined,
   period: TrendPeriodId,

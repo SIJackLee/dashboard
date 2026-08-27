@@ -1,9 +1,36 @@
+.hub-kakao {
+  height: 100%;
+  isolation: isolate;
+  min-height: 18rem;
+  width: 100%;
+  background: var(--surface-well, transparent);
+}
+
 .hub-leaflet {
   height: 100%;
   isolation: isolate;
   min-height: 18rem;
   width: 100%;
   background: var(--surface-well, transparent);
+}
+
+.hub-map-pin-hit {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hub-kakao-tip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px color-mix(in oklch, var(--foreground) 14%, transparent);
+  color: var(--foreground);
+  max-width: 12rem;
+  pointer-events: none;
+  transform: translate(12px, -8px);
+  white-space: normal;
 }
 
 .hub-leaflet .leaflet-control-attribution {

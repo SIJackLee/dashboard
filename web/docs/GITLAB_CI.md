@@ -16,6 +16,7 @@
 
 ## Knip
 
+- 설정: `knip.config.ts` — `src/app`·`src/**/*.test.ts`·`scripts/*`를 entry로 둔다. 허브 미마운트 델린 셸(`UI_ARIA_PRESENCE.md`)은 ignore. `scripts/archive/**`는 entry에 넣지 않는다.
 - CI: `npm run knip` — files/dependencies/duplicates만 게이트
 - 로컬 점진 정리: `npm run knip:exports` — unused export 전체 목록
 

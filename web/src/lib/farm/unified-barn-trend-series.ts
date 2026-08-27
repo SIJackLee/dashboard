@@ -317,9 +317,6 @@ export const SPLIT_Y_TEMP_EXPANDED: SplitYLayout = resolveSplitYLayout({
   showMotors: true,
 });
 
-/** @deprecated 습도 포함 레이아웃 별칭 */
-export const SPLIT_Y = SPLIT_Y_WITH_HUM;
-
 function lerpNum(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }

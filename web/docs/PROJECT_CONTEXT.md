@@ -142,7 +142,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - `profiles.ui_config` 는 **지도 배치·표시명만** (사용자별). stallNo 목록은 수집 데이터에서 자동 유도.
 - `controller_stall_map` 등 **양방향 매핑 DB migration 보류·취소**.
 - 농장 지도는 **2D 그리드 카드 맵** (아이소메트릭은 후속). NH3/CO2·신호강도·지리좌표는 미표시.
-- 관리자 `/farm`(농장 미선택)은 **전국 지도 + 현황 목록**. 지도는 **Leaflet + OSM 한국 타일**(한글 지명, 남한 범위, 카카오 맵 키 없음). 배정 농장은 좌표가 없어도 목록에 두고, 핀은 좌표가 있는 것만. 상태 칩으로 목록·핀을 거른다. 핀·목록 클릭은 단건 현장 화면. `/admin/ops`에는 지도를 두지 않음.
+- 관리자 `/farm`(농장 미선택)은 **전국 지도 + 현황 목록**. 지도는 **카카오맵** 기본(키·SDK 실패 시 Leaflet + OSM 한국). 남한 범위. 배정 농장은 좌표가 없어도 목록에 두고, 핀은 좌표가 있는 것만. 상태 칩으로 목록·핀을 거른다. 핀·목록 클릭은 단건 현장 화면. `/admin/ops`에는 지도를 두지 않음.
 - **축사(`/barns`)** stallNo 기준 전환은 **펌웨어 `ver=0x04` 이후**. 현재는 **컨트롤러(idx) 단위** 임시 표시.
 - **축사 페이지 차트** x축 = 컨트롤러 **1~50** (`idx+1`) 고정 슬롯. 외부 차트 라이브러리 없이 `CompactColumnChart`(CSS/SVG).
 - **`iot-chart.ts` 분리**: 클라이언트 컴포넌트가 `server-only`인 `iot.ts`를 import 하지 않도록 차트 집계만 별도 모듈.
@@ -246,7 +246,7 @@ web/src/
     (dashboard)/admin/ops/**             # system | users | farms | commands (+ health-actions, users-actions)
     login/page.tsx  pending/page.tsx  auth/{actions.ts,callback/route.ts}
   components/
-    layout/{top-bar,scope-bar,mobile-bottom-nav,...}
+    layout/{top-bar, header-tools-menu, ...}
     common/{stat-card,section-card,status-badge,...}
     farm/  controllers/  ops/  admin/
   lib/

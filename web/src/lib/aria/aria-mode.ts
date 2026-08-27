@@ -13,10 +13,6 @@ export const DELIN_FULL_NAME_KO =
 /** 브랜드 한 줄 */
 export const DELIN_TAGLINE = "축사를 이해하고, 농장을 지키는 AI — DELIN";
 
-/** @deprecated 표시명은 DELIN_* 사용. 호환용 alias */
-export const ARIA_NAME = DELIN_NAME;
-/** @deprecated */
-export const ARIA_FULL_NAME = DELIN_FULL_NAME;
 
 export type VoiceReportStatus =
   | "idle"

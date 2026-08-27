@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { FEEDBACK_Z } from "@/lib/ui/feedback-layers";
+import { opsFeedbackTone } from "@/lib/ui/ops-feedback";
 
 export type InlineStatusTone = "ok" | "warn" | "error" | "info";
 
@@ -15,10 +16,10 @@ type Props = {
 };
 
 const TONE_CLASS: Record<InlineStatusTone, string> = {
-  ok: "border-emerald-200/80 text-emerald-900 dark:border-emerald-900/50 dark:text-emerald-100",
-  warn: "border-amber-200/80 text-amber-950 dark:border-amber-900/50 dark:text-amber-100",
-  error: "border-red-200/80 text-red-900 dark:border-red-900/50 dark:text-red-100",
-  info: "border-border text-foreground",
+  ok: opsFeedbackTone.ok,
+  warn: opsFeedbackTone.warn,
+  error: opsFeedbackTone.error,
+  info: opsFeedbackTone.info,
 };
 
 export function InlineStatusToast({

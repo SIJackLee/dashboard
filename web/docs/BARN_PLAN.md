@@ -15,9 +15,10 @@ URL: [`farm-hub-url.md`](./farm-hub-url.md) (`view=model`, 옛 `view=plan`은 �
 
 | 환경 | 기본 |
 |------|------|
-| 로컬 · Preview · Production | **노출** |
+| 로컬 · Preview | **노출** |
+| Production | **숨김** |
 
-끄려면 `NEXT_PUBLIC_BARN_PLAN_ENABLED=false` (이름만 `.env.example`).
+끄려면 `NEXT_PUBLIC_BARN_PLAN_ENABLED=false`. Production에서 켜려면 `true` (이름만 `.env.example`).
 
 플래그 off면 `view=plan` · `view=model` → 필드(map). 탭도 숨긴다.
 

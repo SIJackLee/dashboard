@@ -5,6 +5,7 @@ import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NavigationPendingProvider } from "@/components/layout/navigation-pending-provider";
 import { ViewportPreviewBootstrap } from "@/components/layout/viewport-preview-bootstrap";
+import { DENSITY_STORAGE_KEY } from "@/lib/ui/density";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -55,7 +56,7 @@ export default function RootLayout({
           {`try{var t=localStorage.getItem("dashboard-theme");if(t==="dark"||(!t&&window.matchMedia("(prefers-color-scheme: dark)").matches)){document.documentElement.classList.add("dark")}}catch(e){}`}
         </Script>
         <Script id="dashboard-density-init" strategy="beforeInteractive">
-          {`try{var d=localStorage.getItem("dashboard-density");document.documentElement.dataset.density=(d==="compact"||d==="comfortable")?d:"comfortable"}catch(e){document.documentElement.dataset.density="comfortable"}`}
+          {`try{var d=localStorage.getItem("${DENSITY_STORAGE_KEY}");document.documentElement.dataset.density=(d==="compact"||d==="comfortable")?d:"comfortable"}catch(e){document.documentElement.dataset.density="comfortable"}`}
         </Script>
         <Script id="dashboard-viewport-init" strategy="beforeInteractive">
           {`try{var k="dashboard-viewport-preview";var v=localStorage.getItem(k);var pref=(v==="mobile"||v==="desktop")?v:"auto";var mobile=window.matchMedia("(max-width: 767px)").matches;var mode=pref==="auto"?(mobile?"mobile":"desktop"):pref;document.documentElement.dataset.viewportPreview=mode}catch(e){document.documentElement.dataset.viewportPreview=window.matchMedia("(max-width: 767px)").matches?"mobile":"desktop"}`}

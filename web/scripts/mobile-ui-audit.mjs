@@ -102,7 +102,6 @@ function auditPage() {
   /** TopBar·Bottom Nav·탭 nav — 44px 터치 타겟은 정상 */
   const SHELL_ROOTS = [
     "header",
-    '[aria-label="모바일 앱 메뉴"]',
     '[aria-label="모니터링 탭"]',
     '[aria-label="컨트롤러 설정 서브 탭"]',
     '[aria-label="운영 탭"]',
@@ -214,7 +213,6 @@ function auditPage() {
       largeTextNodes: largeTextEls.length,
     },
     hasGeoMap: !!document.querySelector('[aria-label="전체 농장 지리 지도"]'),
-    hasMobileBottomNav: !!document.querySelector('[aria-label="모바일 앱 메뉴"]'),
     hasMobileSplitShell: !!document.querySelector('[class*="min-h-[calc(100dvh"]'),
   };
 }

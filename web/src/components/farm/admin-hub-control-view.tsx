@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore, type ComponentType } from "react";
-import dynamic from "next/dynamic";
+import { AdminHubGeoMap } from "@/components/farm/admin-hub-geo-map";
 import {
   Activity,
   Clock,
@@ -39,19 +39,6 @@ import {
   dashboardUi,
 } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
-
-const AdminHubLeafletMap = dynamic(
-  () =>
-    import("@/components/farm/admin-hub-leaflet-map").then(
-      (m) => m.AdminHubLeafletMap,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-[18rem] w-full md:min-h-[22rem] lg:min-h-[28rem]" aria-busy />
-    ),
-  },
-);
 
 type Props = {
   farmOptions: FarmKey[];
@@ -186,7 +173,7 @@ export function AdminHubControlView({
               <p className={dashboardUi.body}>지도에 표시할 좌표가 없습니다.</p>
             </div>
           ) : (
-            <AdminHubLeafletMap
+            <AdminHubGeoMap
               rows={mapped}
               activeId={activeId}
               onHover={setActiveId}

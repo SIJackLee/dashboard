@@ -11,9 +11,10 @@
 | `comfortable` (기본) | PC `md`에서 타이포·컨트롤 ≈ 기존 2× 스케일 |
 | `compact` | PC에서도 모바일급 조밀 스케일 (`--density-*-md` 축소) |
 
-- 저장: `localStorage.dashboard-density`
+- 저장: `localStorage.dashboard-density` (`DENSITY_STORAGE_KEY`)
 - DOM: `html[data-density="comfortable"|"compact"]`
-- 토글: 헤더 도구 `data-tour-id="header-density"`
+- 초기화: `src/app/layout.tsx` beforeInteractive 스크립트
+- 헤더 밀도 토글은 현재 연결되지 않음 (값은 저장된 compact가 있으면 유지)
 
 ## 토큰
 
