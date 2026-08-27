@@ -267,7 +267,7 @@ export function FarmPlanView({
   const stageAnimRef = useRef(0);
   const [fieldPhase, setFieldPhase] = useState<BarnPlanPhase>("place");
   const [envBandMode, setEnvBandMode] =
-    useState<BarnPlanEnvBandMode>("recommend");
+    useState<BarnPlanEnvBandMode>("alarm");
   const [assignMorph, setAssignMorph] = useState(0);
   const assignMorphRef = useRef(0);
   const assignAnimRef = useRef(0);

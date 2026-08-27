@@ -36,7 +36,7 @@ export function saveBarnPlanPhase(farmId: string, phase: BarnPlanPhase): void {
   }
 }
 
-/** 생성 칸 색 — 알람 상하한 / 생육 권장. 기본 권장. */
+/** 생성 칸 색 — 알람 상하한 / 생육 권장. 기본 알람. */
 export type BarnPlanEnvBandMode = "alarm" | "recommend";
 
 export function barnPlanEnvBandStorageKey(farmId: string): string {
@@ -44,17 +44,17 @@ export function barnPlanEnvBandStorageKey(farmId: string): string {
 }
 
 export function parseBarnPlanEnvBandMode(raw: unknown): BarnPlanEnvBandMode {
-  return raw === "alarm" ? "alarm" : "recommend";
+  return raw === "recommend" ? "recommend" : "alarm";
 }
 
 export function loadBarnPlanEnvBandMode(farmId: string): BarnPlanEnvBandMode {
-  if (!farmId || typeof window === "undefined") return "recommend";
+  if (!farmId || typeof window === "undefined") return "alarm";
   try {
     return parseBarnPlanEnvBandMode(
       window.localStorage.getItem(barnPlanEnvBandStorageKey(farmId)),
     );
   } catch {
-    return "recommend";
+    return "alarm";
   }
 }
 

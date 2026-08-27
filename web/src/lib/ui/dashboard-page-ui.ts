@@ -31,6 +31,13 @@ export const dashboardTypography = {
     "text-[length:var(--density-value-lg)] font-mono font-bold tabular-nums tracking-[var(--tracking-readout)] leading-none md:text-[length:var(--density-value-lg-md)]",
   tabNav:
     "text-[length:var(--density-meta)] font-medium md:text-[length:var(--density-meta-md)]",
+  /** 필드 덮개 — md 2× 없이. 값은 valueLg. */
+  envCoverIdentity:
+    "text-[length:var(--density-body)] font-semibold leading-tight",
+  envCoverMeta:
+    "text-[length:var(--density-meta)] leading-tight",
+  envCoverStatus:
+    "text-[length:var(--density-meta)] font-medium leading-tight",
 } as const;
 
 /**

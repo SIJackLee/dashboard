@@ -30,6 +30,7 @@ import {
   pigEnvTypeVerdicts,
   type PigEnvFit,
 } from "@/lib/farm/pig-env-recommend";
+import { sevOfScore, severityScore } from "@/lib/farm/severity-score";
 
 export type LiveZoneRef = {
   stallTyCode: string;
@@ -175,15 +176,6 @@ type BarnPlanEnvTintReading = Pick<
     Pick<BarnReading, "farmKey" | "stallNo" | "controllerKey" | "eqpmnNo">
   >;
 
-function alarmValueOffBand(
-  value: number | null | undefined,
-  low: number,
-  high: number,
-): boolean {
-  if (value == null || !Number.isFinite(value)) return false;
-  return value <= low || value >= high;
-}
-
 function tintFromOffBands(
   tempOff: boolean,
   humOff: boolean,
@@ -216,7 +208,10 @@ function alarmChannelTint(
   high: number,
 ): BarnPlanRoomEnvTint | null {
   if (value == null || !Number.isFinite(value)) return null;
-  return alarmValueOffBand(value, low, high) ? "danger" : "ok";
+  const sev = sevOfScore(severityScore(value, { lo: low, hi: high }));
+  if (sev === "warning") return "danger";
+  if (sev === "caution") return "warn";
+  return "ok";
 }
 
 export function barnPlanRoomEnvOverall(
@@ -231,7 +226,29 @@ export function barnPlanRoomEnvOverall(
   );
 }
 
-function alarmThresholdsForTintReading(
+/** 알람 모드 — 히트맵과 같이 채널 최악. 주의+주의는 주의(둘 다 이탈해도 위험으로 올리지 않음). */
+function worstEnvChannelTint(
+  channels: BarnPlanRoomEnvChannels,
+): BarnPlanRoomEnvTint {
+  if (channels.temp === "danger" || channels.humidity === "danger") {
+    return "danger";
+  }
+  if (channels.temp === "warn" || channels.humidity === "warn") {
+    return "warn";
+  }
+  return "ok";
+}
+
+function barnPlanRoomEnvTintForMode(
+  channels: BarnPlanRoomEnvChannels,
+  mode: BarnPlanEnvBandMode,
+): BarnPlanRoomEnvTint {
+  return mode === "recommend"
+    ? barnPlanRoomEnvOverall(channels)
+    : worstEnvChannelTint(channels);
+}
+
+export function barnPlanEnvAlarmThresholds(
   reading: BarnPlanEnvTintReading,
   settings?: AlarmSettings,
 ): AlarmThresholds {
@@ -273,16 +290,16 @@ type BarnPlanCoverRooms = readonly {
   eqpmnNo?: string | null;
 }[];
 
-/** 생성: 온도·습도 각각 정상/경고/위험. 권장 이탈=경고, 안전망·알람 이탈=위험. */
+/** 생성: 온도·습도 각각 정상/주의/위험. 기본은 알람 띠(히트맵과 같은 점수). 권장 모드는 유형 이탈=주의, 안전망=위험. */
 export function barnPlanRoomEnvChannels(
   reading: BarnPlanEnvTintReading | undefined,
   options?: BarnPlanRoomEnvTintOptions,
 ): BarnPlanRoomEnvChannels | null {
   if (!reading || reading.status === "offline") return null;
-  const mode = options?.mode ?? "recommend";
+  const mode = options?.mode ?? "alarm";
   if (mode === "alarm") {
     if (reading.tempC == null && reading.humidityPct == null) return null;
-    const band = alarmThresholdsForTintReading(reading, options?.alarmSettings);
+    const band = barnPlanEnvAlarmThresholds(reading, options?.alarmSettings);
     return {
       temp: alarmChannelTint(reading.tempC, band.tempLow, band.tempHigh),
       humidity: alarmChannelTint(
@@ -314,7 +331,8 @@ export function barnPlanRoomEnvTint(
   options?: BarnPlanRoomEnvTintOptions,
 ): BarnPlanRoomEnvTint | null {
   const channels = barnPlanRoomEnvChannels(reading, options);
-  return channels ? barnPlanRoomEnvOverall(channels) : null;
+  if (!channels) return null;
+  return barnPlanRoomEnvTintForMode(channels, options?.mode ?? "alarm");
 }
 
 /** 컨트롤러 구획 → 방별 온도·습도 판정. */
@@ -350,8 +368,9 @@ export function barnPlanRoomEnvTints(
 ): Record<string, BarnPlanRoomEnvTint> {
   const out: Record<string, BarnPlanRoomEnvTint> = {};
   const marks = barnPlanRoomEnvMarks(covers, readings, options);
+  const mode = options?.mode ?? "alarm";
   for (const [key, channels] of Object.entries(marks)) {
-    out[key] = barnPlanRoomEnvOverall(channels);
+    out[key] = barnPlanRoomEnvTintForMode(channels, mode);
   }
   return out;
 }
@@ -361,6 +380,7 @@ export function barnPlanCoverClimate(
   reading:
     | Pick<BarnReading, "tempC" | "humidityPct" | "status" | "stallTyCode">
     | undefined,
+  options?: BarnPlanRoomEnvTintOptions,
 ): BarnPlanCoverClimate {
   if (!reading || reading.status === "offline") {
     return { tempText: null, humidityText: null, tone: "offline" };
@@ -373,7 +393,7 @@ export function barnPlanCoverClimate(
   return {
     tempText,
     humidityText,
-    tone: barnPlanRoomEnvTint(reading) ?? "ok",
+    tone: barnPlanRoomEnvTint(reading, options) ?? "ok",
   };
 }
 

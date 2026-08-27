@@ -54,19 +54,15 @@ export function envComfortScore(
   return scores.reduce((a, b) => a + b, 0) / scores.length;
 }
 
-/** 점수 → 브러시 막대 색 (양호→주의→불량) */
+/** 점수 → 브러시 막대 색 (양호→주의→불량). 히트맵·덮개와 같은 상태 토큰. */
 export function comfortScoreToColor(score: number): string {
   const s = Math.max(0, Math.min(100, score));
-  if (s >= 75) {
-    const t = (s - 75) / 25;
-    return lerpHex("#34d399", "#10b981", t);
-  }
   if (s >= 45) {
-    const t = (s - 45) / 30;
-    return lerpHex("#fbbf24", "#34d399", t);
+    const t = Math.round(((s - 45) / 55) * 100);
+    return `color-mix(in oklch, var(--status-ok) ${t}%, var(--status-warn))`;
   }
-  const t = s / 45;
-  return lerpHex("#f43f5e", "#fbbf24", t);
+  const t = Math.round((s / 45) * 100);
+  return `color-mix(in oklch, var(--status-warn) ${t}%, var(--status-danger))`;
 }
 
 /** 브러시·팝업용 구간 라벨 (색 임계와 동일) */
@@ -77,23 +73,4 @@ export function comfortScoreBandLabel(
   if (s >= 75) return "양호";
   if (s >= 45) return "주의";
   return "이탈";
-}
-
-function lerpHex(a: string, b: string, t: number): string {
-  const u = Math.max(0, Math.min(1, t));
-  const pa = hexToRgb(a);
-  const pb = hexToRgb(b);
-  const r = Math.round(pa.r + (pb.r - pa.r) * u);
-  const g = Math.round(pa.g + (pb.g - pa.g) * u);
-  const bl = Math.round(pa.b + (pb.b - pa.b) * u);
-  return `rgb(${r} ${g} ${bl})`;
-}
-
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const h = hex.replace("#", "");
-  return {
-    r: Number.parseInt(h.slice(0, 2), 16),
-    g: Number.parseInt(h.slice(2, 4), 16),
-    b: Number.parseInt(h.slice(4, 6), 16),
-  };
 }

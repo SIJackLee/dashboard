@@ -133,6 +133,7 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --color-channel-fan-intake: var(--channel-fan-intake);
   --color-channel-fan-exhaust: var(--channel-fan-exhaust);
   --color-channel-fan-supply: var(--channel-fan-supply);
+  --color-status-ok: var(--status-ok);
   --color-status-warn: var(--status-warn);
   --color-status-danger: var(--status-danger);
   --radius-sm: calc(var(--radius) * 0.6);
@@ -207,9 +208,13 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --plan-cover-3: oklch(0.58 0.09 115);
   --plan-cover-4: oklch(0.56 0.10 250);
   --plan-cover-5: oklch(0.62 0.08 355);
-  --status-ok: var(--primary);
-  --status-warn: oklch(0.70 0.15 70);
-  --status-danger: var(--destructive);
+  /* 정상·주의·경고 — 히트맵과 동일 (emerald-500 / amber-500 / red-500) */
+  --status-ok: #10b981;
+  --status-warn: #f59e0b;
+  --status-danger: #ef4444;
+  --status-ok-ink: color-mix(in oklch, var(--status-ok) 36%, black);
+  --status-warn-ink: color-mix(in oklch, var(--status-warn) 36%, black);
+  --status-danger-ink: color-mix(in oklch, var(--status-danger) 40%, black);
   --chart-guide: oklch(0.55 0.02 250);
   /* Gap5 ? surface ladder (light: clearer lift) */
   --surface-well: color-mix(in oklch, var(--muted) 88%, var(--background));
@@ -406,9 +411,13 @@ html[data-density="compact"] {
   --plan-cover-3: oklch(0.74 0.09 115);
   --plan-cover-4: oklch(0.70 0.10 250);
   --plan-cover-5: oklch(0.76 0.08 355);
-  --status-ok: var(--primary);
-  --status-warn: oklch(0.78 0.14 70);
-  --status-danger: var(--destructive);
+  /* 정상·주의·경고 — 라이트와 같은 히트맵 팔레트 */
+  --status-ok: #10b981;
+  --status-warn: #f59e0b;
+  --status-danger: #ef4444;
+  --status-ok-ink: color-mix(in oklch, var(--status-ok) 36%, black);
+  --status-warn-ink: color-mix(in oklch, var(--status-warn) 36%, black);
+  --status-danger-ink: color-mix(in oklch, var(--status-danger) 40%, black);
   --chart-guide: oklch(0.58 0.02 250);
   --surface-well: color-mix(in oklch, var(--muted) 80%, var(--background));
   --surface-well-border: color-mix(in oklch, var(--border) 70%, transparent);
@@ -939,6 +948,18 @@ html[data-density="compact"] {
   .ui-motion-exit-fade,
   .ui-motion-enter-slide-up,
   .ui-motion-stagger-in,
+  .cover-reveal-flip-play,
+  .cover-reveal-flip-fade,
+  .cover-reveal-ghost-fade-play,
+  .cover-reveal-ghost-fade-in,
+  .cover-reveal-glyph-play,
+  .cover-reveal-glyph-reverse,
+  .cover-reveal-fill-play,
+  .cover-reveal-fill-reverse-play,
+  .cover-reveal-band-glow-in,
+  .cover-reveal-band-glow-out,
+  .cover-reveal-humidity-in,
+  .cover-reveal-humidity-out,
   .ui-motion-command-overlay,
   .ui-motion-command-card,
   .ui-motion-feedback-icon,
@@ -1217,6 +1238,234 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   transform-origin: top left;
   animation: farm-heat-morph-in var(--motion-duration-emphasis) var(--motion-ease-emphasis)
     both;
+}
+
+/** 필드 덮개 → 상세 FLIP (A) */
+@keyframes cover-reveal-flip-to-rest {
+  to {
+    transform: none;
+  }
+}
+
+.cover-reveal-flip-play {
+  animation: cover-reveal-flip-to-rest var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
+}
+
+@keyframes cover-reveal-ghost-fade {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.cover-reveal-flip-fade {
+  animation:
+    cover-reveal-flip-to-rest var(--motion-duration-emphasis) var(--motion-ease-emphasis)
+      both,
+    cover-reveal-ghost-fade var(--motion-duration-emphasis) var(--motion-ease-emphasis)
+      both;
+}
+
+.cover-reveal-ghost-fade-play {
+  animation: cover-reveal-ghost-fade var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
+}
+
+.cover-reveal-ghost-fade-in {
+  animation: cover-reveal-ghost-fade-in var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
+}
+
+@keyframes cover-reveal-ghost-fade-in {
+  from {
+    opacity: 0;
+  }
+  45%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.cover-reveal-glyph-play {
+  display: inline-block;
+  animation: cover-reveal-glyph-to-band var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
+}
+
+@keyframes cover-reveal-glyph-to-band {
+  to {
+    transform: translate(var(--cover-glyph-dx, 0px), var(--cover-glyph-dy, 0px));
+    opacity: 0;
+  }
+}
+
+.cover-reveal-glyph-reverse {
+  display: inline-block;
+  transform: translate(var(--cover-glyph-dx, 0px), var(--cover-glyph-dy, 0px));
+  opacity: 0;
+  animation: cover-reveal-glyph-from-band var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
+}
+
+@keyframes cover-reveal-glyph-from-band {
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.cover-reveal-fill-to-ring {
+  box-shadow: inset 0 0 0 100vmax var(--cover-reveal-fill, var(--status-danger));
+}
+
+.cover-reveal-fill-play {
+  animation: cover-reveal-fill-to-ring var(--motion-duration-emphasis)
+    var(--motion-ease-standard) both;
+}
+
+@keyframes cover-reveal-fill-to-ring {
+  from {
+    box-shadow: inset 0 0 0 100vmax var(--cover-reveal-fill, var(--status-danger));
+    opacity: 1;
+  }
+  45% {
+    box-shadow: inset 0 0 0 28px var(--cover-reveal-fill, var(--status-danger));
+    opacity: 1;
+  }
+  78% {
+    box-shadow: inset 0 0 0 6px var(--cover-reveal-fill, var(--status-danger));
+    opacity: 0.82;
+  }
+  to {
+    box-shadow: inset 0 0 0 2px var(--cover-reveal-fill, var(--status-danger));
+    opacity: 0;
+  }
+}
+
+.cover-reveal-fill-reverse {
+  box-shadow: inset 0 0 0 2px var(--cover-reveal-fill, var(--status-danger));
+  opacity: 0.82;
+}
+
+.cover-reveal-fill-reverse-play {
+  animation: cover-reveal-fill-from-ring var(--motion-duration-emphasis)
+    var(--motion-ease-standard) both;
+}
+
+@keyframes cover-reveal-fill-from-ring {
+  from {
+    box-shadow: inset 0 0 0 2px var(--cover-reveal-fill, var(--status-danger));
+    opacity: 0.82;
+  }
+  22% {
+    box-shadow: inset 0 0 0 6px var(--cover-reveal-fill, var(--status-danger));
+    opacity: 0.82;
+  }
+  55% {
+    box-shadow: inset 0 0 0 28px var(--cover-reveal-fill, var(--status-danger));
+    opacity: 1;
+  }
+  to {
+    box-shadow: inset 0 0 0 100vmax var(--cover-reveal-fill, var(--status-danger));
+    opacity: 1;
+  }
+}
+
+.cover-reveal-band-glow {
+  --cover-reveal-glow: var(--status-danger);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--cover-reveal-glow) 50%, transparent),
+    0 0 8px 1px color-mix(in oklch, var(--cover-reveal-glow) 22%, transparent);
+}
+
+.cover-reveal-band-glow-in {
+  animation: cover-reveal-band-glow-in var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
+}
+
+@keyframes cover-reveal-band-glow-in {
+  from {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  55% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--cover-reveal-glow) 70%, transparent),
+      0 0 12px 2px color-mix(in oklch, var(--cover-reveal-glow) 36%, transparent);
+  }
+  to {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--cover-reveal-glow) 50%, transparent),
+      0 0 8px 1px color-mix(in oklch, var(--cover-reveal-glow) 22%, transparent);
+  }
+}
+
+.cover-reveal-band-glow-out {
+  animation: cover-reveal-band-glow-out var(--motion-duration-emphasis)
+    var(--motion-ease-emphasis) both;
+}
+
+@keyframes cover-reveal-band-glow-out {
+  from {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--cover-reveal-glow) 50%, transparent),
+      0 0 8px 1px color-mix(in oklch, var(--cover-reveal-glow) 22%, transparent);
+  }
+  45% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--cover-reveal-glow) 70%, transparent),
+      0 0 12px 2px color-mix(in oklch, var(--cover-reveal-glow) 36%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+[data-cover-revealing] [data-cover-reveal-values] {
+  opacity: 0;
+}
+
+[data-cover-revealing="close"] [data-cover-morph-target="identity"],
+[data-cover-revealing="close"] [data-cover-morph-target="marks"] {
+  opacity: 0;
+}
+
+[data-cover-revealing="open"][data-cover-morph-band="temp"]
+  [data-cover-morph-target="humidity-band"],
+[data-cover-revealing="open"][data-cover-morph-band="humidity"]
+  [data-cover-morph-target="temp-band"] {
+  opacity: 0;
+}
+
+.cover-reveal-humidity-in {
+  animation: cover-reveal-humidity-in var(--motion-duration-normal)
+    var(--motion-ease-enter) both;
+}
+
+@keyframes cover-reveal-humidity-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.cover-reveal-humidity-out {
+  animation: cover-reveal-humidity-out var(--motion-duration-normal)
+    var(--motion-ease-exit) both;
+}
+
+@keyframes cover-reveal-humidity-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

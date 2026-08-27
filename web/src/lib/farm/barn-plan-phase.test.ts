@@ -24,7 +24,7 @@ assert.equal(
 );
 assert.equal(parseBarnPlanEnvBandMode("alarm"), "alarm");
 assert.equal(parseBarnPlanEnvBandMode("recommend"), "recommend");
-assert.equal(parseBarnPlanEnvBandMode(null), "recommend");
+assert.equal(parseBarnPlanEnvBandMode(null), "alarm");
 assert.equal(
   barnPlanEnvBandStorageKey("farm-1"),
   "sungil.barn-plan.env-band.v1:farm-1",

@@ -76,6 +76,23 @@ export const motionClass = {
   /** Emphasis — 확대 상세 morph */
   emphasisMorph: "farm-heat-morph",
 
+  /** 필드 덮개 → 상세 FLIP */
+  coverRevealFlip: "cover-reveal-flip-play",
+  coverRevealFlipFade: "cover-reveal-flip-fade",
+  coverRevealGlyph: "cover-reveal-glyph-play",
+  coverRevealGlyphReverse: "cover-reveal-glyph-reverse",
+  coverRevealFill: "cover-reveal-fill-to-ring",
+  coverRevealFillPlay: "cover-reveal-fill-play",
+  coverRevealFillReverse: "cover-reveal-fill-reverse",
+  coverRevealFillReversePlay: "cover-reveal-fill-reverse-play",
+  coverRevealGhostFade: "cover-reveal-ghost-fade-play",
+  coverRevealGhostFadeIn: "cover-reveal-ghost-fade-in",
+  coverRevealBandGlow: "cover-reveal-band-glow",
+  coverRevealBandGlowIn: "cover-reveal-band-glow-in",
+  coverRevealBandGlowOut: "cover-reveal-band-glow-out",
+  coverRevealHumidityIn: "cover-reveal-humidity-in",
+  coverRevealHumidityOut: "cover-reveal-humidity-out",
+
   /** 차트 탭 — 통합 추이 advanced motion */
   farmChartPlotReveal: "farm-chart-plot-reveal",
   farmChartEnvelopeIn: "farm-chart-envelope-in",

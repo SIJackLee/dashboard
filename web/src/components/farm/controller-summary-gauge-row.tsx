@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -25,10 +25,21 @@ import { EnvMetricPanel } from "@/components/farm/controller-summary-gauge-parts
 import { cn } from "@/lib/utils";
 import { ControllerEnvCover } from "@/components/farm/controller-env-cover";
 import {
+  CoverRevealOverlay,
+  COVER_REVEAL_STATUS_VAR,
+  type CoverRevealDirection,
+} from "@/components/farm/cover-reveal-overlay";
+import {
   controllerEnvCoverLevel,
   controllerEnvCoverRingClass,
   isControllerPanelInteractiveTarget,
 } from "@/lib/farm/controller-env-cover";
+import {
+  captureCoverMorphSnapshot,
+  coverMorphDurationMs,
+  prefersCoverMorphReducedMotion,
+  type CoverMorphSnapshot,
+} from "@/lib/farm/cover-reveal-morph";
 
 /** 그리드 상세 — PC 2단(grid) vs 모바일 stack(+ carousel sheet). */
 export type ControllerPanelLayoutVariant = "grid" | "stack";
@@ -158,10 +169,80 @@ export function ControllerSummaryGaugeRow({
     envCoverEnabled && envCoverOpen && onEnvCoverClose,
   );
 
-  const closeEnvCover = useCallback(() => {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [coverOpenedOnce, setCoverOpenedOnce] = useState(false);
+  const [coverEnterFromFade, setCoverEnterFromFade] = useState(false);
+  const [coverReveal, setCoverReveal] = useState<{
+    snapshot: CoverMorphSnapshot;
+    overlay: boolean;
+    direction: CoverRevealDirection;
+  } | null>(null);
+  const coverRevealRef = useRef(coverReveal);
+  const pendingCoverCloseRef = useRef(false);
+  useEffect(() => {
+    coverRevealRef.current = coverReveal;
+  }, [coverReveal]);
+
+  const finishCoverClose = useCallback(() => {
+    pendingCoverCloseRef.current = false;
+    setCoverReveal(null);
     onEnvCoverClose?.();
     if (settingsExpanded) onToggleSettings?.();
   }, [onEnvCoverClose, onToggleSettings, settingsExpanded]);
+
+  const closeEnvCover = useCallback(() => {
+    const current = coverRevealRef.current;
+    if (current?.overlay && current.direction === "close") return;
+    if (current?.overlay && current.direction === "open") {
+      pendingCoverCloseRef.current = true;
+      return;
+    }
+    const reduced =
+      prefersCoverMorphReducedMotion() || coverMorphDurationMs() === 0;
+    if (current?.snapshot && !reduced) {
+      setCoverReveal({
+        snapshot: current.snapshot,
+        overlay: true,
+        direction: "close",
+      });
+      return;
+    }
+    setCoverEnterFromFade(true);
+    finishCoverClose();
+  }, [finishCoverClose]);
+
+  const handleMorphDone = useCallback(() => {
+    const current = coverRevealRef.current;
+    if (current?.direction === "close") {
+      setCoverEnterFromFade(false);
+      finishCoverClose();
+      return;
+    }
+    if (pendingCoverCloseRef.current && current?.snapshot) {
+      pendingCoverCloseRef.current = false;
+      setCoverReveal({
+        snapshot: current.snapshot,
+        overlay: true,
+        direction: "close",
+      });
+      return;
+    }
+    setCoverReveal((prev) => (prev ? { ...prev, overlay: false } : null));
+  }, [finishCoverClose]);
+
+  const handleCoverOpen = useCallback(() => {
+    pendingCoverCloseRef.current = false;
+    setCoverOpenedOnce(true);
+    const snap = captureCoverMorphSnapshot(cardRef.current);
+    const reduced =
+      prefersCoverMorphReducedMotion() || coverMorphDurationMs() === 0;
+    setCoverReveal(
+      snap && !reduced
+        ? { snapshot: snap, overlay: true, direction: "open" }
+        : null,
+    );
+    onEnvCoverOpen?.();
+  }, [onEnvCoverOpen]);
 
   const handleCardSurfaceClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -196,9 +277,34 @@ export function ControllerSummaryGaugeRow({
     <ControllerEnvCover
       reading={reading}
       level={envCoverLevel}
-      onOpen={() => onEnvCoverOpen?.()}
+      alarmSettings={alarmSettings}
+      animateEnter={coverOpenedOnce && coverEnterFromFade}
+      morphReveal
+      headerActionSlots={
+        hideGraphToggle
+          ? 0
+          : Number(Boolean(onOpenChart)) + Number(Boolean(onToggleSettings))
+      }
+      onOpen={handleCoverOpen}
     />
   ) : null;
+  const coverRevealLayer = coverReveal?.overlay ? (
+    <CoverRevealOverlay
+      snapshot={coverReveal.snapshot}
+      level={envCoverLevel}
+      reading={reading}
+      direction={coverReveal.direction}
+      onDone={handleMorphDone}
+    />
+  ) : null;
+  const cardRevealProps = {
+    "data-cover-revealing": coverReveal?.overlay
+      ? coverReveal.direction
+      : undefined,
+    "data-cover-morph-band": coverReveal?.overlay
+      ? coverReveal.snapshot.band
+      : undefined,
+  };
 
   const metricsBlock = (
     <>
@@ -208,6 +314,25 @@ export function ControllerSummaryGaugeRow({
           offline={offline}
           setpoint={setpoint}
           setDev={setDev}
+          glowBand={
+            coverReveal && envCoverOpen ? coverReveal.snapshot.band : null
+          }
+          bandGlowIn={
+            coverReveal?.direction === "open" && coverReveal.overlay
+          }
+          bandGlowOut={
+            coverReveal?.direction === "close" && coverReveal.overlay
+          }
+          glowVar={COVER_REVEAL_STATUS_VAR[envCoverLevel]}
+          siblingEnter={Boolean(
+            coverReveal &&
+              !coverReveal.overlay &&
+              envCoverOpen &&
+              coverReveal.direction !== "close",
+          )}
+          siblingExit={Boolean(
+            coverReveal?.direction === "close" && coverReveal.overlay,
+          )}
           temp={{
             value: reading.tempC,
             displayValue: temp ?? "—",
@@ -356,8 +481,10 @@ export function ControllerSummaryGaugeRow({
           }}
         >
           <div
+            ref={cardRef}
             className={cardClass}
             style={{ gridColumn: `span ${cardSpan}` }}
+            {...cardRevealProps}
             data-tour-id="controller-card"
             data-controller-card-key={reading.key}
             data-controller-key={reading.controllerKey}
@@ -367,6 +494,7 @@ export function ControllerSummaryGaugeRow({
             onClick={cardSurfaceClick}
           >
             {envCover}
+            {coverRevealLayer}
             {cardBody}
             {channelTrendBottom ? (
               <div className="mt-auto flex min-h-0 flex-1 flex-col">{channelTrendBottom}</div>
@@ -387,7 +515,9 @@ export function ControllerSummaryGaugeRow({
     return (
       <>
         <div
+          ref={cardRef}
           className={cn(cardClass, "w-full")}
+          {...cardRevealProps}
           data-tour-id="controller-card"
           data-controller-card-key={reading.key}
           data-controller-key={reading.controllerKey}
@@ -397,6 +527,7 @@ export function ControllerSummaryGaugeRow({
           onClick={cardSurfaceClick}
         >
           {envCover}
+          {coverRevealLayer}
           {cardBody}
           {channelTrendBottom}
         </div>
@@ -414,7 +545,9 @@ export function ControllerSummaryGaugeRow({
     return (
       <>
         <div
+          ref={cardRef}
           className={cardClass}
+          {...cardRevealProps}
           data-tour-id="controller-card"
           data-controller-card-key={reading.key}
           data-controller-key={reading.controllerKey}
@@ -436,6 +569,7 @@ export function ControllerSummaryGaugeRow({
           tabIndex={onCardActivate ? 0 : undefined}
         >
           {envCover}
+          {coverRevealLayer}
           {cardBody}
           {showInlineSettingsOnMobile ? settingsPanel : null}
         </div>
@@ -446,7 +580,9 @@ export function ControllerSummaryGaugeRow({
 
   return (
     <div
+      ref={cardRef}
       className={cardClass}
+      {...cardRevealProps}
       data-tour-id="controller-card"
       data-controller-card-key={reading.key}
       data-controller-key={reading.controllerKey}
@@ -455,6 +591,7 @@ export function ControllerSummaryGaugeRow({
       onClick={cardSurfaceClick}
     >
       {envCover}
+      {coverRevealLayer}
       {cardBody}
       {settingsPanel}
     </div>

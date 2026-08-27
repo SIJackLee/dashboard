@@ -47,7 +47,11 @@ import { dashboardTypography, dashboardReadout } from "@/lib/ui/dashboard-page-u
 | 라벨 | `label` | 메타 크기 · `--tracking-readout-label` |
 
 CSS: `--density-readout*` · `--tracking-readout*` (`globals.css`, compact에서 md 축소).  
-적용: 목록 `MetricValue`, 일반 EnvChip.  
+적용: 목록 `MetricValue`, 일반 EnvChip.
+
+### 필드 덮개 (컨트롤러 카드)
+
+지금 값만 `valueLg`입니다. 명칭·번호는 헤더와 같은 `cardTitle` / `cardDesc`·자리(상태점·액션 칸)를 써서 걷힐 때 크기 변환 없이 이어집니다. 판정만 `envCoverStatus`입니다.  
 
 ### 맵 카드 수치 (회귀 금지)
 

@@ -10,6 +10,11 @@ import { getStallTypeName, formatStallTypeLabelCompact } from "@/lib/data/stall-
 import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
 import {
+  controllerEnvCoverLabel,
+  controllerEnvCoverRingClass,
+  type ControllerEnvCoverLevel,
+} from "@/lib/farm/controller-env-cover";
+import {
   dashboardElevation,
   dashboardUi,
 } from "@/lib/ui/dashboard-page-ui";
@@ -39,6 +44,24 @@ const STATUS_LABEL: Record<StatusTone, string> = {
   warning: "경고",
   offline: "오프라인",
 };
+
+const ENV_SURFACE: Record<ControllerEnvCoverLevel, string> = {
+  ok: "bg-[color-mix(in_oklch,var(--status-ok)_14%,transparent)]",
+  warn: "bg-[color-mix(in_oklch,var(--status-warn)_18%,transparent)]",
+  danger: "bg-[color-mix(in_oklch,var(--status-danger)_18%,transparent)]",
+  offline: "bg-muted/40",
+};
+
+function compactEnvLevel(
+  snapshotStatus: StatusTone,
+  envCoverLevel?: ControllerEnvCoverLevel,
+): ControllerEnvCoverLevel {
+  if (snapshotStatus === "offline") return "offline";
+  if (envCoverLevel) return envCoverLevel;
+  if (snapshotStatus === "warning") return "danger";
+  if (snapshotStatus === "caution") return "warn";
+  return "ok";
+}
 
 function displayCardTypeName(snapshot: BarnMapSnapshot, compact = false): string {
   const entry = parseBarnCatalogKey(snapshot.meta.id);
@@ -78,6 +101,8 @@ type Props = {
   graphContent?: ReactNode;
   /** 현장 스플릿 현황 — 면색+명칭+온습도만 (히트맵·그립 없음) */
   statusCompact?: boolean;
+  /** 현황 면색 — 알람 판정. 없으면 수신 상태. */
+  envCoverLevel?: ControllerEnvCoverLevel;
 };
 
 export function FarmMapCard({
@@ -93,6 +118,7 @@ export function FarmMapCard({
   selected = false,
   graphContent,
   statusCompact = false,
+  envCoverLevel,
 }: Props) {
   const { meta } = snapshot;
   const title = displayCardTitle(snapshot, compact || statusCompact);
@@ -115,17 +141,18 @@ export function FarmMapCard({
   };
 
   if (statusCompact) {
+    const envLevel = compactEnvLevel(snapshot.status, envCoverLevel);
     return (
       <button
         type="button"
         onClick={handleSelect}
         disabled={!onSelect}
-        aria-label={`${title} ${STATUS_LABEL[snapshot.status]} 온도 ${tempLabel ?? "—"} 습도 ${humLabel ?? "—"}`}
+        aria-label={`${title} ${controllerEnvCoverLabel(envLevel)} 온도 ${tempLabel ?? "—"} 습도 ${humLabel ?? "—"}`}
         data-tour-id="barn-card"
         className={cn(
           "flex w-full min-w-0 flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 text-center transition-shadow",
-          STATUS_SURFACE[snapshot.status],
-          STATUS_ACCENT[snapshot.status],
+          ENV_SURFACE[envLevel],
+          controllerEnvCoverRingClass(envLevel),
           selectable && "cursor-pointer",
           selected &&
             "!ring-2 !ring-foreground/35 !ring-offset-1 dark:!ring-foreground/30",

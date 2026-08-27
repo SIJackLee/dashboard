@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
+import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { FarmMapCard } from "@/components/farm/farm-map-card";
+import { worstControllerEnvCoverLevel } from "@/lib/farm/controller-env-cover";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { PanelLeft, PanelLeftClose } from "lucide-react";
@@ -55,6 +57,7 @@ type Props = {
   collapsed?: boolean;
   onHide?: () => void;
   onShow?: () => void;
+  alarmSettings?: AlarmSettings;
   className?: string;
 };
 
@@ -73,6 +76,7 @@ export function FarmFieldStatusGrid({
   collapsed = false,
   onHide,
   onShow,
+  alarmSettings,
   className,
 }: Props) {
   const sorted = useMemo(() => {
@@ -178,6 +182,10 @@ export function FarmFieldStatusGrid({
                   layout="stack"
                   compact
                   statusCompact
+                  envCoverLevel={worstControllerEnvCoverLevel(
+                    readingsMatchingBarn(b, readings),
+                    alarmSettings,
+                  )}
                   selectable
                   selected={selected}
                   onSelect={() => onSelectBarn(b)}

@@ -108,7 +108,7 @@ const otherPreg = {
   const warn = barnPlanCoverClimate({
     stallTyCode: "SP02",
     status: "normal",
-    tempC: 24,
+    tempC: 34,
     humidityPct: 55,
   });
   assert.equal(warn.tone, "warn");
@@ -149,6 +149,27 @@ const otherPreg = {
       tempC: 24.8,
       humidityPct: 76,
     }),
+    "ok",
+  );
+  assert.equal(
+    barnPlanRoomEnvTint(
+      {
+        stallTyCode: "SP05",
+        status: "normal",
+        tempC: 24.8,
+        humidityPct: 76,
+      },
+      { mode: "recommend" },
+    ),
+    "warn",
+  );
+  assert.equal(
+    barnPlanRoomEnvTint({
+      stallTyCode: "SP05",
+      status: "normal",
+      tempC: 34,
+      humidityPct: 55,
+    }),
     "warn",
   );
   assert.equal(
@@ -158,6 +179,18 @@ const otherPreg = {
       tempC: 26.4,
       humidityPct: 86,
     }),
+    "warn",
+  );
+  assert.equal(
+    barnPlanRoomEnvTint(
+      {
+        stallTyCode: "SP05",
+        status: "normal",
+        tempC: 26.4,
+        humidityPct: 86,
+      },
+      { mode: "recommend" },
+    ),
     "danger",
   );
   assert.equal(
@@ -187,8 +220,8 @@ const otherPreg = {
         stallNo: "1",
         eqpmnNo: "03",
         status: "normal",
-        tempC: 24.8,
-        humidityPct: 76,
+        tempC: 34,
+        humidityPct: 55,
       },
     ],
   );
@@ -210,6 +243,27 @@ const otherPreg = {
       tempC: 24.8,
       humidityPct: 76,
     }),
+    { temp: "ok", humidity: "ok" },
+  );
+  assert.deepEqual(
+    barnPlanRoomEnvChannels(
+      {
+        stallTyCode: "SP05",
+        status: "normal",
+        tempC: 24.8,
+        humidityPct: 76,
+      },
+      { mode: "recommend" },
+    ),
+    { temp: "warn", humidity: "ok" },
+  );
+  assert.deepEqual(
+    barnPlanRoomEnvChannels({
+      stallTyCode: "SP05",
+      status: "normal",
+      tempC: 34,
+      humidityPct: 55,
+    }),
     { temp: "warn", humidity: "ok" },
   );
   assert.deepEqual(
@@ -219,7 +273,7 @@ const otherPreg = {
       tempC: 26.4,
       humidityPct: 86,
     }),
-    { temp: "warn", humidity: "warn" },
+    { temp: "ok", humidity: "warn" },
   );
   assert.deepEqual(
     barnPlanRoomEnvChannels({
@@ -245,8 +299,8 @@ const otherPreg = {
         stallNo: "1",
         eqpmnNo: "03",
         status: "normal",
-        tempC: 24.8,
-        humidityPct: 76,
+        tempC: 34,
+        humidityPct: 55,
       },
     ],
   );
@@ -260,7 +314,7 @@ const otherPreg = {
     tempC: 25.8,
     humidityPct: 57,
   };
-  assert.equal(barnPlanRoomEnvTint(live), "warn");
+  assert.equal(barnPlanRoomEnvTint(live), "ok");
   assert.equal(barnPlanRoomEnvTint(live, { mode: "recommend" }), "warn");
   assert.equal(barnPlanRoomEnvTint(live, { mode: "alarm" }), "ok");
   assert.equal(

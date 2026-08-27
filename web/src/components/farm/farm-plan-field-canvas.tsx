@@ -231,9 +231,9 @@ function coverChannel(slot: number): string {
 const ROOM_ENV_INSET_M = 0.16;
 
 function roomEnvFillClass(status: BarnPlanRoomEnvTint): string {
-  if (status === "warn") return "fill-amber-500";
-  if (status === "danger") return "fill-red-500";
-  return "fill-emerald-500";
+  if (status === "warn") return "fill-[var(--status-warn)]";
+  if (status === "danger") return "fill-[var(--status-danger)]";
+  return "fill-[var(--status-ok)]";
 }
 
 function roomEnvIconClass(status: "warn" | "danger"): string {

@@ -18,8 +18,9 @@ import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionDuration } from "@/lib/ui/motion-tokens";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
-import { firstReadingKeyForBarn } from "./farm-field-status-grid";
+import { firstReadingKeyForBarn, readingsMatchingBarn } from "./farm-field-status-grid";
 import { FarmMapCard } from "./farm-map-card";
+import { worstControllerEnvCoverLevel } from "@/lib/farm/controller-env-cover";
 import { FarmMapControllerDetail } from "./farm-map-controller-detail";
 import { BarnListToolbarMobileSheet } from "./barn-list-toolbar-mobile-sheet";
 import {
@@ -382,6 +383,14 @@ export function FarmMapMobileStage({
                 layout="stack"
                 compact
                 statusCompact={fieldMerge}
+                envCoverLevel={
+                  fieldMerge
+                    ? worstControllerEnvCoverLevel(
+                        readingsMatchingBarn(b, controller?.readings ?? []),
+                        controller?.alarmSettings,
+                      )
+                    : undefined
+                }
                 graphContent={
                   graphMode && !fieldMerge
                     ? graphByBarnId.get(b.meta.id)

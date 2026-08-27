@@ -1,10 +1,13 @@
 "use client";
 
+import type { CSSProperties } from "react";
+
 import {
   buildGaugeFillSegments,
   setpointBandPct,
 } from "@/lib/farm/controller-summary-display";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 import { Droplets, Thermometer } from "lucide-react";
 
@@ -232,11 +235,21 @@ export function CardMetricGauge({
   compact,
   showValue = true,
   barClassName,
+  morphTarget,
+  bandGlow = false,
+  bandGlowIn = false,
+  bandGlowOut = false,
+  glowVar,
 }: GaugeMetricProps & {
   compact?: boolean;
   /** false — 게이지 트랙만 (EnvMetricPanel 등) */
   showValue?: boolean;
   barClassName?: string;
+  morphTarget?: "temp-band" | "humidity-band";
+  bandGlow?: boolean;
+  bandGlowIn?: boolean;
+  bandGlowOut?: boolean;
+  glowVar?: string;
 }) {
   const { span, cur, rest, pct } = buildGaugeFillSegments(value, low, high, offline);
   const band =
@@ -272,7 +285,20 @@ export function CardMetricGauge({
         </div>
       ) : null}
 
-      <div className="flex min-w-0 items-center gap-1 sm:gap-1.5">
+      <div
+        data-cover-morph-target={morphTarget}
+        className={cn(
+          "flex min-w-0 items-center gap-1 rounded-md sm:gap-1.5",
+          bandGlow && motionClass.coverRevealBandGlow,
+          bandGlow && bandGlowIn && motionClass.coverRevealBandGlowIn,
+          bandGlow && bandGlowOut && motionClass.coverRevealBandGlowOut,
+        )}
+        style={
+          glowVar
+            ? ({ ["--cover-reveal-glow" as string]: glowVar } as CSSProperties)
+            : undefined
+        }
+      >
         <BellBadge
           value={lowStr}
           unit={unit}
@@ -336,6 +362,12 @@ type EnvMetricPanelProps = {
   setpoint?: number;
   setDev?: number;
   className?: string;
+  glowBand?: "temp" | "humidity" | null;
+  bandGlowIn?: boolean;
+  bandGlowOut?: boolean;
+  glowVar?: string;
+  siblingEnter?: boolean;
+  siblingExit?: boolean;
 };
 
 /** 안 A — 온·습도 통합 패널: 값 1줄 + full-width 게이지 2단 */
@@ -346,10 +378,19 @@ export function EnvMetricPanel({
   setpoint,
   setDev,
   className,
+  glowBand = null,
+  bandGlowIn = false,
+  bandGlowOut = false,
+  glowVar,
+  siblingEnter = false,
+  siblingExit = false,
 }: EnvMetricPanelProps) {
   return (
     <div className={cn("rounded-lg border bg-muted/20 p-2 sm:p-2.5", className)}>
-      <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+      <div
+        data-cover-reveal-values=""
+        className="mb-2 flex min-w-0 items-center justify-between gap-3"
+      >
         <MetricValue
           label="온도"
           displayValue={temp.displayValue}
@@ -372,6 +413,18 @@ export function EnvMetricPanel({
           compact
           showValue={false}
           barClassName="h-3"
+          morphTarget="temp-band"
+          bandGlow={glowBand === "temp"}
+          bandGlowIn={glowBand === "temp" && bandGlowIn}
+          bandGlowOut={glowBand === "temp" && bandGlowOut}
+          glowVar={glowBand === "temp" ? glowVar : undefined}
+          className={
+            glowBand === "humidity" && siblingEnter
+              ? motionClass.coverRevealHumidityIn
+              : glowBand === "humidity" && siblingExit
+                ? motionClass.coverRevealHumidityOut
+                : undefined
+          }
           label="온도"
           value={temp.value}
           displayValue={temp.displayValue}
@@ -386,6 +439,18 @@ export function EnvMetricPanel({
         <CardMetricGauge
           compact
           showValue={false}
+          morphTarget="humidity-band"
+          bandGlow={glowBand === "humidity"}
+          bandGlowIn={glowBand === "humidity" && bandGlowIn}
+          bandGlowOut={glowBand === "humidity" && bandGlowOut}
+          glowVar={glowBand === "humidity" ? glowVar : undefined}
+          className={
+            glowBand === "temp" && siblingEnter
+              ? motionClass.coverRevealHumidityIn
+              : glowBand === "temp" && siblingExit
+                ? motionClass.coverRevealHumidityOut
+                : undefined
+          }
           label="습도"
           value={humidity.value}
           displayValue={humidity.displayValue}

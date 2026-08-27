@@ -211,9 +211,9 @@ function ControllerCardGrid({
           key={
             filterStagger ? `${r.key}:${listFilterEnterEpoch}` : r.key
           }
-          className={filterStagger ? motionClass.staggerIn : undefined}
+          className={!tourActive ? motionClass.staggerIn : undefined}
           style={
-            filterStagger
+            !tourActive
               ? {
                   animationDelay: `${Math.min(index, 12) * motionStaggerStepMs}ms`,
                 }

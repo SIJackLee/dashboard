@@ -1,25 +1,63 @@
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
+import { formatHumidityPct, formatTempC } from "@/lib/data/farm-summaries";
 import {
+  barnPlanEnvAlarmThresholds,
+  barnPlanRoomEnvChannels,
   barnPlanRoomEnvTint,
   type BarnPlanCoverClimateTone,
+  type BarnPlanRoomEnvTint,
 } from "@/lib/farm/barn-site-live";
 
 export type ControllerEnvCoverLevel = BarnPlanCoverClimateTone;
 
-/** 필드 카드 덮개 채점 — 생성과 같은 권장 띠. 안전망·온습 둘 다 이탈=위험. */
+const COVER_LEVEL_RANK: Record<ControllerEnvCoverLevel, number> = {
+  ok: 0,
+  warn: 1,
+  danger: 2,
+  offline: 3,
+};
+
+type CoverReasonReading = Pick<
+  BarnReading,
+  "status" | "tempC" | "humidityPct" | "stallTyCode"
+> &
+  Partial<Pick<BarnReading, "farmKey" | "stallNo" | "controllerKey" | "eqpmnNo">>;
+
+/** 필드 카드 덮개 채점 — 사용자가 정한 알람 상·하한. 권장은 델린이 제시. */
 export function controllerEnvCoverLevel(
-  reading: Pick<
-    BarnReading,
-    "status" | "tempC" | "humidityPct" | "stallTyCode"
-  > &
-    Partial<Pick<BarnReading, "farmKey" | "stallNo" | "controllerKey" | "eqpmnNo">>,
+  reading: CoverReasonReading,
   alarmSettings?: AlarmSettings,
 ): ControllerEnvCoverLevel {
   if (reading.status === "offline") return "offline";
   return (
-    barnPlanRoomEnvTint(reading, { mode: "recommend", alarmSettings }) ?? "ok"
+    barnPlanRoomEnvTint(reading, { mode: "alarm", alarmSettings }) ?? "ok"
   );
+}
+
+/** 축사 현황 — 속한 컨트롤러 중 가장 나쁜 알람 판정. 끊김만 있으면 연결 끊김. */
+export function worstControllerEnvCoverLevel(
+  readings: readonly CoverReasonReading[],
+  alarmSettings?: AlarmSettings,
+): ControllerEnvCoverLevel {
+  let worstLive: ControllerEnvCoverLevel | null = null;
+  let anyOffline = false;
+  for (const reading of readings) {
+    const level = controllerEnvCoverLevel(reading, alarmSettings);
+    if (level === "offline") {
+      anyOffline = true;
+      continue;
+    }
+    if (
+      !worstLive ||
+      COVER_LEVEL_RANK[level] > COVER_LEVEL_RANK[worstLive]
+    ) {
+      worstLive = level;
+    }
+  }
+  if (worstLive) return worstLive;
+  if (anyOffline) return "offline";
+  return "ok";
 }
 
 export function controllerEnvCoverLabel(level: ControllerEnvCoverLevel): string {
@@ -29,7 +67,80 @@ export function controllerEnvCoverLabel(level: ControllerEnvCoverLevel): string 
   return "연결 끊김";
 }
 
-/** 헤더 점 — 덮개와 같은 판정색. emerald/amber 하드코딩 금지. */
+export type ControllerEnvCoverReason = {
+  valueLabel: string | null;
+  bandLabel: string | null;
+};
+
+function channelOff(tint: BarnPlanRoomEnvTint | null | undefined): boolean {
+  return tint === "warn" || tint === "danger";
+}
+
+function tempAlarmBandLabel(reading: CoverReasonReading, alarmSettings?: AlarmSettings): string {
+  const band = barnPlanEnvAlarmThresholds(reading, alarmSettings);
+  return `알람 ${band.tempLow}~${band.tempHigh}℃`;
+}
+
+function humidityAlarmBandLabel(
+  reading: CoverReasonReading,
+  alarmSettings?: AlarmSettings,
+): string {
+  const band = barnPlanEnvAlarmThresholds(reading, alarmSettings);
+  return `알람 ${band.humidityLow}~${band.humidityHigh}%`;
+}
+
+/**
+ * 덮개 가운데 — 이탈한 채널만. 온·습 둘 다 이탈이면 온도 우선.
+ * 이탈이 없으면 온도(없으면 습도) + 알람 띠. 끊김·값 없음이면 비움.
+ */
+export function controllerEnvCoverReason(
+  reading: CoverReasonReading,
+  alarmSettings?: AlarmSettings,
+): ControllerEnvCoverReason {
+  if (reading.status === "offline") {
+    return { valueLabel: null, bandLabel: null };
+  }
+
+  const channels = barnPlanRoomEnvChannels(reading, {
+    mode: "alarm",
+    alarmSettings,
+  });
+  const tempOff = channelOff(channels?.temp);
+  const humidityOff = channelOff(channels?.humidity);
+  const showHumidity =
+    humidityOff && !tempOff && reading.humidityPct != null;
+  const showTemp =
+    !showHumidity && reading.tempC != null && Number.isFinite(reading.tempC);
+
+  if (showTemp) {
+    return {
+      valueLabel: formatTempC(reading.tempC),
+      bandLabel: tempAlarmBandLabel(reading, alarmSettings),
+    };
+  }
+  if (
+    showHumidity ||
+    (reading.humidityPct != null && Number.isFinite(reading.humidityPct))
+  ) {
+    return {
+      valueLabel: formatHumidityPct(reading.humidityPct),
+      bandLabel: humidityAlarmBandLabel(reading, alarmSettings),
+    };
+  }
+  return { valueLabel: null, bandLabel: null };
+}
+
+/** 덮개 글자 — 면과 같은 색상각, 더 진함. 흰/검정 잉크 없음. */
+export function controllerEnvCoverInkClass(
+  level: ControllerEnvCoverLevel,
+): string {
+  if (level === "ok") return "text-[var(--status-ok-ink)]";
+  if (level === "warn") return "text-[var(--status-warn-ink)]";
+  if (level === "danger") return "text-[var(--status-danger-ink)]";
+  return "text-muted-foreground";
+}
+
+/** 헤더 점 — 덮개와 같은 판정색. */
 export function controllerEnvCoverFillClass(
   level: ControllerEnvCoverLevel,
 ): string {

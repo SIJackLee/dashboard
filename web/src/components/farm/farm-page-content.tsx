@@ -823,6 +823,7 @@ export function FarmPageContent({
                       collapsed={!fieldStatusOpen}
                       onHide={() => setFieldStatusOpen(false)}
                       onShow={() => setFieldStatusOpen(true)}
+                      alarmSettings={alarmSettings}
                     />
                   </div>
                 </div>

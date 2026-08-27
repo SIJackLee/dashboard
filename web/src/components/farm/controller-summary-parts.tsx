@@ -170,10 +170,14 @@ export function ControllerSummaryHeader({
           "break-keep text-foreground",
           dashboardTypography.cardTitle,
         )}
+        data-cover-morph-target="identity"
       >
         {stallTypeLabel}
       </span>
-      <span className="mt-0.5 flex min-w-0 items-center gap-2">
+      <span
+        className="mt-0.5 flex min-w-0 items-center gap-2"
+        data-cover-morph-target="marks"
+      >
         <StallUnitNoMark
           stallNo={reading.stallNo}
           className={cn(

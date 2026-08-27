@@ -137,12 +137,12 @@ export function statBand(values: (number | null | undefined)[]): Band | null {
   return { lo: median - halfWidth, hi: median + halfWidth };
 }
 
-/** 심각도 색 — STATUS_ACCENT(emerald/amber/red)와 동일 팔레트. */
+/** 심각도 색 — `--status-*` (히트맵·덮개·현황 동일). */
 export const SEV_COLOR: Record<Sev, string> = {
   neutral: "#94a3b8",
-  normal: "#10b981",
-  caution: "#f59e0b",
-  warning: "#ef4444",
+  normal: "var(--status-ok)",
+  caution: "var(--status-warn)",
+  warning: "var(--status-danger)",
 };
 
 export const SEV_LABEL: Record<Sev, string> = {

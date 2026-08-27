@@ -112,12 +112,15 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | `ui-motion-enter-slide-up` | slide + fade in |
 | `ui-motion-panel-expand` | `grid-template-rows` expand |
 | `ui-motion-panel-expand-inner` | expand inner clip |
-| `ui-motion-stagger-in` | stagger item |
+| `ui-motion-stagger-in` | stagger item (필드 컨트롤러 격자) |
 | `ui-motion-toast` | toast enter/exit |
 | `ui-motion-modal-backdrop` / `ui-motion-modal-panel` | bulk modal |
 | `ui-motion-command-overlay` / `ui-motion-command-card` | command pipeline |
 | `settings-collapsible-*` | 설정 collapsible |
 | `farm-heat-morph` | 그리드 확대 morph |
+| `cover-reveal-flip-play` / `cover-reveal-ghost-fade-play` / `cover-reveal-glyph-play` / `cover-reveal-fill-play` | 필드 덮개 걷힘. 명칭·번호는 헤더와 자리를 맞춰 변환 없음. 채움은 카드 테두리로 흡수. 값 글자는 온습 구간 테두리로 흩어지며, 구간은 한 번만 옅은 glow (`cover-reveal-band-glow`) |
+| `cover-reveal-*-reverse` / `ghost-fade-in` / `band-glow-out` / `humidity-out` | 덮개 다시 가림 — 걷힘의 역재생. 채움은 테두리에서 차오르고, 값 글자는 구간에서 가운데로 모인다. 명칭·번호는 채움 위에 유지 |
+| `cover-reveal-humidity-in` | 덮개에 없던 상대 채널 막대 등장 |
 | `farm-chart-plot-reveal` | 차트 탭 좌→우 clip reveal |
 | `farm-chart-envelope-in` / `farm-chart-line-soft-in` / `farm-chart-marker-pop` | 클라우드·라인·점 등장 |
 | `farm-chart-brush-window` | 기간 브러시 윈도우 transition |
