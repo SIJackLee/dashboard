@@ -208,13 +208,16 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --plan-cover-3: oklch(0.58 0.09 115);
   --plan-cover-4: oklch(0.56 0.10 250);
   --plan-cover-5: oklch(0.62 0.08 355);
-  /* 정상·주의·경고 — 히트맵과 동일 (emerald-500 / amber-500 / red-500) */
-  --status-ok: #10b981;
+  /* 채도 계단: 정상 낮음 → 주의 유지 → 위험 높음. 색상각은 히트맵·덮개 동일 */
+  --status-ok: #6f9e8a;
   --status-warn: #f59e0b;
-  --status-danger: #ef4444;
+  --status-danger: #e11d2a;
   --status-ok-ink: color-mix(in oklch, var(--status-ok) 36%, black);
   --status-warn-ink: color-mix(in oklch, var(--status-warn) 36%, black);
   --status-danger-ink: color-mix(in oklch, var(--status-danger) 40%, black);
+  /* E Status film — 유리 테 (투시·블러 없음) */
+  --status-film-rim-hi: color-mix(in oklch, white 42%, transparent);
+  --status-film-rim-lo: color-mix(in oklch, black 22%, transparent);
   --chart-guide: oklch(0.55 0.02 250);
   /* Gap5 ? surface ladder (light: clearer lift) */
   --surface-well: color-mix(in oklch, var(--muted) 88%, var(--background));
@@ -411,13 +414,15 @@ html[data-density="compact"] {
   --plan-cover-3: oklch(0.74 0.09 115);
   --plan-cover-4: oklch(0.70 0.10 250);
   --plan-cover-5: oklch(0.76 0.08 355);
-  /* 정상·주의·경고 — 라이트와 같은 히트맵 팔레트 */
-  --status-ok: #10b981;
+  /* 채도 계단 — 라이트와 같음 */
+  --status-ok: #6f9e8a;
   --status-warn: #f59e0b;
-  --status-danger: #ef4444;
+  --status-danger: #e11d2a;
   --status-ok-ink: color-mix(in oklch, var(--status-ok) 36%, black);
   --status-warn-ink: color-mix(in oklch, var(--status-warn) 36%, black);
   --status-danger-ink: color-mix(in oklch, var(--status-danger) 40%, black);
+  --status-film-rim-hi: color-mix(in oklch, white 42%, transparent);
+  --status-film-rim-lo: color-mix(in oklch, black 22%, transparent);
   --chart-guide: oklch(0.58 0.02 250);
   --surface-well: color-mix(in oklch, var(--muted) 80%, var(--background));
   --surface-well-border: color-mix(in oklch, var(--border) 70%, transparent);
@@ -442,6 +447,13 @@ html[data-density="compact"] {
 }
 
 @layer components {
+  /* E Status film — 위 밝은 줄 · 아래 어두운 줄. 면은 불투명 */
+  .status-film-glass-rim {
+    box-shadow:
+      inset 0 1px 0 var(--status-film-rim-hi),
+      inset 0 -1px 0 var(--status-film-rim-lo);
+  }
+
   .ctrl-range {
     -webkit-appearance: none;
     appearance: none;

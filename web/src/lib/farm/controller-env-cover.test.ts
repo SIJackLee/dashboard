@@ -2,6 +2,7 @@
  * 실행: npx tsx src/lib/farm/controller-env-cover.test.ts
  */
 import assert from "node:assert/strict";
+import { dashboardChroma } from "../ui/dashboard-page-ui";
 import {
   CONTROLLER_PANEL_INTERACTIVE_SELECTOR,
   controllerEnvCoverFillClass,
@@ -120,6 +121,7 @@ import {
   assert.equal(controllerEnvCoverInkClass("offline"), "text-muted-foreground");
   assert.match(controllerEnvCoverRingClass("danger"), /--status-danger/);
   assert.match(controllerEnvCoverRingClass("ok"), /--status-ok/);
+  assert.equal(dashboardChroma.statusFilmGlassRim, "status-film-glass-rim");
 }
 
 {

@@ -18,7 +18,10 @@ import {
   ControllerNoMark,
   StallUnitNoMark,
 } from "@/components/farm/controller-no-marks";
-import { dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import {
+  dashboardChroma,
+  dashboardTypography,
+} from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +111,7 @@ export function ControllerEnvCover({
       className={cn(
         "absolute inset-0 z-10 flex flex-col justify-between gap-1 p-2.5 text-left sm:p-3",
         COVER_FILL[level],
+        dashboardChroma.statusFilmGlassRim,
         controllerEnvCoverInkClass(level),
         exiting && "pointer-events-none",
         exiting ? motionClass.exitFade : animateEnter ? motionClass.enterFade : null,

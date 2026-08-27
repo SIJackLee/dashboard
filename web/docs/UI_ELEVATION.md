@@ -3,7 +3,7 @@
 대시보드 **면(surface) 계층** — 라이트 모드에서 깊이감은 그림자보다 **배경 리프트 + border/ring** 위주.  
 카드·그림자를 남용하지 않고 **2~3단**만 유지한다.
 
-관련: [UI_MOTION.md](./UI_MOTION.md) · [UI_DENSITY.md](./UI_DENSITY.md) · `src/lib/ui/dashboard-page-ui.ts`
+관련: [UI_MOTION.md](./UI_MOTION.md) · [UI_DENSITY.md](./UI_DENSITY.md) · [UI_SURFACES.md](./UI_SURFACES.md) · `src/lib/ui/dashboard-page-ui.ts`
 
 ## 래더 (권장 4단 → 실제 사용 2~3단)
 

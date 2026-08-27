@@ -26,6 +26,8 @@
 4. **ARIA 대비** — **갭4 적용** (`dashboardAriaShell` · stage/glow · title/eyebrow · dock primary ring). 잔여: 응답 카피 블록 톤은 프로토콜 문장과 분리해 필요 시만.
 5. **다크/라이트 비대칭** — **갭5 적용** (`--surface-*` · dark muted≤card · muted-foreground↓ · ARIA glow 테마 분리).
 
+6. **면 종류** — [UI_SURFACES.md](./UI_SURFACES.md). 덮개는 Status film(E). 유리 테 적용. Overlay(F) frost와 섞지 않음.
+
 → 신규 H6는 **승인 전 착수 금지**. 갭은 이 문서에만 누적.
 
 ## 동결과의 관계

@@ -527,6 +527,8 @@ export const dashboardChroma = {
     "px-4 py-8 text-center text-[length:var(--density-meta)] text-muted-foreground leading-snug md:text-[length:var(--density-meta-md)]",
   /** 스켈레톤 본 */
   skeletonBone: "animate-pulse rounded-md bg-muted/40",
+  /** E Status film — 유리 테. 덮개 면에만. 투시·블러 없음 */
+  statusFilmGlassRim: "status-film-glass-rim",
 } as const;
 
 /**
