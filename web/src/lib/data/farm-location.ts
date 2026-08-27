@@ -38,6 +38,8 @@ export {
   type SaveFarmLocationInput,
 } from "@/lib/data/farm-location-shared";
 
+export { editableFarmOptionsFromKnownFarms } from "@/lib/data/editable-farm-options";
+
 type DbRow = {
   lsind_regist_no: string;
   item_code: string;

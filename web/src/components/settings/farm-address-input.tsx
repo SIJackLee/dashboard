@@ -54,6 +54,8 @@ const ERROR_LABEL: Record<string, string> = {
   forbidden: "수정 권한이 없습니다.",
   invalid: "입력값이 올바르지 않습니다.",
   invalid_coords: "좌표가 올바르지 않습니다.",
+  invalid_region:
+    "시·군·구가 목록과 맞지 않습니다. 시·도는 시·도만, 도로명은 상세 주소에 넣으세요.",
   unauthorized: "로그인이 필요합니다.",
 };
 

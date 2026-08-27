@@ -22,6 +22,7 @@ import type { BarnReading, FarmOverview } from "@/lib/data/iot";
 import {
   fetchLiveReadings,
 } from "@/lib/data/iot-live-fetch";
+import { editableFarmOptionsFromKnownFarms } from "@/lib/data/editable-farm-options";
 import {
   getEditableFarmLocationOptions,
   type EditableFarmOption,
@@ -108,8 +109,12 @@ export const getPageShellContext = cache(
         farmSummaries: applyAlarmCountsToSummaries(hub.farmSummaries, alarms),
         hubLocations: hub.locations,
         isAdmin: true,
-        farmLocationOptions: [],
-        canEditLocation: false,
+        farmLocationOptions: editableFarmOptionsFromKnownFarms(
+          hub.farmOptions,
+          hub.locations,
+          activeFarmKey,
+        ),
+        canEditLocation: true,
       };
     }
 
