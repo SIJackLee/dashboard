@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Unit test runner — all src *.test.ts via tsx (node:assert style).
+ * Unit test runner — src and supabase/functions *.test.ts via tsx (node:assert style).
  * Usage: node scripts/run-unit-tests.mjs
  */
 import { readdirSync, statSync } from "fs";
@@ -28,9 +28,12 @@ function walk(dir, out = []) {
   return out;
 }
 
-const files = walk(srcRoot).sort();
+const files = [
+  ...walk(srcRoot),
+  ...walk(join(root, "supabase", "functions")),
+].sort();
 if (files.length === 0) {
-  console.error("run-unit-tests: no *.test.ts under src/");
+  console.error("run-unit-tests: no *.test.ts under src/ or supabase/functions/");
   process.exit(1);
 }
 

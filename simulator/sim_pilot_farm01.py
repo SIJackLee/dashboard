@@ -26,9 +26,16 @@ import paho.mqtt.client as mqtt
 VER_V0C = 0x0C
 HEADER_SIZE = 2
 ROW_SIZE = 75
+ALARM_BYTES = 4
+ROW_SIZE_WITH_ALARM = ROW_SIZE + ALARM_BYTES
 CHANNEL_BLOCK = 19
 NA_TEMP = 0xFFFF
 NA_FAN = 0xFF
+# Field firmware: 500 = 0°C. Decode uses origin when raw ≥ 500.
+TEMP_ORIGIN_X10 = 500
+# Match field 83B alarm words (10.0°C / 43.6°C).
+ALARM_LOW_X10 = 100
+ALARM_HIGH_X10 = 436
 TOPIC = "sungil/FARM01/P00/raw"
 TOPIC_CMD = "sungil/FARM01/P00/cmd"
 MQTT_HOST = "54.116.16.1"
@@ -108,8 +115,17 @@ def encode_channel(
         block[13:19] = u16(NA_TEMP) + u16(NA_TEMP) + bytes((NA_FAN, NA_FAN))
     else:
         sp, dev, min_v, max_v = thermo
-        block[13:19] = u16(sp) + u16(dev) + bytes((min_v & 0xFF, max_v & 0xFF))
+        block[13:19] = (
+            u16(wire_temp_x10(sp))
+            + u16(wire_temp_x10(dev))
+            + bytes((min_v & 0xFF, max_v & 0xFF))
+        )
     return bytes(block)
+
+
+def wire_temp_x10(tenths_from_zero: int) -> int:
+    """Tenths from 0°C → field origin 500."""
+    return TEMP_ORIGIN_X10 + max(int(tenths_from_zero), 0)
 
 
 def encode_live_row(
@@ -123,8 +139,8 @@ def encode_live_row(
     exhaust_pct: int,
     intake_pct: int,
 ) -> bytes:
-    """Match iot-cloud FARM01/P00 v0x0C samples (79 B, A=EC03, B=EC02, C empty)."""
-    row = bytearray(ROW_SIZE)
+    """Field v0x0C 83 B: origin 500, alarm 4 B, A=EC03, B=EC02, C empty."""
+    row = bytearray(ROW_SIZE_WITH_ALARM)
     row[0:4] = struct.pack("<I", epoch_sec)
     row[4] = stall_ty & 0xFF
     row[5] = stall_no & 0xFF
@@ -133,8 +149,10 @@ def encode_live_row(
     # FARM01 always sends 4 probes: t, t-0.2, t-0.5, t-0.3
     probes = (temp_x10, temp_x10 - 2, temp_x10 - 5, temp_x10 - 3)
     for i, probe in enumerate(probes):
-        row[8 + i * 2 : 10 + i * 2] = u16(max(probe, 1))
+        row[8 + i * 2 : 10 + i * 2] = u16(wire_temp_x10(max(probe, 1)))
     row[16:18] = u16(humidity_x10)
+    row[18:20] = u16(wire_temp_x10(ALARM_LOW_X10))
+    row[20:22] = u16(wire_temp_x10(ALARM_HIGH_X10))
     key = f"SP{stall_ty:02d}:{stall_no:02d}:{eqpmn_no:02d}"
     thermo_a = thermo_overrides.get(f"{key}|A", (250, 20, 10, 80))
     thermo_b = thermo_overrides.get(f"{key}|B", (240, 15, 5, 90))
@@ -145,7 +163,7 @@ def encode_live_row(
     else:
         ch_b = encode_channel(2, outputs={1: exhaust_pct}, thermo=thermo_b)
     ch_c = bytes([0xFF] * CHANNEL_BLOCK)
-    row[18:75] = ch_a + ch_b + ch_c
+    row[22:79] = ch_a + ch_b + ch_c
     header = bytes((VER_V0C, 0x00))
     body = header + bytes(row)
     crc = crc16_ccitt_false(body)
@@ -305,10 +323,17 @@ def self_test() -> None:
         exhaust_pct=80,
         intake_pct=80,
     )
-    assert len(wire) == HEADER_SIZE + ROW_SIZE + 2, len(wire)
+    assert len(wire) == HEADER_SIZE + ROW_SIZE_WITH_ALARM + 2, len(wire)
     assert wire[0] == VER_V0C
     body, crc = wire[:-2], int.from_bytes(wire[-2:], "little")
     assert crc16_ccitt_false(body) == crc
+    row = wire[HEADER_SIZE:-2]
+    assert len(row) == ROW_SIZE_WITH_ALARM
+    assert int.from_bytes(row[8:10], "little") == wire_temp_x10(257)
+    assert int.from_bytes(row[16:18], "little") == 575
+    assert int.from_bytes(row[18:20], "little") == wire_temp_x10(ALARM_LOW_X10)
+    assert int.from_bytes(row[20:22], "little") == wire_temp_x10(ALARM_HIGH_X10)
+    assert int.from_bytes(row[22 + 13 : 22 + 15], "little") == wire_temp_x10(250)
     t, h, _, _, name = sample_metrics(
         stall_ty=5,
         stall_no=1,

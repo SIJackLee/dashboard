@@ -18,6 +18,8 @@ const sample: DecodedV0cPayload = {
   runMode: 1,
   tempsC: ["24.5", "24.4", null, "24.1"],
   humidityPct: "57.8",
+  alarmLowTempC: null,
+  alarmHighTempC: null,
   channels: [
     {
       channel: "A",

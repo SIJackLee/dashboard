@@ -11,6 +11,7 @@
 
 - `iot_room_state_decoded.decoded_json`에서 **flat 컬럼과 중복되는 키**를 제거해 행 용량 감소
 - **남김:** `channels`(서모·outputs/모터), `tempsC`(센서 4점), `schema_version`
+- **선택(83바이트 보고):** `alarmLowTempC` · `alarmHighTempC` — 습도 뒤 저온·고온 경보. 온도 원점 500=0℃. 파일럿 LIVE도 83바이트(원점 500). 디코더는 예전 79바이트(원점 0)도 받음.
 - 상세(full tier) · 일괄 적용 · 향후 모터별 UI 경로 유지
 
 ---
@@ -46,6 +47,8 @@
 }
 ```
 
+83바이트 보고는 같은 객체에 `alarmLowTempC` · `alarmHighTempC` 가 추가된다.
+
 **제거 키 (flat에 있음):**  
 `controllerKey`, `eqpmnNo`, `stallTyCode`, `stallNo`, `wireVer`, `packetMode`, `history`, `mesureDt`, `runMode`, `humidityPct`
 
@@ -62,7 +65,7 @@
 | DB 스키마 | 변경 없음 (`jsonb` 내용만) |
 | 뷰 `extract_channel_a_thermo(decoded_json->channels)` | channels 유지 → OK |
 | RLS / 인증 | 없음 |
-| Edge upsert | `decoded_json` 페이로드만 축소 |
+| Edge upsert | `decoded_json` 페이로드만 축소. 측정 시각은 `received_at` 대비 +9h(KST-as-UTC)면 −9h |
 | 배포 | `decode-batch` 재배포 필요 |
 | migration | 불필요 (선택: 문서만) |
 

@@ -12,7 +12,7 @@
 
 | npm / 파일 | 용도 |
 |------------|------|
-| `npm test` / `test:unit` → `run-unit-tests.mjs` | `src/**/*.test.ts` |
+| `npm test` / `test:unit` → `run-unit-tests.mjs` | `src/**/*.test.ts` · `supabase/functions/**/*.test.ts` |
 | `verify:hub` → `verify-hub.mjs` | 허브 URL·keep-alive 유닛 ([`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md)) |
 | `verify:design` | `verify-motion-classes` + `verify-ui-density` |
 | `verify:motion-css` / `verify:motion-tokens` / `verify:motion-classes` | 모션 |

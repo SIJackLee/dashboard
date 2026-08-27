@@ -1,10 +1,16 @@
-/** v0x0C wire decode - port of dashboard/web/src/lib/data/wire-decode-v0c.ts */
+/** v0x0C wire decode — Edge decode-batch. */
 
 const VER_V0C = 0x0c;
 const HEADER_SIZE = 2;
 const ROW_SIZE = 75;
+/** After humidity: low-temp alarm u16 + high-temp alarm u16. */
+const ALARM_BYTES = 4;
+const ROW_SIZE_WITH_ALARM = ROW_SIZE + ALARM_BYTES;
+const CRC_SIZE = 2;
 const ROW_SENSOR_TEMPS = 4;
 const CHANNEL_BLOCK = 19;
+/** Field firmware: 500 = 0°C. Pilot 79B still sends tenths from 0. */
+const TEMP_ORIGIN_X10 = 500;
 const CHANNEL_LABELS = ["A", "B", "C"] as const;
 const NA_TEMP = 0xffff;
 const NA_FAN = 0xff;
@@ -52,6 +58,8 @@ export type DecodedV0cPayload = {
   runMode: number;
   tempsC: (string | null)[];
   humidityPct: string | null;
+  alarmLowTempC: string | null;
+  alarmHighTempC: string | null;
   channels: DecodedV0cChannel[];
 };
 
@@ -96,9 +104,16 @@ function readU32LE(buf: Uint8Array, off: number): number {
   ) >>> 0;
 }
 
-function formatSensor(raw: number): string | null {
+function formatHumidityPct(raw: number): string | null {
   if (raw === NA_TEMP || raw === 0) return null;
   return (raw / 10).toFixed(1);
+}
+
+/** Temperature tenths. Raw ≥ 500 uses origin 500 = 0°C; else tenths from 0. */
+export function formatTempC(raw: number): string | null {
+  if (raw === NA_TEMP || raw === 0) return null;
+  const x10 = raw >= TEMP_ORIGIN_X10 ? raw - TEMP_ORIGIN_X10 : raw;
+  return (x10 / 10).toFixed(1);
 }
 
 function formatStallTy(raw: number): string {
@@ -117,6 +132,11 @@ function formatEqpmnCode(raw: number): string {
   return `EC${String(raw).padStart(2, "0")}`;
 }
 
+/** Korea has no DST. Firmware that stamps local wall-clock as UTC is +9h. */
+const KST_OFFSET_SEC = 9 * 3600;
+const MESURE_FUTURE_SKEW_SEC = 2 * 60;
+const MESURE_BACKFILL_MAX_SEC = 30 * 24 * 3600;
+
 function formatMesureDt(epochSec: number): string {
   const d = new Date(epochSec * 1000);
   const fmt = new Intl.DateTimeFormat("sv-SE", {
@@ -132,6 +152,45 @@ function formatMesureDt(epochSec: number): string {
   return fmt.format(d).replace("T", " ");
 }
 
+/**
+ * Packet `t` is UTC unix. If the controller stuffed KST digits into UTC,
+ * the instant sits ~9h ahead of `received_at` (live) or 9h ahead of the
+ * real sample (reconnect burst). Subtract 9h only when that lands inside
+ * [received − 30d, received + 2min]. True UTC (pilot) is unchanged.
+ */
+export function correctMesureEpochSec(
+  epochSec: number,
+  receivedAtMs: number,
+): number {
+  if (!Number.isFinite(epochSec) || !Number.isFinite(receivedAtMs)) {
+    return epochSec;
+  }
+  const recvSec = receivedAtMs / 1000;
+  const corrected = epochSec - KST_OFFSET_SEC;
+  if (
+    epochSec > recvSec + MESURE_FUTURE_SKEW_SEC &&
+    corrected <= recvSec + MESURE_FUTURE_SKEW_SEC &&
+    corrected >= recvSec - MESURE_BACKFILL_MAX_SEC
+  ) {
+    return corrected;
+  }
+  return epochSec;
+}
+
+export function applyReceivedAtClock(
+  mesureDtKst: string,
+  receivedAtIso: string,
+): { mesureDt: string; mesureAtIso: string } {
+  const epochMs = Date.parse(`${mesureDtKst.replace(" ", "T")}+09:00`);
+  const recvMs = Date.parse(receivedAtIso);
+  const epochSec = correctMesureEpochSec(epochMs / 1000, recvMs);
+  const mesureDt = formatMesureDt(epochSec);
+  const mesureAtIso = new Date(
+    `${mesureDt.replace(" ", "T")}+09:00`,
+  ).toISOString();
+  return { mesureDt, mesureAtIso };
+}
+
 function decodeThermo(block: Uint8Array, off: number): DecodedThermo | null {
   const sp = readU16LE(block, off);
   const dev = readU16LE(block, off + 2);
@@ -141,8 +200,8 @@ function decodeThermo(block: Uint8Array, off: number): DecodedThermo | null {
     return null;
   }
   return {
-    setpointTemp: sp === NA_TEMP ? null : (sp / 10).toFixed(1),
-    tempDeviation: dev === NA_TEMP ? null : (dev / 10).toFixed(1),
+    setpointTemp: sp === NA_TEMP ? null : formatTempC(sp),
+    tempDeviation: dev === NA_TEMP ? null : formatTempC(dev),
     minVentPct: minV === NA_FAN ? null : minV,
     maxVentPct: maxV === NA_FAN ? null : maxV,
   };
@@ -181,11 +240,19 @@ function decodeRow(
   const tempsC: (string | null)[] = [];
   let off = 8;
   for (let i = 0; i < ROW_SENSOR_TEMPS; i++) {
-    tempsC.push(formatSensor(readU16LE(row, off)));
+    tempsC.push(formatTempC(readU16LE(row, off)));
     off += 2;
   }
-  const humidityPct = formatSensor(readU16LE(row, off));
+  const humidityPct = formatHumidityPct(readU16LE(row, off));
   off += 2;
+
+  let alarmLowTempC: string | null = null;
+  let alarmHighTempC: string | null = null;
+  if (row.length === ROW_SIZE_WITH_ALARM) {
+    alarmLowTempC = formatTempC(readU16LE(row, off));
+    alarmHighTempC = formatTempC(readU16LE(row, off + 2));
+    off += ALARM_BYTES;
+  }
 
   const channels: DecodedV0cChannel[] = [];
   for (let i = 0; i < 3; i++) {
@@ -204,6 +271,8 @@ function decodeRow(
     runMode,
     tempsC,
     humidityPct,
+    alarmLowTempC,
+    alarmHighTempC,
     channels,
   };
 }
@@ -224,13 +293,14 @@ export function parsePayloadBytea(value: unknown): Uint8Array | null {
 }
 
 export function decodeV0cPayload(wire: Uint8Array): DecodedV0cPayload | null {
-  if (wire.length !== HEADER_SIZE + ROW_SIZE + 2) return null;
   if (wire[0] !== VER_V0C) return null;
+  const rowLen = wire.length - HEADER_SIZE - CRC_SIZE;
+  if (rowLen !== ROW_SIZE && rowLen !== ROW_SIZE_WITH_ALARM) return null;
 
   const flags = wire[1]!;
   const history = Boolean(flags & 0x01);
-  const row = wire.subarray(HEADER_SIZE, HEADER_SIZE + ROW_SIZE);
-  if (row.length !== ROW_SIZE) return null;
+  const row = wire.subarray(HEADER_SIZE, HEADER_SIZE + rowLen);
+  if (row.length !== rowLen) return null;
 
   const decoded = decodeRow(row);
   return {
@@ -393,14 +463,19 @@ export type SlimDecodedV0cJson = {
   schema_version: "v0c-slim-1";
   tempsC: (string | null)[];
   channels: DecodedV0cChannel[];
+  alarmLowTempC?: string;
+  alarmHighTempC?: string;
 };
 
 export function toSlimDecodedJson(payload: DecodedV0cPayload): SlimDecodedV0cJson {
-  return {
+  const slim: SlimDecodedV0cJson = {
     schema_version: "v0c-slim-1",
     tempsC: payload.tempsC,
     channels: payload.channels,
   };
+  if (payload.alarmLowTempC != null) slim.alarmLowTempC = payload.alarmLowTempC;
+  if (payload.alarmHighTempC != null) slim.alarmHighTempC = payload.alarmHighTempC;
+  return slim;
 }
 
 /** Channel A thermo for flat HOT columns (list tier). */

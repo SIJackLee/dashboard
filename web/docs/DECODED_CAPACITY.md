@@ -69,7 +69,7 @@
 
 | 컬럼 | 역할 | 상태 |
 |------|------|------|
-| `mesure_at` | 측정 시각(timestamptz) · 파티션·UNIQUE·trend | **정본 유지** |
+| `mesure_at` | 측정 시각(timestamptz) · 파티션·UNIQUE·trend | **정본 유지** (KST-as-UTC 패킷은 Edge에서 −9h) |
 | `mesure_dt` | 측정 시각(KST text) · UI/LIVE | 유지(동일 순간 표현) |
 | `received_at` | 클라우드 수신 · LIVE/오프라인 | 유지 |
 | `decoded_at` | Edge 기록 시각 | **DROP** (`20260805193000_…`) |

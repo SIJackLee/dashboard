@@ -8,6 +8,7 @@ import {
   primaryTempC,
   toSlimDecodedJson,
   channelAThermo,
+  applyReceivedAtClock,
 } from "./wire-decode-v0c.ts";
 import {
   shouldWriteSparse,
@@ -249,9 +250,7 @@ Deno.serve(async (req: Request) => {
     const decodedJson = toSlimDecodedJson(payload);
     const thermo = channelAThermo(payload.channels);
     // Partition key must be present on INSERT (BEFORE trigger on parent only fills if null).
-    const mesureAt = new Date(
-      `${payload.mesureDt.replace(" ", "T")}+09:00`,
-    ).toISOString();
+    const clock = applyReceivedAtClock(payload.mesureDt, row.received_at);
     const insertRow = {
       raw_id: row.id,
       lsind_regist_no: row.lsind_regist_no,
@@ -265,8 +264,8 @@ Deno.serve(async (req: Request) => {
       eqpmn_no: payload.eqpmnNo,
       stall_ty_code: payload.stallTyCode,
       stall_no: payload.stallNo,
-      mesure_dt: payload.mesureDt,
-      mesure_at: mesureAt,
+      mesure_dt: clock.mesureDt,
+      mesure_at: clock.mesureAtIso,
       run_mode: payload.runMode,
       temp_c: tempC,
       humidity_pct: parseOptionalPct(payload.humidityPct),
