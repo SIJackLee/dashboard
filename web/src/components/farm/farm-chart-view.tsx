@@ -16,6 +16,7 @@ import type {
   TrendPeriodId,
   TrendWindow15m,
 } from "@/lib/data/farm-trend-types";
+import type { FarmKey } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { findControllerTrendSeries } from "@/lib/farm/controller-summary-display";
 import {
@@ -29,6 +30,10 @@ import {
   type ChartTrendZoomHint,
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
+import {
+  coverageIndexesFromSnap,
+  useFarmTrendUplinkCoverage,
+} from "@/lib/farm/use-farm-trend-uplink-coverage";
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -37,7 +42,11 @@ import type { ReactNode } from "react";
 
 type Props = {
   readings: BarnReading[];
-  controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
+  farmKey?: FarmKey | null;
+  controllerTrendByPeriod?: Record<
+    TrendPeriodId,
+    TrendControllerPeriodData
+  > | null;
   /** 추이 fetch — 빈 화면을 로딩/실패와 구분 */
   trendLoading?: boolean;
   trendError?: boolean;
@@ -130,6 +139,7 @@ function guideToneFromPeriodSeries(
  */
 export function FarmChartView({
   readings,
+  farmKey = null,
   controllerTrendByPeriod,
   trendLoading = false,
   trendError = false,
@@ -185,6 +195,15 @@ export function FarmChartView({
       })),
     [scopedReadings],
   );
+
+  const uplinkCoverageSnap = useFarmTrendUplinkCoverage({
+    farmKey,
+    enabled: layersToolbarActive,
+    h24: controllerTrendByPeriod?.["24h"],
+    d30: controllerTrendByPeriod?.["30d"],
+    window15m,
+  });
+  const uplinkCoverage = coverageIndexesFromSnap(uplinkCoverageSnap);
 
   /**
    * B안 — 현재 기간 추이 이탈로 색칠 (LIVE 아님).
@@ -433,6 +452,7 @@ export function FarmChartView({
             window15mLoading={window15mLoading}
             window15m={window15m}
             onNeedWindow15m={onNeedWindow15m}
+            uplinkCoverage={uplinkCoverage}
             period={period}
             onPeriodChange={onPeriodChange}
             alarmSettings={alarmSettings}

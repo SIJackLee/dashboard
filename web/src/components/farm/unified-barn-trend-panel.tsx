@@ -49,6 +49,11 @@ import {
   type TrendWindow15m,
 } from "@/lib/data/farm-trend-types";
 import {
+  applyUplinkCoverageToSeries,
+  pickUplinkCoverageIndex,
+  type UplinkCoverageIndex,
+} from "@/lib/farm/trend-uplink-coverage";
+import {
   brushWindowNeeds15m,
   brushWindowToRangeMs,
   window15mCovers,
@@ -171,6 +176,7 @@ function sliceControllerSeries(
     fanExhaust: series.fanExhaust.slice(from, to),
     fanIntake: series.fanIntake.slice(from, to),
     sampleCount: series.sampleCount.slice(from, to),
+    uplinkKind: series.uplinkKind?.slice(from, to),
   };
 }
 
@@ -229,8 +235,31 @@ function downsampleSeriesForChart(
       fanExhaust: downsampleByIndices(s.fanExhaust, idx),
       fanIntake: downsampleByIndices(s.fanIntake, idx),
       sampleCount: downsampleByIndices(s.sampleCount, idx),
+      uplinkKind: s.uplinkKind
+        ? downsampleByIndices(s.uplinkKind, idx)
+        : undefined,
     })),
   };
+}
+
+function applyCoverageToWindow(
+  seriesList: TrendControllerSeries[],
+  bucketAts: string[],
+  indexes: UplinkCoverageIndex[],
+): TrendControllerSeries[] {
+  if (!indexes.length || bucketAts.length < 1) return seriesList;
+  const fromMs = Date.parse(bucketAts[0] ?? "");
+  const last = Date.parse(bucketAts[bucketAts.length - 1] ?? "");
+  if (!Number.isFinite(fromMs) || !Number.isFinite(last)) return seriesList;
+  const strideMs =
+    bucketAts.length > 1
+      ? Math.max(1, (last - fromMs) / (bucketAts.length - 1))
+      : TREND_PERIODS["24h"].strideMs;
+  const coverage = pickUplinkCoverageIndex(indexes, fromMs, strideMs);
+  if (!coverage || coverage.byController.size === 0) return seriesList;
+  return seriesList.map((s) =>
+    applyUplinkCoverageToSeries(s, coverage, bucketAts),
+  );
 }
 
 function snapStep(n: number, step: number): number {
@@ -386,6 +415,8 @@ type Props = {
   window15mLoading?: boolean;
   window15m?: TrendWindow15m | null;
   onNeedWindow15m?: (fromMs: number, toMs: number) => void;
+  /** 추이 차트 — 희소 칸 값 유지용. 밴드·라벨은 그리지 않음. */
+  uplinkCoverage?: UplinkCoverageIndex[];
   className?: string;
 };
 
@@ -416,6 +447,7 @@ export function UnifiedBarnTrendPanel({
   window15mLoading = false,
   window15m = null,
   onNeedWindow15m,
+  uplinkCoverage = [],
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -715,7 +747,16 @@ export function UnifiedBarnTrendPanel({
         .filter((s): s is NonNullable<typeof s> => s != null);
 
       if (!seriesList.length) return null;
-      return { categories: windowCategories, seriesList };
+      const bucketAts = (periodData?.bucketAts ?? []).slice(from, to);
+      return {
+        categories: windowCategories,
+        bucketAts,
+        seriesList: applyCoverageToWindow(
+          seriesList,
+          bucketAts,
+          uplinkCoverage,
+        ),
+      };
     };
 
     const collectFromData = (
@@ -755,7 +796,16 @@ export function UnifiedBarnTrendPanel({
         })
         .filter((s): s is NonNullable<typeof s> => s != null);
       if (!seriesList.length) return null;
-      return { categories: windowCategories, seriesList };
+      const bucketAts = periodData.bucketAts.slice(from, to);
+      return {
+        categories: windowCategories,
+        bucketAts,
+        seriesList: applyCoverageToWindow(
+          seriesList,
+          bucketAts,
+          uplinkCoverage,
+        ),
+      };
     };
 
     const collect = (periodId: TrendPeriodId, brush: boolean) => {
@@ -800,6 +850,7 @@ export function UnifiedBarnTrendPanel({
     brushFromMs,
     brushToMs,
     brushWindow,
+    uplinkCoverage,
   ]);
 
   /** M1 — 다운샘플+집계는 layout 무관 1회, 보간은 Y매핑만 */
@@ -965,12 +1016,14 @@ export function UnifiedBarnTrendPanel({
         }
       }
     }
-    return sliceUnifiedTrendByIndex(
-      picked.categories,
-      picked,
-      xScope.start,
-      xScope.end,
-    );
+    return {
+      ...sliceUnifiedTrendByIndex(
+        picked.categories,
+        picked,
+        xScope.start,
+        xScope.end,
+      ),
+    };
   }, [
     picked,
     xScope,

@@ -76,6 +76,7 @@ FARM01 LIVE ~12.8만 행에서 `v_iot_farm_overview`(전체 `DISTINCT ON`)이 **
 | --- | --- | --- | --- |
 | `farm_trend_history_by_controller_json` | Client lazy (list / 통합 추이 / 히트맵 파생) | `live:controller-trend:{scope}` | SP × stall × controller × 96 buckets · **`mesure_at` bin** · jsonb 1행 |
 | `farm_trend_history_json` | PDF/SSR fallback via controller convert | `live:trend:{scope}` | unused on hub idle path |
+| `farm_trend_uplink_coverage_json` | 차트 탭 전용 (희소/통신두절) | `live:controller-trend:{scope}` | **`received_at` bin** · jsonb · `user_can_read_farm` DEFINER |
 
 - Bucket policy: hub **and PDF/list all-periods** fetch **24h 15m → 30d 1h (24h RPC chunks, newest first)**. 7d is a tail slice of 30d 1h. **Window ≤ 48h** (brush) fetches **15m for that range only** (`TREND_15M_PERIODS`). PDF print LTTB-caps each stacked chart at 96 points. Wire format is sparse compact. UI bars 24h→24, 7d→28, 30d→30 (`farm-trend-types.ts` + `GRAPH_BARS`).
 - App fetch uses `*_json` RPCs (one PostgREST row). Table-returning `farm_trend_history*` remain for SQL/EXPLAIN; do **not** `.range()` them — `max_rows=1000` re-runs the 30d `GROUP BY` per page.

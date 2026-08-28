@@ -16,6 +16,8 @@ import type {
   TrendPeriodData,
   TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import { getFarmTrendUplinkCoverage } from "@/lib/data/farm-trend-uplink-coverage";
+import type { UplinkCoverageWire } from "@/lib/farm/trend-uplink-coverage";
 import { buildDailyReportPayload } from "@/lib/report/build-daily-report-payload";
 import type { DailyReportPayload } from "@/lib/report/daily-report-payload";
 import { farmScopeCacheKey } from "@/lib/data/live-config";
@@ -156,6 +158,34 @@ export async function fetchFarmControllerTrendWindowAction(
     throw new Error("Trend window too long");
   }
   return getFarmControllerTrendWindowCompact({ farmKey, fromMs, toMs });
+}
+
+const COVERAGE_WINDOW_MAX_MS = 31 * 24 * 60 * 60 * 1000;
+
+/** 추이 차트 — 희소 칸 홀드용. RPC 미적용 시 빈 배열. */
+export async function fetchFarmTrendUplinkCoverageAction(
+  farmKey: FarmKey,
+  range: {
+    fromMs: number;
+    toMs: number;
+    bucket: string;
+    bucketCount: number;
+    strideMs: number;
+  },
+): Promise<UplinkCoverageWire> {
+  await assertFarmReadAccess(farmKey);
+  if (
+    !Number.isFinite(range.fromMs) ||
+    !Number.isFinite(range.toMs) ||
+    range.toMs <= range.fromMs ||
+    range.toMs - range.fromMs > COVERAGE_WINDOW_MAX_MS ||
+    range.bucketCount < 1 ||
+    range.bucketCount > 3000 ||
+    (range.bucket !== "15 minutes" && range.bucket !== "1 hour")
+  ) {
+    throw new Error("Invalid coverage range");
+  }
+  return getFarmTrendUplinkCoverage({ farmKey, ...range });
 }
 
 /** 목록 graph 모드 — 컨트롤러별 추이 (lazy fetch). */

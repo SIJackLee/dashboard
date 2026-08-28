@@ -32,6 +32,7 @@ import {
   sevOfScore,
   severityScore,
 } from "@/lib/farm/severity-score";
+import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
 import {
@@ -285,6 +286,10 @@ type TrendChartProps = {
    * line 모드 — 전 시리즈가 null인 연속 구간을 세로 음영(결측)으로 표시.
    */
   showNullGaps?: boolean;
+  /**
+   * 추이 차트 — 희소/통신두절/없음 구간. 있으면 showNullGaps 일반 결측 음영은 쓰지 않음.
+   */
+  coverageBands?: UplinkCoverageBand[];
   /**
    * P1/P2 X스코프 — 드래그로 시간 구간(+Y밴드) 선택.
    * y*Ratio: plot 상단=0 · 하단=1
@@ -1366,6 +1371,7 @@ export function TrendChart({
   layerClipWipe,
   splitBandGuides = [],
   showNullGaps = false,
+  coverageBands = [],
   xScopeSelect = false,
   onXScopeCommit,
   guidedXScopeGesture = null,
@@ -2648,9 +2654,14 @@ export function TrendChart({
     return segs;
   };
 
-  /** 결측 구간 — 기준 시리즈(온도 우선) null 연속, 없으면 전 시리즈 null. */
+  /** 결측 구간 — 커버리지 밴드가 있으면 희소/통신두절/없음으로 대체. */
   const nullGapRanges: { i0: number; i1: number }[] = [];
-  if (showNullGaps && mode === "line" && series.length > 0) {
+  if (
+    coverageBands.length === 0 &&
+    showNullGaps &&
+    mode === "line" &&
+    series.length > 0
+  ) {
     const ref =
       series.find((s) => s.name === "온도" || s.name.startsWith("온도")) ??
       series[0]!;
@@ -2874,7 +2885,15 @@ export function TrendChart({
             return i >= 0 ? i : 50;
           };
 
-          return GROUP_ORDER.map((group) => {
+          const coverageLegend = [
+            { kind: "sparse" as const, label: "희소", fill: "var(--status-warn)", opacity: 0.55 },
+            { kind: "offline" as const, label: "통신두절", fill: "var(--status-danger)", opacity: 0.55 },
+            { kind: "void" as const, label: "없음", fill: "currentColor", opacity: 0.35 },
+          ].filter((item) => coverageBands.some((b) => b.kind === item.kind));
+
+          return (
+            <>
+              {GROUP_ORDER.map((group) => {
             const groupItems = items
               .filter((it) => it.group === group)
               .sort(
@@ -2896,7 +2915,33 @@ export function TrendChart({
                 ))}
               </div>
             );
-          });
+              })}
+              {coverageLegend.length > 0 ? (
+                <div
+                  role="group"
+                  aria-label="수신 상태"
+                  className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1"
+                >
+                  {coverageLegend.map((item) => (
+                    <span
+                      key={item.kind}
+                      className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground"
+                    >
+                      <span
+                        className="inline-block h-2 w-3 rounded-sm"
+                        style={{
+                          backgroundColor: item.fill,
+                          opacity: item.opacity,
+                        }}
+                        aria-hidden
+                      />
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </>
+          );
         })() : null}
         {legendTrailing ? (
           <div className="ml-auto min-w-0 shrink-0">{legendTrailing}</div>
@@ -2960,6 +3005,34 @@ export function TrendChart({
               : undefined,
           )}
         >
+        {coverageBands.map((g) => {
+          const x0 = xFor(g.i0);
+          const x1 = xFor(g.i1);
+          const slot = n > 1 ? innerW / (n - 1) : innerW;
+          const left = Math.max(padL, x0 - slot / 2);
+          const right = Math.min(viewW - padR, x1 + slot / 2);
+          const fill =
+            g.kind === "sparse"
+              ? "var(--status-warn)"
+              : g.kind === "offline"
+                ? "var(--status-danger)"
+                : "currentColor";
+          const fillOpacity =
+            g.kind === "sparse" ? 0.16 : g.kind === "offline" ? 0.2 : 0.1;
+          return (
+            <rect
+              key={`cov-${g.kind}-${g.i0}-${g.i1}`}
+              x={left}
+              y={PAD_TOP}
+              width={Math.max(0.4, right - left)}
+              height={innerH}
+              fill={fill}
+              fillOpacity={fillOpacity}
+              stroke="none"
+              className={g.kind === "void" ? "text-muted-foreground" : undefined}
+            />
+          );
+        })}
         {nullGapRanges.map((g) => {
           const x0 = xFor(g.i0);
           const x1 = xFor(g.i1);
@@ -3543,6 +3616,37 @@ export function TrendChart({
         })()}
       </svg>
 
+      {viewW > 0
+        ? coverageBands.map((g) => {
+            const x0 = xFor(g.i0);
+            const x1 = xFor(g.i1);
+            const slot = n > 1 ? innerW / (n - 1) : innerW;
+            const left = Math.max(padL, x0 - slot / 2);
+            const right = Math.min(viewW - padR, x1 + slot / 2);
+            const width = Math.max(0, right - left);
+            if (width / viewW < 0.08 && g.i1 - g.i0 < 1) return null;
+            const color =
+              g.kind === "sparse"
+                ? "var(--status-warn-ink)"
+                : g.kind === "offline"
+                  ? "var(--status-danger-ink)"
+                  : undefined;
+            return (
+              <span
+                key={`cov-lab-${g.kind}-${g.i0}-${g.i1}`}
+                className="pointer-events-none absolute top-1 z-[1] truncate px-0.5 farm-chart-fs-axis tabular-nums"
+                style={{
+                  left: `${(left / viewW) * 100}%`,
+                  width: `${(width / viewW) * 100}%`,
+                  color: color ?? "var(--muted-foreground)",
+                }}
+              >
+                {g.label}
+              </span>
+            );
+          })
+        : null}
+
       {leftAxisTicks.map((tick) => (
         <span
           key={tick.id}
@@ -3929,6 +4033,16 @@ export function TrendChart({
               motionClass.farmChartTipIn,
             )}
           >
+            {(() => {
+              const band = coverageBands.find(
+                (b) => hoverIdx >= b.i0 && hoverIdx <= b.i1,
+              );
+              return band ? (
+                <p className="mb-1 farm-chart-fs-legend text-muted-foreground">
+                  {band.label}
+                </p>
+              ) : null;
+            })()}
             <TrendPointCardBody
               idx={hoverIdx}
               seriesKey={hoverSeries}

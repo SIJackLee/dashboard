@@ -150,6 +150,8 @@ export type TrendControllerSeries = TrendStallSeries & {
   equipmentLabel?: string;
   /** 스코프 이동용 축사유형 코드 (UI 미표시). */
   stallTyCode?: string;
+  /** 추이 차트 전용 — 희소/통신두절/없음. 목록 그래프는 두지 않음. */
+  uplinkKind?: Array<"sample" | "sparse" | "offline" | "void">;
 };
 
 export type TrendControllerStallGroup = {

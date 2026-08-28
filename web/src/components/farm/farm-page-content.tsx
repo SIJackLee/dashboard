@@ -931,6 +931,7 @@ export function FarmPageContent({
             <div className="relative min-h-0">
               <FarmChartView
                 readings={readings}
+                farmKey={gridFarmKey}
                 controllerTrendByPeriod={gridControllerTrend}
                 trendLoading={gridTrendLoading}
                 trendError={Boolean(gridTrendError)}
