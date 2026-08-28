@@ -1528,7 +1528,7 @@ export function FarmPlanView({
             labelPinT={barnPlanEmphasisT(modelMorph)}
             onTagReserveM={onTagReserveM}
             gridOpacity={1 - modelMorph}
-            cameraEnabled={modeling || modelMorph > 0.45}
+            cameraEnabled={linedUp || modelMorph > 0.45}
             onMoveBuilding={
               linedUp
                 ? undefined

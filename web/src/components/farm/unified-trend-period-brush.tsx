@@ -8,6 +8,7 @@ import {
 } from "@/lib/farm/env-comfort-score";
 import { downsampleTrendValues } from "@/lib/farm/trend-display-buckets";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { cn } from "@/lib/utils";
 
 /** 30d 컨텍스트 기준 — 우측(now) 정렬 윈도우 비율 (농장 기간 시드용) */
@@ -285,7 +286,7 @@ export function UnifiedTrendPeriodBrush({
             "cursor-ew-resize touch-none",
           )}
           onPointerDown={(e) => {
-            if (e.button !== 0) return;
+            if (!isPrimaryPress(e)) return;
             setHover(null);
             e.currentTarget.setPointerCapture(e.pointerId);
             const r = ratioFromEvent(e.clientX);

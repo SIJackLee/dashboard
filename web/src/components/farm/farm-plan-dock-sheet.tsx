@@ -2,13 +2,15 @@
 
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type TouchEvent as ReactTouchEvent,
 } from "react";
 import { dashboardElevation, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { cn } from "@/lib/utils";
 
 const COLLAPSE_DRAG_PX = 48;
@@ -17,6 +19,7 @@ const EXPAND_DRAG_PX = 36;
 /**
  * 모델 탭 하단 — 핸들 바텀시트. 허브 본문 아래에 붙는다.
  * collapsibleInner(min-height:0)는 flex 안에서 펼침 높이가 0이 되어 쓰지 않는다.
+ * 접기/펼치기는 탭과 세로 스와이프(포인터) 모두.
  */
 export function FarmPlanDockSheet({
   peekLabel,
@@ -30,54 +33,95 @@ export function FarmPlanDockSheet({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(true);
+  const openRef = useRef(true);
   const startYRef = useRef<number | null>(null);
+  const dragYRef = useRef(0);
   const draggedRef = useRef(false);
+  const pointerIdRef = useRef<number | null>(null);
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
 
   const resetDrag = useCallback(() => {
+    dragYRef.current = 0;
+    pointerIdRef.current = null;
     setDragY(0);
     setDragging(false);
     startYRef.current = null;
   }, []);
 
-  const onHandleTouchStart = useCallback((e: ReactTouchEvent) => {
-    const t = e.touches[0];
-    if (!t) return;
-    startYRef.current = t.clientY;
-    draggedRef.current = false;
-    setDragging(true);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+
+  const applyDragY = useCallback((clientY: number) => {
+    const start = startYRef.current;
+    if (start == null) return;
+    if (openRef.current) {
+      const next = Math.max(0, clientY - start);
+      if (next > 6) draggedRef.current = true;
+      dragYRef.current = next;
+      setDragY(next);
+      return;
+    }
+    const next = Math.min(0, clientY - start);
+    if (next < -6) draggedRef.current = true;
+    dragYRef.current = next;
+    setDragY(next);
   }, []);
 
-  const onHandleTouchMove = useCallback(
-    (e: ReactTouchEvent) => {
-      const start = startYRef.current;
-      const t = e.touches[0];
-      if (start == null || !t) return;
-      if (open) {
-        const next = Math.max(0, t.clientY - start);
-        if (next > 6) draggedRef.current = true;
-        setDragY(next);
-      } else {
-        const next = Math.min(0, t.clientY - start);
-        if (next < -6) draggedRef.current = true;
-        setDragY(next);
-      }
-    },
-    [open],
-  );
-
-  const onHandleTouchEnd = useCallback(() => {
-    const dy = dragY;
+  const finishDrag = useCallback(() => {
+    if (startYRef.current == null) return;
+    const dy = dragYRef.current;
+    const wasOpen = openRef.current;
     resetDrag();
-    if (open && dy >= COLLAPSE_DRAG_PX) {
+    if (wasOpen && dy >= COLLAPSE_DRAG_PX) {
       setOpen(false);
       return;
     }
-    if (!open && -dy >= EXPAND_DRAG_PX) {
+    if (!wasOpen && -dy >= EXPAND_DRAG_PX) {
       setOpen(true);
     }
-  }, [dragY, open, resetDrag]);
+  }, [resetDrag]);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (pointerIdRef.current == null || e.pointerId !== pointerIdRef.current) {
+        return;
+      }
+      applyDragY(e.clientY);
+    };
+    const onUp = (e: PointerEvent) => {
+      if (pointerIdRef.current == null || e.pointerId !== pointerIdRef.current) {
+        return;
+      }
+      finishDrag();
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [applyDragY, finishDrag]);
+
+  const onHandlePointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!isPrimaryPress(e)) return;
+      startYRef.current = e.clientY;
+      dragYRef.current = 0;
+      draggedRef.current = false;
+      pointerIdRef.current = e.pointerId;
+      setDragging(true);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* WebView capture 실패 시 window 리스너가 이어 받음 */
+      }
+    },
+    [],
+  );
 
   return (
     <aside
@@ -89,7 +133,7 @@ export function FarmPlanDockSheet({
       style={
         dragY !== 0
           ? {
-              transform: `translateY(${Math.max(0, dragY)}px)`,
+              transform: `translateY(${dragY}px)`,
               transition: dragging ? "none" : undefined,
             }
           : undefined
@@ -98,7 +142,7 @@ export function FarmPlanDockSheet({
       <button
         type="button"
         className={cn(
-          "flex w-full shrink-0 cursor-grab touch-none flex-col items-center pt-2.5 pb-1.5 active:cursor-grabbing",
+          "flex min-h-11 w-full shrink-0 cursor-grab touch-none flex-col items-center justify-center pt-2.5 pb-1.5 active:cursor-grabbing",
           motionClass.microInteractive,
         )}
         aria-label={open ? collapseLabel : expandLabel}
@@ -112,10 +156,19 @@ export function FarmPlanDockSheet({
           }
           setOpen((on) => !on);
         }}
-        onTouchStart={onHandleTouchStart}
-        onTouchMove={onHandleTouchMove}
-        onTouchEnd={onHandleTouchEnd}
-        onTouchCancel={onHandleTouchEnd}
+        onPointerDown={onHandlePointerDown}
+        onPointerMove={(e) => {
+          if (pointerIdRef.current !== e.pointerId) return;
+          applyDragY(e.clientY);
+        }}
+        onPointerUp={(e) => {
+          if (pointerIdRef.current !== e.pointerId) return;
+          finishDrag();
+        }}
+        onPointerCancel={(e) => {
+          if (pointerIdRef.current !== e.pointerId) return;
+          finishDrag();
+        }}
       >
         <span
           className="h-1.5 w-12 rounded-full bg-muted-foreground/40"

@@ -24,12 +24,15 @@ import {
   barnPlanCameraViewBox,
   barnPlanCameraZoomAt,
   barnPlanClampCamera,
+  barnPlanFieldAngleDeg,
   barnPlanFieldToLocal,
   barnPlanFillCells,
   barnPlanLocalToField,
   barnPlanRoomCountFromLength,
   barnPlanRoomsInWindow,
-  barnPlanRotateDeg,
+  barnPlanRotateDragPastDeadzone,
+  barnPlanRotateGrabOffsetDeg,
+  barnPlanRotateWithGrab,
   barnPlanZoneTagNeedPx,
   BARN_PLAN_ZONE_TAG_CLEARANCE_M,
   BARN_PLAN_ZONE_TAG_GAP_M,
@@ -51,6 +54,7 @@ import type {
 } from "@/lib/farm/barn-site-live";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { cn } from "@/lib/utils";
 
 export type FarmPlanFieldPlaced = BarnPlanPlacePos &
@@ -294,8 +298,7 @@ function PlanEdgeHandle({
       aria-label={label}
       className={cn(
         motionClass.microInteractive,
-        "absolute z-20 rounded-full border bg-card",
-        kind === "banks" ? "h-2.5 w-7" : "h-7 w-2.5",
+        "absolute z-20 flex h-11 w-11 items-center justify-center bg-transparent",
       )}
       style={{
         left: pt.x,
@@ -322,7 +325,15 @@ function PlanEdgeHandle({
       onPointerCancel={() => {
         dragging.current = false;
       }}
-    />
+    >
+      <span
+        className={cn(
+          "pointer-events-none rounded-full border bg-card",
+          kind === "banks" ? "h-2.5 w-7" : "h-7 w-2.5",
+        )}
+        aria-hidden
+      />
+    </button>
   );
 }
 
@@ -371,7 +382,17 @@ export function FarmPlanFieldCanvas({
     x1: number;
     z1: number;
   } | null>(null);
-  const rotateRef = useRef<{ id: string; rotDeg: number } | null>(null);
+  const rotateRef = useRef<{
+    id: string;
+    pointerId: number;
+    rotDeg: number;
+    startRotDeg: number;
+    grabOffsetDeg: number;
+    startAngleDeg: number | null;
+    startX: number;
+    startY: number;
+    armed: boolean;
+  } | null>(null);
   const [userCam, setUserCam] = useState<BarnPlanCamera | null>(null);
   const [viewW, setViewW] = useState(0);
   const tagFitOn = cameraEnabled && labelPinT >= 0.98;
@@ -667,30 +688,19 @@ export function FarmPlanFieldCanvas({
         xmlnsXlink="http://www.w3.org/1999/xlink"
         aria-label={`1m 격자 필드 ${field.widthM}×${field.heightM}m`}
         onPointerDownCapture={(e) => {
-          if (selectEnabled) {
-            const svg = svgRef.current;
-            if (!svg) return;
-            const at = clientToField(svg, e.clientX, e.clientY, field);
-            if (!at) return;
-            e.stopPropagation();
-            onSelectBegin?.();
-            const next = { x0: at.x, z0: at.z, x1: at.x, z1: at.z };
-            marqueeLive.current = next;
-            setMarquee(next);
-            svg.setPointerCapture(e.pointerId);
-            return;
-          }
-          if (!cameraEnabled) return;
           const svg = svgRef.current;
           if (!svg) return;
           pointersRef.current.set(e.pointerId, {
             x: e.clientX,
             y: e.clientY,
           });
-          svg.setPointerCapture(e.pointerId);
           const pts = [...pointersRef.current.values()];
-          if (pts.length >= 2) {
+          if (cameraEnabled && pts.length >= 2) {
+            marqueeLive.current = null;
+            setMarquee(null);
             panRef.current = null;
+            e.stopPropagation();
+            svg.setPointerCapture(e.pointerId);
             const a = pts[0]!;
             const b = pts[1]!;
             const mid = clientToField(
@@ -706,6 +716,19 @@ export function FarmPlanFieldCanvas({
             };
             return;
           }
+          if (selectEnabled) {
+            const at = clientToField(svg, e.clientX, e.clientY, field);
+            if (!at) return;
+            e.stopPropagation();
+            onSelectBegin?.();
+            const next = { x0: at.x, z0: at.z, x1: at.x, z1: at.z };
+            marqueeLive.current = next;
+            setMarquee(next);
+            svg.setPointerCapture(e.pointerId);
+            return;
+          }
+          if (!cameraEnabled) return;
+          svg.setPointerCapture(e.pointerId);
           pinchRef.current = null;
           panRef.current = { lastX: e.clientX, lastY: e.clientY };
         }}
@@ -1147,37 +1170,99 @@ export function FarmPlanFieldCanvas({
           className={cn(
             motionClass.microInteractive,
             dashboardUi.gridCellValueCompact,
-            "absolute z-20 flex h-8 min-w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-primary px-1.5 text-primary-foreground",
+            "absolute z-20 flex h-11 min-w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-primary px-1.5 text-primary-foreground",
           )}
           style={{ left: anchor.rotate.x, top: anchor.rotate.y }}
           onPointerDown={(e) => {
             e.stopPropagation();
             e.preventDefault();
+            if (!isPrimaryPress(e)) return;
             const origin = selected;
-            if (!origin) return;
-            rotateRef.current = { id: origin.id, rotDeg: origin.rotDeg };
-            (e.currentTarget as HTMLButtonElement).setPointerCapture(
-              e.pointerId,
-            );
+            const svg = svgRef.current;
+            if (!origin || !svg) return;
+            const at = clientToField(svg, e.clientX, e.clientY, field);
+            const startAngle = at
+              ? barnPlanFieldAngleDeg(origin, at)
+              : null;
+            rotateRef.current = {
+              id: origin.id,
+              pointerId: e.pointerId,
+              rotDeg: origin.rotDeg,
+              startRotDeg: origin.rotDeg,
+              grabOffsetDeg:
+                startAngle == null
+                  ? 0
+                  : barnPlanRotateGrabOffsetDeg(startAngle, origin.rotDeg),
+              startAngleDeg: startAngle,
+              startX: e.clientX,
+              startY: e.clientY,
+              armed: false,
+            };
+            try {
+              (e.currentTarget as HTMLButtonElement).setPointerCapture(
+                e.pointerId,
+              );
+            } catch {
+              /* WebView capture 실패 시 move는 버튼 위에서만 */
+            }
           }}
           onPointerMove={(e) => {
             const rot = rotateRef.current;
             const svg = svgRef.current;
-            if (!rot || !svg || !selected || selected.id !== rot.id) return;
+            if (!rot || rot.pointerId !== e.pointerId) return;
+            if (!svg || !selected || selected.id !== rot.id) return;
             const at = clientToField(svg, e.clientX, e.clientY, field);
-            if (!at) return;
-            const next = barnPlanRotateDeg(selected, at);
+            const angle = at ? barnPlanFieldAngleDeg(selected, at) : null;
+            if (!rot.armed) {
+              if (
+                !barnPlanRotateDragPastDeadzone({
+                  startX: rot.startX,
+                  startY: rot.startY,
+                  x: e.clientX,
+                  y: e.clientY,
+                  startAngleDeg: rot.startAngleDeg,
+                  angleDeg: angle,
+                })
+              ) {
+                return;
+              }
+              rot.armed = true;
+            }
+            if (angle == null) return;
+            const next = barnPlanRotateWithGrab(angle, rot.grabOffsetDeg);
+            if (next === rot.rotDeg) return;
             rot.rotDeg = next;
             onRotate?.(rot.id, next);
           }}
           onPointerUp={(e) => {
             const rot = rotateRef.current;
+            if (rot && rot.pointerId !== e.pointerId) return;
             rotateRef.current = null;
-            (e.currentTarget as HTMLButtonElement).releasePointerCapture(
-              e.pointerId,
-            );
-            if (!rot) return;
+            try {
+              (e.currentTarget as HTMLButtonElement).releasePointerCapture(
+                e.pointerId,
+              );
+            } catch {
+              /* already released */
+            }
+            if (!rot?.armed) return;
             onRotateEnd?.(rot.id, rot.rotDeg);
+          }}
+          onPointerCancel={(e) => {
+            const rot = rotateRef.current;
+            if (rot && rot.pointerId !== e.pointerId) return;
+            rotateRef.current = null;
+            try {
+              (e.currentTarget as HTMLButtonElement).releasePointerCapture(
+                e.pointerId,
+              );
+            } catch {
+              /* already released */
+            }
+            if (!rot) return;
+            if (rot.armed && rot.rotDeg !== rot.startRotDeg) {
+              onRotate?.(rot.id, rot.startRotDeg);
+            }
           }}
         >
           {anchor.rotDeg}°

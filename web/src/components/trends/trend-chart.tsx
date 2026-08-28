@@ -35,6 +35,7 @@ import {
 import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
+import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import {
   useClipPresence,
   type ClipPhase,
@@ -1495,6 +1496,10 @@ export function TrendChart({
     x: number;
     y: number;
   } | null>(null);
+  const plotEmptyTapRef = useRef<{ t: number; x: number; y: number } | null>(
+    null,
+  );
+  const plotTouchDoubleTapLockRef = useRef(false);
   const pinCardDragRef = useRef<{
     id: string;
     pointerId: number;
@@ -2101,7 +2106,7 @@ export function TrendChart({
   };
 
   const onPlotPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return;
+    if (!isPrimaryPress(e)) return;
     if (edgeEdit) return;
     pinClickArmRef.current = {
       x: e.clientX,
@@ -2215,7 +2220,31 @@ export function TrendChart({
       rect.width,
       rect.height,
     );
-    if (!hit) return;
+    if (!hit) {
+      const isTouchLike =
+        e.pointerType === "touch" || e.pointerType === "pen";
+      if (isTouchLike && onPlotDoubleClick) {
+        const now = e.timeStamp;
+        const prev = plotEmptyTapRef.current;
+        if (
+          prev &&
+          now - prev.t <= SCALE_EDGE_DOUBLE_TAP_MS &&
+          Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <=
+            SCALE_EDGE_DOUBLE_TAP_SLOP_PX
+        ) {
+          plotEmptyTapRef.current = null;
+          plotTouchDoubleTapLockRef.current = true;
+          window.setTimeout(() => {
+            plotTouchDoubleTapLockRef.current = false;
+          }, 400);
+          onPlotDoubleClick();
+          return;
+        }
+        plotEmptyTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+      }
+      return;
+    }
+    plotEmptyTapRef.current = null;
 
     const id = tipPinId(hit.idx, hit.seriesKey);
     setPinnedTips((prev) => {
@@ -2239,6 +2268,7 @@ export function TrendChart({
     pinCardDragRef.current = null;
     pinClickArmRef.current = null;
     scaleEdgeTapRef.current = null;
+    plotEmptyTapRef.current = null;
     labelDragArmRef.current = null;
     if (edgeDragRef.current) {
       endScaleEdgeDrag("cancel");
@@ -2249,6 +2279,7 @@ export function TrendChart({
 
   const onPlotDoubleClickHandler = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (!onPlotDoubleClick) return;
+    if (plotTouchDoubleTapLockRef.current) return;
     if (edgeEdit || edgeDragRef.current || labelDragArmRef.current) return;
     // 직전 포인터가 줌 드래그였으면 무시
     if (xScopeDraggingRef.current) return;
@@ -2258,7 +2289,7 @@ export function TrendChart({
 
   const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (guidedScopeActiveRef.current) return;
-    if (!xScopeSelect || !onXScopeCommit || e.button !== 0 || n < 2) return;
+    if (!xScopeSelect || !onXScopeCommit || !isPrimaryPress(e) || n < 2) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     xScopeOriginRef.current = { x: e.clientX, y: e.clientY };
     xScopeDraggingRef.current = false;
@@ -3736,7 +3767,7 @@ export function TrendChart({
             onPointerDown={
               label.draggable && !editing
                 ? (e) => {
-                    if (e.button !== 0 || !plotRef.current) return;
+                    if (!isPrimaryPress(e) || !plotRef.current) return;
                     e.preventDefault();
                     e.stopPropagation();
                     const guide = scaleEdgeLabels.find((g) => g.id === label.id);
@@ -3958,7 +3989,7 @@ export function TrendChart({
                     "active:cursor-grabbing touch-none select-none",
                   )}
                   onPointerDown={(e) => {
-                    if (e.button !== 0 || !plotRef.current) return;
+                    if (!isPrimaryPress(e) || !plotRef.current) return;
                     e.preventDefault();
                     e.stopPropagation();
                     plotRef.current.setPointerCapture(e.pointerId);

@@ -1301,15 +1301,66 @@ export function barnPlanSnapRotDeg(deg: number): number {
   return m === 360 ? 0 : m;
 }
 
-/** 필드 좌표에서 중심 → 점 각도. */
+/** 모바일 각도 핸들 — 탭 미세 움직임은 회전으로 치지 않음. */
+export const BARN_PLAN_ROTATE_DEADZONE_PX = 8;
+export const BARN_PLAN_ROTATE_DEADZONE_DEG = 2;
+
+/** 필드 좌표에서 중심 → 점 각도(스냅 없음). 중심이면 null. */
+export function barnPlanFieldAngleDeg(
+  origin: BarnPlanPlacePos,
+  at: BarnPlanPlacePos,
+): number | null {
+  const dx = at.x - origin.x;
+  const dz = at.z - origin.z;
+  if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) return null;
+  return (Math.atan2(dz, dx) * 180) / Math.PI;
+}
+
+export function barnPlanAbsDegDelta(a: number, b: number): number {
+  const d = Math.abs((((a - b) % 360) + 360) % 360);
+  return Math.min(d, 360 - d);
+}
+
+/** pointerAngle − 현재 각도. 이후 move에서 이 차이를 유지. */
+export function barnPlanRotateGrabOffsetDeg(
+  pointerAngleDeg: number,
+  currentRotDeg: number,
+): number {
+  return pointerAngleDeg - currentRotDeg;
+}
+
+export function barnPlanRotateWithGrab(
+  pointerAngleDeg: number,
+  grabOffsetDeg: number,
+): number {
+  return barnPlanSnapRotDeg(pointerAngleDeg - grabOffsetDeg);
+}
+
+export function barnPlanRotateDragPastDeadzone(args: {
+  startX: number;
+  startY: number;
+  x: number;
+  y: number;
+  startAngleDeg: number | null;
+  angleDeg: number | null;
+}): boolean {
+  const px = Math.hypot(args.x - args.startX, args.y - args.startY);
+  if (px >= BARN_PLAN_ROTATE_DEADZONE_PX) return true;
+  if (args.startAngleDeg == null || args.angleDeg == null) return false;
+  return (
+    barnPlanAbsDegDelta(args.angleDeg, args.startAngleDeg) >=
+    BARN_PLAN_ROTATE_DEADZONE_DEG
+  );
+}
+
+/** 필드 좌표에서 중심 → 점 각도(5° 스냅). */
 export function barnPlanRotateDeg(
   origin: BarnPlanPlacePos,
   at: BarnPlanPlacePos,
 ): number {
-  const dx = at.x - origin.x;
-  const dz = at.z - origin.z;
-  if (Math.abs(dx) < 1e-6 && Math.abs(dz) < 1e-6) return 0;
-  return barnPlanSnapRotDeg((Math.atan2(dz, dx) * 180) / Math.PI);
+  const ang = barnPlanFieldAngleDeg(origin, at);
+  if (ang == null) return 0;
+  return barnPlanSnapRotDeg(ang);
 }
 
 export function barnPlanLocalToField(

@@ -133,7 +133,7 @@ export function useFarmHubViewShell({
     const dir: 1 | -1 =
       FARM_HUB_VIEW_ORDER[to] >= FARM_HUB_VIEW_ORDER[from] ? 1 : -1;
     setViewSlide({ from, to, dir });
-  }, []);
+  }, [setViewSlide]);
 
   const syncViewFromUrl = useCallback(
     (opts?: {

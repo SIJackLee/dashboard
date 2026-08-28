@@ -10,7 +10,7 @@ import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
 const ACTION_BTN =
-  "inline-flex h-8 items-center justify-center gap-1 rounded-md px-2.5 text-xs font-medium leading-none";
+  "inline-flex items-center justify-center gap-1 rounded-md px-2.5 text-xs font-medium leading-none";
 
 export function FarmPlanBuildingEditor({
   fill,
@@ -33,6 +33,7 @@ export function FarmPlanBuildingEditor({
   onDelete: () => void;
 }) {
   const sheet = variant === "sheet";
+  const actionBtn = sheet ? "h-11 min-h-11" : "h-8";
   return (
     <div
       className={cn(
@@ -47,15 +48,21 @@ export function FarmPlanBuildingEditor({
       data-testid="farm-plan-building-editor"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <BarnModelFillCard chrome={false} fill={fill} onChange={onFillChange} />
+      <BarnModelFillCard
+        chrome={false}
+        touchTargets={sheet}
+        fill={fill}
+        onChange={onFillChange}
+      />
       <div className="flex flex-wrap items-center justify-end gap-1.5">
         {placed ? (
           <button
             type="button"
             className={cn(
               barnModelHud.btn,
-              motionClass.microInteractive,
               ACTION_BTN,
+              actionBtn,
+              motionClass.microInteractive,
             )}
             onClick={onDelete}
           >
@@ -70,6 +77,7 @@ export function FarmPlanBuildingEditor({
             barnModelHud.btn,
             motionClass.microInteractive,
             ACTION_BTN,
+            actionBtn,
             "disabled:pointer-events-none disabled:opacity-40",
           )}
           onClick={onRevert}
@@ -84,6 +92,7 @@ export function FarmPlanBuildingEditor({
           type="button"
           className={cn(
             ACTION_BTN,
+            actionBtn,
             motionClass.microInteractive,
             "bg-primary text-primary-foreground hover:bg-primary/90",
           )}

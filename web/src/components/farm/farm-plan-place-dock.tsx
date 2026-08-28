@@ -20,7 +20,7 @@ export type FarmPlanDockLive = {
 };
 
 const ASSIGN_BTN =
-  "inline-flex h-8 w-full items-center justify-center rounded-md px-2.5 text-xs font-medium leading-none";
+  "inline-flex w-full items-center justify-center rounded-md px-2.5 text-xs font-medium leading-none";
 const ASSIGN_ROW =
   "w-full truncate rounded-md px-2 py-1.5 text-left text-xs font-medium leading-snug";
 
@@ -56,7 +56,7 @@ export function FarmPlanPlaceDock({
   const assign = mode === "assign";
   const sheet = variant === "sheet";
   if (assign) {
-    const assignBtnW = sheet ? "w-full" : "w-auto min-w-[6.5rem]";
+    const assignBtnW = sheet ? "h-11 w-full min-h-11" : "h-8 w-auto min-w-[6.5rem]";
     return (
       <div
         className={cn(

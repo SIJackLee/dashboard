@@ -163,6 +163,7 @@ export function BarnModelFillCard({
   open,
   dirty = false,
   chrome = true,
+  touchTargets = false,
   onOpenChange,
   onRevert,
   onChange,
@@ -172,6 +173,8 @@ export function BarnModelFillCard({
   dirty?: boolean;
   /** false면 접기 헤더 없이 도형만. 평면 건물 옆 편집. */
   chrome?: boolean;
+  /** 모바일 시트 — 열식·칸 수 버튼을 엄지 탭 크기로. */
+  touchTargets?: boolean;
   onOpenChange?: (open: boolean) => void;
   onRevert?: () => void;
   onChange: (patch: BarnModelFillPatch) => void;
@@ -250,10 +253,16 @@ export function BarnModelFillCard({
                       aria-label={`${n}열`}
                       aria-pressed={fill.banks === n}
                       className={cn(
-                        "flex h-8 min-w-9 items-center justify-center rounded-md px-1.5",
+                        "flex items-center justify-center rounded-md px-1.5",
+                        touchTargets ? "h-11 min-w-11" : "h-8 min-w-9",
                         fill.banks === n
                           ? "bg-primary text-primary-foreground ring-1 ring-primary"
-                          : cn(HUD_BTN, "h-8 min-w-9 text-foreground/70"),
+                          : cn(
+                              HUD_BTN,
+                              touchTargets
+                                ? "h-11 min-w-11 text-foreground/70"
+                                : "h-8 min-w-9 text-foreground/70",
+                            ),
                       )}
                       onClick={() => onChange({ banks: n })}
                     >
@@ -267,13 +276,19 @@ export function BarnModelFillCard({
 
           <div className="flex items-start gap-2">
             <div
-              className="flex w-7 flex-col items-stretch justify-center gap-0.5"
-              style={{ height: roomH }}
+              className={cn(
+                "flex flex-col items-stretch justify-center gap-0.5",
+                touchTargets ? "w-11" : "w-7",
+              )}
+              style={touchTargets ? undefined : { height: roomH }}
             >
               <button
                 type="button"
                 aria-label="칸 늘리기"
-                className={barnModelHud.stepper}
+                className={cn(
+                  barnModelHud.stepper,
+                  touchTargets && "h-11 w-11",
+                )}
                 onClick={() => onChange({ roomCount: fill.roomCount + 1 })}
               >
                 <ChevronUp className="size-3.5" strokeWidth={dashboardUi.iconStroke} />
@@ -285,7 +300,10 @@ export function BarnModelFillCard({
               <button
                 type="button"
                 aria-label="칸 줄이기"
-                className={barnModelHud.stepper}
+                className={cn(
+                  barnModelHud.stepper,
+                  touchTargets && "h-11 w-11",
+                )}
                 onClick={() => onChange({ roomCount: Math.max(1, fill.roomCount - 1) })}
               >
                 <ChevronDown className="size-3.5" strokeWidth={dashboardUi.iconStroke} />

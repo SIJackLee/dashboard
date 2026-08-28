@@ -14,7 +14,12 @@ import {
   defaultBarnPlanShellFill,
   pointInMetricRing,
   barnPlanSnapRotDeg,
+  barnPlanAbsDegDelta,
+  barnPlanFieldAngleDeg,
   barnPlanRotateDeg,
+  barnPlanRotateDragPastDeadzone,
+  barnPlanRotateGrabOffsetDeg,
+  barnPlanRotateWithGrab,
   barnPlanAxisSpan,
   barnPlanFieldToLocal,
   barnPlanLocalToField,
@@ -171,6 +176,54 @@ import type { BarnModelBanks } from "./barn-model-dim";
   assert.equal(barnPlanSnapRotDeg(358), 0);
   assert.equal(barnPlanRotateDeg({ x: 0, z: 0 }, { x: 10, z: 0 }), 0);
   assert.equal(barnPlanRotateDeg({ x: 0, z: 0 }, { x: 0, z: 10 }), 90);
+  assert.equal(barnPlanFieldAngleDeg({ x: 0, z: 0 }, { x: 10, z: 0 }), 0);
+  assert.equal(barnPlanAbsDegDelta(358, 2), 4);
+  {
+    const origin = { x: 0, z: 0 };
+    const startRot = 290;
+    const finger = barnPlanLocalToField(origin, 293, 20, 0);
+    const ang = barnPlanFieldAngleDeg(origin, finger);
+    assert.ok(ang != null);
+    const grab = barnPlanRotateGrabOffsetDeg(ang, startRot);
+    assert.equal(barnPlanRotateWithGrab(ang, grab), startRot);
+    const moved = barnPlanLocalToField(origin, 305, 20, 0);
+    const movedAng = barnPlanFieldAngleDeg(origin, moved);
+    assert.ok(movedAng != null);
+    assert.equal(barnPlanRotateWithGrab(movedAng, grab), 300);
+  }
+  assert.equal(
+    barnPlanRotateDragPastDeadzone({
+      startX: 0,
+      startY: 0,
+      x: 4,
+      y: 4,
+      startAngleDeg: 290,
+      angleDeg: 291,
+    }),
+    false,
+  );
+  assert.equal(
+    barnPlanRotateDragPastDeadzone({
+      startX: 0,
+      startY: 0,
+      x: 8,
+      y: 0,
+      startAngleDeg: 290,
+      angleDeg: 290.5,
+    }),
+    true,
+  );
+  assert.equal(
+    barnPlanRotateDragPastDeadzone({
+      startX: 0,
+      startY: 0,
+      x: 1,
+      y: 0,
+      startAngleDeg: 290,
+      angleDeg: 292,
+    }),
+    true,
+  );
   const fp = { lengthM: 20, widthM: 10 };
   const turned = barnPlanAxisSpan(fp, 90);
   assert.equal(Math.round(turned.lengthM), 10);

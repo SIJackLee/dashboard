@@ -87,6 +87,7 @@ export function BarnPanelBottomSheet({
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startYRef = useRef<number | null>(null);
+  const dragYRef = useRef(0);
   const host = open ? sheetPeekHost() : null;
   const [peekVisible, setPeekVisible] = useState(false);
   if (open && peek && !peekVisible) setPeekVisible(true);
@@ -119,6 +120,7 @@ export function BarnPanelBottomSheet({
   }, [open, peek]);
 
   const resetDrag = useCallback(() => {
+    dragYRef.current = 0;
     setDragY(0);
     setDragging(false);
     startYRef.current = null;
@@ -146,11 +148,12 @@ export function BarnPanelBottomSheet({
     const t = e.touches[0];
     if (start == null || !t) return;
     const dy = Math.max(0, t.clientY - start);
+    dragYRef.current = dy;
     setDragY(dy);
   }, []);
 
   const onHandleTouchEnd = useCallback(() => {
-    const dy = dragY;
+    const dy = dragYRef.current;
     startYRef.current = null;
     setDragging(false);
     if (dy >= DISMISS_DRAG_PX) {
@@ -158,8 +161,9 @@ export function BarnPanelBottomSheet({
       else handleClose();
       return;
     }
+    dragYRef.current = 0;
     setDragY(0);
-  }, [dragY, handleClose, handlePeek, onPeek]);
+  }, [handleClose, handlePeek, onPeek]);
 
   const onPeekTouchStart = useCallback((e: ReactTouchEvent) => {
     const t = e.touches[0];
@@ -262,7 +266,7 @@ export function BarnPanelBottomSheet({
         data-audit-region={auditRegion}
       >
         <div
-          className="flex shrink-0 cursor-grab touch-none justify-center pt-3 pb-2 active:cursor-grabbing"
+          className="flex min-h-11 shrink-0 cursor-grab touch-none items-center justify-center pt-3 pb-2 active:cursor-grabbing"
           data-sheet-drag-handle
           aria-label={onPeek ? "시트를 아래로 끌어 접기" : "시트를 아래로 끌어 닫기"}
           onTouchStart={onHandleTouchStart}

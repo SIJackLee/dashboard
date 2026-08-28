@@ -436,7 +436,7 @@ export function BarnListAccordionPanel({
               type="button"
               disabled={defaultsDisabled}
               onClick={handleApplyDefaults}
-              className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50 sm:text-sm"
+              className="inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-2 text-xs hover:bg-muted disabled:opacity-50 sm:text-sm"
             >
               기본값
             </button>
@@ -446,7 +446,7 @@ export function BarnListAccordionPanel({
               title={saveDisabledReason ?? undefined}
               onClick={handleSaveAll}
               aria-busy={isSaving || undefined}
-              className="inline-flex min-w-0 items-center justify-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50 sm:text-sm"
+              className="inline-flex min-h-11 min-w-0 items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50 sm:text-sm"
             >
               <BusyButtonLabel
                 busy={isSaving}

@@ -77,6 +77,7 @@ import {
 } from "@/lib/ui/delin-reveal-sequence";
 import { dashboardAriaShell } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 const METRICS_POLL_MS = 30_000;
@@ -320,7 +321,7 @@ export function FarmAriaView({
 
   const onDockHandlePointerDown = useCallback(
     (e: ReactPointerEvent<HTMLButtonElement>) => {
-      if (e.button !== 0) return;
+      if (!isPrimaryPress(e)) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       dockDragRef.current = {
         pointerId: e.pointerId,
