@@ -18,6 +18,10 @@
 | 기타 마스터/설정 | ≤56 kB | — | |
 | `farm_alarm_notify` | — | — | **DROP** 2026-08-28 (SMS 미오픈) |
 | `aria_turn_log` | — | — | **DROP** 2026-08-28 (음성 폐기) |
+| `farm_weather_snapshot` | — | — | **DROP** 2026-08-28 (기상 CTRL 폐기) |
+| `weather_control_recommendation` | — | — | **DROP** 2026-08-28 (기상 CTRL 폐기) |
+| `weather_control_config` | — | — | **DROP** 2026-08-28 |
+| `weather_fetch_config` | — | — | **DROP** 2026-08-28 |
 | `health_command_checkpoint` | 24 kB | 0 | |
 
 ## 다음 후보 판단
@@ -27,6 +31,7 @@
 | — | raw / decoded / command | 트랙 완료 | 유지·관찰 |
 | 낮음 | `push_outbox` | 행 적음 | 실패/잔존 TTL만 문서화 여지 |
 | 완료 | `aria_turn_log` | 음성 폐기 | **DROP** 2026-08-28 |
+| 완료 | `farm_weather_snapshot` · `weather_control_*` · `weather_fetch_config` | 기상 CTRL 폐기 | **DROP** 2026-08-28 |
 | 완료 | `farm_alarm_notify` | SMS 미오픈 | **DROP** 2026-08-28 |
 | 불필요 | 마스터류 | 성장 없음 | — |
 

@@ -41,12 +41,6 @@
 | [`BARN_PLAN.md`](./BARN_PLAN.md) | 축사 모델 탭 (2D 위성 부지) |
 | [`BARN_MODEL.md`](./BARN_MODEL.md) | 옛 3D 모델 탭 은퇴 포인터 |
 | [`aria-protocol.md`](./aria-protocol.md) | 델린(DELIN) 뱃지 정본 |
-| [`weather-ctrl-recommendation-p1.md`](./weather-ctrl-recommendation-p1.md) | 기상 CTRL 권장→승인 P1 (FARM01) |
-| [`weather-ctrl-phase-a.md`](./weather-ctrl-phase-a.md) | Phase A — KMA 스냅샷·cron 상세 |
-| [`weather-ctrl-phase-b.md`](./weather-ctrl-phase-b.md) | Phase B — 규칙 엔진·권장 draft 상세 |
-| [`weather-ctrl-phase-c.md`](./weather-ctrl-phase-c.md) | Phase C — DELIN 말풍선·UNPACK |
-| [`weather-ctrl-phase-d.md`](./weather-ctrl-phase-d.md) | Phase D — approve·명령 연동 |
-| [`weather-ctrl-phase-e.md`](./weather-ctrl-phase-e.md) | Phase E — 출시 gate·smoke |
 | [`UI_MOTION.md`](./UI_MOTION.md) | 모션 |
 | [`UI_DENSITY.md`](./UI_DENSITY.md) | 밀도·맵 수치 |
 | [`UI_ELEVATION.md`](./UI_ELEVATION.md) | elevation |
