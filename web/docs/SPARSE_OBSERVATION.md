@@ -13,6 +13,7 @@
 | allowlist 농장 `decoded_n / raw_n` | 대략 **&lt; 70%**(변동·heartbeat에 따라 다름) |
 | LIVE / trend | 이상 없음 · 사용자 체감 OK |
 | `decode_failed` (UPSERT) | 지속 증가 없음 |
+| `decode_failed` (`INVALID_STALL_TY`) | 축사유형 바이트 1~10 밖(예: `0xFF`). **decoded 미기록(가림)** · raw는 유지. 펌웨어 미설정 관측용. UPSERT 장애와 구분 |
 | slim JSON | 신규 행 `v0c-slim-1` 비율 증가 |
 
 ---
@@ -76,6 +77,13 @@ FROM public.iot_room_state_decode_failed
 WHERE attempted_at > now() - interval '24 hours'
 GROUP BY 1
 ORDER BY 2 DESC;
+
+-- 유형 바이트 이상(가림 후 관측). error_detail 예: stall_ty_raw=255 stall_no=255 eqpmn_no=1
+SELECT raw_id, error_detail, attempted_at
+FROM public.iot_room_state_decode_failed
+WHERE error_code = 'INVALID_STALL_TY'
+ORDER BY attempted_at DESC
+LIMIT 50;
 
 SELECT
   decoded_json->>'schema_version' AS ver,

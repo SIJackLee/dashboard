@@ -3,7 +3,9 @@ import {
   applyReceivedAtClock,
   correctMesureEpochSec,
   crc16CcittFalse,
+  DECODE_ERROR_INVALID_STALL_TY,
   decodeV0cPayload,
+  decodeV0cPayloadOutcome,
   formatTempC,
   toSlimDecodedJson,
 } from "./wire-decode-v0c.ts";
@@ -97,6 +99,32 @@ assert.equal(farm02Alarm.channels[0]?.thermo?.tempDeviation, "5.0");
 const slim83 = toSlimDecodedJson(farm02Alarm);
 assert.equal(slim83.alarmLowTempC, "10.0");
 assert.equal(slim83.alarmHighTempC, "43.6");
+
+const invalidStallTy = Uint8Array.from(farm01Body);
+invalidStallTy[6] = 0xff;
+assert.equal(decodeV0cPayload(withCrc(invalidStallTy)), null);
+const invalidOutcome = decodeV0cPayloadOutcome(withCrc(invalidStallTy));
+assert.equal(invalidOutcome.status, "invalid_stall_ty");
+if (invalidOutcome.status !== "invalid_stall_ty") {
+  throw new Error("expected INVALID_STALL_TY");
+}
+assert.equal(invalidOutcome.errorCode, DECODE_ERROR_INVALID_STALL_TY);
+assert.equal(invalidOutcome.stallTyRaw, 255);
+assert.equal(invalidOutcome.stallNo, 1);
+assert.equal(invalidOutcome.eqpmnNo, 1);
+assert.equal(
+  invalidOutcome.errorDetail,
+  "stall_ty_raw=255 stall_no=1 eqpmn_no=1",
+);
+
+const zeroStallTy = Uint8Array.from(farm01Body);
+zeroStallTy[6] = 0;
+const zeroOutcome = decodeV0cPayloadOutcome(withCrc(zeroStallTy));
+assert.equal(zeroOutcome.status, "invalid_stall_ty");
+if (zeroOutcome.status !== "invalid_stall_ty") {
+  throw new Error("expected INVALID_STALL_TY");
+}
+assert.equal(zeroOutcome.stallTyRaw, 0);
 
 const recvLive = Date.parse("2026-08-26T23:45:15.207Z");
 assert.equal(correctMesureEpochSec(1_787_787_915, recvLive), 1_787_787_915);

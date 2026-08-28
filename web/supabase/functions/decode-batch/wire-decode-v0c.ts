@@ -116,9 +116,40 @@ export function formatTempC(raw: number): string | null {
   return (x10 / 10).toFixed(1);
 }
 
-function formatStallTy(raw: number): string {
+/** Ops `iot_room_state_decode_failed.error_code` — stall type byte outside 1..10. */
+export const DECODE_ERROR_INVALID_STALL_TY = "INVALID_STALL_TY";
+
+function isValidStallTyRaw(raw: number): boolean {
+  return raw >= 1 && raw <= 10;
+}
+
+function formatStallTy(raw: number): string | null {
+  if (!isValidStallTyRaw(raw)) return null;
   return `SP${String(raw).padStart(2, "0")}`;
 }
+
+export function invalidStallTyDetail(args: {
+  stallTyRaw: number;
+  stallNo: number;
+  eqpmnNo: number;
+}): string {
+  return `stall_ty_raw=${args.stallTyRaw} stall_no=${args.stallNo} eqpmn_no=${args.eqpmnNo}`;
+}
+
+export type V0cInvalidStallTySkip = {
+  status: "invalid_stall_ty";
+  errorCode: typeof DECODE_ERROR_INVALID_STALL_TY;
+  wireVer: number;
+  stallTyRaw: number;
+  stallNo: number;
+  eqpmnNo: number;
+  errorDetail: string;
+};
+
+export type V0cDecodeOutcome =
+  | { status: "ok"; payload: DecodedV0cPayload }
+  | V0cInvalidStallTySkip
+  | { status: "skip" };
 
 function formatStallNo(raw: number): string {
   return String(raw).padStart(2, "0");
@@ -231,9 +262,13 @@ function decodeChannelBlock(
 
 function decodeRow(
   row: Uint8Array,
-): Omit<DecodedV0cPayload, "schema_version" | "wireVer" | "packetMode" | "history"> {
+): Omit<
+  DecodedV0cPayload,
+  "schema_version" | "wireVer" | "packetMode" | "history"
+> | null {
   const rowT = readU32LE(row, 0);
   const stallTy = formatStallTy(row[4]!);
+  if (stallTy == null) return null;
   const stallNo = formatStallNo(row[5]!);
   const eqpmnNo = formatEqpmnNo(row[6]!);
   const runMode = row[7]!;
@@ -292,24 +327,50 @@ export function parsePayloadBytea(value: unknown): Uint8Array | null {
   return out;
 }
 
-export function decodeV0cPayload(wire: Uint8Array): DecodedV0cPayload | null {
-  if (wire[0] !== VER_V0C) return null;
+export function decodeV0cPayloadOutcome(wire: Uint8Array): V0cDecodeOutcome {
+  if (wire[0] !== VER_V0C) return { status: "skip" };
   const rowLen = wire.length - HEADER_SIZE - CRC_SIZE;
-  if (rowLen !== ROW_SIZE && rowLen !== ROW_SIZE_WITH_ALARM) return null;
+  if (rowLen !== ROW_SIZE && rowLen !== ROW_SIZE_WITH_ALARM) {
+    return { status: "skip" };
+  }
 
   const flags = wire[1]!;
   const history = Boolean(flags & 0x01);
   const row = wire.subarray(HEADER_SIZE, HEADER_SIZE + rowLen);
-  if (row.length !== rowLen) return null;
+  if (row.length !== rowLen) return { status: "skip" };
+
+  const stallTyRaw = row[4]!;
+  if (!isValidStallTyRaw(stallTyRaw)) {
+    const stallNo = row[5]!;
+    const eqpmnNo = row[6]!;
+    return {
+      status: "invalid_stall_ty",
+      errorCode: DECODE_ERROR_INVALID_STALL_TY,
+      wireVer: VER_V0C,
+      stallTyRaw,
+      stallNo,
+      eqpmnNo,
+      errorDetail: invalidStallTyDetail({ stallTyRaw, stallNo, eqpmnNo }),
+    };
+  }
 
   const decoded = decodeRow(row);
+  if (decoded == null) return { status: "skip" };
   return {
-    schema_version: "v0c-1",
-    wireVer: VER_V0C,
-    packetMode: history ? "history" : "live",
-    history,
-    ...decoded,
+    status: "ok",
+    payload: {
+      schema_version: "v0c-1",
+      wireVer: VER_V0C,
+      packetMode: history ? "history" : "live",
+      history,
+      ...decoded,
+    },
   };
+}
+
+export function decodeV0cPayload(wire: Uint8Array): DecodedV0cPayload | null {
+  const outcome = decodeV0cPayloadOutcome(wire);
+  return outcome.status === "ok" ? outcome.payload : null;
 }
 
 function channelFromErrCode(code: number): string | null {
@@ -381,7 +442,9 @@ export function decodeErrorPacketV0c(
     eqpmnNo = formatEqpmnNo(wire[4]!);
     errCode = wire[5]!;
     schema_version = "v0c-error-2";
-    controllerKey = `${stallTyCode}:${stallNo}:${eqpmnNo}`;
+    if (stallTyCode != null) {
+      controllerKey = `${stallTyCode}:${stallNo}:${eqpmnNo}`;
+    }
   } else {
     errCode = wire[2]!;
   }
@@ -414,9 +477,16 @@ export function decodeErrorPacketV0c(
 export function decodeV0cPayloadFromDb(
   payloadBytea: unknown,
 ): DecodedV0cPayload | null {
+  const outcome = decodeV0cPayloadOutcomeFromDb(payloadBytea);
+  return outcome.status === "ok" ? outcome.payload : null;
+}
+
+export function decodeV0cPayloadOutcomeFromDb(
+  payloadBytea: unknown,
+): V0cDecodeOutcome {
   const wire = parsePayloadBytea(payloadBytea);
-  if (!wire) return null;
-  return decodeV0cPayload(wire);
+  if (!wire) return { status: "skip" };
+  return decodeV0cPayloadOutcome(wire);
 }
 
 export function decodeErrorPacketFromDb(

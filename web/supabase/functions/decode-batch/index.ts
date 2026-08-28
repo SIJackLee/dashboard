@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   decodeErrorPacketFromDb,
-  decodeV0cPayloadFromDb,
+  decodeV0cPayloadOutcomeFromDb,
   fanPctFromChannels,
   parseOptionalPct,
   primaryTempC,
@@ -192,12 +192,29 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    const payload = decodeV0cPayloadFromDb(row.payload_bytea);
+    const outcome = decodeV0cPayloadOutcomeFromDb(row.payload_bytea);
 
-    if (!payload) {
+    if (outcome.status === "invalid_stall_ty") {
+      skipped += 1;
+      await supabase.from("iot_room_state_decode_failed").upsert(
+        {
+          raw_id: row.id,
+          wire_ver: outcome.wireVer,
+          error_code: outcome.errorCode,
+          error_detail: outcome.errorDetail,
+          attempted_at: new Date().toISOString(),
+        },
+        { onConflict: "raw_id" },
+      );
+      continue;
+    }
+
+    if (outcome.status !== "ok") {
       skipped += 1;
       continue;
     }
+
+    const payload = outcome.payload;
 
     const tempC = primaryTempC(payload.tempsC);
     const fanExhaust = fanPctFromChannels(payload.channels, "EC02");
