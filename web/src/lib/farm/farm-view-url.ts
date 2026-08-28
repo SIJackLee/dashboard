@@ -14,7 +14,10 @@ import {
   CHART_X0_PARAM,
   CHART_X1_PARAM,
 } from "@/lib/farm/farm-chart-scope";
-import { barnPlanEnabled } from "@/lib/farm/barn-plan-enabled";
+import {
+  barnPlanEnabled,
+  type BarnPlanGateOpts,
+} from "@/lib/farm/barn-plan-enabled";
 import {
   PLAN_BLDG_PARAM,
   PLAN_SP_PARAM,
@@ -109,11 +112,12 @@ export type FarmHubView =
 
 export function resolveFarmHubView(
   raw: string | null | undefined,
+  opts: BarnPlanGateOpts = {},
 ): FarmHubView {
   if (raw === "list") return "list";
   if (raw === "chart") return "chart";
   if (raw === "plan" || raw === "model") {
-    return barnPlanEnabled() ? "model" : "map";
+    return barnPlanEnabled(opts) ? "model" : "map";
   }
   if (raw === "aria" || raw === "jarvis") {
     return "map";
@@ -144,13 +148,19 @@ export function applyChartViewParams(params: URLSearchParams): void {
   clearBarnPlanParams(params);
 }
 
-/** 모델 탭 — 2D 부지·건물. `view=plan`은 호환 별칭. 플래그 off면 그리드. */
-export function applyPlanViewParams(params: URLSearchParams): void {
-  applyModelViewParams(params);
+/** 모델 탭 — 2D 부지·건물. `view=plan`은 호환 별칭. 게이트 off면 그리드. */
+export function applyPlanViewParams(
+  params: URLSearchParams,
+  opts: BarnPlanGateOpts = {},
+): void {
+  applyModelViewParams(params, opts);
 }
 
-export function applyModelViewParams(params: URLSearchParams): void {
-  if (!barnPlanEnabled()) {
+export function applyModelViewParams(
+  params: URLSearchParams,
+  opts: BarnPlanGateOpts = {},
+): void {
+  if (!barnPlanEnabled(opts)) {
     applyMapGridParams(params);
     return;
   }
@@ -220,12 +230,13 @@ export function buildFarmPath(params: URLSearchParams): string {
 export function applyHubScopedViewParams(
   params: URLSearchParams,
   view: FarmHubView,
+  opts: BarnPlanGateOpts = {},
 ): void {
   params.delete("tab");
   if (view === "list") applyListViewParams(params);
   else if (view === "chart") applyChartViewParams(params);
-  else if (view === "plan") applyPlanViewParams(params);
-  else if (view === "model") applyModelViewParams(params);
+  else if (view === "plan") applyPlanViewParams(params, opts);
+  else if (view === "model") applyModelViewParams(params, opts);
   else if (view === "aria") applyAriaViewParams(params);
   else applyMapGridParams(params);
 }

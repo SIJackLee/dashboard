@@ -43,6 +43,7 @@ import {
   FarmPlanPlaceDock,
 } from "@/components/farm/farm-plan-place-dock";
 import { FarmPlanBuildingEditor } from "@/components/farm/farm-plan-building-editor";
+import { FarmPlanDockSheet } from "@/components/farm/farm-plan-dock-sheet";
 import type { BarnMapSnapshot, BarnReading } from "@/lib/data/iot";
 import type { BarnModelFill } from "@/lib/farm/barn-model-dim";
 import type { BarnModelFillPatch } from "@/lib/farm/barn-model-prefs";
@@ -1392,6 +1393,72 @@ export function FarmPlanView({
     1,
     mapFieldE,
   );
+  const showPlaceEditor = Boolean(
+    stage === "field" &&
+      !liningUp &&
+      !modeling &&
+      !linedUp &&
+      assignMorph <= 0 &&
+      draftFill &&
+      draftPos &&
+      selectedBuildingId,
+  );
+  const fieldDockVisible = stage === "field" && !liningUp && !modeling;
+  const showAssignSheet = compact && fieldDockVisible && assignSettled;
+  const placeSheetKey = showPlaceEditor ? String(selectedBuildingId) : "";
+  const placeSheetPeek =
+    selectedBuildingId === "draft"
+      ? "새 건물 도안"
+      : site.buildings.find((b) => b.id === selectedBuildingId)?.name?.trim() ||
+        "도안 맞추기";
+  const assignSheetPeek =
+    assignTool === "ctrl"
+      ? "컨트롤러 연결"
+      : assignTool === "barn"
+        ? "축사 연결"
+        : "축사·컨트롤러";
+  const placeEditor =
+    showPlaceEditor && draftFill ? (
+      <FarmPlanBuildingEditor
+        variant={compact ? "sheet" : "overlay"}
+        fill={draftFill}
+        dirty={Boolean(
+          fillBaseline && !barnPlanFillEqual(draftFill, fillBaseline),
+        )}
+        placed={placedSelected}
+        onFillChange={onFillChange}
+        onRevert={() => {
+          if (fillBaseline) setDraftFill(fillBaseline);
+        }}
+        onPlace={onPlace}
+        onDelete={onDeleteBuilding}
+      />
+    ) : null;
+  const placeDock = fieldDockVisible ? (
+    <FarmPlanPlaceDock
+      buildings={site.buildings.map((b, index) => ({
+        id: b.id,
+        label: b.name?.trim() || `${index + 1}동`,
+      }))}
+      selectedBuildingId={selectedBuildingId}
+      onSelectBuilding={selectBuilding}
+      onNewBuilding={startNewBuilding}
+      mode={assignSettled ? "assign" : "place"}
+      variant={showAssignSheet ? "sheet" : "overlay"}
+      assignTool={assignTool}
+      canClearBarn={canClearBarn}
+      canClearCtrl={canClearCtrl}
+      onClearBarn={onClearAllBarn}
+      onClearCtrl={onClearAllCtrl}
+      onAssignTool={(tool) => {
+        if (!assignSettled) return;
+        setAssignTool(tool);
+        setConnectOpen(false);
+        setPickedRooms([]);
+        setAssignCardAt(null);
+      }}
+    />
+  ) : null;
 
   return (
     <div
@@ -1568,50 +1635,10 @@ export function FarmPlanView({
           </div>
         ) : null}
 
-        {stage === "field" && !liningUp && !modeling ? (
+        {fieldDockVisible && !showAssignSheet ? (
           <div className="absolute top-3 left-3 z-[400] flex items-start gap-2">
-            <FarmPlanPlaceDock
-              buildings={site.buildings.map((b, index) => ({
-                id: b.id,
-                label: b.name?.trim() || `${index + 1}동`,
-              }))}
-              selectedBuildingId={selectedBuildingId}
-              onSelectBuilding={selectBuilding}
-              onNewBuilding={startNewBuilding}
-              mode={assignSettled ? "assign" : "place"}
-              assignTool={assignTool}
-              canClearBarn={canClearBarn}
-              canClearCtrl={canClearCtrl}
-              onClearBarn={onClearAllBarn}
-              onClearCtrl={onClearAllCtrl}
-              onAssignTool={(tool) => {
-                if (!assignSettled) return;
-                setAssignTool(tool);
-                setConnectOpen(false);
-                setPickedRooms([]);
-                setAssignCardAt(null);
-              }}
-            />
-            {!linedUp &&
-            assignMorph <= 0 &&
-            draftFill &&
-            draftPos &&
-            selectedBuildingId ? (
-              <FarmPlanBuildingEditor
-                fill={draftFill}
-                dirty={Boolean(
-                  fillBaseline &&
-                    !barnPlanFillEqual(draftFill, fillBaseline),
-                )}
-                placed={placedSelected}
-                onFillChange={onFillChange}
-                onRevert={() => {
-                  if (fillBaseline) setDraftFill(fillBaseline);
-                }}
-                onPlace={onPlace}
-                onDelete={onDeleteBuilding}
-              />
-            ) : null}
+            {placeDock}
+            {!compact ? placeEditor : null}
           </div>
         ) : null}
 
@@ -1715,6 +1742,21 @@ export function FarmPlanView({
         </div>
         ) : null}
       </div>
+
+      {compact && placeEditor ? (
+        <FarmPlanDockSheet key={placeSheetKey} peekLabel={placeSheetPeek}>
+          {placeEditor}
+        </FarmPlanDockSheet>
+      ) : showAssignSheet && placeDock ? (
+        <FarmPlanDockSheet
+          key="assign"
+          peekLabel={assignSheetPeek}
+          collapseLabel="연결 도구 접기"
+          expandLabel="연결 도구 펼치기"
+        >
+          {placeDock}
+        </FarmPlanDockSheet>
+      ) : null}
 
       {stageT > 0.35 ? null : (
       <p className={cn(dashboardTypography.meta, "px-3 py-2")}>

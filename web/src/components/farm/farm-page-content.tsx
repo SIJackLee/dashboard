@@ -75,6 +75,7 @@ import {
   useFarmLiveRefreshOptional,
 } from "@/lib/navigation/farm-live-refresh";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
+import { useFarmScope } from "@/components/layout/farm-scope-provider";
 import { dashboardChroma, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { useFieldListFilterMotion } from "@/components/farm/use-field-list-filter-motion";
@@ -128,6 +129,8 @@ export function FarmPageContent({
   hubLocations = [],
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
+  const { isAdmin } = useFarmScope();
+  const showModelTab = barnPlanEnabled({ isAdmin });
   const tourActive = useFarmTourActive();
   const searchParams = useSearchParams();
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -231,6 +234,7 @@ export function FarmPageContent({
     initialHubView,
     searchParams,
     keepAliveFarmId,
+    isAdmin,
     onOpenList: () => {
       void enrichListIfNeeded();
     },
@@ -718,7 +722,7 @@ export function FarmPageContent({
         />
         차트
       </button>
-      {barnPlanEnabled() ? (
+      {showModelTab ? (
         <button
           type="button"
           role="tab"
@@ -955,7 +959,7 @@ export function FarmPageContent({
           </div>
         ) : null}
 
-        {barnPlanEnabled() &&
+        {showModelTab &&
         (view === "model" ||
           viewSlide?.from === "model" ||
           viewSlide?.to === "model") ? (
@@ -982,7 +986,6 @@ export function FarmPageContent({
           <DelinEnvBadge
             readings={readings}
             stallTyCode={delinBadgeStallTy}
-            liftAboveBrush={view === "chart"}
           />
         ) : null}
       </div>

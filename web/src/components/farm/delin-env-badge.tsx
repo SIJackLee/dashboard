@@ -32,15 +32,12 @@ type Props = {
   readings: BarnReading[];
   /** 축사유형 코드. 없으면 농장 전체에서 가장 나쁜 유형. */
   stallTyCode?: string | null;
-  /** 차트 브러시 위로 띄움 (모바일). 하단 탭은 호스트가 이미 제외. */
-  liftAboveBrush?: boolean;
 };
 
 /** 현장·차트·모델 우측 하단 — 권장표·경보·통신두절 말풍선. 적용·음성 없음. */
 export function DelinEnvBadge({
   readings,
   stallTyCode = null,
-  liftAboveBrush = false,
 }: Props) {
   const advice = useMemo(
     () => pigEnvBadgeAdvice(readings, stallTyCode),
@@ -70,11 +67,7 @@ export function DelinEnvBadge({
     <div
       className={cn(
         "pointer-events-none absolute z-[50] flex max-w-[min(20rem,calc(100%-1.5rem))] flex-col items-end gap-2",
-        compact
-          ? liftAboveBrush
-            ? "bottom-[6.75rem]"
-            : "bottom-3"
-          : "bottom-4 right-4",
+        compact ? "bottom-3" : "bottom-4 right-4",
         compact && (docked ? (showNotice ? "right-1.5" : "right-0") : "right-3"),
         compact && dockShift,
       )}

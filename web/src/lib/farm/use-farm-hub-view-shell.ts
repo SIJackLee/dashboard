@@ -63,6 +63,7 @@ export type UseFarmHubViewShellArgs = {
   keepAliveFarmId: string;
   /** 목록 탭 진입 시 (enrich 등) */
   onOpenList?: () => void;
+  isAdmin?: boolean;
 };
 
 export type FarmHubViewShell = {
@@ -88,15 +89,17 @@ export function useFarmHubViewShell({
   searchParams,
   keepAliveFarmId,
   onOpenList,
+  isAdmin = false,
 }: UseFarmHubViewShellArgs): FarmHubViewShell {
   const onOpenListRef = useRef(onOpenList);
   useEffect(() => {
     onOpenListRef.current = onOpenList;
   });
+  const gate = { isAdmin };
 
   const [urlHydrated, setUrlHydrated] = useState(false);
   const bootstrapView: FarmHubView =
-    initialHubView ?? resolveFarmHubView(searchParams.get("view"));
+    initialHubView ?? resolveFarmHubView(searchParams.get("view"), gate);
   const [view, setViewState] = useState<FarmHubView>(bootstrapView);
   const [viewSlide, setViewSlide] = useState<FarmViewSlide | null>(null);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
@@ -104,10 +107,10 @@ export function useFarmHubViewShell({
     bootstrapView === "chart",
   );
   const [planEverOpened, setPlanEverOpened] = useState(
-    bootstrapView === "model" && barnPlanEnabled(),
+    bootstrapView === "model" && barnPlanEnabled(gate),
   );
   const [modelEverOpened, setModelEverOpened] = useState(
-    bootstrapView === "model" && barnPlanEnabled(),
+    bootstrapView === "model" && barnPlanEnabled(gate),
   );
   const [ariaEverOpened, setAriaEverOpened] = useState(false);
   const [panelInactiveSince, setPanelInactiveSince] = useState<
@@ -147,13 +150,13 @@ export function useFarmHubViewShell({
           rewritten = true;
         }
         if (
-          !barnPlanEnabled() &&
+          !barnPlanEnabled(gate) &&
           (params.get("view") === "plan" || params.get("view") === "model")
         ) {
           applyMapGridParams(params);
           rewritten = true;
-        } else if (barnPlanEnabled() && params.get("view") === "plan") {
-          applyModelViewParams(params);
+        } else if (barnPlanEnabled(gate) && params.get("view") === "plan") {
+          applyModelViewParams(params, gate);
           rewritten = true;
         }
         if (rewritten) {
@@ -165,6 +168,7 @@ export function useFarmHubViewShell({
         opts?.viewRaw !== undefined
           ? opts.viewRaw
           : currentFarmSearchParams().get("view"),
+        gate,
       );
       const animate = opts?.animate ?? true;
       setViewState((prev) => {
@@ -176,11 +180,11 @@ export function useFarmHubViewShell({
       });
       if (next === "list") setListEverOpened(true);
       if (next === "chart") setChartEverOpened(true);
-      if (next === "plan" && barnPlanEnabled()) setPlanEverOpened(true);
-      if (next === "model" && barnPlanEnabled()) setModelEverOpened(true);
+      if (next === "plan" && barnPlanEnabled(gate)) setPlanEverOpened(true);
+      if (next === "model" && barnPlanEnabled(gate)) setModelEverOpened(true);
       if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
     },
-    [beginViewSlide, hubMode],
+    [beginViewSlide, hubMode, isAdmin],
   );
 
   useEffect(() => {
@@ -222,10 +226,10 @@ export function useFarmHubViewShell({
     setChartEverOpened(true);
   }
   if (view === "model" && !planEverOpened) {
-    if (barnPlanEnabled()) setPlanEverOpened(true);
+    if (barnPlanEnabled(gate)) setPlanEverOpened(true);
   }
   if (view === "model" && !modelEverOpened) {
-    if (barnPlanEnabled()) setModelEverOpened(true);
+    if (barnPlanEnabled(gate)) setModelEverOpened(true);
   }
 
   useEffect(() => {
@@ -258,11 +262,11 @@ export function useFarmHubViewShell({
     const flags = keepAliveFlagsForActiveView(view);
     setListEverOpened(flags.list);
     setChartEverOpened(flags.chart);
-    setPlanEverOpened(view === "model" && barnPlanEnabled());
-    setModelEverOpened(view === "model" && barnPlanEnabled());
+    setPlanEverOpened(view === "model" && barnPlanEnabled(gate));
+    setModelEverOpened(view === "model" && barnPlanEnabled(gate));
     setAriaEverOpened(flags.aria);
     setPanelInactiveSince({});
-  }, [keepAliveFarmId, view]);
+  }, [keepAliveFarmId, view, isAdmin]);
 
   const applyViewChange = useCallback(
     (next: FarmHubView) => {
@@ -270,7 +274,7 @@ export function useFarmHubViewShell({
         next === "aria"
           ? ("map" as FarmHubView)
           : next === "plan" || next === "model"
-            ? barnPlanEnabled()
+            ? barnPlanEnabled(gate)
               ? ("model" as FarmHubView)
               : ("map" as FarmHubView)
             : next;
@@ -294,7 +298,7 @@ export function useFarmHubViewShell({
         const params = new URLSearchParams(
           currentFarmSearchParams().toString(),
         );
-        applyHubScopedViewParams(params, target);
+        applyHubScopedViewParams(params, target, gate);
         replaceFarmUrlShallow(params);
         onHubUrlChange?.();
         setUrlTick((n) => n + 1);
@@ -317,7 +321,7 @@ export function useFarmHubViewShell({
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
     },
-    [hubMode, onHubUrlChange, beginViewSlide, view],
+    [hubMode, onHubUrlChange, beginViewSlide, view, isAdmin],
   );
 
   const setView = useCallback(

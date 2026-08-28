@@ -19,16 +19,17 @@ const EXPAND_DRAG_PX = 36;
  * collapsibleInner(min-height:0)는 flex 안에서 펼침 높이가 0이 되어 쓰지 않는다.
  */
 export function FarmPlanDockSheet({
-  open,
-  onOpenChange,
   peekLabel,
+  collapseLabel = "선택·도안 접기",
+  expandLabel = "선택·도안 펼치기",
   children,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   peekLabel: string;
+  collapseLabel?: string;
+  expandLabel?: string;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(true);
   const startYRef = useRef<number | null>(null);
   const draggedRef = useRef(false);
   const [dragY, setDragY] = useState(0);
@@ -70,13 +71,13 @@ export function FarmPlanDockSheet({
     const dy = dragY;
     resetDrag();
     if (open && dy >= COLLAPSE_DRAG_PX) {
-      onOpenChange(false);
+      setOpen(false);
       return;
     }
     if (!open && -dy >= EXPAND_DRAG_PX) {
-      onOpenChange(true);
+      setOpen(true);
     }
-  }, [dragY, onOpenChange, open, resetDrag]);
+  }, [dragY, open, resetDrag]);
 
   return (
     <aside
@@ -100,7 +101,7 @@ export function FarmPlanDockSheet({
           "flex w-full shrink-0 cursor-grab touch-none flex-col items-center pt-2.5 pb-1.5 active:cursor-grabbing",
           motionClass.microInteractive,
         )}
-        aria-label={open ? "선택·도안 접기" : "선택·도안 펼치기"}
+        aria-label={open ? collapseLabel : expandLabel}
         aria-expanded={open}
         data-testid="farm-plan-sheet-handle"
         data-sheet-drag-handle
@@ -109,7 +110,7 @@ export function FarmPlanDockSheet({
             draggedRef.current = false;
             return;
           }
-          onOpenChange(!open);
+          setOpen((on) => !on);
         }}
         onTouchStart={onHandleTouchStart}
         onTouchMove={onHandleTouchMove}
@@ -131,7 +132,7 @@ export function FarmPlanDockSheet({
         data-open={open ? "true" : undefined}
         style={{ gridTemplateRows: open ? "1fr" : "0fr" }}
       >
-        <div className="overflow-hidden">
+        <div className="overflow-hidden" aria-hidden={!open}>
           <div className="min-h-min overflow-y-auto px-3 pb-3">{children}</div>
         </div>
       </div>

@@ -16,6 +16,7 @@ export function FarmPlanBuildingEditor({
   fill,
   dirty,
   placed,
+  variant = "overlay",
   onFillChange,
   onRevert,
   onPlace,
@@ -24,16 +25,24 @@ export function FarmPlanBuildingEditor({
   fill: BarnModelFill;
   dirty: boolean;
   placed: boolean;
+  /** overlay = PC 독 옆 카드. sheet = 모바일 바텀시트 안. */
+  variant?: "overlay" | "sheet";
   onFillChange: (patch: BarnModelFillPatch) => void;
   onRevert: () => void;
   onPlace: () => void;
   onDelete: () => void;
 }) {
+  const sheet = variant === "sheet";
   return (
     <div
       className={cn(
-        dashboardElevation.overlay,
-        "flex w-max max-w-[min(22rem,calc(100vw-2rem))] flex-col gap-2 p-2",
+        "flex flex-col gap-2",
+        sheet
+          ? "w-full"
+          : cn(
+              dashboardElevation.overlay,
+              "w-max max-w-[min(22rem,calc(100vw-2rem))] p-2",
+            ),
       )}
       data-testid="farm-plan-building-editor"
       onPointerDown={(e) => e.stopPropagation()}

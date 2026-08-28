@@ -220,7 +220,7 @@ function AdminHubBody({
           onHubUrlChange={onHubUrlChange}
           lazyListEnrichment
           lazyListFarmKey={clientActiveFarmKey}
-          initialHubView={resolveFarmHubView(view)}
+          initialHubView={resolveFarmHubView(view, { isAdmin })}
           initialWeatherNudge={initialWeatherNudge}
           weatherNudgeEnabled={weatherNudgeEnabled}
           hubLocations={hubLocations}
@@ -232,7 +232,7 @@ function AdminHubBody({
         gridCompactShell={isAdmin}
         hubUrlEpoch={hubUrlEpoch}
         onHubUrlChange={onHubUrlChange}
-        initialHubView={resolveFarmHubView(view)}
+        initialHubView={resolveFarmHubView(view, { isAdmin })}
         initialWeatherNudge={initialWeatherNudge}
         weatherNudgeEnabled={weatherNudgeEnabled}
         hubLocations={hubLocations}
@@ -265,7 +265,7 @@ function AdminHubBody({
           gridCompactShell={isAdmin}
           hubUrlEpoch={hubUrlEpoch}
           onHubUrlChange={onHubUrlChange}
-          initialHubView={resolveFarmHubView(view)}
+          initialHubView={resolveFarmHubView(view, { isAdmin })}
           initialWeatherNudge={initialWeatherNudge}
           weatherNudgeEnabled={weatherNudgeEnabled}
           hubLocations={hubLocations}
@@ -429,7 +429,7 @@ export function FarmDashboardShell({
                 onHubUrlChange={onHubUrlChange}
                 lazyListEnrichment={useCachedSingle}
                 lazyListFarmKey={clientActiveFarmKey}
-                initialHubView={resolveFarmHubView(view)}
+                initialHubView={resolveFarmHubView(view, { isAdmin })}
                 initialWeatherNudge={initialWeatherNudge}
                 weatherNudgeEnabled={weatherNudgeEnabled}
                 hubLocations={hubLocations}

@@ -207,4 +207,47 @@ function clone(q: string) {
   console.log("smoke 6: chart/plan params stay isolated — ok");
 }
 
+/** 7) Production — 관리자만 model, 운영자·뷰어는 필드 */
+{
+  const prev = {
+    flag: process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED,
+    vercel: process.env.VERCEL_ENV,
+    vercelPub: process.env.NEXT_PUBLIC_VERCEL_ENV,
+    node: process.env.NODE_ENV,
+  };
+  const env = process.env as Record<string, string | undefined>;
+  try {
+    delete env.NEXT_PUBLIC_BARN_PLAN_ENABLED;
+    env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    env.VERCEL_ENV = "production";
+    env.NODE_ENV = "production";
+
+    assert.equal(resolveFarmHubView("model"), "map");
+    assert.equal(resolveFarmHubView("model", { isAdmin: false }), "map");
+    assert.equal(resolveFarmHubView("model", { isAdmin: true }), "model");
+    assert.equal(resolveFarmHubView("plan", { isAdmin: true }), "model");
+
+    const op = clone("lsind=FARM01&item=P00&view=model");
+    applyHubScopedViewParams(op, "model");
+    assert.equal(resolveFarmHubView(op.get("view")), "map");
+
+    const admin = clone("lsind=FARM01&item=P00");
+    applyHubScopedViewParams(admin, "model", { isAdmin: true });
+    assert.equal(admin.get("view"), "model");
+    assert.equal(resolveFarmHubView(admin.get("view"), { isAdmin: true }), "model");
+  } finally {
+    for (const [k, v] of Object.entries({
+      NEXT_PUBLIC_BARN_PLAN_ENABLED: prev.flag,
+      VERCEL_ENV: prev.vercel,
+      NEXT_PUBLIC_VERCEL_ENV: prev.vercelPub,
+    })) {
+      if (v === undefined) delete env[k];
+      else env[k] = v;
+    }
+    if (prev.node === undefined) delete env.NODE_ENV;
+    else env.NODE_ENV = prev.node;
+  }
+  console.log("smoke 7: production model is admin-only — ok");
+}
+
 console.log("farm-hub-url-smoke.test.ts: all ok");

@@ -12,7 +12,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 환경변수 | 기본 | 설명 |
 |----------|------|------|
 | `NEXT_PUBLIC_FARM_FIELD_MERGE_V1` | **on** (`false`/`0`/`off`만 끔) | 그리드·목록 → «필드» 탭. off면 현행 4탭 |
-| `NEXT_PUBLIC_BARN_PLAN_ENABLED` | 로컬·Preview **on**, Production **off**. 강제 `true`/`false` | 모델 탭(2D). 상세 [`BARN_PLAN.md`](./BARN_PLAN.md) |
+| `NEXT_PUBLIC_BARN_PLAN_ENABLED` | 로컬·Preview **전원 on**, Production **관리자만**. 강제 `false`는 전원 off | 모델 탭(2D). 상세 [`BARN_PLAN.md`](./BARN_PLAN.md) |
 
 통합 on일 때 UI:
 - 상위 탭: **필드 · 차트 · 모델**(Production에서는 모델 기본 숨김)
@@ -32,7 +32,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `plan` \| `model` \| (`aria`/`jarvis`/`status`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린·현황 히트맵 주소는 필드. 모델 플래그 off면 그리드. 필드·차트에서 DELIN 권장 뱃지(모델 탭은 숨김). `plan`은 `model`로 정규화 |
+| `view` | `list` \| `chart` \| `plan` \| `model` \| (`aria`/`jarvis`/`status`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린·현황 히트맵 주소는 필드. 모델 게이트 off(Production 비관리자·강제 off)면 그리드. 필드·차트에서 DELIN 권장 뱃지(모델 탭은 숨김). `plan`은 `model`로 정규화 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |

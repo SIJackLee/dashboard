@@ -36,6 +36,7 @@ export function FarmPlanPlaceDock({
   canClearCtrl = false,
   onClearBarn,
   onClearCtrl,
+  variant = "overlay",
 }: {
   buildings: FarmPlanDockBuilding[];
   selectedBuildingId: string | "draft" | null;
@@ -48,13 +49,20 @@ export function FarmPlanPlaceDock({
   canClearCtrl?: boolean;
   onClearBarn?: () => void;
   onClearCtrl?: () => void;
+  /** overlay = 필드 위 카드. sheet = 모바일 바텀시트 안. */
+  variant?: "overlay" | "sheet";
 }) {
   const draftOn = selectedBuildingId === "draft";
   const assign = mode === "assign";
+  const sheet = variant === "sheet";
   if (assign) {
+    const assignBtnW = sheet ? "w-full" : "w-auto min-w-[6.5rem]";
     return (
       <div
-        className="grid w-max grid-cols-2 gap-1 rounded-lg border bg-card/95 p-2"
+        className={cn(
+          "grid grid-cols-2 gap-1",
+          sheet ? "w-full" : "w-max rounded-lg border bg-card/95 p-2",
+        )}
         data-testid="farm-plan-place-dock"
         data-dock-mode="assign"
       >
@@ -64,7 +72,7 @@ export function FarmPlanPlaceDock({
           className={cn(
             ASSIGN_BTN,
             motionClass.microInteractive,
-            "w-auto min-w-[6.5rem]",
+            assignBtnW,
             assignTool === "barn"
               ? "bg-primary text-primary-foreground"
               : "border bg-card text-foreground",
@@ -80,7 +88,8 @@ export function FarmPlanPlaceDock({
           className={cn(
             ASSIGN_BTN,
             motionClass.microInteractive,
-            "w-auto min-w-[6.5rem] border bg-card text-foreground",
+            assignBtnW,
+            "border bg-card text-foreground",
             !canClearBarn && "opacity-40",
           )}
           onClick={() => onClearBarn?.()}
@@ -94,7 +103,7 @@ export function FarmPlanPlaceDock({
           className={cn(
             ASSIGN_BTN,
             motionClass.microInteractive,
-            "w-auto min-w-[6.5rem]",
+            assignBtnW,
             assignTool === "ctrl"
               ? "bg-primary text-primary-foreground"
               : "border bg-card text-foreground",
@@ -110,7 +119,8 @@ export function FarmPlanPlaceDock({
           className={cn(
             ASSIGN_BTN,
             motionClass.microInteractive,
-            "w-auto min-w-[6.5rem] border bg-card text-foreground",
+            assignBtnW,
+            "border bg-card text-foreground",
             !canClearCtrl && "opacity-40",
           )}
           onClick={() => onClearCtrl?.()}

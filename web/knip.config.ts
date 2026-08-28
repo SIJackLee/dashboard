@@ -22,7 +22,7 @@ const config: KnipConfig = {
     "src/lib/farm/build-farm-unified-trend-raw.ts",
     "src/lib/weather-control/use-weather-nudge-poll.ts",
     "src/lib/weather-control/run-evaluate-farm.ts",
-    // 로컬·Preview 모델 탭 편집기 (Production 미마운트, docs/BARN_PLAN.md)
+    // 모델 탭 편집기 (Production은 관리자만, docs/BARN_PLAN.md)
     "src/components/farm/farm-plan-corridor.tsx",
     "src/components/farm/farm-plan-dock-sheet.tsx",
     "src/components/farm/farm-plan-fill-editor.tsx",

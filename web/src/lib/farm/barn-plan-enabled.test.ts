@@ -29,27 +29,43 @@ function restore() {
   setNodeEnv(prev.node);
 }
 
+function productionEnv() {
+  delete process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED;
+  process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+  process.env.VERCEL_ENV = "production";
+  setNodeEnv("production");
+}
+
 try {
   process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED = "false";
   assert.equal(barnPlanEnabled(), false);
+  assert.equal(barnPlanEnabled({ isAdmin: true }), false);
 
   process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED = "true";
   assert.equal(barnPlanEnabled(), true);
+  assert.equal(barnPlanEnabled({ isAdmin: false }), true);
 
   delete process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED;
   process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
   process.env.VERCEL_ENV = "preview";
   assert.equal(barnPlanEnabled(), true);
+  assert.equal(barnPlanEnabled({ isAdmin: false }), true);
 
-  process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
-  process.env.VERCEL_ENV = "production";
-  setNodeEnv("production");
+  productionEnv();
   assert.equal(barnPlanEnabled(), false);
+  assert.equal(barnPlanEnabled({ isAdmin: false }), false);
+  assert.equal(barnPlanEnabled({ isAdmin: true }), true);
 
+  productionEnv();
+  process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED = "false";
+  assert.equal(barnPlanEnabled({ isAdmin: true }), false);
+
+  delete process.env.NEXT_PUBLIC_BARN_PLAN_ENABLED;
   delete process.env.NEXT_PUBLIC_VERCEL_ENV;
   delete process.env.VERCEL_ENV;
   setNodeEnv("development");
   assert.equal(barnPlanEnabled(), true);
+  assert.equal(barnPlanEnabled({ isAdmin: false }), true);
 
   console.log("barn-plan-enabled.test.ts: ok");
 } finally {
