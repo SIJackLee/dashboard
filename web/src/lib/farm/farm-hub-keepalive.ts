@@ -1,31 +1,28 @@
 import type { FarmHubView } from "@/lib/farm/farm-view-url";
 
 /** keep-alive 대상 — map은 항상 마운트 */
-export type FarmHubKeepAlivePanel = "list" | "chart" | "aria";
+export type FarmHubKeepAlivePanel = "list" | "chart";
 
 /**
  * 이탈 후 언마운트까지 대기.
  * - list: BarnTable·enrich 캐시 가치 있음
  * - chart: DOM/시리즈 무겁고 URL(`chart*`)로 복구 가능
- * - aria: 재마운트 가벼움 · 로컬 오브/마이크 UI만 리셋
  */
 export const FARM_HUB_KEEPALIVE_TTL_MS: Record<FarmHubKeepAlivePanel, number> =
   {
     list: 5 * 60_000,
     chart: 3 * 60_000,
-    aria: 2 * 60_000,
   };
 
 export const FARM_HUB_KEEPALIVE_PANELS: readonly FarmHubKeepAlivePanel[] = [
   "list",
   "chart",
-  "aria",
 ] as const;
 
 export function isFarmHubKeepAlivePanel(
   view: FarmHubView,
 ): view is FarmHubKeepAlivePanel {
-  return view === "list" || view === "chart" || view === "aria";
+  return view === "list" || view === "chart";
 }
 
 /** 탭 전환 시 이탈/복귀 시각 맵 갱신 */
@@ -66,12 +63,10 @@ export function keepAliveRemainingMs(
 export function keepAliveFlagsForActiveView(activeView: FarmHubView): {
   list: boolean;
   chart: boolean;
-  aria: boolean;
 } {
   return {
     list: activeView === "list",
     chart: activeView === "chart",
-    aria: activeView === "aria",
   };
 }
 

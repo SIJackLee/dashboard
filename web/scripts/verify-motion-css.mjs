@@ -18,7 +18,6 @@ const css = readFileSync(cssPath, "utf8");
 /** 문서화된 예외 — 무한/비토큰 duration 허용 (UI_MOTION.md) */
 const ALLOW_INFINITE = [
   /\.ui-motion-soft-refresh-bar\b/,
-  /\.aria-orb-/,
   /\.login-splash-dot\b/,
   /\.farm-tour-accent\b/,
   /farm-tour-accent-pulse/,

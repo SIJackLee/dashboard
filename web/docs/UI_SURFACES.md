@@ -4,7 +4,7 @@
 Elevation 단(0~3)만으로는 덮개·히트맵·델린·시트가 한 덩어리로 섞인다.
 
 관련: [UI_ELEVATION.md](./UI_ELEVATION.md) · [UI_CHROMA.md](./UI_CHROMA.md) · [UI_DENSITY.md](./UI_DENSITY.md) · [UI_MOTION.md](./UI_MOTION.md) · [UI_FEEDBACK.md](./UI_FEEDBACK.md) · [UI_ARIA_PRESENCE.md](./UI_ARIA_PRESENCE.md)  
-코드: `dashboardElevation` · `dashboardUi` · `dashboardChroma` · `dashboardHubSurface` · `dashboardAriaShell` (`src/lib/ui/dashboard-page-ui.ts`)  
+코드: `dashboardElevation` · `dashboardUi` · `dashboardChroma` · `dashboardHubSurface` (`src/lib/ui/dashboard-page-ui.ts`)  
 프리미티브: `src/components/ui/` · 농장: `src/components/farm/`
 
 Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. 신규 글로우·무한 펄스·H6는 별도 승인.
@@ -32,7 +32,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | **E** | Status film | 판정을 면으로 | 덮개, 왼쪽 현황, 모델 칸 틴트 | 타일 **위** | `--status-*`만. 채널색 금지 |
 | **F** | Overlay | 떠서 가림 | Dialog, 시트, 드롭다운, FAB 패널 | 단 3 | `bg-popover`. 기존 `backdrop-blur`는 여기만 |
 | **G** | Feedback | 적용 결과 | 토스트, 명령 오버레이, 일괄 배너 | 단 3 float | `opsFeedbackTone` |
-| **H** | Presence | 델린만 | 뱃지, 오브, 스테이지, 도크 | 예외 | `dashboardAriaShell`. 덮개에 복제 금지 |
+| **H** | Presence | 델린만 | 뱃지 | 예외 | status 톤. 덮개에 복제 금지 |
 
 숫자·차트 잉크는 면이 아니다. 채널/status 토큰으로 **글자·선·셀**만 칠한다.
 
@@ -48,7 +48,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | 모델 | `farm-plan-view`, `farm-plan-field-canvas` | 지도 + E 틴트 |
 | 시트 | `barn-panel-bottom-sheet`, `farm-plan-dock-sheet`, 모바일 시트 | F |
 | 명령 | `command-pipeline-overlay`, `bulk-live-progress-banner` | G |
-| 델린 | `delin-env-badge`, `aria-orb`, `farm-aria-view` | H |
+| 델린 | `delin-env-badge` | H |
 | 운영 | `/admin/ops`, `opsTypography` | B · 밀도는 허브 2× 없음 |
 
 ## Glass 전에 맞출 것
@@ -58,7 +58,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 3. **채도 계단은 E·히트맵 셀만.** 크롬(A)·카드(B) 배경을 status 솔리드로 바꾸지 않는다.
 4. **한 타일(D) 안에 단 2 카드를 또 쌓지 않는다.** 덮개를 걷으면 게이지는 포켓(C/metricPocket)이다.
 5. **알림 헤더 버튼** `topHeaderActionBtnAlert`의 `red-*` 유틸은 status 토큰으로 맞출 후보(크롬이 알람을 흉내 냄).
-6. **델린 스테이지 그라데이션·글로우**는 H 전용. 덮개 Glass 후보에서 뺀다.
+6. **델린 뱃지**는 H 전용. 덮개 Glass 후보에서 뺀다.
 
 ## Glass를 허용하는 자리 (승인 후)
 

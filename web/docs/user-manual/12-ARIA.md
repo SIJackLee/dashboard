@@ -47,5 +47,4 @@
 ## 참고 (운영·개발)
 
 - 판단 규칙 정본: [`../aria-protocol.md`](../aria-protocol.md)
-- PoC·한도·플래그: [`../voice-report-poc.md`](../voice-report-poc.md)
 - 탭 URL: [`../farm-hub-url.md`](../farm-hub-url.md) (`view=aria` → 필드, UI는 뱃지)

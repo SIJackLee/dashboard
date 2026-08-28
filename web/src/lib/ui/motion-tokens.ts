@@ -39,16 +39,6 @@ export const motionChartAmplitude = {
   scaleMin: 0.85,
 } as const;
 
-/** ARIA 스테이지 — 순차 리빌 (globals.css `--motion-aria-*`) */
-export const motionAriaStage = {
-  /** 결과면·차트 프리뷰 scale-up 시작 */
-  scaleFrom: 0.72,
-  dockMs: 1400,
-  revealMs: 1100,
-  revealDelayMs: 120,
-  scopeDemoMs: 3200,
-} as const;
-
 /** 목록·카드 stagger 간격(ms) — PC·모바일 동일 리듬 */
 export const motionStaggerStepMs = 40;
 

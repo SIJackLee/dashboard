@@ -18,7 +18,7 @@ import {
   assert.equal(isFarmHubKeepAlivePanel("model"), false);
   assert.equal(isFarmHubKeepAlivePanel("list"), true);
   assert.equal(isFarmHubKeepAlivePanel("chart"), true);
-  assert.equal(isFarmHubKeepAlivePanel("aria"), true);
+  assert.equal(isFarmHubKeepAlivePanel("aria"), false);
 }
 
 {
@@ -55,12 +55,10 @@ import {
   assert.deepEqual(keepAliveFlagsForActiveView("map"), {
     list: false,
     chart: false,
-    aria: false,
   });
   assert.deepEqual(keepAliveFlagsForActiveView("aria"), {
     list: false,
     chart: false,
-    aria: true,
   });
 }
 

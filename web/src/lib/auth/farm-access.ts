@@ -18,6 +18,20 @@ export type FarmQueryParams = {
   view?: string | null;
 };
 
+/** farm 단위 조회 권한 — admin 또는 해당 farm can_read */
+export function canReadFarm(
+  user: CurrentUser,
+  farmKey: FarmKey
+): boolean {
+  if (user.isAdmin) return true;
+  return user.accesses.some(
+    (a) =>
+      a.can_read &&
+      a.lsind_regist_no === farmKey.lsindRegistNo &&
+      a.item_code === farmKey.itemCode
+  );
+}
+
 /** farm 단위 명령(설정) 권한 — admin 또는 해당 farm can_command */
 export function canEditFarmScope(
   user: CurrentUser,

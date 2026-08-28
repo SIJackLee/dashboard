@@ -23,7 +23,7 @@
 1. **면·여백** — **갭1 적용** (`dashboardHubSurface`: well → tile → metricPocket · 그리드/목록 간격↑).
 2. **타이포 리듬** — **갭2 적용** (`dashboardReadout` · 숫자/단위/라벨 분리). **맵 카드는 `--density-map-value*` 고정** (readout 재사용 회귀 금지 · `verify:ui-density`).
 3. **채도 잔향** — violet/온도 orange는 제거·가드됨. 구역별 톤이 다시 섞이면 재스캔.
-4. **ARIA 대비** — **갭4 적용** (`dashboardAriaShell` · stage/glow · title/eyebrow · dock primary ring). 잔여: 응답 카피 블록 톤은 프로토콜 문장과 분리해 필요 시만.
+4. **DELIN 뱃지** — 필드·차트 우측 하단. 오브·스테이지는 폐기.
 5. **다크/라이트 비대칭** — **갭5 적용** (`--surface-*` · dark muted≤card · muted-foreground↓ · ARIA glow 테마 분리).
 
 6. **면 종류** — [UI_SURFACES.md](./UI_SURFACES.md). 덮개는 Status film(E). 유리 테 적용. Overlay(F) frost와 섞지 않음.

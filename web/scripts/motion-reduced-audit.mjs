@@ -40,7 +40,6 @@ const REQUIRED_REDUCE_SELECTORS = [
   ".ui-motion-command-overlay",
   ".ui-motion-command-card",
   ".ui-motion-feedback-icon",
-  ".aria-dock-in",
   ".farm-chart-hover-ring",
 ];
 

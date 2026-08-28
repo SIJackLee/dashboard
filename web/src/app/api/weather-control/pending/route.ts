@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { parseFarmKeyId } from "@/lib/data/farm-key";
 import { getPendingWeatherRecommendation } from "@/lib/data/weather-recommendation";
-import { canReadFarm } from "@/lib/voice-report/build-farm-facts";
+import { canReadFarm } from "@/lib/auth/farm-access";
 import { assertWeatherCtrlRecEnabled } from "@/lib/weather-control/weather-ctrl-api-gate";
 
 /**

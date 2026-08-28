@@ -9,18 +9,7 @@ const config: KnipConfig = {
   project: ["src/**/*.{ts,tsx}"],
   ignore: [
     "src/components/ui/**",
-    // 허브 미마운트 · 코드 보존 (docs/UI_ARIA_PRESENCE.md · aria-protocol.md)
-    "src/components/farm/farm-aria-view.tsx",
-    "src/components/farm/delin-pig-env-panel.tsx",
-    "src/components/farm/voice-report-fab.tsx",
-    "src/components/farm/aria-answer-stage.tsx",
-    "src/components/farm/aria-stage-layout.tsx",
-    "src/components/farm/aria-orb.tsx",
-    "src/components/farm/aria-metrics-slides.tsx",
-    "src/components/farm/delin-weather-nudge-bubble.tsx",
-    "src/lib/ui/delin-reveal-sequence.ts",
     "src/lib/farm/build-farm-unified-trend-raw.ts",
-    "src/lib/weather-control/use-weather-nudge-poll.ts",
     "src/lib/weather-control/run-evaluate-farm.ts",
     // 모델 탭 편집기 (Production은 관리자만, docs/BARN_PLAN.md)
     "src/components/farm/farm-plan-corridor.tsx",

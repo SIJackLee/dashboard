@@ -46,12 +46,6 @@ GitLab `web:test` / `web:verify-design`, GitHub `.github/workflows/web-verify.ym
 |------|------|
 | `farm-hub-url-manual-smoke.mjs` (`npm run smoke:hub-url`) | 허브 URL·탭·soft home — [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) · [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) |
 | `verify-channel-bulk-commands.mjs` | 채널 일괄 명령 |
-| `smoke-aria.ts` | 라우팅·DEPTH·unpack (네트워크 불필요) |
-| `smoke-aria-ui-ask.mjs` | UI/ask (서버·환경 필요) |
-| `smoke-aria-logs-browse.mjs` | 턴 로그 브라우즈 |
-| `smoke-aria-stage.mjs` / `smoke-aria-feedback.mjs` / `smoke-aria-review-loop.mjs` | 스테이지·피드백·리뷰 |
-| `predict-aria-scenarios.ts` / `predict-aria-scenarios-alarmed.ts` | facts → 예상 답변 (service role) |
-| `print-phrase-variants.ts` | 문구 변주 |
 | `set-test-passwords.mjs` / `test-accounts.mjs` | 로컬 테스트 계정 (비밀값 커밋 금지) |
 
 ---

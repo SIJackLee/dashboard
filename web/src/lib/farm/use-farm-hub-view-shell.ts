@@ -7,6 +7,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -76,7 +77,6 @@ export type FarmHubViewShell = {
   chartEverOpened: boolean;
   planEverOpened: boolean;
   modelEverOpened: boolean;
-  ariaEverOpened: boolean;
   setView: (next: FarmHubView) => void;
   setTourView: (next: FarmHubView) => void;
 };
@@ -95,7 +95,7 @@ export function useFarmHubViewShell({
   useEffect(() => {
     onOpenListRef.current = onOpenList;
   });
-  const gate = { isAdmin };
+  const gate = useMemo(() => ({ isAdmin }), [isAdmin]);
 
   const [urlHydrated, setUrlHydrated] = useState(false);
   const bootstrapView: FarmHubView =
@@ -112,7 +112,6 @@ export function useFarmHubViewShell({
   const [modelEverOpened, setModelEverOpened] = useState(
     bootstrapView === "model" && barnPlanEnabled(gate),
   );
-  const [ariaEverOpened, setAriaEverOpened] = useState(false);
   const [panelInactiveSince, setPanelInactiveSince] = useState<
     Partial<Record<FarmHubKeepAlivePanel, number>>
   >({});
@@ -184,7 +183,7 @@ export function useFarmHubViewShell({
       if (next === "model" && barnPlanEnabled(gate)) setModelEverOpened(true);
       if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
     },
-    [beginViewSlide, hubMode, isAdmin],
+    [beginViewSlide, hubMode, gate],
   );
 
   useEffect(() => {
@@ -264,9 +263,8 @@ export function useFarmHubViewShell({
     setChartEverOpened(flags.chart);
     setPlanEverOpened(view === "model" && barnPlanEnabled(gate));
     setModelEverOpened(view === "model" && barnPlanEnabled(gate));
-    setAriaEverOpened(flags.aria);
     setPanelInactiveSince({});
-  }, [keepAliveFarmId, view, isAdmin]);
+  }, [keepAliveFarmId, view, gate]);
 
   const applyViewChange = useCallback(
     (next: FarmHubView) => {
@@ -321,7 +319,7 @@ export function useFarmHubViewShell({
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
     },
-    [hubMode, onHubUrlChange, beginViewSlide, view, isAdmin],
+    [hubMode, onHubUrlChange, beginViewSlide, view, gate],
   );
 
   const setView = useCallback(
@@ -356,15 +354,10 @@ export function useFarmHubViewShell({
     const timers: number[] = [];
     const now = Date.now();
     const openedOf = (panel: FarmHubKeepAlivePanel) =>
-      panel === "list"
-        ? listEverOpened
-        : panel === "chart"
-          ? chartEverOpened
-          : ariaEverOpened;
+      panel === "list" ? listEverOpened : chartEverOpened;
     const clearOf = (panel: FarmHubKeepAlivePanel) => {
       if (panel === "list") setListEverOpened(false);
-      else if (panel === "chart") setChartEverOpened(false);
-      else setAriaEverOpened(false);
+      else setChartEverOpened(false);
       setPanelInactiveSince((prev) => {
         if (prev[panel] == null) return prev;
         const next = { ...prev };
@@ -414,7 +407,6 @@ export function useFarmHubViewShell({
     viewSlide,
     listEverOpened,
     chartEverOpened,
-    ariaEverOpened,
     panelInactiveSince,
     keepAliveVisTick,
   ]);
@@ -429,7 +421,6 @@ export function useFarmHubViewShell({
     chartEverOpened,
     planEverOpened,
     modelEverOpened,
-    ariaEverOpened,
     setView,
     setTourView,
   };

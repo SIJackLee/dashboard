@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Phase E UI smoke — /farm DELIN 탭·말풍선 앵커 (pending 없어도 PASS)
+ * Phase E UI smoke — /farm DELIN 뱃지 (게이트 off·미노출이어도 PASS)
  * Usage: node scripts/smoke-weather-control-ui.mjs  (dev 서버 실행 중)
  */
 import dotenv from "dotenv";
@@ -31,26 +31,13 @@ async function main() {
     await page.goto(FARM_MAP, { waitUntil: "load", timeout: 30000 });
     await page.waitForTimeout(2000);
 
-    const delinTab = page.locator('[data-delin-tab-anchor="1"]');
-    const delinVisible = await delinTab.isVisible().catch(() => false);
-    if (delinVisible) {
-      await delinTab.waitFor({ state: "visible", timeout: 10000 });
-    }
-
-    const bubble = page.getByTestId("delin-weather-nudge-bubble");
-    const bubbleVisible = await bubble.isVisible().catch(() => false);
-    if (bubbleVisible) {
-      await bubble.getByRole("button", { name: "무시" }).waitFor({
-        state: "visible",
-        timeout: 5000,
-      });
-    }
+    const badge = page.getByTestId("delin-env-badge");
+    const badgeVisible = await badge.isVisible().catch(() => false);
 
     console.log(
       JSON.stringify({
         ok: true,
-        delinTab: delinVisible,
-        nudgeBubble: bubbleVisible,
+        delinBadge: badgeVisible,
       }),
     );
   } finally {

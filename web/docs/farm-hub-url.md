@@ -156,13 +156,12 @@ flowchart LR
 목록 탭에서 개별 카드가 공유 `trendPeriod`와 **다른** 기간을 잠깐 볼 수 있다(URL에 쓰지 않음).  
 공유 기간 변경·목록 탭 언마운트 시 로컬 override는 초기화된다.
 
-그리드(`map`)는 **항상** 마운트. 목록·차트·ARIA는 첫 방문 후 DOM에 남겨 재진입을 빠르게 하고, 이탈 후 TTL이 지나면 언마운트한다. **모델은 keep-alive 아님** (활성·슬라이드 중에만 마운트).
+그리드(`map`)는 **항상** 마운트. 목록·차트는 첫 방문 후 DOM에 남겨 재진입을 빠르게 하고, 이탈 후 TTL이 지나면 언마운트한다. **모델은 keep-alive 아님** (활성·슬라이드 중에만 마운트).
 
 | 패널 | TTL | 비고 |
 |------|-----|------|
 | list | 5분 | BarnTable·enrich |
 | chart | 3분 | `chart*` URL로 범위 복구 |
-| aria | 2분 | 로컬 오브/마이크 UI 리셋 |
 
 구현: `src/lib/farm/farm-hub-keepalive.ts` · `use-farm-hub-view-shell.ts` · `FarmPageContent`의 패널 렌더.
 
@@ -191,7 +190,7 @@ flowchart LR
 - 사용설명서 IA: [user-manual/10-메뉴구조도.md](./user-manual/10-메뉴구조도.md)
 - 모델: [BARN_PLAN.md](./BARN_PLAN.md)
 - 옛 3D: [BARN_MODEL.md](./BARN_MODEL.md)
-- ARIA: [aria-protocol.md](./aria-protocol.md) (**정본**) · [voice-report-poc.md](./voice-report-poc.md) (**보조**)
+- ARIA: [aria-protocol.md](./aria-protocol.md) (**정본**)
 - 문서 진입점: [README.md](./README.md)
 - Preview 게이트 절차: [VERCEL_PREVIEW_GATE.md](./VERCEL_PREVIEW_GATE.md)
 - 허브 안정화 P0: [HUB_STABILITY_P0.md](./HUB_STABILITY_P0.md) (`npm run verify:hub` · `npm run smoke:hub-url`)

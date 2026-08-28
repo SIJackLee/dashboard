@@ -188,7 +188,6 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | Surface | 이유 |
 |---------|------|
 | `.ui-motion-soft-refresh-bar` | 진행 인디케이터 (1.2s loop) |
-| `.aria-orb-*` | 음성 대기/청취/발화 호흡 — `--motion-aria-*-period` (H5) |
 | `.login-splash-logo` | 스플래시 입장 `--motion-duration-presence` (1200ms, 구 2s) — easing=`emphasis` |
 | `.login-splash-dot` | 로그인 스플래시 점 점멸 (장주기) — easing=`standard` |
 | `.farm-tour-accent` | 온보딩 스포트라이트 (장주기) — easing=`standard` |
@@ -198,8 +197,7 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 **토큰 정렬 (투어·로그인)**: 리터럴 `cubic-bezier` / `ease-*` 제거.  
 hole=`moderate`+`emphasis`, tip=`normal`+`enter`, exit=`exit`+`enter`. accent glow=`--channel-hum`.
 
-**ARIA easing**: 주기는 `--motion-aria-*` 예외 유지, easing은 `--motion-ease-standard`.  
-톤 경계·Agent 소유권: [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) (H5).
+톤 경계: [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) (H5, 뱃지만).
 
 ---
 
@@ -217,7 +215,7 @@ hole=`moderate`+`emphasis`, tip=`normal`+`enter`, exit=`exit`+`enter`. accent gl
 신규 채널·정보 UI는 `sky`/`rose`/`amber`(모터) 하드코딩 금지 — `channel-*` 또는 `opsStatus`/`primary` 사용.  
 경고(주의)만 `amber` 유지.
 
-**ARIA 프레즌스 (T4 + H5)**: 오브=시네마틱 예외. 도크=`ariaDockIn`, FAB 패널=`ariaPanelIn`, 응답/에러=`ariaReplyIn`. 모니터링은 L1만. 상세=`UI_ARIA_PRESENCE.md`.
+**DELIN 뱃지 (H5)**: 필드·차트 우측 하단만. 오브·도크 모션 없음. 상세=`UI_ARIA_PRESENCE.md`.
 
 **규칙**: 새 UI는 `motionIntent` / `motionClass`만 사용. 임의 `duration-N`·`transition-all`·차트 리터럴 ms 금지.
 

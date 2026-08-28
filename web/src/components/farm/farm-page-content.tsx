@@ -84,7 +84,6 @@ import { useFarmTourActive } from "@/lib/onboarding/use-farm-tour-active";
 import { delinEnabled } from "@/lib/aria/delin-enabled";
 import { barnPlanEnabled } from "@/lib/farm/barn-plan-enabled";
 import { STAGGER_MOUNT_MIN_READINGS } from "@/lib/farm/stagger-mount";
-import type { WeatherNudgeView } from "@/lib/weather-control/weather-nudge-view";
 
 type Props = {
   readings: BarnReading[];
@@ -104,9 +103,6 @@ type Props = {
   /** SSR과 일치하는 초기 그리드/목록/차트 탭 (hubMode) */
   initialHubView?: FarmHubView;
   lazyListFarmKey?: FarmKey | null;
-  /** Phase C — 기상 CTRL pending 말풍선 (SSR) */
-  initialWeatherNudge?: WeatherNudgeView | null;
-  weatherNudgeEnabled?: boolean;
   hubLocations?: FarmLocationRow[];
 };
 

@@ -2,7 +2,7 @@
 
 > **상위:** [`weather-ctrl-recommendation-p1.md`](./weather-ctrl-recommendation-p1.md) §6·§9  
 > **선행:** Phase A ✅ · Phase B ✅  
-> **상태:** **구현 완료** (2026-08-11) · `[적용]` → Phase D  
+> **상태:** 백엔드(UNPACK·dismiss API) 유지 · **허브 말풍선 UI는 2026-08-28 폐기** (뱃지만)  
 > **PoC:** FARM01/P00 · proactive 말풍선 · `[적용]` UI placeholder (Phase D)
 
 ---
@@ -35,8 +35,6 @@
 | `src/lib/weather-control/unpack-recommendation.ts` | 한국어 UNPACK |
 | `src/lib/weather-control/weather-nudge-view.ts` | client-safe 타입 |
 | `src/lib/weather-control/weather-ctrl-enabled.ts` | `WEATHER_CTRL_REC_V1` gate |
-| `src/lib/weather-control/use-weather-nudge-poll.ts` | 클라이언트 poll |
-| `src/components/farm/delin-weather-nudge-bubble.tsx` | 말풍선 UI |
 | `src/lib/data/weather-recommendation.ts` | SSR read + dismiss |
 | `src/app/api/weather-control/dismiss/route.ts` | POST dismiss |
 | `supabase/migrations/20260812140000_weather_control_dismiss_rpc.sql` | RPC |

@@ -40,7 +40,7 @@ cd dashboard/web
 UI_VERIFY_BASE=https://<preview-or-prod>.vercel.app node scripts/farm-hub-url-manual-smoke.mjs
 ```
 
-ARIA는 탭에서 오브·도크·말하기 UI가 보이는지 추가로 확인.
+필드·차트에서 우측 하단 **DELIN 뱃지**가 보이는지 확인.
 
 4. Production 도메인 예: `https://smart.autofankorea.com`
 
@@ -55,5 +55,4 @@ ARIA는 탭에서 오브·도크·말하기 UI가 보이는지 추가로 확인.
 |------|------|
 | 기간 변경 줌 리셋 UX | 디자인/차트 |
 | `listMode=channel`→`graph` URL 정규화 | 허브 URL · dirty 분리 커밋 권장 |
-| soft home 후 ARIA 도크/오브 상태 | ARIA UI |
-| 판단 프로토콜·UNPACK | `aria-protocol.md` 정본 |
+| 델린 뱃지 카피 | `aria-protocol.md` 정본 |
