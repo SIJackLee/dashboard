@@ -22,9 +22,24 @@ const config: KnipConfig = {
     "src/lib/farm/build-farm-unified-trend-raw.ts",
     "src/lib/weather-control/use-weather-nudge-poll.ts",
     "src/lib/weather-control/run-evaluate-farm.ts",
+    // 로컬·Preview 모델 탭 편집기 (Production 미마운트, docs/BARN_PLAN.md)
+    "src/components/farm/farm-plan-corridor.tsx",
+    "src/components/farm/farm-plan-dock-sheet.tsx",
+    "src/components/farm/farm-plan-fill-editor.tsx",
+    // 디자인 헬퍼 — 토큰 소비 예정, 현재 미import (docs/UI_MOTION.md · UI_DENSITY.md)
+    "src/lib/ui/layout-breakpoints.ts",
+    "src/lib/ui/motion-preset.ts",
+    "src/lib/ui/use-container-compact.ts",
+    "src/lib/ui/use-scroll-active-tab.ts",
   ],
   ignoreExportsUsedInFile: true,
-  ignoreDependencies: ["shadcn", "tw-animate-css", "tailwindcss"],
+  ignoreDependencies: [
+    "shadcn",
+    "tw-animate-css",
+    "tailwindcss",
+    // webpack/브라우저 Buffer 폴리필 (src/lib/supabase/browser.ts)
+    "buffer",
+  ],
 };
 
 export default config;
