@@ -1,7 +1,7 @@
 # Android 푸시 1차 (Capacitor + FCM)
 
 > **범위:** Android Capacitor 앱 + FCM 잠금화면 알람.  
-> **제외:** iOS / Apple Developer / APNs · SMS(`farm_alarm_notify`) · PWA Web Push.
+> **제외:** iOS / Apple Developer / APNs · SMS/VOICE 대기열(테이블 제거 2026-08-28) · PWA Web Push.
 
 ## 구조
 

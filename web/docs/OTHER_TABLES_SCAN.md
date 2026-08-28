@@ -17,7 +17,7 @@
 | `iot_decoded_last_value` | 64 kB | 13 | LIVE 보조 |
 | `user_push_device` | 64 kB | 4 | |
 | 기타 마스터/설정 | ≤56 kB | — | |
-| `farm_alarm_notify` | 48 kB | **0** | SMS 대기 |
+| `farm_alarm_notify` | — | — | **DROP** 2026-08-28 (SMS 미오픈) |
 | `health_command_checkpoint` | 24 kB | 0 | |
 
 ## 다음 후보 판단
@@ -27,7 +27,7 @@
 | — | raw / decoded / command | 트랙 완료 | 유지·관찰 |
 | 낮음 | `push_outbox` | 행 적음 | 실패/잔존 TTL만 문서화 여지 |
 | 낮음 | `aria_turn_log` | cron 있음 | 추가 작업 불필요 |
-| 보류 | `farm_alarm_notify` | 빈 테이블 · SMS 미오픈 | 제품화 시 retention |
+| 완료 | `farm_alarm_notify` | SMS 미오픈 | **DROP** 2026-08-28 |
 | 불필요 | 마스터류 | 성장 없음 | — |
 
 **결론:** raw/decoded/command 외 **당장 용량 위생 대상 없음**. 다음은 제품 기능(푸시/SMS) 열릴 때 retention을 같이 설계.
