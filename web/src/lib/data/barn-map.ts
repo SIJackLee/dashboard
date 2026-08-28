@@ -143,10 +143,7 @@ export function filterBarnLayoutPrefsForFarm(
       aliases[key] = alias;
     }
   }
-  const legacyBarns = prefs.legacyBarns.filter((b) =>
-    farmKeyEq(b.farmKey, farmKey)
-  );
-  return { layouts, aliases, legacyBarns };
+  return { layouts, aliases };
 }
 
 /** LIVE readings + layout prefs — SP(축사유형) 단위 지도 스냅샷 */

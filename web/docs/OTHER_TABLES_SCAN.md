@@ -9,7 +9,7 @@
 |--------|------|----------|------|
 | `iot_room_state_raw` | **22 MB** | ~9k | 이미 30d retention |
 | `ctrl_thermo_command` | ~2.1 MB | ~2k | C1/C2·키/인덱스 적용됨 |
-| `profiles` | 232 kB | 7 | 마스터 |
+| `profiles` | 232 kB | 7 | 마스터. `ui_config` 레거시 키 제거 + `barnLayouts` 옛 SP 좌표 정리 2026-08-28 |
 | `push_outbox` | 96 kB | 11 | 작음 |
 | `farm_module_alarm` | 80 kB | 6 | 작음 |
 | `iot_room_state_decode_failed` | 80 kB | 0 | 비움 |

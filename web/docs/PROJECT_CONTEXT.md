@@ -141,7 +141,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 ## 9. 주요 의사결정
 
 - **축사번호(`stallNo`)** 는 **통신모듈에서 idx별로 설정**(NVM)·**전송** (wire `ver=0x04`). 슬레이브·서버 LUT·대시보드에서 idx→stallNo 매핑 **하지 않음**.
-- `profiles.ui_config` 는 **지도 배치·표시명만** (사용자별). stallNo 목록은 수집 데이터에서 자동 유도.
+- `profiles.ui_config` 는 사용자별 **카드 좌표(`barnLayouts`)·표시명·알람·온보딩**. stallNo 목록은 수집 데이터에서 자동 유도. 옛 `barns` 배열·`displaySettings`는 폐기(2026-08-28).
 - `controller_stall_map` 등 **양방향 매핑 DB migration 보류·취소**.
 - 농장 지도는 **2D 그리드 카드 맵** (아이소메트릭은 후속). NH3/CO2·신호강도·지리좌표는 미표시.
 - 관리자 `/farm`(농장 미선택)은 **전국 지도 + 현황 목록**. 지도는 **카카오맵** 기본(키·SDK 실패 시 Leaflet + OSM 한국). 남한 범위. 배정 농장은 좌표가 없어도 목록에 두고, 핀은 좌표가 있는 것만. 상태 칩으로 목록·핀을 거른다. 핀·목록 클릭은 단건 현장 화면. `/admin/ops`에는 지도를 두지 않음.
@@ -159,24 +159,15 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 
 ```json
 {
-  "barns": [
-    {
-      "id": "barn-1",
-      "farmUid": 1,
-      "moduleUid": 1,
-      "stallNo": "03",
-      "name": "3축사",
-      "grid": { "col": 1, "row": 2 },
-      "type": "barn"
-    }
-  ]
+  "barnLayouts": {
+    "catalogKey#stallNo": { "col": 1, "row": 2 }
+  }
 }
 ```
 
-- **축사 식별**: `stallNo` = 펌웨어 전송 → `decoded_json`. 지도 카드 1개 = stallNo 1개.
-- 설정: `/settings?tab=barn` → 전송 데이터에 나타난 stallNo 중 **지도 위치·이름만** 지정 (`saveBarnMetasAction`)
-- 집계: `aggregateByBarn(readings, barnMetas)` — `(farmUid, moduleUid, stallNo)` 매칭, 평균값·최악 상태
-- 지도: `FarmMapView` — 4×4 CSS Grid, 게이트웨이 placeholder(중앙 상단), 축사 카드, 범례
+- **축사 식별**: `stallNo` = 펌웨어 전송 → `decoded_json`. 지도 카드 1개 = stallNo 1개. 좌표만 `barnLayouts`.
+- 집계: `aggregateByBarn(readings, barnMetas)` — LIVE 스냅샷 기준, 평균값·최악 상태
+- 지도: `FarmMapView` — 필드 탭 카드 그리드 (LIVE + `barnLayouts`)
 - **로그인 스플래시:** 브랜드 최소 ~2.1초. 해제는 셸 마운트가 아니라 **필드 LIVE bootstrap 종료 + 1프레임 paint** (`NavContentReadyMarker ready`). 로그인 직후 농장 패널·24h 추이를 스플래시와 겹쳐 prefetch (`warmPostLoginFarmHub`). 차트 30일·모델 WebGL은 스플래시에서 기다리지 않음.
 - **그래프 기간:** `?trendPeriod=24h|7d|30d` (기본 **7d**) — 그리드·목록·DELIN 탭 공유. 차트 탭 브러시는 30일 트랙에서 **임의 구간**을 고르며 `trendPeriod`는 바꾸지 않음(초기 창만 농장 기간으로 시드, 우클릭=30일 전체). 브러시 점선=양호도 75 기준. 그리드 히트맵=컨트롤러 추이에서 파생한 축사 평균, 목록/상세=TrendChart 컨트롤러 단위. 버킷 기준 **`mesure_at`**. **로드:** 필드 진입 시 백그라운드. 희소 compact. **24h 15분 → 30d 1시간(하루 RPC로 분할, 최신부터). 7일은 30일 슬라이스.** 브러시 창이 **약 48시간 이하**일 때만 그 구간 15분을 추가 요청. 히트맵은 GRAPH_BARS(24/28/30) 다운샘플, 차트 탭은 플롯 px viewBox + LTTB(약 2.5px/점). 필드 라인은 점 마커 없음(핀·카드는 유지), 구간 줌·브러시 없음. **PDF·목록 all-periods도 허브와 같은 축**(24h×96 15분 / 7d×168 1h / 30d×720 1h). 인쇄만 LTTB(최대 96점). 15분 2880 경로는 폐기. 줌 창만 `TREND_15M_PERIODS`.
 - **오늘의 리포트 PDF:** 헤더 `DailyReportButton` (`data-tour-id="header-daily-report"`) — 활성 농장 기준 브라우저 생성. **표지(농장 7일)** + **축사유형 1장씩** + **마지막 권장구간 이탈**. 온도·습도·채널은 허브 차트처럼 **지표마다 풀폭 행**. 표지 상·하한은 **이 농장에 저장된 알람**(`getAlarmSettings` → 농장 스코프, 없으면 계정 전역). 축사유형·이탈 페이지는 **생육 권장**. 그 그래프의 최저·최고도 함께 표시. 문장은 숫자 FACT만. 마지막 페이지는 30일 중 **가장 긴 생육 권장 온도 이탈 연속 구간**(없으면 페이지 유지·없음). 허브 split-Y·브러시·48h 줌은 인쇄에 넣지 않음. 시계열은 허브 `TREND_PERIODS`와 동일 (`getFarmControllerTrendAllPeriods` → 축사·유형 평균). 차트 선색은 `TREND_CHART_COLORS`. 문서 뼈대는 **레터헤드**. 빨강은 이상상황·통신 두절·온도 선·권장 이탈만. 인쇄는 LTTB 최대 96점. 표지·헤더는 농장 **표시명**. **이상상황**은 모듈 에러코드 + 통신두절만(온·습 권장/가이드 이탈은 배지와 별개, 마지막 장에서 다룸). 렌더 `buildAndDownloadDailyReportPdf` (jspdf + canvas). 컨트롤러 1대/페이지 첨부는 넣지 않음.

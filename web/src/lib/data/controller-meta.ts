@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
+import { omitRetiredProfileUiConfigKeys } from "@/lib/data/profile-ui-retired";
 import type { ControllerMetaEntry } from "@/lib/data/controller-meta-shared";
 
 export type {
@@ -54,7 +55,7 @@ export async function saveControllerMetas(
       : {};
 
   const ui_config = {
-    ...prev,
+    ...omitRetiredProfileUiConfigKeys(prev),
     controllers: controllers.filter((c) => c.displayName.trim().length > 0),
   };
 
