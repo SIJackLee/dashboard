@@ -130,6 +130,14 @@ type ListDbRow = {
   received_at: string;
 };
 
+/**
+ * Fallback source — LIVE hot view(2h)가 0건일 때 마지막 알려진 값을 채우기 위한 base table.
+ * `iot_decoded_last_value`는 RLS 정책이 없어 앱 클라이언트로 조회 불가 → decoded 원본을 직접 읽는다.
+ */
+const LAST_KNOWN_SOURCE = "iot_room_state_decoded";
+const LAST_KNOWN_COLS =
+  "raw_id, lsind_regist_no, item_code, module_uid, controller_key, eqpmn_no, stall_ty_code, stall_no, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, fan_supply_pct, fan_exhaust_pct, fan_intake_pct, setpoint_temp, temp_deviation, min_vent_pct, max_vent_pct, mesure_dt, received_at";
+
 function thermoFromListRow(row: ListDbRow) {
   const setpointTemp = toNum(row.setpoint_temp);
   const tempDeviation = toNum(row.temp_deviation);
@@ -331,6 +339,46 @@ function applyFarmFilter<
   return query;
 }
 
+/**
+ * Phase A — LIVE hot view가 0건(2시간 무신호)일 때 컨트롤러별 마지막 값을 offline 상태로 시드.
+ * decoded 원본(RLS `decoded_select_scoped`)을 최신순으로 읽어 (module_uid, controller_key)별 1건만 남긴다.
+ * farm-scoped 진입에서만 동작(global admin hub는 부하 회피로 제외).
+ */
+async function fetchLastKnownReadingsForFarm(
+  supabase: ReturnType<typeof createRlsClient>,
+  scopedFarms: FarmKey[] | null,
+  explicitFarm: FarmKey | null | undefined,
+): Promise<BarnReading[]> {
+  let query = supabase
+    .from(LAST_KNOWN_SOURCE as "v_iot_decoded_latest")
+    .select(LAST_KNOWN_COLS as typeof LEGACY_COLS)
+    .eq("decode_status", "ok")
+    .order("received_at", { ascending: false })
+    .limit(LIVE_FARM_ROW_LIMIT);
+
+  query = applyFarmFilter(query, scopedFarms, explicitFarm);
+
+  const { data, error } = await query;
+  if (error) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[live-readings] last-known fallback failed:", error.message);
+    }
+    return [];
+  }
+  if (!data) return [];
+
+  const seen = new Set<string>();
+  const readings: BarnReading[] = [];
+  for (const row of data as unknown as ListDbRow[]) {
+    const dedupeKey = `${row.module_uid}::${row.controller_key}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    const reading = listRowToReading(row);
+    if (reading) readings.push(reading);
+  }
+  return readings;
+}
+
 async function fetchLiveRowsWithToken(
   accessToken: string,
   scopedFarms: FarmKey[] | null,
@@ -393,21 +441,23 @@ async function fetchLiveRowsWithToken(
     }
     return [];
   }
-  if (!data) return [];
+  const readings = !data
+    ? []
+    : useListTier
+      ? (data as unknown as ListDbRow[])
+          .map(listRowToReading)
+          .filter((r): r is BarnReading => r != null)
+      : (data as unknown as Parameters<typeof decodedLatestDbRowToLiveRow>[0][])
+          .map(decodedLatestDbRowToLiveRow)
+          .filter((r): r is RawLiveControllerRow => r != null)
+          .map(expandRawLiveRowToReading);
 
-  if (useListTier) {
-    return (data as unknown as ListDbRow[])
-      .map(listRowToReading)
-      .filter((r): r is BarnReading => r != null);
+  // Phase A — LIVE hot view가 비었지만 farm-scoped 진입이면 마지막 값으로 부트스트랩(offline).
+  if (readings.length === 0 && farmScoped) {
+    return fetchLastKnownReadingsForFarm(supabase, scopedFarms, scope.farmKey);
   }
 
-  const liveRows = (data as unknown as Parameters<
-    typeof decodedLatestDbRowToLiveRow
-  >[0][])
-    .map(decodedLatestDbRowToLiveRow)
-    .filter((r): r is RawLiveControllerRow => r != null);
-
-  return liveRows.map(expandRawLiveRowToReading);
+  return readings;
 }
 
 export async function fetchLiveReadings(
