@@ -58,6 +58,24 @@ import {
   resolveBreachNavTarget,
 } from "./trend-chart-format";
 import { TrendPointCardBody } from "./trend-hover-card";
+import {
+  PAD_X,
+  PAD_TOP,
+  PAD_BOTTOM,
+  VIEW_W_NORM,
+  X_SCOPE_DRAG_PX,
+  X_SCOPE_MIN_SPAN,
+  SCALE_EDGE_HIT_PX,
+  SCALE_EDGE_LABEL_DRAG_PX,
+  computeTipPlacement,
+  domainFor,
+  finiteValues,
+  nudgeEdgeLabelTops,
+  parseScaleEdgeEditSeed,
+  parseScaleEdgeValueUnit,
+  tipPinId,
+  type EdgeBandLabel,
+} from "./trend-chart-geometry";
 
 export type {
   TrendAxis,
@@ -215,35 +233,6 @@ type TrendChartProps = {
   onPlotWidthChange?: (widthPx: number) => void;
 };
 
-const PAD_X = 6;
-const PAD_TOP = 6;
-/** 모터 0%를 회색 시간축에 붙임 — 하단 여백 없음 */
-const PAD_BOTTOM = 0;
-/** 측정 전 fallback · 패딩 비율 기준 */
-const VIEW_W_NORM = 100;
-const X_SCOPE_DRAG_PX = 8;
-const X_SCOPE_MIN_SPAN = 3;
-/** 알람 가이드선 hit (화면 px) */
-const SCALE_EDGE_HIT_PX = 10;
-/** 라벨에서 드래그 시작까지 이동량 — 클릭과 구분 */
-const SCALE_EDGE_LABEL_DRAG_PX = 4;
-
-function parseScaleEdgeEditSeed(
-  guide: Pick<TrendScaleEdgeLabel, "editValue" | "text">,
-): string {
-  if (guide.editValue != null && Number.isFinite(guide.editValue)) {
-    return String(guide.editValue);
-  }
-  const m = guide.text.match(/-?\d+(?:\.\d+)?/);
-  return m?.[0] ?? "";
-}
-
-/** `28.5℃` / `+5℃` / `100%` → 단위 접미 (`℃`, `%`) */
-function parseScaleEdgeValueUnit(text: string): string {
-  const m = text.match(/-?\d+(?:\.\d+)?(.*)$/);
-  return (m?.[1] ?? "").trim();
-}
-
 const MAX_PINNED_TIPS = 5;
 const PIN_CLICK_SLOP_PX = 10;
 /** 모바일 — 설정값 라벨 더블탭 → 숫자 입력 */
@@ -303,113 +292,12 @@ type PinnedTip = {
   oy: number;
 };
 
-function tipPinId(idx: number, seriesKey: string): string {
-  const g = inferHoverMetricGroup(seriesKey);
-  return `${idx}::${g}`;
-}
-
-/** 앵커 기준 카드 left/top (px) — 플롯 안·포인터 가리지 않게 */
-function computeTipPlacement(
-  anchorX: number,
-  anchorY: number,
-  plotW: number,
-  plotH: number,
-  tipW = 168,
-  tipH = 88,
-): { left: number; top: number } {
-  const gap = 14;
-  const pad = 4;
-  const spaceRight = plotW - anchorX - pad;
-  const spaceLeft = anchorX - pad;
-  const preferRight = spaceRight >= tipW + gap || spaceRight >= spaceLeft;
-  let left = preferRight ? anchorX + gap : anchorX - tipW - gap;
-  left = Math.min(Math.max(pad, left), Math.max(pad, plotW - tipW - pad));
-  const preferAbove = anchorY - pad >= tipH + gap;
-  let top = preferAbove ? anchorY - tipH - gap : anchorY + gap;
-  top = Math.min(Math.max(pad, top), Math.max(pad, plotH - tipH - pad));
-  return { left: Math.round(left), top: Math.round(top) };
-}
-
 function clipWipeClass(phase: ClipPhase): string | undefined {
   if (phase === "enter") return motionClass.farmChartClipWipeIn;
   if (phase === "exit") return motionClass.farmChartClipWipeOut;
   return undefined;
 }
 
-type EdgeBandLabel = {
-  id: string;
-  side: "left" | "right" | "center" | "plotStart";
-  /** 0~100, 차트 영역 기준 top % */
-  topPct: number;
-  text: string;
-  leadingText?: string;
-  color: string;
-  title: string;
-  /** 상한=숫자 위 선, 하한=숫자 아래 선 */
-  mark?: "overline" | "underline";
-  draggable?: boolean;
-  editValue?: number;
-  labelLane?: "outer" | "inner";
-  showApplyActions?: boolean;
-};
-
-/** 같은 끝단에서 가까운 라벨을 위·아래로 살짝 밀어 겹침을 줄인다. */
-function nudgeEdgeLabelTops(labels: EdgeBandLabel[], minGapPct: number): EdgeBandLabel[] {
-  const bySide: Record<
-    "left" | "right" | "center" | "plotStart",
-    EdgeBandLabel[]
-  > = {
-    left: [],
-    right: [],
-    center: [],
-    plotStart: [],
-  };
-  for (const l of labels) bySide[l.side].push({ ...l });
-  for (const side of ["left", "right", "center", "plotStart"] as const) {
-    const list = bySide[side].sort((a, b) => a.topPct - b.topPct);
-    for (let i = 1; i < list.length; i++) {
-      const prev = list[i - 1]!;
-      const cur = list[i]!;
-      if (cur.topPct - prev.topPct < minGapPct) {
-        cur.topPct = Math.min(96, prev.topPct + minGapPct);
-      }
-    }
-    bySide[side] = list;
-  }
-  return [
-    ...bySide.left,
-    ...bySide.right,
-    ...bySide.center,
-    ...bySide.plotStart,
-  ];
-}
-
-function finiteValues(series: TrendSeries[], axis: TrendAxis | undefined): number[] {
-  const out: number[] = [];
-  for (const s of series) {
-    if ((s.axis ?? "left") !== (axis ?? "left")) continue;
-    for (const v of s.data) {
-      if (v != null && Number.isFinite(v)) out.push(v);
-    }
-  }
-  return out;
-}
-
-function domainFor(
-  values: number[],
-  forced: [number, number] | undefined,
-): [number, number] {
-  if (forced) return forced;
-  if (values.length === 0) return [0, 1];
-  let min = Math.min(...values);
-  let max = Math.max(...values);
-  if (min === max) {
-    min -= 1;
-    max += 1;
-  }
-  const pad = (max - min) * 0.12;
-  return [min - pad, max + pad];
-}
 
 
 export function TrendChart({
