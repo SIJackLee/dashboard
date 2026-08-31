@@ -229,6 +229,18 @@ async function main() {
     }
     results.push("smoke 5: tab roundtrip field→chart→model→field — PASS");
 
+    // —— 6) 404 폴백 렌더 (인증 상태 · 존재하지 않는 경로 → not-found.tsx) ——
+    await page.goto(`${BASE}/__e2e_not_found__`, { waitUntil: "load" });
+    await page.waitForTimeout(800);
+    const notFound = page.getByText("페이지를 찾을 수 없습니다");
+    await notFound.waitFor({ timeout: 10000 });
+    const homeLink = page.getByRole("link", { name: "홈으로" });
+    assert(
+      await homeLink.isVisible().catch(() => false),
+      "6: 404 폴백에 홈 복귀 링크가 있어야 함",
+    );
+    results.push("smoke 6: 404 fallback renders (not-found) — PASS");
+
     for (const line of results) console.log(line);
     console.log("farm-hub-url-manual-smoke: all PASS");
   } finally {

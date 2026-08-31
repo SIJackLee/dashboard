@@ -44,7 +44,9 @@ GitLab `web:test` / `web:verify-design`, GitHub `.github/workflows/web-verify.ym
 
 | 파일 | 용도 |
 |------|------|
-| `farm-hub-url-manual-smoke.mjs` (`npm run smoke:hub-url`) | 허브 URL·탭·soft home — [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) · [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) |
+| `e2e-farm-hub-boot-smoke.mjs` (`npm run smoke:boot`) | 부트 스모크 — 미인증 `/farm`→`/login` 가드·로그인 렌더 (**시크릿 불필요·CI 친화**) |
+| `farm-hub-url-manual-smoke.mjs` (`npm run smoke:hub-url`) | 허브 URL·탭·soft home + 404 폴백 — [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) · [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) (test-accounts 필요) |
+| `test:e2e` (npm) | 위 둘 묶음 — 부트(미인증)→인증 핵심 플로 E2E 게이트. 서버 기동 + `.env.local`(Supabase) 필요 |
 | `verify-channel-bulk-commands.mjs` | 채널 일괄 명령 |
 | `set-test-passwords.mjs` / `test-accounts.mjs` | 로컬 테스트 계정 (비밀값 커밋 금지) |
 
