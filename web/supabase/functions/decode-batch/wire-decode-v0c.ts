@@ -168,6 +168,33 @@ const KST_OFFSET_SEC = 9 * 3600;
 const MESURE_FUTURE_SKEW_SEC = 2 * 60;
 const MESURE_BACKFILL_MAX_SEC = 30 * 24 * 3600;
 
+/**
+ * "auto"  — future-only heuristic (pilot/simulator may send true UTC).
+ * "kst"   — known KST-stuffed firmware: always subtract 9h, so delayed
+ *           reconnect bursts (epoch already in the past) are corrected too.
+ */
+export type ClockMode = "auto" | "kst";
+
+/**
+ * Config-driven clock mode. A device that stamps KST wall-clock as UTC epoch
+ * must be listed (by "FARM02" or "FARM02/P00") so its replay bursts are also
+ * shifted -9h; unlisted sources keep the safe future-only heuristic.
+ */
+export function clockModeForFarm(
+  clockKstFarmKeys: string[] | null | undefined,
+  lsind: string,
+  item: string,
+): ClockMode {
+  if (!clockKstFarmKeys || clockKstFarmKeys.length === 0) return "auto";
+  if (
+    clockKstFarmKeys.includes(lsind) ||
+    clockKstFarmKeys.includes(`${lsind}/${item}`)
+  ) {
+    return "kst";
+  }
+  return "auto";
+}
+
 function formatMesureDt(epochSec: number): string {
   const d = new Date(epochSec * 1000);
   const fmt = new Intl.DateTimeFormat("sv-SE", {
@@ -186,18 +213,26 @@ function formatMesureDt(epochSec: number): string {
 /**
  * Packet `t` is UTC unix. If the controller stuffed KST digits into UTC,
  * the instant sits ~9h ahead of `received_at` (live) or 9h ahead of the
- * real sample (reconnect burst). Subtract 9h only when that lands inside
- * [received − 30d, received + 2min]. True UTC (pilot) is unchanged.
+ * real sample (reconnect burst).
+ *
+ * clockMode "kst": known KST-stuffed firmware — always subtract 9h.
+ * clockMode "auto": subtract 9h only when the shifted instant lands inside
+ * [received − 30d, received + 2min] and the raw epoch is in the future.
+ * True UTC (pilot/simulator) is unchanged under "auto".
  */
 export function correctMesureEpochSec(
   epochSec: number,
   receivedAtMs: number,
+  clockMode: ClockMode = "auto",
 ): number {
   if (!Number.isFinite(epochSec) || !Number.isFinite(receivedAtMs)) {
     return epochSec;
   }
-  const recvSec = receivedAtMs / 1000;
   const corrected = epochSec - KST_OFFSET_SEC;
+  if (clockMode === "kst") {
+    return corrected;
+  }
+  const recvSec = receivedAtMs / 1000;
   if (
     epochSec > recvSec + MESURE_FUTURE_SKEW_SEC &&
     corrected <= recvSec + MESURE_FUTURE_SKEW_SEC &&
@@ -211,10 +246,11 @@ export function correctMesureEpochSec(
 export function applyReceivedAtClock(
   mesureDtKst: string,
   receivedAtIso: string,
+  clockMode: ClockMode = "auto",
 ): { mesureDt: string; mesureAtIso: string } {
   const epochMs = Date.parse(`${mesureDtKst.replace(" ", "T")}+09:00`);
   const recvMs = Date.parse(receivedAtIso);
-  const epochSec = correctMesureEpochSec(epochMs / 1000, recvMs);
+  const epochSec = correctMesureEpochSec(epochMs / 1000, recvMs, clockMode);
   const mesureDt = formatMesureDt(epochSec);
   const mesureAtIso = new Date(
     `${mesureDt.replace(" ", "T")}+09:00`,

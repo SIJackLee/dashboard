@@ -9,6 +9,7 @@ import {
   toSlimDecodedJson,
   channelAThermo,
   applyReceivedAtClock,
+  clockModeForFarm,
 } from "./wire-decode-v0c.ts";
 import {
   shouldWriteSparse,
@@ -34,6 +35,7 @@ type DecodeConfig = {
   sparse_eps_temp: number | null;
   sparse_eps_fan: number | null;
   sparse_heartbeat_sec: number | null;
+  clock_kst_farm_keys: string[] | null;
 };
 
 const json = (body: unknown, status = 200) =>
@@ -58,7 +60,7 @@ Deno.serve(async (req: Request) => {
   const { data: config, error: configErr } = await supabase
     .from("iot_decode_config")
     .select(
-      "cron_secret, batch_limit, sparse_enabled, sparse_farm_keys, sparse_eps_temp, sparse_eps_fan, sparse_heartbeat_sec",
+      "cron_secret, batch_limit, sparse_enabled, sparse_farm_keys, sparse_eps_temp, sparse_eps_fan, sparse_heartbeat_sec, clock_kst_farm_keys",
     )
     .eq("id", 1)
     .single();
@@ -267,7 +269,16 @@ Deno.serve(async (req: Request) => {
     const decodedJson = toSlimDecodedJson(payload);
     const thermo = channelAThermo(payload.channels);
     // Partition key must be present on INSERT (BEFORE trigger on parent only fills if null).
-    const clock = applyReceivedAtClock(payload.mesureDt, row.received_at);
+    const clockMode = clockModeForFarm(
+      cfg.clock_kst_farm_keys,
+      row.lsind_regist_no,
+      row.item_code,
+    );
+    const clock = applyReceivedAtClock(
+      payload.mesureDt,
+      row.received_at,
+      clockMode,
+    );
     const insertRow = {
       raw_id: row.id,
       lsind_regist_no: row.lsind_regist_no,

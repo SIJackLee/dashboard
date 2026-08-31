@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   applyReceivedAtClock,
+  clockModeForFarm,
   correctMesureEpochSec,
   crc16CcittFalse,
   DECODE_ERROR_INVALID_STALL_TY,
@@ -150,6 +151,32 @@ const utcClock = applyReceivedAtClock(
   "2026-08-26T23:45:15.207Z",
 );
 assert.equal(utcClock.mesureDt, "2026-08-27 08:45:15");
+
+// clockMode "kst": 지연 replay(과거 epoch)도 항상 -9h.
+assert.equal(correctMesureEpochSec(1_787_000_000, recvLive), 1_787_000_000);
+assert.equal(
+  correctMesureEpochSec(1_787_000_000, recvLive, "kst"),
+  1_787_000_000 - 9 * 3600,
+);
+// clockMode "kst"에서 미래(live) epoch도 auto와 동일하게 -9h.
+assert.equal(
+  correctMesureEpochSec(1_787_820_360, recvLive, "kst"),
+  1_787_787_960,
+);
+
+// applyReceivedAtClock: auto는 과거 replay를 그대로 두지만(+9h 오류), kst는 교정.
+const replayRecv = "2026-08-26T23:45:15.207Z";
+const replayAuto = applyReceivedAtClock("2026-08-20 19:00:00", replayRecv, "auto");
+assert.equal(replayAuto.mesureDt, "2026-08-20 19:00:00");
+const replayKst = applyReceivedAtClock("2026-08-20 19:00:00", replayRecv, "kst");
+assert.equal(replayKst.mesureDt, "2026-08-20 10:00:00");
+
+// clockModeForFarm 매칭 규칙.
+assert.equal(clockModeForFarm(["FARM02", "FARM03"], "FARM02", "P00"), "kst");
+assert.equal(clockModeForFarm(["FARM02/P00"], "FARM02", "P00"), "kst");
+assert.equal(clockModeForFarm(["FARM02"], "FARM01", "P00"), "auto");
+assert.equal(clockModeForFarm([], "FARM02", "P00"), "auto");
+assert.equal(clockModeForFarm(null, "FARM02", "P00"), "auto");
 
 assert.equal(decodeV0cPayload(hex("0c00")), null);
 
