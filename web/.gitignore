@@ -65,3 +65,11 @@ android/local.properties
 android/.gradle/
 android/**/build/
 
+# IDE (JetBrains/Android Studio)
+android/.idea/
+.idea/
+
+# local scratch (decode/debug 임시 파일 — 커밋 금지)
+scripts/_tmp-*.mts
+scripts/_tmp-*.ts
+
