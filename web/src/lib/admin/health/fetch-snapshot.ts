@@ -32,6 +32,12 @@ import {
 } from "@/lib/admin/health/collector-groups";
 import { fetchCommandHealth } from "@/lib/admin/health/fetch-command-health";
 import {
+  fetchInstanceHealth,
+  summarizeInstanceHealth,
+  type InstanceHealthSummary,
+} from "@/lib/admin/health/fetch-instance-health";
+import { collectorNodeHint } from "@/lib/admin/health/instance-health-map";
+import {
   buildHealthAlerts,
 } from "@/lib/admin/health/health-events";
 import {
@@ -369,12 +375,13 @@ export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
     checkpointCount: 0,
     timeline: [] as CommandTimelineItem[],
   };
+  let instanceHealth: InstanceHealthSummary = summarizeInstanceHealth(null, nowMs);
   const ekapeHealth = await fetchEkapeHealth();
 
   try {
     const admin = createAdminClient();
 
-    const [buckets, liveCountRes, liveRowsRes, decodeRes, cmdHealth] =
+    const [buckets, liveCountRes, liveRowsRes, decodeRes, cmdHealth, instanceRes] =
       await Promise.all([
       fetchInsertBuckets(admin, nowMs),
       admin
@@ -389,6 +396,7 @@ export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
         .limit(GLOBAL_LIVE_ROW_LIMIT),
       fetchDecodeMetrics(admin),
       fetchCommandHealth(nowMs),
+      fetchInstanceHealth(admin, nowMs),
     ]);
 
     insertBuckets = buckets;
@@ -396,6 +404,7 @@ export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
     dbOk = !liveCountRes.error && !liveRowsRes.error;
     liveRowCount = liveCountRes.count ?? 0;
     commandHealth = cmdHealth;
+    instanceHealth = instanceRes;
 
     if (liveRowsRes.data) {
       const liveRows = mapDecodedLatestDbRowsToLiveHealth(
@@ -423,6 +432,13 @@ export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
   const mqttStatus: HealthStatus =
     rsStatus === "ok" ? "ok" : rsStatus === "warn" ? "warn" : "critical";
 
+  // instance_health_current(rsd-healthcheck)가 신선하면 수집단 노드 색을
+  // 서버가 직접 보고한 per-service 상태로 확정하고, 지연/미적재 시 기존 추정으로 폴백.
+  const useInstance = instanceHealth.trustPerService;
+  const mqttNodeStatus = useInstance ? instanceHealth.mqttStatus : mqttStatus;
+  const rsNodeStatus = useInstance ? instanceHealth.rsStatus : rsStatus;
+  const cNodeStatus = useInstance ? instanceHealth.cStatus : commandHealth.status;
+
   const fieldStatus = rollupFieldStatus(modules, controllers);
 
   const storageStatus = worstStatus([
@@ -434,27 +450,40 @@ export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
     liveRowCount >= GLOBAL_LIVE_ROW_LIMIT * 0.9 ? "warn" : "ok",
   ]);
 
+  // 노드 힌트: 인스턴스 실측을 신뢰하면 서버가 실제 장애(critical/명령 warn)일 때만
+  // 수집/명령 힌트를 붙인다. 서버 정상 + 장비 두절(rsStatus 데이터흐름 나쁨) 상황에서
+  // 초록 노드에 "수집/MQTT 점검" 오안내가 붙는 것을 막는다. 자원 warn은 드릴다운 포인트(S2)만.
+  const mqttHints = collectorNodeHint(useInstance, mqttNodeStatus, rsStatus !== "ok", "S1");
+  const rsHints = collectorNodeHint(useInstance, rsNodeStatus, rsStatus !== "ok", "S1");
+  const cHints = collectorNodeHint(
+    useInstance,
+    cNodeStatus,
+    commandHealth.status !== "ok",
+    "S4",
+    { warnCounts: true },
+  );
+
   const collectorSub: CollectorNodeState[] = [
     {
       id: "collector-mqtt",
       label: "Mosquitto",
       short: "MQTT",
-      status: mqttStatus,
-      d11Hints: rsStatus !== "ok" ? ["S1"] : [],
+      status: mqttNodeStatus,
+      d11Hints: mqttHints,
     },
     {
       id: "collector-rs",
       label: "RS 수신",
       short: "RS",
-      status: rsStatus,
-      d11Hints: rsStatus !== "ok" ? ["S1"] : [],
+      status: rsNodeStatus,
+      d11Hints: rsHints,
     },
     {
       id: "collector-c",
       label: "C 명령",
       short: "C",
-      status: commandHealth.status,
-      d11Hints: commandHealth.status !== "ok" ? ["S4"] : [],
+      status: cNodeStatus,
+      d11Hints: cHints,
     },
     {
       id: "collector-ekape",
@@ -576,6 +605,14 @@ export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
       summary: "uplink 정상 후 명령 대기열 pending/sent 확인 · 체크포인트로 검토 완료 표시 가능",
     });
   }
+  if (instanceHealth.row && !useInstance) {
+    d11Hints.push({
+      id: "S2",
+      title: "인스턴스 헬스 지연",
+      summary:
+        "rsd-healthcheck 보고(checked_at)가 오래됨 — 수집단 상태는 추정으로 폴백 · updater/timer 확인",
+    });
+  }
   const impactScope = scopeFromModules(modules);
 
   const snapshotBody = {
@@ -598,9 +635,11 @@ export async function computeHealthSnapshot(): Promise<HealthSnapshot> {
     pointsByNode: {
       "field-controller": fieldControllerPoints(controllers),
       "field-module": fieldModulePoints(modules),
-      "collector-mqtt": mqttPoints(rsStatus),
-      "collector-rs": rsPoints(insertBuckets),
-      "collector-c": commandHealth.points,
+      "collector-mqtt": useInstance ? instanceHealth.points.mqtt : mqttPoints(rsStatus),
+      "collector-rs": useInstance ? instanceHealth.points.rs : rsPoints(insertBuckets),
+      "collector-c": useInstance
+        ? [...instanceHealth.points.c, ...commandHealth.points]
+        : commandHealth.points,
       "collector-ekape": ekapeHealth.points,
       "collector-ftp": ftpPoints(),
       external: ekapeHealth.externalPoints,

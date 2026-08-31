@@ -26,3 +26,17 @@ export const INSERT_BUCKET_MINUTES = 5;
 export const CONTROLLER_STALE_WARN_MIN = 10;
 
 export const CONTROLLER_STALE_CRITICAL_MIN = 30;
+
+/**
+ * instance_health_current(rsd-healthcheck.timer) 신선도.
+ * checked_at이 이 값을 넘으면 updater 지연 → per-service 값 신뢰 저하.
+ * WARN 초과: 주의 point 부착 · UNKNOWN 초과: per-service 무시하고 기존 추정으로 폴백.
+ */
+export const INSTANCE_HEALTH_STALE_WARN_SEC = 600;
+
+export const INSTANCE_HEALTH_STALE_UNKNOWN_SEC = 1800;
+
+/** EC2 자원 경고 임계 — 가용 메모리(MB) 하한 / 루트 디스크 사용률(%) 상한 */
+export const INSTANCE_MEM_WARN_MB = 200;
+
+export const INSTANCE_DISK_WARN_PCT = 85;

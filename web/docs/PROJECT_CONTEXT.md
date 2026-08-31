@@ -116,6 +116,14 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 - `user_access`: 스코프(`farm`/`module`/`ctrl`)별 `can_read`, `can_command`
 - 앱 레벨: `lib/auth/get-current-user.ts`가 user+profile+access를 묶어 제공(React `cache`). `RoleGuard`로 UI 노출 제어, `require-admin`으로 관리자 페이지 보호.
 
+### 인스턴스 헬스 (`instance_health_current`)
+
+- EC2 수집 인스턴스의 `rsd-healthcheck.timer`가 per-service 상태(mqtt/rs/c, systemd·listen·roundtrip)와 자원(mem/disk)을 `instance_health_current`에 upsert.
+- 대시보드는 **service_role admin 클라이언트**로만 읽음 → 클라이언트 RLS 정책 불필요(관리자 헬스 스냅샷 내부 소비).
+- 소비 경로: `lib/admin/health/fetch-instance-health.ts`(조회) → `instance-health-map.ts`(순수 매핑) → `fetch-snapshot.ts`가 수집 노드(MQTT/RS/C) 색·드릴다운 포인트에 반영.
+- **신선도 게이트**: `checked_at`이 10분 초과 시 주의 포인트, 30분 초과(또는 미적재)면 서버 값 무시하고 기존 수신-추론으로 **폴백**(무중단). 임계값은 `constants.ts`.
+- 자원 경고(mem<200MB / disk>85%)는 수집(RS) 노드에 합산 표시. `raw_last_age_sec`(장비 몫)는 서버 노드 색에 영향 없이 정보로만 노출.
+
 ## 7. 라우팅 / 접근 흐름
 
 - `/` → `/login` 리다이렉트

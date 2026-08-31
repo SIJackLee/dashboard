@@ -53,9 +53,9 @@ export function healthNodeTechRows(
   switch (nodeId) {
     case "collector-rs":
       return [
-        { kind: "proc", label: "프로세스", value: "RS.py" },
+        { kind: "proc", label: "프로세스", value: "rsd-rs · RS.py" },
         { kind: "db", label: "원본", value: "iot_room_state_raw" },
-        { kind: "probe", label: "프로브", value: "수신으로 간접 추론" },
+        { kind: "probe", label: "프로브", value: "systemd 실측 · 수신 보조" },
       ];
     case "storage":
       return [
@@ -71,7 +71,7 @@ export function healthNodeTechRows(
     case "collector-mqtt":
       return [
         { kind: "probe", label: "브로커", value: "Mosquitto" },
-        { kind: "probe", label: "프로브", value: "없음 · 수신으로 추론" },
+        { kind: "probe", label: "프로브", value: "listen·왕복 실측" },
       ];
     case "collector-ekape":
     case "collector-ftp":
