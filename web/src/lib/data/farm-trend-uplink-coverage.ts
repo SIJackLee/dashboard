@@ -5,7 +5,7 @@ import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { TREND_PERIODS } from "@/lib/data/farm-trend-types";
 import { coerceTrendRpcJson } from "@/lib/data/farm-trend-rpc-json";
 import {
-  createRlsRpcClient,
+  createRlsClient,
   getAccessTokenOrNull,
 } from "@/lib/supabase/rls-client";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
@@ -38,7 +38,7 @@ async function fetchCoverageChunk(
   toIso: string,
   bucket: string,
 ): Promise<UplinkCoverageRpcRow[]> {
-  const supabase = createRlsRpcClient(accessToken);
+  const supabase = createRlsClient(accessToken);
   const { data, error } = await supabase.rpc("farm_trend_uplink_coverage_json", {
     p_lsind: farmKey.lsindRegistNo,
     p_item: farmKey.itemCode,

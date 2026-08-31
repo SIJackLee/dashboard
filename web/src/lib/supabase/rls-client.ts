@@ -31,12 +31,6 @@ export function createRlsClient(
 }
 
 /**
- * RPC 호출 전용 별칭 — createRlsClient가 타입화되어 동작이 동일하다.
- * (호출부 호환용으로 유지)
- */
-export const createRlsRpcClient = createRlsClient;
-
-/**
  * Legacy untyped RLS 클라이언트 — 생성 스키마 밖 뷰 별칭
  * (`v_iot_decoded_latest`·`v_iot_farm_overview`)을 캐스트로 조회하는
  * iot-live-fetch 전용. 그 외 소비처는 타입드 createRlsClient를 쓴다.

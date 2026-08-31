@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { cachedLiveQuery } from "@/lib/data/live-cache";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import {
-  createRlsRpcClient,
+  createRlsClient,
   getAccessTokenOrNull,
 } from "@/lib/supabase/rls-client";
 import type { TrendRpcArgs, TrendRpcName } from "@/lib/supabase/database.types";
@@ -89,7 +89,7 @@ async function fetchRpcJsonRows<T>(
   rpcName: TrendRpcName,
   args: TrendRpcArgs,
 ): Promise<T[]> {
-  const supabase = createRlsRpcClient(accessToken);
+  const supabase = createRlsClient(accessToken);
   const { data, error } = await supabase.rpc(rpcName, args);
   if (error) {
     const message = error.message || `${rpcName} failed`;
