@@ -4,7 +4,10 @@ import { cachedLiveQuery } from "@/lib/data/live-cache";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
 import { TREND_PERIODS } from "@/lib/data/farm-trend-types";
 import { coerceTrendRpcJson } from "@/lib/data/farm-trend-rpc-json";
-import { createRlsClient, getAccessTokenOrNull } from "@/lib/supabase/rls-client";
+import {
+  createRlsRpcClient,
+  getAccessTokenOrNull,
+} from "@/lib/supabase/rls-client";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import {
   buildUplinkCoverageIndex,
@@ -35,17 +38,14 @@ async function fetchCoverageChunk(
   toIso: string,
   bucket: string,
 ): Promise<UplinkCoverageRpcRow[]> {
-  const supabase = createRlsClient(accessToken);
-  const { data, error } = await supabase.rpc(
-    "farm_trend_uplink_coverage_json" as never,
-    {
-      p_lsind: farmKey.lsindRegistNo,
-      p_item: farmKey.itemCode,
-      p_from: fromIso,
-      p_to: toIso,
-      p_bucket: bucket,
-    } as never,
-  );
+  const supabase = createRlsRpcClient(accessToken);
+  const { data, error } = await supabase.rpc("farm_trend_uplink_coverage_json", {
+    p_lsind: farmKey.lsindRegistNo,
+    p_item: farmKey.itemCode,
+    p_from: fromIso,
+    p_to: toIso,
+    p_bucket: bucket,
+  });
   if (error) {
     const message = error.message || "farm_trend_uplink_coverage_json failed";
     if (isMissingRpc(message) || /statement timeout/i.test(message)) {

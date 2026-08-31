@@ -1,19 +1,41 @@
 import "server-only";
 
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  createClient as createSupabaseClient,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 
-/** unstable_cache 내부용 — cookies() 없이 JWT로 RLS 클라이언트 생성 */
+function rlsClientOptions(accessToken: string) {
+  return {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  };
+}
+
+/** unstable_cache 내부용 — cookies() 없이 JWT로 RLS 클라이언트 생성 (untyped) */
 export function createRlsClient(accessToken: string) {
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      },
-    },
+    rlsClientOptions(accessToken),
+  );
+}
+
+/**
+ * RPC 호출 전용 — Database 계약으로 함수 이름·인자를 타입 검증한다.
+ * (`.from()` 사용처는 untyped `createRlsClient` 유지)
+ */
+export function createRlsRpcClient(
+  accessToken: string,
+): SupabaseClient<Database> {
+  return createSupabaseClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    rlsClientOptions(accessToken),
   );
 }
 

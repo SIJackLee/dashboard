@@ -3,7 +3,11 @@ import "server-only";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { cachedLiveQuery } from "@/lib/data/live-cache";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
-import { createRlsClient, getAccessTokenOrNull } from "@/lib/supabase/rls-client";
+import {
+  createRlsRpcClient,
+  getAccessTokenOrNull,
+} from "@/lib/supabase/rls-client";
+import type { TrendRpcArgs, TrendRpcName } from "@/lib/supabase/database.types";
 import {
   getStallTypeName,
   normalizeStallTyCode,
@@ -82,11 +86,11 @@ function alignedToMs(now: number): number {
 
 async function fetchRpcJsonRows<T>(
   accessToken: string,
-  rpcName: string,
-  args: Record<string, string>,
+  rpcName: TrendRpcName,
+  args: TrendRpcArgs,
 ): Promise<T[]> {
-  const supabase = createRlsClient(accessToken);
-  const { data, error } = await supabase.rpc(rpcName as never, args as never);
+  const supabase = createRlsRpcClient(accessToken);
+  const { data, error } = await supabase.rpc(rpcName, args);
   if (error) {
     const message = error.message || `${rpcName} failed`;
     if (/statement timeout/i.test(message)) {
