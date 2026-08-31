@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import {
   canEditFarmScope,
@@ -232,7 +233,7 @@ export async function saveFarmLocation(
   }
 
   const supabase = await createClient();
-  const payload: Record<string, unknown> = {
+  const payload: Database["public"]["Tables"]["farm_location"]["Insert"] = {
     ...row,
     updated_by: user.id,
     updated_at: new Date().toISOString(),

@@ -2,6 +2,7 @@ import "server-only";
 
 import { omitRetiredProfileUiConfigKeys } from "@/lib/data/profile-ui-retired";
 import { createClient } from "@/lib/supabase/server";
+import type { Json } from "@/lib/supabase/database.types";
 
 /** profiles.ui_config 병합 저장 — row 없으면 viewer 로 insert */
 export async function mergeProfileUiConfig(
@@ -25,7 +26,7 @@ export async function mergeProfileUiConfig(
     data?.ui_config && typeof data.ui_config === "object"
       ? (data.ui_config as Record<string, unknown>)
       : {};
-  const ui_config = omitRetiredProfileUiConfigKeys(patch(prev));
+  const ui_config = omitRetiredProfileUiConfigKeys(patch(prev)) as unknown as Json;
 
   if (data) {
     const { error } = await supabase

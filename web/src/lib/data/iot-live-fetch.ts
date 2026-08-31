@@ -4,7 +4,10 @@ import { cache } from "react";
 import { farmKeysFromAccess } from "@/lib/auth/farm-access";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { createClient } from "@/lib/supabase/server";
-import { createRlsClient, getAccessTokenOrNull } from "@/lib/supabase/rls-client";
+import {
+  createRlsClientUntyped,
+  getAccessTokenOrNull,
+} from "@/lib/supabase/rls-client";
 import { GLOBAL_LIVE_ROW_LIMIT } from "@/lib/admin/health/constants";
 import {
   normalizeEqpmnNo,
@@ -345,7 +348,7 @@ function applyFarmFilter<
  * farm-scoped 진입에서만 동작(global admin hub는 부하 회피로 제외).
  */
 async function fetchLastKnownReadingsForFarm(
-  supabase: ReturnType<typeof createRlsClient>,
+  supabase: ReturnType<typeof createRlsClientUntyped>,
   scopedFarms: FarmKey[] | null,
   explicitFarm: FarmKey | null | undefined,
 ): Promise<BarnReading[]> {
@@ -384,7 +387,7 @@ async function fetchLiveRowsWithToken(
   scopedFarms: FarmKey[] | null,
   scope: LiveReadingsScope,
 ): Promise<BarnReading[]> {
-  const supabase = createRlsClient(accessToken);
+  const supabase = createRlsClientUntyped(accessToken);
   const tier = liveReadTier();
   /**
    * list tier (`v_iot_dashboard_list`) omits channels[] for payload size.
@@ -542,7 +545,7 @@ async function fetchFarmOverviewWithToken(
   accessToken: string,
   scopedFarms: FarmKey[] | null,
 ): Promise<FarmOverviewDbRow[]> {
-  const supabase = createRlsClient(accessToken);
+  const supabase = createRlsClientUntyped(accessToken);
 
   let query = supabase
     .from("v_iot_farm_overview" as "v_iot_decoded_latest")

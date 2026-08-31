@@ -16,9 +16,14 @@ function rlsClientOptions(accessToken: string) {
   };
 }
 
-/** unstable_cache 내부용 — cookies() 없이 JWT로 RLS 클라이언트 생성 (untyped) */
-export function createRlsClient(accessToken: string) {
-  return createSupabaseClient(
+/**
+ * unstable_cache 내부용 — cookies() 없이 JWT로 RLS 클라이언트 생성.
+ * Database 계약으로 `.from()`·`.rpc()` 모두 타입 검증된다.
+ */
+export function createRlsClient(
+  accessToken: string,
+): SupabaseClient<Database> {
+  return createSupabaseClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     rlsClientOptions(accessToken),
@@ -26,13 +31,18 @@ export function createRlsClient(accessToken: string) {
 }
 
 /**
- * RPC 호출 전용 — Database 계약으로 함수 이름·인자를 타입 검증한다.
- * (`.from()` 사용처는 untyped `createRlsClient` 유지)
+ * RPC 호출 전용 별칭 — createRlsClient가 타입화되어 동작이 동일하다.
+ * (호출부 호환용으로 유지)
  */
-export function createRlsRpcClient(
-  accessToken: string,
-): SupabaseClient<Database> {
-  return createSupabaseClient<Database>(
+export const createRlsRpcClient = createRlsClient;
+
+/**
+ * Legacy untyped RLS 클라이언트 — 생성 스키마 밖 뷰 별칭
+ * (`v_iot_decoded_latest`·`v_iot_farm_overview`)을 캐스트로 조회하는
+ * iot-live-fetch 전용. 그 외 소비처는 타입드 createRlsClient를 쓴다.
+ */
+export function createRlsClientUntyped(accessToken: string) {
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     rlsClientOptions(accessToken),
