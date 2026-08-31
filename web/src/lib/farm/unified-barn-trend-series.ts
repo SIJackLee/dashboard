@@ -5,7 +5,7 @@ import type {
   TrendSeries,
   TrendSpreadContributor,
   TrendSpreadExtremes,
-} from "@/components/trends/trend-chart";
+} from "@/lib/data/trend-chart-types";
 import type { AlarmThresholds } from "@/lib/data/alarms";
 import type { TrendControllerSeries } from "@/lib/data/farm-trend-types";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";

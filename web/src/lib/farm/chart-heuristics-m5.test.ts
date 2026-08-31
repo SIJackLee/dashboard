@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
-import type { TrendEnvelope, TrendHistogram, TrendSeries } from "@/components/trends/trend-chart";
+import type { TrendEnvelope, TrendHistogram, TrendSeries } from "@/lib/data/trend-chart-types";
 import {
   dimensionComfortScore,
   envComfortScore,

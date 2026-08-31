@@ -1,4 +1,4 @@
-import type { TrendReferenceLine, TrendSeries } from "@/components/trends/trend-chart";
+import type { TrendReferenceLine, TrendSeries } from "@/lib/data/trend-chart-types";
 import {
   DEFAULT_ALARM_THRESHOLDS,
   type AlarmThresholds,
