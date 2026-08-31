@@ -3,6 +3,8 @@
  */
 import assert from "node:assert/strict";
 import {
+  buildEnvelopePaths,
+  buildLineSegments,
   computeTipPlacement,
   domainFor,
   finiteValues,
@@ -12,7 +14,14 @@ import {
   tipPinId,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
-import type { TrendSeries } from "@/lib/data/trend-chart-types";
+import type {
+  TrendEnvelope,
+  TrendSeries,
+} from "@/lib/data/trend-chart-types";
+
+// 좌표 매퍼 스텁 — 인덱스=x, 값=y (axis 무시).
+const xForId = (i: number) => i;
+const yForId = (v: number) => v;
 
 // domainFor: forced 우선, 빈 배열 fallback, 동일값 확장, 패딩.
 assert.deepEqual(domainFor([1, 2, 3], [0, 10]), [0, 10]);
@@ -67,6 +76,40 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   const out = nudgeEdgeLabelTops(labels, 5);
   const tops = out.map((l) => l.topPct).sort((a, b) => a - b);
   assert.ok(tops[1]! - tops[0]! >= 5, "최소 간격 확보");
+}
+
+// buildLineSegments: null에서 세그먼트가 끊긴다.
+{
+  const s: TrendSeries = {
+    name: "t",
+    data: [1, 2, null, 4, 5],
+    color: "#000",
+  };
+  const segs = buildLineSegments(s, xForId, yForId);
+  assert.equal(segs.length, 2, "null 기준 2개 세그먼트");
+  assert.equal(segs[0], "0.00,1.00 1.00,2.00");
+  assert.equal(segs[1], "3.00,4.00 4.00,5.00");
+}
+// 단일 포인트 세그먼트(길이 1)는 버려진다.
+{
+  const s: TrendSeries = { name: "t", data: [1, null, 3], color: "#000" };
+  assert.deepEqual(buildLineSegments(s, xForId, yForId), []);
+}
+
+// buildEnvelopePaths: high/low 유효 구간을 닫힌 path로.
+{
+  const env: TrendEnvelope = {
+    high: [2, 3, 4],
+    low: [1, 1, 1],
+  } as TrendEnvelope;
+  const paths = buildEnvelopePaths(env, 3, xForId, yForId);
+  assert.equal(paths.length, 1);
+  assert.ok(paths[0]!.startsWith("M") && paths[0]!.endsWith("Z"));
+}
+// 길이 < 2 → 빈 배열.
+{
+  const env: TrendEnvelope = { high: [2], low: [1] } as TrendEnvelope;
+  assert.deepEqual(buildEnvelopePaths(env, 1, xForId, yForId), []);
 }
 
 console.log("trend-chart-geometry.test.ts: ok");

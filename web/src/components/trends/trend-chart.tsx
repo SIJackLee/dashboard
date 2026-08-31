@@ -64,6 +64,8 @@ import {
   X_SCOPE_MIN_SPAN,
   SCALE_EDGE_HIT_PX,
   SCALE_EDGE_LABEL_DRAG_PX,
+  buildEnvelopePaths,
+  buildLineSegments,
   computeTipPlacement,
   domainFor,
   finiteValues,
@@ -1540,21 +1542,8 @@ export function TrendChart({
   }
 
   /** Build polyline segments, breaking on null (gap shading). */
-  const lineSegments = (s: TrendSeries): string[] => {
-    const axis = s.axis ?? "left";
-    const segs: string[] = [];
-    let cur: string[] = [];
-    s.data.forEach((v, i) => {
-      if (v == null || !Number.isFinite(v)) {
-        if (cur.length > 1) segs.push(cur.join(" "));
-        cur = [];
-        return;
-      }
-      cur.push(`${xFor(i).toFixed(2)},${yFor(v, axis).toFixed(2)}`);
-    });
-    if (cur.length > 1) segs.push(cur.join(" "));
-    return segs;
-  };
+  const lineSegments = (s: TrendSeries): string[] =>
+    buildLineSegments(s, xFor, yFor);
 
   /** 결측 구간 — 커버리지 밴드가 있으면 희소/통신두절/없음으로 대체. */
   const nullGapRanges: { i0: number; i1: number }[] = [];
@@ -1587,54 +1576,8 @@ export function TrendChart({
     flush(n - 1);
   }
 
-  const envelopePaths = (env: TrendEnvelope): string[] => {
-    const axis = env.axis ?? "left";
-    if (env.polys?.length) {
-      const paths: string[] = [];
-      for (const run of env.polys) {
-        if (run.length < 2) continue;
-        const top = run.map(
-          (p) =>
-            `${xFor(p.x).toFixed(2)},${yFor(p.high, axis).toFixed(2)}`,
-        );
-        const bot = run.map(
-          (p) =>
-            `${xFor(p.x).toFixed(2)},${yFor(p.low, axis).toFixed(2)}`,
-        );
-        paths.push(`M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`);
-      }
-      return paths;
-    }
-    const len = Math.min(env.high.length, env.low.length, n);
-    if (len < 2) return [];
-    const paths: string[] = [];
-    let top: string[] = [];
-    let bot: string[] = [];
-    const flush = () => {
-      if (top.length >= 2) {
-        paths.push(`M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`);
-      }
-      top = [];
-      bot = [];
-    };
-    for (let i = 0; i < len; i++) {
-      const hi = env.high[i];
-      const lo = env.low[i];
-      if (
-        hi == null ||
-        lo == null ||
-        !Number.isFinite(hi) ||
-        !Number.isFinite(lo)
-      ) {
-        flush();
-        continue;
-      }
-      top.push(`${xFor(i).toFixed(2)},${yFor(hi, axis).toFixed(2)}`);
-      bot.push(`${xFor(i).toFixed(2)},${yFor(lo, axis).toFixed(2)}`);
-    }
-    flush();
-    return paths;
-  };
+  const envelopePaths = (env: TrendEnvelope): string[] =>
+    buildEnvelopePaths(env, n, xFor, yFor);
 
   return (
     <div

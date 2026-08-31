@@ -7,10 +7,95 @@
 
 import type {
   TrendAxis,
+  TrendEnvelope,
   TrendScaleEdgeLabel,
   TrendSeries,
 } from "@/lib/data/trend-chart-types";
 import { inferHoverMetricGroup } from "./trend-chart-format";
+
+/** view 좌표 매퍼 — 렌더 시점 도메인·크기에 닫힌 클로저를 주입받는다. */
+type XForFn = (i: number) => number;
+type YForFn = (value: number, axis: TrendAxis) => number;
+
+/**
+ * 시리즈를 polyline 세그먼트 문자열로. null/비유한 값에서 끊어 gap을 만든다.
+ * (SVG `points` 좌표 계산 — 순수)
+ */
+export function buildLineSegments(
+  s: TrendSeries,
+  xFor: XForFn,
+  yFor: YForFn,
+): string[] {
+  const axis = s.axis ?? "left";
+  const segs: string[] = [];
+  let cur: string[] = [];
+  s.data.forEach((v, i) => {
+    if (v == null || !Number.isFinite(v)) {
+      if (cur.length > 1) segs.push(cur.join(" "));
+      cur = [];
+      return;
+    }
+    cur.push(`${xFor(i).toFixed(2)},${yFor(v, axis).toFixed(2)}`);
+  });
+  if (cur.length > 1) segs.push(cur.join(" "));
+  return segs;
+}
+
+/**
+ * 엔벨로프(밴드)를 채움 path(`d`) 배열로. polys가 있으면 run별로, 없으면 high/low에서
+ * 유효 구간을 이어 상단→하단 역순으로 닫는다. (순수)
+ */
+export function buildEnvelopePaths(
+  env: TrendEnvelope,
+  n: number,
+  xFor: XForFn,
+  yFor: YForFn,
+): string[] {
+  const axis = env.axis ?? "left";
+  if (env.polys?.length) {
+    const paths: string[] = [];
+    for (const run of env.polys) {
+      if (run.length < 2) continue;
+      const top = run.map(
+        (p) => `${xFor(p.x).toFixed(2)},${yFor(p.high, axis).toFixed(2)}`,
+      );
+      const bot = run.map(
+        (p) => `${xFor(p.x).toFixed(2)},${yFor(p.low, axis).toFixed(2)}`,
+      );
+      paths.push(`M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`);
+    }
+    return paths;
+  }
+  const len = Math.min(env.high.length, env.low.length, n);
+  if (len < 2) return [];
+  const paths: string[] = [];
+  let top: string[] = [];
+  let bot: string[] = [];
+  const flush = () => {
+    if (top.length >= 2) {
+      paths.push(`M${top.join(" L")} L${[...bot].reverse().join(" L")} Z`);
+    }
+    top = [];
+    bot = [];
+  };
+  for (let i = 0; i < len; i++) {
+    const hi = env.high[i];
+    const lo = env.low[i];
+    if (
+      hi == null ||
+      lo == null ||
+      !Number.isFinite(hi) ||
+      !Number.isFinite(lo)
+    ) {
+      flush();
+      continue;
+    }
+    top.push(`${xFor(i).toFixed(2)},${yFor(hi, axis).toFixed(2)}`);
+    bot.push(`${xFor(i).toFixed(2)},${yFor(lo, axis).toFixed(2)}`);
+  }
+  flush();
+  return paths;
+}
 
 export const PAD_X = 6;
 export const PAD_TOP = 6;
