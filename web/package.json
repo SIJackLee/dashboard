@@ -35,6 +35,7 @@
     "verify:design": "npm run verify:motion && npm run verify:ui-density",
     "verify:hub": "node scripts/verify-hub.mjs",
     "smoke:hub-url": "node scripts/farm-hub-url-manual-smoke.mjs",
+    "smoke:boot": "node scripts/e2e-farm-hub-boot-smoke.mjs",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "postinstall": "patch-package"
