@@ -32,10 +32,7 @@ import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
-import {
-  useClipPresence,
-  type ClipPhase,
-} from "@/lib/ui/use-clip-presence";
+import { useClipPresence } from "@/lib/ui/use-clip-presence";
 
 import type {
   TrendAxis,
@@ -76,6 +73,16 @@ import {
   tipPinId,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
+import {
+  MAX_PINNED_TIPS,
+  PIN_CLICK_SLOP_PX,
+  SCALE_EDGE_DOUBLE_TAP_MS,
+  SCALE_EDGE_DOUBLE_TAP_SLOP_PX,
+  clipWipeClass,
+  handleScaleEdgeDoubleTap,
+  type PinnedTip,
+} from "./trend-chart-interaction";
+import { useTrendPinnedTips } from "./use-trend-pinned-tips";
 
 export type {
   TrendAxis,
@@ -233,70 +240,6 @@ type TrendChartProps = {
   onPlotWidthChange?: (widthPx: number) => void;
 };
 
-const MAX_PINNED_TIPS = 5;
-const PIN_CLICK_SLOP_PX = 10;
-/** 모바일 — 설정값 라벨 더블탭 → 숫자 입력 */
-const SCALE_EDGE_DOUBLE_TAP_MS = 320;
-const SCALE_EDGE_DOUBLE_TAP_SLOP_PX = 28;
-const SCALE_EDGE_TAP_SLOP_PX = 12;
-
-type ScaleEdgeTapRecord = {
-  id: string;
-  t: number;
-  x: number;
-  y: number;
-};
-
-function handleScaleEdgeDoubleTap(
-  e: ReactPointerEvent<HTMLDivElement>,
-  labelArm: { id: string; x: number; y: number; pointerType: string },
-  scaleEdgeTapRef: { current: ScaleEdgeTapRecord | null },
-  beginScaleEdgeEdit: (id: string) => void,
-): void {
-  const dist = Math.hypot(e.clientX - labelArm.x, e.clientY - labelArm.y);
-  const isTouchLike =
-    labelArm.pointerType === "touch" || labelArm.pointerType === "pen";
-  if (dist > SCALE_EDGE_TAP_SLOP_PX || !isTouchLike) return;
-
-  const now = e.timeStamp;
-  const prev = scaleEdgeTapRef.current;
-  if (
-    prev &&
-    prev.id === labelArm.id &&
-    now - prev.t <= SCALE_EDGE_DOUBLE_TAP_MS &&
-    Math.hypot(e.clientX - prev.x, e.clientY - prev.y) <=
-      SCALE_EDGE_DOUBLE_TAP_SLOP_PX
-  ) {
-    scaleEdgeTapRef.current = null;
-    beginScaleEdgeEdit(labelArm.id);
-    return;
-  }
-
-  scaleEdgeTapRef.current = {
-    id: labelArm.id,
-    t: now,
-    x: e.clientX,
-    y: e.clientY,
-  };
-}
-
-type PinnedTip = {
-  id: string;
-  idx: number;
-  seriesKey: string;
-  /** plot 상대 좌표 0~1 (ellipse 앵커) */
-  nx: number;
-  ny: number;
-  /** 기본 배치 대비 사용자 드래그 오프셋(px) */
-  ox: number;
-  oy: number;
-};
-
-function clipWipeClass(phase: ClipPhase): string | undefined {
-  if (phase === "enter") return motionClass.farmChartClipWipeIn;
-  if (phase === "exit") return motionClass.farmChartClipWipeOut;
-  return undefined;
-}
 
 
 
@@ -356,19 +299,11 @@ export function TrendChart({
   /** 호버 — 인덱스 변경 시에만 setState (mousemove 전량 리렌더 방지) */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [hoverSeries, setHoverSeries] = useState<string | null>(null);
-  /** 클릭으로 고정한 비교용 데이터 카드 (다중) */
-  const [pinnedTips, setPinnedTips] = useState<PinnedTip[]>([]);
-  const bringPinToFront = (id: string) => {
-    setPinnedTips((prev) => {
-      const i = prev.findIndex((p) => p.id === id);
-      if (i < 0 || i === prev.length - 1) return prev;
-      const next = prev.slice();
-      const [item] = next.splice(i, 1);
-      if (!item) return prev;
-      next.push(item);
-      return next;
+  /** 클릭으로 고정한 비교용 데이터 카드 (다중) — 상태·리셋·외부클릭 해제는 훅에서 */
+  const { pinnedTips, setPinnedTips, bringPinToFront, chartRootRef } =
+    useTrendPinnedTips({
+      resetKey: `${period ?? ""}|${categories.length}`,
     });
-  };
   const [xDraft, setXDraft] = useState<{
     a: number;
     b: number;
@@ -387,7 +322,6 @@ export function TrendChart({
   const tipRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const plotRef = useRef<HTMLDivElement | null>(null);
-  const chartRootRef = useRef<HTMLDivElement | null>(null);
   const pinClickArmRef = useRef<{
     x: number;
     y: number;
@@ -421,20 +355,6 @@ export function TrendChart({
     xScopeOriginRef.current = null;
     xScopeDraggingRef.current = false;
   }, [xScopeSelect]);
-
-  /** 차트 밖 클릭 — 고정 데이터 카드 전부 해제 */
-  useEffect(() => {
-    const onDocPointerDown = (e: PointerEvent) => {
-      const root = chartRootRef.current;
-      if (!root) return;
-      const t = e.target;
-      if (t instanceof Node && root.contains(t)) return;
-      setPinnedTips((prev) => (prev.length ? [] : prev));
-    };
-    document.addEventListener("pointerdown", onDocPointerDown, true);
-    return () =>
-      document.removeEventListener("pointerdown", onDocPointerDown, true);
-  }, []);
 
   const edgeDragRef = useRef<{
     id: string;
@@ -522,14 +442,6 @@ export function TrendChart({
     () => (mode === "bar" ? null : parseCategoryTimelineMs(categories)),
     [categories, mode],
   );
-
-  /** Prop sync during render — 기간·데이터 바뀌면 고정 카드 초기화 */
-  const pinResetKey = `${period ?? ""}|${n}`;
-  const [prevPinResetKey, setPrevPinResetKey] = useState(pinResetKey);
-  if (pinResetKey !== prevPinResetKey) {
-    setPrevPinResetKey(pinResetKey);
-    setPinnedTips([]);
-  }
 
   const axisH = 16;
   const chartH = height - axisH;
