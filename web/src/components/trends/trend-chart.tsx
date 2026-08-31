@@ -83,6 +83,14 @@ import {
 } from "./trend-chart-interaction";
 import { useTrendPinnedTips } from "./use-trend-pinned-tips";
 import { useTrendScopeGesture } from "./use-trend-scope-gesture";
+import {
+  AlarmBandsLayer,
+  BandGuidesLayer,
+  CoverageBandsLayer,
+  NullGapsLayer,
+  ReferenceLinesLayer,
+  type TrendPlotGeom,
+} from "./trend-chart-svg-layers";
 
 export type {
   TrendAxis,
@@ -1352,6 +1360,17 @@ export function TrendChart({
   const envelopePaths = (env: TrendEnvelope): string[] =>
     buildEnvelopePaths(env, n, xFor, yFor);
 
+  const plotGeom: TrendPlotGeom = {
+    xFor,
+    yFor,
+    padL,
+    padR,
+    viewW,
+    innerW,
+    innerH,
+    n,
+  };
+
   return (
     <div
       ref={chartRootRef}
@@ -1623,74 +1642,9 @@ export function TrendChart({
               : undefined,
           )}
         >
-        {coverageBands.map((g) => {
-          const x0 = xFor(g.i0);
-          const x1 = xFor(g.i1);
-          const slot = n > 1 ? innerW / (n - 1) : innerW;
-          const left = Math.max(padL, x0 - slot / 2);
-          const right = Math.min(viewW - padR, x1 + slot / 2);
-          const fill =
-            g.kind === "sparse"
-              ? "var(--status-warn)"
-              : g.kind === "offline"
-                ? "var(--status-danger)"
-                : "currentColor";
-          const fillOpacity =
-            g.kind === "sparse" ? 0.16 : g.kind === "offline" ? 0.2 : 0.1;
-          return (
-            <rect
-              key={`cov-${g.kind}-${g.i0}-${g.i1}`}
-              x={left}
-              y={PAD_TOP}
-              width={Math.max(0.4, right - left)}
-              height={innerH}
-              fill={fill}
-              fillOpacity={fillOpacity}
-              stroke="none"
-              className={g.kind === "void" ? "text-muted-foreground" : undefined}
-            />
-          );
-        })}
-        {nullGapRanges.map((g) => {
-          const x0 = xFor(g.i0);
-          const x1 = xFor(g.i1);
-          const slot =
-            n > 1 ? (innerW) / (n - 1) : innerW;
-          const left = Math.max(padL, x0 - slot / 2);
-          const right = Math.min(viewW - padR, x1 + slot / 2);
-          return (
-            <rect
-              key={`null-gap-${g.i0}-${g.i1}`}
-              x={left}
-              y={PAD_TOP}
-              width={Math.max(0.4, right - left)}
-              height={innerH}
-              fill="#64748b"
-              fillOpacity={0.18}
-              stroke="none"
-            />
-          );
-        })}
-        {splitBandGuides.map((gy, gi) => {
-          if (!Number.isFinite(gy)) return null;
-          const y = yFor(gy, "left");
-          if (!Number.isFinite(y)) return null;
-          return (
-            <line
-              key={`band-guide-${gi}-${gy}`}
-              x1={padL}
-              x2={viewW - padR}
-              y1={y}
-              y2={y}
-              stroke="currentColor"
-              strokeWidth={0.4}
-              strokeDasharray="2.5 3"
-              vectorEffect="non-scaling-stroke"
-              className={cn("text-muted-foreground")}
-              opacity={0.35}
-            />
-          );
-        })}
+        <CoverageBandsLayer bands={coverageBands} geom={plotGeom} />
+        <NullGapsLayer gaps={nullGapRanges} geom={plotGeom} />
+        <BandGuidesLayer guides={splitBandGuides} geom={plotGeom} />
         {mode === "line"
           ? histPresence.map(({ item: h, key: histKey, phase }) => {
               const yBase = yFor(h.baseline, "left");
@@ -1815,57 +1769,11 @@ export function TrendChart({
             })
           : null}
 
-        {mode === "line"
-          ? uniqueAlarmBands.map(({ band, axis }, idx) => {
-              const yTop = yFor(band.hi, axis);
-              const yBot = yFor(band.lo, axis);
-              return (
-                <g key={`alarm-${idx}`}>
-                  <line
-                    x1={padL}
-                    x2={viewW - padR}
-                    y1={yTop}
-                    y2={yTop}
-                    stroke={SEV_COLOR.warning}
-                    strokeWidth={0.5}
-                    strokeDasharray="2 1.5"
-                    strokeOpacity={0.65}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <line
-                    x1={padL}
-                    x2={viewW - padR}
-                    y1={yBot}
-                    y2={yBot}
-                    stroke={SEV_COLOR.warning}
-                    strokeWidth={0.5}
-                    strokeDasharray="2 1.5"
-                    strokeOpacity={0.65}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                </g>
-              );
-            })
-          : null}
+        {mode === "line" ? (
+          <AlarmBandsLayer bands={uniqueAlarmBands} geom={plotGeom} />
+        ) : null}
 
-        {dedupedReferenceLines.map((ref, idx) => {
-          const y = yFor(ref.value, ref.axis ?? "left");
-          if (!Number.isFinite(y)) return null;
-          return (
-            <line
-              key={`ref-${idx}`}
-              x1={padL}
-              x2={viewW - padR}
-              y1={y}
-              y2={y}
-              stroke={ref.color}
-              strokeWidth={0.5}
-              strokeDasharray="2 1.5"
-              vectorEffect="non-scaling-stroke"
-              opacity={0.7}
-            />
-          );
-        })}
+        <ReferenceLinesLayer lines={dedupedReferenceLines} geom={plotGeom} />
 
         {scaleEdgeLabels
           .filter((g) => g.showLine)
