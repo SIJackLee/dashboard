@@ -7,7 +7,6 @@ import {
   useRef,
   useLayoutEffect,
   useId,
-  type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -24,12 +23,9 @@ import {
 import {
   type Band,
   SEV_COLOR,
-  sevOfScore,
-  severityScore,
 } from "@/lib/farm/severity-score";
 import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { useClipPresence } from "@/lib/ui/use-clip-presence";
 
@@ -77,20 +73,18 @@ import {
   PIN_CLICK_SLOP_PX,
   SCALE_EDGE_DOUBLE_TAP_MS,
   SCALE_EDGE_DOUBLE_TAP_SLOP_PX,
-  clipWipeClass,
   handleScaleEdgeDoubleTap,
   type PinnedTip,
 } from "./trend-chart-interaction";
 import { useTrendPinnedTips } from "./use-trend-pinned-tips";
 import { useTrendScopeGesture } from "./use-trend-scope-gesture";
 import {
-  AlarmBandsLayer,
   BandGuidesLayer,
   CoverageBandsLayer,
   NullGapsLayer,
-  ReferenceLinesLayer,
   type TrendPlotGeom,
 } from "./trend-chart-svg-layers";
+import { TrendChartDataLayers } from "./trend-chart-data-layers";
 
 export type {
   TrendAxis,
@@ -1645,375 +1639,40 @@ export function TrendChart({
         <CoverageBandsLayer bands={coverageBands} geom={plotGeom} />
         <NullGapsLayer gaps={nullGapRanges} geom={plotGeom} />
         <BandGuidesLayer guides={splitBandGuides} geom={plotGeom} />
-        {mode === "line"
-          ? histPresence.map(({ item: h, key: histKey, phase }) => {
-              const yBase = yFor(h.baseline, "left");
-              const slot =
-                n > 1 ? (innerW) / (n - 1) : innerW;
-              const isVolume = h.style === "volume";
-              const isOverlay = h.style === "overlay";
-              const gs = Math.max(1, h.groupSize ?? 1);
-              const gi = h.groupIndex ?? 0;
-              const barWHist = Math.max(
-                0.22,
-                slot *
-                  (isVolume && gs > 1
-                    ? 0.62 / gs
-                    : isVolume
-                      ? 0.5
-                      : isOverlay
-                        ? 0.28
-                        : 0.55),
-              );
-              const cluster =
-                isVolume && gs > 1
-                  ? (gi - (gs - 1) / 2) * (barWHist + 0.12)
-                  : 0;
-              const opacity = h.fillOpacity ?? (isOverlay ? 0.14 : isVolume ? 0.7 : 0.75);
-              return (
-                <g
-                  key={histKey}
-                  className={clipWipeClass(phase)}
-                  data-clip-phase={phase}
-                >
-                  {(!isVolume || gi === 0) &&
-                  !isOverlay &&
-                  Math.abs(yBase - (PAD_TOP + innerH)) > 0.6 ? (
-                    <line
-                      x1={padL}
-                      x2={viewW - padR}
-                      y1={yBase}
-                      y2={yBase}
-                      stroke="#94a3b8"
-                      strokeWidth={0.4}
-                      strokeDasharray={isVolume ? "1 2" : "1.5 1.5"}
-                      vectorEffect="non-scaling-stroke"
-                      opacity={isVolume ? 0.35 : 0.5}
-                    />
-                  ) : null}
-                  {isOverlay ? (
-                    <line
-                      x1={padL}
-                      x2={viewW - padR}
-                      y1={yBase}
-                      y2={yBase}
-                      stroke="#f87171"
-                      strokeWidth={0.55}
-                      strokeDasharray="3 2.5"
-                      vectorEffect="non-scaling-stroke"
-                      opacity={0.55}
-                    />
-                  ) : null}
-                  {h.values.map((v, i) => {
-                    if (v == null || !Number.isFinite(v)) return null;
-                    const yVal = yFor(v, "left");
-                    const top = Math.min(yBase, yVal);
-                    const height = Math.max(0.35, Math.abs(yVal - yBase));
-                    const up = v >= h.baseline;
-                    const barOp =
-                      h.fillOpacityValues?.[i] != null &&
-                      Number.isFinite(h.fillOpacityValues[i]!)
-                        ? (h.fillOpacityValues[i] as number)
-                        : opacity;
-                    const hoverGroup = hoverSeries
-                      ? inferHoverMetricGroup(hoverSeries)
-                      : null;
-                    const histGroup = inferHoverMetricGroup(
-                      h.legendLabel ?? histKey,
-                    );
-                    const barFocused =
-                      hoverIdx === i &&
-                      (hoverGroup == null || hoverGroup === histGroup);
-                    return (
-                      <rect
-                        key={`${histKey}-${i}`}
-                        x={xFor(i) + cluster - barWHist / 2}
-                        y={top}
-                        width={barWHist}
-                        height={height}
-                        fill={
-                          isVolume || up ? h.colorUp : h.colorDown
-                        }
-                        fillOpacity={barFocused ? Math.min(1, barOp + 0.28) : barOp}
-                        stroke={barFocused ? (isVolume || up ? h.colorUp : h.colorDown) : "none"}
-                        strokeWidth={barFocused ? 0.4 : 0}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    );
-                  })}
-                </g>
-              );
-            })
-          : null}
-        {mode === "line"
-          ? envelopePresence.map(({ item: env, key: envKey, phase }) => {
-              const paths = envelopePaths(env);
-              if (!paths.length) return null;
-              return (
-                <g
-                  key={envKey}
-                  className={clipWipeClass(phase)}
-                  data-clip-phase={phase}
-                >
-                  {paths.map((d, pi) => (
-                    <path
-                      key={`${envKey}-p${pi}`}
-                      d={d}
-                      fill={env.fill}
-                      fillOpacity={env.fillOpacity ?? 0.22}
-                      stroke="none"
-                    />
-                  ))}
-                </g>
-              );
-            })
-          : null}
-
-        {mode === "line" ? (
-          <AlarmBandsLayer bands={uniqueAlarmBands} geom={plotGeom} />
-        ) : null}
-
-        <ReferenceLinesLayer lines={dedupedReferenceLines} geom={plotGeom} />
-
-        {scaleEdgeLabels
-          .filter((g) => g.showLine)
-          .map((guide) => {
-            const y = yFor(guide.value, guide.axis ?? "left");
-            if (!Number.isFinite(y)) return null;
-            const dragging = edgeDragId === guide.id;
-            const baseW = guide.lineStrokeWidth ?? 0.45;
-            const dash =
-              guide.lineDasharray === "solid" || guide.lineDasharray === ""
-                ? undefined
-                : (guide.lineDasharray ?? "1.5 2");
-            return (
-              <line
-                key={`scale-guide-${guide.id}`}
-                x1={padL}
-                x2={viewW - padR}
-                y1={y}
-                y2={y}
-                stroke={guide.color}
-                strokeWidth={dragging ? baseW + 0.35 : baseW}
-                strokeDasharray={dash}
-                vectorEffect="non-scaling-stroke"
-                opacity={dragging ? 0.95 : 0.7}
-                pointerEvents="none"
-              />
-            );
-          })}
-
-        {mode === "bar"
-          ? series.map((s, si) =>
-              s.data.map((v, i) => {
-                if (v == null || !Number.isFinite(v)) return null;
-                const axis = s.axis ?? "left";
-                const yTop = yFor(v, axis);
-                const baseY = PAD_TOP + innerH;
-                const gx = xForBar(i) - barSlotW / 2 + si * barW;
-                return (
-                  <rect
-                    key={`${s.name}-${i}`}
-                    x={gx}
-                    y={yTop}
-                    width={Math.max(0.4, barW * 0.92)}
-                    height={Math.max(0, baseY - yTop)}
-                    fill={s.color}
-                    opacity={hoverIdx === i ? 1 : 0.85}
-                  />
-                );
-              }),
-            )
-          : seriesPresence.map(({ item: s, key: seriesKey, phase }, si) => {
-              const axis = s.axis ?? "left";
-              const segs = lineSegments(s);
-              const hoverGroup = hoverSeries
-                ? inferHoverMetricGroup(hoverSeries)
-                : null;
-              const focused =
-                hoverGroup == null ||
-                inferHoverMetricGroup(s.name) === hoverGroup;
-              const lineOpacity = focused ? 1 : 0.22;
-              const strokeW = focused && hoverSeries ? 1.85 : 1.55;
-              return (
-                <g
-                  key={seriesKey}
-                  className={clipWipeClass(phase)}
-                  data-clip-phase={phase}
-                  style={{
-                    opacity: lineOpacity,
-                    transition: "opacity 120ms linear",
-                  }}
-                >
-                  {segs.map((pts, idx) => (
-                    <g key={idx}>
-                      {!s.strokeDasharray ? (
-                        <polyline
-                          points={pts}
-                          fill="none"
-                          stroke={s.color}
-                          strokeWidth={strokeW + 2.2}
-                          strokeLinejoin="round"
-                          strokeLinecap="round"
-                          vectorEffect="non-scaling-stroke"
-                          filter={`url(#${glowFilterId})`}
-                          className={motionClass.farmChartLineGlow}
-                          opacity={focused ? 0.35 : 0.08}
-                        />
-                      ) : null}
-                      <polyline
-                        points={pts}
-                        fill="none"
-                        stroke={s.color}
-                        strokeWidth={strokeW}
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                        strokeDasharray={s.strokeDasharray}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    </g>
-                  ))}
-                  {showMarkers
-                    ? s.data.map((v, i) => {
-                        if (v == null || !Number.isFinite(v)) return null;
-                        if (!shouldShowMarker(i)) return null;
-                        const cx = xFor(i);
-                        const cy = yFor(v, axis);
-                        const rPx = markerRadiusPx;
-                        const markerDelayMs =
-                          120 +
-                          si * motionStaggerStepMs +
-                          Math.min(i, 8) * 16;
-                        const markerStyle =
-                          phase === "enter"
-                            ? ({
-                                ["--farm-chart-marker-delay" as string]:
-                                  `${markerDelayMs}ms`,
-                              } as CSSProperties)
-                            : undefined;
-                        const markerClass =
-                          phase === "enter"
-                            ? motionClass.farmChartMarkerPop
-                            : undefined;
-                        if (s.band) {
-                          const sev = sevOfScore(severityScore(v, s.band));
-                          if (sev !== "normal") {
-                            return (
-                              <ellipse
-                                key={`${s.name}-sev-${i}`}
-                                cx={cx}
-                                cy={cy}
-                                rx={markerRx(rPx)}
-                                ry={markerRy(rPx)}
-                                fill={SEV_COLOR[sev]}
-                                className={markerClass}
-                                style={markerStyle}
-                              />
-                            );
-                          }
-                        }
-                        return (
-                          <ellipse
-                            key={`${s.name}-dot-${i}`}
-                            cx={cx}
-                            cy={cy}
-                            rx={markerRx(rPx)}
-                            ry={markerRy(rPx)}
-                            fill={s.color}
-                            className={markerClass}
-                            style={markerStyle}
-                          />
-                        );
-                      })
-                    : null}
-                </g>
-              );
-            })}
-
-        {/* 호버 강조 — 링 펄스 + 코어 */}
-        {mode === "line" && hoverIdx != null && hoverIdx >= 0 && hoverIdx < n
-          ? series.map((s) => {
-              const v = s.data[hoverIdx];
-              if (v == null || !Number.isFinite(v)) return null;
-              const axis = s.axis ?? "left";
-              const isFocus =
-                hoverSeries == null ||
-                inferHoverMetricGroup(hoverSeries) ===
-                  inferHoverMetricGroup(s.name);
-              if (!isFocus) return null;
-              const cx = xFor(hoverIdx);
-              const cy = yFor(v, axis);
-              return (
-                <g key={`hover-${s.name}`}>
-                  <ellipse
-                    cx={cx}
-                    cy={cy}
-                    rx={markerRx(markerRadiusPx + 5)}
-                    ry={markerRy(markerRadiusPx + 5)}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth={1.1}
-                    vectorEffect="non-scaling-stroke"
-                    className={motionClass.farmChartHoverRing}
-                  />
-                  <ellipse
-                    cx={cx}
-                    cy={cy}
-                    rx={markerRx(markerRadiusPx + 1.8)}
-                    ry={markerRy(markerRadiusPx + 1.8)}
-                    fill={s.color}
-                    opacity={0.98}
-                  />
-                  <ellipse
-                    cx={cx}
-                    cy={cy}
-                    rx={markerRx(markerRadiusPx * 0.45)}
-                    ry={markerRy(markerRadiusPx * 0.45)}
-                    fill="#fff"
-                    opacity={0.9}
-                  />
-                </g>
-              );
-            })
-          : null}
-        {/* 고정 핀 강조 */}
-        {mode === "line"
-          ? pinnedTips.map((pin) => {
-              if (pin.idx < 0 || pin.idx >= n) return null;
-              const group = inferHoverMetricGroup(pin.seriesKey);
-              return series.map((s) => {
-                if (inferHoverMetricGroup(s.name) !== group) return null;
-                const v = s.data[pin.idx];
-                if (v == null || !Number.isFinite(v)) return null;
-                const axis = s.axis ?? "left";
-                const cx = xFor(pin.idx);
-                const cy = yFor(v, axis);
-                return (
-                  <g key={`pin-${pin.id}-${s.name}`}>
-                    <ellipse
-                      cx={cx}
-                      cy={cy}
-                      rx={markerRx(markerRadiusPx + 6)}
-                      ry={markerRy(markerRadiusPx + 6)}
-                      fill="none"
-                      stroke={s.color}
-                      strokeWidth={1.35}
-                      vectorEffect="non-scaling-stroke"
-                      opacity={0.95}
-                    />
-                    <ellipse
-                      cx={cx}
-                      cy={cy}
-                      rx={markerRx(markerRadiusPx + 2)}
-                      ry={markerRy(markerRadiusPx + 2)}
-                      fill={s.color}
-                      opacity={1}
-                    />
-                  </g>
-                );
-              });
-            })
-          : null}
+        <TrendChartDataLayers
+          mode={mode}
+          n={n}
+          padL={padL}
+          padR={padR}
+          viewW={viewW}
+          innerH={innerH}
+          innerW={innerW}
+          barW={barW}
+          barSlotW={barSlotW}
+          hoverIdx={hoverIdx}
+          hoverSeries={hoverSeries}
+          edgeDragId={edgeDragId}
+          glowFilterId={glowFilterId}
+          showMarkers={showMarkers}
+          markerRadiusPx={markerRadiusPx}
+          series={series}
+          histPresence={histPresence}
+          envelopePresence={envelopePresence}
+          seriesPresence={seriesPresence}
+          scaleEdgeLabels={scaleEdgeLabels}
+          uniqueAlarmBands={uniqueAlarmBands}
+          dedupedReferenceLines={dedupedReferenceLines}
+          pinnedTips={pinnedTips}
+          plotGeom={plotGeom}
+          yFor={yFor}
+          xFor={xFor}
+          xForBar={xForBar}
+          markerRx={markerRx}
+          markerRy={markerRy}
+          shouldShowMarker={shouldShowMarker}
+          lineSegments={lineSegments}
+          envelopePaths={envelopePaths}
+        />
         </g>
 
         {/* 마우스 기준 회색 십자선 — DOM 직접 갱신(리렌더 최소화) */}
