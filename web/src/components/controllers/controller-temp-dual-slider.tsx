@@ -218,7 +218,7 @@ export function ControllerTempDualSlider({
         ) : null}
         <div className={sliderTrackRailBgClass()} aria-hidden />
         <div
-          className="pointer-events-none absolute top-0 h-full rounded-full bg-orange-500/35"
+          className="pointer-events-none absolute top-0 h-full rounded-full bg-channel-temp/35"
           aria-hidden
           style={{
             left: `${lowPct}%`,
@@ -269,7 +269,7 @@ export function ControllerTempDualSlider({
       {framed ? (
         <div className={cn("flex items-center gap-2", compact ? "mb-2" : "mb-3")}>
           <Thermometer
-            className={cn("size-4 text-orange-600")}
+            className={cn("size-4 text-channel-temp")}
             aria-hidden
           />
           <p

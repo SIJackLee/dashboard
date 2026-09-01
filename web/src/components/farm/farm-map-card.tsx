@@ -12,6 +12,7 @@ import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
 import {
   controllerEnvCoverLabel,
   controllerEnvCoverRingClass,
+  controllerEnvMetricTextClass,
   type ControllerEnvCoverLevel,
 } from "@/lib/farm/controller-env-cover";
 import {
@@ -173,16 +174,21 @@ export function FarmMapCard({
             <span
               className={cn(
                 dashboardUi.gridCellValueCompact,
-                dashboardUi.channelTextTemp,
+                controllerEnvMetricTextClass(
+                  envLevel,
+                  dashboardUi.channelTextTemp,
+                ),
               )}
             >
               {tempLabel != null && tempLabel !== "" ? tempLabel : "—"}
             </span>
             <span
               className={cn(
-                "text-[0.65rem] font-medium",
-                dashboardUi.channelTextTemp,
-                "opacity-70",
+                "text-[0.65rem] font-medium opacity-70",
+                controllerEnvMetricTextClass(
+                  envLevel,
+                  dashboardUi.channelTextTemp,
+                ),
               )}
             >
               ℃
@@ -196,12 +202,17 @@ export function FarmMapCard({
             <span
               className={cn(
                 dashboardUi.gridCellValueCompact,
-                "text-channel-info",
+                controllerEnvMetricTextClass(envLevel, "text-channel-info"),
               )}
             >
               {humLabel != null && humLabel !== "" ? humLabel : "—"}
             </span>
-            <span className="text-[0.65rem] font-medium text-channel-info/70">
+            <span
+              className={cn(
+                "text-[0.65rem] font-medium opacity-70",
+                controllerEnvMetricTextClass(envLevel, "text-channel-info"),
+              )}
+            >
               %
             </span>
           </span>

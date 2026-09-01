@@ -57,12 +57,12 @@ export function GaugeAnatomy({ compact = false }: GuideProps) {
           aria-label="게이지 예시 — 알람 하한~상한, 설정온도±편차, 현재값 마커"
         >
           <div
-            className="pointer-events-none absolute inset-y-0 z-[1] rounded-sm bg-violet-500/40 ring-1 ring-inset ring-violet-600/45"
+            className="pointer-events-none absolute inset-y-0 z-[1] rounded-sm bg-[color-mix(in_oklch,var(--channel-temp)_34%,white)] ring-1 ring-inset ring-[color-mix(in_oklch,var(--channel-temp)_58%,transparent)] dark:bg-[color-mix(in_oklch,var(--channel-temp)_42%,white)]"
             style={{ left: "25%", width: "50%" }}
             aria-hidden
           />
           <div
-            className="absolute inset-y-0 left-0 z-[0] rounded-md bg-orange-500"
+            className="absolute inset-y-0 left-0 z-[0] rounded-md bg-channel-temp"
             style={{ width: "42%" }}
             aria-hidden
           />

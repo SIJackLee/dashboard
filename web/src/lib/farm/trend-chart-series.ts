@@ -21,6 +21,9 @@ export function tempTrendLeftDomain(
   return [thresholds.tempLow, thresholds.tempHigh];
 }
 
+/** 알람 상·하한 점선 — 채널 시리즈와 분리, status-warn만 */
+const ALARM_REF_COLOR = "var(--status-warn)";
+
 export function tempTrendReferenceLines(
   thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS
 ): TrendReferenceLine[] {
@@ -28,13 +31,13 @@ export function tempTrendReferenceLines(
     {
       value: thresholds.tempLow,
       axis: "left",
-      color: "#d97706",
+      color: ALARM_REF_COLOR,
       label: `${thresholds.tempLow}℃`,
     },
     {
       value: thresholds.tempHigh,
       axis: "left",
-      color: "#d97706",
+      color: ALARM_REF_COLOR,
       label: `${thresholds.tempHigh}℃`,
     },
   ];
@@ -48,13 +51,13 @@ export function humidityTrendReferenceLines(
     {
       value: thresholds.humidityLow,
       axis,
-      color: "#d97706",
+      color: ALARM_REF_COLOR,
       label: `${thresholds.humidityLow}%`,
     },
     {
       value: thresholds.humidityHigh,
       axis,
-      color: "#d97706",
+      color: ALARM_REF_COLOR,
       label: `${thresholds.humidityHigh}%`,
     },
   ];
@@ -70,12 +73,25 @@ export function envTrendReferenceLines(
   ];
 }
 
+/** 화면 차트 SVG — CSS 채널 토큰 (status와 분리). */
 export const TREND_CHART_COLORS = {
-  temp: "#ef4444",
-  humidity: "#0ea5e9",
-  fanSupply: "#10b981",
-  fanExhaust: "#8b5cf6",
-  fanIntake: "#f59e0b",
+  temp: "var(--channel-temp)",
+  humidity: "var(--channel-hum)",
+  fanSupply: "var(--channel-fan-supply)",
+  fanExhaust: "var(--channel-fan-exhaust)",
+  fanIntake: "var(--channel-fan-intake)",
+} as const;
+
+/**
+ * PDF·캔버스 등 CSS 미해석용 — 라이트 `--channel-*` 근사 hex.
+ * status-warn `#f59e0b` / status-danger `#e11d2a` 와 동일 hex 금지.
+ */
+export const TREND_CHART_COLORS_PRINT = {
+  temp: "#953c47",
+  humidity: "#007daa",
+  fanSupply: "#0a9068",
+  fanExhaust: "#7b57c8",
+  fanIntake: "#6b7939",
 } as const;
 
 /** 히트맵/스몰멀티플 지표 id(T/H/A/B/C) → 목록 그래프와 동일한 선 색. */
@@ -106,13 +122,13 @@ export function fanTrendReferenceLines(
     {
       value: band.lo,
       axis,
-      color: "#d97706",
+      color: ALARM_REF_COLOR,
       label: `${band.lo}%`,
     },
     {
       value: band.hi,
       axis,
-      color: "#d97706",
+      color: ALARM_REF_COLOR,
       label: `${band.hi}%`,
     },
   ];

@@ -36,6 +36,10 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 
 숫자·차트 잉크는 면이 아니다. 채널/status 토큰으로 **글자·선·셀**만 칠한다.
 
+- **정상(ok) 타일**: 수치에 채널색 허용 (`text-channel-temp|hum|…`).
+- **주의·위험·끊김 타일**: 수치는 `controllerEnvMetricTextClass` → status-ink / muted. 채널 구분은 ℃·% 등 단위 라벨로.
+- **차트 시리즈**: `TREND_CHART_COLORS` = `var(--channel-*)`. 알람 점선만 `var(--status-warn)`. 모터는 `TREND_CHART_COLORS_PRINT` hex(status와 동일 hex 금지).
+
 ## 컴포넌트 맵
 
 | 묶음 | 경로 | 기본 종류 |

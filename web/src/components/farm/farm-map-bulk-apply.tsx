@@ -577,7 +577,7 @@ export function FarmMapBulkApply({
         applyOnly={collapsible}
         icon={
           <Thermometer
-            className={cn(dashboardUi.iconSm, "text-orange-600")}
+            className={cn(dashboardUi.iconSm, "text-channel-temp")}
             aria-hidden
           />
         }
@@ -693,7 +693,7 @@ export function FarmMapBulkApply({
           low={alarm.tempLow}
           high={alarm.tempHigh}
           unit="℃"
-          accentClass="bg-orange-500/35"
+          accentClass="bg-channel-temp/35"
           axisMode="editable"
           axisInputSize="dashboard"
           bare

@@ -11,6 +11,7 @@ import {
   controllerEnvCoverLevel,
   controllerEnvCoverReason,
   controllerEnvCoverRingClass,
+  controllerEnvMetricTextClass,
   worstControllerEnvCoverLevel,
 } from "./controller-env-cover";
 
@@ -145,6 +146,22 @@ import {
   assert.match(controllerEnvCoverRingClass("danger"), /--status-danger/);
   assert.match(controllerEnvCoverRingClass("ok"), /--status-ok/);
   assert.equal(dashboardChroma.statusFilmGlassRim, "status-film-glass-rim");
+  assert.equal(
+    controllerEnvMetricTextClass("ok", "text-channel-temp"),
+    "text-channel-temp",
+  );
+  assert.equal(
+    controllerEnvMetricTextClass("warn", "text-channel-temp"),
+    "text-[var(--status-warn-ink)]",
+  );
+  assert.equal(
+    controllerEnvMetricTextClass("danger", "text-channel-temp"),
+    "text-[var(--status-danger-ink)]",
+  );
+  assert.equal(
+    controllerEnvMetricTextClass("offline", "text-channel-temp"),
+    "text-muted-foreground",
+  );
 }
 
 {

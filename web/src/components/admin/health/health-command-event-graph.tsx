@@ -21,13 +21,13 @@ function minAgo(iso: string, nowMs: number): number {
 function barColor(status: CommandTimelineItem["timelineStatus"]): string {
   switch (status) {
     case "ok":
-      return "#10b981";
+      return "var(--status-ok)";
     case "warn":
-      return "#f59e0b";
+      return "var(--status-warn)";
     case "critical":
-      return "#ef4444";
+      return "var(--status-danger)";
     default:
-      return "#94a3b8";
+      return "var(--muted-foreground)";
   }
 }
 
@@ -285,7 +285,7 @@ export function HealthCommandEventGraph({
                   {ev.status === "failed" ? (
                     <path
                       d={`M ${endX - 4} ${y - 4} L ${endX + 4} ${y + 4} M ${endX + 4} ${y - 4} L ${endX - 4} ${y + 4}`}
-                      stroke="#ef4444"
+                      stroke="var(--status-danger)"
                       strokeWidth={2}
                     />
                   ) : null}

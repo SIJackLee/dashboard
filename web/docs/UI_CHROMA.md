@@ -39,6 +39,8 @@
 
 모델 평면의 컨트롤러 구간은 `--plan-cover-0` … `5` (인접만 다르게). `channel-temp|hum|motor` 를 구간 식별에 쓰지 않는다. 생성에서 칸 안쪽 틴트는 필드 카드·히트맵과 같다. `--status-ok|warn|danger`는 **채도 계단**(정상 `#6f9e8a` 낮음 / 주의 `#f59e0b` 유지 / 위험 `#e11d2a` 높음). 덮개 글자는 `--status-*-ink` (같은 색상각·더 진함). 브랜드 `--primary`와는 분리.
 
+채널 hue는 status와 겹치지 않게 둔다: temp ≈ 15(와인) · motor/fan-intake ≈ 120(올리브) · hum 230 · exhaust 295 · supply 165. 채도는 채널 중 · 주의/위험 고. 차트는 `var(--channel-*)`만. 온도 설정±편차 밴드는 primary가 아니라 `color-mix(…, var(--channel-temp), white)`로 **같은 색상각·명도만** 올린다.
+
 ## 변경 시
 
 문서 + `dashboardChroma` / 관련 `dashboardUi` 프리셋을 함께 갱신.

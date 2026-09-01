@@ -251,7 +251,7 @@ export function MetricLineChart({
   values,
   band,
   height = 112,
-  color = "#0ea5e9",
+  color = "var(--channel-hum)",
 }: {
   values: (number | null)[];
   band: Band | null;
@@ -468,7 +468,7 @@ export function SeverityHeatmap({
                   <MetricLineChart
                     values={selMetric.values}
                     band={selMetric.band}
-                    color={METRIC_ID_COLORS[selMetric.id] ?? "#0ea5e9"}
+                    color={METRIC_ID_COLORS[selMetric.id] ?? "var(--channel-hum)"}
                   />
                 ) : null}
               </div>

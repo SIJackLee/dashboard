@@ -37,7 +37,7 @@ export function GridMetricLabel({
   if (id === "T") {
     return (
       <Thermometer
-        className={cn(iconClassName, "text-orange-500", className)}
+        className={cn(iconClassName, "text-channel-temp", className)}
         aria-hidden
       />
     );

@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
-import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
+import { TREND_CHART_COLORS_PRINT } from "@/lib/farm/trend-chart-series";
 import { downsampleDailyReportSeriesForPrint } from "@/lib/report/daily-report-chart";
 import type { DailyReportSeries } from "@/lib/report/daily-report-payload";
 import {
@@ -299,17 +299,17 @@ export function periodRow(
   const motorSeries = [
     {
       values: print.motorA,
-      color: TREND_CHART_COLORS.fanIntake,
+      color: TREND_CHART_COLORS_PRINT.fanIntake,
       label: CHANNEL_SLOT_LABELS.A,
     },
     {
       values: print.motorB,
-      color: TREND_CHART_COLORS.fanExhaust,
+      color: TREND_CHART_COLORS_PRINT.fanExhaust,
       label: CHANNEL_SLOT_LABELS.B,
     },
     {
       values: print.motorC,
-      color: TREND_CHART_COLORS.fanSupply,
+      color: TREND_CHART_COLORS_PRINT.fanSupply,
       label: CHANNEL_SLOT_LABELS.C,
     },
   ].filter((s) => s.values.some((v) => v != null && !Number.isNaN(v)));
@@ -321,7 +321,7 @@ export function periodRow(
     {
       title: "온도",
       series: [
-        { values: print.temp, color: TREND_CHART_COLORS.temp, label: "온도" },
+        { values: print.temp, color: TREND_CHART_COLORS_PRINT.temp, label: "온도" },
       ],
     },
     {
@@ -329,7 +329,7 @@ export function periodRow(
       series: [
         {
           values: print.humidity,
-          color: TREND_CHART_COLORS.humidity,
+          color: TREND_CHART_COLORS_PRINT.humidity,
           label: "습도",
         },
       ],
@@ -355,7 +355,7 @@ export function periodRow(
         : [
             {
               values: print.motorA,
-              color: TREND_CHART_COLORS.fanIntake,
+              color: TREND_CHART_COLORS_PRINT.fanIntake,
               label: CHANNEL_SLOT_LABELS.A,
             },
           ];
@@ -409,7 +409,7 @@ export function periodStack(
         1,
       ),
       list: [
-        { values: print.temp, color: TREND_CHART_COLORS.temp, label: "온도" },
+        { values: print.temp, color: TREND_CHART_COLORS_PRINT.temp, label: "온도" },
       ],
       guide: guides.temp,
     },
@@ -424,7 +424,7 @@ export function periodStack(
       list: [
         {
           values: print.humidity,
-          color: TREND_CHART_COLORS.humidity,
+          color: TREND_CHART_COLORS_PRINT.humidity,
           label: "습도",
         },
       ],
@@ -445,7 +445,7 @@ export function periodStack(
           : [
               {
                 values: print.motorA,
-                color: TREND_CHART_COLORS.fanIntake,
+                color: TREND_CHART_COLORS_PRINT.fanIntake,
                 label: CHANNEL_SLOT_LABELS.A,
               },
             ],

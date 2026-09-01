@@ -145,6 +145,21 @@ export function controllerEnvCoverInkClass(
   return "text-muted-foreground";
 }
 
+/**
+ * 타일 수치 잉크 — 주의·위험·끊김이면 채널색 대신 판정/중성.
+ * 채널 구분은 ℃·% 라벨로 유지 (상태 면과 채널 빨강·주황 혼동 방지).
+ */
+export function controllerEnvMetricTextClass(
+  level: ControllerEnvCoverLevel | null | undefined,
+  channelClass: string,
+): string {
+  if (level === "warn" || level === "danger") {
+    return controllerEnvCoverInkClass(level);
+  }
+  if (level === "offline") return "text-muted-foreground";
+  return channelClass;
+}
+
 /** 헤더 점 — 덮개와 같은 판정색. */
 export function controllerEnvCoverFillClass(
   level: ControllerEnvCoverLevel,

@@ -147,7 +147,7 @@ const layoutTempOnly = resolveSplitYLayout({
     thresholdRaw: 35,
     thresholdPlot: 35,
     side: "high",
-    fill: "#ef4444",
+    fill: "var(--channel-temp)",
   });
   assert.ok(env?.polys?.length);
   assert.ok((env!.polys?.length ?? 0) >= 2);

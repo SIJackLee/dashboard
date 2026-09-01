@@ -544,7 +544,7 @@ export function AlarmThresholdForm({
               low={draft.tempLow}
               high={draft.tempHigh}
               unit="℃"
-              accentClass="bg-orange-500/35"
+              accentClass="bg-channel-temp/35"
               disabled={fieldsDisabled}
               compact
               bare
@@ -618,7 +618,7 @@ export function AlarmThresholdForm({
               low={draft.tempLow}
               high={draft.tempHigh}
               unit="℃"
-              accentClass="bg-orange-500/35"
+              accentClass="bg-channel-temp/35"
               disabled={fieldsDisabled}
               onChange={(tempLow, tempHigh) =>
                 updateDraft({ ...draft, tempLow, tempHigh })

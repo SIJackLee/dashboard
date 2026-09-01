@@ -12,7 +12,7 @@ const kindMap: Record<
     label: "온도",
     unit: "℃",
     icon: Thermometer,
-    className: "text-orange-500",
+    className: "text-channel-temp",
   },
   humidity: {
     label: "습도",

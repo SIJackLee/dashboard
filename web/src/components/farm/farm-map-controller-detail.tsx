@@ -47,20 +47,20 @@ const METRIC_TABS: { id: string; label: string }[] = [
   { id: "C", label: "C" },
 ];
 
-/** 컨트롤러 오버레이 선 색 — 대수를 구분 (지표 탭 색과 별개). */
+/** 컨트롤러 오버레이 선 색 — 대수 구분 (채널·status 토큰과 분리, plan-cover). */
 const CONTROLLER_OVERLAY_COLORS = [
-  "#ef4444",
-  "#0ea5e9",
-  "#10b981",
-  "#f59e0b",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-  "#f97316",
-  "#6366f1",
-  "#84cc16",
-  "#06b6d4",
-  "#a855f7",
+  "var(--plan-cover-0)",
+  "var(--plan-cover-1)",
+  "var(--plan-cover-2)",
+  "var(--plan-cover-3)",
+  "var(--plan-cover-4)",
+  "var(--plan-cover-5)",
+  "color-mix(in oklch, var(--plan-cover-0) 70%, black)",
+  "color-mix(in oklch, var(--plan-cover-1) 70%, black)",
+  "color-mix(in oklch, var(--plan-cover-2) 70%, black)",
+  "color-mix(in oklch, var(--plan-cover-3) 70%, black)",
+  "color-mix(in oklch, var(--plan-cover-4) 70%, black)",
+  "color-mix(in oklch, var(--plan-cover-5) 70%, black)",
 ] as const;
 
 function isFeatureTourActive(): boolean {

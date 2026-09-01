@@ -1,6 +1,6 @@
 import { DEFAULT_ALARM_THRESHOLDS } from "@/lib/data/alarms";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
-import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
+import { TREND_CHART_COLORS_PRINT } from "@/lib/farm/trend-chart-series";
 import {
   averageBarnsSeries,
   type DailyReportTypeBrief,
@@ -227,17 +227,17 @@ export function printMotorSeries(print: DailyReportSeries) {
   return [
     {
       values: print.motorA,
-      color: TREND_CHART_COLORS.fanIntake,
+      color: TREND_CHART_COLORS_PRINT.fanIntake,
       label: CHANNEL_SLOT_LABELS.A,
     },
     {
       values: print.motorB,
-      color: TREND_CHART_COLORS.fanExhaust,
+      color: TREND_CHART_COLORS_PRINT.fanExhaust,
       label: CHANNEL_SLOT_LABELS.B,
     },
     {
       values: print.motorC,
-      color: TREND_CHART_COLORS.fanSupply,
+      color: TREND_CHART_COLORS_PRINT.fanSupply,
       label: CHANNEL_SLOT_LABELS.C,
     },
   ].filter((s) => s.values.some((v) => v != null && !Number.isNaN(v)));

@@ -1831,7 +1831,7 @@ export function UnifiedBarnTrendPanel({
         "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
         farmChartUi.fsBody,
         controlMode
-          ? "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+          ? "border-primary/50 bg-primary/10 text-primary"
           : "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
       )}
       aria-pressed={controlMode}
@@ -1862,8 +1862,8 @@ export function UnifiedBarnTrendPanel({
           className={cn(
             "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
             farmChartUi.fsBody,
-            "border-violet-500/50 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-            "hover:bg-violet-500/15 disabled:opacity-40",
+            "border-primary/50 bg-primary/10 text-primary",
+            "hover:bg-primary/15 disabled:opacity-40",
           )}
           aria-label="설정값 적용"
           title="적용 (명령 전송)"

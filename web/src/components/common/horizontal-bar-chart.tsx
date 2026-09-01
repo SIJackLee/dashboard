@@ -21,7 +21,7 @@ export function HorizontalBarChart({
   items,
   unit = "",
   maxValue,
-  barClassName = "bg-orange-500",
+  barClassName = "bg-channel-temp",
   emptyLabel = "표시할 데이터가 없습니다",
 }: HorizontalBarChartProps) {
   const withValue = items.filter((i) => i.value !== null);

@@ -26,14 +26,18 @@ type GaugeMetricProps = {
 };
 
 const TEXT_ACCENT = {
-  온도: "text-orange-600 dark:text-orange-400",
+  온도: "text-channel-temp",
   습도: "text-channel-hum",
 } as const;
 
 const FILL_ACCENT = {
-  온도: "bg-orange-500",
+  온도: "bg-channel-temp",
   습도: "bg-channel-hum",
 } as const;
+
+/** 설정온도±편차 밴드 — 온도 채널과 같은 색상각, 명도만 올림(primary 금지) */
+const TEMP_SETPOINT_BAND =
+  "bg-[color-mix(in_oklch,var(--channel-temp)_34%,white)] ring-1 ring-inset ring-[color-mix(in_oklch,var(--channel-temp)_58%,transparent)] dark:bg-[color-mix(in_oklch,var(--channel-temp)_42%,white)]";
 
 /** 임계 값 pill — 숫자만 (워터마크 아이콘 없음) */
 function ValuePillBadge({
@@ -317,7 +321,10 @@ export function CardMetricGauge({
         >
           {band ? (
             <div
-              className="pointer-events-none absolute inset-y-0 z-[1] rounded-sm bg-violet-500/40 ring-1 ring-inset ring-violet-600/45"
+              className={cn(
+                "pointer-events-none absolute inset-y-0 z-[1] rounded-sm",
+                TEMP_SETPOINT_BAND,
+              )}
               style={{ left: `${band.left}%`, width: `${band.width}%` }}
               aria-hidden
             />

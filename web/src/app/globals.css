@@ -192,13 +192,13 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --sidebar-accent-foreground: oklch(0.28 0.04 155);
   --sidebar-border: oklch(0.84 0.018 155);
   --sidebar-ring: oklch(0.55 0.14 145);
-  /* Channel semantics ? temp / humidity / motor / info (bundle polish) */
-  --channel-temp: oklch(0.55 0.18 25);
+  /* Channel — wine temp + olive motor (status와 색상각·채도 분리). 습도 파랑 유지 */
+  --channel-temp: oklch(0.48 0.12 15);
   --channel-hum: oklch(0.55 0.12 230);
-  --channel-motor: oklch(0.70 0.14 75);
+  --channel-motor: oklch(0.55 0.09 120);
   --channel-info: oklch(0.55 0.12 230);
-  /* Fan overlay series (A/B/C) ? distinct hues, chart SVG via var() */
-  --channel-fan-intake: oklch(0.70 0.14 75);
+  /* Fan A/B/C — chart SVG via var(--channel-fan-*) */
+  --channel-fan-intake: oklch(0.55 0.09 120);
   --channel-fan-exhaust: oklch(0.55 0.17 295);
   --channel-fan-supply: oklch(0.58 0.12 165);
   /* 모델 평면 구간. 채널·알람·브랜드와 겹치지 않는 식별색 */
@@ -378,11 +378,11 @@ html[data-density="compact"] {
   --sidebar-accent-foreground: oklch(0.95 0.04 150);
   --sidebar-border: oklch(0.275 0.018 155);
   --sidebar-ring: oklch(0.723 0.191 145);
-  --channel-temp: oklch(0.70 0.16 25);
+  --channel-temp: oklch(0.68 0.11 15);
   --channel-hum: oklch(0.72 0.12 230);
-  --channel-motor: oklch(0.78 0.14 75);
+  --channel-motor: oklch(0.72 0.08 120);
   --channel-info: oklch(0.72 0.12 230);
-  --channel-fan-intake: oklch(0.78 0.14 75);
+  --channel-fan-intake: oklch(0.72 0.08 120);
   --channel-fan-exhaust: oklch(0.72 0.14 295);
   --channel-fan-supply: oklch(0.72 0.12 165);
   /* 모델 평면 구간. 채널·알람·브랜드와 겹치지 않는 식별색 */

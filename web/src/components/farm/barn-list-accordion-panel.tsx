@@ -316,7 +316,7 @@ export function BarnListAccordionPanel({
       <div>
         <div className="mb-2 flex items-start gap-2">
           <Thermometer
-            className="mt-0.5 size-4 shrink-0 text-orange-600"
+            className="mt-0.5 size-4 shrink-0 text-channel-temp"
             aria-hidden
           />
           <div className="min-w-0 flex-1">
