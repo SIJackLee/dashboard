@@ -30,9 +30,14 @@ export function controllerEnvCoverLevel(
   alarmSettings?: AlarmSettings,
 ): ControllerEnvCoverLevel {
   if (reading.status === "offline") return "offline";
-  return (
-    barnPlanRoomEnvTint(reading, { mode: "alarm", alarmSettings }) ?? "ok"
-  );
+  const tint =
+    barnPlanRoomEnvTint(reading, { mode: "alarm", alarmSettings }) ?? "ok";
+  /**
+   * 측정 정체(수신은 최신·측정시각 정체 → LIVE `caution`)면
+   * 알람 구간 안이어도 덮개를 「주의」로 강등. 이미 위험이면 유지.
+   */
+  if (reading.status === "caution" && tint === "ok") return "warn";
+  return tint;
 }
 
 /** 축사 현황 — 속한 컨트롤러 중 가장 나쁜 알람 판정. 끊김만 있으면 연결 끊김. */

@@ -44,6 +44,29 @@ import {
 }
 
 {
+  // 알람 구간 안이어도 측정 정체(caution)면 덮개 「주의」
+  assert.equal(
+    controllerEnvCoverLevel({
+      status: "caution",
+      tempC: 25.3,
+      humidityPct: 55,
+      stallTyCode: "SP07",
+    }),
+    "warn",
+  );
+  // 이미 알람 위험이면 caution으로 완화하지 않음
+  assert.equal(
+    controllerEnvCoverLevel({
+      status: "caution",
+      tempC: 36.5,
+      humidityPct: 93,
+      stallTyCode: "SP02",
+    }),
+    "danger",
+  );
+}
+
+{
   const level = controllerEnvCoverLevel({
     status: "normal",
     tempC: 34,
