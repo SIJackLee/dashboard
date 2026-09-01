@@ -246,9 +246,9 @@ export function pigEnvFocusReadings<
 
 export type PigEnvAdviceCopy = {
   offBand: boolean;
-  /** 조언 단계: 통신두절 > 장비경보 > 권장표 이탈 > 적정 > 대상 없음 */
+  /** 조언 단계: 통신두절 > 측정정체 > 장비경보 > 권장표 이탈 > 적정 > 대상 없음 */
   tier: PigEnvAdviceTier;
-  /** 접힌 뱃지 숫자 — 통신두절 대수 · 경보 대수 · 이탈 축사유형 수. 적정은 0. */
+  /** 접힌 뱃지 숫자 — 통신두절·측정정체·경보 대수 · 이탈 축사유형 수. 적정은 0. */
   noticeCount: number;
   stallLabel: string | null;
   summary: string;
@@ -286,6 +286,7 @@ function withAdviceItems(
 
 export type PigEnvAdviceTier =
   | "offline"
+  | "stale"
   | "alarm"
   | "offband"
   | "ok"
@@ -469,7 +470,7 @@ function pigEnvSafetyHitSentence(
 }
 
 /**
- * 뱃지 조언 — 우선순위: 통신두절 > 장비경보(안전망 임계) > 권장표 이탈 > 적정.
+ * 뱃지 조언 — 우선순위: 통신두절 > 측정정체 > 장비경보(안전망 임계) > 권장표 이탈 > 적정.
  * 화면 맥락(stallTyCode)이 있으면 그 유형만 본다.
  */
 export function pigEnvBadgeAdvice(
@@ -495,6 +496,27 @@ export function pigEnvBadgeAdvice(
         summary: `통신이 두절된 컨트롤러가 ${offlineCount}대 있습니다.`,
       },
       ["통신·전원을 확인하세요"],
+    );
+  }
+
+  /**
+   * 수신은 되나 측정 시각이 현재 기준 최신이 아님(LIVE caution).
+   * 정체된 수치로 권장·경보를 오판하지 않도록 장비경보·권장표보다 먼저 알린다.
+   */
+  const staleCount = focus.filter((r) => r.status === "caution").length;
+  if (staleCount > 0) {
+    return withAdviceItems(
+      {
+        offBand: true,
+        tier: "stale",
+        noticeCount: staleCount,
+        stallLabel: scopeLabel,
+        summary:
+          staleCount === 1
+            ? "측정 시각이 정체되어 최신 현장 값으로 보기 어렵습니다."
+            : `측정 시각이 정체된 컨트롤러가 ${staleCount}대 있습니다.`,
+      },
+      ["표시 값은 현재 시각 기준 최신이 아닙니다. 장비 시계·전송을 확인하세요"],
     );
   }
 

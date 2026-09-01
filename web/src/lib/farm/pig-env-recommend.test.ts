@@ -192,6 +192,36 @@ import {
 }
 
 {
+  // 측정 정체(caution) — 수신은 되나 최신 측정이 아님. 경보·권장표보다 우선
+  const stale = pigEnvBadgeAdvice(
+    [
+      {
+        stallTyCode: "SP07",
+        tempC: 25.3,
+        humidityPct: 55,
+        status: "caution",
+      },
+    ],
+    "SP07",
+  );
+  assert.equal(stale.tier, "stale");
+  assert.equal(stale.offBand, true);
+  assert.equal(stale.noticeCount, 1);
+  assert.match(stale.summary, /측정 시각이 정체/);
+  assert.match(stale.items[0] ?? "", /최신이 아닙니다/);
+  assert.doesNotMatch(stale.summary, /SP07/);
+  assert.doesNotMatch(stale.items[0] ?? "", /mesure/);
+
+  // 정체 + 고온이어도 정체 경고가 먼저 (정체 수치로 경보 오판 방지)
+  const staleOverAlarm = pigEnvBadgeAdvice(
+    [{ stallTyCode: "SP02", tempC: 36, humidityPct: 55, status: "caution" }],
+    "SP02",
+  );
+  assert.equal(staleOverAlarm.tier, "stale");
+  assert.match(staleOverAlarm.summary, /측정 시각이 정체/);
+}
+
+{
   // 장비 경보(안전망)가 권장표 이탈보다 우선
   const alarm = pigEnvBadgeAdvice(
     [{ stallTyCode: "SP02", tempC: 36, humidityPct: 55, status: "normal" }],

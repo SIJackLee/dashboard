@@ -34,7 +34,7 @@ type Props = {
   stallTyCode?: string | null;
 };
 
-/** 현장·차트·모델 우측 하단 — 권장표·경보·통신두절 말풍선. 적용·음성 없음. */
+/** 현장·차트·모델 우측 하단 — 권장표·경보·측정정체·통신두절 말풍선. 적용·음성 없음. */
 export function DelinEnvBadge({
   readings,
   stallTyCode = null,
