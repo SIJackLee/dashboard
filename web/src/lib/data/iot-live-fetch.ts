@@ -39,7 +39,8 @@ import {
   mapDecodedChannels,
 } from "@/lib/data/iot-channel";
 import type { RawLiveControllerRow } from "@/lib/data/iot-raw-live";
-import type { BarnReading, ControllerStatus } from "@/lib/data/iot";
+import type { BarnReading } from "@/lib/data/iot";
+import { statusFromAge } from "@/lib/data/live-status";
 import { sortReadings } from "@/lib/data/reading-hierarchy";
 
 export type LiveReadingsScope = {
@@ -67,13 +68,6 @@ function isListThermoColumnError(message: string): boolean {
 
 const DETAIL_COLS =
   "raw_id, lsind_regist_no, item_code, module_uid, controller_key, wire_ver, packet_mode, run_mode, temp_c, humidity_pct, mesure_dt, decoded_json, received_at";
-
-function statusFromAge(receivedAt: string): ControllerStatus {
-  const ageMin = (Date.now() - new Date(receivedAt).getTime()) / 60000;
-  if (ageMin <= 15) return "normal";
-  if (ageMin <= 60) return "caution";
-  return "offline";
-}
 
 function pickStallField(v: unknown): string | null {
   if (v == null) return null;
@@ -200,7 +194,7 @@ function listRowToReading(row: ListDbRow): BarnReading | null {
     fanIntakeSeries: [],
     mesureDt: row.mesure_dt,
     receivedAt: row.received_at,
-    status: statusFromAge(row.received_at),
+    status: statusFromAge(row.received_at, row.mesure_dt),
     packetMode: "live",
     wireVer: row.wire_ver,
     decodedId: row.raw_id,
@@ -255,7 +249,7 @@ function expandRawLiveRowToReading(row: RawLiveControllerRow): BarnReading {
     lsindRegistNo: row.lsind_regist_no,
     itemCode: row.item_code,
   };
-  const status = statusFromAge(row.received_at);
+  const status = statusFromAge(row.received_at, row.mesure_dt);
   const c = {
     controllerKey: row.controller_key,
     eqpmnNo: row.controller_key.split(":")[2] ?? "01",
