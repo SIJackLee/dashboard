@@ -167,4 +167,4 @@ SELECT
 
 ## 추이 차트 표시 (2026-08-28)
 
-희소 스킵은 decoded 행을 만들지 않는다. 차트 탭은 `farm_trend_uplink_coverage_json`(수신 시각)으로 희소 칸의 **직전 값 유지**와 수신 없음의 **선 단절**만 적용한다. 색면·구간 라벨·범례는 그리지 않는다. LIVE 카드·목록 게이지는 변경하지 않는다. RPC는 migration `20260828020000` — **iot-cloud 적용됨**(2026-08-28).
+희소 스킵은 decoded 행을 만들지 않는다. 차트 탭은 `farm_trend_uplink_coverage_json`(측정 시각 버킷, `clock_kst` 보정)으로 희소 칸의 **직전 값 유지**와 raw 없음의 **선 단절**만 적용한다. 색면·구간 라벨·범례는 그리지 않는다. LIVE 카드 신선도는 `received_at`+`mesure_dt`(`live-status.ts`). RPC는 migration `20260901003000` — **iot-cloud 적용됨**(2026-09-01).
