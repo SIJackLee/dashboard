@@ -3,7 +3,7 @@
 명령 **적용(전송) 완료**를 성공으로 안내합니다. 값은 적용 직후 명령값으로 표시하며, LIVE/ACK 일치는 백그라운드 신뢰 모델입니다.
 
 관련: [UI_MOTION.md](./UI_MOTION.md) · [UI_CHROMA.md](./UI_CHROMA.md) · [UI_ELEVATION.md](./UI_ELEVATION.md)  
-코드: `src/lib/ui/ops-feedback.ts` · `command-pipeline-overlay.tsx` · `inline-status-toast.tsx`
+코드: `src/lib/ui/ops-feedback.ts` · `command-pipeline-overlay.tsx` · `command-confirm-overlay.tsx` · `inline-status-toast.tsx`
 
 ## 톤 (`opsFeedbackTone`)
 
@@ -31,6 +31,7 @@
 | UI | 레이어 |
 |----|--------|
 | `CommandPipelineOverlay` | FEEDBACK_Z.overlay |
+| `CommandConfirmOverlay` | overlay — 전송 전 승인(자동 닫힘 없음) |
 | `BulkLiveProgressBanner` | liveBanner |
 | `InlineStatusToast` | toast |
 

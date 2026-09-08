@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Eye, Loader2, Thermometer } from "lucide-react";
 import {
   AlarmThresholdForm,
@@ -12,7 +12,14 @@ import { useControllerDetail } from "@/components/controllers/use-controller-det
 import { useControllerPanel } from "@/components/controllers/use-controller-panel";
 import { useCommandPipelineTracker } from "@/components/controllers/use-command-pipeline-tracker";
 import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
+import { CommandConfirmOverlay } from "@/components/farm/command-confirm-overlay";
 import { useSettingsApplyOverlay } from "@/components/farm/use-settings-apply-overlay";
+import {
+  buildCommandConfirmModel,
+  formatCommandConfirmTarget,
+  type CommandConfirmModel,
+  type CommandThermoValues,
+} from "@/lib/farm/command-confirm";
 import { SettingsCollapsibleSection } from "@/components/farm/settings-collapsible-section";
 import { BusyButtonLabel } from "@/components/common/busy-button-label";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
@@ -71,6 +78,20 @@ function formatControlCollapsedSummary(values: {
   return `${values.setpoint}±${values.deviation}℃ · 환기 ${values.minVent}–${values.maxVent}%`;
 }
 
+function sliderFieldsToThermo(values: {
+  setpoint: number;
+  deviation: number;
+  minVent: number;
+  maxVent: number;
+}): CommandThermoValues {
+  return {
+    setpointTemp: values.setpoint,
+    tempDeviation: values.deviation,
+    minVentPct: values.minVent,
+    maxVentPct: values.maxVent,
+  };
+}
+
 export function BarnListAccordionPanel({
   reading,
   readings,
@@ -86,6 +107,10 @@ export function BarnListAccordionPanel({
     null,
   );
   const [activeChannel, setActiveChannel] = useState<ChannelSlot>("A");
+  const [confirmModel, setConfirmModel] = useState<CommandConfirmModel | null>(
+    null,
+  );
+  const confirmSentRef = useRef(false);
 
   const { reading: detail, showLoading, refresh: refreshDetail } =
     useControllerDetail(reading);
@@ -221,9 +246,49 @@ export function BarnListAccordionPanel({
     Boolean(thresholdHeader && (!thresholdHeader.scopeReady || thresholdHeader.pending));
 
   const handleSaveAll = () => {
+    if (isSaving) return;
+    if (canSaveControl) {
+      const current = panel.currentValues
+        ? sliderFieldsToThermo(panel.currentValues)
+        : liveThermo
+          ? {
+              setpointTemp: liveThermo.setpointTemp,
+              tempDeviation: liveThermo.tempDeviation,
+              minVentPct: liveThermo.minVentPct,
+              maxVentPct: liveThermo.maxVentPct,
+            }
+          : null;
+      const model = buildCommandConfirmModel({
+        target: formatCommandConfirmTarget({
+          stallTyCode: reading.stallTyCode,
+          stallNo: reading.stallNo,
+          eqpmnNo: reading.eqpmnNo,
+          channel: hasChannels ? activeChannel : null,
+          onlineCount: 1,
+        }),
+        current,
+        command: sliderFieldsToThermo(panel.sliderValues),
+      });
+      confirmSentRef.current = false;
+      setConfirmModel(model);
+      return;
+    }
     if (canSaveAlarm) thresholdHeader!.onSave();
-    if (canSaveControl) panel.save();
   };
+
+  const dismissConfirm = useCallback(() => {
+    if (panel.pending) return;
+    setConfirmModel(null);
+  }, [panel.pending]);
+
+  const commitConfirmedApply = useCallback(() => {
+    if (confirmSentRef.current || panel.pending) return;
+    confirmSentRef.current = true;
+    const saveAlarm = canSaveAlarm;
+    setConfirmModel(null);
+    if (saveAlarm) thresholdHeader?.onSave();
+    panel.save();
+  }, [canSaveAlarm, panel, thresholdHeader]);
 
   const handleApplyDefaults = () => {
     panel.applyDefaults();
@@ -466,10 +531,19 @@ export function BarnListAccordionPanel({
   );
 
   const overlayNode = (
-    <CommandPipelineOverlay
-      {...overlay}
-      onDismiss={handleOverlayDismiss}
-    />
+    <>
+      <CommandConfirmOverlay
+        model={confirmModel}
+        busy={panel.pending}
+        onCancel={dismissConfirm}
+        onConfirm={commitConfirmedApply}
+      />
+      <CommandPipelineOverlay
+        {...overlay}
+        visible={overlay.visible && confirmModel == null}
+        onDismiss={handleOverlayDismiss}
+      />
+    </>
   );
 
   if (collapsibleSections) {
