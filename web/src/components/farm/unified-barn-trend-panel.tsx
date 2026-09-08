@@ -22,6 +22,7 @@ import {
   nextLayerGroupMode,
 } from "@/components/farm/unified-trend-layer-toolbar";
 import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
+import { CommandConfirmOverlay } from "@/components/farm/command-confirm-overlay";
 import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
 import { sendBulkThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
@@ -93,6 +94,13 @@ import {
   buildBulkThermoCommands,
   BULK_CHANNEL_OPTIONS,
 } from "@/components/farm/farm-map-bulk-apply-parts";
+import {
+  buildCommandConfirmModel,
+  formatCommandConfirmTarget,
+  mergeCurrentThermo,
+  type CommandConfirmModel,
+  type CommandThermoValues,
+} from "@/lib/farm/command-confirm";
 import {
   clampMenuValue,
   EDIT_START_DRAFT,
@@ -349,6 +357,9 @@ export function UnifiedBarnTrendPanel({
   const [thermoDraft, setThermoDraft] = useState<ChartThermoDraft | null>(null);
   const [thermoApplying, setThermoApplying] = useState(false);
   const [thermoApplyError, setThermoApplyError] = useState<string | null>(null);
+  const [thermoConfirm, setThermoConfirm] = useState<CommandConfirmModel | null>(
+    null,
+  );
   const thermoDraftRef = useRef<ChartThermoDraft | null>(null);
   const [scopeMotionKey, setScopeMotionKey] = useState(0);
   const [scopeMotionDir, setScopeMotionDir] = useState<"in" | "out">("in");
@@ -1399,6 +1410,7 @@ export function UnifiedBarnTrendPanel({
     setThermoDraft(null);
     thermoDraftRef.current = null;
     setThermoApplyError(null);
+    setThermoConfirm(null);
   };
 
   /** 스포트라이트 투어 — 설정모드 진입/종료 */
@@ -1443,6 +1455,76 @@ export function UnifiedBarnTrendPanel({
     enterControlMode();
   };
 
+  const requestThermoConfirm = useCallback(() => {
+    if (!canCommand) {
+      setThermoApplyError("명령 권한이 없습니다.");
+      return;
+    }
+    if (thermoApplying) return;
+    const draftValues = thermoDraftRef.current ?? thermoDraft;
+    if (!draftValues) {
+      setThermoApplyError("적용할 설정값이 없습니다.");
+      return;
+    }
+    if (onlineScopedReadings.length === 0) {
+      setThermoApplyError("적용할 온라인 컨트롤러가 없습니다.");
+      return;
+    }
+    const draft = {
+      applyTemp: true,
+      applyVent: true,
+      setpoint: draftValues.setpointTemp,
+      deviation: draftValues.tempDeviation,
+      minVent: draftValues.minVentPct,
+      maxVent: draftValues.maxVentPct,
+      selectedChannels: [...BULK_CHANNEL_OPTIONS],
+    };
+    const commands = buildBulkThermoCommands(
+      onlineScopedReadings,
+      thermoSettings,
+      draft,
+    );
+    if (commands.length === 0) {
+      setThermoApplyError("적용할 제어 대상이 없습니다.");
+      return;
+    }
+    const current = mergeCurrentThermo(
+      onlineScopedReadings.map((r) => {
+        const hit = resolveReadingThermo(r, thermoSettings);
+        if (!hit) return null;
+        const values: CommandThermoValues = {
+          setpointTemp: hit.setpointTemp,
+          tempDeviation: hit.tempDeviation,
+          minVentPct: hit.minVentPct,
+          maxVentPct: hit.maxVentPct,
+        };
+        return values;
+      }),
+    );
+    const head = onlineScopedReadings[0];
+    setThermoApplyError(null);
+    setThermoConfirm(
+      buildCommandConfirmModel({
+        target: formatCommandConfirmTarget({
+          stallTyCode: head?.stallTyCode,
+          stallNo: head?.stallNo,
+          eqpmnNo: head?.eqpmnNo,
+          onlineCount: onlineScopedReadings.length,
+          stallTyCodes: onlineScopedReadings.map((r) => r.stallTyCode),
+          chartScoped: true,
+        }),
+        current,
+        command: draftValues,
+      }),
+    );
+  }, [
+    canCommand,
+    thermoApplying,
+    thermoDraft,
+    onlineScopedReadings,
+    thermoSettings,
+  ]);
+
   const applyThermoDraft = useCallback(() => {
     if (!canCommand) {
       setThermoApplyError("명령 권한이 없습니다.");
@@ -1476,6 +1558,7 @@ export function UnifiedBarnTrendPanel({
       setThermoApplyError("적용할 제어 대상이 없습니다.");
       return;
     }
+    setThermoConfirm(null);
     setThermoApplying(true);
     setThermoApplyError(null);
     void (async () => {
@@ -1871,7 +1954,7 @@ export function UnifiedBarnTrendPanel({
           disabled={thermoApplying || onlineScopedReadings.length === 0}
           onClick={() => {
             if (thermoApplying || onlineScopedReadings.length === 0) return;
-            applyThermoDraft();
+            requestThermoConfirm();
           }}
         >
           <Check
@@ -2179,6 +2262,14 @@ export function UnifiedBarnTrendPanel({
         </p>
       ) : null}
 
+      <CommandConfirmOverlay
+        model={thermoConfirm}
+        busy={thermoApplying}
+        onCancel={() => {
+          if (!thermoApplying) setThermoConfirm(null);
+        }}
+        onConfirm={applyThermoDraft}
+      />
       <BulkLiveProgressBanner
         progress={liveTracker.progress}
         visible={liveTracker.bannerVisible}

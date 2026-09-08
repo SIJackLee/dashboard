@@ -1,6 +1,8 @@
 /** Shared Playwright helpers for farm/ops UI audits. */
 
 export const ACK_PATTERNS = [
+  /적용 완료/,
+  /명령을 보냈/,
   /명령을 등록했습니다/,
   /명령 등록/,
   /통신모듈/,
@@ -12,33 +14,37 @@ export const ACK_PATTERNS = [
   /LIVE 설정값/,
   /LIVE 설정온도/,
   /전송 대기/,
-  /pending|sent|applied/i,
 ];
 
 export async function login(page, { base, email, password }) {
   await page.context().clearCookies();
   await page.goto(`${base}/login`, { waitUntil: "load" });
+  await page.locator("#email").waitFor({ state: "visible", timeout: 30000 });
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), {
-    timeout: 30000,
+    timeout: 45000,
   });
 }
 
 export async function waitAck(page, timeoutMs = 35000) {
+  const overlay = page.locator('[data-feedback-layer="overlay"]');
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    const overlayText = (await overlay.innerText().catch(() => "")) || "";
     const body = await page.locator("body").innerText();
-    if (ACK_PATTERNS.some((re) => re.test(body))) {
+    const blob = `${overlayText}\n${body}`;
+    if (ACK_PATTERNS.some((re) => re.test(blob))) {
       return (
-        body
+        blob
           .split("\n")
-          .find((line) => ACK_PATTERNS.some((re) => re.test(line)))
+          .map((line) => line.trim())
+          .find((line) => line && ACK_PATTERNS.some((re) => re.test(line)))
           ?.trim() ?? "ACK"
       );
     }
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
   }
   throw new Error("ACK 배너/토스트 문구를 찾지 못했습니다.");
 }
@@ -50,29 +56,40 @@ export async function waitBarnListReady(page, { timeoutMs = 45000 } = {}) {
   return summary;
 }
 
-/** 목록 — 컨트롤러 카드 설정 패널 열기 */
-export async function openListControllerSettings(page) {
-  await waitBarnListReady(page, { timeoutMs: 45000 });
-  await page.waitForSelector('[data-tour-id="controller-gauge-metrics"]', {
-    timeout: 45000,
-  });
-
-  const panel = page.locator('[data-audit-region="barn-list-accordion-panel"]').first();
-  const settingsPill = page
-    .locator(
-      '[data-audit-region="barn-list-summary"] [data-tour-id="panel-pills"] button'
-    )
-    .filter({ hasText: /^설정$/ })
-    .first();
-  if (await settingsPill.isVisible().catch(() => false)) {
-    await settingsPill.click();
+/** 온보딩 투어가 설정 탭·적용 클릭을 가로채지 않게 닫는다. */
+export async function dismissFarmChrome(page) {
+  const close = page.getByRole("button", { name: /투어 닫기|건너뛰기/ }).first();
+  if (await close.isVisible().catch(() => false)) {
+    await close.click();
   }
-  await panel.waitFor({ state: "visible", timeout: 45000 });
 }
 
-/** @deprecated use openListControllerSettings */
+/**
+ * 필드 허브 설정 모드 — 카드 아이콘 필이 아니라 상단 「설정」 탭.
+ * (현장 병합 후 view=list 아코디언 대기는 더 이상 기본 경로가 아님)
+ */
+export async function openFieldControllerSettings(page) {
+  await dismissFarmChrome(page);
+  const settingsTab = page.getByRole("tab", { name: "설정" });
+  await settingsTab.waitFor({ state: "visible", timeout: 45000 });
+  if ((await settingsTab.getAttribute("aria-selected")) !== "true") {
+    await settingsTab.click();
+  }
+  const panel = page
+    .locator('[data-audit-region="barn-list-accordion-panel"]')
+    .first();
+  await panel.waitFor({ state: "visible", timeout: 45000 });
+  return panel;
+}
+
+/** @deprecated 필드 설정 탭으로 연결 — 이름만 유지 */
+export async function openListControllerSettings(page) {
+  return openFieldControllerSettings(page);
+}
+
+/** @deprecated use openFieldControllerSettings */
 export async function waitListSettingsPanel(page) {
-  return openListControllerSettings(page);
+  return openFieldControllerSettings(page);
 }
 
 /** 접힌 제어 섹션을 펼쳐 설정온도 입력이 클릭 가능하게 한다. */
@@ -156,7 +173,13 @@ export async function applyFromSettingsPanel(page, scope = page) {
     }
   }
 
-  await applyBtn.click({ timeout: 15000 });
+  await applyBtn.click({ timeout: 15000, force: true });
+  const sendBtn = page.getByRole("alertdialog").getByRole("button", {
+    name: "보내기",
+    exact: true,
+  });
+  await sendBtn.waitFor({ state: "visible", timeout: 8000 });
+  await sendBtn.click();
   const ack = await waitAck(page);
   return { ack, setpoint: next };
 }
