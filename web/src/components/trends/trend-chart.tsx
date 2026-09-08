@@ -1368,7 +1368,10 @@ export function TrendChart({
   return (
     <div
       ref={chartRootRef}
-      className={showLegend || legendTrailing ? "space-y-1.5" : "space-y-1"}
+      className={cn(
+        "select-none",
+        showLegend || legendTrailing ? "space-y-1.5" : "space-y-1",
+      )}
       data-trend-chart-root=""
     >
       {showLegend || legendTrailing ? (
@@ -1584,7 +1587,7 @@ export function TrendChart({
       <div
         ref={plotRef}
         className={cn(
-          "relative touch-none",
+          "relative touch-none select-none",
           edgeDragId
             ? "cursor-ns-resize"
             : xScopeSelect
@@ -1606,7 +1609,7 @@ export function TrendChart({
       <svg
         viewBox={`0 0 ${viewW} ${chartH}`}
         preserveAspectRatio="none"
-        className="w-full"
+        className="w-full select-none"
         style={{ height: chartH }}
         shapeRendering="geometricPrecision"
         role="img"
@@ -1972,7 +1975,7 @@ export function TrendChart({
                   inputMode="decimal"
                   aria-label={`${label.title} 숫자 입력`}
                   className={cn(
-                    "rounded-sm border border-current/40 bg-background text-center tabular-nums outline-none",
+                    "rounded-sm border border-current/40 bg-background text-center tabular-nums outline-none select-text",
                     labelGutter
                       ? "h-7 w-14 px-1 text-xs font-semibold"
                       : "h-4 w-10 px-0.5 farm-chart-fs-axis",

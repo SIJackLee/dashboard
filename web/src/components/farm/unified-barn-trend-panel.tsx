@@ -1995,7 +1995,7 @@ export function UnifiedBarnTrendPanel({
 
   return (
     <div
-      className={cn("mt-2 space-y-2", farmChartUi.root, className)}
+      className={cn("mt-2 space-y-2 select-none", farmChartUi.root, className)}
       style={
         {
           ["--farm-chart-ui-scale"]: String(FARM_CHART_UI_SCALE),

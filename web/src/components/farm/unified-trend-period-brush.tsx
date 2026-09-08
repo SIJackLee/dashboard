@@ -231,7 +231,7 @@ export function UnifiedTrendPeriodBrush({
 
   return (
     <div
-      className={cn(className)}
+      className={cn("select-none", className)}
       data-tour-id="unified-trend-period-brush"
       data-farm-chart-period-nav=""
     >
