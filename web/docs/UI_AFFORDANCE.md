@@ -13,9 +13,9 @@ PC(`md+`)와 모바일(컴팩트)은 **같은 계약**, 히트만 밀도 토큰�
 | 코드 | 이름 | 대기 시각 | 커서 | 대표 |
 |------|------|-----------|------|------|
 | 1 | 명령 | `primary` 채움 | pointer | 적용, 확인 |
-| 2 | 도구 | 테두리 + `--surface-well` 우물 | pointer | 헤더, 취소, 기간, 카드 헤더 아이콘 |
-| 3 | 선택군 | 트랙 + 필. 비활성도 탭 패딩 | pointer | 뷰 탭, 목록 모드 |
-| 4 | 칩 토글 | 꺼져도 테두리 + 우물 면 | pointer | 차트 레이어, 농장 격자 칸 |
+| 2 | 도구 | 테두리 + `--control` tinted | pointer | 헤더, 취소, 기간, 카드 헤더 아이콘 |
+| 3 | 선택군 | 트랙 + 필 `--control-active` | pointer | 뷰 탭, 목록 모드 |
+| 4 | 칩 토글 | 꺼져도 테두리 + `--control` | pointer | 차트 레이어, 농장 격자 칸 |
 | 5 | 히트 면 | 타일/덮개 + 코너 셰브론 | pointer | 환경 덮개, 현황 타일 |
 | 6 | 잉크 | 테두리·호버 배경 없음 | default | 제목, 수치, EnvChip |
 
@@ -23,8 +23,8 @@ PC(`md+`)와 모바일(컴팩트)은 **같은 계약**, 히트만 밀도 토큰�
 
 ## Do / Don't
 
-**Do** — 표시 칩은 `metricPocket`(우물). 실사용 컨트롤은 고스트(빈 면) 금지. 대기는 `--surface-well`. CTA는 `--primary`.  
-**Don't** — 탭 solid primary, 수치 underline, 덮개 Dialog blur, `bg-emerald-600` 명령, 신규 글로우.
+**Do** — 표시 칩은 `metricPocket`(우물). 실사용 컨트롤은 고스트(빈 면) 금지. 대기는 `--control`. CTA는 `--primary`. 세그먼트 트랙만 `--surface-well`.  
+**Don't** — 탭 solid primary, 대기 면을 `--secondary`/`--card`/`--surface-well`로만 칠하기, 수치 underline, 덮개 Dialog blur, `bg-emerald-600` 명령, 신규 글로우.
 
 ## 적용 현황 (A–G)
 
@@ -38,5 +38,6 @@ PC(`md+`)와 모바일(컴팩트)은 **같은 계약**, 히트만 밀도 토큰�
 | F | 적용/확인 primary | 적용 |
 | G | `verify:ui-affordance` · Visual QA 13–18 | 적용 |
 | 1-A | 허브 알람·뱃지·계정·농장전환 hue 유틸 제거 | 적용 2026-09-09 |
+| control | 대기 도구 `--control` tinted (12%/22%) | 적용 2026-09-09 |
 
 가드: `npm run verify:ui-affordance` (`verify:design`에 포함).

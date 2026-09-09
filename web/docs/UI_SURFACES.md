@@ -22,13 +22,13 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | Motion | L1 `--motion-*` · L2 `motionClass` | `UI_MOTION.md` |
 | Chroma | 크롬 낮음 · 데이터·알람 높음 | `dashboardChroma` |
 | Affordance | 명령·도구·선택군·칩·히트면·잉크 | `dashboardAffordance` |
-| Fill | 우물=`--muted` · 회색 컨트롤=`--secondary` | 같은 oklch 금지. secondary는 muted 90%+foreground |
+| Fill | 우물=`--muted` 믹스 · 회색 컨트롤=`--secondary` · 대기 버튼=`--control`(primary 12%+secondary) · 켜짐=`--control-active`(22%) | `--secondary`는 muted 복제 금지. `--control`은 `.dark`에서 oklch 재지정 금지(믹스 상속) |
 
 ## 면 종류 (8)
 
 | 코드 | 이름 | 하는 일 | 대표 | 면 | 색 |
 |------|------|---------|------|----|----|
-| **A** | Chrome | 찾아가기 | 탑바, 뷰 탭, 하단 내비, 헤더 도구 | 바탕·border | 낮은 채도. status 솔리드 금지 |
+| **A** | Chrome | 찾아가기 | 탑바, 뷰 탭, 하단 내비, 헤더 도구 | 바탕·border | 대기 `--control` · 선택 `--control-active`. status 솔리드 금지 |
 | **B** | Document | 본문 그릇 | `SectionCard`, 설정 카드, `dashboardElevation.card` | 단 2 | `bg-card`. 안에 카드 겹쌓기 금지 |
 | **C** | Well | 격자 우물 | 필드 그리드 배경, `hubSurface.well` | 단 1 | `--surface-well` |
 | **D** | Tile | 한 컨트롤러/축사 칸 | `FarmMapCard`, `hubSurface.tile` | 단 2 | `bg-card` + 약한 ring. 열리면 테두리에 판정색 |

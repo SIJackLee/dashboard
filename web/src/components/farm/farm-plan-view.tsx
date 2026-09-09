@@ -111,6 +111,7 @@ import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-
 import {
   dashboardChroma,
   dashboardControl,
+  dashboardControlFill,
   dashboardElevation,
   dashboardTypography,
   dashboardUi,
@@ -201,7 +202,7 @@ function FarmPlanFlowBar({
                 "rounded-lg border",
                 current
                   ? dashboardChroma.chromeSelected
-                  : "border-border bg-card text-foreground",
+                  : dashboardControlFill.idle,
                 current ? "pointer-events-none" : null,
                 !canGo[row.id] && !current ? "opacity-40" : null,
               )}
@@ -1647,7 +1648,7 @@ export function FarmPlanView({
           <div
             className={cn(
               PLAN_OVERLAY_H,
-              "flex gap-0.5 rounded-lg border bg-card/95 p-0.5",
+              "flex gap-0.5 rounded-lg border border-control-border bg-[color:var(--surface-well)] p-0.5",
             )}
           >
             {(
@@ -1694,7 +1695,7 @@ export function FarmPlanView({
             <div
               className={cn(
                 PLAN_OVERLAY_H,
-                "flex gap-0.5 rounded-lg border bg-card/95 p-0.5",
+                "flex gap-0.5 rounded-lg border border-control-border bg-[color:var(--surface-well)] p-0.5",
               )}
               role="group"
               aria-label="칸 색 기준"
@@ -1733,7 +1734,8 @@ export function FarmPlanView({
             className={cn(
               dashboardControl.button,
               motionClass.microInteractive,
-              "rounded-lg border bg-card/95",
+              "rounded-lg border",
+              dashboardControlFill.idle,
             )}
             onClick={reset}
           >

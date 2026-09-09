@@ -13,7 +13,7 @@
 | **Data channel** | 중~고 | `channelTint*` · 차트 시리즈 · 레이어 그룹 뱃지 |
 | **Alarm / status** | 고 | `topHeaderActionBtnAlert` · `opsStatus` · `--status-danger`(=`--destructive`) · status ring |
 
-1. 크롬 선택에 `text-primary` + `bg-primary/10` 이상 쓰지 않는다 → `dashboardChroma` / 완화된 `headerActionBtnActive` 등.
+1. 크롬 선택에 `text-primary` + `bg-primary/10` 이상 쓰지 않는다 → `--control` / `--control-active` (`dashboardControlFill`, `dashboardChroma`).
 2. 알람·이탈·채널 시리즈의 고채도를 크롬에 복제하지 않는다.
 3. 빈 상태·스켈레톤은 muted(secondaryLabel) + density 토큰 (`emptyState` · `skeletonBone`). 입력 힌트만 `--tertiary-foreground`.
 
@@ -24,7 +24,7 @@
 | `dashboardChroma.chromeActiveText` | 활성 탭/내비 라벨 |
 | `dashboardChroma.chromeIdleText` | 정적 크롬 라벨 (hover 잉크 변경 없음). 탭은 `dashboardAffordance.choiceIdle` |
 | `dashboardChroma.chromeSelected` | 선택 면(칩·행) |
-| `dashboardChroma.viewTabPill` | 뷰 탭 슬라이딩 필 (카드 면 + ring, 라이트·다크 공통) |
+| `dashboardChroma.viewTabPill` | 뷰 탭 슬라이딩 필 (`--control-active`) |
 | `dashboardChroma.emptyState` | 데이터 없음 문구 |
 | `dashboardChroma.skeletonBone` | 로딩 본 |
 | `dashboardChroma.statusFilmGlassRim` | 덮개(E) 유리 테 — 위 밝은 줄·아래 어두운 줄 |

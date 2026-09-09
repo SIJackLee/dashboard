@@ -35,7 +35,7 @@ export default async function AppInstallPage({
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-muted/40 p-4 dark:bg-background">
       <div className="absolute right-4 top-4">
-        <ThemeToggle className="bg-background/80 backdrop-blur" />
+        <ThemeToggle />
       </div>
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">

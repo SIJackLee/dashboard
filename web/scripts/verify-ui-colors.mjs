@@ -215,6 +215,27 @@ if (/--destructive:\s*oklch\(/.test(darkBlock)) {
   process.exit(1);
 }
 
+const CONTROL_IDLE =
+  "--control: color-mix(in oklch, var(--primary) 12%, var(--secondary))";
+const CONTROL_ACTIVE =
+  "--control-active: color-mix(in oklch, var(--primary) 22%, var(--secondary))";
+if (!globalsCss.includes(CONTROL_IDLE) || !globalsCss.includes(CONTROL_ACTIVE)) {
+  console.error("verify-ui-colors: FAILED control fill\n");
+  console.error(`  globals.css missing ${CONTROL_IDLE} or ${CONTROL_ACTIVE}`);
+  console.error("    → idle tools use tinted --control, not well/card (docs/UI_AFFORDANCE.md)");
+  process.exit(1);
+}
+if (!globalsCss.includes("--color-control: var(--control)")) {
+  console.error("verify-ui-colors: FAILED control fill\n");
+  console.error("  theme missing --color-control: var(--control)");
+  process.exit(1);
+}
+if (/--control(?:-active|-foreground|-border)?:\s*oklch\(/.test(darkBlock)) {
+  console.error("verify-ui-colors: FAILED control fill\n");
+  console.error("  .dark overrides --control* with oklch; inherit the :root primary+secondary mix");
+  process.exit(1);
+}
+
 console.log(
-  `verify-ui-colors: ok (${files.length} files; sky/rose/violet/orange + legacy hex + dark tokens + status oklch + label 3/4 + secondary≠muted + destructive=status-danger)`,
+  `verify-ui-colors: ok (${files.length} files; sky/rose/violet/orange + legacy hex + dark tokens + status oklch + label 3/4 + secondary≠muted + destructive=status-danger + control tinted)`,
 );

@@ -145,7 +145,7 @@ import {
   humanizeGuidedScopeRect,
   type GuidedScopeRect,
 } from "@/lib/ui/delin-guided-scope-jitter";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardControlFill, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
   chartUiPx,
   farmChartUi,
@@ -1914,8 +1914,8 @@ export function UnifiedBarnTrendPanel({
         "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
         farmChartUi.fsBody,
         controlMode
-          ? "border-primary/50 bg-primary/10 text-primary"
-          : "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
+          ? dashboardControlFill.active
+          : dashboardControlFill.idle,
       )}
       aria-pressed={controlMode}
       aria-label={controlMode ? "설정모드 종료" : "설정모드"}
@@ -2040,7 +2040,7 @@ export function UnifiedBarnTrendPanel({
                     className={cn(
                       "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
                       farmChartUi.fsBody,
-                      "border-border/80 bg-card text-muted-foreground hover:bg-muted/50",
+                      dashboardControlFill.idle,
                       motionClass.microHover,
                     )}
                     data-tour-id="farm-chart-scope-handle"

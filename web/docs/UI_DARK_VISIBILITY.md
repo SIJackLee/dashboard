@@ -28,7 +28,9 @@
 | `--background` | L 0.958 | L 0.145 | 바탕 OK |
 | `--card` | L 0.995 | L 0.218 | 층은 있음, 그림자 없음 |
 | `--muted` | L 0.935 | L 0.172 | 우물·워시. 바탕과 가깝음 |
-| `--secondary` | muted 90% + fg | 같은 공식 (다크에서 카드보다 약간 밝음) | 회색 버튼/뱃지 면. muted와 분리 |
+| `--secondary` | muted 90% + fg | 같은 공식 (다크에서 카드보다 약간 밝음) | 회색 뱃지 면. muted와 분리 |
+| `--control` | primary 12% + secondary | 같은 믹스 상속 | 대기 버튼 tinted. 우물·카드와 구분 |
+| `--control-active` | primary 22% + secondary | 같은 믹스 상속 | 켜진 탭 칸·도구 |
 | `--foreground` | L 0.22 | L 0.95 | 본문 OK |
 | `--muted-foreground` | L 0.45 | L 0.64 | 보조 글자 OK (갭5에서 눈부심↓) |
 | `--tertiary-foreground` | muted 70% + bg | 같은 공식 | 플레이스홀더·힌트 (iOS tertiaryLabel) |
@@ -250,5 +252,6 @@ controllerEnvMetricTextClass(warn|danger) → status-*-ink (검정 혼합)
 | muted vs secondary | 적용. `--secondary` = muted 90%+foreground. `.dark`에서 복제 hex/oklch 없음 |
 | systemRed 단일 | 적용. `--destructive: var(--status-danger)`. 폼 invalid·삭제가 덮개 위험색과 같음 |
 | 1-A 허브 hue | 적용. 알람=`--status-danger` · 위치만=`channel-info` · 리포트=우물 |
+| control tinted | 적용. 대기 `--control` 12% · 켜짐 `--control-active` 22%. `.dark` oklch 복제 없음 |
 
-가드: `node scripts/verify-ui-colors.mjs` 가 `.dark`의 on-canvas·offline·mix·heatmap 토큰, 상태색 oklch(비-hex), Label 3·4단, `--secondary`≠`--muted`, `--destructive`=`--status-danger`를 확인한다.
+가드: `node scripts/verify-ui-colors.mjs` 가 `.dark`의 on-canvas·offline·mix·heatmap 토큰, 상태색 oklch(비-hex), Label 3·4단, `--secondary`≠`--muted`, `--destructive`=`--status-danger`, `--control` tinted 믹스를 확인한다.

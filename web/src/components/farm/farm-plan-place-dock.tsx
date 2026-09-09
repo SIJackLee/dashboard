@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import {
   dashboardChroma,
+  dashboardControlFill,
   dashboardElevation,
   dashboardTypography,
 } from "@/lib/ui/dashboard-page-ui";
@@ -75,7 +76,7 @@ export function FarmPlanPlaceDock({
             assignBtnW,
             assignTool === "barn"
               ? "bg-primary text-primary-foreground"
-              : "border bg-card text-foreground",
+              : dashboardControlFill.idle,
           )}
           onClick={() => onAssignTool?.(assignTool === "barn" ? "idle" : "barn")}
           data-testid="farm-plan-assign-barn"
@@ -89,7 +90,7 @@ export function FarmPlanPlaceDock({
             ASSIGN_BTN,
             motionClass.microInteractive,
             assignBtnW,
-            "border bg-card text-foreground",
+            dashboardControlFill.idle,
             !canClearBarn && "opacity-40",
           )}
           onClick={() => onClearBarn?.()}
@@ -106,7 +107,7 @@ export function FarmPlanPlaceDock({
             assignBtnW,
             assignTool === "ctrl"
               ? "bg-primary text-primary-foreground"
-              : "border bg-card text-foreground",
+              : dashboardControlFill.idle,
           )}
           onClick={() => onAssignTool?.(assignTool === "ctrl" ? "idle" : "ctrl")}
           data-testid="farm-plan-assign-ctrl"
@@ -120,7 +121,7 @@ export function FarmPlanPlaceDock({
             ASSIGN_BTN,
             motionClass.microInteractive,
             assignBtnW,
-            "border bg-card text-foreground",
+            dashboardControlFill.idle,
             !canClearCtrl && "opacity-40",
           )}
           onClick={() => onClearCtrl?.()}
@@ -249,7 +250,7 @@ export function FarmPlanAssignCard({
             "flex-1",
             connecting
               ? "bg-primary text-primary-foreground"
-              : "border bg-card text-foreground",
+              : dashboardControlFill.idle,
           )}
           onClick={onConnect}
           data-testid="farm-plan-connect-rooms"
@@ -261,7 +262,8 @@ export function FarmPlanAssignCard({
           className={cn(
             ASSIGN_BTN,
             motionClass.microInteractive,
-            "flex-1 border bg-card text-foreground",
+            "flex-1",
+            dashboardControlFill.idle,
           )}
           onClick={onClear}
           data-testid="farm-plan-clear-rooms"

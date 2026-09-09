@@ -25,7 +25,7 @@ import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
-import { dashboardAffordance, dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { dashboardAffordance, dashboardControlFill, dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { LineChart, Settings, ChevronUp } from "lucide-react";
@@ -47,11 +47,9 @@ const cardActionBtnClass = cn(
 );
 
 const cardActionWellClass =
-  "inline-flex overflow-hidden rounded-md border bg-muted/60 shadow-sm dark:bg-background dark:shadow-none dark:ring-1 dark:ring-border";
-const cardActionSelectedClass =
-  "bg-background text-foreground dark:bg-primary/10 dark:text-foreground";
-const cardActionIdleClass =
-  "cursor-pointer text-muted-foreground hover:bg-muted hover:text-foreground";
+  "inline-flex overflow-hidden rounded-md border border-control-border bg-[color:var(--surface-well)]";
+const cardActionSelectedClass = dashboardControlFill.active;
+const cardActionIdleClass = `cursor-pointer ${dashboardControlFill.idle}`;
 
 export { ControllerAffiliationMarks, ControllerNoMark, StallUnitNoMark };
 

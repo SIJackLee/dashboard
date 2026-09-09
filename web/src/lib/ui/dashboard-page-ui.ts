@@ -79,6 +79,13 @@ export const dashboardControl = {
     "h-[length:var(--density-control-h-sm)] min-h-[length:var(--density-control-h-sm)] px-3 text-[length:var(--density-control-text)] font-medium leading-snug md:h-[length:var(--density-control-h-sm-md)] md:min-h-[length:var(--density-control-h-sm-md)] md:px-4 md:text-[length:var(--density-control-text-md)]",
 } as const;
 
+/** iOS tinted 대기(12%) / 켜짐(22%). 우물·카드와 구분 */
+export const dashboardControlFill = {
+  idle:
+    "border-control-border bg-control text-control-foreground hover:bg-[color-mix(in_oklch,var(--control),var(--foreground)_5%)] hover:text-control-foreground",
+  active: "border-control-border bg-control-active text-control-foreground",
+} as const;
+
 /**
  * 운영(/admin/ops) 전용 컴팩트 스케일.
  * 대시보드 md 2배 타이포를 쓰지 않고, 역할별 크기를 고정한다.
@@ -183,6 +190,8 @@ export const dashboardUi = {
     "flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-lg font-medium md:size-10 md:text-xl",
   headerAccountName: "truncate text-xl font-medium leading-tight",
   headerAccountRole: "text-lg text-muted-foreground",
+  headerAccountTrigger:
+    "flex shrink-0 items-center gap-2 rounded-lg border px-1.5 py-1",
 
   topBar:
     "relative z-30 flex min-h-14 flex-nowrap items-center justify-between gap-2 border-b bg-background px-3 py-2 max-md:pt-safe md:min-h-[5.5rem] md:flex-wrap md:gap-4 md:px-6 md:py-3",
@@ -194,12 +203,12 @@ export const dashboardUi = {
   topIconBtn: "relative rounded-lg p-3 hover:bg-muted",
   /** ThemeToggle · 도구 메뉴 · 알람 — bordered 헤더 액션 버튼 */
   topHeaderActionBtn:
-    "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:size-11",
+    "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-control-border bg-control text-control-foreground transition-colors hover:bg-[color-mix(in_oklch,var(--control),var(--foreground)_5%)] hover:text-control-foreground md:size-11",
   topHeaderActionBtnAlert:
     "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))] bg-[color-mix(in_oklch,var(--status-danger)_12%,transparent)] text-[var(--status-danger-on-canvas)] hover:text-[var(--status-danger-on-canvas)]",
   /** 헤더·내비 — 활성(운영 등) 크롬 tint (H3: 낮은 채도) */
   headerActionBtnActive:
-    "border-primary/30 bg-primary/5 text-foreground hover:bg-primary/[0.07] hover:text-foreground dark:bg-primary/10 dark:text-foreground",
+    "border-control-border bg-control-active text-control-foreground hover:bg-[color-mix(in_oklch,var(--control-active),var(--foreground)_5%)] hover:text-control-foreground",
   /** 메뉴/리스트 행 선택 — 크롬 */
   menuItemActive: "bg-primary/5 dark:bg-primary/10",
   /** LIVE 등 브랜드 미니 칩 — 크롬 */
@@ -207,9 +216,9 @@ export const dashboardUi = {
     "shrink-0 rounded border border-primary/25 bg-primary/5 px-1.5 py-0.5 text-[10px] font-medium text-foreground",
   /** 차트 레이어 툴바 루트 — 크롬 (채널 뱃지는 아래 고채도 유지) */
   chartLayerActionBtn:
-    "border-primary/30 bg-primary/5 text-foreground hover:bg-primary/10 hover:text-foreground dark:bg-primary/10",
+    "border-control-border bg-control-active text-control-foreground hover:bg-[color-mix(in_oklch,var(--control-active),var(--foreground)_5%)] hover:text-control-foreground",
   chartLayerActionBtnIdle:
-    "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-muted-foreground hover:bg-accent hover:text-foreground",
+    "border-control-border bg-control text-control-foreground hover:bg-[color-mix(in_oklch,var(--control),var(--foreground)_5%)] hover:text-control-foreground",
   chartLayerGroupTemp:
     "border-channel-temp/50 bg-channel-temp/10 text-channel-temp",
   chartLayerGroupHum:
@@ -254,7 +263,7 @@ export const dashboardUi = {
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground",
   headerToolsCardIconAlert: statusFillDanger,
   headerToolsCardIconReport:
-    "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-foreground",
+    "border-control-border bg-control text-control-foreground",
   headerToolsCardBody: "min-w-0 flex-1",
   headerToolsCardTitle: "flex items-center gap-2 text-sm font-medium leading-tight",
   headerToolsCardMeta: "mt-0.5 text-xs leading-snug text-muted-foreground",
@@ -285,7 +294,7 @@ export const dashboardUi = {
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/80 bg-background text-muted-foreground",
   hubDetailLeadIconAlert: statusFillDanger,
   hubDetailLeadIconReport:
-    "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-foreground",
+    "border-control-border bg-control text-control-foreground",
   hubDetailBody: "min-w-0 flex-1 self-center",
   hubDetailBodyList: "flex min-h-0 min-w-0 flex-1 flex-col self-stretch gap-1",
   hubDetailTitle:
@@ -478,10 +487,8 @@ export const dashboardUi = {
     "inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-left font-medium transition-colors",
   scopePillText:
     "text-[length:var(--density-meta)] leading-snug md:text-[length:var(--density-meta-md)]",
-  scopePillActive:
-    "border-primary/40 bg-primary/5 text-foreground dark:bg-primary/10",
-  scopePillIdle:
-    "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+  scopePillActive: dashboardControlFill.active,
+  scopePillIdle: dashboardControlFill.idle,
   scopePillMenu:
     "max-h-80 min-w-[14rem] overflow-y-auto rounded-xl p-2 text-[length:var(--density-meta)] leading-snug md:text-[length:var(--density-meta-md)]",
   scopePillMenuItem:
@@ -530,15 +537,15 @@ export const dashboardUi = {
  */
 export const dashboardChroma = {
   /** 크롬 선택 텍스트 (탭 라벨 등) */
-  chromeActiveText: "text-foreground",
+  chromeActiveText: "text-control-foreground",
   /** 정적 크롬 라벨 — 탭 비활성은 `dashboardAffordance.choiceIdle` */
   chromeIdleText: "text-muted-foreground",
   /** 크롬 선택 면 */
   chromeSelected:
-    "border-primary/30 bg-primary/5 text-foreground dark:bg-primary/10",
-  /** 뷰 탭 슬라이딩 필 — 카드 면 + ring. 다크도 트랙(muted)과 층을 나눔 */
+    "border-control-border bg-control-active text-control-foreground",
+  /** 뷰 탭 슬라이딩 필 — tinted 컨트롤. 트랙(muted)과 층을 나눔 */
   viewTabPill:
-    "bg-card shadow-sm ring-1 ring-border/80 dark:shadow-none",
+    "bg-control-active shadow-sm ring-1 ring-control-border/80 dark:shadow-none",
   /** 빈 상태 본문 */
   emptyState:
     "px-4 py-8 text-center text-[length:var(--density-meta)] text-muted-foreground leading-snug md:text-[length:var(--density-meta-md)]",
@@ -602,21 +609,18 @@ export const dashboardHubSurface = {
 /**
  * 어포던스 — docs/UI_AFFORDANCE.md
  * 라이트/다크 · PC/모바일 동일 계약. 히트 크기만 밀도.
- * 대기 도구·칩은 시트/카드보다 한 단 들어간 `--surface-well`.
+ * 대기 도구·칩은 `--control` tinted 면. 우물은 깔개만.
  */
-const affordanceIdleWell =
-  "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-muted-foreground hover:bg-accent hover:text-foreground";
-
 export const dashboardAffordance = {
   /** 1 명령 — 적용·확인. 높이는 호출부 min-h */
   action:
     "cursor-pointer bg-primary text-primary-foreground hover:bg-primary/80 disabled:cursor-wait disabled:pointer-events-none disabled:opacity-50",
-  /** 2 도구 — 테두리 + 우물 면. 헤더 `topHeaderActionBtn`과 같은 언어 */
-  tool: `cursor-pointer rounded-lg border ${affordanceIdleWell} disabled:cursor-wait disabled:opacity-50`,
+  /** 2 도구 — 테두리 + `--control`. 헤더 `topHeaderActionBtn`과 같은 언어 */
+  tool: `cursor-pointer rounded-lg border ${dashboardControlFill.idle} disabled:cursor-wait disabled:opacity-50`,
   /** 3 선택군 — 트랙 안 비활성 탭 */
   choiceIdle: "cursor-pointer text-muted-foreground hover:text-foreground",
-  /** 4 칩 토글 꺼짐 — 테두리 + 우물 면 (투명 테두리·빈 면 금지) */
-  chipToggleIdle: `cursor-pointer border ${affordanceIdleWell}`,
+  /** 4 칩 토글 꺼짐 — 테두리 + `--control` (투명 테두리·빈 면 금지) */
+  chipToggleIdle: `cursor-pointer border ${dashboardControlFill.idle}`,
   /** 5 히트 면 */
   hitSurface: "cursor-pointer",
   hitHint: "pointer-events-none size-3.5 shrink-0 opacity-70 sm:size-4",

@@ -23,7 +23,7 @@ import { setProfileAccountMenuOpen } from "@/lib/ui/profile-pin-tools-store";
 import { signOut } from "@/app/auth/actions";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import { accountMenuLayout } from "@/lib/ui/account-menu-layout";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardControlFill, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
@@ -108,9 +108,9 @@ export function AccountMenu({
   }, []);
 
   const triggerClassName = cn(
-    "flex shrink-0 items-center gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60",
+    dashboardUi.headerAccountTrigger,
     motionClass.microInteractive,
-    mounted && open && "bg-muted/60",
+    mounted && open ? dashboardControlFill.active : dashboardControlFill.idle,
   );
 
   const triggerInner = (
