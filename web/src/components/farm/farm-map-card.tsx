@@ -23,20 +23,20 @@ import { cn } from "@/lib/utils";
 
 /** 상태별 링/글로우 — 뱃지 대신 카드 자체에 색상 임팩트. 경고는 글로우 강화, 오프라인은 디밍. */
 const STATUS_ACCENT: Record<StatusTone, string> = {
-  normal: "ring-1 ring-emerald-400/70",
+  normal: "ring-1 ring-[color-mix(in_oklch,var(--status-ok)_70%,transparent)]",
   caution:
-    "ring-2 ring-amber-400/80 shadow-[0_0_0_2px_rgba(245,158,11,0.16)]",
+    "ring-2 ring-[color-mix(in_oklch,var(--status-warn)_80%,transparent)]",
   warning:
-    "ring-2 ring-red-500/90 shadow-[0_0_16px_2px_rgba(239,68,68,0.40)]",
-  offline: "ring-1 ring-muted-foreground/30 opacity-70 saturate-50",
+    "ring-2 ring-[color-mix(in_oklch,var(--status-danger)_85%,transparent)]",
+  offline: "ring-1 ring-muted-foreground/45",
 };
 
 /** 스플릿 현황 카드 — 히트맵 없이 상태 면색으로 한눈 파악 */
 const STATUS_SURFACE: Record<StatusTone, string> = {
-  normal: "bg-emerald-500/10",
-  caution: "bg-amber-500/15",
-  warning: "bg-red-500/15",
-  offline: "bg-muted/40",
+  normal: "bg-[color-mix(in_oklch,var(--status-ok)_14%,transparent)]",
+  caution: "bg-[color-mix(in_oklch,var(--status-warn)_18%,transparent)]",
+  warning: "bg-[color-mix(in_oklch,var(--status-danger)_18%,transparent)]",
+  offline: "bg-[var(--status-offline)]",
 };
 
 const STATUS_LABEL: Record<StatusTone, string> = {
@@ -50,7 +50,7 @@ const ENV_SURFACE: Record<ControllerEnvCoverLevel, string> = {
   ok: "bg-[color-mix(in_oklch,var(--status-ok)_14%,transparent)]",
   warn: "bg-[color-mix(in_oklch,var(--status-warn)_18%,transparent)]",
   danger: "bg-[color-mix(in_oklch,var(--status-danger)_18%,transparent)]",
-  offline: "bg-muted/40",
+  offline: "bg-[var(--status-offline)]",
 };
 
 function compactEnvLevel(
@@ -184,7 +184,7 @@ export function FarmMapCard({
             </span>
             <span
               className={cn(
-                "text-[0.65rem] font-medium opacity-70",
+                "text-[0.65rem] font-medium opacity-70 dark:opacity-90",
                 controllerEnvMetricTextClass(
                   envLevel,
                   dashboardUi.channelTextTemp,
@@ -209,7 +209,7 @@ export function FarmMapCard({
             </span>
             <span
               className={cn(
-                "text-[0.65rem] font-medium opacity-70",
+                "text-[0.65rem] font-medium opacity-70 dark:opacity-90",
                 controllerEnvMetricTextClass(envLevel, "text-channel-info"),
               )}
             >
@@ -230,7 +230,7 @@ export function FarmMapCard({
         statusCompact ? STATUS_SURFACE[snapshot.status] : "bg-background",
         layout === "stack" || !compact ? "h-auto" : "h-full",
         STATUS_ACCENT[snapshot.status],
-        isDragging && "!opacity-50 !ring-2 !ring-emerald-400",
+        isDragging && "!opacity-50 !ring-2 !ring-primary",
         layout === "grid" &&
           !statusCompact &&
           dashboardElevation.interactiveHover,

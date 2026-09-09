@@ -16,7 +16,12 @@
 | 3 | 차트 | spring/과한 scale 없음 · 채널색 일관 | |
 | 4 | 컨트롤러 카드 | 온도=`channel-temp` · 설정밴드=`channel-info` · warn=`amber/status` | |
 | 5 | ARIA 탭 | idle 호흡 · think=`channel-info` · **스테이지/도크가 모니터링과 구분** | |
-| 6 | 명령 ACK | ops-feedback 톤 · reduced-motion 시 정적 | |
+| 7 | **다크** 필드 컴팩트 | 주의·위험 숫자가 카드에서 읽힘 (on-canvas, 덮개 ink 아님) | |
+| 8 | **다크** 끊김 덮개 | 우물에 안 녹음 · 글자 foreground | |
+| 9 | **다크** 격자 경계 | border/ring으로 칸이 나뉨 | |
+| 10 | **다크** 차트 EMA·밴드 | 장기 추세가 배경에 붙지 않음 · 설정밴드가 창백하지 않음 | |
+| 11 | **다크** 알림·델린 뱃지 | 솔리드+숫자 대비 유지 | |
+| 12 | **다크** 지도 타일 | 타일 img 밝기↓ · 핀은 primary/status (카카오 다크 맵타입 없음) | |
 
 ## 고급감 갭 (후속 후보)
 
@@ -24,7 +29,7 @@
 2. **타이포 리듬** — **갭2 적용** (`dashboardReadout` · 숫자/단위/라벨 분리). **맵 카드는 `--density-map-value*` 고정** (readout 재사용 회귀 금지 · `verify:ui-density`).
 3. **채도 잔향** — violet/온도 orange는 제거·가드됨. 구역별 톤이 다시 섞이면 재스캔.
 4. **DELIN 뱃지** — 필드·차트 우측 하단. 오브·스테이지는 폐기.
-5. **다크/라이트 비대칭** — **갭5 적용** (`--surface-*` · dark muted≤card · muted-foreground↓ · ARIA glow 테마 분리).
+5. **다크/라이트 비대칭** — **갭5 적용** (`--surface-*`). **P0–P6 적용** 2026-09-09: 타일 on-canvas 잉크 · 끊김 면 · border/ring · mix-lift/shade · 크롬 잔여 · 지도 타일 필터. 정본 [`UI_DARK_VISIBILITY.md`](./UI_DARK_VISIBILITY.md).
 
 6. **면 종류** — [UI_SURFACES.md](./UI_SURFACES.md). 덮개는 Status film(E). 유리 테 적용. Overlay(F) frost와 섞지 않음.
 

@@ -142,7 +142,7 @@ export function TrendChartDataLayers({
                     x2={viewW - padR}
                     y1={yBase}
                     y2={yBase}
-                    stroke="#94a3b8"
+                    stroke="var(--muted-foreground)"
                     strokeWidth={0.4}
                     strokeDasharray={isVolume ? "1 2" : "1.5 1.5"}
                     vectorEffect="non-scaling-stroke"

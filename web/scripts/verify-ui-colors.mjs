@@ -107,6 +107,25 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
+const globalsCss = readFileSync(join(root, "src/app/globals.css"), "utf8");
+const darkBlock = globalsCss.split(".dark {")[1] ?? "";
+const darkNeedles = [
+  ["--status-ok-on-canvas: var(--status-ok)", "dark on-canvas ink"],
+  ["--status-warn-on-canvas: var(--status-warn)", "dark on-canvas warn"],
+  ["--status-danger-on-canvas: var(--status-danger)", "dark on-canvas danger"],
+  ["--status-offline:", "offline fill token"],
+  ["--mix-lift:", "mix lift"],
+  ["--heatmap-sev-faint: 0.34", "dark heatmap faint opacity"],
+];
+const missingDark = darkNeedles.filter(([needle]) => !darkBlock.includes(needle));
+if (missingDark.length > 0) {
+  console.error("verify-ui-colors: FAILED dark tokens\n");
+  for (const [needle, hint] of missingDark) {
+    console.error(`  globals.css .dark missing ${needle} (${hint})`);
+  }
+  process.exit(1);
+}
+
 console.log(
-  `verify-ui-colors: ok (${files.length} files; sky/rose/violet/orange + legacy hex guards)`,
+  `verify-ui-colors: ok (${files.length} files; sky/rose/violet/orange + legacy hex + dark tokens)`,
 );

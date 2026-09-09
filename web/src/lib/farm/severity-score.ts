@@ -139,7 +139,7 @@ export function statBand(values: (number | null | undefined)[]): Band | null {
 
 /** 심각도 색 — `--status-*` (히트맵·덮개·현황 동일). */
 export const SEV_COLOR: Record<Sev, string> = {
-  neutral: "#94a3b8",
+  neutral: "var(--muted-foreground)",
   normal: "var(--status-ok)",
   caution: "var(--status-warn)",
   warning: "var(--status-danger)",
@@ -152,7 +152,9 @@ export const SEV_LABEL: Record<Sev, string> = {
   warning: "경고",
 };
 
-/** 히트맵 셀 투명도 — 미채점·정상은 옅게, 주의·경고는 진하게. */
-export function heatmapSevOpacity(sev: Sev): number {
-  return sev === "neutral" || sev === "normal" ? 0.18 : 0.9;
+/** 히트맵 셀 투명도 — 미채점·정상은 옅게, 주의·경고는 진하게. 다크는 CSS 토큰. */
+export function heatmapSevOpacity(sev: Sev): string {
+  return sev === "neutral" || sev === "normal"
+    ? "var(--heatmap-sev-faint)"
+    : "var(--heatmap-sev-strong)";
 }

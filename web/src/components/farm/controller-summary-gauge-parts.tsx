@@ -37,7 +37,7 @@ const FILL_ACCENT = {
 
 /** 설정온도±편차 밴드 — 온도 채널과 같은 색상각, 명도만 올림(primary 금지) */
 const TEMP_SETPOINT_BAND =
-  "bg-[color-mix(in_oklch,var(--channel-temp)_34%,white)] ring-1 ring-inset ring-[color-mix(in_oklch,var(--channel-temp)_58%,transparent)] dark:bg-[color-mix(in_oklch,var(--channel-temp)_42%,white)]";
+  "bg-[color-mix(in_oklch,var(--channel-temp)_34%,var(--mix-lift))] ring-1 ring-inset ring-[color-mix(in_oklch,var(--channel-temp)_58%,transparent)]";
 
 /** 임계 값 pill — 숫자만 (워터마크 아이콘 없음) */
 function ValuePillBadge({

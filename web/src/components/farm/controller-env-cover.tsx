@@ -29,7 +29,7 @@ const COVER_FILL: Record<ControllerEnvCoverLevel, string> = {
   ok: "bg-[var(--status-ok)]",
   warn: "bg-[var(--status-warn)]",
   danger: "bg-[var(--status-danger)]",
-  offline: "bg-muted",
+  offline: "bg-[var(--status-offline)]",
 };
 
 type Props = {

@@ -269,7 +269,7 @@ export function TrendPointCardBody({
     tipSeries.find((s) => s.name === seriesKey) ?? tipSeries[0];
   const sparkHist =
     tipHists.find((h) => (h.legendLabel ?? "") === seriesKey) ?? tipHists[0];
-  const sparkColor = sparkSeries?.color ?? sparkHist?.colorUp ?? "#94a3b8";
+  const sparkColor = sparkSeries?.color ?? sparkHist?.colorUp ?? "var(--muted-foreground)";
   const sparkSrc =
     sparkSeries?.hoverSecondary ??
     sparkSeries?.data ??

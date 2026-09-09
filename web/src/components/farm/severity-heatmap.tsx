@@ -234,7 +234,7 @@ function ControllerMiniHeat({
             <button
               type="button"
               onClick={onMove}
-              className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[0.6rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-400"
+              className="rounded-full border border-[color-mix(in_oklch,var(--status-ok)_60%,transparent)] px-2 py-0.5 text-[0.6rem] font-semibold text-[var(--status-ok-on-canvas)] transition-colors hover:bg-[color-mix(in_oklch,var(--status-ok)_12%,transparent)]"
             >
               이동
             </button>
@@ -453,7 +453,7 @@ export function SeverityHeatmap({
                       <button
                         type="button"
                         onClick={() => move(controllerHref)}
-                        className="rounded-full border border-emerald-500/60 px-2 py-0.5 text-[0.6rem] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 dark:text-emerald-400"
+                        className="rounded-full border border-[color-mix(in_oklch,var(--status-ok)_60%,transparent)] px-2 py-0.5 text-[0.6rem] font-semibold text-[var(--status-ok-on-canvas)] transition-colors hover:bg-[color-mix(in_oklch,var(--status-ok)_12%,transparent)]"
                       >
                         컨트롤러 이동
                       </button>

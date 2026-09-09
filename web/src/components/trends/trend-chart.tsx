@@ -1685,7 +1685,7 @@ export function TrendChart({
           x2={padL}
           y1={PAD_TOP}
           y2={PAD_TOP + innerH}
-          stroke="#94a3b8"
+          stroke="var(--muted-foreground)"
           strokeWidth={0.7}
           strokeDasharray="2.5 2"
           vectorEffect="non-scaling-stroke"
@@ -1699,7 +1699,7 @@ export function TrendChart({
           x2={viewW - padR}
           y1={PAD_TOP}
           y2={PAD_TOP}
-          stroke="#94a3b8"
+          stroke="var(--muted-foreground)"
           strokeWidth={0.7}
           strokeDasharray="2.5 2"
           vectorEffect="non-scaling-stroke"
@@ -1737,9 +1737,9 @@ export function TrendChart({
                 y={yBox}
                 width={w}
                 height={h}
-                fill="rgb(14 165 233)"
+                fill="var(--channel-hum)"
                 fillOpacity={0.12}
-                stroke="rgb(14 165 233)"
+                stroke="var(--channel-hum)"
                 strokeWidth={0.5}
                 vectorEffect="non-scaling-stroke"
               />
@@ -1749,7 +1749,7 @@ export function TrendChart({
                 y={yBox}
                 width={0.7}
                 height={h}
-                fill="rgb(56 189 248)"
+                fill="var(--channel-hum)"
                 opacity={0.95}
               />
               <rect
@@ -1758,7 +1758,7 @@ export function TrendChart({
                 y={yBox}
                 width={0.7}
                 height={h}
-                fill="rgb(56 189 248)"
+                fill="var(--channel-hum)"
                 opacity={0.95}
               />
               <ellipse
@@ -1766,7 +1766,7 @@ export function TrendChart({
                 cy={y0}
                 rx={rx}
                 ry={ry}
-                fill="rgb(14 165 233)"
+                fill="var(--channel-hum)"
                 stroke="#fff"
                 strokeWidth={0.35}
                 vectorEffect="non-scaling-stroke"
@@ -1777,7 +1777,7 @@ export function TrendChart({
                 rx={rxEnd}
                 ry={ryEnd}
                 fill="#fff"
-                stroke="rgb(14 165 233)"
+                stroke="var(--channel-hum)"
                 strokeWidth={0.55}
                 vectorEffect="non-scaling-stroke"
               />
@@ -1786,14 +1786,14 @@ export function TrendChart({
                 cy={y1}
                 rx={markerRx(2)}
                 ry={markerRy(2)}
-                fill="rgb(14 165 233)"
+                fill="var(--channel-hum)"
               />
               <line
                 x1={x0}
                 y1={y0}
                 x2={x1}
                 y2={y1}
-                stroke="rgb(14 165 233)"
+                stroke="var(--channel-hum)"
                 strokeWidth={0.35}
                 strokeDasharray="1.2 1.2"
                 vectorEffect="non-scaling-stroke"
@@ -1815,9 +1815,9 @@ export function TrendChart({
             if (width / viewW < 0.08 && g.i1 - g.i0 < 1) return null;
             const color =
               g.kind === "sparse"
-                ? "var(--status-warn-ink)"
-                : g.kind === "offline"
-                  ? "var(--status-danger-ink)"
+                ? "var(--status-warn-on-canvas)"
+                  : g.kind === "offline"
+                  ? "var(--status-danger-on-canvas)"
                   : undefined;
             return (
               <span

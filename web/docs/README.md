@@ -49,6 +49,7 @@
 | [`UI_FEEDBACK.md`](./UI_FEEDBACK.md) | ops-feedback |
 | [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) | DELIN 뱃지 presence |
 | [`UI_VISUAL_QA.md`](./UI_VISUAL_QA.md) | 시각 QA |
+| [`UI_DARK_VISIBILITY.md`](./UI_DARK_VISIBILITY.md) | 다크모드 가시성 현황·P0–P6 적용 |
 
 ### 운영자 매뉴얼
 
