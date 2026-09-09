@@ -55,12 +55,12 @@ const CONTROLLER_OVERLAY_COLORS = [
   "var(--plan-cover-3)",
   "var(--plan-cover-4)",
   "var(--plan-cover-5)",
-  "color-mix(in oklch, var(--plan-cover-0) 70%, black)",
-  "color-mix(in oklch, var(--plan-cover-1) 70%, black)",
-  "color-mix(in oklch, var(--plan-cover-2) 70%, black)",
-  "color-mix(in oklch, var(--plan-cover-3) 70%, black)",
-  "color-mix(in oklch, var(--plan-cover-4) 70%, black)",
-  "color-mix(in oklch, var(--plan-cover-5) 70%, black)",
+  "color-mix(in oklch, var(--plan-cover-0) 70%, var(--mix-shade))",
+  "color-mix(in oklch, var(--plan-cover-1) 70%, var(--mix-shade))",
+  "color-mix(in oklch, var(--plan-cover-2) 70%, var(--mix-shade))",
+  "color-mix(in oklch, var(--plan-cover-3) 70%, var(--mix-shade))",
+  "color-mix(in oklch, var(--plan-cover-4) 70%, var(--mix-shade))",
+  "color-mix(in oklch, var(--plan-cover-5) 70%, var(--mix-shade))",
 ] as const;
 
 function isFeatureTourActive(): boolean {

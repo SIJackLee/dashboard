@@ -57,7 +57,7 @@ export function GaugeAnatomy({ compact = false }: GuideProps) {
           aria-label="게이지 예시 — 알람 하한~상한, 설정온도±편차, 현재값 마커"
         >
           <div
-            className="pointer-events-none absolute inset-y-0 z-[1] rounded-sm bg-[color-mix(in_oklch,var(--channel-temp)_34%,white)] ring-1 ring-inset ring-[color-mix(in_oklch,var(--channel-temp)_58%,transparent)] dark:bg-[color-mix(in_oklch,var(--channel-temp)_42%,white)]"
+            className="pointer-events-none absolute inset-y-0 z-[1] rounded-sm bg-[color-mix(in_oklch,var(--channel-temp)_34%,var(--mix-lift))] ring-1 ring-inset ring-[color-mix(in_oklch,var(--channel-temp)_58%,transparent)]"
             style={{ left: "25%", width: "50%" }}
             aria-hidden
           />

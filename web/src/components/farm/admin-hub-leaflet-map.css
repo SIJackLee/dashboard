@@ -75,8 +75,8 @@
 }
 
 .hub-map-pin--live {
-  background: #10b981;
-  color: #fff;
+  background: var(--primary);
+  color: var(--primary-foreground);
 }
 
 .hub-map-pin--alert {
@@ -171,4 +171,10 @@
 
 .hub-map-tip-metric--hum {
   color: var(--channel-hum);
+}
+
+/* 카카오·Leaflet 타일은 다크 맵타입이 없음. 타일 img만 어둡게 — 핀 HTML은 제외. */
+.dark .hub-kakao img,
+.dark .hub-leaflet img.leaflet-tile {
+  filter: brightness(0.72) saturate(0.82);
 }

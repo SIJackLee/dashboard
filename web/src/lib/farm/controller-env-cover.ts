@@ -142,7 +142,17 @@ export function controllerEnvCoverInkClass(
   if (level === "ok") return "text-[var(--status-ok-ink)]";
   if (level === "warn") return "text-[var(--status-warn-ink)]";
   if (level === "danger") return "text-[var(--status-danger-ink)]";
-  return "text-muted-foreground";
+  return "text-[var(--status-offline-ink)]";
+}
+
+/** 타일·차트 위 판정 글자 — 덮개 ink와 분리. 다크는 상태색 본값. */
+export function controllerEnvCanvasTextClass(
+  level: ControllerEnvCoverLevel,
+): string {
+  if (level === "ok") return "text-[var(--status-ok-on-canvas)]";
+  if (level === "warn") return "text-[var(--status-warn-on-canvas)]";
+  if (level === "danger") return "text-[var(--status-danger-on-canvas)]";
+  return "text-[var(--status-offline-ink)]";
 }
 
 /**
@@ -154,9 +164,9 @@ export function controllerEnvMetricTextClass(
   channelClass: string,
 ): string {
   if (level === "warn" || level === "danger") {
-    return controllerEnvCoverInkClass(level);
+    return controllerEnvCanvasTextClass(level);
   }
-  if (level === "offline") return "text-muted-foreground";
+  if (level === "offline") return "text-[var(--status-offline-ink)]";
   return channelClass;
 }
 
@@ -183,7 +193,7 @@ export function controllerEnvCoverRingClass(
   if (level === "danger") {
     return "outline outline-2 outline-[color-mix(in_oklch,var(--status-danger)_80%,transparent)] -outline-offset-1";
   }
-  return "outline outline-2 outline-muted-foreground/40 -outline-offset-1";
+  return "outline outline-2 outline-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)] -outline-offset-1";
 }
 
 /** 차트·설정·명칭 등 실제 컨트롤. 여기가 아니면 덮개 다시 닫기. */

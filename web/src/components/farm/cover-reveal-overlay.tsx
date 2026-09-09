@@ -24,7 +24,7 @@ export const COVER_REVEAL_STATUS_VAR: Record<ControllerEnvCoverLevel, string> = 
   ok: "var(--status-ok)",
   warn: "var(--status-warn)",
   danger: "var(--status-danger)",
-  offline: "var(--muted-foreground)",
+  offline: "var(--status-offline)",
 };
 
 const GLYPH_STAGGER_MS = 12;

@@ -185,7 +185,7 @@ export const dashboardUi = {
   topHeaderActionBtn:
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:size-11",
   topHeaderActionBtnAlert:
-    "border-red-300/60 bg-red-50/80 text-red-600 hover:text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400 dark:hover:text-red-400",
+    "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))] bg-[color-mix(in_oklch,var(--status-danger)_12%,transparent)] text-[var(--status-danger-on-canvas)] hover:text-[var(--status-danger-on-canvas)]",
   /** 헤더·내비 — 활성(운영 등) 크롬 tint (H3: 낮은 채도) */
   headerActionBtnActive:
     "border-primary/30 bg-primary/5 text-foreground hover:bg-primary/[0.07] hover:text-foreground dark:bg-primary/10 dark:text-foreground",

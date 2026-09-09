@@ -73,7 +73,7 @@ Elevation 단과 별개로, **떠 있는 UI**의 쌓임 순서:
 |--|--------|------|
 | Canvas | cool muted 바탕 | `bg-background` (L≈0.145) |
 | Recessed / well | `--surface-well` (muted 쪽) | muted **≤** card — 우물이 카드보다 어두움 |
-| Card / tile | `bg-card` + `--surface-shadow-tile` + `--surface-ring` | shadow 없음 · 약한 ring만 · card L≈0.22 |
+| Card / tile | `bg-card` + `--surface-shadow-tile` + `--surface-ring` | shadow 없음 · ring 14% · card L≈0.22 |
 | Meta 글자 | `--muted-foreground` | L≈0.64 (구 0.70 — 눈부심↓) |
 | ARIA stage | `--aria-stage-*` / `--aria-glow` | primary 글로우 약화 |
 
