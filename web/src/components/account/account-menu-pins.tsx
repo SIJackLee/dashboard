@@ -232,22 +232,25 @@ export function AccountMenuPins({
           <p className={cn(accountMenuLayout.editHint, "px-0 pt-1")}>
             헤더의 알람·리포트·테마를 끌어오거나, 고정 칩을 헤더로 되돌리세요.
           </p>
-        ) : null}
-        {!editMode && expandedPanel === "alarm" && pinned.includes("alarm") ? (
-          <AccountMenuAlarmPanel
-            embedded
-            overview={overview}
-            alarms={alarms}
-            onNavigate={onCloseMenu}
-          />
-        ) : null}
-        {!editMode && expandedPanel === "pdf" && pinned.includes("pdf") ? (
-          <DailyReportButton
-            farmKey={farmKey}
-            presentation="tools-card"
-            className="mx-0 mb-0 mt-0 w-full"
-          />
-        ) : null}
+        ) : (
+          <div className={accountMenuLayout.toolsCardWell}>
+            {expandedPanel === "alarm" && pinned.includes("alarm") ? (
+              <AccountMenuAlarmPanel
+                embedded
+                overview={overview}
+                alarms={alarms}
+                onNavigate={onCloseMenu}
+              />
+            ) : null}
+            {expandedPanel === "pdf" && pinned.includes("pdf") ? (
+              <DailyReportButton
+                farmKey={farmKey}
+                presentation="tools-card"
+                className="mx-0 mb-0 mt-0 w-full"
+              />
+            ) : null}
+          </div>
+        )}
       </div>
     );
   }

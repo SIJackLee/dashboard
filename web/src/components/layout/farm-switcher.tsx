@@ -26,6 +26,7 @@ import {
 } from "@/lib/farm/farm-view-url";
 import { useAdminHubPanelsOptional } from "@/lib/navigation/admin-hub-panels-context";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
+import { accountMenuLayout } from "@/lib/ui/account-menu-layout";
 import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
@@ -39,9 +40,10 @@ type FarmSwitcherProps = {
   compact?: boolean;
   /**
    * dropdown: 기본 트리거+메뉴
-   * inline: 계정 메뉴 등 부모 드롭다운 안에 목록만 (중첩 메뉴 방지)
+   * inline: 부모 안에 목록만 (중첩 메뉴 방지)
+   * matrix: 계정 시트 하단 격자
    */
-  variant?: "dropdown" | "inline";
+  variant?: "dropdown" | "inline" | "matrix";
   /** inline 선택 후 부모 메뉴 닫기 등 */
   onNavigated?: () => void;
   /** inline 목록 컨테이너 class (계정 메뉴 탭 body 등) */
@@ -53,9 +55,17 @@ export function FarmSwitcher(props: FarmSwitcherProps) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   if (!mounted) {
-    if (props.variant === "inline") {
+    if (props.variant === "inline" || props.variant === "matrix") {
       return (
-        <div className="min-h-8 px-3 py-2" aria-hidden data-tour-id="farm-switcher" />
+        <div
+          className={
+            props.variant === "matrix"
+              ? accountMenuLayout.farmMatrixGrid
+              : "min-h-8 px-3 py-2"
+          }
+          aria-hidden
+          data-tour-id="farm-switcher"
+        />
       );
     }
     return (
@@ -210,7 +220,7 @@ function FarmSwitcherBody({
                 isLive ? (
                   <span className={dashboardUi.brandChip}>LIVE</span>
                 ) : (
-                  <span className="shrink-0 rounded border border-amber-500/40 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                  <span className={dashboardUi.locationChip}>
                     위치만
                   </span>
                 )
@@ -222,7 +232,7 @@ function FarmSwitcherBody({
                   "tabular-nums font-semibold",
                   "text-sm leading-snug md:text-[length:var(--density-meta-md)]",
                   alarms > 0
-                    ? "text-amber-700 dark:text-amber-400"
+                    ? "text-status-warn"
                     : "text-muted-foreground",
                 )}
               >
@@ -234,6 +244,88 @@ function FarmSwitcherBody({
       })}
     </>
   );
+
+  if (variant === "matrix") {
+    return (
+      <div
+        id="account-menu-farm-matrix"
+        className={accountMenuLayout.farmMatrix}
+        data-tour-id="farm-switcher"
+        aria-busy={switchPending || undefined}
+        aria-label="농장 선택"
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {switchPending ? (
+          <p className="mb-1.5 flex items-center gap-2 text-[length:var(--density-meta)] text-muted-foreground">
+            <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+            전환 중…
+          </p>
+        ) : null}
+        <div className={accountMenuLayout.farmMatrixGrid}>
+          <button
+            type="button"
+            onClick={() => navigate(null)}
+            className={cn(
+              accountMenuLayout.farmMatrixCell,
+              activeId === null && accountMenuLayout.farmMatrixCellActive,
+            )}
+            aria-current={activeId === null ? "true" : undefined}
+          >
+            <span className={accountMenuLayout.farmMatrixLabel}>
+              전체 {farmOptions.length}개 농장
+            </span>
+          </button>
+          {orderedFarmOptions.map((farmKey) => {
+            const id = farmKeyId(farmKey);
+            const alarms = alarmByFarmId.get(id);
+            const hasLiveSummary = liveByFarmId.has(id);
+            const isLive = liveByFarmId.get(id) === true;
+            return (
+              <button
+                type="button"
+                key={id}
+                onClick={() => navigate(farmKey)}
+                className={cn(
+                  accountMenuLayout.farmMatrixCell,
+                  activeId === id && accountMenuLayout.farmMatrixCellActive,
+                )}
+                aria-current={activeId === id ? "true" : undefined}
+              >
+                <span className={accountMenuLayout.farmMatrixLabel}>
+                  {farmShortLabel(farmKey)}
+                </span>
+                <span className={accountMenuLayout.farmMatrixMeta}>
+                  {hasLiveSummary ? (
+                    isLive ? (
+                      <span className={dashboardUi.brandChip}>LIVE</span>
+                    ) : (
+                      <span className={dashboardUi.locationChip}>
+                        위치만
+                      </span>
+                    )
+                  ) : (
+                    <span aria-hidden>{"\u00a0"}</span>
+                  )}
+                  {alarms !== undefined ? (
+                    <span
+                      className={cn(
+                        accountMenuLayout.farmMatrixCount,
+                        alarms > 0 && "font-medium text-status-warn",
+                      )}
+                    >
+                      {alarms}
+                    </span>
+                  ) : (
+                    <span aria-hidden>{"\u00a0"}</span>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   if (variant === "inline") {
     return (
@@ -335,7 +427,7 @@ function FarmSwitcherBody({
                   isLive ? (
                     <span className={dashboardUi.brandChip}>LIVE</span>
                   ) : (
-                    <span className="shrink-0 rounded border border-amber-500/40 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                    <span className={dashboardUi.locationChip}>
                       위치만
                     </span>
                   )
@@ -347,7 +439,7 @@ function FarmSwitcherBody({
                     "tabular-nums font-semibold",
                     "text-sm leading-snug md:text-[length:var(--density-meta-md)]",
                     alarms > 0
-                      ? "text-amber-700 dark:text-amber-400"
+                      ? "text-status-warn"
                       : "text-muted-foreground",
                   )}
                 >

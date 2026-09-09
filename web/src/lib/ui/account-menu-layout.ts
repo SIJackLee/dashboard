@@ -1,4 +1,8 @@
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import {
+  dashboardAffordance,
+  dashboardChroma,
+  dashboardUi,
+} from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -46,9 +50,13 @@ export const accountMenuLayout = {
     "grid grid-cols-2 gap-x-4 gap-y-1 border-b border-border/60 bg-muted/40 px-4 py-2.5 text-[length:var(--density-meta)] leading-snug text-foreground md:text-[length:var(--density-meta-md)]",
   splitBody:
     "grid min-w-0 grid-cols-1 gap-0 border-b border-border/60 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]",
+  /** 펼친 도구 카드 높이만큼 행이 미리 잡힘. 표시명·상태는 블록으로 가운데 */
   zoneContext:
-    "flex min-w-0 flex-col gap-1.5 border-b border-border/60 bg-muted/40 px-3 py-2.5 max-md:pt-safe md:border-b-0 md:border-r md:px-4",
-  zoneAction: "flex min-w-0 flex-col gap-2 px-3 py-2.5 md:px-4",
+    "flex min-w-0 flex-col justify-center border-b border-border/60 bg-muted/40 px-3 py-2.5 max-md:pt-safe md:border-b-0 md:border-r md:px-4 md:py-3",
+  zoneContextStack: "flex min-w-0 flex-col gap-1.5",
+  zoneAction: "flex min-w-0 flex-col gap-2 px-3 py-2.5 md:px-4 md:py-3",
+  /** 알람·리포트 휴면 카드와 같은 높이 — 접혀 있어도 행이 안 흔들림 */
+  toolsCardWell: "min-h-14 w-full min-w-0",
   addressRow:
     "min-w-0 border-b border-border/60 px-3 py-2.5 md:px-4",
   contextFarm:
@@ -64,7 +72,7 @@ export const accountMenuLayout = {
   hubToneChip:
     "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[length:var(--density-badge)] tabular-nums md:text-[length:var(--density-badge-md)]",
   liveStatusDot: "size-1.5 shrink-0 rounded-full bg-primary",
-  liveStatusDotWarn: "size-1.5 shrink-0 rounded-full bg-amber-500",
+  liveStatusDotWarn: "size-1.5 shrink-0 rounded-full bg-[var(--status-warn)]",
   liveStatusDotOffline: "size-1.5 shrink-0 rounded-full bg-muted-foreground/50",
   toolGrid: "flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2",
   toolTile: cn(
@@ -81,6 +89,23 @@ export const accountMenuLayout = {
     "hover:bg-muted/50 hover:text-foreground",
   ),
   switcherInset: "max-h-[min(40vh,12rem)] overflow-y-auto rounded-md border border-border/60 bg-background/80 p-1",
+  /** 시트 하단 농장 격자 — 왼쪽 칸을 밀지 않음 */
+  farmMatrix:
+    "min-w-0 overflow-x-hidden border-b border-border/60 px-3 py-2.5 md:px-4",
+  farmMatrixGrid:
+    "grid max-h-[min(40vh,16rem)] min-w-0 grid-cols-2 gap-1.5 overflow-y-auto overscroll-contain sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6",
+  farmMatrixCell: cn(
+    dashboardAffordance.chipToggleIdle,
+    motionClass.microInteractive,
+    "flex min-h-16 min-w-0 flex-row items-stretch gap-2 rounded-lg px-2.5 py-2 text-left",
+  ),
+  farmMatrixCellActive: dashboardChroma.chromeSelected,
+  farmMatrixLabel:
+    "min-w-0 flex-1 self-center truncate text-left font-semibold leading-tight text-[length:var(--density-section)] md:text-[length:var(--density-section-md)]",
+  farmMatrixMeta:
+    "flex shrink-0 flex-col items-end justify-between self-stretch py-0.5",
+  farmMatrixCount:
+    "tabular-nums leading-none text-[length:var(--density-meta)] text-muted-foreground",
   sheetMetaLabel: "text-muted-foreground",
   toolsStrip: "flex items-center gap-2 px-4 py-2.5",
   rowLabel:

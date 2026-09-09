@@ -17,6 +17,10 @@ export const dashboardTypography = {
     "text-[length:var(--density-body)] font-medium text-muted-foreground leading-snug md:text-[length:var(--density-section-md)]",
   body: "text-[length:var(--density-body)] leading-snug md:text-[length:var(--density-body-md)]",
   meta: "text-[length:var(--density-meta)] text-muted-foreground leading-snug md:text-[length:var(--density-meta-md)]",
+  /** 힌트·플레이스홀더 (iOS tertiaryLabel) */
+  hint: "text-tertiary-foreground",
+  /** 장식·비활성 잉크 (iOS quaternaryLabel) */
+  faint: "text-quaternary-foreground",
   tableCell:
     "text-[length:var(--density-meta)] leading-snug md:text-[length:var(--density-meta-md)]",
   tableHead:
@@ -104,7 +108,7 @@ export const opsControl = {
   /** 경로 칩 — 모바일 균등 분배, PC 고정 크기 */
   pathStrip: "flex w-full flex-nowrap items-center gap-0.5 md:gap-2",
   pathStep: "flex min-w-0 flex-1 items-center gap-0.5 md:flex-none md:gap-2",
-  pathArrow: "hidden shrink-0 text-muted-foreground/50 md:inline",
+  pathArrow: "hidden shrink-0 text-quaternary-foreground md:inline",
   chip:
     "inline-flex w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1.5 text-center transition-colors hover:bg-muted/60 md:w-auto md:min-w-[5.5rem] md:flex-row md:items-center md:gap-1.5 md:px-3 md:py-2 md:text-left lg:min-w-[6.5rem]",
   chipSub:
@@ -126,11 +130,18 @@ export const opsLayout = {
  * 운영 상태 팔레트 — 정상 / 경고 / 위험 / 선택 / 비활성.
  * 경로 칩·배지·필터 칩에서 동일 규칙을 쓴다.
  */
+export const statusFillOk =
+  "border-[color-mix(in_oklch,var(--status-ok)_40%,var(--border))] bg-[color-mix(in_oklch,var(--status-ok)_14%,transparent)] text-[var(--status-ok-on-canvas)]";
+export const statusFillWarn =
+  "border-[color-mix(in_oklch,var(--status-warn)_45%,var(--border))] bg-[color-mix(in_oklch,var(--status-warn)_14%,transparent)] text-[var(--status-warn-on-canvas)]";
+export const statusFillDanger =
+  "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))] bg-[color-mix(in_oklch,var(--status-danger)_12%,transparent)] text-[var(--status-danger-on-canvas)]";
+
 export const opsStatus = {
   /** 정상·선택 — brand primary */
   ok: "border-primary/60 bg-primary/10 text-primary dark:bg-primary/15",
-  warn: "border-amber-400/70 bg-amber-50 text-amber-950 dark:border-amber-300/60 dark:bg-amber-950/30 dark:text-amber-100",
-  danger: "border-red-400/70 bg-red-50 text-red-950 dark:border-red-300/60 dark:bg-red-950/30 dark:text-red-100",
+  warn: statusFillWarn,
+  danger: statusFillDanger,
   /** 정보·미구현 — channel-info */
   info: "border-channel-info/40 bg-channel-info/10 text-channel-info",
   selected: "border-primary bg-primary/10 text-primary dark:bg-primary/15",
@@ -183,7 +194,7 @@ export const dashboardUi = {
   topIconBtn: "relative rounded-lg p-3 hover:bg-muted",
   /** ThemeToggle · 도구 메뉴 · 알람 — bordered 헤더 액션 버튼 */
   topHeaderActionBtn:
-    "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:size-11",
+    "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:size-11",
   topHeaderActionBtnAlert:
     "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))] bg-[color-mix(in_oklch,var(--status-danger)_12%,transparent)] text-[var(--status-danger-on-canvas)] hover:text-[var(--status-danger-on-canvas)]",
   /** 헤더·내비 — 활성(운영 등) 크롬 tint (H3: 낮은 채도) */
@@ -198,7 +209,7 @@ export const dashboardUi = {
   chartLayerActionBtn:
     "border-primary/30 bg-primary/5 text-foreground hover:bg-primary/10 hover:text-foreground dark:bg-primary/10",
   chartLayerActionBtnIdle:
-    "border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+    "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-muted-foreground hover:bg-accent hover:text-foreground",
   chartLayerGroupTemp:
     "border-channel-temp/50 bg-channel-temp/10 text-channel-temp",
   chartLayerGroupHum:
@@ -226,9 +237,11 @@ export const dashboardUi = {
   channelTextTemp: "text-channel-temp",
   channelTextHum: "text-channel-hum",
   channelTextMotor: "text-channel-motor",
-  /** 오늘의 리포트 — PDF 강조(문서 아이콘) */
-  topHeaderActionBtnReport:
-    "border-red-300/70 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 disabled:opacity-40 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400 dark:hover:bg-red-950/60 dark:hover:text-red-300",
+  /** 오늘의 리포트 — 도구 면. 알람 빨강 금지 */
+  topHeaderActionBtnReport: "disabled:opacity-40",
+  /** 위치만 칩 — 채널 info. 주의를 amber로 흉내 내지 않음 */
+  locationChip:
+    "shrink-0 rounded border border-channel-info/40 bg-channel-info/10 px-1.5 py-0.5 text-[10px] font-medium text-channel-info",
   /**
    * 헤더 도구 패널 행 — 트리거(⋮)와 동일 rounded-lg border 계열.
    * 왼쪽: size-9 아이콘 칩 · 오른쪽: 라벨/요약.
@@ -236,14 +249,18 @@ export const dashboardUi = {
   headerToolsCard:
     "mx-1 mb-1 flex w-[calc(100%-0.5rem)] items-start gap-2.5 rounded-lg border bg-background px-2 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50",
   headerToolsCardAlert:
-    "border-red-300/60 bg-red-50/50 hover:bg-red-50 dark:border-red-900/40 dark:bg-red-950/20 dark:hover:bg-red-950/30",
+    "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))] bg-[color-mix(in_oklch,var(--status-danger)_10%,transparent)] hover:bg-[color-mix(in_oklch,var(--status-danger)_16%,transparent)]",
   headerToolsCardIcon:
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border text-muted-foreground",
-  headerToolsCardIconAlert:
-    "border-red-300/60 bg-red-50/80 text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400",
+  headerToolsCardIconAlert: statusFillDanger,
+  headerToolsCardIconReport:
+    "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-foreground",
   headerToolsCardBody: "min-w-0 flex-1",
   headerToolsCardTitle: "flex items-center gap-2 text-sm font-medium leading-tight",
   headerToolsCardMeta: "mt-0.5 text-xs leading-snug text-muted-foreground",
+  /** 이상상황 목록 — 시트 행을 밀지 않고 카드 안에서 스크롤 */
+  headerToolsCardList:
+    "mt-1.5 max-h-40 min-h-0 space-y-1 overflow-y-auto overscroll-contain",
   /**
    * 통합 FAB 상세 — 짧은 요약용 캡슐 (리포트 등 1줄).
    */
@@ -256,20 +273,19 @@ export const dashboardUi = {
   hubDetailPopoverList:
     "relative flex max-h-[min(70dvh,28rem)] w-[min(92vw,20rem)] flex-col overflow-hidden rounded-2xl border border-border/80 bg-popover py-2.5 pl-2.5 pr-3 text-popover-foreground shadow-sm",
   hubDetailPopoverAlert:
-    "border-red-300/70 shadow-red-500/5 dark:border-red-900/50",
+    "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))]",
   /** FAB/궤도 쪽을 가리키는 작은 원형 노치 */
   hubDetailNotch:
     "pointer-events-none absolute top-1/2 size-3 -translate-y-1/2 rounded-full border border-border/80 bg-popover",
   hubDetailNotchEnd: "right-0 translate-x-1/2",
   hubDetailNotchStart: "left-0 -translate-x-1/2",
   hubDetailNotchAlert:
-    "border-red-300/60 dark:border-red-900/40",
+    "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))]",
   hubDetailLeadIcon:
     "relative inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-border/80 bg-background text-muted-foreground",
-  hubDetailLeadIconAlert:
-    "border-red-300/60 bg-red-50/80 text-red-600 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400",
+  hubDetailLeadIconAlert: statusFillDanger,
   hubDetailLeadIconReport:
-    "border-red-300/70 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-400",
+    "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-foreground",
   hubDetailBody: "min-w-0 flex-1 self-center",
   hubDetailBodyList: "flex min-h-0 min-w-0 flex-1 flex-col self-stretch gap-1",
   hubDetailTitle:
@@ -290,9 +306,9 @@ export const dashboardUi = {
   topHeaderOverlayIcon: "size-7",
   topHeaderCountBadge:
     "absolute -right-0.5 -top-0.5 flex min-h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full px-0.5 text-[10px] font-bold leading-none tabular-nums text-white lg:min-h-[1.5rem] lg:min-w-[1.5rem] lg:px-1 lg:text-[1rem]",
-  topHeaderCountBadgeAlert: "bg-red-500",
+  topHeaderCountBadgeAlert: "bg-[var(--status-danger)]",
   topHeaderCountBadgeOk: "bg-primary text-primary-foreground",
-  topAlarmDot: "absolute right-1.5 top-1.5 size-2.5 rounded-full bg-red-500",
+  topAlarmDot: "absolute right-1.5 top-1.5 size-2.5 rounded-full bg-[var(--status-danger)]",
   topLogoutBtn:
     "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-[length:var(--density-meta)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:px-4 md:py-2.5 md:text-[length:var(--density-section-md)]",
   topLogoutIcon: "size-5 md:size-6",
@@ -354,7 +370,7 @@ export const dashboardUi = {
   valuePill:
     "rounded-lg border border-primary/50 bg-primary/5 px-3 py-2.5 text-primary",
   deltaBadge:
-    "inline-flex min-h-[2rem] items-center rounded-full bg-amber-500/15 px-3 py-1 text-xl font-semibold text-amber-800 tabular-nums dark:text-amber-200",
+    "inline-flex min-h-[2rem] items-center rounded-full bg-[color-mix(in_oklch,var(--status-warn)_15%,transparent)] px-3 py-1 text-xl font-semibold text-[var(--status-warn-on-canvas)] tabular-nums",
   badgeLg:
     "!h-auto min-h-[2.5rem] gap-2 px-4 py-1.5 text-2xl font-medium leading-none",
   badgeMd:
@@ -470,7 +486,7 @@ export const dashboardUi = {
     "max-h-80 min-w-[14rem] overflow-y-auto rounded-xl p-2 text-[length:var(--density-meta)] leading-snug md:text-[length:var(--density-meta-md)]",
   scopePillMenuItem:
     "gap-2 rounded-lg px-3 py-1.5 text-[length:var(--density-meta)] leading-snug md:text-[length:var(--density-meta-md)]",
-  scopePillSeparator: "size-5 shrink-0 text-muted-foreground/70",
+  scopePillSeparator: "size-5 shrink-0 text-tertiary-foreground",
 
   /* SectionCard lg */
   cardHeaderLg: "px-4 pt-4 pb-3 md:px-6 md:pt-6 md:pb-4",
@@ -586,19 +602,21 @@ export const dashboardHubSurface = {
 /**
  * 어포던스 — docs/UI_AFFORDANCE.md
  * 라이트/다크 · PC/모바일 동일 계약. 히트 크기만 밀도.
+ * 대기 도구·칩은 시트/카드보다 한 단 들어간 `--surface-well`.
  */
+const affordanceIdleWell =
+  "border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] text-muted-foreground hover:bg-accent hover:text-foreground";
+
 export const dashboardAffordance = {
   /** 1 명령 — 적용·확인. 높이는 호출부 min-h */
   action:
     "cursor-pointer bg-primary text-primary-foreground hover:bg-primary/80 disabled:cursor-wait disabled:pointer-events-none disabled:opacity-50",
-  /** 2 도구 — 테두리. 헤더 `topHeaderActionBtn`과 같은 언어 */
-  tool:
-    "cursor-pointer rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50",
+  /** 2 도구 — 테두리 + 우물 면. 헤더 `topHeaderActionBtn`과 같은 언어 */
+  tool: `cursor-pointer rounded-lg border ${affordanceIdleWell} disabled:cursor-wait disabled:opacity-50`,
   /** 3 선택군 — 트랙 안 비활성 탭 */
   choiceIdle: "cursor-pointer text-muted-foreground hover:text-foreground",
-  /** 4 칩 토글 꺼짐 — 테두리 유지 (투명 테두리 금지) */
-  chipToggleIdle:
-    "cursor-pointer border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+  /** 4 칩 토글 꺼짐 — 테두리 + 우물 면 (투명 테두리·빈 면 금지) */
+  chipToggleIdle: `cursor-pointer border ${affordanceIdleWell}`,
   /** 5 히트 면 */
   hitSurface: "cursor-pointer",
   hitHint: "pointer-events-none size-3.5 shrink-0 opacity-70 sm:size-4",

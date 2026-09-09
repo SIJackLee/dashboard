@@ -27,14 +27,18 @@
 |------|--------|------|--------|
 | `--background` | L 0.958 | L 0.145 | 바탕 OK |
 | `--card` | L 0.995 | L 0.218 | 층은 있음, 그림자 없음 |
-| `--muted` | L 0.935 | L 0.172 | 바탕과 거의 같음 |
+| `--muted` | L 0.935 | L 0.172 | 우물·워시. 바탕과 가깝음 |
+| `--secondary` | muted 90% + fg | 같은 공식 (다크에서 카드보다 약간 밝음) | 회색 버튼/뱃지 면. muted와 분리 |
 | `--foreground` | L 0.22 | L 0.95 | 본문 OK |
 | `--muted-foreground` | L 0.45 | L 0.64 | 보조 글자 OK (갭5에서 눈부심↓) |
+| `--tertiary-foreground` | muted 70% + bg | 같은 공식 | 플레이스홀더·힌트 (iOS tertiaryLabel) |
+| `--quaternary-foreground` | muted 42% + bg | 같은 공식 | 장식 화살표 (iOS quaternaryLabel) |
 | `--border` | L 0.82 | L 0.275 | 칸 경계 약함 (비문자 3:1 미달 추정) |
 | `--surface-ring` | 전경 12% | 전경 8% | 타일 링 더 약함 |
 | `--surface-shadow-tile` | 있음 | `none` | 깊이는 명도만 |
 | `--channel-*` | 중명도 | L ≈ 0.68–0.72 | 차트·정상 숫자 OK |
-| `--status-ok\|warn\|danger` | 고정 hex | **동일 hex** | 면은 과하게 뜸 / 잉크는 죽음 |
+| `--status-ok\|warn\|danger` | 고정 hex | **명도만 재계산** (hue/chroma 유지) | 정상 덮개 창백·주의 형광 완화. 잉크는 `*-ink` / on-canvas |
+| `--destructive` | `var(--status-danger)` | 상속 | 폼·삭제 = 위험 상태와 동일 (systemRed) |
 | `--status-*-ink` | 상태색 36–40% + **검정** | **동일 공식** | 덮개 OK, 타일 실패 |
 | `--status-film-rim-*` | 흰/검 줄 | 동일 | 다크 덮개 테는 약함 |
 
@@ -86,7 +90,7 @@ controllerEnvMetricTextClass(warn|danger) → status-*-ink (검정 혼합)
 
 - 헤더 종·델린 숫자 뱃지: 주의/위험 솔리드 + `text-white` → 대비 OK.
 - 델린 말풍선 목록: `muted-foreground` → 본문보다 약하지만 읽힘.
-- 헤더 알람 버튼: `red-*` 유틸 (`UI_SURFACES` 토큰화 후보).
+- 헤더 알람 버튼: `--status-danger` 틴트 (`topHeaderActionBtnAlert`).
 
 **모델 · 관제 지도**
 
@@ -121,7 +125,7 @@ controllerEnvMetricTextClass(warn|danger) → status-*-ink (검정 혼합)
 | 결정 | 내용 | 하지 않는 것 |
 |------|------|----------------|
 | **잉크 2종** | 덮개 위=`*-ink`(진함). 타일·차트 위=`*-on-canvas`(다크는 상태색 또는 흰 혼합) | 덮개에 흰 글자 전면 도입 |
-| **상태 hex** | P0에서는 솔리드 `--status-*` 유지 (덮개 판독) | 다크에서 덮개를 우물색으로 흐리기 (1차 범위 밖) |
+| **상태 hex** | 라이트 솔리드 hex 유지. 다크는 같은 색상각·채도에서 L만 재계산 | 다크에서 덮개를 우물색으로 흐리기 · hue를 primary/채널에 붙이기 |
 | **끊김** | 중성 면 토큰 신설 (`--status-offline` 또는 well+강한 링) | 끊김을 danger 빨강으로 칠하기 |
 | **혼합 기준** | `white`/`black` 리터럴 대신 `--mix-lift` / `--mix-shade` (테마가 가리킴) | 차트마다 다른 다크 예외 |
 | **지도** | 후순위. 카카오 다크 타일은 제품 결정 | P0에 지도 SDK 테마 |
@@ -241,5 +245,10 @@ controllerEnvMetricTextClass(warn|danger) → status-*-ink (검정 혼합)
 | P4 크롬 잔여 | 적용. 현황 링·헤더 알람·히트맵 칩·차트 가이드 색 |
 | P5 지도 | 적용. 핀 `--primary` · 타일 img 밝기 필터 (카카오 다크 맵타입 없음) |
 | P6 가드 | 적용. `verify-ui-colors` `.dark` 토큰 · Visual QA 7–12행 |
+| 다크 상태 명도 | 적용. `.dark` `--status-ok\|warn\|danger` = oklch (L만). 라이트 hex 유지 |
+| Label 3·4단 | 적용. `--tertiary-foreground` · `--quaternary-foreground` (muted+bg mix). 본문/보조는 유지 |
+| muted vs secondary | 적용. `--secondary` = muted 90%+foreground. `.dark`에서 복제 hex/oklch 없음 |
+| systemRed 단일 | 적용. `--destructive: var(--status-danger)`. 폼 invalid·삭제가 덮개 위험색과 같음 |
+| 1-A 허브 hue | 적용. 알람=`--status-danger` · 위치만=`channel-info` · 리포트=우물 |
 
-가드: `node scripts/verify-ui-colors.mjs` 가 `.dark`의 on-canvas·offline·mix·heatmap 토큰을 확인한다.
+가드: `node scripts/verify-ui-colors.mjs` 가 `.dark`의 on-canvas·offline·mix·heatmap 토큰, 상태색 oklch(비-hex), Label 3·4단, `--secondary`≠`--muted`, `--destructive`=`--status-danger`를 확인한다.

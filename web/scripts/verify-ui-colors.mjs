@@ -33,6 +33,19 @@ const HEX_ALLOWLIST = new Set([
   "components/login/oauth-buttons.tsx", // 카카오 브랜드 #FEE500
 ]);
 
+/** 1-A: 허브 알람·뱃지·계정·농장전환은 status/well/channel 토큰만 */
+const HUB_STATUS_TOKEN_FILES = [
+  "lib/ui/dashboard-page-ui.ts",
+  "lib/ui/account-menu-layout.ts",
+  "components/common/status-badge.tsx",
+  "components/account/account-menu-split.tsx",
+  "components/account/account-menu-alarm-panel.tsx",
+  "components/layout/farm-switcher.tsx",
+  "components/layout/daily-report-button.tsx",
+];
+const BAN_HUB_STATUS_HUE =
+  /(?:^|[\s"'`:[])(?:bg|text|border|ring|stroke|fill|from|to|via|outline|shadow)-?(?:red|amber|emerald|slate)-\d/;
+
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
@@ -77,6 +90,16 @@ for (const file of files) {
         kind: "legacy-hue-utility",
         text: raw.trim().slice(0, 120),
         hint: "use channel-temp|hum|motor|info or primary/status (docs/UI_MOTION.md); amber=warn only",
+      });
+    }
+
+    if (HUB_STATUS_TOKEN_FILES.includes(rel) && BAN_HUB_STATUS_HUE.test(line)) {
+      errors.push({
+        file: relative(root, file),
+        line: i + 1,
+        kind: "hub-status-hue-utility",
+        text: raw.trim().slice(0, 120),
+        hint: "1-A: use --status-ok|warn|danger, --surface-well, or channel-info",
       });
     }
 
@@ -126,6 +149,72 @@ if (missingDark.length > 0) {
   process.exit(1);
 }
 
+/** 다크 상태색은 라이트 hex를 복제하지 않고 oklch로 명도만 재계산 */
+const LIGHT_STATUS_HEX = ["#6f9e8a", "#f59e0b", "#e11d2a"];
+const darkStatusTokens = ["--status-ok", "--status-warn", "--status-danger"].map((name) => {
+  const m = darkBlock.match(new RegExp(`${name}:\\s*([^;]+)`));
+  return { name, value: m?.[1]?.trim() ?? "" };
+});
+const badDarkStatus = darkStatusTokens.filter(({ value }) => {
+  const lower = value.toLowerCase();
+  return !value.startsWith("oklch(") || LIGHT_STATUS_HEX.some((hex) => lower.includes(hex));
+});
+if (badDarkStatus.length > 0) {
+  console.error("verify-ui-colors: FAILED dark status tokens\n");
+  for (const { name, value } of badDarkStatus) {
+    console.error(`  .dark ${name}: ${value || "(missing)"}`);
+    console.error("    → use oklch with light hue/chroma; do not copy light hex (docs/UI_CHROMA.md)");
+  }
+  process.exit(1);
+}
+
+const labelNeedles = [
+  ["--tertiary-foreground:", "tertiary label"],
+  ["--quaternary-foreground:", "quaternary label"],
+  [
+    "--color-tertiary-foreground: var(--tertiary-foreground)",
+    "theme tertiary",
+  ],
+  [
+    "--color-quaternary-foreground: var(--quaternary-foreground)",
+    "theme quaternary",
+  ],
+];
+const missingLabel = labelNeedles.filter(([needle]) => !globalsCss.includes(needle));
+if (missingLabel.length > 0) {
+  console.error("verify-ui-colors: FAILED label tokens\n");
+  for (const [needle, hint] of missingLabel) {
+    console.error(`  globals.css missing ${needle} (${hint})`);
+  }
+  process.exit(1);
+}
+
+const SECONDARY_MIX =
+  "--secondary: color-mix(in oklch, var(--muted) 90%, var(--foreground))";
+if (!globalsCss.includes(SECONDARY_MIX)) {
+  console.error("verify-ui-colors: FAILED secondary fill\n");
+  console.error(`  globals.css missing ${SECONDARY_MIX}`);
+  console.error("    → --secondary is the gray control fill; do not copy --muted (docs/UI_SURFACES.md)");
+  process.exit(1);
+}
+if (/--secondary:\s*oklch\(/.test(darkBlock)) {
+  console.error("verify-ui-colors: FAILED secondary fill\n");
+  console.error("  .dark overrides --secondary with oklch; inherit the :root muted+foreground mix");
+  process.exit(1);
+}
+
+if (!globalsCss.includes("--destructive: var(--status-danger)")) {
+  console.error("verify-ui-colors: FAILED systemRed alias\n");
+  console.error("  globals.css missing --destructive: var(--status-danger)");
+  console.error("    → form/delete red must equal status-danger (docs/UI_SURFACES.md)");
+  process.exit(1);
+}
+if (/--destructive:\s*oklch\(/.test(darkBlock)) {
+  console.error("verify-ui-colors: FAILED systemRed alias\n");
+  console.error("  .dark overrides --destructive with oklch; inherit var(--status-danger)");
+  process.exit(1);
+}
+
 console.log(
-  `verify-ui-colors: ok (${files.length} files; sky/rose/violet/orange + legacy hex + dark tokens)`,
+  `verify-ui-colors: ok (${files.length} files; sky/rose/violet/orange + legacy hex + dark tokens + status oklch + label 3/4 + secondary≠muted + destructive=status-danger)`,
 );

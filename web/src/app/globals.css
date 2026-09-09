@@ -117,6 +117,8 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
+  --color-tertiary-foreground: var(--tertiary-foreground);
+  --color-quaternary-foreground: var(--quaternary-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
@@ -168,13 +170,24 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   /* Brand green ? same hue as .dark (#22c55e ? ~145); darker L for light fg */
   --primary: oklch(0.5 0.15 145);
   --primary-foreground: oklch(0.99 0.01 155);
-  --secondary: oklch(0.935 0.014 155);
-  --secondary-foreground: oklch(0.28 0.03 155);
   --muted: oklch(0.935 0.014 155);
   --muted-foreground: oklch(0.45 0.025 155);
+  /* 컨트롤 회색 면 (iOS secondarySystemFill). muted=우물과 같은 값 금지 */
+  --secondary: color-mix(in oklch, var(--muted) 90%, var(--foreground));
+  --secondary-foreground: oklch(0.28 0.03 155);
+  /* iOS tertiaryLabel / quaternaryLabel. muted-foreground = secondaryLabel */
+  --tertiary-foreground: color-mix(
+    in oklch,
+    var(--muted-foreground) 70%,
+    var(--background)
+  );
+  --quaternary-foreground: color-mix(
+    in oklch,
+    var(--muted-foreground) 42%,
+    var(--background)
+  );
   --accent: oklch(0.925 0.02 155);
   --accent-foreground: oklch(0.28 0.04 155);
-  --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.82 0.018 155);
   --input: oklch(0.82 0.018 155);
   --ring: oklch(0.55 0.14 145);
@@ -192,13 +205,13 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --sidebar-accent-foreground: oklch(0.28 0.04 155);
   --sidebar-border: oklch(0.84 0.018 155);
   --sidebar-ring: oklch(0.55 0.14 145);
-  /* Channel — wine temp + olive motor (status와 색상각·채도 분리). 습도 파랑 유지 */
+  /* Channel — wine temp + gunmetal motor (status 녹황적과 색상각 분리). 습도 파랑 유지 */
   --channel-temp: oklch(0.48 0.12 15);
   --channel-hum: oklch(0.55 0.12 230);
-  --channel-motor: oklch(0.55 0.09 120);
+  --channel-motor: oklch(0.53 0.07 260);
   --channel-info: oklch(0.55 0.12 230);
   /* Fan A/B/C — chart SVG via var(--channel-fan-*) */
-  --channel-fan-intake: oklch(0.55 0.09 120);
+  --channel-fan-intake: oklch(0.53 0.07 260);
   --channel-fan-exhaust: oklch(0.55 0.17 295);
   --channel-fan-supply: oklch(0.58 0.12 165);
   /* 모델 평면 구간. 채널·알람·브랜드와 겹치지 않는 식별색 */
@@ -212,6 +225,8 @@ html[data-viewport-preview="mobile"] [data-viewport-preview="mobile"] {
   --status-ok: #6f9e8a;
   --status-warn: #f59e0b;
   --status-danger: #e11d2a;
+  /* iOS systemRed 단일 역할. 폼·삭제 text-destructive 는 이 색 */
+  --destructive: var(--status-danger);
   --status-ok-ink: color-mix(in oklch, var(--status-ok) 36%, black);
   --status-warn-ink: color-mix(in oklch, var(--status-warn) 36%, black);
   --status-danger-ink: color-mix(in oklch, var(--status-danger) 40%, black);
@@ -365,13 +380,11 @@ html[data-density="compact"] {
   /* Brand green ? oklch of former #22c55e / #04110a (bundle B) */
   --primary: oklch(0.723 0.191 145);
   --primary-foreground: oklch(0.18 0.035 145);
-  --secondary: oklch(0.172 0.016 155);
   --secondary-foreground: oklch(0.91 0.015 155);
   --muted: oklch(0.172 0.016 155);
   --muted-foreground: oklch(0.64 0.02 155);
   --accent: oklch(0.24 0.03 155);
   --accent-foreground: oklch(0.95 0.04 150);
-  --destructive: oklch(0.63 0.22 25);
   --border: oklch(0.36 0.018 155);
   --input: oklch(0.36 0.018 155);
   --ring: oklch(0.723 0.191 145);
@@ -390,9 +403,9 @@ html[data-density="compact"] {
   --sidebar-ring: oklch(0.723 0.191 145);
   --channel-temp: oklch(0.68 0.11 15);
   --channel-hum: oklch(0.72 0.12 230);
-  --channel-motor: oklch(0.72 0.08 120);
+  --channel-motor: oklch(0.72 0.06 258);
   --channel-info: oklch(0.72 0.12 230);
-  --channel-fan-intake: oklch(0.72 0.08 120);
+  --channel-fan-intake: oklch(0.72 0.06 258);
   --channel-fan-exhaust: oklch(0.72 0.14 295);
   --channel-fan-supply: oklch(0.72 0.12 165);
   /* 모델 평면 구간. 채널·알람·브랜드와 겹치지 않는 식별색 */
@@ -402,10 +415,10 @@ html[data-density="compact"] {
   --plan-cover-3: oklch(0.74 0.09 115);
   --plan-cover-4: oklch(0.70 0.10 250);
   --plan-cover-5: oklch(0.76 0.08 355);
-  /* 채도 계단 — 라이트와 같음 */
-  --status-ok: #6f9e8a;
-  --status-warn: #f59e0b;
-  --status-danger: #e11d2a;
+  /* 색상각·채도 계단 유지, 명도만 재계산. 라이트 ok L0.66/warn 0.77/danger 0.58 */
+  --status-ok: oklch(0.58 0.059 166);
+  --status-warn: oklch(0.68 0.165 70);
+  --status-danger: oklch(0.63 0.224 26);
   --status-ok-ink: color-mix(in oklch, var(--status-ok) 36%, black);
   --status-warn-ink: color-mix(in oklch, var(--status-warn) 36%, black);
   --status-danger-ink: color-mix(in oklch, var(--status-danger) 40%, black);

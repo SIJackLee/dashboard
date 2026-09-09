@@ -29,7 +29,7 @@ export default function GlobalError({
             앱을 불러오는 중 오류가 발생했습니다. 다시 시도해 주세요.
           </p>
           {error.digest ? (
-            <p className="text-xs text-muted-foreground/70">
+            <p className="text-xs text-tertiary-foreground">
               오류 코드: {error.digest}
             </p>
           ) : null}

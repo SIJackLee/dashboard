@@ -23,11 +23,12 @@
 | 11 | **다크** 알림·델린 뱃지 | 솔리드+숫자 대비 유지 | |
 | 12 | **다크** 지도 타일 | 타일 img 밝기↓ · 핀은 primary/status (카카오 다크 맵타입 없음) | |
 | 13 | **라이트/다크 · PC/모바일** 온·습 칩 | 테두리 없는 우물. 아웃라인 버튼처럼 안 보임 | |
-| 14 | **라이트/다크 · PC/모바일** 환경 덮개 | 상태색 유지 · 코너 셰브론으로 열기 힌트 | |
+| 14 | **라이트/다크 · PC/모바일** 환경 덮개 | 상태색 유지 · 코너 셰브론으로 열기 힌트. 다크 정상=세이지가 창백 섬이 아님 · 주의가 형광으로 안 뜸 | |
 | 15 | **라이트/다크 · PC/모바일** 뷰 탭 비활성 | 설명 글자가 아님. 필은 활성만 | |
 | 16 | **라이트/다크** 차트 레이어 꺼짐 | 테두리 유지. 장식 아이콘 아님 | |
 | 17 | **라이트/다크 · PC/모바일** 적용/확인 | primary 채움. 취소는 테두리 | |
 | 18 | **모바일** 히트 | 덮개·현황·탭 최소 높이가 손가락 히트에 맞음 | |
+| 19 | **라이트/다크** 입력 힌트 | 플레이스홀더가 본문·보조 설명보다 한 단 약함 (tertiary). 빈 상태 문구는 muted 유지 | |
 
 ## 고급감 갭 (후속 후보)
 
@@ -35,7 +36,7 @@
 2. **타이포 리듬** — **갭2 적용** (`dashboardReadout` · 숫자/단위/라벨 분리). **맵 카드는 `--density-map-value*` 고정** (readout 재사용 회귀 금지 · `verify:ui-density`).
 3. **채도 잔향** — violet/온도 orange는 제거·가드됨. 구역별 톤이 다시 섞이면 재스캔.
 4. **DELIN 뱃지** — 필드·차트 우측 하단. 오브·스테이지는 폐기.
-5. **다크/라이트 비대칭** — **갭5 적용** (`--surface-*`). **P0–P6 적용** 2026-09-09: 타일 on-canvas 잉크 · 끊김 면 · border/ring · mix-lift/shade · 크롬 잔여 · 지도 타일 필터. 정본 [`UI_DARK_VISIBILITY.md`](./UI_DARK_VISIBILITY.md).
+5. **다크/라이트 비대칭** — **갭5 적용** (`--surface-*`). **P0–P6 적용** 2026-09-09: 타일 on-canvas 잉크 · 끊김 면 · border/ring · mix-lift/shade · 크롬 잔여 · 지도 타일 필터. **다크 상태 명도** · **Label 3·4단** · **muted≠secondary** · **destructive=status-danger** 2026-09-09. 정본 [`UI_DARK_VISIBILITY.md`](./UI_DARK_VISIBILITY.md).
 
 6. **면 종류** — [UI_SURFACES.md](./UI_SURFACES.md). 덮개는 Status film(E). 유리 테 적용. Overlay(F) frost와 섞지 않음.
 7. **어포던스** — [UI_AFFORDANCE.md](./UI_AFFORDANCE.md) A–G 적용(2026-09-09). 표시 칩=우물 · 덮개 셰브론 · 탭 choiceIdle · CTA primary.

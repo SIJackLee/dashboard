@@ -254,7 +254,7 @@ export function AccountMenuAlarmPanel({
     <div
       className={cn(
         dashboardUi.headerToolsCard,
-        embedded ? "mx-4 mb-3 mt-2 w-[calc(100%-2rem)]" : "mx-4 mb-2 w-[calc(100%-2rem)]",
+        embedded ? "mx-0 mb-0 mt-0 w-full" : "mx-4 mb-2 w-[calc(100%-2rem)]",
         alert && dashboardUi.headerToolsCardAlert,
       )}
       data-tour-id="account-menu-alarm-panel"
@@ -283,16 +283,18 @@ export function AccountMenuAlarmPanel({
         <p
           className={cn(
             dashboardUi.headerToolsCardMeta,
-            offline > 0 && "font-medium text-red-600 dark:text-red-400",
+            "truncate",
+            offline > 0 && "font-medium text-[var(--status-danger-on-canvas)]",
           )}
         >
           {offline > 0 ? `${connTitle} · 오프라인 ${offline}` : connTitle}
+          {alarmCount > 0 ? null : " · 활성 이상상황 없음"}
         </p>
         {alarmCount > 0 ? (
           <div className="mt-1.5 flex gap-1.5">
             <button
               type="button"
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-[color:var(--surface-well-border)] bg-[color:var(--surface-well)] px-2 py-1.5 text-xs font-medium text-foreground"
               aria-expanded={alarmListOpen}
               onClick={() => setAlarmListOpen((v) => !v)}
             >
@@ -322,15 +324,13 @@ export function AccountMenuAlarmPanel({
               </button>
             ) : null}
           </div>
-        ) : (
-          <p className={dashboardUi.headerToolsCardMeta}>활성 이상상황 없음</p>
-        )}
+        ) : null}
         {bulkError ? (
           <p className="mt-1 text-[0.65rem] text-destructive">{bulkError}</p>
         ) : null}
         {alarmListOpen && visibleList.length > 0 ? (
           <ul
-            className="mt-1.5 min-h-0 space-y-1"
+            className={dashboardUi.headerToolsCardList}
             aria-label="이상상황 목록"
           >
             {visibleList.map((a) => (

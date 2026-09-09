@@ -1,13 +1,18 @@
 import { Badge } from "@/components/ui/badge";
+import {
+  statusFillDanger,
+  statusFillOk,
+  statusFillWarn,
+} from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 export type StatusTone = "normal" | "caution" | "warning" | "offline";
 
 const toneMap: Record<StatusTone, { label: string; className: string }> = {
-  normal: { label: "정상", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" },
-  caution: { label: "주의", className: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300" },
-  warning: { label: "경고", className: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300" },
-  offline: { label: "오프라인", className: "bg-muted text-muted-foreground dark:bg-slate-500/15 dark:text-slate-300" },
+  normal: { label: "정상", className: statusFillOk },
+  caution: { label: "주의", className: statusFillWarn },
+  warning: { label: "경고", className: statusFillDanger },
+  offline: { label: "오프라인", className: "bg-muted text-muted-foreground" },
 };
 
 type StatusBadgeProps = {

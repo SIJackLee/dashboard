@@ -14,13 +14,15 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | 축 | 규칙 | 토큰 |
 |----|------|------|
 | Brand | 선택·CTA만 | `--primary` |
-| Status | 정상·주의·위험 | `--status-ok\|warn\|danger` + `-ink` |
+| Status | 정상·주의·위험 | `--status-ok\|warn\|danger` + `-ink`. `--destructive` = `--status-danger` (폼·삭제) |
+| Ink | 본문 → 보조 → 힌트 → 장식 | `--foreground` · `--muted-foreground` · `--tertiary-foreground` · `--quaternary-foreground` |
 | Channel | 온·습·모터 | `--channel-temp\|hum\|motor\|info` |
 | Density | 목록 readout · 맵 `--density-map-value*` · 덮개 `valueLg` | `dashboardTypography` / `dashboardReadout` |
 | Elevation | 0 바탕 · 1 우물 · 2 카드 · 3 오버레이 | `dashboardElevation` |
 | Motion | L1 `--motion-*` · L2 `motionClass` | `UI_MOTION.md` |
 | Chroma | 크롬 낮음 · 데이터·알람 높음 | `dashboardChroma` |
 | Affordance | 명령·도구·선택군·칩·히트면·잉크 | `dashboardAffordance` |
+| Fill | 우물=`--muted` · 회색 컨트롤=`--secondary` | 같은 oklch 금지. secondary는 muted 90%+foreground |
 
 ## 면 종류 (8)
 
@@ -62,7 +64,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 2. **이미 있는 blur는 F·H·G다.** 헤더, Dialog, 시트, FAB, 명령 카드, 델린 뱃지. 새 토큰 없이 덮개에 넣으면 종류가 섞인다.
 3. **채도 계단은 E·히트맵 셀만.** 크롬(A)·카드(B) 배경을 status 솔리드로 바꾸지 않는다.
 4. **한 타일(D) 안에 단 2 카드를 또 쌓지 않는다.** 덮개를 걷으면 게이지는 포켓(C/metricPocket)이다.
-5. **알림 헤더 버튼** `topHeaderActionBtnAlert`의 `red-*` 유틸은 status 토큰으로 맞출 후보(크롬이 알람을 흉내 냄).
+5. **알림 헤더 버튼** `topHeaderActionBtnAlert`는 `--status-danger`. 리포트는 우물 면. 위치만은 `channel-info`.
 6. **델린 뱃지**는 H 전용. 덮개 Glass 후보에서 뺀다.
 
 ## Glass를 허용하는 자리 (승인 후)

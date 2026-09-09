@@ -11,7 +11,7 @@
 |------|------|-----|
 | `ok` | 적용 성공 | `--status-ok` |
 | `warn` | 부분 실패 · 주의 | `--status-warn` |
-| `error` | 실패 | `--status-danger` |
+| `error` | 실패 | `--status-danger` (`--destructive` 별칭) |
 | `info` | 안내 | border + foreground |
 | `loading` | 적용 중 | muted + spin |
 

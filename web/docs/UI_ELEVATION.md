@@ -74,12 +74,12 @@ Elevation 단과 별개로, **떠 있는 UI**의 쌓임 순서:
 | Canvas | cool muted 바탕 | `bg-background` (L≈0.145) |
 | Recessed / well | `--surface-well` (muted 쪽) | muted **≤** card — 우물이 카드보다 어두움 |
 | Card / tile | `bg-card` + `--surface-shadow-tile` + `--surface-ring` | shadow 없음 · ring 14% · card L≈0.22 |
-| Meta 글자 | `--muted-foreground` | L≈0.64 (구 0.70 — 눈부심↓) |
+| Meta 글자 | `--muted-foreground` | L≈0.64 (구 0.70 — 눈부심↓). 힌트=`--tertiary-foreground`, 장식=`--quaternary-foreground` |
 | ARIA stage | `--aria-stage-*` / `--aria-glow` | primary 글로우 약화 |
 
 토큰: `--surface-well|pocket|ring|shadow-tile`, `--aria-stage-from|to`, `--aria-glow` (`globals.css`).
 
-색 토큰(`--card`, `--popover`, `--muted`)은 `globals.css` — elevation은 **면의 역할**만 정하고 채널/status 문법을 따른다.
+색 토큰(`--card`, `--popover`, `--muted`, `--secondary`)은 `globals.css` — elevation은 **면의 역할**만 정하고 채널/status 문법을 따른다. `--muted`는 우물·hover 워시, `--secondary`는 버튼/뱃지 회색 채움(muted와 동일 값 금지).
 
 ## Do / Don't
 

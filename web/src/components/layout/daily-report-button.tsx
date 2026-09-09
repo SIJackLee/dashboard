@@ -178,7 +178,7 @@ export function DailyReportButton({
             <span
               className={cn(
                 dashboardUi.headerToolsCardIcon,
-                dashboardUi.headerToolsCardIconAlert,
+                dashboardUi.headerToolsCardIconReport,
               )}
               aria-hidden
             >
@@ -193,7 +193,9 @@ export function DailyReportButton({
                 오늘의 리포트
               </div>
               <p className={dashboardUi.headerToolsCardMeta}>
-                PDF 다운로드
+                {needsFarm
+                  ? "농장 선택 후 받을 수 있습니다"
+                  : "PDF 다운로드"}
               </p>
             </div>
           </>

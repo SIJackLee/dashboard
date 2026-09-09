@@ -51,7 +51,7 @@ const HUB_TONE_CHIP: Record<
   { Icon: ComponentType<{ className?: string }>; label: string; className: string }
 > = {
   total: { Icon: MapPin, label: "전국 관제", className: "text-muted-foreground" },
-  live: { Icon: Activity, label: "정상", className: "text-emerald-600" },
+  live: { Icon: Activity, label: "정상", className: "text-[var(--status-ok-on-canvas)]" },
   alert: { Icon: TriangleAlert, label: "경보", className: "text-status-danger" },
   offline: { Icon: WifiOff, label: "오프라인", className: "text-muted-foreground" },
   location: { Icon: MapPinned, label: "위치만", className: "text-channel-info" },
@@ -163,6 +163,7 @@ export function AccountMenuSplitBody({
           className={accountMenuLayout.zoneContext}
           data-tour-id="account-menu-summary"
         >
+          <div className={accountMenuLayout.zoneContextStack}>
           {farmLabel ? (
             showFarmSwitcher ? (
               <button
@@ -172,9 +173,10 @@ export function AccountMenuSplitBody({
                   "inline-flex min-w-0 max-w-full items-center gap-1",
                 )}
                 aria-expanded={switcherOpen}
+                aria-controls="account-menu-farm-matrix"
                 onClick={() => setSwitcherOpen((v) => !v)}
               >
-                <span className="min-w-0 break-words">{farmLabel}</span>
+                <span className="min-w-0 truncate">{farmLabel}</span>
                 <ChevronDown
                   className={cn(
                     "size-3 shrink-0 text-muted-foreground transition-transform",
@@ -184,30 +186,30 @@ export function AccountMenuSplitBody({
                 />
               </button>
             ) : (
-              <p className={cn(accountMenuLayout.contextFarm, "break-words")}>
+              <p className={cn(accountMenuLayout.contextFarm, "truncate")}>
                 {farmLabel}
               </p>
             )
-          ) : null}
-
-          {switcherOpen && showFarmSwitcher ? (
-            <div
-              className={accountMenuLayout.switcherInset}
-              onPointerDown={(e) => e.stopPropagation()}
+          ) : showFarmSwitcher ? (
+            <button
+              type="button"
+              className={cn(
+                accountMenuLayout.contextFarmBtn,
+                "inline-flex min-w-0 max-w-full items-center gap-1",
+              )}
+              aria-expanded={switcherOpen}
+              aria-controls="account-menu-farm-matrix"
+              onClick={() => setSwitcherOpen((v) => !v)}
             >
-              <FarmSwitcher
-                farmOptions={farmOptions}
-                activeFarmKey={activeFarmKey}
-                farmSummaries={farmSummaries}
-                compact
-                variant="inline"
-                inlineListClassName="p-0"
-                onNavigated={() => {
-                  setSwitcherOpen(false);
-                  onCloseMenu?.();
-                }}
+              <span className="min-w-0 truncate">농장 선택</span>
+              <ChevronDown
+                className={cn(
+                  "size-3 shrink-0 text-muted-foreground transition-transform",
+                  switcherOpen && "rotate-180",
+                )}
+                aria-hidden
               />
-            </div>
+            </button>
           ) : null}
 
           {farmLabel && liveLine ? (
@@ -216,7 +218,7 @@ export function AccountMenuSplitBody({
                 className={statusDotClass(liveStatus?.status)}
                 aria-hidden
               />
-              <span className="min-w-0 break-words">{liveLine}</span>
+              <span className="min-w-0 truncate">{liveLine}</span>
             </p>
           ) : null}
 
@@ -226,6 +228,7 @@ export function AccountMenuSplitBody({
               farmSummaries={farmSummaries}
             />
           ) : null}
+          </div>
         </div>
 
         <div
@@ -260,6 +263,20 @@ export function AccountMenuSplitBody({
             onSaved={onFarmSaved}
           />
         </div>
+      ) : null}
+
+      {switcherOpen && showFarmSwitcher ? (
+        <FarmSwitcher
+          farmOptions={farmOptions}
+          activeFarmKey={activeFarmKey}
+          farmSummaries={farmSummaries}
+          compact
+          variant="matrix"
+          onNavigated={() => {
+            setSwitcherOpen(false);
+            onCloseMenu?.();
+          }}
+        />
       ) : null}
     </>
   );

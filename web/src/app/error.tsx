@@ -28,7 +28,7 @@ export default function AppError({
           일시적인 오류가 발생했습니다. 다시 시도하거나 잠시 후 새로고침해 주세요.
         </p>
         {error.digest ? (
-          <p className="mt-1 text-xs text-muted-foreground/70">
+          <p className="mt-1 text-xs text-tertiary-foreground">
             오류 코드: {error.digest}
           </p>
         ) : null}
