@@ -46,6 +46,7 @@
 | [`UI_ELEVATION.md`](./UI_ELEVATION.md) | elevation |
 | [`UI_CHROMA.md`](./UI_CHROMA.md) | 채도 |
 | [`UI_SURFACES.md`](./UI_SURFACES.md) | 면 종류(A–H) · Glass 전 분류 |
+| [`UI_AFFORDANCE.md`](./UI_AFFORDANCE.md) | 버튼·표시·히트 계약 (명령/도구/선택군/칩/히트면/잉크) |
 | [`UI_FEEDBACK.md`](./UI_FEEDBACK.md) | ops-feedback |
 | [`UI_ARIA_PRESENCE.md`](./UI_ARIA_PRESENCE.md) | DELIN 뱃지 presence |
 | [`UI_VISUAL_QA.md`](./UI_VISUAL_QA.md) | 시각 QA |

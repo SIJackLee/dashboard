@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { dashboardControl } from "@/lib/ui/dashboard-page-ui";
+import { dashboardAffordance, dashboardControl } from "@/lib/ui/dashboard-page-ui";
 
 type PageActionButtonProps = {
   children?: ReactNode;
@@ -43,10 +43,9 @@ export function PageActionButton({
         !iconOnly && dashboardControl.buttonOutline,
         iconOnly && "border",
         variant === "outline" && "hover:bg-muted",
-        variant === "primary" &&
-          "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700",
+        variant === "primary" && cn("border-primary", dashboardAffordance.action),
         variant === "danger" &&
-          "border-red-300 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300",
+          "border-[color-mix(in_oklch,var(--status-danger)_45%,var(--border))] text-[var(--status-danger-on-canvas)] hover:bg-[color-mix(in_oklch,var(--status-danger)_12%,transparent)]",
         className
       )}
     >

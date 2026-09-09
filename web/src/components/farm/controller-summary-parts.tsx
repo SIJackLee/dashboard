@@ -25,10 +25,10 @@ import { formatSensorNumberForDisplay } from "@/lib/data/reading-display";
 import { BarnChannelTrendPanel } from "@/components/farm/barn-channel-trend-panel";
 import { BarnListPanelShell } from "@/components/farm/barn-list-panel-shell";
 import { VentGaugeV1 } from "@/components/farm/controller-summary-gauge-parts";
-import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { dashboardAffordance, dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { LineChart, Settings } from "lucide-react";
+import { LineChart, Settings, ChevronUp } from "lucide-react";
 import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
 import {
   ControllerAffiliationMarks,
@@ -51,7 +51,7 @@ const cardActionWellClass =
 const cardActionSelectedClass =
   "bg-background text-foreground dark:bg-primary/10 dark:text-foreground";
 const cardActionIdleClass =
-  "text-muted-foreground hover:bg-muted/50 hover:text-foreground";
+  "cursor-pointer text-muted-foreground hover:bg-muted hover:text-foreground";
 
 export { ControllerAffiliationMarks, ControllerNoMark, StallUnitNoMark };
 
@@ -207,14 +207,21 @@ export function ControllerSummaryHeader({
   const identity = onConcealDetail ? (
     <button
       type="button"
-      className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
+      className={cn(
+        "flex min-w-0 flex-1 items-start gap-1 text-left",
+        dashboardAffordance.hitSurface,
+      )}
       aria-label="상세 숨기기"
       onClick={(e) => {
         e.stopPropagation();
         onConcealDetail();
       }}
     >
-      {titleBlock}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">{titleBlock}</span>
+      <ChevronUp
+        className={cn(dashboardAffordance.hitHint, "mt-1 text-muted-foreground")}
+        aria-hidden
+      />
     </button>
   ) : (
     <div className="flex min-w-0 flex-1 flex-col gap-0.5">{titleBlock}</div>

@@ -76,7 +76,11 @@ import {
 } from "@/lib/navigation/farm-live-refresh";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import { useFarmScope } from "@/components/layout/farm-scope-provider";
-import { dashboardChroma, dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import {
+  dashboardAffordance,
+  dashboardChroma,
+  dashboardUi,
+} from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { useFieldListFilterMotion } from "@/components/farm/use-field-list-filter-motion";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -622,7 +626,7 @@ export function FarmPageContent({
       tabNavClass,
       active
         ? dashboardChroma.chromeActiveText
-        : dashboardChroma.chromeIdleText,
+        : dashboardAffordance.choiceIdle,
     );
 
   const viewToggle = !hideViewTabs ? (

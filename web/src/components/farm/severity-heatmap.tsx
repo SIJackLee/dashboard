@@ -22,6 +22,7 @@ import {
   type StackMetricRowWithValues,
 } from "@/lib/farm/stack-metric";
 import { cn } from "@/lib/utils";
+import { dashboardAffordance } from "@/lib/ui/dashboard-page-ui";
 
 const CELL_H = 14; // 집계 히트맵 행 높이(px)
 const MINI_CELL_H = 11; // 컨트롤러 미니 히트맵 행 높이(px)
@@ -111,7 +112,11 @@ function HeatCells({
               type="button"
               onClick={() => onSelect?.(r.metric.id)}
               style={{ height: rowH }}
-              className="flex w-5 shrink-0 items-center justify-center transition-colors hover:text-foreground"
+              className={cn(
+                "flex w-5 shrink-0 items-center justify-center rounded-sm transition-colors",
+                dashboardAffordance.hitSurface,
+                "hover:bg-muted hover:text-foreground",
+              )}
               aria-label={rowLabel}
             >
               {content}

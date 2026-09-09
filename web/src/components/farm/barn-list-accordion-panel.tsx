@@ -42,6 +42,7 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import { cn } from "@/lib/utils";
+import { dashboardAffordance } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 
 /** 목록 카드 설정 패널 — 그래프 패널 차트 라벨과 동일 스케일 */
@@ -501,7 +502,10 @@ export function BarnListAccordionPanel({
               type="button"
               disabled={defaultsDisabled}
               onClick={handleApplyDefaults}
-              className="inline-flex min-h-11 items-center justify-center rounded-md border px-3 py-2 text-xs hover:bg-muted disabled:opacity-50 sm:text-sm"
+              className={cn(
+                "inline-flex min-h-11 items-center justify-center rounded-md px-3 py-2 text-xs sm:text-sm",
+                dashboardAffordance.tool,
+              )}
             >
               기본값
             </button>
@@ -511,7 +515,10 @@ export function BarnListAccordionPanel({
               title={saveDisabledReason ?? undefined}
               onClick={handleSaveAll}
               aria-busy={isSaving || undefined}
-              className="inline-flex min-h-11 min-w-0 items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-50 sm:text-sm"
+              className={cn(
+                "inline-flex min-h-11 min-w-0 items-center justify-center rounded-md px-4 py-2 text-xs font-medium sm:text-sm",
+                dashboardAffordance.action,
+              )}
             >
               <BusyButtonLabel
                 busy={isSaving}

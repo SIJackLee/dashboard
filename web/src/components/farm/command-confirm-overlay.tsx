@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircle, Info } from "lucide-react";
+import { dashboardAffordance } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionDuration } from "@/lib/ui/motion-tokens";
 import { FEEDBACK_Z } from "@/lib/ui/feedback-layers";
@@ -172,7 +173,7 @@ export function CommandConfirmOverlay({
           <button
             ref={cancelRef}
             type="button"
-            className={cn(btnClass, "border hover:bg-muted disabled:opacity-50")}
+            className={cn(btnClass, dashboardAffordance.tool)}
             disabled={busy}
             onClick={onCancel}
           >
@@ -180,10 +181,7 @@ export function CommandConfirmOverlay({
           </button>
           <button
             type="button"
-            className={cn(
-              btnClass,
-              "bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50",
-            )}
+            className={cn(btnClass, dashboardAffordance.action)}
             disabled={busy}
             aria-busy={busy || undefined}
             onClick={handleConfirm}

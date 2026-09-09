@@ -4,7 +4,7 @@ import { useEffect, useState, type ComponentType } from "react";
 import { Loader2, Settings } from "lucide-react";
 import { ControllerDeviceIcon } from "@/components/icons/controller-device-icon";
 import type { BarnListViewMode } from "@/lib/farm/farm-view-url";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardAffordance, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -87,7 +87,7 @@ export function BarnListModeToolbar({
               index > 0 && "border-l",
               selected
                 ? "bg-background text-foreground dark:border-primary/40 dark:bg-primary/10 dark:text-primary"
-                : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                : cn(dashboardAffordance.choiceIdle, "hover:bg-muted"),
             )}
             onClick={() => {
               if (disabled) return;

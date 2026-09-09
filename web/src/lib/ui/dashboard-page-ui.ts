@@ -515,7 +515,8 @@ export const dashboardUi = {
 export const dashboardChroma = {
   /** 크롬 선택 텍스트 (탭 라벨 등) */
   chromeActiveText: "text-foreground",
-  chromeIdleText: "text-muted-foreground hover:text-foreground",
+  /** 정적 크롬 라벨 — 탭 비활성은 `dashboardAffordance.choiceIdle` */
+  chromeIdleText: "text-muted-foreground",
   /** 크롬 선택 면 */
   chromeSelected:
     "border-primary/30 bg-primary/5 text-foreground dark:bg-primary/10",
@@ -580,5 +581,29 @@ export const dashboardHubSurface = {
   metricPocket: dashboardElevation.metricPocket,
   /** 그리드 셀 간격 — 도구 격자감 완화 */
   gridGap: "gap-2.5 p-3 md:gap-3 md:p-4",
+} as const;
+
+/**
+ * 어포던스 — docs/UI_AFFORDANCE.md
+ * 라이트/다크 · PC/모바일 동일 계약. 히트 크기만 밀도.
+ */
+export const dashboardAffordance = {
+  /** 1 명령 — 적용·확인. 높이는 호출부 min-h */
+  action:
+    "cursor-pointer bg-primary text-primary-foreground hover:bg-primary/80 disabled:cursor-wait disabled:pointer-events-none disabled:opacity-50",
+  /** 2 도구 — 테두리. 헤더 `topHeaderActionBtn`과 같은 언어 */
+  tool:
+    "cursor-pointer rounded-lg border text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50",
+  /** 3 선택군 — 트랙 안 비활성 탭 */
+  choiceIdle: "cursor-pointer text-muted-foreground hover:text-foreground",
+  /** 4 칩 토글 꺼짐 — 테두리 유지 (투명 테두리 금지) */
+  chipToggleIdle:
+    "cursor-pointer border-border text-muted-foreground hover:bg-muted hover:text-foreground",
+  /** 5 히트 면 */
+  hitSurface: "cursor-pointer",
+  hitHint: "pointer-events-none size-3.5 shrink-0 opacity-70 sm:size-4",
+  /** 6 잉크 · 표시 칩 그릇 */
+  ink: "cursor-default",
+  dataPocket: `${dashboardElevation.metricPocket} cursor-default`,
 } as const;
 

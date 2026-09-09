@@ -23,7 +23,7 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { StatusBadge } from "@/components/common/status-badge";
 import { EnvChip } from "@/components/common/env-chip";
 import { StallUnitNoMark } from "@/components/farm/controller-summary-parts";
-import { dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
+import { dashboardChroma, dashboardUi, dashboardTypography } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionStaggerStepMs } from "@/lib/ui/motion-tokens";
@@ -314,15 +314,15 @@ function SpBulkChipRow({
               "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium",
               motionClass.microHover,
               selected
-                ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
-                : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                ? dashboardChroma.chromeSelected
+                : "border-border bg-background text-muted-foreground hover:bg-muted"
             )}
           >
             <span
               className={cn(
                 "flex size-4 shrink-0 items-center justify-center rounded border",
                 selected
-                  ? "border-emerald-600 bg-emerald-600 text-white"
+                  ? "border-primary bg-primary text-primary-foreground"
                   : "border-muted-foreground/40 bg-background"
               )}
               aria-hidden
@@ -513,7 +513,7 @@ export function BarnListSummary({
               className={cn(
                 "flex min-w-0 w-full flex-nowrap items-center gap-2 border-b bg-muted/40 px-3 py-2.5 text-left sm:px-4",
                 bulkMode && onToggleSp && "cursor-pointer hover:bg-muted/60",
-                bulkMode && spSelected && "bg-emerald-500/5 ring-2 ring-inset ring-emerald-500/40"
+                bulkMode && spSelected && "bg-primary/5 ring-2 ring-inset ring-primary/40"
               )}
             >
               {bulkMode ? (
@@ -521,7 +521,7 @@ export function BarnListSummary({
                   className={cn(
                     "flex size-5 shrink-0 items-center justify-center rounded border",
                     spSelected
-                      ? "border-emerald-600 bg-emerald-600 text-white"
+                      ? "border-primary bg-primary text-primary-foreground"
                       : "border-muted-foreground/40 bg-background"
                   )}
                   aria-hidden

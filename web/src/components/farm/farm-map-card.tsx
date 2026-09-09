@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, GripVertical, Check } from "lucide-react";
+import { Building2, GripVertical, Check, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { BarnMapSnapshot } from "@/lib/data/iot";
 import { parseBarnCatalogKey } from "@/lib/data/barn-catalog";
@@ -16,6 +16,7 @@ import {
   type ControllerEnvCoverLevel,
 } from "@/lib/farm/controller-env-cover";
 import {
+  dashboardAffordance,
   dashboardElevation,
   dashboardUi,
 } from "@/lib/ui/dashboard-page-ui";
@@ -154,6 +155,7 @@ export function FarmMapCard({
           "flex w-full min-w-0 flex-col items-center gap-0.5 rounded-lg border px-2 py-1.5 text-center transition-shadow",
           ENV_SURFACE[envLevel],
           controllerEnvCoverRingClass(envLevel),
+          onSelect && dashboardAffordance.hitSurface,
           selectable && "cursor-pointer",
           selected &&
             "!ring-2 !ring-foreground/35 !ring-offset-1 dark:!ring-foreground/30",
@@ -167,6 +169,12 @@ export function FarmMapCard({
           <span className="min-w-0 truncate">{typeName}</span>
           {showStallMark ? (
             <StallUnitNoMark stallNo={stallNo} className="text-inherit" />
+          ) : null}
+          {onSelect ? (
+            <ChevronRight
+              className={cn(dashboardAffordance.hitHint, "text-inherit")}
+              aria-hidden
+            />
           ) : null}
         </span>
         <span className="flex w-full flex-nowrap items-baseline justify-center gap-2 whitespace-nowrap leading-none">
@@ -277,7 +285,7 @@ export function FarmMapCard({
               if (e.key === "Enter" || e.key === " ") e.preventDefault();
             }}
             className={cn(
-              "pointer-events-auto hidden shrink-0 cursor-grab touch-none select-none rounded border border-muted-foreground/25 bg-muted/50 text-muted-foreground hover:border-emerald-500/50 hover:bg-emerald-50 hover:text-emerald-700 active:cursor-grabbing lg:block",
+              "pointer-events-auto hidden shrink-0 cursor-grab touch-none select-none rounded border border-muted-foreground/25 bg-muted/50 text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground active:cursor-grabbing lg:block",
               compact ? "p-1" : "p-1.5",
             )}
             aria-label="축사 위치 이동"
@@ -332,6 +340,12 @@ export function FarmMapCard({
             </span>
             {showStallMark ? (
               <StallUnitNoMark stallNo={stallNo} className="shrink-0 text-inherit" />
+            ) : null}
+            {onSelect ? (
+              <ChevronRight
+                className={cn(dashboardAffordance.hitHint, "shrink-0 text-muted-foreground")}
+                aria-hidden
+              />
             ) : null}
           </span>
         </button>

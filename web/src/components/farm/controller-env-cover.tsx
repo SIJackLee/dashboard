@@ -18,7 +18,9 @@ import {
   ControllerNoMark,
   StallUnitNoMark,
 } from "@/components/farm/controller-no-marks";
+import { ChevronRight } from "lucide-react";
 import {
+  dashboardAffordance,
   dashboardChroma,
   dashboardTypography,
 } from "@/lib/ui/dashboard-page-ui";
@@ -110,6 +112,7 @@ export function ControllerEnvCover({
       }}
       className={cn(
         "absolute inset-0 z-10 flex flex-col justify-between gap-1 p-2.5 text-left sm:p-3",
+        dashboardAffordance.hitSurface,
         COVER_FILL[level],
         dashboardChroma.statusFilmGlassRim,
         controllerEnvCoverInkClass(level),
@@ -193,12 +196,22 @@ export function ControllerEnvCover({
       </span>
       <span
         className={cn(
-          "break-keep opacity-70",
-          dashboardTypography.envCoverStatus,
-          onFill && "text-current",
+          "flex items-end justify-between gap-2",
         )}
       >
-        {statusLabel}
+        <span
+          className={cn(
+            "break-keep opacity-70",
+            dashboardTypography.envCoverStatus,
+            onFill && "text-current",
+          )}
+        >
+          {statusLabel}
+        </span>
+        <ChevronRight
+          className={cn(dashboardAffordance.hitHint, onFill && "text-current")}
+          aria-hidden
+        />
       </span>
     </button>
   );

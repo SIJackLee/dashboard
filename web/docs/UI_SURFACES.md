@@ -3,8 +3,8 @@
 대시보드 UI는 축(H1–H5)과 **면 종류**를 같이 본다.  
 Elevation 단(0~3)만으로는 덮개·히트맵·델린·시트가 한 덩어리로 섞인다.
 
-관련: [UI_ELEVATION.md](./UI_ELEVATION.md) · [UI_CHROMA.md](./UI_CHROMA.md) · [UI_DENSITY.md](./UI_DENSITY.md) · [UI_MOTION.md](./UI_MOTION.md) · [UI_FEEDBACK.md](./UI_FEEDBACK.md) · [UI_ARIA_PRESENCE.md](./UI_ARIA_PRESENCE.md)  
-코드: `dashboardElevation` · `dashboardUi` · `dashboardChroma` · `dashboardHubSurface` (`src/lib/ui/dashboard-page-ui.ts`)  
+관련: [UI_ELEVATION.md](./UI_ELEVATION.md) · [UI_CHROMA.md](./UI_CHROMA.md) · [UI_DENSITY.md](./UI_DENSITY.md) · [UI_MOTION.md](./UI_MOTION.md) · [UI_FEEDBACK.md](./UI_FEEDBACK.md) · [UI_ARIA_PRESENCE.md](./UI_ARIA_PRESENCE.md) · [UI_AFFORDANCE.md](./UI_AFFORDANCE.md)  
+코드: `dashboardElevation` · `dashboardUi` · `dashboardChroma` · `dashboardHubSurface` · `dashboardAffordance` (`src/lib/ui/dashboard-page-ui.ts`)  
 프리미티브: `src/components/ui/` · 농장: `src/components/farm/`
 
 Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. 신규 글로우·무한 펄스·H6는 별도 승인.
@@ -20,6 +20,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | Elevation | 0 바탕 · 1 우물 · 2 카드 · 3 오버레이 | `dashboardElevation` |
 | Motion | L1 `--motion-*` · L2 `motionClass` | `UI_MOTION.md` |
 | Chroma | 크롬 낮음 · 데이터·알람 높음 | `dashboardChroma` |
+| Affordance | 명령·도구·선택군·칩·히트면·잉크 | `dashboardAffordance` |
 
 ## 면 종류 (8)
 

@@ -8,6 +8,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { dashboardAffordance } from "@/lib/ui/dashboard-page-ui";
+import { cn } from "@/lib/utils";
 
 const errorMessages: Record<string, string> = {
   credentials: "이메일 또는 비밀번호가 올바르지 않습니다.",
@@ -45,7 +47,11 @@ export default async function LoginPage({
           <OAuthButtons />
           <a
             href="/app"
-            className="flex h-10 w-full items-center justify-center rounded-md border border-input bg-background text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+            className={cn(
+              "flex h-10 w-full items-center justify-center text-sm font-medium",
+              dashboardAffordance.tool,
+              "text-foreground hover:text-foreground",
+            )}
           >
             앱 설치하러 가기
           </a>

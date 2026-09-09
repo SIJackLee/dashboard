@@ -14,9 +14,9 @@
 |------------|------|
 | `npm test` / `test:unit` → `run-unit-tests.mjs` | `src/**/*.test.ts` · `supabase/functions/**/*.test.ts` |
 | `verify:hub` → `verify-hub.mjs` | 허브 URL·keep-alive 유닛 ([`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md)) |
-| `verify:design` | `verify-motion-classes` + `verify-ui-density` |
+| `verify:design` | `verify-motion-classes` + `verify-ui-density` + `verify-ui-affordance` |
 | `verify:motion-css` / `verify:motion-tokens` / `verify:motion-classes` | 모션 |
-| `verify:ui-colors` / `verify:ui-density` / `verify:ui-elevation` | UI 토큰·밀도 (colors/elevation은 Production 팔레트와 충돌 가능) |
+| `verify:ui-colors` / `verify:ui-density` / `verify:ui-elevation` / `verify:ui-affordance` | UI 토큰·밀도·어포던스 (colors/elevation은 Production 팔레트와 충돌 가능. affordance는 `verify:design`에 포함) |
 | `audit:ship-checklist` → `ship-checklist-audit.mjs` | 출고 체크리스트 |
 | `audit:operator-apply` → `operator-apply-audit.mjs` | 적용 감사 |
 | `audit:farm-command` → `farm-command-audit.mjs` | 명령 파이프라인 |

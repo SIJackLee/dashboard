@@ -262,7 +262,7 @@ export function ControllerSummaryGaugeRow({
   const cardClass = cn(
     "relative flex h-full min-w-0 flex-col rounded-xl border bg-card overflow-hidden",
     !toolbarSheetSelected && controllerEnvCoverRingClass(envCoverLevel),
-    toolbarSheetSelected && "ring-2 ring-emerald-500/70",
+    toolbarSheetSelected && "ring-2 ring-primary/70",
     !toolbarSheetSelected && settingsExpanded && "ring-2 ring-primary/40",
     (onCardActivate || concealOnIdleClick) && "cursor-pointer",
     className,

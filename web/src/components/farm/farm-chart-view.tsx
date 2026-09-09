@@ -35,6 +35,7 @@ import {
   useFarmTrendUplinkCoverage,
 } from "@/lib/farm/use-farm-trend-uplink-coverage";
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
+import { dashboardAffordance } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 import { StallUnitNoMark, ControllerNoMark } from "@/components/farm/controller-summary-parts";
@@ -672,10 +673,11 @@ function ScopeRow({
           type="button"
           aria-label={expanded ? "접기" : "펼치기"}
           className={cn(
-            "flex shrink-0 items-center justify-center rounded text-muted-foreground",
+            "flex shrink-0 items-center justify-center rounded",
             farmChartUi.fsLegend,
             touchFriendly ? "h-10 w-10" : "h-6 w-6",
             motionClass.microHover,
+            dashboardAffordance.chipToggleIdle,
           )}
           onClick={(e) => {
             e.stopPropagation();
@@ -708,13 +710,14 @@ function ScopeRow({
               : undefined
         }
         className={cn(
-          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 text-left",
+          "flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md border px-2 text-left",
           farmChartUi.fsLegend,
           touchFriendly ? "min-h-11 py-2.5" : "py-1",
           motionClass.microHover,
+          dashboardAffordance.hitSurface,
           selected
-            ? "bg-channel-info/10 font-medium dark:bg-channel-info/15"
-            : "hover:bg-muted/50",
+            ? "border-channel-info/30 bg-channel-info/10 font-medium dark:bg-channel-info/15"
+            : "border-transparent hover:border-border hover:bg-muted",
           !selected && !tone && "text-foreground",
           !selected && tone === "guide" && "text-amber-700 dark:text-amber-400",
           !selected && tone === "offline" && "text-muted-foreground",

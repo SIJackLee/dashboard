@@ -22,7 +22,7 @@
 | 키 | 용도 |
 |----|------|
 | `dashboardChroma.chromeActiveText` | 활성 탭/내비 라벨 |
-| `dashboardChroma.chromeIdleText` | 비활성 + hover |
+| `dashboardChroma.chromeIdleText` | 정적 크롬 라벨 (hover 잉크 변경 없음). 탭은 `dashboardAffordance.choiceIdle` |
 | `dashboardChroma.chromeSelected` | 선택 면(칩·행) |
 | `dashboardChroma.viewTabPill` | 뷰 탭 슬라이딩 필 (카드 면 + ring, 라이트·다크 공통) |
 | `dashboardChroma.emptyState` | 데이터 없음 문구 |

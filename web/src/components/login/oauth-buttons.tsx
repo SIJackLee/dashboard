@@ -109,7 +109,7 @@ export function OAuthButtons() {
         type="button"
         disabled={busy != null || (googleBlocked && !nativeOAuth)}
         onClick={() => void startOAuth("google")}
-        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-input bg-background text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white text-sm font-medium text-neutral-900 transition-colors hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-60 dark:border-neutral-300 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-50"
       >
         {busy === "google" ? (
           <Loader2 className="size-4 animate-spin" aria-hidden />

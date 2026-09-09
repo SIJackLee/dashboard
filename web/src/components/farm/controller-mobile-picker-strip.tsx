@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { BarnReading } from "@/lib/data/iot";
 import { ControllerAffiliationMarks } from "@/components/farm/controller-summary-parts";
+import { dashboardChroma } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -116,15 +117,15 @@ export function ControllerMobilePickerStrip({
                 "controller-mobile-picker-item inline-flex min-w-[8rem] shrink-0 snap-center flex-col items-start rounded-lg border px-2.5 py-1.5 text-left",
                 motionClass.microHover,
                 selected
-                  ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted/50",
+                  ? dashboardChroma.chromeSelected
+                  : "border-border bg-background text-muted-foreground hover:bg-muted",
               )}
             >
               <span className="flex items-center gap-1.5 text-xs font-semibold leading-snug">
                 <span
                   className={cn(
                     "size-2 shrink-0 rounded-sm",
-                    r.status === "normal" && "bg-emerald-500",
+                    r.status === "normal" && "bg-[var(--status-ok)]",
                     r.status === "caution" && "bg-amber-500",
                     r.status === "offline" && "bg-muted-foreground",
                   )}

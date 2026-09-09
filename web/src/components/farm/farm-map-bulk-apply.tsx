@@ -39,7 +39,7 @@ import type { InlineStatusTone } from "@/components/common/inline-status-toast";
 import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
 import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
 import { SettingsCollapsibleSection } from "@/components/farm/settings-collapsible-section";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardAffordance, dashboardChroma, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
   BULK_CHANNEL_OPTIONS,
   SectionToggle,
@@ -884,7 +884,7 @@ export function FarmMapBulkApply({
               <div
                 className={cn(
                   "flex items-center gap-2.5",
-                  resultFeedback.outcome === "success" && "text-emerald-700 dark:text-emerald-400",
+                  resultFeedback.outcome === "success" && "text-[var(--status-ok)]",
                   resultFeedback.outcome === "partial" && "text-amber-800 dark:text-amber-300",
                   resultFeedback.outcome === "error" && "text-red-700 dark:text-red-400",
                 )}
@@ -945,7 +945,7 @@ export function FarmMapBulkApply({
                   className={cn(
                     "mt-4 rounded-lg border px-3 py-2.5",
                     liveTracker.progress.allLive
-                      ? "border-emerald-200/80 bg-emerald-50/60 dark:bg-emerald-950/30"
+                      ? "border-[color-mix(in_oklch,var(--status-ok)_40%,var(--border))] bg-[color-mix(in_oklch,var(--status-ok)_10%,transparent)]"
                       : "border-channel-info/30 bg-channel-info/5",
                   )}
                 >
@@ -984,7 +984,7 @@ export function FarmMapBulkApply({
                       ? "bg-red-600 text-white hover:bg-red-700"
                       : resultFeedback.outcome === "partial"
                         ? "bg-amber-600 text-white hover:bg-amber-700"
-                        : "bg-emerald-600 text-white hover:bg-emerald-700",
+                        : dashboardAffordance.action,
                   )}
                 >
                   확인
@@ -994,7 +994,7 @@ export function FarmMapBulkApply({
           ) : running ? (
             <div className="flex min-h-[12rem] flex-1 flex-col items-center justify-center gap-3 px-4 py-10 text-center md:px-6">
               <Loader2
-                className="size-8 animate-spin text-emerald-600 md:size-10"
+                className="size-8 animate-spin text-primary md:size-10"
                 aria-hidden
               />
               <p className={cn("font-semibold", bulkModalSectionTitle)}>
@@ -1039,7 +1039,7 @@ export function FarmMapBulkApply({
                               "inline-flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 md:px-3 md:py-2",
                               motionClass.microHover,
                               checked
-                                ? "border-emerald-600/40 bg-emerald-50 text-foreground dark:bg-emerald-950/40"
+                                ? dashboardChroma.chromeSelected
                                 : "bg-muted/20 text-muted-foreground hover:bg-muted/40",
                             )}
                           >
@@ -1049,14 +1049,14 @@ export function FarmMapBulkApply({
                               onChange={(e) =>
                                 toggleChannel(slot, e.target.checked)
                               }
-                              className="size-4 accent-emerald-600 md:size-5"
+                              className="size-4 accent-primary md:size-5"
                               aria-label={`채널 ${slot}`}
                             />
                             <span
                               className={cn(
                                 "inline-flex size-7 items-center justify-center rounded-md border text-xs font-semibold md:size-8 md:text-sm",
                                 checked
-                                  ? "border-emerald-600/50 bg-background"
+                                  ? "border-primary/50 bg-background"
                                   : "border-border bg-background/60",
                               )}
                               aria-hidden
@@ -1121,7 +1121,8 @@ export function FarmMapBulkApply({
                     }
                     className={cn(
                       bulkModalBtn,
-                      "gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                      "gap-1.5",
+                      dashboardAffordance.action,
                     )}
                   >
                     {running ? (
@@ -1157,7 +1158,7 @@ export function FarmMapBulkApply({
           <SlidersHorizontal
             className={cn(
               dashboardUi.iconSm,
-              bulkMode ? "text-emerald-600" : "text-muted-foreground"
+              bulkMode ? "text-primary" : "text-muted-foreground"
             )}
             aria-hidden
           />
@@ -1173,7 +1174,7 @@ export function FarmMapBulkApply({
             className={cn(
               "relative h-5 w-9 shrink-0 rounded-full md:h-6 md:w-11",
               motionClass.microHover,
-              bulkMode ? "bg-emerald-600" : "bg-muted-foreground/30"
+              bulkMode ? "bg-primary" : "bg-muted-foreground/30"
             )}
           >
             <span
@@ -1206,7 +1207,7 @@ export function FarmMapBulkApply({
                 disabled={selectedSps.length === 0}
                 className={cn(
                   bulkModalBtn,
-                  "shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                  dashboardAffordance.action,
                 )}
               >
                 설정입력

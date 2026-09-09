@@ -16,6 +16,7 @@ function Label({
     <label
       data-slot="label"
       data-size={size}
+      suppressHydrationWarning
       className={cn(
         "flex select-none items-center gap-2 font-medium group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
         size === "default" && "text-sm leading-none",

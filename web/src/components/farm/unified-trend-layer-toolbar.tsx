@@ -22,7 +22,7 @@ import type {
   UnifiedLayerFlags,
   UnifiedLayerId,
 } from "@/lib/farm/unified-barn-trend-series";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardAffordance, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -163,7 +163,7 @@ function iconBtnClass(active: boolean, muted: boolean, tone: Tone) {
     active
       ? toneActiveClass(tone)
       : muted
-        ? "border-transparent text-muted-foreground/45 hover:border-border/60 hover:text-muted-foreground"
+        ? cn(dashboardAffordance.chipToggleIdle, "text-muted-foreground/80")
         : dashboardUi.chartLayerActionBtnIdle,
   );
 }

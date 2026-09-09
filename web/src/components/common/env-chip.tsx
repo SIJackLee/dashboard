@@ -1,5 +1,5 @@
 import { Thermometer, Droplets } from "lucide-react";
-import { dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import { dashboardAffordance, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
 
 type EnvKind = "temp" | "humidity";
@@ -90,7 +90,8 @@ export function EnvChip({
     return (
       <div
         className={cn(
-          "flex min-w-0 items-center justify-center gap-1 overflow-hidden rounded-md border bg-background",
+          "flex min-w-0 items-center justify-center gap-1 overflow-hidden",
+          dashboardAffordance.dataPocket,
           compact
             ? "min-h-[3rem] gap-1 px-1.5 py-1 sm:min-h-[3.25rem]"
             : "px-2 py-1.5",
@@ -104,7 +105,10 @@ export function EnvChip({
 
   return (
     <div
-      className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2"
+      className={cn(
+        "flex items-center gap-2 px-3 py-2",
+        dashboardAffordance.dataPocket,
+      )}
       aria-label={hasValue ? `${conf.label} ${value}${conf.unit}` : conf.label}
     >
       <Icon className={cn(dashboardUi.iconSm, conf.className)} aria-hidden />
