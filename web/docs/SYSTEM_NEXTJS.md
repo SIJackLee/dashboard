@@ -112,7 +112,7 @@ SELECT 계약: [`live-read-select.ts`](../src/lib/data/live-read-select.ts)
 | [`fetch-instance-health.ts`](../src/lib/admin/health/fetch-instance-health.ts) | `instance_health_current` |
 | [`fetch-command-health.ts`](../src/lib/admin/health/fetch-command-health.ts) | sent 24h · checkpoint |
 | [`fetch-snapshot.ts`](../src/lib/admin/health/fetch-snapshot.ts) | DAG 조립 · decode lag · raw buckets |
-| [`fetch-ekape-health.ts`](../src/lib/admin/health/fetch-ekape-health.ts) | Ekape/FTP (레거시) |
+| [`fetch-ekape-health.ts`](../src/lib/admin/health/fetch-ekape-health.ts) | 외부 연계 (Ekape/FTP) — **미구현** · Health DAG 대기 |
 
 신선도: `checked_at` 10m warn · 30m unknown ([`constants.ts`](../src/lib/admin/health/constants.ts)).
 

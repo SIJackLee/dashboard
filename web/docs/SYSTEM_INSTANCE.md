@@ -166,10 +166,10 @@ flowchart LR
 | systemd·env 변경 | 운영 | rsd repo 커밋 revert |
 | EC2 force·키 로테 | **명시 승인** | rsd + Supabase 동시 |
 
-### 3.4 알려진 gap (TODO)
+### 3.4 알려진 gap / 백로그
 
-- **명령 downlink Agent** — UI는 **낙관 즉시 반영**이 정본; 백그라운드 ACK·stale sent 정리·FARM02 현장 정합 ([`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) §8)
-- **FARM02 ACK** — sent만·applied 0 · uplink 복구 후 스모크 ([`FARM02_ACK_TRIAGE.md`](./FARM02_ACK_TRIAGE.md))
+- **FARM02 ACK·현장** — uplink/장비 반영 triage ([`FARM02_ACK_TRIAGE.md`](./FARM02_ACK_TRIAGE.md)) · 필요 시 브로커 `/cmd`·`/raw` 모니터
+- **외부 연계** — Health DAG Ekape/FTP **미구현** (대기 노드 정합)
 - **Health `payload`→운영 문서** — topic 규칙 등 rsd JSON이 Health에 실리면 §2.3 표에 매핑 추가 (선택)
 
 ---

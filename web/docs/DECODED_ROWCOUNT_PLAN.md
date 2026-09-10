@@ -3,11 +3,11 @@
 > **대상:** `iot_room_state_decoded` (+ raw는 후속 별도)  
 > **전략:** ① 파티션 HOT 경량화 → ② 희소 쓰기(추천안) → ③ 30일 초과 retention  
 > **합의 확정:** 2026-08-05 (아래 §합의)  
-> **실행 상태 (2026-08-05):**  
+> **실행 상태:**  
 > ① D1 파티션 **운영 적용** · legacy **DROP** (2026-08-05)  
-> ② 희소 PoC **적용** — allowlist `FARM01/P00` + `FARM02/P00`  
+> ② 희소 PoC — allowlist 적용 후 **OFF 2026-09-01** (`sparse_enabled=false` · LIVE·델린 side effect) · migration `20260901153000`  
 > ③ retention **cron on** — `cleanup_iot_retention_30d` 매일 03:30 KST · archive soak DROP · 월 파티션 ensure  
-> **문서 정합:** 2026-08-06 — [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md)가 보존 정본 (구 “미실행” 폐기)
+> **문서 정합:** 2026-09-11 — sparse OFF · [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md)
 
 실측(2026-08-06): decoded ~9.4k행 · 파티션 합 ~27MB · raw ~22MB.
 
@@ -108,7 +108,7 @@ else:
 
 1. ~~last 테이블 + config~~ → migration `20260805150000_iot_decoded_sparse_poc.sql` 적용  
 2. ~~Edge decode-batch 희소 게이트~~ → 배포 v14 · allowlist `FARM01/P00` · ε_temp=0.2 · ε_fan=2 · heartbeat=1800s  
-3. **관측 중** — 3~7일 행/일·trend 오차 기록  
+3. ~~관측~~ → **OFF** (2026-09-01) — 확대·ε 조정 중단 · 재개 시 LIVE 신선도 분리 선행  
 4. 전 농장 확대 (`sparse_farm_keys` 비우면 전체)  
 5. 플래그 기본 on 유지 / 장애 시 `sparse_enabled=false`
 

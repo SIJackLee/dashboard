@@ -80,7 +80,8 @@ flowchart LR
 - **브라우저:** anon key + RLS (`user_can_read_farm`, `is_admin`)
 - **서버(사용자 컨텍스트):** `@supabase/ssr` cookie session
 - **서버(관리 전용):** `service_role` — `server-only`, 관리자 헬스·일부 admin API만
-- **명령:** 대시보드는 DB insert까지 · MQTT 전송은 EC2 C.py (Agent 미구현 구간 있음)
+- **명령:** 대시보드는 DB insert·적용 큐·이력까지 · MQTT downlink는 EC2 **C.py**
+- **외부 연계 (Health DAG):** Ekape/FTP 등 — **미구현** (대기/비활성 표시)
 
 ### 1.7 설계 원칙 (횡단 — 문서 정본)
 
