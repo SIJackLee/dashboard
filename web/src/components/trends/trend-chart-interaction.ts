@@ -7,6 +7,7 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { motionClass } from "@/lib/ui/motion-classes";
 import type { ClipPhase } from "@/lib/ui/use-clip-presence";
+import type { TrendEventMark } from "@/lib/data/trend-chart-types";
 
 export const MAX_PINNED_TIPS = 5;
 export const PIN_CLICK_SLOP_PX = 10;
@@ -32,6 +33,7 @@ export type PinnedTip = {
   /** 기본 배치 대비 사용자 드래그 오프셋(px) */
   ox: number;
   oy: number;
+  eventMark?: TrendEventMark;
 };
 
 export function handleScaleEdgeDoubleTap(

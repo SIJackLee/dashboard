@@ -42,6 +42,8 @@ import type {
   TrendScaleEdgeLabel,
   ScaleEdgeDragEvent,
   ScaleEdgeNumericCommitEvent,
+  TrendEventLane,
+  TrendEventMark,
 } from "@/lib/data/trend-chart-types";
 import {
   type HoverMetricGroup,
@@ -49,9 +51,8 @@ import {
   inferHoverMetricGroup,
   resolveBreachNavTarget,
 } from "./trend-chart-format";
-import { TrendPointCardBody } from "./trend-hover-card";
+import { TrendPointCardBody, TrendEventCardBody } from "./trend-hover-card";
 import {
-  PAD_X,
   PAD_TOP,
   PAD_BOTTOM,
   VIEW_W_NORM,
@@ -66,6 +67,8 @@ import {
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
   tipPinId,
+  trendMsToPlotX,
+  trendPlotPadPx,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
 import {
@@ -85,6 +88,11 @@ import {
   type TrendPlotGeom,
 } from "./trend-chart-svg-layers";
 import { TrendChartDataLayers } from "./trend-chart-data-layers";
+import {
+  EventLaneHtmlOverlay,
+  EventLaneSvgGuides,
+  type PositionedEventMark,
+} from "./trend-chart-event-lane";
 
 export type {
   TrendAxis,
@@ -99,6 +107,8 @@ export type {
   TrendScaleEdgeLabel,
   ScaleEdgeDragEvent,
   ScaleEdgeNumericCommitEvent,
+  TrendEventLane,
+  TrendEventMark,
 };
 
 type TrendChartProps = {
@@ -240,6 +250,13 @@ type TrendChartProps = {
   scaleEdgeApplyDisabled?: boolean;
   /** 플롯 CSS 너비(px). 차트 탭 다운샘플 밀도용 */
   onPlotWidthChange?: (widthPx: number) => void;
+  /**
+   * 데이터 밴드 아래 이벤트 행(명령 적중).
+   * X는 추이 `xFor`와 같은 시각 축. height에 eventLaneHeight를 더해 전달.
+   */
+  eventLane?: TrendEventLane | null;
+  /** `height`와 같은 단위(플롯 view Y). 기본 0 */
+  eventLaneHeight?: number;
 };
 
 
@@ -294,6 +311,8 @@ export function TrendChart({
   scaleEdgeApplyBusy = false,
   scaleEdgeApplyDisabled = false,
   onPlotWidthChange,
+  eventLane = null,
+  eventLaneHeight = 0,
 }: TrendChartProps) {
   void _layoutKey;
   void tickEvery;
@@ -301,6 +320,9 @@ export function TrendChart({
   /** 호버 — 인덱스 변경 시에만 setState (mousemove 전량 리렌더 방지) */
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [hoverSeries, setHoverSeries] = useState<string | null>(null);
+  const [hoverEventMark, setHoverEventMark] = useState<TrendEventMark | null>(
+    null,
+  );
   /** 클릭으로 고정한 비교용 데이터 카드 (다중) — 상태·리셋·외부클릭 해제는 훅에서 */
   const { pinnedTips, setPinnedTips, bringPinToFront, chartRootRef } =
     useTrendPinnedTips({
@@ -421,12 +443,14 @@ export function TrendChart({
   /** 원단위 Y축(C2) 또는 모바일 거터 */
   const showNativeLeftAxis = Boolean(leftUnit);
   const viewW = plotPx.w > 32 ? plotPx.w : VIEW_W_NORM;
-  const padL0 = showNativeLeftAxis ? PAD_X : labelGutter ? 4 : PAD_X;
-  const padR0 = labelGutter ? 20 : PAD_X;
-  const padL = (padL0 / VIEW_W_NORM) * viewW;
-  const padR = (padR0 / VIEW_W_NORM) * viewW;
-  const innerW = viewW - padL - padR;
-  const innerH = chartH - PAD_TOP - PAD_BOTTOM;
+  const { padL, padR, innerW } = trendPlotPadPx(viewW, {
+    leftUnit: showNativeLeftAxis,
+    labelGutter,
+  });
+  const eventLaneH =
+    eventLane && eventLaneHeight > 0 ? eventLaneHeight : 0;
+  const innerH = chartH - PAD_TOP - PAD_BOTTOM - eventLaneH;
+  const eventLaneTop = PAD_TOP + innerH;
 
   /** preserveAspectRatio=none 에서 원이 옆으로 퍼지지 않도록 viewBox rx/ry 보정 */
   const markerRx = (rPx: number) => (rPx * viewW) / Math.max(1, plotPx.w);
@@ -477,6 +501,34 @@ export function TrendChart({
     }
     return padL + (i / (n - 1)) * innerW;
   };
+
+  const xForMs = (ms: number): number | null => {
+    if (n <= 1) return padL + innerW / 2;
+    if (timeAxisMs && timeAxisMs.length === n) {
+      return trendMsToPlotX(
+        ms,
+        timeAxisMs[0]!,
+        timeAxisMs[n - 1]!,
+        padL,
+        innerW,
+      );
+    }
+    return null;
+  };
+
+  const positionedEventMarks: PositionedEventMark[] = (() => {
+    if (!eventLane || eventLaneH <= 0) return [];
+    const rows = Math.max(1, eventLane.rowLabels.length);
+    const out: PositionedEventMark[] = [];
+    for (const mark of eventLane.marks) {
+      const xView = xForMs(mark.atMs);
+      if (xView == null) continue;
+      const row = Math.min(rows - 1, Math.max(0, mark.row));
+      const yView = eventLaneTop + ((row + 0.5) / rows) * eventLaneH;
+      out.push({ mark, xView, yView });
+    }
+    return out;
+  })();
 
   const barGroupW = n > 0 ? innerW / n : innerW;
   const rawBarW =
@@ -553,10 +605,43 @@ export function TrendChart({
     yPx: number,
     plotW: number,
     plotH: number,
-  ): { idx: number; xView: number; yView: number; seriesKey: string } | null => {
-    if (n === 0 || plotW <= 0 || plotH <= 0) return null;
+  ): {
+    idx: number;
+    xView: number;
+    yView: number;
+    seriesKey: string;
+    eventMark?: TrendEventMark;
+  } | null => {
+    if (plotW <= 0 || plotH <= 0) return null;
     const hitR = Math.max(14, markerRadiusPx * 4.2);
     const hitR2 = hitR * hitR;
+    if (eventLane && eventLaneH > 0 && plotH > 0) {
+      const laneTopPx = (eventLaneTop / chartH) * plotH;
+      if (yPx >= laneTopPx - 4) {
+        let bestD2 = hitR2;
+        let best: PositionedEventMark | null = null;
+        for (const row of positionedEventMarks) {
+          const sx = (row.xView / viewW) * plotW;
+          const sy = (row.yView / chartH) * plotH;
+          const dx = xPx - sx;
+          const dy = yPx - sy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 <= bestD2) {
+            bestD2 = d2;
+            best = row;
+          }
+        }
+        if (!best) return null;
+        return {
+          idx: 0,
+          xView: best.xView,
+          yView: best.yView,
+          seriesKey: `event:${best.mark.id}`,
+          eventMark: best.mark,
+        };
+      }
+    }
+    if (n === 0) return null;
     let bestD2 = hitR2;
     let best: {
       idx: number;
@@ -691,6 +776,7 @@ export function TrendChart({
     hoverSeriesRef.current = null;
     setHoverIdx(null);
     setHoverSeries(null);
+    setHoverEventMark(null);
     setCrosshairVisible(false);
   };
 
@@ -849,6 +935,14 @@ export function TrendChart({
       y: e.clientY,
       pointerId: e.pointerId,
     };
+    if (eventLane && eventLaneH > 0) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      if (rect.height > 0) {
+        const yPx = e.clientY - rect.top;
+        const laneTopPx = (eventLaneTop / chartH) * rect.height;
+        if (yPx >= laneTopPx) return;
+      }
+    }
     /** 플롯 본문은 시간 줌 우선 — 알람선 전체폭 hit로 X스코프를 가로채지 않음.
      *  알람 세로 조절은 우측 숫자 라벨 드래그 / 우클릭 숫자 입력. */
     if (xScopeSelect) onXScopePointerDown(e);
@@ -982,7 +1076,9 @@ export function TrendChart({
     }
     plotEmptyTapRef.current = null;
 
-    const id = tipPinId(hit.idx, hit.seriesKey);
+    const id = hit.eventMark
+      ? `event:${hit.eventMark.id}`
+      : tipPinId(hit.idx, hit.seriesKey);
     setPinnedTips((prev) => {
       if (prev.some((p) => p.id === id)) {
         return prev.filter((p) => p.id !== id);
@@ -995,6 +1091,7 @@ export function TrendChart({
         ny: hit.yView / chartH,
         ox: 0,
         oy: 0,
+        eventMark: hit.eventMark,
       };
       return [...prev, next].slice(-MAX_PINNED_TIPS);
     });
@@ -1074,7 +1171,7 @@ export function TrendChart({
       xDraftRef.current != null
     )
       return;
-    if (n === 0) return;
+    if (n === 0 && positionedEventMarks.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
     const xPx = e.clientX - rect.left;
@@ -1093,11 +1190,16 @@ export function TrendChart({
 
     const hit = findDataPointHit(xPx, yPx, rect.width, rect.height);
     if (!hit) {
-      if (hoverIdxRef.current != null || hoverSeriesRef.current != null) {
+      if (
+        hoverIdxRef.current != null ||
+        hoverSeriesRef.current != null ||
+        hoverEventMark
+      ) {
         hoverIdxRef.current = null;
         hoverSeriesRef.current = null;
         setHoverIdx(null);
         setHoverSeries(null);
+        setHoverEventMark(null);
       }
       return;
     }
@@ -1110,21 +1212,32 @@ export function TrendChart({
       h: rect.height,
     };
     placeTipNear(anchorX, anchorY, rect.width, rect.height);
+    if (hit.eventMark) {
+      if (hoverEventMark?.id === hit.eventMark.id) return;
+      hoverIdxRef.current = null;
+      hoverSeriesRef.current = null;
+      setHoverIdx(null);
+      setHoverSeries(null);
+      setHoverEventMark(hit.eventMark);
+      return;
+    }
     const same =
       hit.idx === hoverIdxRef.current &&
-      hit.seriesKey === hoverSeriesRef.current;
+      hit.seriesKey === hoverSeriesRef.current &&
+      hoverEventMark == null;
     if (same) return;
     hoverIdxRef.current = hit.idx;
     hoverSeriesRef.current = hit.seriesKey;
     setHoverIdx(hit.idx);
     setHoverSeries(hit.seriesKey);
+    setHoverEventMark(null);
   };
 
   useLayoutEffect(() => {
-    if (hoverIdx == null) return;
+    if (hoverIdx == null && hoverEventMark == null) return;
     const a = lastAnchorRef.current;
     placeTipNear(a.x, a.y, a.w, a.h);
-  }, [hoverIdx]);
+  }, [hoverIdx, hoverEventMark]);
 
   const markerStride =
     markerDensity === "sparse" ? Math.max(1, Math.ceil(n / 8)) : 1;
@@ -1550,6 +1663,11 @@ export function TrendChart({
               </div>
             );
               })}
+              {eventLane?.statsLine ? (
+                <span className="inline-flex items-center farm-chart-fs-legend tabular-nums text-muted-foreground">
+                  {eventLane.label} · {eventLane.statsLine}
+                </span>
+              ) : null}
               {coverageLegend.length > 0 ? (
                 <div
                   role="group"
@@ -1676,6 +1794,16 @@ export function TrendChart({
           lineSegments={lineSegments}
           envelopePaths={envelopePaths}
         />
+        {eventLane && eventLaneH > 0 ? (
+          <EventLaneSvgGuides
+            padL={padL}
+            padR={padR}
+            viewW={viewW}
+            laneTop={eventLaneTop}
+            laneH={eventLaneH}
+            rowCount={eventLane.rowLabels.length}
+          />
+        ) : null}
         </g>
 
         {/* 마우스 기준 회색 십자선 — DOM 직접 갱신(리렌더 최소화) */}
@@ -1684,7 +1812,7 @@ export function TrendChart({
           x1={padL}
           x2={padL}
           y1={PAD_TOP}
-          y2={PAD_TOP + innerH}
+          y2={PAD_TOP + innerH + eventLaneH}
           stroke="var(--muted-foreground)"
           strokeWidth={0.7}
           strokeDasharray="2.5 2"
@@ -1803,6 +1931,65 @@ export function TrendChart({
           );
         })()}
       </svg>
+
+      {eventLane && eventLaneH > 0 ? (
+        <EventLaneHtmlOverlay
+          lane={eventLane}
+          marks={positionedEventMarks}
+          viewW={viewW}
+          chartH={chartH}
+          laneTop={eventLaneTop}
+          laneH={eventLaneH}
+          compact={labelGutter}
+          labelGutter={labelGutter}
+          selectedId={
+            pinnedTips.find((p) => p.eventMark)?.eventMark?.id ??
+            hoverEventMark?.id ??
+            null
+          }
+          onSelect={(mark) => {
+            const placed = positionedEventMarks.find(
+              (row) => row.mark.id === mark.id,
+            );
+            if (!placed) return;
+            const id = `event:${mark.id}`;
+            setPinnedTips((prev) => {
+              if (prev.some((p) => p.id === id)) {
+                return prev.filter((p) => p.id !== id);
+              }
+              const next: PinnedTip = {
+                id,
+                idx: 0,
+                seriesKey: id,
+                nx: placed.xView / viewW,
+                ny: placed.yView / chartH,
+                ox: 0,
+                oy: 0,
+                eventMark: mark,
+              };
+              return [...prev, next].slice(-MAX_PINNED_TIPS);
+            });
+          }}
+          onHover={(mark) => {
+            setHoverEventMark(mark);
+            if (!mark || !plotRef.current) return;
+            const placed = positionedEventMarks.find(
+              (row) => row.mark.id === mark.id,
+            );
+            if (!placed) return;
+            const rect = plotRef.current.getBoundingClientRect();
+            const anchorX = (placed.xView / viewW) * rect.width;
+            const anchorY = (placed.yView / chartH) * rect.height;
+            lastAnchorRef.current = {
+              x: anchorX,
+              y: anchorY,
+              w: rect.width,
+              h: rect.height,
+            };
+            placeTipNear(anchorX, anchorY, rect.width, rect.height);
+          }}
+        />
+      ) : null}
 
       {viewW > 0
         ? coverageBands.map((g) => {
@@ -2084,7 +2271,7 @@ export function TrendChart({
           aria-hidden
         >
           {pinnedTips.map((pin) => {
-            if (pin.idx < 0 || pin.idx >= n) return null;
+            if (!pin.eventMark && (pin.idx < 0 || pin.idx >= n)) return null;
             const plotW = plotPx.w || 1;
             const plotH = plotPx.h || 1;
             const anchorX = pin.nx * plotW;
@@ -2112,7 +2299,7 @@ export function TrendChart({
       ) : null}
 
       {pinnedTips.map((pin, pinOrd) => {
-        if (pin.idx < 0 || pin.idx >= n) return null;
+        if (!pin.eventMark && (pin.idx < 0 || pin.idx >= n)) return null;
         const plotW = plotPx.w || 1;
         const plotH = plotPx.h || 1;
         const anchorX = pin.nx * plotW;
@@ -2184,30 +2371,37 @@ export function TrendChart({
                 </button>
               </div>
               <div className="px-2.5 py-1.5">
-                <TrendPointCardBody
-                  idx={pin.idx}
-                  seriesKey={pin.seriesKey}
-                  categories={categories}
-                  series={series}
-                  envelopes={envelopes}
-                  histograms={histograms}
-                  leftUnit={leftUnit}
-                  rightUnit={rightUnit}
-                  onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                />
+                {pin.eventMark ? (
+                  <TrendEventCardBody mark={pin.eventMark} />
+                ) : (
+                  <TrendPointCardBody
+                    idx={pin.idx}
+                    seriesKey={pin.seriesKey}
+                    categories={categories}
+                    series={series}
+                    envelopes={envelopes}
+                    histograms={histograms}
+                    leftUnit={leftUnit}
+                    rightUnit={rightUnit}
+                    onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                  />
+                )}
               </div>
             </div>
           </div>
         );
       })}
 
-      {hoverIdx != null &&
-      hoverIdx >= 0 &&
-      hoverIdx < n &&
-      !(
-        hoverSeries != null &&
-        pinnedTips.some((p) => p.id === tipPinId(hoverIdx, hoverSeries))
-      ) ? (
+      {((hoverEventMark &&
+        !pinnedTips.some((p) => p.eventMark?.id === hoverEventMark.id)) ||
+        (hoverEventMark == null &&
+          hoverIdx != null &&
+          hoverIdx >= 0 &&
+          hoverIdx < n &&
+          !(
+            hoverSeries != null &&
+            pinnedTips.some((p) => p.id === tipPinId(hoverIdx, hoverSeries))
+          ))) ? (
         <div
           ref={tipRef}
           className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"
@@ -2221,27 +2415,33 @@ export function TrendChart({
               motionClass.farmChartTipIn,
             )}
           >
-            {(() => {
-              const band = coverageBands.find(
-                (b) => hoverIdx >= b.i0 && hoverIdx <= b.i1,
-              );
-              return band ? (
-                <p className="mb-1 farm-chart-fs-legend text-muted-foreground">
-                  {band.label}
-                </p>
-              ) : null;
-            })()}
-            <TrendPointCardBody
-              idx={hoverIdx}
-              seriesKey={hoverSeries}
-              categories={categories}
-              series={series}
-              envelopes={envelopes}
-              histograms={histograms}
-              leftUnit={leftUnit}
-              rightUnit={rightUnit}
-              onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-            />
+            {hoverEventMark ? (
+              <TrendEventCardBody mark={hoverEventMark} />
+            ) : (
+              <>
+                {(() => {
+                  const band = coverageBands.find(
+                    (b) => hoverIdx != null && hoverIdx >= b.i0 && hoverIdx <= b.i1,
+                  );
+                  return band ? (
+                    <p className="mb-1 farm-chart-fs-legend text-muted-foreground">
+                      {band.label}
+                    </p>
+                  ) : null;
+                })()}
+                <TrendPointCardBody
+                  idx={hoverIdx ?? 0}
+                  seriesKey={hoverSeries}
+                  categories={categories}
+                  series={series}
+                  envelopes={envelopes}
+                  histograms={histograms}
+                  leftUnit={leftUnit}
+                  rightUnit={rightUnit}
+                  onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                />
+              </>
+            )}
           </div>
         </div>
       ) : null}

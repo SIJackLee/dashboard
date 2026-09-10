@@ -34,7 +34,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | **D** | Tile | 한 컨트롤러/축사 칸 | `FarmMapCard`, `hubSurface.tile` | 단 2 | `bg-card` + 약한 ring. 열리면 테두리에 판정색 |
 | **E** | Status film | 판정을 면으로 | 덮개, 왼쪽 현황, 모델 칸 틴트 | 타일 **위** | `--status-*`만. 채널색 금지 |
 | **F** | Overlay | 떠서 가림 | Dialog, 시트, 드롭다운, FAB 패널 | 단 3 | `bg-popover`. 기존 `backdrop-blur`는 여기만 |
-| **G** | Feedback | 적용 결과 | 토스트, 명령 오버레이, 일괄 배너 | 단 3 float | `opsFeedbackTone` |
+| **G** | Feedback | 적용 결과 | 토스트, 명령 오버레이, 적용 큐 | 단 3 float | `opsFeedbackTone` |
 | **H** | Presence | 델린만 | 뱃지 | 예외 | status 톤. 덮개에 복제 금지 |
 
 숫자·차트 잉크는 면이 아니다. 채널/status 토큰으로 **글자·선·셀**만 칠한다.
@@ -54,7 +54,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | 차트 | `farm-chart-view`, `trend-chart`, `severity-heatmap` | B + 데이터 잉크 |
 | 모델 | `farm-plan-view`, `farm-plan-field-canvas` | 지도 + E 틴트 |
 | 시트 | `barn-panel-bottom-sheet`, `farm-plan-dock-sheet`, 모바일 시트 | F |
-| 명령 | `command-pipeline-overlay`, `bulk-live-progress-banner` | G |
+| 명령 | `command-pipeline-overlay`, `apply-queue-dock` | G |
 | 델린 | `delin-env-badge` | H |
 | 운영 | `/admin/ops`, `opsTypography` | B · 밀도는 허브 2× 없음 |
 

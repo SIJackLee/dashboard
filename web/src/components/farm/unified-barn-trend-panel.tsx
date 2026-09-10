@@ -21,9 +21,8 @@ import {
   detectLayerGroupMode,
   nextLayerGroupMode,
 } from "@/components/farm/unified-trend-layer-toolbar";
-import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
 import { CommandConfirmOverlay } from "@/components/farm/command-confirm-overlay";
-import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
+import { useApplyQueueOptional } from "@/components/farm/apply-queue-context";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
 import { sendBulkThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
 import { isReadingOnline } from "@/lib/data/reading-display";
@@ -107,6 +106,12 @@ import {
 } from "@/lib/controllers/controller-panel-map";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import { sliceControllerTrendByTime } from "@/lib/data/trend-period-slice";
+import {
+  COMMAND_HIT_LANE_PX,
+  commandHitEventLane,
+  commandHitTimeSpan,
+  selectCommandHitResult,
+} from "@/lib/farm/command-hit";
 import {
   tickEveryForDisplayBars,
   formatTrendScopeRangeLabel,
@@ -388,15 +393,7 @@ export function UnifiedBarnTrendPanel({
     [controllers],
   );
 
-  const onThermoRefreshLive = useCallback(() => {
-    void liveRefresh?.revalidateFarmLive();
-  }, [liveRefresh]);
-  const liveTracker = useBulkCommandPipelineTracker({
-    thermoSettings,
-    readings: scopedReadings,
-    onRefreshLive: onThermoRefreshLive,
-    onCommandAck: (cmd) => liveRefresh?.patchThermoFromCommand(cmd),
-  });
+  const applyQueue = useApplyQueueOptional();
 
   const alarmScopeKey = useMemo(
     () => alarmScopeKeyFromFarmChartScope(scopedReadings, chartScope),
@@ -910,6 +907,57 @@ export function UnifiedBarnTrendPanel({
   ]);
 
   const chartCategories = scoped?.categories ?? [];
+  const commandHitSpan = useMemo(
+    () =>
+      commandHitTimeSpan(scoped?.categories ?? [], {
+        fromMs: brushFromMs ?? Number.NaN,
+        toMs: brushToMs ?? Number.NaN,
+      }),
+    [scoped?.categories, brushFromMs, brushToMs],
+  );
+  const commandHitLane = useMemo(() => {
+    if (!useBrushCanvas || !commandHitSpan) return null;
+    const confirmedIds = new Set<string>();
+    for (const row of applyQueue?.rows ?? []) {
+      if (row.liveConfirmed) confirmedIds.add(row.id);
+    }
+    const result = selectCommandHitResult({
+      commands: liveRefresh?.slice.controller?.commands ?? [],
+      farmKey: liveRefresh?.farmKey ?? null,
+      scope: chartScope,
+      fromMs: commandHitSpan.fromMs,
+      toMs: commandHitSpan.toMs,
+      readings: liveRefresh?.slice.readings ?? [],
+      thermoSettings: liveRefresh?.slice.controller?.thermoSettings ?? {},
+      confirmedIds,
+    });
+    const windowLabel =
+      xScope != null && picked
+        ? formatTrendScopeRangeLabel(
+            picked.categories[xScope.start] ?? "",
+            picked.categories[xScope.end] ?? "",
+          )
+        : formatBrushWindowLabel(brushWindow);
+    return commandHitEventLane({
+      marks: result.marks,
+      hiddenCount: result.hiddenCount,
+      windowLabel,
+    });
+  }, [
+    useBrushCanvas,
+    commandHitSpan,
+    applyQueue?.rows,
+    liveRefresh?.slice.controller?.commands,
+    liveRefresh?.farmKey,
+    liveRefresh?.slice.readings,
+    liveRefresh?.slice.controller?.thermoSettings,
+    chartScope,
+    xScope,
+    picked,
+    brushWindow,
+  ]);
+  const commandHitLaneHeight =
+    useBrushCanvas && commandHitLane ? chartUiPx(COMMAND_HIT_LANE_PX) : 0;
 
   const emitZoom = useCallback(
     (entry: ScopeEntry | null) => {
@@ -1568,7 +1616,7 @@ export function UnifiedBarnTrendPanel({
           for (const item of result.sentItems) {
             liveRefresh?.patchThermoFromCommand(item.command);
           }
-          liveTracker.startSession(result.sentItems);
+          applyQueue?.startSession(result.sentItems);
           void liveRefresh?.revalidateFarmLive();
         }
         if (!result.ok && result.sent === 0) {
@@ -1614,7 +1662,7 @@ export function UnifiedBarnTrendPanel({
     onlineScopedReadings,
     thermoSettings,
     liveRefresh,
-    liveTracker,
+    applyQueue,
   ]);
 
   /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 알람 고정 스케일. */
@@ -2111,9 +2159,12 @@ export function UnifiedBarnTrendPanel({
           envelopes={scoped.envelopes}
           histograms={scoped.histograms}
           height={
-            chartHeight ??
-            (isMobileStack ? chartUiPx(320) : chartUiPx(340))
+            (chartHeight ??
+              (isMobileStack ? chartUiPx(320) : chartUiPx(340))) +
+            commandHitLaneHeight
           }
+          eventLane={commandHitLane}
+          eventLaneHeight={commandHitLaneHeight}
           leftUnit={chartLeftUnit}
           leftDomain={built.leftDomain}
           period={displayPeriod}
@@ -2269,11 +2320,6 @@ export function UnifiedBarnTrendPanel({
           if (!thermoApplying) setThermoConfirm(null);
         }}
         onConfirm={applyThermoDraft}
-      />
-      <BulkLiveProgressBanner
-        progress={liveTracker.progress}
-        visible={liveTracker.bannerVisible}
-        onDismiss={liveTracker.dismissBanner}
       />
 
       {useBrushCanvas ? (

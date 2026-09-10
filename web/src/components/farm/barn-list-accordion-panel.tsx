@@ -14,6 +14,7 @@ import { useCommandPipelineTracker } from "@/components/controllers/use-command-
 import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
 import { CommandConfirmOverlay } from "@/components/farm/command-confirm-overlay";
 import { useSettingsApplyOverlay } from "@/components/farm/use-settings-apply-overlay";
+import { useApplyQueueOptional } from "@/components/farm/apply-queue-context";
 import {
   buildCommandConfirmModel,
   formatCommandConfirmTarget,
@@ -164,6 +165,7 @@ export function BarnListAccordionPanel({
   }, [refreshDetail]);
 
   const liveRefresh = useFarmLiveRefreshOptional();
+  const applyQueue = useApplyQueueOptional();
 
   const pipeline = useCommandPipelineTracker({
     commands,
@@ -181,10 +183,11 @@ export function BarnListAccordionPanel({
     (cmd: ThermoCommand) => {
       liveRefresh?.patchThermoFromCommand(cmd);
       pipeline.registerCommand(cmd);
+      applyQueue?.startFromCommand(reading.key, cmd);
     },
     // pipeline 전체 포함 시 tracker 재생성 루프 — 메서드만 의존
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
-    [liveRefresh, pipeline.registerCommand],
+    [liveRefresh, pipeline.registerCommand, applyQueue?.startFromCommand, reading.key],
   );
 
   const panelTarget = detail ?? reading;

@@ -91,7 +91,7 @@ export const TREND_CHART_COLORS_PRINT = {
   humidity: "#007daa",
   fanSupply: "#0a9068",
   fanExhaust: "#7b57c8",
-  fanIntake: "#6b7939",
+  fanIntake: "#546c95",
 } as const;
 
 /** 히트맵/스몰멀티플 지표 id(T/H/A/B/C) → 목록 그래프와 동일한 선 색. */

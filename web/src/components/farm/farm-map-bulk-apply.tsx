@@ -36,8 +36,11 @@ import { EDIT_START_DRAFT } from "@/lib/controllers/controller-panel-map";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import type { InlineStatusTone } from "@/components/common/inline-status-toast";
-import { BulkLiveProgressBanner } from "@/components/farm/bulk-live-progress-banner";
-import { useBulkCommandPipelineTracker } from "@/components/farm/use-bulk-command-pipeline-tracker";
+import { applyQueueStageCounts } from "@/lib/farm/apply-queue";
+import {
+  EMPTY_APPLY_PROGRESS,
+  useApplyQueueOptional,
+} from "@/components/farm/apply-queue-context";
 import { SettingsCollapsibleSection } from "@/components/farm/settings-collapsible-section";
 import { dashboardAffordance, dashboardChroma, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import {
@@ -250,13 +253,16 @@ export function FarmMapBulkApply({
   onClearSelection,
   onExit,
   onAfterApply,
-  onRefreshLive,
+  onRefreshLive: _onRefreshLive,
   trailing,
   trailingCompact: _trailingCompact = false,
 }: Props) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const isMobile = useMobileLayout();
   const liveRefresh = useFarmLiveRefreshOptional();
+  const applyQueue = useApplyQueueOptional();
+  const queueProgress = applyQueue?.progress ?? EMPTY_APPLY_PROGRESS;
+  const queueRows = applyQueue?.rows ?? [];
   const [open, setOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [applyPhase, setApplyPhase] = useState<ApplyPhase>("idle");
@@ -285,12 +291,10 @@ export function FarmMapBulkApply({
   const [maxVent, setMaxVent] = useState(EDIT_START_DRAFT.maxVentPct);
   const [alarm, setAlarm] = useState<AlarmThresholds>(DEFAULT_ALARM_THRESHOLDS);
 
-  const liveTracker = useBulkCommandPipelineTracker({
-    thermoSettings: controller.thermoSettings,
-    readings: controller.readings,
-    onRefreshLive,
-    onCommandAck: (cmd) => liveRefresh?.patchThermoFromCommand(cmd),
-  });
+  useEffect(() => {
+    if (open) applyQueue?.setDockOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 시트 열릴 때만 숨김
+  }, [open]);
 
   const spSet = useMemo(() => new Set(selectedSps), [selectedSps]);
   const targets = useMemo(
@@ -524,7 +528,7 @@ export function FarmMapBulkApply({
         for (const item of control.sentItems) {
           liveRefresh?.patchThermoFromCommand(item.command);
         }
-        liveTracker.startSession(control.sentItems);
+        applyQueue?.startSession(control.sentItems);
       }
       setLastApplyOpts(applyOpts);
       setResult(applied);
@@ -775,6 +779,22 @@ export function FarmMapBulkApply({
     </>
   );
 
+  const queueCounts = applyQueueStageCounts(
+    queueRows.map((row) => ({
+      status: row.command.status,
+      liveConfirmed: row.liveConfirmed,
+    })),
+  );
+  const queueCountLine = [
+    queueCounts.접수 ? `접수 ${queueCounts.접수}` : null,
+    queueCounts.전송 ? `전송 ${queueCounts.전송}` : null,
+    queueCounts.수신 ? `수신 ${queueCounts.수신}` : null,
+    queueCounts.확인 ? `확인 ${queueCounts.확인}` : null,
+    queueCounts.실패 ? `실패 ${queueCounts.실패}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const modalContent =
     open && mounted ? (
       <div
@@ -940,36 +960,30 @@ export function FarmMapBulkApply({
                   적용에 실패했습니다. 권한·네트워크·대상 상태를 확인한 뒤 다시 시도하세요.
                 </p>
               ) : null}
-              {liveTracker.progress.total > 0 ? (
+              {queueProgress.total > 0 ? (
                 <div
                   className={cn(
                     "mt-4 rounded-lg border px-3 py-2.5",
-                    liveTracker.progress.allLive
+                    queueProgress.allOk
                       ? "border-[color-mix(in_oklch,var(--status-ok)_40%,var(--border))] bg-[color-mix(in_oklch,var(--status-ok)_10%,transparent)]"
-                      : "border-channel-info/30 bg-channel-info/5",
+                      : "border-border bg-muted/40",
                   )}
                 >
                   <p className={cn("font-semibold leading-snug", bulkModalSectionTitle)}>
-                    {liveTracker.progress.allLive ||
-                    liveTracker.progress.complete
-                      ? liveTracker.progress.failed > 0
-                        ? "일부 적용 완료"
-                        : "적용 완료"
-                      : liveTracker.progress.timedOut
-                        ? "적용 일부 미확인"
-                        : "적용 중…"}
+                    {queueProgress.failed > 0
+                      ? "일부 실패"
+                      : queueProgress.allOk
+                        ? "확인 완료"
+                        : queueProgress.timedOut
+                          ? "일부 미확인"
+                          : "적용 진행 중"}
                   </p>
                   <p className={cn("mt-1 leading-snug", bulkModalMeta)}>
-                    LIVE {liveTracker.progress.liveDone}/{liveTracker.progress.total}
-                    {" · "}
-                    ACK {liveTracker.progress.ackDone}/{liveTracker.progress.total}
-                    {liveTracker.progress.failed > 0
-                      ? ` · 실패 ${liveTracker.progress.failed}`
-                      : ""}
+                    {queueCountLine}
                   </p>
-                  {!liveTracker.progress.complete ? (
+                  {!queueProgress.allOk ? (
                     <p className={cn("mt-1 text-xs leading-snug", bulkModalMeta)}>
-                      확인을 눌러도 하단 배너에서 진행 상태를 계속 볼 수 있습니다.
+                      시트를 닫아도 왼쪽 아래 적용 큐에서 단계를 볼 수 있습니다.
                     </p>
                   ) : null}
                 </div>
@@ -1220,13 +1234,6 @@ export function FarmMapBulkApply({
       </div>
 
       {mounted && modalContent ? createPortal(modalContent, document.body) : null}
-      {mounted ? (
-        <BulkLiveProgressBanner
-          progress={liveTracker.progress}
-          visible={liveTracker.bannerVisible && !open}
-          onDismiss={liveTracker.dismissBanner}
-        />
-      ) : null}
     </>
   );
 }

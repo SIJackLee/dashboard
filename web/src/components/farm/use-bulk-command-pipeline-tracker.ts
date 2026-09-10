@@ -17,12 +17,22 @@ import {
   channelBySlot,
   type ChannelSlot,
 } from "@/lib/data/iot-channel";
+import {
+  APPLY_QUEUE_START_GRACE_MS,
+  applyQueueReadingKey,
+  applyQueueRowKey,
+  isApplyQueueInWindow,
+  isApplyQueueWatchStatus,
+  selectApplyQueueCommands,
+} from "@/lib/farm/apply-queue";
+import type { FarmKey } from "@/lib/data/farm-key";
 
 const PENDING_POLL_MS = 2000;
 const SENT_POLL_MS = 4000;
 const LIVE_POLL_MS = 5000;
 const MAX_POLL_MS = 90_000;
 const COMPLETE_AUTO_DISMISS_MS = 6500;
+const QUEUE_AGE_TICK_MS = 30_000;
 
 const STATUS_RANK: Record<ThermoCommandStatus, number> = {
   pending: 1,
@@ -46,13 +56,20 @@ export type BulkLiveProgress = {
   failed: number;
   pending: number;
   timedOut: boolean;
+  /** 실측 확인 또는 실패·시간 초과로 티켓이 끝남 */
   complete: boolean;
   allLive: boolean;
+  /** 실패 없이 전부 실측 확인 — 도크 자동 접힘 */
+  allOk: boolean;
+  ackSettled: boolean;
 };
 
 type Args = {
   thermoSettings: Record<string, ControllerThermoSettings>;
   readings: BarnReading[];
+  /** 이 농장 명령 이력 — 최근 1시간 접수·전송·수신(취소·실패 제외)을 큐에 반영 */
+  watchCommands?: ThermoCommand[];
+  farmKey?: FarmKey | null;
   /** farm soft refresh / RSC refresh */
   onRefreshLive?: () => void;
   /** ACK(sent/applied) 시 UI 설정값을 명령값으로 유지 */
@@ -146,9 +163,27 @@ function liveCandidatesForReading(
   return candidates;
 }
 
+function commandAlreadyLive(
+  command: ThermoCommand,
+  key: string,
+  readingByKey: Map<string, BarnReading>,
+  thermoSettings: Record<string, ControllerThermoSettings>,
+): boolean {
+  if (!isAckDone(command.status)) return false;
+  const reading = readingByKey.get(key);
+  if (!reading) return false;
+  return liveCandidatesForReading(
+    reading,
+    thermoSettings,
+    command.channel,
+  ).some((values) => thermoValuesMatch(values, command));
+}
+
 export function useBulkCommandPipelineTracker({
   thermoSettings,
   readings,
+  watchCommands,
+  farmKey,
   onRefreshLive,
   onCommandAck,
 }: Args) {
@@ -157,6 +192,7 @@ export function useBulkCommandPipelineTracker({
   const [timedOut, setTimedOut] = useState(false);
   const [bannerVisible, setBannerVisible] = useState(false);
   const startedAtRef = useRef<number | null>(null);
+  const awaitingFoldRef = useRef(false);
   const rowsRef = useRef(rows);
   const onRefreshLiveRef = useRef(onRefreshLive);
   const onCommandAckRef = useRef(onCommandAck);
@@ -175,42 +211,110 @@ export function useBulkCommandPipelineTracker({
 
   const startSession = useCallback((items: BulkSentCommandItem[]) => {
     if (items.length === 0) {
-      setRows([]);
-      setActive(false);
-      setTimedOut(false);
-      setBannerVisible(false);
-      startedAtRef.current = null;
       return;
     }
-    setRows(
-      items.map((item) => ({
-        key: item.key,
-        id: item.id,
-        command: item.command,
-        liveConfirmed: false,
-      })),
-    );
+    const incoming: BulkLiveTrackRow[] = items.map((item) => ({
+      key: item.key,
+      id: item.id,
+      command: item.command,
+      liveConfirmed: false,
+    }));
+    setRows((prev) => {
+      const rest = prev.filter(
+        (row) => !incoming.some((item) => item.id === row.id),
+      );
+      return [...incoming, ...rest].slice(0, 16);
+    });
     setActive(true);
     setTimedOut(false);
     setBannerVisible(true);
     startedAtRef.current = Date.now();
+    awaitingFoldRef.current = true;
   }, []);
 
+  const watchKey = useMemo(() => {
+    if (!farmKey || !watchCommands) return "";
+    return selectApplyQueueCommands(watchCommands, farmKey)
+      .map((command) => `${command.id}:${command.status}`)
+      .join("|");
+  }, [farmKey, watchCommands]);
+
+  useEffect(() => {
+    if (!farmKey || !watchCommands) return;
+    const selected = selectApplyQueueCommands(watchCommands, farmKey);
+    setRows((prev) => {
+      const prevMap = new Map(prev.map((row) => [row.id, row]));
+      const next: BulkLiveTrackRow[] = [];
+      let addedOpen = 0;
+      for (const command of selected) {
+        const existing = prevMap.get(command.id);
+        if (existing) {
+          next.push({
+            ...existing,
+            command: mergeCommand(existing.command, command),
+          });
+          continue;
+        }
+        const readingKey = applyQueueReadingKey(readings, command);
+        const key = applyQueueRowKey(readings, command);
+        const liveConfirmed = readingKey
+          ? commandAlreadyLive(
+              command,
+              readingKey,
+              readingByKey,
+              thermoSettings,
+            )
+          : false;
+        next.push({
+          key,
+          id: command.id,
+          command,
+          liveConfirmed,
+        });
+        if (!liveConfirmed) addedOpen += 1;
+      }
+      const nextIds = new Set(next.map((row) => row.id));
+      const nowMs = Date.now();
+      for (const row of prev) {
+        if (nextIds.has(row.id)) continue;
+        if (row.liveConfirmed) {
+          if (isApplyQueueInWindow(row.command.createdAt, nowMs)) {
+            next.push(row);
+          }
+          continue;
+        }
+        if (!isApplyQueueWatchStatus(row.command.status)) continue;
+        const created = Date.parse(row.command.createdAt);
+        if (
+          Number.isFinite(created) &&
+          nowMs - created < APPLY_QUEUE_START_GRACE_MS
+        ) {
+          next.push(row);
+        }
+      }
+      const limited = next.slice(0, 16);
+      if (addedOpen > 0) {
+        queueMicrotask(() => {
+          awaitingFoldRef.current = true;
+          setActive(true);
+          setTimedOut(false);
+          setBannerVisible(true);
+          if (startedAtRef.current == null) startedAtRef.current = Date.now();
+        });
+      } else if (limited.length > 0) {
+        queueMicrotask(() => setActive(true));
+      }
+      return limited;
+    });
+  }, [watchKey, farmKey, watchCommands, readings, readingByKey, thermoSettings]);
+
   const dismissBanner = useCallback(() => {
-    setBannerVisible(false);
-    const current = rowsRef.current;
-    const settled =
-      current.length === 0 ||
-      current.every(
-        (r) =>
-          isAckDone(r.command.status) || isTerminalFail(r.command.status),
-      );
-    if (settled || timedOut) {
-      setActive(false);
-      setRows([]);
-      startedAtRef.current = null;
-    }
-  }, [timedOut]);
+    setBannerVisible((open) => !open);
+  }, []);
+
+  const setDockOpen = useCallback((open: boolean) => {
+    setBannerVisible(open);
+  }, []);
 
   const clearSession = useCallback(() => {
     setRows([]);
@@ -218,6 +322,7 @@ export function useBulkCommandPipelineTracker({
     setTimedOut(false);
     setBannerVisible(false);
     startedAtRef.current = null;
+    awaitingFoldRef.current = false;
   }, []);
 
   // LIVE 일치 확인 — reading 디코드 실측 우선 (명령 merge map은 source≠live라 오탐/미탐 방지)
@@ -264,8 +369,16 @@ export function useBulkCommandPipelineTracker({
       trackedRows.every(
         (r) => isAckDone(r.command.status) || isTerminalFail(r.command.status),
       );
-    /** 전송(sent/applied)·실패로 완료 — LIVE 일치는 필수가 아님 */
-    const settled = allAcked;
+    const allOk =
+      total > 0 &&
+      trackedRows.every(
+        (r) => r.liveConfirmed && !isTerminalFail(r.command.status),
+      );
+    const allSettled =
+      total > 0 &&
+      trackedRows.every(
+        (r) => r.liveConfirmed || isTerminalFail(r.command.status),
+      );
     const allLive = total > 0 && liveDone === total;
     return {
       total,
@@ -274,8 +387,10 @@ export function useBulkCommandPipelineTracker({
       failed,
       pending,
       timedOut,
-      complete: settled || timedOut,
+      complete: allSettled || timedOut,
       allLive,
+      allOk,
+      ackSettled: allAcked,
     };
   }, [trackedRows, timedOut]);
 
@@ -382,17 +497,31 @@ export function useBulkCommandPipelineTracker({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- rows captured via signature
   }, [active, pollSignature]);
 
-  // 전송 완료(또는 전원 LIVE) 시 배너 자동 닫힘
+  // 진행 중이던 건이 전부 확인되면 카드만 접힘. 최근 1시간 티켓은 유지.
   useEffect(() => {
-    if (!bannerVisible || !(progress.complete && !progress.timedOut)) return;
+    if (!bannerVisible || !progress.allOk || progress.timedOut) return;
+    if (!awaitingFoldRef.current) return;
     const id = window.setTimeout(() => {
+      awaitingFoldRef.current = false;
       setBannerVisible(false);
-      setActive(false);
-      setRows([]);
-      startedAtRef.current = null;
     }, COMPLETE_AUTO_DISMISS_MS);
     return () => window.clearTimeout(id);
-  }, [bannerVisible, progress.complete, progress.timedOut]);
+  }, [bannerVisible, progress.allOk, progress.timedOut]);
+
+  useEffect(() => {
+    if (rows.length === 0) return;
+    const tick = () => {
+      const nowMs = Date.now();
+      setRows((prev) => {
+        const next = prev.filter((row) =>
+          isApplyQueueInWindow(row.command.createdAt, nowMs),
+        );
+        return next.length === prev.length ? prev : next;
+      });
+    };
+    const id = window.setInterval(tick, QUEUE_AGE_TICK_MS);
+    return () => window.clearInterval(id);
+  }, [rows.length]);
 
   return {
     active,
@@ -401,6 +530,7 @@ export function useBulkCommandPipelineTracker({
     progress,
     startSession,
     dismissBanner,
+    setDockOpen,
     clearSession,
   };
 }

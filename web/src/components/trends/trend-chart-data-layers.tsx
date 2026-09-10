@@ -443,6 +443,7 @@ export function TrendChartDataLayers({
       {/* 고정 핀 강조 */}
       {mode === "line"
         ? pinnedTips.map((pin) => {
+            if (pin.eventMark) return null;
             if (pin.idx < 0 || pin.idx >= n) return null;
             const group = inferHoverMetricGroup(pin.seriesKey);
             return series.map((s) => {

@@ -9,6 +9,7 @@ import { motionClass } from "@/lib/ui/motion-classes";
 import type {
   TrendBreachNavTarget,
   TrendEnvelope,
+  TrendEventMark,
   TrendHistogram,
   TrendSeries,
 } from "@/lib/data/trend-chart-types";
@@ -611,6 +612,58 @@ export function TrendPointCardBody({
           color={heroColor}
         />
       ) : null}
+    </>
+  );
+}
+
+/** 명령 적중 등 이벤트 점 — 추이 데이터 카드와 같은 타이포·셸 */
+export function TrendEventCardBody({ mark }: { mark: TrendEventMark }) {
+  const card = mark.card;
+  const heroColor =
+    card.heroTone === "ok" ? "var(--status-ok-ink)" : undefined;
+  return (
+    <>
+      <div className="mb-1 flex items-center gap-1.5">
+        <span className="rounded-sm bg-muted/80 px-1 py-px farm-chart-fs-axis font-semibold tracking-tight text-foreground/90">
+          {card.badge}
+        </span>
+        <span className="farm-chart-fs-legend text-muted-foreground tabular-nums">
+          {card.time}
+        </span>
+      </div>
+      <div
+        className={cn(
+          "flex items-baseline gap-0.5",
+          motionClass.farmChartTipHero,
+        )}
+      >
+        <span
+          className="text-[18px] font-semibold leading-none tabular-nums tracking-tight"
+          style={heroColor ? { color: heroColor } : undefined}
+        >
+          {card.hero}
+        </span>
+      </div>
+      <div className="mt-1.5 space-y-0.5 farm-chart-fs-legend">
+        {card.rows.map((row) => (
+          <p key={row.label}>
+            <span className="text-muted-foreground">{row.label} </span>
+            <span
+              className={cn(
+                "font-medium tabular-nums",
+                row.label === "단계" && card.heroTone === "ok"
+                  ? "text-[var(--status-ok-ink)]"
+                  : "text-foreground",
+              )}
+            >
+              {row.value}
+            </span>
+          </p>
+        ))}
+        {card.footnote ? (
+          <p className="text-muted-foreground">{card.footnote}</p>
+        ) : null}
+      </div>
     </>
   );
 }

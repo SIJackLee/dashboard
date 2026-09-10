@@ -112,20 +112,21 @@ export function AdminHubKakaoMap({
 
   useEffect(() => {
     const host = hostRef.current;
+    const pins = pinsRef.current;
     if (!host) return;
     let cancelled = false;
     let fitTimer = 0;
 
     void loadKakaoMapsSdk(appKey)
       .then(() => {
-        if (cancelled || !hostRef.current) return;
+        if (cancelled) return;
         const maps = window.kakao?.maps as unknown as KakaoNs | undefined;
         if (!maps?.Map || !maps.CustomOverlay) {
           onFail();
           return;
         }
         mapsRef.current = maps;
-        const map = new maps.Map(hostRef.current, {
+        const map = new maps.Map(host, {
           center: new maps.LatLng(36.2, 127.8),
           level: 12,
         });
@@ -158,12 +159,12 @@ export function AdminHubKakaoMap({
       ro.disconnect();
       tipRef.current?.setMap(null);
       tipRef.current = null;
-      for (const pin of pinsRef.current.values()) pin.overlay.setMap(null);
-      pinsRef.current.clear();
+      for (const pin of pins.values()) pin.overlay.setMap(null);
+      pins.clear();
       mapReadyRef.current = false;
       mapRef.current = null;
       mapsRef.current = null;
-      if (hostRef.current) hostRef.current.replaceChildren();
+      host.replaceChildren();
     };
   }, [appKey, onFail]);
 

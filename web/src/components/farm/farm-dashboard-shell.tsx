@@ -24,6 +24,7 @@ import {
   useFarmLiveRefresh,
   type FarmLiveSlice,
 } from "@/lib/navigation/farm-live-refresh";
+import { FarmApplyQueueProvider } from "@/components/farm/apply-queue-context";
 
 export type FarmDashboardShellProps = {
   readings: BarnReading[];
@@ -366,6 +367,7 @@ export function FarmDashboardShell({
 
   return (
     <FarmLiveRefreshProvider farmKey={farmKey} initial={initialSlice}>
+      <FarmApplyQueueProvider>
       <div className="flex min-h-0 flex-1 flex-col space-y-4 md:space-y-5">
         {isAdmin && deferAdminGridLoad ? (
           <AdminHubBody
@@ -413,6 +415,7 @@ export function FarmDashboardShell({
           </Suspense>
         )}
       </div>
+      </FarmApplyQueueProvider>
     </FarmLiveRefreshProvider>
   );
 }

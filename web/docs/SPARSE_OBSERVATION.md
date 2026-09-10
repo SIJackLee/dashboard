@@ -1,12 +1,26 @@
 # 희소(sparse) 관측 체크 쿼리
 
-> **대상:** iot-cloud · allowlist `FARM01/P00`, `FARM02/P00`  
-> **기간:** PoC 3~7일 · 전 농장(`[]`) 확대 전  
+> **상태 (2026-09-01):** **`sparse_enabled=false` — PoC OFF** (LIVE·델린 caution side effect 기각)  
+> **migration:** `20260901153000_iot_decode_sparse_off.sql`  
+> **롤백:** `UPDATE iot_decode_config SET sparse_enabled = true WHERE id = 1;` (승인 후)  
+> **대상:** iot-cloud · allowlist `FARM01/P00`, `FARM02/P00` (OFF 시 gate 미적용)  
 > **관련:** [`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md)
 
 ---
 
-## 성공 기준 (권장)
+## OFF 사유 (요약)
+
+| side effect | sparse ON | OFF 후 |
+|-------------|-----------|--------|
+| LIVE `received_at` | decode skip 시 정체 → caution | raw uplink마다 decoded 갱신 |
+| 델린 tier `stale` | sparse-induced caution | 대부분 해소 |
+| decoded/raw 비율 | ~25–36% (allowlist) | ~100% (실패 제외) |
+
+장비 **mesure 지연·replay** caution은 OFF와 무관 — 별도 triage.
+
+---
+
+## 성공 기준 (PoC — **보관용**, 현재 OFF)
 
 | 지표 | 기대 |
 |------|------|
@@ -117,7 +131,7 @@ SELECT
 
 - `decoded_pct_of_raw`가 allowlist에서 계속 ~100%면 heartbeat만 쓰이거나 eps가 너무 큼 → ε/heartbeat 재검토  
 - 다른 농장이 생기면 allowlist 밖은 ~100%가 정상(희소 미적용)  
-- 확대: `UPDATE iot_decode_config SET sparse_farm_keys = '{}'::text[]` (빈 배열 = 전체)
+- ~~확대~~ **OFF (2026-09-01):** `sparse_enabled=false` — 재개 시 LIVE 분리 설계 선행
 
 ---
 

@@ -124,13 +124,13 @@ npm run audit:ship-checklist
 
 | 항목 | 값 |
 |------|-----|
-| 일자 | |
-| Commit | |
-| URL | |
-| 프로필 | 출고마다 / 메이저 / 분기 |
-| 판정 | GO / CONDITIONAL GO / NO-GO |
-| P0 / P1 / P2 | |
-| 차단 사유 | |
-| 승인자 | |
+| 일자 | 2026-08-28 |
+| Commit | `d35e7db` (`origin/main`, Vercel Production) |
+| URL | `https://smart.autofankorea.com` |
+| 프로필 | 메이저 → **제품 패키징 종료** |
+| 판정 | **GO** |
+| P0 / P1 / P2 | P0=0 · P1=0 · P2 잔여(0/없음/단절 한 화면 표본, 권장 race·단절 재현 등)는 수용 |
+| 차단 사유 | 없음. FARM01 MQTT 시뮬 종료. 사용자 유입은 도메인, 권한부여·모니터링은 ADMIN. |
+| 승인자 | 사용자 (본 출고 대화) |
 
 결함 상세 양식은 마스터 [`QA_PRE_RELEASE.md`](./QA_PRE_RELEASE.md) «검수 결함 기록 양식»을 사용한다.

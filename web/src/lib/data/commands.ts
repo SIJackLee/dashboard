@@ -6,6 +6,7 @@ import {
   normalizeEqpmnNo,
 } from "@/lib/data/controller-key";
 import { parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { normalizeCommandWireHex } from "@/lib/farm/command-wire";
 
 export type ThermoCommandStatus =
   | "pending"
@@ -38,6 +39,9 @@ export type ThermoCommand = {
   eqpmnCode?: string;
   /** DB generated · ACK target (`controller|CHANNEL|CODE`); SET_CTRL는 없음 */
   channelKey?: string;
+  action?: string;
+  /** 전송된 0x0C 15바이트. 없으면 필드에서 재구성 */
+  wireHex?: string | null;
 };
 
 type Row = {
@@ -64,13 +68,22 @@ type Row = {
   action: string | null;
   controller_key?: string | null;
   channel_key?: string | null;
+  payload_json?: unknown;
 };
 
 /** insert/select 행 → ThermoCommand (서버 액션 공용) */
 export type ThermoCommandRow = Row;
 
 export const THERMO_COMMAND_SELECT =
-  "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg, controller_key, channel_key";
+  "id, created_at, sent_at, applied_at, lsind_regist_no, item_code, module_uid, ctrl_idx, stall_ty_code, stall_no, eqpmn_no, channel, eqpmn_code, action, min_vent_pct, max_vent_pct, setpoint_temp, temp_deviation, status, note, error_msg, controller_key, channel_key, payload_json";
+
+function wireHexFromPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const raw = (payload as { wire_hex?: unknown }).wire_hex;
+  return typeof raw === "string" ? normalizeCommandWireHex(raw) : null;
+}
 
 export function mapThermoCommandRow(row: Row): ThermoCommand {
   const stallTyCode = row.stall_ty_code?.trim() ?? "";
@@ -120,6 +133,8 @@ export function mapThermoCommandRow(row: Row): ThermoCommand {
     channel,
     eqpmnCode: row.eqpmn_code?.trim() || undefined,
     channelKey,
+    action: row.action?.trim() || undefined,
+    wireHex: wireHexFromPayload(row.payload_json),
   };
 }
 

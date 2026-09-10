@@ -103,6 +103,70 @@ export const PAD_TOP = 6;
 export const PAD_BOTTOM = 0;
 /** 측정 전 fallback · 패딩 비율 기준 */
 export const VIEW_W_NORM = 100;
+
+export type TrendPlotPadOpts = {
+  /** 왼쪽 단위축(℃ 등) — padL = PAD_X */
+  leftUnit?: boolean;
+  /** 모바일 우측 거터 — padR 확대, leftUnit 없으면 padL 축소 */
+  labelGutter?: boolean;
+};
+
+/** 플롯 박스(0–1) 기준 좌·우 패딩 · 안쪽 폭. TrendChart `xFor`와 동일. */
+export function trendPlotPadRatios(opts: TrendPlotPadOpts = {}): {
+  padL: number;
+  padR: number;
+  innerW: number;
+} {
+  const leftUnit = Boolean(opts.leftUnit);
+  const labelGutter = Boolean(opts.labelGutter);
+  const padL0 = leftUnit ? PAD_X : labelGutter ? 4 : PAD_X;
+  const padR0 = labelGutter ? 20 : PAD_X;
+  const padL = padL0 / VIEW_W_NORM;
+  const padR = padR0 / VIEW_W_NORM;
+  return { padL, padR, innerW: 1 - padL - padR };
+}
+
+export function trendPlotPadPx(
+  viewW: number,
+  opts: TrendPlotPadOpts = {},
+): { padL: number; padR: number; innerW: number } {
+  const r = trendPlotPadRatios(opts);
+  const padL = r.padL * viewW;
+  const padR = r.padR * viewW;
+  return { padL, padR, innerW: viewW - padL - padR };
+}
+
+/** 데이터 시각 비율(0–1) → 플롯 박스 가로 비율(패딩 포함). */
+export function trendTimeToPlotRatio(
+  t01: number,
+  opts: TrendPlotPadOpts = {},
+): number {
+  const { padL, innerW } = trendPlotPadRatios(opts);
+  if (!Number.isFinite(t01)) return padL;
+  const t = Math.min(1, Math.max(0, t01));
+  return padL + t * innerW;
+}
+
+/** 시각 ms → TrendChart `xFor`와 같은 플롯 X (패딩 포함 view 좌표). */
+export function trendMsToPlotX(
+  ms: number,
+  t0: number,
+  t1: number,
+  padL: number,
+  innerW: number,
+): number | null {
+  if (
+    !Number.isFinite(ms) ||
+    !Number.isFinite(t0) ||
+    !Number.isFinite(t1) ||
+    !(t1 > t0)
+  ) {
+    return null;
+  }
+  if (ms < t0 || ms > t1) return null;
+  return padL + ((ms - t0) / (t1 - t0)) * innerW;
+}
+
 export const X_SCOPE_DRAG_PX = 8;
 export const X_SCOPE_MIN_SPAN = 3;
 /** 알람 가이드선 hit (화면 px) */

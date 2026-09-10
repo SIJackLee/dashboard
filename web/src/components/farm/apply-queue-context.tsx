@@ -1,0 +1,94 @@
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
+import { ApplyQueueDock } from "@/components/farm/apply-queue-dock";
+import {
+  useBulkCommandPipelineTracker,
+  type BulkLiveProgress,
+  type BulkLiveTrackRow,
+} from "@/components/farm/use-bulk-command-pipeline-tracker";
+import type { BulkSentCommandItem } from "@/app/(dashboard)/controllers/actions";
+import type { ThermoCommand } from "@/lib/data/commands";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
+
+type ApplyQueueContextValue = {
+  startSession: (items: BulkSentCommandItem[]) => void;
+  startFromCommand: (readingKey: string, command: ThermoCommand) => void;
+  rows: BulkLiveTrackRow[];
+  progress: BulkLiveProgress;
+  setDockOpen: (open: boolean) => void;
+};
+
+export const EMPTY_APPLY_PROGRESS: BulkLiveProgress = {
+  total: 0,
+  ackDone: 0,
+  liveDone: 0,
+  failed: 0,
+  pending: 0,
+  timedOut: false,
+  complete: false,
+  allLive: false,
+  allOk: false,
+  ackSettled: false,
+};
+
+const ApplyQueueContext = createContext<ApplyQueueContextValue | null>(null);
+
+export function FarmApplyQueueProvider({ children }: { children: ReactNode }) {
+  const live = useFarmLiveRefreshOptional();
+  const readings = live?.slice.readings ?? [];
+  const thermoSettings = live?.slice.controller?.thermoSettings ?? {};
+  const tracker = useBulkCommandPipelineTracker({
+    thermoSettings,
+    readings,
+    watchCommands: live?.slice.controller?.commands ?? [],
+    farmKey: live?.farmKey ?? null,
+    onRefreshLive: () => {
+      void live?.revalidateFarmLive();
+    },
+    onCommandAck: (cmd) => live?.patchThermoFromCommand(cmd),
+  });
+
+  const { startSession, dismissBanner, setDockOpen, rows, progress, bannerVisible } =
+    tracker;
+
+  const startFromCommand = useCallback(
+    (readingKey: string, command: ThermoCommand) => {
+      startSession([{ key: readingKey, id: command.id, command }]);
+    },
+    [startSession],
+  );
+
+  const value = useMemo(
+    (): ApplyQueueContextValue => ({
+      startSession,
+      startFromCommand,
+      rows,
+      progress,
+      setDockOpen,
+    }),
+    [startSession, startFromCommand, rows, progress, setDockOpen],
+  );
+
+  return (
+    <ApplyQueueContext.Provider value={value}>
+      {children}
+      <ApplyQueueDock
+        rows={rows}
+        readings={readings}
+        open={bannerVisible}
+        onToggle={dismissBanner}
+      />
+    </ApplyQueueContext.Provider>
+  );
+}
+
+export function useApplyQueueOptional(): ApplyQueueContextValue | null {
+  return useContext(ApplyQueueContext);
+}

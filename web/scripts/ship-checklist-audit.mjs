@@ -16,7 +16,7 @@ import {
 } from "./test-accounts.mjs";
 import {
   login,
-  openListControllerSettings,
+  openFieldControllerSettings,
   applyFromSettingsPanel,
 } from "./audit-shared.mjs";
 
@@ -25,7 +25,8 @@ dotenv.config({
 });
 
 const BASE = process.env.UI_VERIFY_BASE ?? "http://localhost:3000";
-const FARM_LIST = "/farm?lsind=FARM01&item=P00&view=list";
+const FARM_FIELD = "/farm?lsind=FARM01&item=P00";
+const FARM_FIELD_SETTINGS = `${FARM_FIELD}&listMode=settings`;
 const VIEWPORT = { width: 1280, height: 900 };
 
 function assert(cond, msg) {
@@ -80,23 +81,16 @@ async function smokeOperator(page) {
     password: passwordForEmail(TEST_ACCOUNTS.operator.email),
   });
 
-  await page.goto(`${BASE}/farm?lsind=FARM01&item=P00`, { waitUntil: "load" });
+  await page.goto(`${BASE}${FARM_FIELD}`, { waitUntil: "load" });
   await page.waitForTimeout(2500);
   assert(await hasLiveBarns(page), "operator map: LIVE 축사 없음");
 
   const bulk = page.getByRole("switch", { name: /일괄적용/ });
   assert(await bulk.isVisible().catch(() => false), "operator: 일괄적용 스위치 없음");
 
-  await page.goto(`${BASE}${FARM_LIST}`, { waitUntil: "load" });
-  await page.waitForSelector('[data-audit-region="barn-list-summary"]', {
-    timeout: 45000,
-  });
+  await page.goto(`${BASE}${FARM_FIELD_SETTINGS}`, { waitUntil: "load" });
   await page.waitForTimeout(1500);
-
-  await openListControllerSettings(page);
-  const panel = page
-    .locator('[data-audit-region="barn-list-accordion-panel"]')
-    .first();
+  const panel = await openFieldControllerSettings(page);
   const apply = await applyFromSettingsPanel(page, panel);
   assert(Boolean(apply.ack), "operator: Apply ACK 문구 없음");
 
@@ -116,11 +110,9 @@ async function smokeViewer(page) {
     email: TEST_ACCOUNTS.viewer.email,
     password: passwordForEmail(TEST_ACCOUNTS.viewer.email),
   });
-  await page.goto(`${BASE}${FARM_LIST}`, { waitUntil: "load" });
-  await page.waitForSelector('[data-audit-region="barn-list-summary"]', {
-    timeout: 45000,
-  });
-  assert(await hasLiveBarns(page), "viewer list: LIVE 축사 없음");
+  await page.goto(`${BASE}${FARM_FIELD_SETTINGS}`, { waitUntil: "load" });
+  await page.waitForTimeout(2500);
+  assert(await hasLiveBarns(page), "viewer field: LIVE 축사 없음");
 
   const bulk = page.getByRole("switch", { name: /일괄적용/ });
   assert(
@@ -138,11 +130,7 @@ async function smokeViewer(page) {
     "viewer: 헤더 운영 진입점이 보이면 안 됨",
   );
 
-  await openListControllerSettings(page);
-  const panel = page
-    .locator('[data-audit-region="barn-list-accordion-panel"]')
-    .first();
-  await panel.waitFor({ state: "visible", timeout: 45000 });
+  const panel = await openFieldControllerSettings(page);
   const panelText = await panel.innerText();
   assert(/조회\s*전용/.test(panelText), "viewer: 조회 전용 배너 없음");
   assert(

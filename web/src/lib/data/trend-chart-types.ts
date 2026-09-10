@@ -176,3 +176,33 @@ export type ScaleEdgeNumericCommitEvent = {
   /** 사용자가 입력한 원단위 숫자 (℃ 또는 %) */
   value: number;
 };
+
+/** 플롯 하단 이벤트 행(명령 적중 등) — 추이 클릭 카드와 같은 셸 */
+export type TrendEventMarkCard = {
+  badge: string;
+  time: string;
+  hero: string;
+  heroTone?: "ok";
+  rows: { label: string; value: string }[];
+  footnote?: string;
+};
+
+export type TrendEventMark = {
+  id: string;
+  atMs: number;
+  /** 0 = 행 맨 위 */
+  row: number;
+  tone: "ok" | "info";
+  /** info일 때 농도 1(옅음)~3(진함) */
+  infoStrength?: 1 | 2 | 3;
+  ariaLabel: string;
+  card: TrendEventMarkCard;
+};
+
+export type TrendEventLane = {
+  label: string;
+  rowLabels: string[];
+  statsLine?: string;
+  emptyLabel: string;
+  marks: TrendEventMark[];
+};

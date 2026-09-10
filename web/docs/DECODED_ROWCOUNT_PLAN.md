@@ -160,7 +160,7 @@ skip 시에도 decode cursor는 전진(raw 보존 · 재디코드는 cursor rewi
     └─③ 30d detach→archive + archive soak DROP + raw 30d → **cron on**
 ```
 
-①·③ **완료**. ② 희소 allowlist PoC · 확대는 관측 후([`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md)).
+①·③ **완료**. ② 희소 allowlist PoC **OFF** 2026-09-01 ([`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md)).
 
 ---
 
@@ -169,7 +169,7 @@ skip 시에도 decode cursor는 전진(raw 보존 · 재디코드는 cursor rewi
 | # | 항목 | 상태 |
 |---|------|------|
 | 1 | D1 파티션 | ✅ 운영 적용 · legacy DROP |
-| 2 | 희소 PoC | ✅ allowlist · 재관측 2026-08-06 · **확대 보류** |
+| 2 | 희소 PoC | ⏸ **OFF** 2026-09-01 — LIVE·델린 side effect · migration `20260901153000` |
 | 3 | retention 30d + archive DROP | ✅ cron 3종 active |
 
-다음: 희소 ε 유지·관측 연장 또는 승인 후 ε 조정. retention **추가 작업 없음**(문서 정합 완료).
+다음: retention **추가 작업 없음**. sparse 재개 시 승인 + side effect 분리 설계 선행.

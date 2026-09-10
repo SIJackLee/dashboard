@@ -12,6 +12,10 @@ import {
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
   tipPinId,
+  trendPlotPadPx,
+  trendPlotPadRatios,
+  trendTimeToPlotRatio,
+  trendMsToPlotX,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
 import type {
@@ -110,6 +114,35 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
 {
   const env: TrendEnvelope = { high: [2], low: [1] } as TrendEnvelope;
   assert.deepEqual(buildEnvelopePaths(env, 1, xForId, yForId), []);
+}
+
+{
+  const pc = trendPlotPadRatios({ leftUnit: true, labelGutter: false });
+  assert.ok(Math.abs(pc.padL - 0.06) < 1e-12);
+  assert.ok(Math.abs(pc.padR - 0.06) < 1e-12);
+  assert.ok(Math.abs(pc.innerW - 0.88) < 1e-12);
+  assert.ok(Math.abs(trendTimeToPlotRatio(0, { leftUnit: true }) - 0.06) < 1e-12);
+  assert.ok(Math.abs(trendTimeToPlotRatio(1, { leftUnit: true }) - 0.94) < 1e-12);
+  assert.ok(Math.abs(trendTimeToPlotRatio(0.5, { leftUnit: true }) - 0.5) < 1e-12);
+  const mobile = trendPlotPadRatios({ leftUnit: true, labelGutter: true });
+  assert.ok(Math.abs(mobile.padL - 0.06) < 1e-12);
+  assert.ok(Math.abs(mobile.padR - 0.2) < 1e-12);
+  assert.ok(Math.abs(mobile.innerW - 0.74) < 1e-12);
+  assert.ok(
+    Math.abs(trendTimeToPlotRatio(0.5, { leftUnit: true, labelGutter: true }) - 0.43) <
+      1e-12,
+  );
+  const px = trendPlotPadPx(200, { leftUnit: true, labelGutter: false });
+  assert.equal(px.padL, 12);
+  assert.equal(px.padR, 12);
+  assert.equal(px.innerW, 176);
+  const t0 = Date.parse("2026-09-08T00:00:00.000Z");
+  const t1 = Date.parse("2026-09-10T00:00:00.000Z");
+  const mid = Date.parse("2026-09-09T00:00:00.000Z");
+  assert.equal(trendMsToPlotX(mid, t0, t1, 6, 88), 50);
+  assert.equal(trendMsToPlotX(t0, t0, t1, 6, 88), 6);
+  assert.equal(trendMsToPlotX(t1, t0, t1, 6, 88), 94);
+  assert.equal(trendMsToPlotX(t0 - 1, t0, t1, 6, 88), null);
 }
 
 console.log("trend-chart-geometry.test.ts: ok");

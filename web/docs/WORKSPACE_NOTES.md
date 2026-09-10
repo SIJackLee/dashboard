@@ -14,6 +14,7 @@
 |------|------|
 | 에이전트 | 단일 (`SI1/.cursor/rules/single-agent.mdc`) |
 | 배포 | `commit → push → main → Vercel 자동` |
+| Production | `https://smart.autofankorea.com` — **2026-08-28 제품 패키징 종료 (GO)** |
 | CLI / Redeploy | 특수 케이스만 |
 | 테스트 게이트 | `npm test` · `verify:design` · GitHub `web-verify` · GitLab `web:test` |
 
