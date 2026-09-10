@@ -89,9 +89,9 @@ flowchart LR
 
 | 결정 | 설계 이유 | 하지 않은 것 | 근거 |
 |------|-----------|--------------|------|
-| **RS-DB-C 3계층** | 수집(EC2)·저장(DB)·소비(Vercel)의 배포 주기·장애 반경·스케일 요구가 다름 | 올인원 EC2(구 D.py decode+UI) · 브라우저 직접 MQTT | [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) · 데이터폼 최종안 §8 |
+| **RS-DB-C 3계층** | 수집(EC2)·저장(DB)·소비(Vercel)의 배포 주기·장애 반경·스케일 요구가 다름 | 올인원 EC2(구 D.py decode+UI) · 브라우저 직접 MQTT | [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) · [`protocol/데이터폼_최종안.md`](./protocol/데이터폼_최종안.md) §8 |
 | **해석(decode)을 DB Edge** | raw 옆 **~10초 cron** · batch cursor · sparse/clock이 `iot_decoded_last_value`·`iot_decode_config`와 같은 트랜잭션·스키마 필요 | RS에서 wire decode(Phase3+ 폐기) · Next API batch decode · 농장별 decode 서버 | [`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md) · `supabase/functions/decode-batch/` |
-| **명령·uplink 동일 DB** | INSERT 감사·RLS·pending queue · uplink thermo와 command payload **ACK diff** · C.py **단일 downlink 소비자** | 대시보드→MQTT 직접 publish · 명령 전용 DB/Redis 분리 | [`CTRL_THERMO_COMMAND_PHASE_A.md`](./CTRL_THERMO_COMMAND_PHASE_A.md) · 데이터폼 정책 §4.3 |
+| **명령·uplink 동일 DB** | INSERT 감사·RLS·pending queue · uplink thermo와 command payload **ACK diff** · C.py **단일 downlink 소비자** | 대시보드→MQTT 직접 publish · 명령 전용 DB/Redis 분리 | [`CTRL_THERMO_COMMAND_PHASE_A.md`](./CTRL_THERMO_COMMAND_PHASE_A.md) · [`protocol/데이터폼_정책문서.md`](./protocol/데이터폼_정책문서.md) §4.3 |
 | **iot-cloud 단일 프로젝트** | Auth·RLS·JOIN view·Edge cron·명령 ACK를 **한 Postgres**에서. Free tier 운영 현실 | multi-DB COLD(E) · read/write 물리 샤딩 · 농장별 Supabase | [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) |
 | **LIVE vs 추이 시간축 분리** | `received_at`=신선도(2h hot) · `mesure_at`=차트/PDF. **버퍼 replay**와 live stream 구분 | REPLAY 전용 UI/DB 모드 · received만 LIVE 표시 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) · [`live-status.ts`](../src/lib/data/live-status.ts) |
 
@@ -117,7 +117,7 @@ flowchart LR
 |------|-----------|--------------|------|
 | **Instance·Dashboard repo 분리** | `rsd`=상시 MQTT·systemd · `dashboard`=Vercel git 배포. **수집 장애와 UI 릴리스 분리** | 대시보드 repo에 RS/C 통합 · UI를 EC2에서 호스팅 | [`CLOUD_DEPLOY.md`](./CLOUD_DEPLOY.md) · rsd repo |
 | **RS는 raw INSERT만** | EC2 blast radius 최소. decode는 upsert·sparse·월 파티션·`last_value` 갱신 필요 → DB 소유 | RS wire decode(Phase3+ 폐기) · RS sparse 필터 | [`RAW_STORAGE_CHANGE.md`](./RAW_STORAGE_CHANGE.md) · [`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md) |
-| **C.py는 EC2 유지** | MQTT cmd 구독·long poll·현장 네트워크 근접. **serverless/Vercel 부적합** | Next.js MQTT publish · 농장마다 cmd 브로커 | 데이터폼 정책 §4 · HOME_SIM |
+| **C.py는 EC2 유지** | MQTT cmd 구독·long poll·현장 네트워크 근접. **serverless/Vercel 부적합** | Next.js MQTT publish · 농장마다 cmd 브로커 | [`protocol/데이터폼_정책문서.md`](./protocol/데이터폼_정책문서.md) §4 · HOME_SIM |
 | **헬스→DB 적재** | admin DAG가 **DB만** 읽어 전국 상태. EC2 SSH 없이 관측 | Prometheus만 별도 · 대시보드가 EC2 SSH | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) §6 |
 | **공유 수집 Instance** | MQTT 브릿지 1벌 · 다농장 topic. 운영 인력·키 관리 단순 | **농장별 EC2** · tenant별 MQTT 클러스터 | [`SYSTEM_INSTANCE.md`](./SYSTEM_INSTANCE.md) · Health DAG |
 
@@ -298,7 +298,7 @@ flowchart LR
 | 성능 | [`PERF_BASELINE.md`](./PERF_BASELINE.md) |
 | 출고 QA | [`QA_PRE_RELEASE.md`](./QA_PRE_RELEASE.md) · [`QA_SHIP_GATE.md`](./QA_SHIP_GATE.md) |
 | 운영자 UI | [`user-manual/README.md`](./user-manual/README.md) |
-| 프로토콜·페이로드 | `SI1/데이터폼 정책문서.md` · `데이터폼 최종안.md` (레포 외부) |
+| 프로토콜·페이로드 | [`protocol/`](./protocol/README.md) (`데이터폼_정책문서` · `데이터폼_최종안`) |
 
 ### 4.2 코드 진입점
 

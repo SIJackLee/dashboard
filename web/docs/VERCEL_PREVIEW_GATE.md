@@ -26,6 +26,7 @@ Git에 push되면 Vercel이 **그 커밋만** 빌드·배포한다.
 3. UI가 stub/플레이스홀더로 남아 “작동안 함”처럼 보이지 않는가  
 4. clean worktree `npm test` · `npm run verify:design` · `npm run build` PASS  
 4b. 허브 URL/셸 변경 시 `npm run verify:hub` PASS ([`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md))  
+4c. **TTFB:** Preview/Production에서도 페이지 TTFB p95 **&lt; 1.5 s** 유지 ([`PERF_BASELINE.md`](./PERF_BASELINE.md)). 허브·LIVE 경로 변경 시 `measure:hub-ttfb` / 브라우저 샘플 권장  
 5. 보고에 포함 산출물(허브/디자인/ARIA/…)을 명시  
 
 ## 절차

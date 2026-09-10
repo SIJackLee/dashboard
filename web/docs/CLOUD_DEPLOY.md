@@ -25,6 +25,7 @@ commit → push → main 적용 → Vercel 자동 배포
 - Production 도메인 예: `https://smart.autofankorea.com`
 - **배포본 = Git 커밋만**. 미추적·미푸시 파일은 Vercel에 없다.
 - push 전: clean tree `npm test` · `npm run verify:design` · `npm run build` (가능하면).
+- **TTFB:** Production·Preview에서도 페이지 TTFB p95 **&lt; 1.5 s** 유지 ([`PERF_BASELINE.md`](./PERF_BASELINE.md) · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md)).
 
 ### 특수 케이스 — Vercel CLI
 

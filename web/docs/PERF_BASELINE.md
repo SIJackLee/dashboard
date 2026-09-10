@@ -2,6 +2,15 @@
 
 Phase 0 측정 기록. local dev · Supabase remote DB 기준.
 
+## 목표 (local · Preview · Production 동일)
+
+| 지표 | 목표 | 적용 |
+| --- | --- | --- |
+| LIVE SELECT p95 | &lt; 300 ms | local · 운영 DB |
+| 페이지 TTFB p95 | &lt; 1.5 s | **local · Vercel Preview · Production** |
+
+> **운영·배포에서도 TTFB 목표를 유지한다.** Preview/Production에서 목표를 넘기면 회귀로 보고 push 전·후 게이트에 반영한다 ([`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md)).
+
 ## 측정 방법
 
 ```bash
@@ -12,12 +21,11 @@ npm run measure:live
 
 페이지 TTFB는 브라우저 DevTools Network 탭에서 `/farm`, `/controllers`, `/alarms`, `/settings`, `/admin/ops` 각 10회 샘플. Admin hub는 아래 **Admin hub TTFB** 절 · `npm run measure:hub-ttfb`.
 
-## 목표 (local dev, post-optimization)
+운영 URL 예:
 
-| 지표 | 목표 |
-| --- | --- |
-| LIVE SELECT p95 | &lt; 300 ms |
-| 페이지 TTFB p95 | &lt; 1.5 s |
+```bash
+UI_VERIFY_BASE=https://smart.autofankorea.com npm run measure:hub-ttfb
+```
 
 ## Measured LIVE SELECT (2026-07-24)
 

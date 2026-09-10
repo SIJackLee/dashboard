@@ -26,13 +26,20 @@
 | [`IOT_RETENTION_OPTIONS.md`](./IOT_RETENTION_OPTIONS.md) | 보존(retention) **채택·cron 적용 현황** (정본) |
 | [`RAW_STORAGE_CHANGE.md`](./RAW_STORAGE_CHANGE.md) | raw passthrough 축소 Phase 1~4 · 용량 실측 |
 | [`DECODED_CAPACITY.md`](./DECODED_CAPACITY.md) | decoded 용량·인덱스 실측 · D0~D4 트랙 |
-| [`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md) | 행 수: 파티션 + 희소 + retention 상세 (D1·D4 적용 · 희소 관측 중) |
+| [`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md) | 행 수: 파티션 + retention (D1·D4) · **희소 PoC OFF 2026-09-01** |
+| [`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md) | 희소 관측 기록 · **현재 `sparse_enabled=false`** |
 | [`HUB_STABILITY_P0.md`](./HUB_STABILITY_P0.md) | 허브 안정화 P0 게이트·체크리스트 |
 | [`WORKSPACE_NOTES.md`](./WORKSPACE_NOTES.md) | 운영 메모(스냅샷) |
 | [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md) | 작업 맥락·스키마 참고 |
 | [`SYSTEM.md`](./SYSTEM.md) | 인스턴스·DB·Next.js 시스템 정본 ([DB](./SYSTEM_DB.md) · [Instance](./SYSTEM_INSTANCE.md) · [Next.js](./SYSTEM_NEXTJS.md) · [런북](./SYSTEM_RUNBOOK.md)) |
 | [`HOME_SIM_PILOT.md`](./HOME_SIM_PILOT.md) | 집 PC FARM01 LIVE 시뮬 (`sim_pilot_farm01.py`) |
 | [`android-push.md`](./android-push.md) | Android Capacitor + FCM 푸시 1차 |
+
+### 프로토콜 · 데이터폼
+
+| 문서 | 내용 |
+|------|------|
+| [`protocol/README.md`](./protocol/README.md) | 데이터폼·개선안 인덱스 (레포 루트에서 이 폴더로 이동) |
 
 ### 허브 · DELIN · 디자인
 
@@ -70,7 +77,19 @@
 |------|------|
 | `web/README.md` | npm/GitHub용 3줄 실행 안내 → 여기로 링크 |
 | `web/AGENTS.md` · `CLAUDE.md` | 에디터 도구용 포인터만 |
+| `web/src/**/*.test.ts` | 유닛 테스트 (문서가 아님 · `npm test`) |
+| `web/scripts/` | verify·audit·measure 스크립트 ([`SCRIPTS.md`](./SCRIPTS.md)) |
 | `Operation/docs` | 파이프라인·펌웨어 (별 영역) |
+
+## 문서 · 테스트 · 참고 배치
+
+| 종류 | 위치 |
+|------|------|
+| 제품·배포·시스템·UI | **`web/docs/`** (본 README 목차) |
+| 프로토콜·데이터폼 | **`web/docs/protocol/`** |
+| 운영자 매뉴얼 | **`web/docs/user-manual/`** |
+| 유닛 테스트 | `web/src/**/*.test.ts` · `web/supabase/functions/**/*.test.ts` |
+| 게이트·스모크 | `web/scripts/` · [`SCRIPTS.md`](./SCRIPTS.md) · [`VERCEL_PREVIEW_GATE.md`](./VERCEL_PREVIEW_GATE.md) |
 
 ```bash
 cd dashboard/web

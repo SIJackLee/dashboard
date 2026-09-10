@@ -2,7 +2,7 @@
 
 > **실측:** iot-cloud · **2026-08-06** · raw/decoded 용량 트랙 **완료로 종결**  
 > **원칙:** 인덱스 DROP은 별도 승인. 본 문서는 실측·판단·이력.  
-> **잔여:** 희소 ε 유지·관측만(확대 보류). retention cron 적용 완료.
+> **잔여:** 희소 PoC **OFF** 2026-09-01 ([`SPARSE_OBSERVATION.md`](./SPARSE_OBSERVATION.md)). retention cron 적용 완료.
 
 ---
 
