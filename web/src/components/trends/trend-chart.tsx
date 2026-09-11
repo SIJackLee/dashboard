@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  useCallback,
   useMemo,
   useState,
   useRef,
@@ -11,7 +12,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { Check, GripHorizontal, RotateCcw, X } from "lucide-react";
+import { Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
@@ -329,6 +330,15 @@ export function TrendChart({
     useTrendPinnedTips({
       resetKey: `${period ?? ""}|${categories.length}`,
     });
+  // 클러스터 줌인 이탈 시, 해당 멤버들의 이벤트 핀 카드 제거.
+  const clearEventPins = useCallback(
+    (markIds: string[]) => {
+      if (markIds.length === 0) return;
+      const ids = new Set(markIds.map((m) => `event:${m}`));
+      setPinnedTips((prev) => prev.filter((p) => !ids.has(p.id)));
+    },
+    [setPinnedTips],
+  );
   const [edgeDragId, setEdgeDragId] = useState<string | null>(null);
   const [edgeEdit, setEdgeEdit] = useState<{
     id: string;
@@ -1137,6 +1147,13 @@ export function TrendChart({
         beginScaleEdgeEdit(hit.id);
         return;
       }
+    }
+    // 빈 공간 우클릭: 고정 카드가 있으면 일괄 닫기(줌인 뒤로가기·스코프 뒤로가기보다 우선)
+    if (pinnedTips.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      setPinnedTips([]);
+      return;
     }
     /**
      * 한계 이탈 데이터 카드가 떠 있을 때만 장비 바로가기.
@@ -1981,6 +1998,15 @@ export function TrendChart({
               return [...prev, next].slice(-MAX_PINNED_TIPS);
             });
           }}
+          onClearEventPins={clearEventPins}
+          onEmptyContextMenu={() => {
+            // 카드가 있으면 일괄 닫기(줌인 뒤로가기보다 우선). 처리 시 true.
+            if (pinnedTips.length > 0) {
+              setPinnedTips([]);
+              return true;
+            }
+            return false;
+          }}
           onHover={(mark) => {
             setHoverEventMark(mark);
             if (!mark || !plotRef.current) return;
@@ -2370,65 +2396,40 @@ export function TrendChart({
           <div
             key={pin.id}
             className={cn(
-              "pointer-events-auto absolute w-max max-w-[16rem]",
+              "pointer-events-auto absolute w-max max-w-[16rem] cursor-grab touch-none select-none active:cursor-grabbing",
               motionClass.farmChartTipIn,
             )}
             style={{ left, top, zIndex: 20 + pinOrd }}
             data-tour-id="trend-chart-pinned-card"
             data-pin-id={pin.id}
+            aria-label="데이터 카드 · 드래그로 이동, 우클릭으로 닫기"
+            title="드래그로 이동 · 우클릭으로 닫기"
             onPointerDown={(e) => {
               e.stopPropagation();
               bringPinToFront(pin.id);
+              // 카드 본문 아무 곳이나 잡아 드래그(핸들바 없이). 내부 버튼/입력은 제외.
+              if (!isPrimaryPress(e) || !plotRef.current) return;
+              const target = e.target as HTMLElement | null;
+              if (target?.closest("button, a, input, select, textarea")) return;
+              e.preventDefault();
+              plotRef.current.setPointerCapture(e.pointerId);
+              pinCardDragRef.current = {
+                id: pin.id,
+                pointerId: e.pointerId,
+                startX: e.clientX,
+                startY: e.clientY,
+                origOx: pin.ox,
+                origOy: pin.oy,
+              };
+            }}
+            onContextMenu={(e) => {
+              // 카드 위 우클릭 = 닫기 (위치 이동에도 카드 자체에 붙어 따라감)
+              e.preventDefault();
+              e.stopPropagation();
+              setPinnedTips((prev) => prev.filter((p) => p.id !== pin.id));
             }}
           >
             <div className="overflow-hidden rounded-md border border-border/80 bg-popover/95 text-popover-foreground shadow-lg backdrop-blur-sm">
-              <div className="flex items-stretch border-b border-border/60 bg-muted/40">
-                <button
-                  type="button"
-                  aria-label="데이터 카드 위치 이동"
-                  title="드래그하여 배치"
-                  className={cn(
-                    "flex min-w-0 flex-1 cursor-grab items-center justify-center gap-1 px-2 py-1",
-                    "active:cursor-grabbing touch-none select-none",
-                  )}
-                  onPointerDown={(e) => {
-                    if (!isPrimaryPress(e) || !plotRef.current) return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    plotRef.current.setPointerCapture(e.pointerId);
-                    pinCardDragRef.current = {
-                      id: pin.id,
-                      pointerId: e.pointerId,
-                      startX: e.clientX,
-                      startY: e.clientY,
-                      origOx: pin.ox,
-                      origOy: pin.oy,
-                    };
-                  }}
-                >
-                  <GripHorizontal
-                    className="size-3.5 text-muted-foreground"
-                    aria-hidden
-                  />
-                </button>
-                <button
-                  type="button"
-                  aria-label="데이터 카드 닫기"
-                  title="닫기"
-                  className={cn(
-                    "inline-flex shrink-0 items-center justify-center border-l border-border/60 px-1.5",
-                    "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                  )}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setPinnedTips((prev) => prev.filter((p) => p.id !== pin.id));
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <X className="size-3.5" aria-hidden />
-                </button>
-              </div>
               <div className="px-2.5 py-1.5">
                 {pin.eventMark ? (
                   <TrendEventCardBody mark={pin.eventMark} />

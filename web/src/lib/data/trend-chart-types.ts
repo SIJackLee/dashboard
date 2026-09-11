@@ -185,6 +185,15 @@ export type TrendEventMarkCard = {
   heroTone?: "ok";
   rows: { label: string; value: string }[];
   footnote?: string;
+  /** 라벨 없이 값만 표기(설정 카드 단순화). 있으면 rows 대신 사용 */
+  values?: string[];
+  /** 구조화 대상 표기(아이콘). 있으면 footnote 대신 사용 */
+  target?: {
+    stallTyCode?: string | null;
+    stallNo?: string | null;
+    eqpmnNo?: string;
+    channel?: string | null;
+  };
 };
 
 export type TrendEventMark = {

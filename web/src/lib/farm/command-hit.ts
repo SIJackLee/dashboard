@@ -66,6 +66,12 @@ export type CommandHitMark = {
   x: number;
   stage: CommandHitStage;
   target: string;
+  targetRef?: {
+    stallTyCode: string;
+    stallNo: string;
+    eqpmnNo: string;
+    channel: ChannelSlot | null;
+  };
   setpoint: string;
   deviation: string;
   vent: string;
@@ -273,7 +279,7 @@ export function commandHitNeighborId(
 
 function commandHitPayload(command: CommandHitSource): Pick<
   CommandHitMark,
-  "setpoint" | "deviation" | "vent" | "target"
+  "setpoint" | "deviation" | "vent" | "target" | "targetRef"
 > {
   return {
     target: formatApplyQueueTargetLine({
@@ -282,6 +288,12 @@ function commandHitPayload(command: CommandHitSource): Pick<
       eqpmnNo: command.eqpmnNo,
       channel: command.channel,
     }),
+    targetRef: {
+      stallTyCode: command.stallTyCode,
+      stallNo: command.stallNo,
+      eqpmnNo: command.eqpmnNo,
+      channel: command.channel ?? null,
+    },
     setpoint: formatTempDisplay(command.setpointTemp),
     deviation: `±${formatTempDisplay(command.tempDeviation)}`,
     vent: `${formatVentDisplay(command.minVentPct).replace("%", "")}–${formatVentDisplay(command.maxVentPct)}`,
@@ -371,6 +383,18 @@ export function commandHitToEventMark(mark: CommandHitMark): TrendEventMark {
       time: formatKst(mark.at, "short"),
       hero: mark.setpoint,
       heroTone: mark.stage === "확인" ? "ok" : undefined,
+      // 라벨 없이 값만: 온도편차 · 최저–최대 환기량
+      values: [mark.deviation, mark.vent],
+      // 대상: 축사·컨트롤러 아이콘 + 채널
+      target: mark.targetRef
+        ? {
+            stallTyCode: mark.targetRef.stallTyCode,
+            stallNo: mark.targetRef.stallNo,
+            eqpmnNo: mark.targetRef.eqpmnNo,
+            channel: mark.targetRef.channel,
+          }
+        : undefined,
+      // 목록 폴백·접근성용 텍스트(유지)
       rows: [
         { label: "단계", value: mark.stage },
         { label: "편차", value: mark.deviation },

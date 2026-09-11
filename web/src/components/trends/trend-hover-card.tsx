@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ControllerAffiliationMarks,
   ControllerNoMark,
   StallUnitNoMark,
 } from "@/components/farm/controller-no-marks";
@@ -633,7 +634,7 @@ export function TrendEventCardBody({ mark }: { mark: TrendEventMark }) {
       </div>
       <div
         className={cn(
-          "flex items-baseline gap-0.5",
+          "flex items-baseline gap-2",
           motionClass.farmChartTipHero,
         )}
       >
@@ -643,27 +644,61 @@ export function TrendEventCardBody({ mark }: { mark: TrendEventMark }) {
         >
           {card.hero}
         </span>
-      </div>
-      <div className="mt-1.5 space-y-0.5 farm-chart-fs-legend">
-        {card.rows.map((row) => (
-          <p key={row.label}>
-            <span className="text-muted-foreground">{row.label} </span>
-            <span
-              className={cn(
-                "font-medium tabular-nums",
-                row.label === "단계" && card.heroTone === "ok"
-                  ? "text-[var(--status-ok-ink)]"
-                  : "text-foreground",
-              )}
-            >
-              {row.value}
-            </span>
-          </p>
-        ))}
-        {card.footnote ? (
-          <p className="text-muted-foreground">{card.footnote}</p>
+        {card.values && card.values.length > 0 ? (
+          <span className="farm-chart-fs-legend font-medium tabular-nums text-foreground">
+            {card.values[0]}
+          </span>
         ) : null}
       </div>
+      {card.values && card.values.length > 1 ? (
+        <div className="mt-0.5 flex flex-col items-start gap-0.5 farm-chart-fs-legend font-medium tabular-nums text-foreground">
+          {card.values.slice(1).map((v, i) => (
+            <span key={i}>{v}</span>
+          ))}
+        </div>
+      ) : !card.values && card.rows.length > 0 ? (
+        <div className="mt-1.5 space-y-0.5">
+          {card.rows.map((row) => (
+            <div
+              key={row.label}
+              className="flex items-center justify-between gap-2 farm-chart-fs-legend"
+            >
+              <span className="truncate text-muted-foreground">
+                {row.label}
+              </span>
+              <span
+                className={cn(
+                  "shrink-0 font-medium tabular-nums",
+                  row.label === "단계" && card.heroTone === "ok"
+                    ? "text-[var(--status-ok-ink)]"
+                    : "text-foreground",
+                )}
+              >
+                {row.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {card.target ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 border-t border-border/50 pt-1.5 farm-chart-fs-legend text-foreground/90">
+          <ControllerAffiliationMarks
+            stallTyCode={card.target.stallTyCode ?? undefined}
+            stallNo={card.target.stallNo ?? undefined}
+            eqpmnNo={card.target.eqpmnNo}
+          />
+          {card.target.channel ? (
+            <span className="font-semibold text-channel-info">
+              {card.target.channel}
+            </span>
+          ) : null}
+        </div>
+      ) : card.footnote ? (
+        <div className="mt-1 border-t border-border/50 pt-1 farm-chart-fs-legend text-muted-foreground">
+          {card.footnote}
+        </div>
+      ) : null}
     </>
   );
 }
