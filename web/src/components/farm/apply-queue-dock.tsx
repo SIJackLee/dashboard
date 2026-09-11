@@ -61,7 +61,7 @@ function StageGauge({ ticket }: { ticket: ApplyQueueTicket }) {
             kind === "current" &&
               (parts.fail
                 ? "bg-[color-mix(in_oklch,var(--status-danger)_70%,transparent)]"
-                : "bg-[color-mix(in_oklch,var(--channel-info)_65%,transparent)]"),
+                : "bg-[color-mix(in_oklch,var(--channel-command)_65%,transparent)]"),
             kind === "rest" && "bg-muted",
           )}
         />

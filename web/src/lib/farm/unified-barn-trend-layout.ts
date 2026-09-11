@@ -20,6 +20,8 @@ export type SplitYVisibility = {
   showTemp: boolean;
   showHum: boolean;
   showMotors: boolean;
+  /** 명령 이력 레인 — Y밴드 스코프 조합(가상 domain 밴드) */
+  showCommand: boolean;
 };
 
 /**
@@ -29,9 +31,9 @@ export type SplitYVisibility = {
 export const SPLIT_Y_BAND_GAP = 8;
 
 /**
- * 활성 밴드만 가중치로 0–100 분배.
- * 모터:습도:온도 ≈ 1 : 1.5 : 2.5 (단독이면 전폭).
+ * 활성 플롯 밴드만 동등 가중으로 0–100 분배 (단독이면 전폭).
  * 밴드 사이에는 {@link SPLIT_Y_BAND_GAP} 만큼 빈 구간.
+ * 명령 레인은 픽셀 높이 풀({@link allocateUnifiedChartBandHeights})에서 동등 슬롯.
  */
 export function resolveSplitYLayout(
   visibility: boolean | SplitYVisibility,
@@ -42,13 +44,14 @@ export function resolveSplitYLayout(
           showTemp: true,
           showHum: visibility,
           showMotors: true,
+          showCommand: true,
         }
       : visibility;
 
   const parts: { key: "motor" | "hum" | "temp"; w: number }[] = [];
   if (flags.showMotors) parts.push({ key: "motor", w: 1 });
-  if (flags.showHum) parts.push({ key: "hum", w: 1.5 });
-  if (flags.showTemp) parts.push({ key: "temp", w: 2.5 });
+  if (flags.showHum) parts.push({ key: "hum", w: 1 });
+  if (flags.showTemp) parts.push({ key: "temp", w: 1 });
 
   if (parts.length === 0) {
     return {
@@ -95,6 +98,7 @@ export const SPLIT_Y_WITH_HUM: SplitYLayout = resolveSplitYLayout({
   showTemp: true,
   showHum: true,
   showMotors: true,
+  showCommand: true,
 });
 
 /** 습도 OFF — 모터 · 온도 (밴드 사이 갭 포함) */
@@ -102,6 +106,7 @@ export const SPLIT_Y_TEMP_EXPANDED: SplitYLayout = resolveSplitYLayout({
   showTemp: true,
   showHum: false,
   showMotors: true,
+  showCommand: true,
 });
 
 function lerpNum(a: number, b: number, t: number): number {
@@ -206,20 +211,125 @@ export function splitYVisibilityFromLayers(
       layers.temp || layers.ema || layers.dev || layers.band,
     showHum: needsHumidityBand(layers),
     showMotors: layers.motors || layers.motorCh,
+    /** 브러시 차트에서 명령 레인 기본 on — yBands로만 숨김 */
+    showCommand: true,
   };
 }
 
-export type UnifiedYBandId = "temp" | "hum" | "motor";
+export type UnifiedYBandId = "temp" | "hum" | "motor" | "command";
 
 export const UNIFIED_Y_BAND_LABEL: Record<UnifiedYBandId, string> = {
   temp: "온도",
   hum: "습도",
   motor: "모터",
+  command: "명령",
 };
 
 /** E — UI 칩·스코프 배지: 「온도 집중」 */
 export function unifiedYBandFocusLabel(band: UnifiedYBandId): string {
   return `${UNIFIED_Y_BAND_LABEL[band]} 집중`;
+}
+
+/** 복수 Y밴드 스코프 칩: 「온도·명령 집중」 / 단일은 focusLabel */
+export function unifiedYBandsScopeLabel(
+  bands: UnifiedYBandId[] | null | undefined,
+): string | null {
+  if (!bands?.length) return null;
+  if (bands.length === 1) return unifiedYBandFocusLabel(bands[0]!);
+  return `${bands.map((b) => UNIFIED_Y_BAND_LABEL[b]).join("·")} 집중`;
+}
+
+/**
+ * Y밴드 스코프에 따른 명령 레인 표시.
+ * null/빈 배열 = 전체 → 표시. 명시적 목록이면 `command` 포함 시에만.
+ */
+export function eventLaneVisibleForYBands(
+  yBands: UnifiedYBandId[] | null | undefined,
+): boolean {
+  if (yBands == null || yBands.length === 0) return true;
+  return yBands.includes("command");
+}
+
+/** 온·습·모터 없이 명령 밴드만 — 플롯 시리즈 비움 + 레인 중심 레이아웃 */
+export function isCommandOnlyYBands(
+  yBands: UnifiedYBandId[] | null | undefined,
+): boolean {
+  if (!yBands?.length) return false;
+  return yBands.every((b) => b === "command");
+}
+
+/** 표시 중인 통합 밴드 개수(플롯+명령). 높이 동등 분할용. */
+export function countVisibleUnifiedBands(visibility: SplitYVisibility): {
+  plot: number;
+  command: number;
+  total: number;
+} {
+  const plot =
+    (visibility.showTemp ? 1 : 0) +
+    (visibility.showHum ? 1 : 0) +
+    (visibility.showMotors ? 1 : 0);
+  const command = visibility.showCommand ? 1 : 0;
+  return { plot, command, total: plot + command };
+}
+
+/**
+ * 총 콘텐츠 높이를 켜진 밴드 수만큼 동등 분할.
+ * 명령 레인도 슬롯 1개 — 레이어 off 시 고정 px에 묶이지 않음.
+ */
+export function allocateUnifiedChartBandHeights(input: {
+  totalContentPx: number;
+  visibility: SplitYVisibility;
+  minCommandPx?: number;
+  minPlotPx?: number;
+  commandOnlyPlotGutterPx?: number;
+}): { plotPx: number; commandPx: number } {
+  const totalContentPx = Math.max(0, input.totalContentPx);
+  const minCommandPx = input.minCommandPx ?? 56;
+  const minPlotPx = input.minPlotPx ?? 48;
+  const commandOnlyPlotGutterPx = input.commandOnlyPlotGutterPx ?? 72;
+  const { plot, command, total } = countVisibleUnifiedBands(input.visibility);
+
+  if (total <= 0 || totalContentPx <= 0) {
+    return { plotPx: totalContentPx, commandPx: 0 };
+  }
+
+  if (command > 0 && plot === 0) {
+    const gutter = Math.min(
+      commandOnlyPlotGutterPx,
+      Math.max(0, Math.floor(totalContentPx * 0.2)),
+    );
+    return {
+      plotPx: gutter,
+      commandPx: Math.max(0, totalContentPx - gutter),
+    };
+  }
+
+  if (command === 0) {
+    return { plotPx: totalContentPx, commandPx: 0 };
+  }
+
+  let commandPx = (command / total) * totalContentPx;
+  let plotPx = totalContentPx - commandPx;
+
+  if (commandPx < minCommandPx && totalContentPx >= minCommandPx + minPlotPx) {
+    commandPx = minCommandPx;
+    plotPx = totalContentPx - commandPx;
+  }
+  if (plotPx < minPlotPx && totalContentPx >= minCommandPx + minPlotPx) {
+    plotPx = minPlotPx;
+    commandPx = totalContentPx - plotPx;
+  }
+
+  return {
+    plotPx: Math.max(0, Math.round(plotPx)),
+    commandPx: Math.max(0, Math.round(commandPx)),
+  };
+}
+
+/** motor → hum → temp → command 고정 순서 */
+export function sortUnifiedYBands(ids: UnifiedYBandId[]): UnifiedYBandId[] {
+  const order: UnifiedYBandId[] = ["motor", "hum", "temp", "command"];
+  return order.filter((id) => ids.includes(id));
 }
 
 export function isSingleYBandFocus(
@@ -228,6 +338,7 @@ export function isSingleYBandFocus(
   return Array.isArray(yBands) && yBands.length === 1;
 }
 
+/** 온·습·모터만 (플롯 multi 판정). command는 별도 레인. */
 export function countSplitYBands(visibility: SplitYVisibility): number {
   return (
     (visibility.showTemp ? 1 : 0) +
@@ -263,6 +374,32 @@ export function hitSplitYBand(
   return best.id;
 }
 
+/**
+ * 명령 레인 가상 밴드 (플롯 domain 0–100 아래).
+ * 시리즈 매핑과 무관 — Y스코프 hit/조합 전용.
+ */
+export const COMMAND_SPLIT_Y_LO = -16;
+export const COMMAND_SPLIT_Y_HI = 0;
+
+/**
+ * view Y비율 → domain Y.
+ * 0=플롯 상단, 1=플롯 하단, >1=명령 레인(음수 domain).
+ */
+export function domainYFromViewRatio(
+  yRatio: number,
+  domain: [number, number] = [0, 100],
+): number {
+  const span = domain[1] - domain[0] || 1;
+  if (!(yRatio > 1 + 1e-6)) {
+    const r = Math.min(1, Math.max(0, yRatio));
+    return domain[1] - r * span;
+  }
+  const t = Math.min(1, Math.max(0, yRatio - 1));
+  return (
+    COMMAND_SPLIT_Y_HI + t * (COMMAND_SPLIT_Y_LO - COMMAND_SPLIT_Y_HI)
+  );
+}
+
 export function listSplitYBands(
   layout: SplitYLayout,
   visibility: SplitYVisibility,
@@ -276,6 +413,13 @@ export function listSplitYBands(
   }
   if (visibility.showTemp && layout.tempHi - layout.tempLo > 0.5) {
     bands.push({ id: "temp", lo: layout.tempLo, hi: layout.tempHi });
+  }
+  if (visibility.showCommand) {
+    bands.push({
+      id: "command",
+      lo: COMMAND_SPLIT_Y_LO,
+      hi: COMMAND_SPLIT_Y_HI,
+    });
   }
   return bands;
 }
@@ -291,11 +435,15 @@ export function resolveYScopeBands(
   layout: SplitYLayout,
   visibility: SplitYVisibility,
 ): UnifiedYBandId[] | null {
-  const bands = listSplitYBands(layout, visibility);
-  if (bands.length <= 1) return null;
-
   const yLo = Math.min(domainY0, domainY1);
   const yHi = Math.max(domainY0, domainY1);
+  let bands = listSplitYBands(layout, visibility);
+  /** 플롯 구간만이면 명령 가상밴드 제외 — 레인 미터치 시 기존 UX 유지 */
+  if (yLo >= -1e-6) {
+    bands = bands.filter((b) => b.id !== "command");
+  }
+  if (bands.length <= 1) return null;
+
   const span = Math.max(yHi - yLo, 1e-3);
   const center = (yLo + yHi) / 2;
 
@@ -316,9 +464,7 @@ export function resolveYScopeBands(
     (x) => x.fracBand >= 0.22 || x.fracSpan >= 0.35,
   );
 
-  const order: UnifiedYBandId[] = ["motor", "hum", "temp"];
-  const sortIds = (ids: UnifiedYBandId[]) =>
-    order.filter((id) => ids.includes(id));
+  const sortIds = (ids: UnifiedYBandId[]) => sortUnifiedYBands(ids);
 
   /** 두 밴드 이상 걸침 → 걸린 밴드만 */
   if (significant.length >= 2) {
@@ -378,6 +524,7 @@ export function visibilityForYBands(
     showTemp: bands.includes("temp"),
     showHum: bands.includes("hum"),
     showMotors: bands.includes("motor"),
+    showCommand: bands.includes("command"),
   };
 }
 
@@ -385,7 +532,7 @@ export function visibilityForYBand(band: UnifiedYBandId): SplitYVisibility {
   return visibilityForYBands([band])!;
 }
 
-/** Y밴드 스코프 시 pick에서 허용 밴드 외 레이어 제외 */
+/** Y밴드 스코프 시 pick에서 허용 밴드 외 레이어 제외 (`command`는 시리즈에 영향 없음) */
 export function maskLayersForYBands(
   layers: UnifiedLayerFlags,
   yBands: UnifiedYBandId[] | null,

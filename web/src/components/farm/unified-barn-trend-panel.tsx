@@ -9,6 +9,7 @@ import {
   type TrendScaleEdgeLabel,
 } from "@/components/trends/trend-chart";
 import { formatTrendBandEdge } from "@/components/trends/trend-chart-format";
+import { xScopeTouchesCommandLane } from "@/components/trends/trend-chart-geometry";
 import {
   BRUSH_PERIOD_WINDOW,
   UnifiedTrendPeriodBrush,
@@ -132,9 +133,14 @@ import {
   countSplitYBands,
   hitSplitYBand,
   resolveYScopeBands,
+  domainYFromViewRatio,
   visibilityForYBands,
   maskLayersForYBands,
   isSingleYBandFocus,
+  eventLaneVisibleForYBands,
+  allocateUnifiedChartBandHeights,
+  sortUnifiedYBands,
+  unifiedYBandsScopeLabel,
   unmapHumPctFromSplitY,
   unmapMotorPctFromSplitY,
   unmapTempCFromSplitY,
@@ -142,7 +148,7 @@ import {
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
 import { envComfortScore } from "@/lib/farm/env-comfort-score";
-import { useSplitYLayoutTransition } from "@/lib/farm/use-split-y-layout-transition";
+import { useUnifiedChartBandTransition } from "@/lib/farm/use-split-y-layout-transition";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -470,14 +476,58 @@ export function UnifiedBarnTrendPanel({
       showTemp: layerVisibility.showTemp && bandVis.showTemp,
       showHum: layerVisibility.showHum && bandVis.showHum,
       showMotors: layerVisibility.showMotors && bandVis.showMotors,
+      showCommand: layerVisibility.showCommand && bandVis.showCommand,
     };
   }, [layerVisibility, xScope]);
   const targetPlot = useMemo(
     () => resolveUnifiedPlotLayout(scopeVisibility, mappingThresholds),
     [scopeVisibility, mappingThresholds],
   );
-  const layout = useSplitYLayoutTransition(targetPlot.layout);
   const chartLeftUnit = targetPlot.leftUnit;
+  /** 브러시 캔버스 여부 — 높이 풀·레이아웃 보간을 같은 훅에서 맞추기 위해 조기 계산 */
+  const useBrushCanvas = isContextControllerTrend30d(
+    controllerTrendByPeriod?.["30d"],
+  );
+  const showCommandLaneForHeight = eventLaneVisibleForYBands(
+    xScope?.yBands ?? null,
+  );
+  const baseChartPlotH =
+    chartHeight ?? (isMobileStack ? chartUiPx(320) : chartUiPx(340));
+  const commandLaneBudgetPx = chartUiPx(COMMAND_HIT_LANE_PX);
+  const commandInHeightPool =
+    useBrushCanvas &&
+    showCommandLaneForHeight &&
+    scopeVisibility.showCommand;
+  const targetBandHeights = useMemo(
+    () =>
+      allocateUnifiedChartBandHeights({
+        totalContentPx:
+          baseChartPlotH + (commandInHeightPool ? commandLaneBudgetPx : 0),
+        visibility: {
+          showTemp: scopeVisibility.showTemp,
+          showHum: scopeVisibility.showHum,
+          showMotors: scopeVisibility.showMotors,
+          showCommand: commandInHeightPool,
+        },
+        minCommandPx: chartUiPx(64),
+        minPlotPx: chartUiPx(48),
+        commandOnlyPlotGutterPx: chartUiPx(72),
+      }),
+    [
+      baseChartPlotH,
+      commandInHeightPool,
+      commandLaneBudgetPx,
+      scopeVisibility.showTemp,
+      scopeVisibility.showHum,
+      scopeVisibility.showMotors,
+    ],
+  );
+  const { layout, heights: bandHeights } = useUnifiedChartBandTransition(
+    targetPlot.layout,
+    targetBandHeights,
+  );
+  const chartPlotHeight = bandHeights.plotPx;
+  const commandHitLaneHeightTarget = bandHeights.commandPx;
   /** 드래그 hit/미리보기 — 레이어 기준(스코프 전) */
   const layerLayout = useMemo(
     () => resolveUnifiedPlotLayout(layerVisibility, mappingThresholds).layout,
@@ -555,8 +605,7 @@ export function UnifiedBarnTrendPanel({
     controllerTrendByPeriod,
     period,
   );
-  const context30d = isContextControllerTrend30d(controllerTrendByPeriod?.["30d"]);
-  const useBrushCanvas = context30d;
+  const context30d = useBrushCanvas;
   const displayPeriod = useBrushCanvas
     ? displayPeriodFromBrushWindow(brushWindow)
     : canvasPeriod;
@@ -957,8 +1006,23 @@ export function UnifiedBarnTrendPanel({
     picked,
     brushWindow,
   ]);
-  const commandHitLaneHeight =
-    useBrushCanvas && commandHitLane ? chartUiPx(COMMAND_HIT_LANE_PX) : 0;
+  const showCommandLane = eventLaneVisibleForYBands(xScope?.yBands ?? null);
+  const showCommandLanePlot = Boolean(
+    useBrushCanvas && commandHitLane && showCommandLane,
+  );
+  /** 레인 미준비 시에도 총 높이는 유지(플롯이 명령 슬롯을 임시 점유) */
+  const commandHitLaneHeight = showCommandLanePlot
+    ? commandHitLaneHeightTarget
+    : 0;
+  const chartPlotHeightForChart = showCommandLanePlot
+    ? chartPlotHeight
+    : chartPlotHeight +
+      (commandInHeightPool ? commandHitLaneHeightTarget : 0);
+  const commandOnlyYScope =
+    commandInHeightPool &&
+    !scopeVisibility.showTemp &&
+    !scopeVisibility.showHum &&
+    !scopeVisibility.showMotors;
 
   const emitZoom = useCallback(
     (entry: ScopeEntry | null) => {
@@ -988,24 +1052,29 @@ export function UnifiedBarnTrendPanel({
   ) => {
     if (!picked) return;
     const domain = built?.leftDomain ?? ([0, 100] as [number, number]);
-    const span = domain[1] - domain[0] || 1;
-    const domainY0 = domain[1] - range.yStartRatio * span;
-    const domainY1 = domain[1] - range.yEndRatio * span;
-    const multi = countSplitYBands(layerVisibility) > 1;
+    const laneTouched = xScopeTouchesCommandLane(
+      range.yStartRatio,
+      range.yEndRatio,
+    );
+    const domainY0 = domainYFromViewRatio(range.yStartRatio, domain);
+    const domainY1 = domainYFromViewRatio(range.yEndRatio, domain);
+    const multiPlot = countSplitYBands(layerVisibility) > 1;
     const detected =
-      mode === "replace"
+      mode === "replace" || xScope?.yBands != null
         ? null
-        : xScope?.yBands == null && multi
+        : multiPlot || laneTouched
           ? resolveYScopeBands(domainY0, domainY1, layerLayout, layerVisibility)
           : null;
-    /** P2 — 드래그 중심이 온도 레인이면 온도만 확장 */
-    let yBands = mode === "replace" ? (["temp"] as UnifiedYBandId[]) : (xScope?.yBands ?? detected);
-    if (mode !== "replace" && xScope?.yBands == null && multi) {
-      const centerY = (domainY0 + domainY1) / 2;
-      if (
-        hitSplitYBand(centerY, layerLayout, layerVisibility) === "temp"
-      ) {
-        yBands = ["temp"];
+    let yBands: UnifiedYBandId[] | null =
+      mode === "replace" ? (["temp"] as UnifiedYBandId[]) : (xScope?.yBands ?? detected);
+    if (mode !== "replace" && xScope?.yBands != null && laneTouched) {
+      yBands = sortUnifiedYBands([...xScope.yBands, "command"]);
+    } else if (mode !== "replace" && xScope?.yBands == null) {
+      if (detected == null && multiPlot) {
+        const centerY = (domainY0 + domainY1) / 2;
+        const hit = hitSplitYBand(centerY, layerLayout, layerVisibility);
+        if (hit === "temp") yBands = ["temp"];
+        else if (hit === "command") yBands = ["command"];
       }
     }
     /** replace=가이드 시연 — 전체 축 절대 인덱스(중첩 금지) */
@@ -2034,11 +2103,13 @@ export function UnifiedBarnTrendPanel({
   const focusBandActive = isSingleYBandFocus(xScope?.yBands)
     ? xScope.yBands[0]
     : null;
+  const scopeYLabel = unifiedYBandsScopeLabel(xScope?.yBands ?? null);
 
   const focusBandTint = (band: UnifiedYBandId | null | undefined) => {
     if (band === "temp") return dashboardUi.channelTintTemp;
     if (band === "hum") return dashboardUi.channelTintHum;
     if (band === "motor") return dashboardUi.channelTintMotor;
+    if (band === "command") return dashboardUi.channelTintCommand;
     return dashboardUi.channelTintInfo;
   };
 
@@ -2147,7 +2218,9 @@ export function UnifiedBarnTrendPanel({
       {built &&
       scoped &&
       picked &&
-      (scoped.series.length > 0 || scoped.histograms.length > 0) ? (
+      (scoped.series.length > 0 ||
+        scoped.histograms.length > 0 ||
+        (Boolean(commandHitLane) && showCommandLane)) ? (
         <div
           data-tour-id="chart-control-plot"
           data-chart-mode={controlMode ? "control" : "view"}
@@ -2159,14 +2232,10 @@ export function UnifiedBarnTrendPanel({
           series={scoped.series}
           envelopes={scoped.envelopes}
           histograms={scoped.histograms}
-          height={
-            (chartHeight ??
-              (isMobileStack ? chartUiPx(320) : chartUiPx(340))) +
-            commandHitLaneHeight
-          }
-          eventLane={commandHitLane}
+          height={chartPlotHeightForChart + commandHitLaneHeight}
+          eventLane={showCommandLane ? commandHitLane : null}
           eventLaneHeight={commandHitLaneHeight}
-          leftUnit={chartLeftUnit}
+          leftUnit={commandOnlyYScope ? undefined : chartLeftUnit}
           leftDomain={built.leftDomain}
           period={displayPeriod}
           tickEvery={tickEveryForDisplayBars(chartCategories.length, {
@@ -2188,6 +2257,9 @@ export function UnifiedBarnTrendPanel({
                   <span className="shrink-0 tabular-nums opacity-80">
                     ×{xScopeStack.length}
                   </span>
+                ) : null}
+                {scopeYLabel ? (
+                  <span className="shrink-0 opacity-90">{scopeYLabel}</span>
                 ) : null}
                 <span className="min-w-0 truncate tabular-nums">
                   {formatTrendScopeRangeLabel(

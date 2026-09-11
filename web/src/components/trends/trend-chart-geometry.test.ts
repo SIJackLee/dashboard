@@ -16,6 +16,8 @@ import {
   trendPlotPadRatios,
   trendTimeToPlotRatio,
   trendMsToPlotX,
+  trendChartHasRenderableContent,
+  xScopeTouchesCommandLane,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
 import type {
@@ -47,6 +49,44 @@ const series: TrendSeries[] = [
   { name: "c", data: [Number.NaN, 5], color: "#222" }, // axis 미지정 → left
 ];
 assert.deepEqual(finiteValues(series, "left"), [1, 3, 5]);
+
+// 명령 Y밴드만: 시리즈 없어도 타임라인+레인 → 렌더 가능
+assert.equal(
+  trendChartHasRenderableContent({
+    series: [],
+    histograms: [],
+    categoriesLength: 48,
+    eventLaneActive: true,
+  }),
+  true,
+);
+assert.equal(
+  trendChartHasRenderableContent({
+    series: [],
+    histograms: [],
+    categoriesLength: 48,
+    eventLaneActive: false,
+  }),
+  false,
+);
+assert.equal(
+  trendChartHasRenderableContent({
+    series: [{ data: [null, null] }],
+    histograms: [],
+    categoriesLength: 10,
+    eventLaneActive: true,
+  }),
+  true,
+);
+assert.equal(
+  trendChartHasRenderableContent({
+    series: [{ data: [1, 2] }],
+    histograms: [],
+    categoriesLength: 0,
+    eventLaneActive: false,
+  }),
+  true,
+);
 assert.deepEqual(finiteValues(series, "right"), [10, 20]);
 
 // parseScaleEdgeValueUnit: 숫자 뒤 단위 접미.
@@ -144,5 +184,10 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   assert.equal(trendMsToPlotX(t1, t0, t1, 6, 88), 94);
   assert.equal(trendMsToPlotX(t0 - 1, t0, t1, 6, 88), null);
 }
+
+assert.equal(xScopeTouchesCommandLane(0.2, 0.8), false);
+assert.equal(xScopeTouchesCommandLane(0.9, 1.0), false);
+assert.equal(xScopeTouchesCommandLane(0.5, 1.05), true);
+assert.equal(xScopeTouchesCommandLane(1.2, 1.4), true);
 
 console.log("trend-chart-geometry.test.ts: ok");

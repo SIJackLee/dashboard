@@ -22,12 +22,22 @@ import {
   paddedAlarmDomain,
   unifiedYBandFocusLabel,
   isSingleYBandFocus,
+  eventLaneVisibleForYBands,
+  isCommandOnlyYBands,
+  countVisibleUnifiedBands,
+  allocateUnifiedChartBandHeights,
+  sortUnifiedYBands,
+  domainYFromViewRatio,
+  COMMAND_SPLIT_Y_LO,
+  COMMAND_SPLIT_Y_HI,
+  unifiedYBandsScopeLabel,
 } from "./unified-barn-trend-series";
 
 const ALL_VIS = {
   showTemp: true,
   showHum: true,
   showMotors: true,
+  showCommand: true,
 } as const;
 const layoutAll = resolveSplitYLayout(ALL_VIS);
 
@@ -37,12 +47,14 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
     showTemp: true,
     showHum: false,
     showMotors: false,
+    showCommand: true,
   });
   assert.equal(
     resolveYScopeBands(60, 90, singleLayout, {
       showTemp: true,
       showHum: false,
       showMotors: false,
+      showCommand: true,
     }),
     null,
     "밴드 1개 → Y필터 없음(null)",
@@ -51,12 +63,12 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
 
 {
   assert.deepEqual(
-    resolveYScopeBands(60, 90, layoutAll, ALL_VIS),
+    resolveYScopeBands(80, 95, layoutAll, ALL_VIS),
     ["temp"],
     "온도 밴드 중앙 드래그 → [temp]",
   );
   assert.deepEqual(
-    resolveYScopeBands(25, 45, layoutAll, ALL_VIS),
+    resolveYScopeBands(40, 55, layoutAll, ALL_VIS),
     ["hum"],
     "습도 밴드 중앙 드래그 → [hum]",
   );
@@ -64,7 +76,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
 
 {
   assert.deepEqual(
-    resolveYScopeBands(30, 80, layoutAll, ALL_VIS),
+    resolveYScopeBands(40, 90, layoutAll, ALL_VIS),
     ["hum", "temp"],
     "습+온 걸침 → 걸린 밴드만",
   );
@@ -77,12 +89,12 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
 
 {
   assert.equal(
-    resolveYScopeBands(50, 55, layoutAll, ALL_VIS),
+    resolveYScopeBands(30, 34, layoutAll, ALL_VIS),
     null,
     "습·온 사이 갭 → null(레이어 유지)",
   );
   assert.equal(
-    resolveYScopeBands(20, 22, layoutAll, ALL_VIS),
+    resolveYScopeBands(30, 34, layoutAll, ALL_VIS),
     null,
     "모터·습 사이 갭 → null",
   );
@@ -94,6 +106,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
     showMotors: false,
     showHum: true,
     showTemp: true,
+    showCommand: false,
   });
   const masked = maskLayersForYBands(DEFAULT_UNIFIED_LAYERS, ["temp"]);
   assert.equal(masked.temp, true);
@@ -231,7 +244,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
 {
   const th = DEFAULT_ALARM_THRESHOLDS;
   const tempOnly = resolveUnifiedPlotLayout(
-    { showTemp: true, showHum: false, showMotors: false },
+    { showTemp: true, showHum: false, showMotors: false, showCommand: true },
     th,
   );
   assert.equal(tempOnly.leftUnit, "℃");
@@ -242,7 +255,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   assert.ok(mapped != null && Math.abs(mapped - 24) < 1e-6, "native temp identity");
 
   const multi = resolveUnifiedPlotLayout(
-    { showTemp: true, showHum: true, showMotors: true },
+    { showTemp: true, showHum: true, showMotors: true, showCommand: true },
     th,
   );
   assert.equal(multi.leftUnit, "");
@@ -255,9 +268,109 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   assert.equal(unifiedYBandFocusLabel("temp"), "온도 집중");
   assert.equal(unifiedYBandFocusLabel("hum"), "습도 집중");
   assert.equal(unifiedYBandFocusLabel("motor"), "모터 집중");
+  assert.equal(unifiedYBandFocusLabel("command"), "명령 집중");
+  assert.equal(unifiedYBandsScopeLabel(["temp", "command"]), "온도·명령 집중");
+  assert.equal(unifiedYBandsScopeLabel(["command"]), "명령 집중");
+  assert.equal(unifiedYBandsScopeLabel(null), null);
   assert.equal(isSingleYBandFocus(["temp"]), true);
   assert.equal(isSingleYBandFocus(["temp", "hum"]), false);
   assert.equal(isSingleYBandFocus(null), false);
+}
+
+/* —— P0 command Y밴드 · 레인 표시 —— */
+{
+  assert.equal(eventLaneVisibleForYBands(null), true);
+  assert.equal(eventLaneVisibleForYBands([]), true);
+  assert.equal(eventLaneVisibleForYBands(["command"]), true);
+  assert.equal(eventLaneVisibleForYBands(["temp", "command"]), true);
+  assert.equal(eventLaneVisibleForYBands(["temp"]), false);
+  assert.equal(isCommandOnlyYBands(["command"]), true);
+  assert.equal(isCommandOnlyYBands(["temp", "command"]), false);
+  assert.equal(isCommandOnlyYBands(null), false);
+  assert.equal(isCommandOnlyYBands([]), false);
+  assert.deepEqual(sortUnifiedYBands(["command", "temp", "hum"]), [
+    "hum",
+    "temp",
+    "command",
+  ]);
+  const cmdVis = visibilityForYBands(["command"]);
+  assert.deepEqual(cmdVis, {
+    showTemp: false,
+    showHum: false,
+    showMotors: false,
+    showCommand: true,
+  });
+}
+
+/* —— 밴드 높이 동등 분할 (명령 레인 포함) —— */
+{
+  const allOn = {
+    showTemp: true,
+    showHum: true,
+    showMotors: true,
+    showCommand: true,
+  } as const;
+  const humOff = {
+    showTemp: true,
+    showHum: false,
+    showMotors: true,
+    showCommand: true,
+  } as const;
+  const all = allocateUnifiedChartBandHeights({
+    totalContentPx: 400,
+    visibility: allOn,
+  });
+  assert.equal(all.plotPx + all.commandPx, 400);
+  assert.equal(all.commandPx, 100, "4슬롯 → 명령 1/4");
+  assert.equal(all.plotPx, 300);
+
+  const noHum = allocateUnifiedChartBandHeights({
+    totalContentPx: 400,
+    visibility: humOff,
+  });
+  assert.equal(noHum.commandPx, Math.round(400 / 3), "습도 off → 명령 슬롯 확대");
+  assert.ok(noHum.commandPx > all.commandPx, "레이어 off 시 명령이 고정이면 안 됨");
+
+  const cmdOnly = allocateUnifiedChartBandHeights({
+    totalContentPx: 400,
+    visibility: {
+      showTemp: false,
+      showHum: false,
+      showMotors: false,
+      showCommand: true,
+    },
+    commandOnlyPlotGutterPx: 72,
+  });
+  assert.equal(cmdOnly.plotPx, 72);
+  assert.equal(cmdOnly.commandPx, 328);
+
+  assert.deepEqual(countVisibleUnifiedBands(allOn), {
+    plot: 3,
+    command: 1,
+    total: 4,
+  });
+}
+
+/* —— P1 command split-Y hit —— */
+{
+  assert.ok(domainYFromViewRatio(0) > domainYFromViewRatio(1));
+  assert.ok(domainYFromViewRatio(1.2) < COMMAND_SPLIT_Y_HI);
+  assert.ok(domainYFromViewRatio(1.2) >= COMMAND_SPLIT_Y_LO);
+  assert.deepEqual(
+    resolveYScopeBands(-12, -2, layoutAll, ALL_VIS),
+    ["command"],
+    "명령 레인만 → [command]",
+  );
+  assert.deepEqual(
+    resolveYScopeBands(-8, 12, layoutAll, ALL_VIS),
+    ["motor", "command"],
+    "모터+명령 걸침 → [motor,command]",
+  );
+  assert.deepEqual(
+    resolveYScopeBands(60, 90, layoutAll, ALL_VIS),
+    ["temp"],
+    "플롯만(명령 미터치) → [temp] (command 제외)",
+  );
 }
 
 console.log("chart-heuristics-m5.test.ts: ok");

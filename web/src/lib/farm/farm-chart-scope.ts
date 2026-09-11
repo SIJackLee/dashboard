@@ -236,14 +236,16 @@ export function scopesEqual(a: FarmChartScope, b: FarmChartScope): boolean {
 export const CHART_SP_PARAM = "chartSp";
 export const CHART_STALL_PARAM = "chartStall";
 export const CHART_CTRL_PARAM = "chartCtrl";
-/** P2 — 통합 추이 Y밴드 포커스 (temp|hum|motor, +로 복수) */
+/** P2 — 통합 추이 Y밴드 포커스 (temp|hum|motor|command, +로 복수) */
 export const CHART_Y_BAND_PARAM = "chartYBand";
 /** P2 — 현재 period 카테고리 상대 구간 0–1 */
 export const CHART_X0_PARAM = "chartX0";
 export const CHART_X1_PARAM = "chartX1";
 
+export type ChartYBandId = "temp" | "hum" | "motor" | "command";
+
 export type ChartTrendZoomHint = {
-  yBands: Array<"temp" | "hum" | "motor">;
+  yBands: ChartYBandId[];
   /** 0–1, period 내 상대. 생략 시 전체 */
   startRatio: number;
   endRatio: number;
@@ -267,15 +269,13 @@ export function clearFarmChartZoomParams(params: URLSearchParams): void {
   params.delete(CHART_X1_PARAM);
 }
 
-function parseYBandsParam(
-  raw: string | null,
-): Array<"temp" | "hum" | "motor"> | null {
+function parseYBandsParam(raw: string | null): ChartYBandId[] | null {
   if (!raw?.trim()) return null;
-  const allowed = new Set(["temp", "hum", "motor"]);
+  const allowed = new Set<string>(["temp", "hum", "motor", "command"]);
   const bands = raw
     .split(/[+,\s]+/)
     .map((s) => s.trim().toLowerCase())
-    .filter((s): s is "temp" | "hum" | "motor" => allowed.has(s));
+    .filter((s): s is ChartYBandId => allowed.has(s));
   return bands.length > 0 ? bands : null;
 }
 
@@ -328,7 +328,7 @@ export function chartScopeEntryToZoomHint(
   entry: {
     start: number;
     end: number;
-    yBands: Array<"temp" | "hum" | "motor"> | null;
+    yBands: ChartYBandId[] | null;
   } | null,
   categoryCount: number,
 ): ChartTrendZoomHint | null {

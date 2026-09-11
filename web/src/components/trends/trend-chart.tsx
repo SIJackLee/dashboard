@@ -67,6 +67,7 @@ import {
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
   tipPinId,
+  trendChartHasRenderableContent,
   trendMsToPlotX,
   trendPlotPadPx,
   type EdgeBandLabel,
@@ -429,9 +430,12 @@ export function TrendChart({
     };
   }, [height, categories.length, series.length, onPlotWidthChange]);
 
-  const hasAny =
-    series.some((s) => s.data?.some((v) => v != null)) ||
-    histograms.some((h) => h.values.some((v) => v != null));
+  const hasAny = trendChartHasRenderableContent({
+    series,
+    histograms,
+    categoriesLength: categories.length,
+    eventLaneActive: Boolean(eventLane) && eventLaneHeight > 0,
+  });
   const n = categories.length;
   const timeAxisMs = useMemo(
     () => (mode === "bar" ? null : parseCategoryTimelineMs(categories)),
@@ -798,6 +802,9 @@ export function TrendChart({
     );
   };
 
+  /** 플롯 본문 + 명령 레인 (PAD_BOTTOM 시간축 제외) — 스코프·십자선 Y 상한 */
+  const scopeYMax = PAD_TOP + innerH + eventLaneH;
+
   const yViewFromClient = (
     clientY: number,
     rect: DOMRect,
@@ -805,14 +812,18 @@ export function TrendChart({
     if (rect.height <= 0) return PAD_TOP;
     const yPx = clientY - rect.top;
     return Math.min(
-      PAD_TOP + innerH,
+      scopeYMax,
       Math.max(PAD_TOP, (yPx / rect.height) * chartH),
     );
   };
 
+  /**
+   * 플롯 본문 기준 0~1. 명령 레인은 >1 (커밋 시 시간-only 판별).
+   * 알람 드래그 등 domain 매핑에는 쓰지 말 것.
+   */
   const yCenterRatioFromView = (yView: number): number => {
     if (innerH <= 0) return 0.5;
-    return Math.min(1, Math.max(0, (yView - PAD_TOP) / innerH));
+    return (yView - PAD_TOP) / innerH;
   };
 
   const xViewFromRatio = (r: number) =>
@@ -1173,13 +1184,13 @@ export function TrendChart({
     const xPx = e.clientX - rect.left;
     const yPx = e.clientY - rect.top;
 
-    /** 십자선 — 플롯 위에서는 마우스 기준 항상 표시 */
+    /** 십자선 — 플롯·명령 레인까지 (시간축 PAD_BOTTOM 제외) */
     const xView = Math.min(
       viewW - padR,
       Math.max(padL, (xPx / rect.width) * viewW),
     );
     const yView = Math.min(
-      PAD_TOP + innerH,
+      scopeYMax,
       Math.max(PAD_TOP, (yPx / rect.height) * chartH),
     );
     setCrosshairAt(xView, yView);
@@ -1849,7 +1860,7 @@ export function TrendChart({
           const h = Math.max(3.2, rawH);
           const yMid = (top + bot) / 2;
           const yBox = Math.min(
-            PAD_TOP + innerH - h,
+            scopeYMax - h,
             Math.max(PAD_TOP, rawH < 3.2 ? yMid - h / 2 : top),
           );
           const rx = markerRx(4.2);
@@ -2306,7 +2317,7 @@ export function TrendChart({
             const eventStroke =
               pin.eventMark?.tone === "ok"
                 ? "var(--status-ok)"
-                : "var(--channel-info)";
+                : "var(--channel-command)";
             return (
               <g key={`pin-link-${pin.id}`}>
                 {pin.eventMark ? (

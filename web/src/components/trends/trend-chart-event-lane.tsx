@@ -23,10 +23,10 @@ function markDotClass(mark: TrendEventMark, selected: boolean): string {
     mark.tone === "ok"
       ? "bg-[var(--status-ok)] border-[color-mix(in_oklch,var(--status-ok)_40%,var(--background))]"
       : mark.infoStrength === 3
-        ? "bg-[color-mix(in_oklch,var(--channel-info)_80%,transparent)] border-background"
+        ? "bg-[color-mix(in_oklch,var(--channel-command)_80%,transparent)] border-background"
         : mark.infoStrength === 2
-          ? "bg-[color-mix(in_oklch,var(--channel-info)_55%,transparent)] border-background"
-          : "bg-[color-mix(in_oklch,var(--channel-info)_35%,transparent)] border-background";
+          ? "bg-[color-mix(in_oklch,var(--channel-command)_55%,transparent)] border-background"
+          : "bg-[color-mix(in_oklch,var(--channel-command)_35%,transparent)] border-background";
   return cn(
     "block rounded-full border size-1.5",
     fill,

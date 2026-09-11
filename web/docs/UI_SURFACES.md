@@ -16,7 +16,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | Brand | 선택·CTA만 | `--primary` |
 | Status | 정상·주의·위험 | `--status-ok\|warn\|danger` + `-ink`. `--destructive` = `--status-danger` (폼·삭제) |
 | Ink | 본문 → 보조 → 힌트 → 장식 | `--foreground` · `--muted-foreground` · `--tertiary-foreground` · `--quaternary-foreground` |
-| Channel | 온·습·모터 | `--channel-temp\|hum\|motor\|info` |
+| Channel | 온·습·모터·정보·명령 | `--channel-temp\|hum\|motor\|info\|command` |
 | Density | 목록 readout · 맵 `--density-map-value*` · 덮개 `valueLg` | `dashboardTypography` / `dashboardReadout` |
 | Elevation | 0 바탕 · 1 우물 · 2 카드 · 3 오버레이 | `dashboardElevation` |
 | Motion | L1 `--motion-*` · L2 `motionClass` | `UI_MOTION.md` |

@@ -238,6 +238,9 @@ export const dashboardUi = {
     "border-channel-motor/60 bg-channel-motor/10 text-channel-motor",
   channelTintInfo:
     "border-channel-info/60 bg-channel-info/10 text-channel-info",
+  /** 명령 이력·스코프 칩 — channel-command (C2 hue 210) */
+  channelTintCommand:
+    "border-channel-command/60 bg-channel-command/10 text-channel-command",
   channelSolidTemp: "bg-channel-temp text-white",
   channelSolidHum: "bg-channel-hum text-white",
   channelSolidMotor: "bg-channel-motor text-white",

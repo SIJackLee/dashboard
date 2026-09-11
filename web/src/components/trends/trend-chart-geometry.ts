@@ -169,6 +169,15 @@ export function trendMsToPlotX(
 
 export const X_SCOPE_DRAG_PX = 8;
 export const X_SCOPE_MIN_SPAN = 3;
+
+/** 스코프 Y비율이 플롯 본문(0~1)을 넘어 명령 레인을 포함하는지 */
+export function xScopeTouchesCommandLane(
+  yStartRatio: number,
+  yEndRatio: number,
+): boolean {
+  return yStartRatio > 1 + 1e-6 || yEndRatio > 1 + 1e-6;
+}
+
 /** 알람 가이드선 hit (화면 px) */
 export const SCALE_EDGE_HIT_PX = 10;
 /** 라벨에서 드래그 시작까지 이동량 — 클릭과 구분 */
@@ -280,6 +289,24 @@ export function finiteValues(
     }
   }
   return out;
+}
+
+/**
+ * 차트 본문 렌더 여부.
+ * 시리즈/히스토그램이 없어도 타임라인+이벤트 레인이 있으면 유효
+ * (명령 Y밴드만 스코프한 경우 등).
+ */
+export function trendChartHasRenderableContent(input: {
+  series: Pick<TrendSeries, "data">[];
+  histograms: { values: Array<number | null | undefined> }[];
+  categoriesLength: number;
+  eventLaneActive: boolean;
+}): boolean {
+  const hasSeriesOrHist =
+    input.series.some((s) => s.data?.some((v) => v != null)) ||
+    input.histograms.some((h) => h.values.some((v) => v != null));
+  if (hasSeriesOrHist) return true;
+  return input.eventLaneActive && input.categoriesLength > 0;
 }
 
 export function domainFor(

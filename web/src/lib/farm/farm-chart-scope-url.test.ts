@@ -128,6 +128,19 @@ import {
 }
 
 {
+  const params = new URLSearchParams();
+  applyFarmChartZoomParams(params, {
+    yBands: ["temp", "command"],
+    startRatio: 0.1,
+    endRatio: 0.9,
+  });
+  assert.equal(params.get("chartYBand"), "temp+command");
+  const zoom = resolveFarmChartZoomHint(params);
+  assert.ok(zoom);
+  assert.deepEqual(zoom!.yBands, ["temp", "command"]);
+}
+
+{
   const params = new URLSearchParams(
     "view=chart&chartYBand=temp&chartX0=0.1&chartX1=0.4",
   );

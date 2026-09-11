@@ -55,11 +55,13 @@ const layoutFull = resolveSplitYLayout({
   showTemp: true,
   showHum: true,
   showMotors: true,
+  showCommand: true,
 });
 const layoutTempOnly = resolveSplitYLayout({
   showTemp: true,
   showHum: false,
   showMotors: false,
+  showCommand: true,
 });
 
 {

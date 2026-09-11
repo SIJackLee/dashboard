@@ -44,7 +44,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `chartSp` | 축사유형 코드 | — | 차트 집계 (유형). 맵 `sp`와 분리 |
 | `chartStall` | 축사번호 | — | 차트 집계 (축사). `chartSp` 필요 |
 | `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 (컨트롤러). `chartSp`+`chartStall` 필요 |
-| `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수) | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
+| `chartYBand` | `temp` \| `hum` \| `motor` \| `command` (+로 복수) | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff. `command`=명령 이력 레인 |
 | `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |
 | `planBldg` | 건물 id | — | 모델 포커스(건물). **3단계(배치) 이후.** 지금은 미사용 |
 | `planSp` | 축사유형 코드 | — | 모델 구역(유형). **3단계 이후.** 지금은 미사용 |
@@ -86,6 +86,7 @@ resolveFarmHubView(raw)
 - 범위 변경: shallow + `pinFarmHubViewParam(chart)` — **hub epoch 올리지 않음**
 - soft home·맵/목록/ARIA 전환·농장 전환 시 `chart*` 제거
 - 예: `/farm?lsind=…&item=…&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1`
+- 줌 예: `chartYBand=temp+command&chartX0=0.2&chartX1=0.6` — 온도·명령 레인 집중 + 시간 구간
 
 ---
 

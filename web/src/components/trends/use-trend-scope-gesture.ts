@@ -15,6 +15,9 @@ export type XDraftRect = { a: number; b: number; y0: number; y: number };
 export type XScopeCommitRange = {
   start: number;
   end: number;
+  /**
+   * 플롯 본문 기준 0~1. **>1** = 명령 이력 레인(시간-only 스코프 신호).
+   */
   yStartRatio: number;
   yEndRatio: number;
 };

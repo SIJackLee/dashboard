@@ -42,7 +42,7 @@ import {
     0,
     3,
     DEFAULT_ALARM_THRESHOLDS,
-    { showTemp: true, showHum: true, showMotors: true },
+    { showTemp: true, showHum: true, showMotors: true, showCommand: true },
   );
   assert.ok(summary);
   assert.equal(summary!.metrics.length, 3);
@@ -61,7 +61,7 @@ import {
     0,
     1,
     DEFAULT_ALARM_THRESHOLDS,
-    { showTemp: true, showHum: false, showMotors: false },
+    { showTemp: true, showHum: false, showMotors: false, showCommand: true },
   );
   assert.ok(onlyTemp);
   assert.deepEqual(
