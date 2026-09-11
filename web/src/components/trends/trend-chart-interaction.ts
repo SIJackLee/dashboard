@@ -34,6 +34,8 @@ export type PinnedTip = {
   ox: number;
   oy: number;
   eventMark?: TrendEventMark;
+  /** 데이터 절대시각(ms) — 윈도우 줌 시 범위 판정·재배치용 */
+  atMs?: number;
 };
 
 export function handleScaleEdgeDoubleTap(

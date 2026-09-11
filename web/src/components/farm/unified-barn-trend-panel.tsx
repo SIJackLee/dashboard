@@ -2238,6 +2238,7 @@ export function UnifiedBarnTrendPanel({
           leftUnit={commandOnlyYScope ? undefined : chartLeftUnit}
           leftDomain={built.leftDomain}
           period={displayPeriod}
+          pinResetKey={`${alarmScopeKey ?? ""}|${period ?? ""}`}
           tickEvery={tickEveryForDisplayBars(chartCategories.length, {
             compact: isMobileStack,
           })}

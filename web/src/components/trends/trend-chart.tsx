@@ -140,6 +140,12 @@ type TrendChartProps = {
   tickEvery?: number;
   /** 있으면 X축 tick 축약 (categories·툴팁은 풀 라벨 유지). 7d/30d는 월 경계=`N월`, 나머지=일. */
   period?: TrendPeriodId;
+  /**
+   * 고정(핀) 카드 초기화 키. 줌(윈도우 슬라이스)과 무관하게 스코프·기간 등
+   * 데이터 소스가 바뀔 때만 값이 변하도록 호출측에서 지정한다.
+   * (미지정 시 `period|categories.length` 폴백 — 줌마다 초기화됨)
+   */
+  pinResetKey?: string;
   /** false면 시리즈 범례 행 숨김 (sheet compact 등). */
   showLegend?: boolean;
   /** 범례 행 우측(구간 줌 칩 등). showLegend=false여도 단독 표시 가능. */
@@ -315,6 +321,7 @@ export function TrendChart({
   onPlotWidthChange,
   eventLane = null,
   eventLaneHeight = 0,
+  pinResetKey,
 }: TrendChartProps) {
   void _layoutKey;
   void tickEvery;
@@ -325,10 +332,16 @@ export function TrendChart({
   const [hoverEventMark, setHoverEventMark] = useState<TrendEventMark | null>(
     null,
   );
+  /** 윈도우(줌) 도메인 시그니처 — 변경 시 고정 카드 재배치 */
+  const [prevWinSig, setPrevWinSig] = useState<string>("");
+  /** 고정 카드 실측 크기(px) — 배치·점선 앵커 정확도용 (id별) */
+  const [pinCardSizes, setPinCardSizes] = useState<
+    Record<string, { w: number; h: number }>
+  >({});
   /** 클릭으로 고정한 비교용 데이터 카드 (다중) — 상태·리셋·외부클릭 해제는 훅에서 */
   const { pinnedTips, setPinnedTips, bringPinToFront, chartRootRef } =
     useTrendPinnedTips({
-      resetKey: `${period ?? ""}|${categories.length}`,
+      resetKey: pinResetKey ?? `${period ?? ""}|${categories.length}`,
     });
   // 클러스터 줌인 이탈 시, 해당 멤버들의 이벤트 핀 카드 제거.
   const clearEventPins = useCallback(
@@ -568,6 +581,97 @@ export function TrendChart({
 
   const xAtIndex = (i: number): number =>
     mode === "bar" ? xForBar(i) : xFor(i);
+
+  // 윈도우(줌) 도메인이 바뀌면 고정 카드를 재배치한다 (prop-sync during render).
+  // - 새 구간 밖(atMs 범위 밖) → 닫기
+  // - 새 구간 안 → 새 도메인 기준으로 앵커(nx/ny/idx) 재계산 (드래그 오프셋 초기화)
+  const winSig =
+    mode === "bar" || !timeAxisMs || timeAxisMs.length !== n || n < 1
+      ? ""
+      : `${timeAxisMs[0]}|${timeAxisMs[n - 1]}|${n}`;
+  if (winSig !== prevWinSig) {
+    setPrevWinSig(winSig);
+    if (winSig !== "" && timeAxisMs) {
+      const tLo = Math.min(timeAxisMs[0]!, timeAxisMs[n - 1]!);
+      const tHi = Math.max(timeAxisMs[0]!, timeAxisMs[n - 1]!);
+      const remapPinToWindow = (p: PinnedTip): PinnedTip | null => {
+        if (p.atMs == null) return p; // 시각 정보 없으면 그대로 유지
+        if (p.atMs < tLo || p.atMs > tHi) return null; // 범위 밖 → 닫기
+        // 가장 가까운 카테고리 인덱스
+        let bestIdx = 0;
+        let bestD = Infinity;
+        for (let i = 0; i < n; i++) {
+          const ti = timeAxisMs[i];
+          if (ti == null) continue;
+          const d = Math.abs(ti - p.atMs);
+          if (d < bestD) {
+            bestD = d;
+            bestIdx = i;
+          }
+        }
+        if (p.eventMark) {
+          const xView = xForMs(p.atMs);
+          if (xView == null) return null;
+          const rows = eventLane ? Math.max(1, eventLane.rowLabels.length) : 1;
+          const row = Math.min(rows - 1, Math.max(0, p.eventMark.row));
+          const yView =
+            eventLaneH > 0
+              ? eventLaneTop + ((row + 0.5) / rows) * eventLaneH
+              : p.ny * chartH;
+          return {
+            ...p,
+            idx: 0,
+            nx: xView / viewW,
+            ny: yView / chartH,
+            ox: 0,
+            oy: 0,
+          };
+        }
+        // 라인 시리즈 (온·습도 등)
+        const s = series.find((x) => x.name === p.seriesKey);
+        if (s) {
+          const v = s.data[bestIdx];
+          if (v == null || !Number.isFinite(v)) return null;
+          return {
+            ...p,
+            idx: bestIdx,
+            nx: xAtIndex(bestIdx) / viewW,
+            ny: yFor(v, s.axis ?? "left") / chartH,
+            ox: 0,
+            oy: 0,
+          };
+        }
+        // 히스토그램 (모터/편차 막대 등)
+        const hi = histograms.findIndex(
+          (h, i) => (h.legendLabel ?? `hist-${i}`) === p.seriesKey,
+        );
+        if (hi >= 0) {
+          const h = histograms[hi]!;
+          const v = h.values[bestIdx];
+          if (v == null || !Number.isFinite(v)) return null;
+          return {
+            ...p,
+            idx: bestIdx,
+            nx: xAtIndex(bestIdx) / viewW,
+            ny: yFor(v, "left") / chartH,
+            ox: 0,
+            oy: 0,
+          };
+        }
+        // 알 수 없는 계열 → 가로만 재계산, 세로는 유지
+        return { ...p, idx: bestIdx, nx: xAtIndex(bestIdx) / viewW, ox: 0, oy: 0 };
+      };
+      setPinnedTips((prev) => {
+        if (prev.length === 0) return prev;
+        const out: PinnedTip[] = [];
+        for (const p of prev) {
+          const r = remapPinToWindow(p);
+          if (r) out.push(r);
+        }
+        return out;
+      });
+    }
+  }
 
   const setCrosshairVisible = (visible: boolean) => {
     const op = visible ? "1" : "0";
@@ -1109,6 +1213,7 @@ export function TrendChart({
         ox: 0,
         oy: 0,
         eventMark: hit.eventMark,
+        atMs: hit.eventMark ? hit.eventMark.atMs : (timeAxisMs?.[hit.idx] ?? undefined),
       };
       return [...prev, next].slice(-MAX_PINNED_TIPS);
     });
@@ -1996,6 +2101,7 @@ export function TrendChart({
                 ox: 0,
                 oy: 0,
                 eventMark: mark,
+                atMs: mark.atMs,
               };
               return [...prev, next].slice(-MAX_PINNED_TIPS);
             });
@@ -2337,11 +2443,22 @@ export function TrendChart({
             const plotH = plotPx.h || 1;
             const anchorX = pin.nx * plotW;
             const anchorY = pin.ny * plotH;
-            const base = computeTipPlacement(anchorX, anchorY, plotW, plotH);
+            const tipW = pinCardSizes[pin.id]?.w ?? 168;
+            const tipH = pinCardSizes[pin.id]?.h ?? 88;
+            const base = computeTipPlacement(
+              anchorX,
+              anchorY,
+              plotW,
+              plotH,
+              tipW,
+              tipH,
+            );
             const left = base.left + pin.ox;
             const top = base.top + pin.oy;
-            const attachX = left + 84;
-            const attachY = top + 8;
+            // 앵커에서 카드 사각형에 가장 가까운 경계점 → 배치 방향과 무관하게
+            // 점선이 항상 카드 모서리에 닿는다.
+            const attachX = Math.min(Math.max(anchorX, left), left + tipW);
+            const attachY = Math.min(Math.max(anchorY, top), top + tipH);
             const eventStroke =
               pin.eventMark?.tone === "ok"
                 ? "var(--status-ok)"
@@ -2391,12 +2508,32 @@ export function TrendChart({
         const plotH = plotPx.h || 1;
         const anchorX = pin.nx * plotW;
         const anchorY = pin.ny * plotH;
-        const base = computeTipPlacement(anchorX, anchorY, plotW, plotH);
+        const tipW = pinCardSizes[pin.id]?.w ?? 168;
+        const tipH = pinCardSizes[pin.id]?.h ?? 88;
+        const base = computeTipPlacement(
+          anchorX,
+          anchorY,
+          plotW,
+          plotH,
+          tipW,
+          tipH,
+        );
         const left = base.left + pin.ox;
         const top = base.top + pin.oy;
         return (
           <div
             key={pin.id}
+            ref={(el) => {
+              if (!el) return;
+              const w = el.offsetWidth;
+              const h = el.offsetHeight;
+              if (w <= 0 || h <= 0) return;
+              setPinCardSizes((prev) => {
+                const cur = prev[pin.id];
+                if (cur && cur.w === w && cur.h === h) return prev;
+                return { ...prev, [pin.id]: { w, h } };
+              });
+            }}
             className={cn(
               "pointer-events-auto absolute w-max max-w-[16rem] cursor-grab touch-none select-none active:cursor-grabbing",
               motionClass.farmChartTipIn,
