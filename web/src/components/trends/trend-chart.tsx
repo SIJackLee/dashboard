@@ -1975,22 +1975,24 @@ export function TrendChart({
             hoverEventMark?.id ??
             null
           }
-          onSelect={(mark) => {
+          onSelect={(mark, anchor) => {
             const placed = positionedEventMarks.find(
               (row) => row.mark.id === mark.id,
             );
-            if (!placed) return;
+            if (!placed && !anchor) return;
             const id = `event:${mark.id}`;
             setPinnedTips((prev) => {
               if (prev.some((p) => p.id === id)) {
                 return prev.filter((p) => p.id !== id);
               }
+              // 부채꼴 클릭 시 anchor(펼친 표시 위치)를 우선 사용해
+              // 지시선이 실제 겹친 중심이 아닌 각 점을 가리키게 한다.
               const next: PinnedTip = {
                 id,
                 idx: 0,
                 seriesKey: id,
-                nx: placed.xView / viewW,
-                ny: placed.yView / chartH,
+                nx: anchor ? anchor.nx : placed!.xView / viewW,
+                ny: anchor ? anchor.ny : placed!.yView / chartH,
                 ox: 0,
                 oy: 0,
                 eventMark: mark,

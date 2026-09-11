@@ -155,7 +155,10 @@ export function EventLaneHtmlOverlay({
   compact?: boolean;
   labelGutter?: boolean;
   selectedId: string | null;
-  onSelect: (mark: TrendEventMark) => void;
+  onSelect: (
+    mark: TrendEventMark,
+    anchor?: { nx: number; ny: number },
+  ) => void;
   onHover: (mark: TrendEventMark | null) => void;
   /** 클러스터 줌인 이탈 시 해당 멤버들의 핀 카드 제거 */
   onClearEventPins?: (markIds: string[]) => void;
@@ -508,7 +511,7 @@ export function EventLaneHtmlOverlay({
         <>
           <button
             type="button"
-            aria-label="펼침 닫기"
+            aria-label="펼침 영역 · 우클릭 또는 Esc로 닫기"
             className="pointer-events-auto absolute left-0 right-0"
             style={{
               top: laneTopPct,
@@ -528,8 +531,8 @@ export function EventLaneHtmlOverlay({
               collapse();
             }}
             onClick={(event) => {
+              // 좌클릭으로는 줌인을 닫지 않는다(카드 다수 유지). 종료는 우클릭/Esc.
               event.stopPropagation();
-              collapse();
             }}
           />
 
@@ -751,7 +754,16 @@ export function EventLaneHtmlOverlay({
                     onPointerUp={(event) => event.stopPropagation()}
                     onClick={(event) => {
                       event.stopPropagation();
-                      onSelect(p.mark);
+                      // 핀 앵커를 '부채꼴 표시 위치'로 넘겨 지시선이 각 점을 가리키게 함.
+                      onSelect(p.mark, {
+                        nx:
+                          widthPx > 0
+                            ? xPx / widthPx
+                            : viewW > 0
+                              ? p.xView / viewW
+                              : 0,
+                        ny: chartH > 0 ? p.yView / chartH : 0,
+                      });
                     }}
                     onContextMenu={(event) => {
                       event.preventDefault();
