@@ -641,7 +641,7 @@ export function FarmMapBulkApply({
           }
           min={0}
           max={100}
-          step={5}
+          step={1}
           low={minVent}
           high={maxVent}
           unit="%"
@@ -693,7 +693,7 @@ export function FarmMapBulkApply({
           }
           min={10}
           max={35}
-          step={0.5}
+          step={0.1}
           low={alarm.tempLow}
           high={alarm.tempHigh}
           unit="℃"

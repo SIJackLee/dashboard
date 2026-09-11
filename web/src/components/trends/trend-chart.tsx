@@ -824,6 +824,9 @@ export function TrendChart({
     xDraft,
     xDraftRef,
     xScopeDraggingRef,
+    beginXScopeAt,
+    moveXScopeAt,
+    endXScopeAt,
     onXScopePointerDown,
     onXScopePointerMove,
     onXScopePointerUp,
@@ -935,16 +938,9 @@ export function TrendChart({
       y: e.clientY,
       pointerId: e.pointerId,
     };
-    if (eventLane && eventLaneH > 0) {
-      const rect = e.currentTarget.getBoundingClientRect();
-      if (rect.height > 0) {
-        const yPx = e.clientY - rect.top;
-        const laneTopPx = (eventLaneTop / chartH) * rect.height;
-        if (yPx >= laneTopPx) return;
-      }
-    }
-    /** 플롯 본문은 시간 줌 우선 — 알람선 전체폭 hit로 X스코프를 가로채지 않음.
-     *  알람 세로 조절은 우측 숫자 라벨 드래그 / 우클릭 숫자 입력. */
+    /** 플롯 본문·명령 레인 모두 시간 줌 가능 — 알람선 전체폭 hit로 X스코프를 가로채지 않음.
+     *  알람 세로 조절은 우측 숫자 라벨 드래그 / 우클릭 숫자 입력.
+     *  명령 점 위 탭/드래그는 EventLaneHtmlOverlay가 처리. */
     if (xScopeSelect) onXScopePointerDown(e);
   };
 
@@ -1664,9 +1660,11 @@ export function TrendChart({
             );
               })}
               {eventLane?.statsLine ? (
-                <span className="inline-flex items-center farm-chart-fs-legend tabular-nums text-muted-foreground">
-                  {eventLane.label} · {eventLane.statsLine}
-                </span>
+                <div className="basis-full w-full min-w-0">
+                  <span className="inline-flex items-center farm-chart-fs-legend tabular-nums text-muted-foreground">
+                    {eventLane.label} · {eventLane.statsLine}
+                  </span>
+                </div>
               ) : null}
               {coverageLegend.length > 0 ? (
                 <div
@@ -1943,7 +1941,9 @@ export function TrendChart({
           compact={labelGutter}
           labelGutter={labelGutter}
           selectedId={
-            pinnedTips.find((p) => p.eventMark)?.eventMark?.id ??
+            [...pinnedTips]
+              .reverse()
+              .find((p) => p.eventMark)?.eventMark?.id ??
             hoverEventMark?.id ??
             null
           }
@@ -1988,6 +1988,28 @@ export function TrendChart({
             };
             placeTipNear(anchorX, anchorY, rect.width, rect.height);
           }}
+          scopeHandlers={
+            xScopeSelect
+              ? {
+                  begin: (clientX, clientY) => {
+                    const plot = plotRef.current;
+                    if (!plot) return;
+                    beginXScopeAt(clientX, clientY, plot);
+                  },
+                  move: (clientX, clientY) => {
+                    const plot = plotRef.current;
+                    if (!plot) return;
+                    moveXScopeAt(clientX, clientY, plot);
+                  },
+                  end: (clientX, clientY) => {
+                    const plot = plotRef.current;
+                    if (!plot) return false;
+                    return endXScopeAt(clientX, clientY, plot);
+                  },
+                  cancel: () => onXScopePointerCancel(),
+                }
+              : null
+          }
         />
       ) : null}
 
@@ -2281,8 +2303,34 @@ export function TrendChart({
             const top = base.top + pin.oy;
             const attachX = left + 84;
             const attachY = top + 8;
+            const eventStroke =
+              pin.eventMark?.tone === "ok"
+                ? "var(--status-ok)"
+                : "var(--channel-info)";
             return (
               <g key={`pin-link-${pin.id}`}>
+                {pin.eventMark ? (
+                  <>
+                    <ellipse
+                      cx={anchorX}
+                      cy={anchorY}
+                      rx={10}
+                      ry={10}
+                      fill="none"
+                      stroke={eventStroke}
+                      strokeWidth={1.35}
+                      opacity={0.95}
+                    />
+                    <ellipse
+                      cx={anchorX}
+                      cy={anchorY}
+                      rx={5}
+                      ry={5}
+                      fill={eventStroke}
+                      opacity={0.9}
+                    />
+                  </>
+                ) : null}
                 <line
                   x1={anchorX}
                   y1={anchorY}

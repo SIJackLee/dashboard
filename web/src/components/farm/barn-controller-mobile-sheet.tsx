@@ -19,6 +19,7 @@ type Props = {
   peek?: boolean;
   onPeek?: () => void;
   onExpand?: () => void;
+  suppressPeekHandle?: boolean;
 };
 
 /**
@@ -37,6 +38,7 @@ export function BarnControllerMobileSheet({
   peek = false,
   onPeek,
   onExpand,
+  suppressPeekHandle = false,
 }: Props) {
   useEffect(() => {
     // 시트 상태 정리 훅 자리 — 현재는 no-op (props로 제어)
@@ -55,6 +57,7 @@ export function BarnControllerMobileSheet({
       peek={peek}
       onPeek={onPeek}
       onExpand={onExpand}
+      suppressPeekHandle={suppressPeekHandle}
       title={
         <span className="flex min-w-0 items-center gap-1.5">
           <ControllerAffiliationMarks

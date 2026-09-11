@@ -450,10 +450,11 @@ export function FarmPageContent({
     [shallowParams],
   );
 
+  /** compact 차트는 하단 브러시 터치 확보 — 델린은 맵(및 데스크톱 차트)만 */
   const showDelinEnvBadge =
     delinEnabled() &&
     Boolean(gridFarmKey) &&
-    (view === "map" || view === "chart");
+    (view === "map" || (view === "chart" && !viewportCompact));
   const delinBadgeStallTy = useMemo(() => {
     if (!showDelinEnvBadge) return null;
     if (view === "chart" && chartScope.level !== "farm") {
@@ -796,6 +797,7 @@ export function FarmPageContent({
                 trendStale={gridTrendStale}
                 fieldMerge
                 onOpenChart={onOpenControllerChart}
+                suppressBottomOverlays={view === "chart"}
               />
             ) : (
               <div

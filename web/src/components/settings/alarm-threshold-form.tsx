@@ -540,7 +540,7 @@ export function AlarmThresholdForm({
               icon={<AlarmDomainIcon domain="temp" />}
               min={10}
               max={35}
-              step={0.5}
+              step={0.1}
               low={draft.tempLow}
               high={draft.tempHigh}
               unit="℃"
@@ -614,7 +614,7 @@ export function AlarmThresholdForm({
               }
               min={10}
               max={35}
-              step={0.5}
+              step={0.1}
               low={draft.tempLow}
               high={draft.tempHigh}
               unit="℃"

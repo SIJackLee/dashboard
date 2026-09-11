@@ -234,35 +234,35 @@ export function useTrendScopeGesture(opts: UseTrendScopeGestureOptions) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- token-driven replay
   }, [guidedXScopeGesture?.token, n, onXScopeCommit]);
 
-  const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+  /** 플롯·명령 레인 공용 — client 좌표로 드래프트 시작 (capture는 호출측) */
+  const beginXScopeAt = (clientX: number, clientY: number, plot: HTMLElement) => {
     if (guidedScopeActiveRef.current) return;
-    if (!xScopeSelect || !onXScopeCommit || !isPrimaryPress(e) || n < 2) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    xScopeOriginRef.current = { x: e.clientX, y: e.clientY };
+    if (!xScopeSelect || !onXScopeCommit || n < 2) return;
+    xScopeOriginRef.current = { x: clientX, y: clientY };
     xScopeDraggingRef.current = false;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = xViewFromClient(e.clientX, rect);
-    const y = yViewFromClient(e.clientY, rect);
+    const rect = plot.getBoundingClientRect();
+    const x = xViewFromClient(clientX, rect);
+    const y = yViewFromClient(clientY, rect);
     const next = { a: x, b: x, y0: y, y };
     xDraftRef.current = next;
     setXDraft(next);
     clearHover();
   };
 
-  const onXScopePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+  const moveXScopeAt = (clientX: number, clientY: number, plot: HTMLElement) => {
     if (guidedScopeActiveRef.current) return;
     if (!xScopeSelect || xDraftRef.current == null || !xScopeOriginRef.current) {
       return;
     }
-    const dx = Math.abs(e.clientX - xScopeOriginRef.current.x);
-    const dy = Math.abs(e.clientY - xScopeOriginRef.current.y);
+    const dx = Math.abs(clientX - xScopeOriginRef.current.x);
+    const dy = Math.abs(clientY - xScopeOriginRef.current.y);
     if (!xScopeDraggingRef.current && dx < X_SCOPE_DRAG_PX && dy < X_SCOPE_DRAG_PX) {
       return;
     }
     xScopeDraggingRef.current = true;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = xViewFromClient(e.clientX, rect);
-    const y = yViewFromClient(e.clientY, rect);
+    const rect = plot.getBoundingClientRect();
+    const x = xViewFromClient(clientX, rect);
+    const y = yViewFromClient(clientY, rect);
     const next = {
       a: xDraftRef.current.a,
       b: x,
@@ -273,12 +273,17 @@ export function useTrendScopeGesture(opts: UseTrendScopeGestureOptions) {
     setXDraft(next);
   };
 
-  const onXScopePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (guidedScopeActiveRef.current) return;
-    if (!xScopeSelect || xDraftRef.current == null) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = xViewFromClient(e.clientX, rect);
-    const y = yViewFromClient(e.clientY, rect);
+  /** @returns 스코프 커밋 여부 (탭만이면 false) */
+  const endXScopeAt = (
+    clientX: number,
+    clientY: number,
+    plot: HTMLElement,
+  ): boolean => {
+    if (guidedScopeActiveRef.current) return false;
+    if (!xScopeSelect || xDraftRef.current == null) return false;
+    const rect = plot.getBoundingClientRect();
+    const x = xViewFromClient(clientX, rect);
+    const y = yViewFromClient(clientY, rect);
     const a = xDraftRef.current.a;
     const y0 = xDraftRef.current.y0;
     xDraftRef.current = null;
@@ -287,10 +292,10 @@ export function useTrendScopeGesture(opts: UseTrendScopeGestureOptions) {
 
     if (!xScopeDraggingRef.current) {
       xScopeDraggingRef.current = false;
-      return;
+      return false;
     }
     xScopeDraggingRef.current = false;
-    if (!onXScopeCommit) return;
+    if (!onXScopeCommit) return false;
 
     let start = indexFromXView(Math.min(a, x));
     let end = indexFromXView(Math.max(a, x));
@@ -306,6 +311,21 @@ export function useTrendScopeGesture(opts: UseTrendScopeGestureOptions) {
       yStartRatio: yCenterRatioFromView(y0),
       yEndRatio: yCenterRatioFromView(y),
     });
+    return true;
+  };
+
+  const onXScopePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isPrimaryPress(e)) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    beginXScopeAt(e.clientX, e.clientY, e.currentTarget);
+  };
+
+  const onXScopePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    moveXScopeAt(e.clientX, e.clientY, e.currentTarget);
+  };
+
+  const onXScopePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    endXScopeAt(e.clientX, e.clientY, e.currentTarget);
   };
 
   const onXScopePointerCancel = () => {
@@ -326,6 +346,9 @@ export function useTrendScopeGesture(opts: UseTrendScopeGestureOptions) {
     xDraft,
     xDraftRef,
     xScopeDraggingRef,
+    beginXScopeAt,
+    moveXScopeAt,
+    endXScopeAt,
     onXScopePointerDown,
     onXScopePointerMove,
     onXScopePointerUp,

@@ -68,7 +68,7 @@ export function ThresholdFieldGroup({
               type="number"
               uiSize={compact ? "default" : "dashboard"}
               className={compact ? "h-9 text-sm" : undefined}
-              step={f.unit === "℃" ? 0.5 : 1}
+              step={f.unit === "℃" ? 0.1 : 1}
               value={values[f.key]}
               disabled={disabled}
               onChange={(e) => {

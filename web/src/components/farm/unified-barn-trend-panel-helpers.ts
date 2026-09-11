@@ -1,5 +1,6 @@
 import { type BrushWindow } from "@/components/farm/unified-trend-period-brush";
 import type { AlarmThresholds } from "@/lib/data/alarms";
+import { snapToStep } from "@/lib/controllers/controller-panel-map";
 import {
   TREND_PERIODS,
   type TrendControllerSeries,
@@ -23,7 +24,7 @@ import {
  * 순수 로직만 모은다.
  */
 
-const TEMP_STEP = 0.5;
+const TEMP_STEP = 0.1;
 const HUM_STEP = 1;
 const TEMP_MIN = 10;
 const TEMP_MAX = 35;
@@ -130,7 +131,7 @@ export function applyCoverageToWindow(
 }
 
 function snapStep(n: number, step: number): number {
-  return Math.round(n / step) * step;
+  return snapToStep(n, step);
 }
 
 export function clampAlarmDraft(

@@ -2,7 +2,7 @@
 
 import { useCallback, useId, useRef } from "react";
 import { Thermometer } from "lucide-react";
-import { clampMenuValue, MENU_STEPS } from "@/lib/controllers/controller-panel-map";
+import { clampMenuValue, MENU_STEPS, snapToStep } from "@/lib/controllers/controller-panel-map";
 import {
   fmtTempLabel,
   SliderThumbLabel,
@@ -48,8 +48,7 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function snap(n: number, step: number) {
-  const s = 1 / step;
-  return Math.round(n * s) / s;
+  return snapToStep(n, step);
 }
 
 function pct(value: number, min: number, max: number) {

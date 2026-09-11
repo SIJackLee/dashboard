@@ -67,6 +67,8 @@ type Props = {
   trendStale?: boolean;
   fieldMerge?: boolean;
   onOpenChart?: (reading: BarnReading) => void;
+  /** 차트 탭 — peek 핸들 포털만 억제(상태는 유지) */
+  suppressBottomOverlays?: boolean;
 };
 
 /**
@@ -85,6 +87,7 @@ export function FarmMapMobileStage({
   trendStale = false,
   fieldMerge = false,
   onOpenChart,
+  suppressBottomOverlays = false,
 }: Props) {
   const router = useRouter();
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -453,6 +456,7 @@ export function FarmMapMobileStage({
       <BarnListToolbarMobileSheet
         open={hostedSheetOpen}
         peek={hostedSheetPeek}
+        suppressPeekHandle={suppressBottomOverlays}
         readings={controller?.readings ?? []}
         selectedKey={detailSelectedReadingKey}
         onSelectKey={handleHostedSheetSelectKey}

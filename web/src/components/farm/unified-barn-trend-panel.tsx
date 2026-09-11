@@ -8,6 +8,7 @@ import {
   type ScaleEdgeNumericCommitEvent,
   type TrendScaleEdgeLabel,
 } from "@/components/trends/trend-chart";
+import { formatTrendBandEdge } from "@/components/trends/trend-chart-format";
 import {
   BRUSH_PERIOD_WINDOW,
   UnifiedTrendPeriodBrush,
@@ -1757,7 +1758,7 @@ export function UnifiedBarnTrendPanel({
           CHART_THERMO_EDGE_IDS.maxVentPct,
           mapMotorPctToSplitY(maxV, layout),
           "최고환기",
-          `${maxV}%`,
+          formatTrendBandEdge(maxV, "%"),
           "overline",
           maxV,
           {
@@ -1769,7 +1770,7 @@ export function UnifiedBarnTrendPanel({
           CHART_THERMO_EDGE_IDS.minVentPct,
           mapMotorPctToSplitY(minV, layout),
           "최저환기",
-          `${minV}%`,
+          formatTrendBandEdge(minV, "%"),
           "underline",
           minV,
           {
@@ -1781,7 +1782,7 @@ export function UnifiedBarnTrendPanel({
         push(
           "motor-hi",
           mapMotorPctToSplitY(maxV, layout),
-          `${maxV}%`,
+          formatTrendBandEdge(maxV, "%"),
           "#64748b",
           "overline",
           "최고환기",
@@ -1790,7 +1791,7 @@ export function UnifiedBarnTrendPanel({
         push(
           "motor-lo",
           mapMotorPctToSplitY(minV, layout),
-          `${minV}%`,
+          formatTrendBandEdge(minV, "%"),
           "#64748b",
           "underline",
           "최저환기",
@@ -1802,7 +1803,7 @@ export function UnifiedBarnTrendPanel({
       push(
         "temp-hi",
         mapTempCToSplitY(thresholds.tempHigh, mapLo, mapHi, layout),
-        `${thresholds.tempHigh}℃`,
+        formatTrendBandEdge(thresholds.tempHigh, "℃"),
         TREND_CHART_COLORS.temp,
         "overline",
         "온도 상한(가이드)",
@@ -1816,7 +1817,7 @@ export function UnifiedBarnTrendPanel({
       push(
         "temp-lo",
         mapTempCToSplitY(thresholds.tempLow, mapLo, mapHi, layout),
-        `${thresholds.tempLow}℃`,
+        formatTrendBandEdge(thresholds.tempLow, "℃"),
         TREND_CHART_COLORS.temp,
         "underline",
         "온도 하한(가이드)",
@@ -1836,7 +1837,7 @@ export function UnifiedBarnTrendPanel({
           CHART_THERMO_EDGE_IDS.highVentTemp,
           mapTempCToSplitY(highT, mapLo, mapHi, layout),
           "온도편차",
-          `+${dev}℃`,
+          `+${formatTrendBandEdge(dev, "℃")}`,
           "overline",
           dev,
           {
@@ -1848,7 +1849,7 @@ export function UnifiedBarnTrendPanel({
           CHART_THERMO_EDGE_IDS.setpoint,
           mapTempCToSplitY(sp, mapLo, mapHi, layout),
           "설정온도",
-          `${sp}℃`,
+          formatTrendBandEdge(sp, "℃"),
           "overline",
           sp,
           {
@@ -1870,7 +1871,7 @@ export function UnifiedBarnTrendPanel({
           mapHumHi,
           layout,
         ),
-        `${thresholds.humidityHigh}%`,
+        formatTrendBandEdge(thresholds.humidityHigh, "%"),
         TREND_CHART_COLORS.humidity,
         "overline",
         "습도 상한(가이드)",
@@ -1889,7 +1890,7 @@ export function UnifiedBarnTrendPanel({
           mapHumHi,
           layout,
         ),
-        `${thresholds.humidityLow}%`,
+        formatTrendBandEdge(thresholds.humidityLow, "%"),
         TREND_CHART_COLORS.humidity,
         "underline",
         "습도 하한(가이드)",

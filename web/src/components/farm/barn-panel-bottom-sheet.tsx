@@ -64,6 +64,8 @@ type Props = {
   onPeek?: () => void;
   onExpand?: () => void;
   peekAriaLabel?: string;
+  /** true면 peek 핸들 포털만 렌더 스킵(상태는 유지 — 맵 복귀 시 재표시) */
+  suppressPeekHandle?: boolean;
 };
 
 /** 모바일 stack — bottom sheet shell (설정·컨트롤러 carousel 공용). */
@@ -82,6 +84,7 @@ export function BarnPanelBottomSheet({
   onPeek,
   onExpand,
   peekAriaLabel = "컨트롤러 시트 열기",
+  suppressPeekHandle = false,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const [dragY, setDragY] = useState(0);
@@ -187,7 +190,7 @@ export function BarnPanelBottomSheet({
   if (!open) return null;
 
   const peekHandle =
-    peekVisible && host
+    peekVisible && host && !suppressPeekHandle
       ? createPortal(
           <div
             className="pointer-events-none absolute inset-x-0 bottom-0 z-[45] flex justify-center"

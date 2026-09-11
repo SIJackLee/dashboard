@@ -16,10 +16,10 @@ export const PANEL_MENU_ITEMS: { id: PanelMenuId; label: string }[] = [
 ];
 
 export const MENU_STEPS: Record<PanelMenuId, PanelMenuStep> = {
-  setpoint: { step: 0.5, min: 10, max: 40, unit: "℃", decimals: 1 },
-  deviation: { step: 0.5, min: 0.5, max: 20, unit: "℃", decimals: 1 },
-  minVent: { step: 5, min: 0, max: 100, unit: "%", decimals: 0 },
-  maxVent: { step: 5, min: 0, max: 100, unit: "%", decimals: 0 },
+  setpoint: { step: 0.1, min: 10, max: 40, unit: "℃", decimals: 1 },
+  deviation: { step: 0.1, min: 0.5, max: 20, unit: "℃", decimals: 1 },
+  minVent: { step: 1, min: 0, max: 100, unit: "%", decimals: 0 },
+  maxVent: { step: 1, min: 0, max: 100, unit: "%", decimals: 0 },
 };
 
 /** 명령·설정 이력 없을 때 편집 시작값 */
@@ -32,15 +32,22 @@ export const EDIT_START_DRAFT = {
 
 export function clampMenuValue(menu: PanelMenuId, raw: number): number {
   const cfg = MENU_STEPS[menu];
-  const steps = Math.round((raw - cfg.min) / cfg.step);
-  let snapped = cfg.min + steps * cfg.step;
-  if (cfg.decimals === 0) {
-    snapped = Math.round(snapped);
-  } else {
-    const factor = 10 ** cfg.decimals;
-    snapped = Math.round(snapped * factor) / factor;
-  }
+  const snapped = snapToStep(raw, cfg.step, cfg.min);
   return Math.min(cfg.max, Math.max(cfg.min, snapped));
+}
+
+/**
+ * step 격자 스냅 후 소수 자릿수로 재반올림 (0.1×정수 FP 꼬리 제거).
+ * `origin`이 있으면 (raw - origin)을 step 배수로 맞춤 (메뉴 min 기준).
+ */
+export function snapToStep(raw: number, step: number, origin = 0): number {
+  if (!Number.isFinite(raw) || !Number.isFinite(step) || step <= 0) return raw;
+  const steps = Math.round((raw - origin) / step);
+  let snapped = origin + steps * step;
+  const decimals = Math.max(0, Math.min(6, Math.round(-Math.log10(step))));
+  const factor = 10 ** decimals;
+  snapped = Math.round(snapped * factor) / factor;
+  return snapped;
 }
 
 export function formatMenuValue(menu: PanelMenuId, value: number): string {

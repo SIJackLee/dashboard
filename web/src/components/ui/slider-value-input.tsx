@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
+import { snapToStep } from "@/lib/controllers/controller-panel-map";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +28,13 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function snap(n: number, step: number) {
-  const s = 1 / step;
-  return Math.round(n * s) / s;
+  return snapToStep(n, step);
 }
 
 export function fmtSliderInputValue(value: number, step: number) {
   if (step >= 1) return String(Math.round(value));
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  const cleaned = snapToStep(value, step);
+  return Number.isInteger(cleaned) ? String(cleaned) : cleaned.toFixed(1);
 }
 
 function parseDraft(raw: string): number | null {

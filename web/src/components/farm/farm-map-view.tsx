@@ -62,6 +62,8 @@ type Props = {
   /** 그리드·목록 통합 — 카드 선택·차트 이동 */
   fieldMerge?: boolean;
   onOpenChart?: (reading: BarnReading) => void;
+  /** 차트 탭 활성 시 하단 peek 핸들 등 오버레이 억제(브러시 영역 확보) */
+  suppressBottomOverlays?: boolean;
 };
 
 export function FarmMapView({
@@ -82,6 +84,7 @@ export function FarmMapView({
   trendStale = false,
   fieldMerge = false,
   onOpenChart,
+  suppressBottomOverlays = false,
 }: Props) {
   const viewportCompact = useHydrationSafeDashboardCompact();
   const emptyReason =
@@ -124,6 +127,7 @@ export function FarmMapView({
             trendStale={trendStale}
             fieldMerge={fieldMerge}
             onOpenChart={onOpenChart}
+            suppressBottomOverlays={suppressBottomOverlays}
           />
         ) : (
           <FarmMapCanvas

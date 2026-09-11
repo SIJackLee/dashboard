@@ -41,6 +41,8 @@ type Props = {
   peek?: boolean;
   onPeek?: () => void;
   onExpand?: () => void;
+  /** 차트 탭 등 — peek 핸들 포털만 숨김(open/peek state 유지) */
+  suppressPeekHandle?: boolean;
 };
 
 /** 모바일 목록 설정 — 단일 bottom sheet + 상단 swipe picker (그래프 모드 은퇴) */
@@ -59,6 +61,7 @@ export function BarnListToolbarMobileSheet({
   peek = false,
   onPeek,
   onExpand,
+  suppressPeekHandle = false,
 }: Props) {
   const reading = useMemo(
     () => readings.find((r) => r.key === selectedKey) ?? null,
@@ -81,6 +84,7 @@ export function BarnListToolbarMobileSheet({
       peek={peek}
       onPeek={onPeek}
       onExpand={onExpand}
+      suppressPeekHandle={suppressPeekHandle}
       reading={displayReading}
       pickerReadings={readings}
       selectedReadingKey={selectedKey ?? displayReading.key}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import {
   dashboardAffordance,
@@ -9,6 +10,7 @@ import { motionClass } from "@/lib/ui/motion-classes";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { cn } from "@/lib/utils";
 import type { TrendEventLane, TrendEventMark } from "@/lib/data/trend-chart-types";
+import { X_SCOPE_DRAG_PX } from "./trend-chart-geometry";
 
 export type PositionedEventMark = {
   mark: TrendEventMark;
@@ -82,6 +84,14 @@ export function EventLaneSvgGuides({
   );
 }
 
+type LaneScopeHandlers = {
+  begin: (clientX: number, clientY: number) => void;
+  move: (clientX: number, clientY: number) => void;
+  /** @returns true if time scope committed (tap should not pin) */
+  end: (clientX: number, clientY: number) => boolean;
+  cancel: () => void;
+};
+
 export function EventLaneHtmlOverlay({
   lane,
   marks,
@@ -94,6 +104,7 @@ export function EventLaneHtmlOverlay({
   selectedId,
   onSelect,
   onHover,
+  scopeHandlers = null,
 }: {
   lane: TrendEventLane;
   marks: PositionedEventMark[];
@@ -106,12 +117,84 @@ export function EventLaneHtmlOverlay({
   selectedId: string | null;
   onSelect: (mark: TrendEventMark) => void;
   onHover: (mark: TrendEventMark | null) => void;
+  /** 설정 시 점 위 가로 드래그도 시간 스코프 (탭=핀) */
+  scopeHandlers?: LaneScopeHandlers | null;
 }) {
   const rowCount = Math.max(1, lane.rowLabels.length);
   const selectedRow =
     marks.find((row) => row.mark.id === selectedId)?.mark.row ?? null;
   const pctY = (yView: number) =>
     `${chartH > 0 ? (yView / chartH) * 100 : 0}%`;
+
+  const armRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    mark: TrendEventMark;
+  } | null>(null);
+  const draggedRef = useRef(false);
+
+  const clearArm = () => {
+    armRef.current = null;
+    draggedRef.current = false;
+  };
+
+  const onMarkPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    mark: TrendEventMark,
+  ) => {
+    event.stopPropagation();
+    if (!isPrimaryPress(event)) return;
+    armRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      mark,
+    };
+    draggedRef.current = false;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    scopeHandlers?.begin(event.clientX, event.clientY);
+  };
+
+  const onMarkPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const arm = armRef.current;
+    if (!arm || arm.pointerId !== event.pointerId) return;
+    const dist = Math.hypot(event.clientX - arm.x, event.clientY - arm.y);
+    if (dist >= X_SCOPE_DRAG_PX) draggedRef.current = true;
+    scopeHandlers?.move(event.clientX, event.clientY);
+  };
+
+  const onMarkPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const arm = armRef.current;
+    if (!arm || arm.pointerId !== event.pointerId) {
+      clearArm();
+      return;
+    }
+    const committed = scopeHandlers?.end(event.clientX, event.clientY) ?? false;
+    const wasDrag = draggedRef.current || committed;
+    const mark = arm.mark;
+    clearArm();
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (wasDrag) return;
+    onSelect(mark);
+  };
+
+  const onMarkPointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (armRef.current?.pointerId === event.pointerId) {
+      scopeHandlers?.cancel();
+      clearArm();
+    }
+  };
 
   return (
     <div
@@ -167,14 +250,14 @@ export function EventLaneHtmlOverlay({
             }}
             aria-label={mark.ariaLabel}
             aria-pressed={isSelected}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-              if (!isPrimaryPress(event)) return;
-              onSelect(mark);
-            }}
-            onPointerUp={(event) => event.stopPropagation()}
+            onPointerDown={(event) => onMarkPointerDown(event, mark)}
+            onPointerMove={onMarkPointerMove}
+            onPointerUp={onMarkPointerUp}
+            onPointerCancel={onMarkPointerCancel}
             onClick={(event) => {
               event.stopPropagation();
+              // 포인터 탭은 pointerUp에서 핀. 키보드(Enter/Space)만 click 경로.
+              if (event.detail !== 0) return;
               onSelect(mark);
             }}
             onMouseEnter={() => onHover(mark)}

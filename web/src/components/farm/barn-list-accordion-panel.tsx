@@ -423,7 +423,7 @@ export function BarnListAccordionPanel({
         }
         min={0}
         max={100}
-        step={5}
+        step={1}
         low={panel.sliderValues.minVent}
         high={panel.sliderValues.maxVent}
         unit="%"
