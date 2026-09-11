@@ -1,0 +1,35 @@
+---
+description: Cursor Canvas(.canvas.tsx) 작성 규칙 — 깔끔한 결과물
+globs: **/*.canvas.tsx
+alwaysApply: false
+---
+
+# Canvas 작성 규칙
+
+## 인코딩 (최우선)
+- `.canvas.tsx`에 **한글을 Write/StrReplace로 직접 저장 금지** — 캔버스 호스트 저장이 한글을 `?`로 손상시킨다.
+- 절차: 내용을 감시 안 되는 파일(예: `_src.txt`)에 Write → Node `fs.writeFileSync(path, src, 'utf8')`로 `.canvas.tsx`에 복사 → Node로 한글 보존 검증(`/[\uAC00-\uD7A3]/` 개수).
+- PowerShell echo/heredoc/인라인 `node -e`로 한글 쓰지 말 것(mojibake).
+
+## import · 타입
+- import는 **오직 `cursor/canvas`**. 상대경로·npm·Node 내장 금지.
+- `React.` 네임스페이스 금지. 타입은 `cursor/canvas`의 `CSSProperties`/`ReactNode`, 애매하면 `any`.
+- `key`는 DOM(`div`/`span`)·프래그먼트에만. `Row`/`Stack`/`Card` 등 SDK 컴포넌트에 `key` 직접 주면 타입 에러 → keyed wrapper로 감싼다.
+
+## 디자인
+- 색은 `useHostTheme()` 토큰만. hex 하드코딩·그라디언트·box-shadow·이모지 금지, accent는 절제.
+- 빈 상태(placeholder·"데이터 없음") 렌더 금지 — 데이터 없으면 섹션 생략.
+- 카드 벽 금지 — 열린 섹션 + 표 + 카드 혼합. 차트엔 제목·축·범례·캡션.
+
+## 상호작용 캔버스
+- 상태 단일 출처: 지속=`useCanvasState`, 세션=`useState`. 파생값은 계산.
+- `prefers-reduced-motion` 분기(스냅). 애니메이션 easeOut·~200–280ms, 무한 펄스/글로우 금지.
+- 탈출 경로 필수: Esc·배경 탭 = 접기/해제.
+- z-index 겹침 점검: 상단 컨트롤이 클릭 대상(점 등)을 덮지 않게 한다.
+
+## 프로젝트 성향
+- 확정안만 남기고 옵션 덤프 금지(합의된 1안 중심).
+- ARIA: 캔버스 문구도 **정식 명칭만**. 내부 ID/키/영문 필드명 노출 금지.
+
+## 검증
+- 저장 후 `Canvas TypeScript check: no errors` + `*.canvas.status.json`가 `"rendered"` 확인.
