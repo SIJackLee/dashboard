@@ -247,6 +247,7 @@ export function TrendPointCardBody({
   histograms,
   leftUnit,
   rightUnit,
+  hideTime = false,
   onBreachEquipmentNavigate: _onBreachEquipmentNavigate,
 }: {
   idx: number;
@@ -257,6 +258,8 @@ export function TrendPointCardBody({
   histograms: TrendHistogram[];
   leftUnit: string;
   rightUnit: string;
+  /** 병합 카드 2번째 섹션 등에서 상단 시각(카테고리) 중복 표기 숨김 */
+  hideTime?: boolean;
   onBreachEquipmentNavigate?: (target: TrendBreachNavTarget) => void;
 }) {
   const group = seriesKey ? inferHoverMetricGroup(seriesKey) : null;
@@ -472,9 +475,11 @@ export function TrendPointCardBody({
         <span className="rounded-sm bg-muted/80 px-1 py-px farm-chart-fs-axis font-semibold tracking-tight text-foreground/90">
           {group ? HOVER_GROUP_LABEL[group] : "데이터"}
         </span>
-        <span className="farm-chart-fs-legend text-muted-foreground tabular-nums">
-          {categories[idx]}
-        </span>
+        {hideTime ? null : (
+          <span className="farm-chart-fs-legend text-muted-foreground tabular-nums">
+            {categories[idx]}
+          </span>
+        )}
         <div className="ml-auto">
           <MiniSpark
             values={sparkSlice}

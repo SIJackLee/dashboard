@@ -4,6 +4,7 @@ import {
   decodeErrorPacketFromDb,
   decodeV0cPayloadOutcomeFromDb,
   fanPctFromChannels,
+  fanPctFromChannelSlot,
   parseOptionalPct,
   primaryTempC,
   toSlimDecodedJson,
@@ -300,6 +301,10 @@ Deno.serve(async (req: Request) => {
       fan_supply_pct: fanPctFromChannels(payload.channels, "EC01"),
       fan_exhaust_pct: fanExhaust,
       fan_intake_pct: fanIntake,
+      // 슬롯(A/B/C) 기준 모터% — 표시 정본(eqpmnCode 비참조). EC 컬럼은 하위호환 병행.
+      fan_a_pct: fanPctFromChannelSlot(payload.channels, "A"),
+      fan_b_pct: fanPctFromChannelSlot(payload.channels, "B"),
+      fan_c_pct: fanPctFromChannelSlot(payload.channels, "C"),
       setpoint_temp: parseOptionalPct(thermo?.setpointTemp ?? null),
       temp_deviation: parseOptionalPct(thermo?.tempDeviation ?? null),
       min_vent_pct: thermo?.minVentPct ?? null,

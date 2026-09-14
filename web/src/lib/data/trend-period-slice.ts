@@ -24,6 +24,9 @@ function sliceNumericCols<T extends TrendStallSeries>(
     ...series,
     temp: series.temp.slice(start, start + count),
     humidity: series.humidity.slice(start, start + count),
+    fanA: series.fanA.slice(start, start + count),
+    fanB: series.fanB.slice(start, start + count),
+    fanC: series.fanC.slice(start, start + count),
     fanSupply: series.fanSupply.slice(start, start + count),
     fanExhaust: series.fanExhaust.slice(start, start + count),
     fanIntake: series.fanIntake.slice(start, start + count),
@@ -189,6 +192,9 @@ function avgStallFromControllers(
 ): TrendStallSeries {
   const temp: (number | null)[] = new Array(bucketCount).fill(null);
   const humidity: (number | null)[] = new Array(bucketCount).fill(null);
+  const fanA: (number | null)[] = new Array(bucketCount).fill(null);
+  const fanB: (number | null)[] = new Array(bucketCount).fill(null);
+  const fanC: (number | null)[] = new Array(bucketCount).fill(null);
   const fanSupply: (number | null)[] = new Array(bucketCount).fill(null);
   const fanExhaust: (number | null)[] = new Array(bucketCount).fill(null);
   const fanIntake: (number | null)[] = new Array(bucketCount).fill(null);
@@ -197,6 +203,9 @@ function avgStallFromControllers(
   for (let i = 0; i < bucketCount; i++) {
     const temps: (number | null)[] = [];
     const hums: (number | null)[] = [];
+    const aVals: (number | null)[] = [];
+    const bVals: (number | null)[] = [];
+    const cVals: (number | null)[] = [];
     const supplies: (number | null)[] = [];
     const exhausts: (number | null)[] = [];
     const intakes: (number | null)[] = [];
@@ -204,6 +213,9 @@ function avgStallFromControllers(
     for (const c of controllers) {
       temps.push(c.temp[i] ?? null);
       hums.push(c.humidity[i] ?? null);
+      aVals.push(c.fanA[i] ?? null);
+      bVals.push(c.fanB[i] ?? null);
+      cVals.push(c.fanC[i] ?? null);
       supplies.push(c.fanSupply[i] ?? null);
       exhausts.push(c.fanExhaust[i] ?? null);
       intakes.push(c.fanIntake[i] ?? null);
@@ -211,6 +223,9 @@ function avgStallFromControllers(
     }
     temp[i] = weightedSlotAvg(temps, weights);
     humidity[i] = weightedSlotAvg(hums, weights);
+    fanA[i] = weightedSlotAvg(aVals, weights);
+    fanB[i] = weightedSlotAvg(bVals, weights);
+    fanC[i] = weightedSlotAvg(cVals, weights);
     fanSupply[i] = weightedSlotAvg(supplies, weights);
     fanExhaust[i] = weightedSlotAvg(exhausts, weights);
     fanIntake[i] = weightedSlotAvg(intakes, weights);
@@ -221,6 +236,9 @@ function avgStallFromControllers(
     stallNo,
     temp,
     humidity,
+    fanA,
+    fanB,
+    fanC,
     fanSupply,
     fanExhaust,
     fanIntake,

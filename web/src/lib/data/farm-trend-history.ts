@@ -61,6 +61,9 @@ type RpcRow = {
   avg_fan_supply: number | string | null;
   avg_fan_exhaust: number | string | null;
   avg_fan_intake: number | string | null;
+  avg_fan_a: number | string | null;
+  avg_fan_b: number | string | null;
+  avg_fan_c: number | string | null;
   sample_count: number | string | null;
 };
 
@@ -221,6 +224,9 @@ function buildPeriodData(
         stallNo,
         temp: emptyCol(),
         humidity: emptyCol(),
+        fanA: emptyCol(),
+        fanB: emptyCol(),
+        fanC: emptyCol(),
         fanSupply: emptyCol(),
         fanExhaust: emptyCol(),
         fanIntake: emptyCol(),
@@ -234,6 +240,9 @@ function buildPeriodData(
     if (slot < 0 || slot >= cfg.bucketCount) continue;
     stall.temp[slot] = toNum(row.avg_temp_c);
     stall.humidity[slot] = toNum(row.avg_humidity_pct);
+    stall.fanA[slot] = toNum(row.avg_fan_a);
+    stall.fanB[slot] = toNum(row.avg_fan_b);
+    stall.fanC[slot] = toNum(row.avg_fan_c);
     stall.fanSupply[slot] = toNum(row.avg_fan_supply);
     stall.fanExhaust[slot] = toNum(row.avg_fan_exhaust);
     stall.fanIntake[slot] = toNum(row.avg_fan_intake);
@@ -295,6 +304,9 @@ function compactFromControllerRows(
       toNum(row.avg_fan_supply),
       toNum(row.avg_fan_exhaust),
       toNum(row.avg_fan_intake),
+      toNum(row.avg_fan_a),
+      toNum(row.avg_fan_b),
+      toNum(row.avg_fan_c),
       n,
     ]);
   }

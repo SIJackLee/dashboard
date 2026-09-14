@@ -320,8 +320,21 @@ export function resolveUnifiedPlotLayout(
     AlarmThresholds,
     "tempLow" | "tempHigh" | "humidityLow" | "humidityHigh"
   >,
+  overlay = false,
 ): UnifiedPlotLayoutSpec {
   const n = countSplitYBands(visibility);
+  /**
+   * 오버레이(하이브리드) — 온도+모터를 한 밴드에 겹침.
+   * 단일-네이티브 밴드(원단위 축) 분기를 건너뛰고 병합 레이아웃 + 밴드 엣지라벨 경로 사용.
+   */
+  const mergeTM = overlay && visibility.showTemp && visibility.showMotors;
+  if (mergeTM) {
+    return {
+      layout: resolveSplitYLayout(visibility, true),
+      leftUnit: "",
+      nativeBand: null,
+    };
+  }
   if (n === 1 && visibility.showTemp) {
     const [vlo, vhi] = paddedAlarmDomain(
       thresholds.tempLow,
@@ -411,6 +424,102 @@ function unmapFromValueBand(
   return valueLo + clamped * (valueHi - valueLo);
 }
 
+/**
+ * 오버레이 온도 스케일 — 「알람 앵커 + 부드러운 비잘림 압축」.
+ * 알람 구간(목표존)은 밴드 중앙 고정 구간에 선형 매핑(정상 구간 스케일 불변).
+ * 알람 밖은 경계에서 코어와 동일한 기울기로 출발해(꺾임 없음) 지수적으로
+ * 완만히 압축되며 밴드 끝에 점근한다 → 이상치도 잘리지 않고, 데이터 극단값과
+ * 무관하게 곡선 모양이 일정하다.
+ */
+export type TempBandAnchor = {
+  /** 밴드 상·하단 헤드룸 비율(각각) 0~0.45 */
+  headFrac: number;
+};
+
+function anchorCore(
+  layout: SplitYLayout,
+  headFrac: number,
+): {
+  bandLo: number;
+  bandHi: number;
+  coreLo: number;
+  coreHi: number;
+} | null {
+  const bandLo = layout.tempLo;
+  const bandHi = layout.tempHi;
+  if (!(bandHi > bandLo)) return null;
+  const h = Math.max(0, Math.min(0.45, headFrac));
+  const span = bandHi - bandLo;
+  return {
+    bandLo,
+    bandHi,
+    coreLo: bandLo + h * span,
+    coreHi: bandHi - h * span,
+  };
+}
+
+/** 온도℃ → 밴드 Y (알람 앵커 + 지수 소프트-니 압축) */
+function mapTempAnchoredToBand(
+  value: number | null | undefined,
+  tempLow: number,
+  tempHigh: number,
+  layout: SplitYLayout,
+  anchor: TempBandAnchor,
+): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const c = anchorCore(layout, anchor.headFrac);
+  if (!c) return (layout.tempLo + layout.tempHi) / 2;
+  const alarmSpan = tempHigh - tempLow;
+  if (!(alarmSpan > 0)) return (c.coreLo + c.coreHi) / 2;
+  /** 코어(목표존) 기울기 — 밴드 점유/℃. 경계에서 이 기울기로 이어받음 */
+  const s = (c.coreHi - c.coreLo) / alarmSpan;
+  if (value > tempHigh) {
+    const H = c.bandHi - c.coreHi;
+    if (H <= 0) return c.bandHi;
+    // f(e)=1-exp(-a·e), a=s/H → f(0)=0, f'(0)=s(경계 기울기 연속), e→∞ f→1(비잘림)
+    const a = s / H;
+    return c.coreHi + H * (1 - Math.exp(-a * (value - tempHigh)));
+  }
+  if (value < tempLow) {
+    const H = c.coreLo - c.bandLo;
+    if (H <= 0) return c.bandLo;
+    const a = s / H;
+    return c.coreLo - H * (1 - Math.exp(-a * (tempLow - value)));
+  }
+  return c.coreLo + ((value - tempLow) / alarmSpan) * (c.coreHi - c.coreLo);
+}
+
+/** 밴드 Y → 온도℃ (지수 소프트-니 역매핑) */
+function unmapTempAnchoredFromBand(
+  splitY: number,
+  tempLow: number,
+  tempHigh: number,
+  layout: SplitYLayout,
+  anchor: TempBandAnchor,
+): number | null {
+  if (!Number.isFinite(splitY)) return null;
+  const c = anchorCore(layout, anchor.headFrac);
+  if (!c) return (tempLow + tempHigh) / 2;
+  const alarmSpan = tempHigh - tempLow;
+  if (!(alarmSpan > 0)) return (tempLow + tempHigh) / 2;
+  const s = (c.coreHi - c.coreLo) / alarmSpan;
+  if (splitY > c.coreHi) {
+    const H = c.bandHi - c.coreHi;
+    if (H <= 0) return tempHigh;
+    const a = s / H;
+    const frac = Math.min(1 - 1e-6, (splitY - c.coreHi) / H);
+    return tempHigh + -Math.log(1 - frac) / a;
+  }
+  if (splitY < c.coreLo) {
+    const H = c.coreLo - c.bandLo;
+    if (H <= 0) return tempLow;
+    const a = s / H;
+    const frac = Math.min(1 - 1e-6, (c.coreLo - splitY) / H);
+    return tempLow - -Math.log(1 - frac) / a;
+  }
+  return tempLow + ((splitY - c.coreLo) / (c.coreHi - c.coreLo)) * alarmSpan;
+}
+
 /** 습도 밴드 Y → % (드래그 시작 시 고정 도메인 기준) */
 export function unmapHumPctFromSplitY(
   splitY: number,
@@ -428,8 +537,13 @@ export function unmapTempCFromSplitY(
   tempLow: number,
   tempHigh: number,
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
+  domain?: [number, number],
+  anchor?: TempBandAnchor,
 ): number | null {
-  const [vlo, vhi] = paddedAlarmDomain(tempLow, tempHigh);
+  if (anchor) {
+    return unmapTempAnchoredFromBand(splitY, tempLow, tempHigh, layout, anchor);
+  }
+  const [vlo, vhi] = domain ?? paddedAlarmDomain(tempLow, tempHigh);
   return unmapFromValueBand(splitY, vlo, vhi, layout.tempLo, layout.tempHi);
 }
 
@@ -462,14 +576,23 @@ export function mapHumPctToSplitY(
   return mapToValueBand(value, vlo, vhi, layout.humLo, layout.humHi);
 }
 
-/** 온도℃ → 주패널 밴드 (알람±여유) */
+/**
+ * 온도℃ → 주패널 밴드.
+ * `anchor` 지정 시 알람 앵커 구간별 매핑(오버레이),
+ * 아니면 `domain`(auto-fit) 또는 알람±여유 선형.
+ */
 export function mapTempCToSplitY(
   value: number | null | undefined,
   tempLow: number,
   tempHigh: number,
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
+  domain?: [number, number],
+  anchor?: TempBandAnchor,
 ): number | null {
-  const [vlo, vhi] = paddedAlarmDomain(tempLow, tempHigh);
+  if (anchor) {
+    return mapTempAnchoredToBand(value, tempLow, tempHigh, layout, anchor);
+  }
+  const [vlo, vhi] = domain ?? paddedAlarmDomain(tempLow, tempHigh);
   return mapToValueBand(value, vlo, vhi, layout.tempLo, layout.tempHi);
 }
 
@@ -482,10 +605,12 @@ export function mapTempDeviationToSplitY(
   tempLow: number,
   tempHigh: number,
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
+  domain?: [number, number],
+  anchor?: TempBandAnchor,
 ): number | null {
   if (deviationC == null || !Number.isFinite(deviationC)) return null;
   const mid = tempAlarmMidpoint(tempLow, tempHigh);
-  return mapTempCToSplitY(mid + deviationC, tempLow, tempHigh, layout);
+  return mapTempCToSplitY(mid + deviationC, tempLow, tempHigh, layout, domain, anchor);
 }
 
 /**
@@ -735,6 +860,12 @@ export type UnifiedBarnTrendBuild = {
   tempRangeLabel: string;
   humidityRangeLabel: string;
   thresholds: AlarmThresholds;
+  /**
+   * 온도 상·하한 임계선의 split-Y 위치 — 본선과 동일 매핑(오버레이 앵커 포함).
+   * 임계 접촉 코리도가 재계산 대신 이 값을 재사용해 정합을 보장한다.
+   */
+  tempHiPlot: number | null;
+  tempLoPlot: number | null;
   /** hum/motors: 시계열이 없어도 밴드·가이드를 연다. 본선 유무는 series/histogram 길이. */
   available: {
     motors: boolean;
@@ -809,9 +940,10 @@ export function aggregateUnifiedBarnTrendRaw(
   const tempAlarmHalfSpan = Math.max((tempHigh - tempLow) / 2, 1e-6);
   const humAlarmHalfSpan = Math.max((humidityHigh - humidityLow) / 2, 1e-6);
 
-  const fanA = avgColumns(controllerSeriesList, (c) => c.fanIntake, len);
-  const fanB = avgColumns(controllerSeriesList, (c) => c.fanExhaust, len);
-  const fanC = avgColumns(controllerSeriesList, (c) => c.fanSupply, len);
+  // 채널 슬롯(A/B/C) 기준 모터% 직접 소비 — eqpmnCode(role) 컬럼 비참조.
+  const fanA = avgColumns(controllerSeriesList, (c) => c.fanA, len);
+  const fanB = avgColumns(controllerSeriesList, (c) => c.fanB, len);
+  const fanC = avgColumns(controllerSeriesList, (c) => c.fanC, len);
   const tempAvg = avgColumns(controllerSeriesList, (c) => c.temp, len);
   const humAvg = avgColumns(controllerSeriesList, (c) => c.humidity, len);
   const tempSpread = minMaxColumns(controllerSeriesList, (c) => c.temp, len);
@@ -906,6 +1038,10 @@ export function aggregateUnifiedBarnTrendRaw(
 export function mapUnifiedBarnTrendRawToSplitY(
   raw: UnifiedBarnTrendRaw,
   layout: SplitYLayout,
+  /** 오버레이 auto-fit: 온도 매핑 도메인 오버라이드(생략 시 알람±여유) */
+  tempDomain?: [number, number],
+  /** 오버레이 앵커: 알람 목표존 고정 + 비잘림 헤드룸(지정 시 domain보다 우선) */
+  tempAnchor?: TempBandAnchor,
 ): UnifiedBarnTrendBuild | null {
   const {
     tempLow,
@@ -917,7 +1053,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
   } = raw;
 
   const mapTemp = (v: number | null | undefined) =>
-    mapTempCToSplitY(v, tempLow, tempHigh, layout);
+    mapTempCToSplitY(v, tempLow, tempHigh, layout, tempDomain, tempAnchor);
   const mapHum = (v: number | null | undefined) =>
     mapHumPctToSplitY(v, humidityLow, humidityHigh, layout);
   const mapMotor = (v: number | null | undefined) =>
@@ -938,9 +1074,19 @@ export function mapUnifiedBarnTrendRawToSplitY(
     if (d == null || !Number.isFinite(d) || Math.abs(d) < DEV_HIDE_ABS_C) {
       return null;
     }
-    return mapTempDeviationToSplitY(d, tempLow, tempHigh, layout);
+    return mapTempDeviationToSplitY(d, tempLow, tempHigh, layout, tempDomain, tempAnchor);
   });
-  const tempMidPlot = mapTempCToSplitY(tempMid, tempLow, tempHigh, layout);
+  const tempMidPlot = mapTempCToSplitY(
+    tempMid,
+    tempLow,
+    tempHigh,
+    layout,
+    tempDomain,
+    tempAnchor,
+  );
+  /** 임계선 split-Y — 본선과 동일 매핑(앵커 포함). 코리도 정합용 */
+  const tempHiPlot = mapTemp(tempHigh);
+  const tempLoPlot = mapTemp(tempLow);
 
   const humDevPlot = mapColumn(raw.humDevRaw, (d) => {
     if (d == null || !Number.isFinite(d) || Math.abs(d) < HUM_DEV_HIDE_ABS) {
@@ -1178,6 +1324,8 @@ export function mapUnifiedBarnTrendRawToSplitY(
     tempRangeLabel: raw.tempRangeLabel,
     humidityRangeLabel: raw.humidityRangeLabel,
     thresholds: raw.thresholds,
+    tempHiPlot,
+    tempLoPlot,
     available: {
       // 측정 시계열이 없어도 밴드·상하한·환기 가이드는 연다.
       motors: true,
@@ -1247,24 +1395,36 @@ export function pickUnifiedTrendLayers(
   if (layers.hum && layers.humBand && built.envelopesHumBand) {
     envelopes.push(built.envelopesHumBand);
   }
-  /* A안 — 임계 접촉 코리도 (본선↔상·하한) */
+  /*
+   * A안 — 임계 접촉/초과 코리도 (2단계).
+   * · 접촉(touch): 산포 극단(min/max)이 임계에 닿음 → 옅은 채움(먼저 그려 아래로).
+   * · 초과(exceed): 평균 본선이 임계를 넘음 → 진한 채움(위로 겹쳐 자연스러운 단계).
+   * 임계선 y는 본선과 동일 매핑(오버레이 앵커 포함)인 built.tempHi/LoPlot 재사용 → 정합.
+   */
   if (layers.temp && built.seriesByKey.temp) {
     const raw = built.seriesByKey.temp.hoverSecondary ?? null;
     const plot = built.seriesByKey.temp.data;
     const { tempLow, tempHigh } = built.thresholds;
-    const hiPlot = mapTempCToSplitY(
-      tempHigh,
-      tempLow,
-      tempHigh,
-      built.layout,
-    );
-    const loPlot = mapTempCToSplitY(
-      tempLow,
-      tempLow,
-      tempHigh,
-      built.layout,
-    );
+    const hiPlot = built.tempHiPlot;
+    const loPlot = built.tempLoPlot;
+    const band = built.envelopesBand;
+    const spreadHiRaw = band?.hoverExtremes?.high.map((c) => c?.value ?? null);
+    const spreadLoRaw = band?.hoverExtremes?.low.map((c) => c?.value ?? null);
     if (hiPlot != null) {
+      // 접촉: 산포 최대가 상한 닿음 (옅게, 초과와 겹치면 더 진해짐)
+      if (band && spreadHiRaw) {
+        const touchHi = buildThresholdBreachCorridor({
+          seriesPlot: band.high,
+          seriesRaw: spreadHiRaw,
+          thresholdRaw: tempHigh,
+          thresholdPlot: hiPlot,
+          side: "high",
+          fill: UNIFIED_TEMP_BREACH_HI_FILL,
+          fillOpacity: 0.08,
+          legendLabel: "온도 상한 접촉",
+        });
+        if (touchHi) envelopes.push(touchHi);
+      }
       const hiEnv = buildThresholdBreachCorridor({
         seriesPlot: plot,
         seriesRaw: raw,
@@ -1273,11 +1433,24 @@ export function pickUnifiedTrendLayers(
         side: "high",
         fill: UNIFIED_TEMP_BREACH_HI_FILL,
         fillOpacity: 0.2,
-        legendLabel: "온도 상한 접촉",
+        legendLabel: "온도 상한 초과",
       });
       if (hiEnv) envelopes.push(hiEnv);
     }
     if (loPlot != null) {
+      if (band && spreadLoRaw) {
+        const touchLo = buildThresholdBreachCorridor({
+          seriesPlot: band.low,
+          seriesRaw: spreadLoRaw,
+          thresholdRaw: tempLow,
+          thresholdPlot: loPlot,
+          side: "low",
+          fill: UNIFIED_TEMP_BREACH_LO_FILL,
+          fillOpacity: 0.07,
+          legendLabel: "온도 하한 접촉",
+        });
+        if (touchLo) envelopes.push(touchLo);
+      }
       const loEnv = buildThresholdBreachCorridor({
         seriesPlot: plot,
         seriesRaw: raw,
@@ -1286,7 +1459,7 @@ export function pickUnifiedTrendLayers(
         side: "low",
         fill: UNIFIED_TEMP_BREACH_LO_FILL,
         fillOpacity: 0.18,
-        legendLabel: "온도 하한 접촉",
+        legendLabel: "온도 하한 초과",
       });
       if (loEnv) envelopes.push(loEnv);
     }

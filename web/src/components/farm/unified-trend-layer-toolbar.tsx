@@ -9,6 +9,7 @@ import {
   Check,
   Droplets,
   Fan,
+  Layers,
   Thermometer,
   X,
 } from "lucide-react";
@@ -141,6 +142,10 @@ type Props = {
   className?: string;
   /** @deprecated 헤더 인라인만 사용. hub 무시 */
   placement?: "hub" | "inline";
+  /** 오버레이(하이브리드) 보기 — 온도+모터 겹침. 온·모터 모두 켜져야 노출 */
+  overlayView?: boolean;
+  overlayAvailable?: boolean;
+  onToggleOverlay?: () => void;
 };
 
 function toneActiveClass(tone: Tone): string {
@@ -237,6 +242,9 @@ export function UnifiedTrendLayerToolbar({
   available,
   onCycleGroup,
   className,
+  overlayView = false,
+  overlayAvailable = false,
+  onToggleOverlay,
 }: Props) {
   const groups = (
     [
@@ -283,6 +291,24 @@ export function UnifiedTrendLayerToolbar({
             </div>
           );
         })}
+        {overlayAvailable && onToggleOverlay ? (
+          <div className="relative overflow-visible">
+            <IconTipButton
+              label={
+                overlayView
+                  ? "오버레이 보기 끔 · 온도·모터 분리"
+                  : "오버레이 보기 · 온도·모터 겹쳐보기"
+              }
+              pressed={overlayView}
+              on={overlayView}
+              muted={!overlayView}
+              tone="motor"
+              onClick={onToggleOverlay}
+            >
+              <Layers className="size-4 md:size-5" aria-hidden />
+            </IconTipButton>
+          </div>
+        ) : null}
       </div>
     </TooltipProvider>
   );

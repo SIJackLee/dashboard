@@ -51,6 +51,8 @@ export function buildFarmUnifiedTrendRaw(opts: {
         r.controllerKey,
       );
       if (!series) return null;
+      // 표시 정본은 채널 슬롯(A/B/C) — series.fanA/B/C 를 그대로 사용한다.
+      // (RPC avg_fan_a/b/c → 파이프라인 전달. eqpmnCode 재배치 불필요.)
       return {
         ...series,
         zoneLabel: formatControllerHeaderPrimary(r),
@@ -66,13 +68,7 @@ export function buildFarmUnifiedTrendRaw(opts: {
 
   const { categories, columns } = downsampleTrendAxis(
     categoriesRaw,
-    seriesList.flatMap((s) => [
-      s.fanIntake,
-      s.fanExhaust,
-      s.fanSupply,
-      s.temp,
-      s.humidity,
-    ]),
+    seriesList.flatMap((s) => [s.fanA, s.fanB, s.fanC, s.temp, s.humidity]),
     period,
   );
 
@@ -81,17 +77,13 @@ export function buildFarmUnifiedTrendRaw(opts: {
     const base = idx * perCtrl;
     return {
       ...s,
-      fanIntake: columns[base] ?? s.fanIntake,
-      fanExhaust: columns[base + 1] ?? s.fanExhaust,
-      fanSupply: columns[base + 2] ?? s.fanSupply,
+      fanA: columns[base] ?? s.fanA,
+      fanB: columns[base + 1] ?? s.fanB,
+      fanC: columns[base + 2] ?? s.fanC,
       temp: columns[base + 3] ?? s.temp,
       humidity: columns[base + 4] ?? s.humidity,
     };
   });
 
-  return aggregateUnifiedBarnTrendRaw(
-    downsampledList,
-    categories,
-    thresholds,
-  );
+  return aggregateUnifiedBarnTrendRaw(downsampledList, categories, thresholds);
 }

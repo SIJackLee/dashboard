@@ -24,7 +24,10 @@ describe("expandCompactControllerPeriod", () => {
           sn: "1",
           k: "SP02:1:01",
           e: "01",
-          p: [[0, 20.5, 60, null, 10, null, 2], [2, 21, 61, null, 12, null, 1]],
+          p: [
+            [0, 20.5, 60, null, 10, null, null, null, null, 2],
+            [2, 21, 61, null, 12, null, null, null, null, 1],
+          ],
         },
       ],
     };
@@ -74,8 +77,8 @@ describe("synthesizeOverview30dFrom7d", () => {
           k: "k1",
           e: "01",
           p: [
-            [0, 10, null, null, null, null, 1],
-            [n - 1, 20, null, null, null, null, 1],
+            [0, 10, null, null, null, null, null, null, null, 1],
+            [n - 1, 20, null, null, null, null, null, null, null, 1],
           ],
         },
       ],

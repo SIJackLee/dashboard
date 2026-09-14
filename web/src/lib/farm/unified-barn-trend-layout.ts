@@ -37,6 +37,7 @@ export const SPLIT_Y_BAND_GAP = 8;
  */
 export function resolveSplitYLayout(
   visibility: boolean | SplitYVisibility,
+  overlay = false,
 ): SplitYLayout {
   const flags: SplitYVisibility =
     typeof visibility === "boolean"
@@ -48,10 +49,22 @@ export function resolveSplitYLayout(
         }
       : visibility;
 
-  const parts: { key: "motor" | "hum" | "temp"; w: number }[] = [];
-  if (flags.showMotors) parts.push({ key: "motor", w: 1 });
-  if (flags.showHum) parts.push({ key: "hum", w: 1 });
-  if (flags.showTemp) parts.push({ key: "temp", w: 1 });
+  /**
+   * 오버레이(하이브리드): 온도+모터를 한 밴드에 겹쳐 표시.
+   * temp 밴드 == motor 밴드로 두면 시리즈 매핑·엣지라벨·Y스코프가
+   * 별도 밴드 id 없이 자연히 「합친 영역=단일 밴드」로 동작한다.
+   */
+  const mergeTM = overlay && flags.showTemp && flags.showMotors;
+
+  const parts: { key: "motor" | "hum" | "temp" | "overlay"; w: number }[] = [];
+  if (mergeTM) {
+    parts.push({ key: "overlay", w: 1 });
+    if (flags.showHum) parts.push({ key: "hum", w: 1 });
+  } else {
+    if (flags.showMotors) parts.push({ key: "motor", w: 1 });
+    if (flags.showHum) parts.push({ key: "hum", w: 1 });
+    if (flags.showTemp) parts.push({ key: "temp", w: 1 });
+  }
 
   if (parts.length === 0) {
     return {
@@ -69,10 +82,14 @@ export function resolveSplitYLayout(
   const gapTotal = Math.max(0, parts.length - 1) * SPLIT_Y_BAND_GAP;
   const usable = Math.max(0, 100 - gapTotal);
   let cursor = 0;
-  const bands: Record<"motor" | "hum" | "temp", { lo: number; hi: number }> = {
+  const bands: Record<
+    "motor" | "hum" | "temp" | "overlay",
+    { lo: number; hi: number }
+  > = {
     motor: { lo: 0, hi: 0 },
     hum: { lo: 0, hi: 0 },
     temp: { lo: 0, hi: 0 },
+    overlay: { lo: 0, hi: 0 },
   };
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i]!;
@@ -80,6 +97,18 @@ export function resolveSplitYLayout(
     const lo = cursor;
     cursor += (p.w / sum) * usable;
     bands[p.key] = { lo, hi: cursor };
+  }
+
+  if (mergeTM) {
+    return {
+      motorLo: bands.overlay.lo,
+      motorHi: bands.overlay.hi,
+      humLo: bands.hum.lo,
+      humHi: bands.hum.hi,
+      tempLo: bands.overlay.lo,
+      tempHi: bands.overlay.hi,
+      domain: [0, 100],
+    };
   }
 
   return {
@@ -216,13 +245,15 @@ export function splitYVisibilityFromLayers(
   };
 }
 
-export type UnifiedYBandId = "temp" | "hum" | "motor" | "command";
+export type UnifiedYBandId = "temp" | "hum" | "motor" | "command" | "overlay";
 
 export const UNIFIED_Y_BAND_LABEL: Record<UnifiedYBandId, string> = {
   temp: "온도",
   hum: "습도",
   motor: "모터",
   command: "명령",
+  /** 오버레이(하이브리드): 온도+모터 합친 밴드 */
+  overlay: "온도·모터",
 };
 
 /** E — UI 칩·스코프 배지: 「온도 집중」 */
@@ -328,7 +359,7 @@ export function allocateUnifiedChartBandHeights(input: {
 
 /** motor → hum → temp → command 고정 순서 */
 export function sortUnifiedYBands(ids: UnifiedYBandId[]): UnifiedYBandId[] {
-  const order: UnifiedYBandId[] = ["motor", "hum", "temp", "command"];
+  const order: UnifiedYBandId[] = ["overlay", "motor", "hum", "temp", "command"];
   return order.filter((id) => ids.includes(id));
 }
 
@@ -405,14 +436,29 @@ export function listSplitYBands(
   visibility: SplitYVisibility,
 ): { id: UnifiedYBandId; lo: number; hi: number }[] {
   const bands: { id: UnifiedYBandId; lo: number; hi: number }[] = [];
-  if (visibility.showMotors && layout.motorHi - layout.motorLo > 0.5) {
-    bands.push({ id: "motor", lo: layout.motorLo, hi: layout.motorHi });
+  /**
+   * 오버레이(하이브리드): temp 밴드 == motor 밴드로 병합된 경우
+   * 단일 「overlay」 밴드로 노출 → Y스코프가 온도/모터를 분리하지 않고
+   * 합친 영역을 단일 밴드로 포커스(윈도우 줌 정상 동작).
+   */
+  const merged =
+    visibility.showTemp &&
+    visibility.showMotors &&
+    layout.tempHi - layout.tempLo > 0.5 &&
+    Math.abs(layout.tempLo - layout.motorLo) < 1e-3 &&
+    Math.abs(layout.tempHi - layout.motorHi) < 1e-3;
+  if (merged) {
+    bands.push({ id: "overlay", lo: layout.tempLo, hi: layout.tempHi });
+  } else {
+    if (visibility.showMotors && layout.motorHi - layout.motorLo > 0.5) {
+      bands.push({ id: "motor", lo: layout.motorLo, hi: layout.motorHi });
+    }
+    if (visibility.showTemp && layout.tempHi - layout.tempLo > 0.5) {
+      bands.push({ id: "temp", lo: layout.tempLo, hi: layout.tempHi });
+    }
   }
   if (visibility.showHum && layout.humHi - layout.humLo > 0.5) {
     bands.push({ id: "hum", lo: layout.humLo, hi: layout.humHi });
-  }
-  if (visibility.showTemp && layout.tempHi - layout.tempLo > 0.5) {
-    bands.push({ id: "temp", lo: layout.tempLo, hi: layout.tempHi });
   }
   if (visibility.showCommand) {
     bands.push({
@@ -520,10 +566,11 @@ export function visibilityForYBands(
   bands: UnifiedYBandId[] | null,
 ): SplitYVisibility | null {
   if (!bands?.length) return null;
+  const hasOverlay = bands.includes("overlay");
   return {
-    showTemp: bands.includes("temp"),
+    showTemp: bands.includes("temp") || hasOverlay,
     showHum: bands.includes("hum"),
-    showMotors: bands.includes("motor"),
+    showMotors: bands.includes("motor") || hasOverlay,
     showCommand: bands.includes("command"),
   };
 }
@@ -539,9 +586,10 @@ export function maskLayersForYBands(
 ): UnifiedLayerFlags {
   if (!yBands?.length) return layers;
   const allow = new Set(yBands);
-  const keepTemp = allow.has("temp");
+  /** overlay = 온도+모터 합친 단일 밴드 → 둘 다 유지 */
+  const keepTemp = allow.has("temp") || allow.has("overlay");
   const keepHum = allow.has("hum");
-  const keepMotor = allow.has("motor");
+  const keepMotor = allow.has("motor") || allow.has("overlay");
   return {
     ...layers,
     temp: keepTemp && layers.temp,

@@ -146,6 +146,7 @@ import {
   unmapTempCFromSplitY,
   type UnifiedLayerFlags,
   type UnifiedYBandId,
+  type TempBandAnchor,
 } from "@/lib/farm/unified-barn-trend-series";
 import { envComfortScore } from "@/lib/farm/env-comfort-score";
 import { useUnifiedChartBandTransition } from "@/lib/farm/use-split-y-layout-transition";
@@ -336,6 +337,8 @@ export function UnifiedBarnTrendPanel({
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
+  /** 오버레이(하이브리드) 보기 — 온도+모터를 한 밴드에 겹침 (토글) */
+  const [overlayView, setOverlayView] = useState(false);
   const [toolbarActiveSeen, setToolbarActiveSeen] = useState(layersToolbarActive);
   const [layersToolbarMounted, setLayersToolbarMounted] = useState(
     layersToolbarActive,
@@ -469,6 +472,10 @@ export function UnifiedBarnTrendPanel({
     () => splitYVisibilityFromLayers(layers),
     [layers],
   );
+  /** 오버레이는 온도·모터가 모두 켜져 있을 때만 유효 */
+  const overlayAvailable =
+    layerVisibility.showTemp && layerVisibility.showMotors;
+  const overlayActive = overlayView && overlayAvailable;
   const scopeVisibility = useMemo(() => {
     const bandVis = visibilityForYBands(xScope?.yBands ?? null);
     if (!bandVis) return layerVisibility;
@@ -480,8 +487,8 @@ export function UnifiedBarnTrendPanel({
     };
   }, [layerVisibility, xScope]);
   const targetPlot = useMemo(
-    () => resolveUnifiedPlotLayout(scopeVisibility, mappingThresholds),
-    [scopeVisibility, mappingThresholds],
+    () => resolveUnifiedPlotLayout(scopeVisibility, mappingThresholds, overlayActive),
+    [scopeVisibility, mappingThresholds, overlayActive],
   );
   const chartLeftUnit = targetPlot.leftUnit;
   /** 브러시 캔버스 여부 — 높이 풀·레이아웃 보간을 같은 훅에서 맞추기 위해 조기 계산 */
@@ -530,8 +537,10 @@ export function UnifiedBarnTrendPanel({
   const commandHitLaneHeightTarget = bandHeights.commandPx;
   /** 드래그 hit/미리보기 — 레이어 기준(스코프 전) */
   const layerLayout = useMemo(
-    () => resolveUnifiedPlotLayout(layerVisibility, mappingThresholds).layout,
-    [layerVisibility, mappingThresholds],
+    () =>
+      resolveUnifiedPlotLayout(layerVisibility, mappingThresholds, overlayActive)
+        .layout,
+    [layerVisibility, mappingThresholds, overlayActive],
   );
 
   /** 브러시 — 30일 1시간 양호도 */
@@ -657,6 +666,7 @@ export function UnifiedBarnTrendPanel({
             r.controllerKey,
           );
           if (!found) return null;
+          // 표시 정본 = 채널 슬롯(A/B/C) — series.fanA/B/C 를 그대로 사용.
           return {
             ...sliceControllerSeries(found, from, to),
             zoneLabel: formatControllerHeaderPrimary(r),
@@ -707,6 +717,7 @@ export function UnifiedBarnTrendPanel({
             r.controllerKey,
           );
           if (!found) return null;
+          // 표시 정본 = 채널 슬롯(A/B/C) — series.fanA/B/C 를 그대로 사용.
           return {
             ...sliceControllerSeries(found, from, to),
             zoneLabel: formatControllerHeaderPrimary(r),
@@ -790,10 +801,26 @@ export function UnifiedBarnTrendPanel({
     );
   }, [windowBundle, mappingThresholds, plotWidthPx]);
 
+  /**
+   * 오버레이 온도 스케일 — 「알람 앵커 + 부드러운 비잘림 압축」.
+   * 알람 목표존은 밴드 중앙 고정(정상 구간 스케일 불변), 알람 밖은 경계에서
+   * 코어 기울기로 이어받아 지수적으로 완만히 압축(꺾임 없음·비잘림).
+   * 데이터 극단값과 무관 → 헤드룸 비율만 지정.
+   */
+  const overlayTempAnchor = useMemo<TempBandAnchor | undefined>(
+    () => (overlayActive ? { headFrac: 0.18 } : undefined),
+    [overlayActive],
+  );
+
   const built = useMemo(() => {
     if (!trendRaw) return null;
-    return mapUnifiedBarnTrendRawToSplitY(trendRaw, layout);
-  }, [trendRaw, layout]);
+    return mapUnifiedBarnTrendRawToSplitY(
+      trendRaw,
+      layout,
+      undefined,
+      overlayTempAnchor,
+    );
+  }, [trendRaw, layout, overlayTempAnchor]);
 
   const picked = useMemo(() => {
     if (!built) return null;
@@ -924,7 +951,12 @@ export function UnifiedBarnTrendPanel({
           mappingThresholds,
         );
         if (raw) {
-          const builtScoped = mapUnifiedBarnTrendRawToSplitY(raw, layout);
+          const builtScoped = mapUnifiedBarnTrendRawToSplitY(
+            raw,
+            layout,
+            undefined,
+            overlayTempAnchor,
+          );
           if (builtScoped) {
             const pickLayers = maskLayersForYBands(layers, xScope.yBands);
             const pickedScoped = pickUnifiedTrendLayers(builtScoped, pickLayers);
@@ -954,6 +986,7 @@ export function UnifiedBarnTrendPanel({
     layout,
     layers,
     plotWidthPx,
+    overlayTempAnchor,
   ]);
 
   const chartCategories = scoped?.categories ?? [];
@@ -1066,14 +1099,19 @@ export function UnifiedBarnTrendPanel({
           ? resolveYScopeBands(domainY0, domainY1, layerLayout, layerVisibility)
           : null;
     let yBands: UnifiedYBandId[] | null =
-      mode === "replace" ? (["temp"] as UnifiedYBandId[]) : (xScope?.yBands ?? detected);
+      mode === "replace"
+        ? ((overlayActive ? ["overlay"] : ["temp"]) as UnifiedYBandId[])
+        : (xScope?.yBands ?? detected);
     if (mode !== "replace" && xScope?.yBands != null && laneTouched) {
       yBands = sortUnifiedYBands([...xScope.yBands, "command"]);
     } else if (mode !== "replace" && xScope?.yBands == null) {
       if (detected == null && multiPlot) {
         const centerY = (domainY0 + domainY1) / 2;
         const hit = hitSplitYBand(centerY, layerLayout, layerVisibility);
-        if (hit === "temp") yBands = ["temp"];
+        // 오버레이 단일 플롯(습도 off)에서는 포커스 무의미 → null 유지(레인·전체 유지)
+        if (hit === "overlay") {
+          if (layerVisibility.showHum) yBands = ["overlay"];
+        } else if (hit === "temp") yBands = ["temp"];
         else if (hit === "command") yBands = ["command"];
       }
     }
@@ -1357,7 +1395,14 @@ export function UnifiedBarnTrendPanel({
             );
           }
         } else {
-          const rawC = unmapTempCFromSplitY(event.value, mapLo, mapHi, layout);
+          const rawC = unmapTempCFromSplitY(
+            event.value,
+            mapLo,
+            mapHi,
+            layout,
+            undefined,
+            overlayTempAnchor,
+          );
           if (rawC == null || !Number.isFinite(rawC)) return;
           if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
             next = {
@@ -1415,6 +1460,8 @@ export function UnifiedBarnTrendPanel({
               freeze.tempLow,
               freeze.tempHigh,
               layout,
+              undefined,
+              overlayTempAnchor,
             )
           : unmapHumPctFromSplitY(
               event.value,
@@ -1797,6 +1844,8 @@ export function UnifiedBarnTrendPanel({
         lineStrokeWidth: number;
         lineDasharray: string;
         showApplyActions?: boolean;
+        /** 라벨 배치(생략 시 중앙). 오버레이 환기 라벨은 좌측 */
+        side?: "center" | "left" | "right";
       },
     ) => {
       push(
@@ -1810,7 +1859,7 @@ export function UnifiedBarnTrendPanel({
         thermoDragEnabled,
         editValue,
         {
-          side: "center",
+          side: opts.side ?? "center",
           leadingText: name,
           lineStrokeWidth: opts.lineStrokeWidth,
           lineDasharray: opts.lineDasharray,
@@ -1833,6 +1882,7 @@ export function UnifiedBarnTrendPanel({
           {
             lineStrokeWidth: 0.55,
             lineDasharray: "2 2",
+            side: overlayActive ? "left" : "center",
           },
         );
         pushThermoControl(
@@ -1845,6 +1895,7 @@ export function UnifiedBarnTrendPanel({
           {
             lineStrokeWidth: 1.15,
             lineDasharray: "solid",
+            side: overlayActive ? "left" : "center",
           },
         );
       } else {
@@ -1856,6 +1907,9 @@ export function UnifiedBarnTrendPanel({
           "overline",
           "최고환기",
           false,
+          undefined,
+          undefined,
+          overlayActive ? { side: "left" } : undefined,
         );
         push(
           "motor-lo",
@@ -1865,13 +1919,23 @@ export function UnifiedBarnTrendPanel({
           "underline",
           "최저환기",
           false,
+          undefined,
+          undefined,
+          overlayActive ? { side: "left" } : undefined,
         );
       }
     }
     if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
       push(
         "temp-hi",
-        mapTempCToSplitY(thresholds.tempHigh, mapLo, mapHi, layout),
+        mapTempCToSplitY(
+          thresholds.tempHigh,
+          mapLo,
+          mapHi,
+          layout,
+          undefined,
+          overlayTempAnchor,
+        ),
         formatTrendBandEdge(thresholds.tempHigh, "℃"),
         TREND_CHART_COLORS.temp,
         "overline",
@@ -1885,7 +1949,14 @@ export function UnifiedBarnTrendPanel({
       );
       push(
         "temp-lo",
-        mapTempCToSplitY(thresholds.tempLow, mapLo, mapHi, layout),
+        mapTempCToSplitY(
+          thresholds.tempLow,
+          mapLo,
+          mapHi,
+          layout,
+          undefined,
+          overlayTempAnchor,
+        ),
         formatTrendBandEdge(thresholds.tempLow, "℃"),
         TREND_CHART_COLORS.temp,
         "underline",
@@ -1904,7 +1975,7 @@ export function UnifiedBarnTrendPanel({
         // 온도 밴드 = 기점만 / 최저·최고 환기량(%)은 모터 밴드
         pushThermoControl(
           CHART_THERMO_EDGE_IDS.highVentTemp,
-          mapTempCToSplitY(highT, mapLo, mapHi, layout),
+          mapTempCToSplitY(highT, mapLo, mapHi, layout, undefined, overlayTempAnchor),
           "온도편차",
           `+${formatTrendBandEdge(dev, "℃")}`,
           "overline",
@@ -1916,7 +1987,7 @@ export function UnifiedBarnTrendPanel({
         );
         pushThermoControl(
           CHART_THERMO_EDGE_IDS.setpoint,
-          mapTempCToSplitY(sp, mapLo, mapHi, layout),
+          mapTempCToSplitY(sp, mapLo, mapHi, layout, undefined, overlayTempAnchor),
           "설정온도",
           formatTrendBandEdge(sp, "℃"),
           "overline",
@@ -1983,6 +2054,8 @@ export function UnifiedBarnTrendPanel({
     controlMode,
     thermo,
     thermoDragEnabled,
+    overlayActive,
+    overlayTempAnchor,
   ]);
 
   const cycleGroupLayers = (group: "temp" | "hum" | "motor") => {
@@ -2021,6 +2094,9 @@ export function UnifiedBarnTrendPanel({
           available={built.available}
           onCycleGroup={cycleGroupLayers}
           placement="inline"
+          overlayView={overlayView}
+          overlayAvailable={overlayAvailable}
+          onToggleOverlay={() => setOverlayView((v) => !v)}
         />
       </div>
     ) : null;
@@ -2106,7 +2182,7 @@ export function UnifiedBarnTrendPanel({
   const scopeYLabel = unifiedYBandsScopeLabel(xScope?.yBands ?? null);
 
   const focusBandTint = (band: UnifiedYBandId | null | undefined) => {
-    if (band === "temp") return dashboardUi.channelTintTemp;
+    if (band === "temp" || band === "overlay") return dashboardUi.channelTintTemp;
     if (band === "hum") return dashboardUi.channelTintHum;
     if (band === "motor") return dashboardUi.channelTintMotor;
     if (band === "command") return dashboardUi.channelTintCommand;
@@ -2354,6 +2430,7 @@ export function UnifiedBarnTrendPanel({
           onScaleEdgeRevert={undefined}
           scaleEdgeApplyBusy={false}
           scaleEdgeApplyDisabled={false}
+          overlayHoverMerge={overlayActive}
         />
         </div>
       ) : (

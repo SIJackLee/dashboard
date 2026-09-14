@@ -105,6 +105,17 @@ export type TrendStallSeries = {
   stallNo: string;
   temp: (number | null)[];
   humidity: (number | null)[];
+  /**
+   * 채널 슬롯(A/B/C) 기준 모터% — 모터 그래프 표시 정본.
+   * eqpmnCode를 참조하지 않고 슬롯 라벨 그대로. RPC avg_fan_a/b/c에서 온다.
+   */
+  fanA: (number | null)[];
+  fanB: (number | null)[];
+  fanC: (number | null)[];
+  /**
+   * eqpmnCode(EC01/02/03)-role 기준 모터% — 하위호환(PDF·축사평균 등).
+   * 모터 그래프는 슬롯(fanA/B/C)을 쓴다.
+   */
   fanSupply: (number | null)[];
   fanExhaust: (number | null)[];
   fanIntake: (number | null)[];

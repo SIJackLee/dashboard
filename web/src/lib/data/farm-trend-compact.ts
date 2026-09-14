@@ -9,9 +9,16 @@ import {
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
 
-/** slot, temp, humidity, fanSupply, fanExhaust, fanIntake, sampleCount */
+/**
+ * slot, temp, humidity, fanSupply, fanExhaust, fanIntake,
+ * fanA, fanB, fanC, sampleCount
+ * (fanSupply/Exhaust/Intake = eqpmnCode-role 하위호환, fanA/B/C = 슬롯 표시 정본)
+ */
 export type CompactControllerPoint = [
   number,
+  number | null,
+  number | null,
+  number | null,
   number | null,
   number | null,
   number | null,
@@ -109,6 +116,9 @@ function emptyControllerSeries(
     eqpmnNo,
     temp: emptyCol(),
     humidity: emptyCol(),
+    fanA: emptyCol(),
+    fanB: emptyCol(),
+    fanC: emptyCol(),
     fanSupply: emptyCol(),
     fanExhaust: emptyCol(),
     fanIntake: emptyCol(),
@@ -176,7 +186,10 @@ export function expandCompactControllerPeriod(
       ctrl.fanSupply[slot] = point[3];
       ctrl.fanExhaust[slot] = point[4];
       ctrl.fanIntake[slot] = point[5];
-      ctrl.sampleCount[slot] = point[6] ?? 0;
+      ctrl.fanA[slot] = point[6];
+      ctrl.fanB[slot] = point[7];
+      ctrl.fanC[slot] = point[8];
+      ctrl.sampleCount[slot] = point[9] ?? 0;
     }
   }
 
@@ -270,6 +283,9 @@ export function synthesizeOverview30dFrom7d(
           const slot = dayOffset + day;
           next.temp[slot] = avgRange(c.temp, from, to);
           next.humidity[slot] = avgRange(c.humidity, from, to);
+          next.fanA[slot] = avgRange(c.fanA, from, to);
+          next.fanB[slot] = avgRange(c.fanB, from, to);
+          next.fanC[slot] = avgRange(c.fanC, from, to);
           next.fanSupply[slot] = avgRange(c.fanSupply, from, to);
           next.fanExhaust[slot] = avgRange(c.fanExhaust, from, to);
           next.fanIntake[slot] = avgRange(c.fanIntake, from, to);

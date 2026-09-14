@@ -24,6 +24,11 @@ function sampleCtrl(
     stallNo: opts?.stallNo ?? "1",
     controllerKey: opts?.key ?? "c1",
     eqpmnNo: "1",
+    // 모터 표시 정본 = 채널 슬롯 A/B/C.
+    fanA: temp.map(() => 40),
+    fanB: temp.map(() => 30),
+    fanC: temp.map(() => 20),
+    // role(EC) 컬럼 — 하위호환용(모터 그래프는 슬롯을 쓴다).
     fanIntake: temp.map(() => 40),
     fanExhaust: temp.map(() => 30),
     fanSupply: temp.map(() => 20),
@@ -165,6 +170,9 @@ const layoutTempOnly = resolveSplitYLayout({
       stallNo: "1",
       controllerKey: "c-empty",
       eqpmnNo: "1",
+      fanA: [null, null, null, null],
+      fanB: [null, null, null, null],
+      fanC: [null, null, null, null],
       fanIntake: [null, null, null, null],
       fanExhaust: [null, null, null, null],
       fanSupply: [null, null, null, null],

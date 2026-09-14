@@ -554,6 +554,25 @@ export function fanPctFromChannels(
   eqpmnCode: string,
 ): number | null {
   const ch = channels.find((c) => c.eqpmnCode === eqpmnCode);
+  return fanPctFromChannelOutputs(ch);
+}
+
+/**
+ * 채널 슬롯(A/B/C) 기준 모터% — 표시 정본.
+ * eqpmnCode 를 참조하지 않고 슬롯 라벨로 채널을 찾는다. 같은 eqpmnCode 를
+ * 공유하는 채널이라도 슬롯별로 독립적인 값을 얻는다.
+ */
+export function fanPctFromChannelSlot(
+  channels: DecodedV0cChannel[],
+  slot: string,
+): number | null {
+  const ch = channels.find((c) => c.channel === slot);
+  return fanPctFromChannelOutputs(ch);
+}
+
+function fanPctFromChannelOutputs(
+  ch: DecodedV0cChannel | undefined,
+): number | null {
   if (!ch?.outputs) return null;
   let max: number | null = null;
   for (const raw of Object.values(ch.outputs)) {

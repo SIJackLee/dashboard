@@ -43,7 +43,10 @@ import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import { cn } from "@/lib/utils";
-import { dashboardAffordance } from "@/lib/ui/dashboard-page-ui";
+import {
+  dashboardAffordance,
+  dashboardChroma,
+} from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 
 /** 목록 카드 설정 패널 — 그래프 패널 차트 라벨과 동일 스케일 */
@@ -334,9 +337,9 @@ export function BarnListAccordionPanel({
       <div
         role="tablist"
         aria-label="제어 채널"
-        className="inline-flex overflow-hidden rounded-lg border bg-muted/30"
+        className="inline-flex rounded-xl border bg-muted/40 p-1"
       >
-        {channelSlots.map((slot, index) => {
+        {channelSlots.map((slot) => {
           const selected = slot === activeChannel;
           return (
             <button
@@ -346,12 +349,14 @@ export function BarnListAccordionPanel({
               aria-selected={selected}
               disabled={isSaving}
               className={cn(
-                "inline-flex min-h-8 items-center justify-center px-3 py-1.5 text-xs font-medium",
+                "relative z-[1] inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium",
                 motionClass.microHover,
-                index > 0 && "border-l border-border",
                 selected
-                  ? "bg-background text-foreground"
-                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  ? cn(
+                      dashboardChroma.viewTabPill,
+                      dashboardChroma.chromeActiveText,
+                    )
+                  : dashboardAffordance.choiceIdle,
                 isSaving && "opacity-50",
               )}
               onClick={() => setActiveChannel(slot)}

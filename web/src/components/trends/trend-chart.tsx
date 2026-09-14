@@ -256,6 +256,8 @@ type TrendChartProps = {
   onScaleEdgeRevert?: () => void;
   scaleEdgeApplyBusy?: boolean;
   scaleEdgeApplyDisabled?: boolean;
+  /** 오버레이(온도+모터 겹침): hover 카드에 온도·모터를 병합해 표시 */
+  overlayHoverMerge?: boolean;
   /** 플롯 CSS 너비(px). 차트 탭 다운샘플 밀도용 */
   onPlotWidthChange?: (widthPx: number) => void;
   /**
@@ -318,6 +320,7 @@ export function TrendChart({
   onScaleEdgeRevert,
   scaleEdgeApplyBusy = false,
   scaleEdgeApplyDisabled = false,
+  overlayHoverMerge = false,
   onPlotWidthChange,
   eventLane = null,
   eventLaneHeight = 0,
@@ -357,6 +360,8 @@ export function TrendChart({
     id: string;
     text: string;
   } | null>(null);
+  /** 스케일 값 칩 hover → 해당 기준선 강조 + 나머지 dim */
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const hoverIdxRef = useRef<number | null>(null);
   const hoverSeriesRef = useRef<string | null>(null);
   const crossVRef = useRef<SVGLineElement | null>(null);
@@ -1197,9 +1202,21 @@ export function TrendChart({
     }
     plotEmptyTapRef.current = null;
 
+    /**
+     * 오버레이(온도+모터 겹침): 온도·모터 어느 쪽을 클릭해도 한 핀으로 정규화
+     * → 병합 카드 1개만 고정(중복 방지·토글 일관).
+     */
+    const hitGroup = hit.seriesKey
+      ? inferHoverMetricGroup(hit.seriesKey)
+      : null;
+    const mergePin =
+      overlayHoverMerge &&
+      !hit.eventMark &&
+      (hitGroup === "temp" || hitGroup === "motor");
+    const pinSeriesKey = mergePin ? "온도" : hit.seriesKey;
     const id = hit.eventMark
       ? `event:${hit.eventMark.id}`
-      : tipPinId(hit.idx, hit.seriesKey);
+      : tipPinId(hit.idx, pinSeriesKey);
     setPinnedTips((prev) => {
       if (prev.some((p) => p.id === id)) {
         return prev.filter((p) => p.id !== id);
@@ -1207,7 +1224,7 @@ export function TrendChart({
       const next: PinnedTip = {
         id,
         idx: hit.idx,
-        seriesKey: hit.seriesKey,
+        seriesKey: pinSeriesKey,
         nx: hit.xView / viewW,
         ny: hit.yView / chartH,
         ox: 0,
@@ -1541,6 +1558,12 @@ export function TrendChart({
     rMax,
     innerH,
   ]);
+
+  /** hover 중인 스케일 칩(강조 대상). 없으면 dim 미적용 */
+  const hoveredEdge =
+    hoveredEdgeId != null
+      ? (edgeBandLabels.find((l) => l.id === hoveredEdgeId) ?? null)
+      : null;
 
   const edgeValueMaxCh = edgeBandLabels.reduce(
     (max, label) => Math.max(max, label.text.length),
@@ -1877,6 +1900,10 @@ export function TrendChart({
         </defs>
         <g
           key={`${plotEnterKey}:${scopeMotionKey}`}
+          style={{
+            opacity: hoveredEdge ? 0.5 : 1,
+            transition: "opacity 120ms linear",
+          }}
           className={cn(
             animate && scopeMotionKey === 0
               ? motionClass.farmChartPlotReveal
@@ -2203,6 +2230,23 @@ export function TrendChart({
         </span>
       ))}
 
+      {hoveredEdge ? (
+        <div
+          className="pointer-events-none absolute inset-x-0 z-[4] -translate-y-1/2"
+          style={{ top: `${hoveredEdge.topPct}%` }}
+          aria-hidden
+        >
+          <div
+            className="h-[1.5px] w-full rounded-full"
+            style={{
+              background: hoveredEdge.color,
+              boxShadow: `0 0 3px 0.5px ${hoveredEdge.color}`,
+              opacity: 0.8,
+            }}
+          />
+        </div>
+      ) : null}
+
       {edgeBandLabels.map((label) => {
         const editing = edgeEdit?.id === label.id;
         const showActions =
@@ -2232,9 +2276,12 @@ export function TrendChart({
                 "shadow-sm ring-1 ring-current/20",
               label.draggable && !editing
                 ? "pointer-events-auto cursor-ns-resize select-none"
-                : editing || showActions
-                  ? "pointer-events-auto"
-                  : "pointer-events-none",
+                : "pointer-events-auto",
+              "transition-opacity duration-motion-fast",
+              hoveredEdgeId != null &&
+                hoveredEdgeId !== label.id &&
+                "opacity-45",
+              hoveredEdgeId === label.id && "z-[6] font-semibold",
               label.side === "left" && "left-0.5 text-left",
               /** 설정 명칭 단독(레거시) — 수치 칩 바로 왼쪽 */
               label.side === "plotStart" &&
@@ -2275,6 +2322,10 @@ export function TrendChart({
                 ? `${label.title} · 드래그 조절 · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
                 : label.title
             }
+            onPointerEnter={() => setHoveredEdgeId(label.id)}
+            onPointerLeave={() =>
+              setHoveredEdgeId((cur) => (cur === label.id ? null : cur))
+            }
             onPointerDown={
               label.draggable && !editing
                 ? (e) => {
@@ -2294,6 +2345,7 @@ export function TrendChart({
                       pointerType: e.pointerType,
                     };
                     clearHover();
+                    setHoveredEdgeId(null);
                   }
                 : undefined
             }
@@ -2572,6 +2624,35 @@ export function TrendChart({
               <div className="px-2.5 py-1.5">
                 {pin.eventMark ? (
                   <TrendEventCardBody mark={pin.eventMark} />
+                ) : overlayHoverMerge &&
+                  (inferHoverMetricGroup(pin.seriesKey) === "temp" ||
+                    inferHoverMetricGroup(pin.seriesKey) === "motor") ? (
+                  <>
+                    <TrendPointCardBody
+                      idx={pin.idx}
+                      seriesKey="온도"
+                      categories={categories}
+                      series={series}
+                      envelopes={envelopes}
+                      histograms={histograms}
+                      leftUnit={leftUnit}
+                      rightUnit={rightUnit}
+                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                    />
+                    <div className="my-1.5 border-t border-border/50" />
+                    <TrendPointCardBody
+                      idx={pin.idx}
+                      seriesKey="모터"
+                      categories={categories}
+                      series={series}
+                      envelopes={envelopes}
+                      histograms={histograms}
+                      leftUnit={leftUnit}
+                      rightUnit={rightUnit}
+                      hideTime
+                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                    />
+                  </>
                 ) : (
                   <TrendPointCardBody
                     idx={pin.idx}
@@ -2599,7 +2680,19 @@ export function TrendChart({
           hoverIdx < n &&
           !(
             hoverSeries != null &&
-            pinnedTips.some((p) => p.id === tipPinId(hoverIdx, hoverSeries))
+            pinnedTips.some(
+              (p) =>
+                p.id ===
+                tipPinId(
+                  hoverIdx,
+                  // 오버레이 병합 핀은 "온도"로 정규화되어 있음
+                  overlayHoverMerge &&
+                    (inferHoverMetricGroup(hoverSeries) === "temp" ||
+                      inferHoverMetricGroup(hoverSeries) === "motor")
+                    ? "온도"
+                    : hoverSeries,
+                ),
+            )
           ))) ? (
         <div
           ref={tipRef}
@@ -2628,17 +2721,60 @@ export function TrendChart({
                     </p>
                   ) : null;
                 })()}
-                <TrendPointCardBody
-                  idx={hoverIdx ?? 0}
-                  seriesKey={hoverSeries}
-                  categories={categories}
-                  series={series}
-                  envelopes={envelopes}
-                  histograms={histograms}
-                  leftUnit={leftUnit}
-                  rightUnit={rightUnit}
-                  onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                />
+                {(() => {
+                  const hg = hoverSeries
+                    ? inferHoverMetricGroup(hoverSeries)
+                    : null;
+                  /**
+                   * 오버레이(온도+모터 겹침): 겹치는 밴드 hover 시 두 카드를 병합.
+                   * 온도/모터 그룹일 때만 — 습도 밴드는 단일 유지.
+                   */
+                  const merge =
+                    overlayHoverMerge && (hg === "temp" || hg === "motor");
+                  if (merge) {
+                    return (
+                      <>
+                        <TrendPointCardBody
+                          idx={hoverIdx ?? 0}
+                          seriesKey="온도"
+                          categories={categories}
+                          series={series}
+                          envelopes={envelopes}
+                          histograms={histograms}
+                          leftUnit={leftUnit}
+                          rightUnit={rightUnit}
+                          onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                        />
+                        <div className="my-1.5 border-t border-border/50" />
+                        <TrendPointCardBody
+                          idx={hoverIdx ?? 0}
+                          seriesKey="모터"
+                          categories={categories}
+                          series={series}
+                          envelopes={envelopes}
+                          histograms={histograms}
+                          leftUnit={leftUnit}
+                          rightUnit={rightUnit}
+                          hideTime
+                          onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                        />
+                      </>
+                    );
+                  }
+                  return (
+                    <TrendPointCardBody
+                      idx={hoverIdx ?? 0}
+                      seriesKey={hoverSeries}
+                      categories={categories}
+                      series={series}
+                      envelopes={envelopes}
+                      histograms={histograms}
+                      leftUnit={leftUnit}
+                      rightUnit={rightUnit}
+                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                    />
+                  );
+                })()}
               </>
             )}
           </div>

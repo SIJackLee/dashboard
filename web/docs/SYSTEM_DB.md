@@ -110,8 +110,14 @@ PR 체크: `LIVE_LIST_FORBIDDEN_TOKENS` · `npm run measure:live` p95<300ms ([`L
 | `decode-batch` | pg_cron ~10s | raw→decoded · clock_kst · sparse |
 | `push-dispatch` | 이벤트/cron | FCM 1차 |
 | `farm_trend_history` | RPC | 축사 추이 · `mesure_at` 버킷 |
-| `farm_trend_history_by_controller` | RPC | 컨트롤러 추이 |
+| `farm_trend_history_by_controller` | RPC | 컨트롤러 추이 · `avg_fan_a/b/c`(슬롯) + `avg_fan_supply/exhaust/intake`(EC 하위호환) |
 | `farm_trend_uplink_coverage_json` | RPC | 차트 coverage · clock 정렬 |
+
+**모터% 저장 정본 = 채널 슬롯(A/B/C).** `iot_room_state_decoded.fan_a/b/c_pct`
+는 각 채널 슬롯 `outputs` 최댓값(디코드 `decoded_json.channels[*].outputs`)이다.
+`fan_supply/exhaust/intake_pct`는 eqpmnCode(EC01/02/03)-role 기준 레거시 컬럼으로,
+같은 eqpmnCode를 공유하는 다중 슬롯을 구분하지 못한다(하위호환 병행). 모터 그래프는
+슬롯 컬럼(`avg_fan_a/b/c`)만 참조한다. Edge `decode-batch`가 두 계열을 함께 기록한다.
 
 **Sparse (Edge only):** ε_temp=0.2°C · ε_fan=2%p · heartbeat=1800s · RS 필터 **금지** ([`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md)).
 

@@ -242,7 +242,12 @@ export const CHART_Y_BAND_PARAM = "chartYBand";
 export const CHART_X0_PARAM = "chartX0";
 export const CHART_X1_PARAM = "chartX1";
 
-export type ChartYBandId = "temp" | "hum" | "motor" | "command";
+export type ChartYBandId =
+  | "temp"
+  | "hum"
+  | "motor"
+  | "command"
+  | "overlay";
 
 export type ChartTrendZoomHint = {
   yBands: ChartYBandId[];
@@ -271,7 +276,13 @@ export function clearFarmChartZoomParams(params: URLSearchParams): void {
 
 function parseYBandsParam(raw: string | null): ChartYBandId[] | null {
   if (!raw?.trim()) return null;
-  const allowed = new Set<string>(["temp", "hum", "motor", "command"]);
+  const allowed = new Set<string>([
+    "temp",
+    "hum",
+    "motor",
+    "command",
+    "overlay",
+  ]);
   const bands = raw
     .split(/[+,\s]+/)
     .map((s) => s.trim().toLowerCase())
