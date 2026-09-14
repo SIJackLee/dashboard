@@ -16,7 +16,10 @@ import {
 import { motionClass } from "@/lib/ui/motion-classes";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { cn } from "@/lib/utils";
-import { clusterEventMarks } from "@/lib/farm/command-cluster";
+import {
+  clampEventMarkXPx,
+  clusterEventMarks,
+} from "@/lib/farm/command-cluster";
 import type { TrendEventLane, TrendEventMark } from "@/lib/data/trend-chart-types";
 import { X_SCOPE_DRAG_PX } from "./trend-chart-geometry";
 
@@ -27,6 +30,8 @@ export type PositionedEventMark = {
 };
 
 const EDGE_PAD = 8;
+/** +N 배지가 우측 단계 라벨 위로 밀리지 않을 만큼 안쪽으로. */
+const CLUSTER_EDGE_PAD = 36;
 
 /** effect 내 setState 없이 미디어쿼리 구독(react-hooks/set-state-in-effect 회피). */
 function useMediaQuery(query: string): boolean {
@@ -198,30 +203,38 @@ export function EventLaneHtmlOverlay({
   const hitPx = compact ? 36 : 28;
   const minGapPx = hitPx;
 
+  const plotMarks = useMemo(() => {
+    if (!(viewW > 0)) return marks;
+    return marks.map((p) => ({
+      ...p,
+      xView: clampEventMarkXPx(p.xView, viewW, CLUSTER_EDGE_PAD),
+    }));
+  }, [marks, viewW]);
+
   const posById = useMemo(() => {
     const map = new Map<string, PositionedEventMark>();
-    for (const p of marks) map.set(p.mark.id, p);
+    for (const p of plotMarks) map.set(p.mark.id, p);
     return map;
-  }, [marks]);
+  }, [plotMarks]);
 
   const layout = useMemo(() => {
     if (widthPx <= 0) {
       // 측정 전에는 전부 single → 오늘과 동일한 no-op 렌더.
       return {
-        singleIds: new Set(marks.map((p) => p.mark.id)),
+        singleIds: new Set(plotMarks.map((p) => p.mark.id)),
         clusters: [] as ReturnType<typeof clusterEventMarks>["clusters"],
         clusterOf: new Map<string, string>(),
       };
     }
     return clusterEventMarks(
-      marks.map((p) => ({
+      plotMarks.map((p) => ({
         id: p.mark.id,
         row: p.mark.row,
         xPx: viewW > 0 ? (p.xView / viewW) * widthPx : 0,
       })),
       minGapPx,
     );
-  }, [marks, widthPx, viewW, minGapPx]);
+  }, [plotMarks, widthPx, viewW, minGapPx]);
 
   // 열린 클러스터가 마크 변화로 사라지면 파생값이 null → 렌더에서 자동 무시(정리 effect 불필요).
   const openCluster =
@@ -463,7 +476,7 @@ export function EventLaneHtmlOverlay({
 
       {/* 단독 마크 (펼침 중에는 보이되 상호작용 차단) */}
       <div className={openCluster ? "pointer-events-none" : undefined}>
-        {marks
+        {plotMarks
           .filter((p) => layout.singleIds.has(p.mark.id))
           .map(renderSingle)}
       </div>

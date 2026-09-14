@@ -90,3 +90,15 @@ export function clusterEventMarks(
 
   return { singleIds, clusters, clusterOf };
 }
+
+/** 레인 마크·클러스터가 우측 축 라벨 위로 밀리지 않게 x를 안쪽으로 둔다. */
+export function clampEventMarkXPx(
+  xPx: number,
+  widthPx: number,
+  edgePad: number,
+): number {
+  if (!(widthPx > 0) || !Number.isFinite(xPx)) return xPx;
+  const pad = Math.max(0, edgePad);
+  const hi = Math.max(pad, widthPx - pad);
+  return Math.min(hi, Math.max(pad, xPx));
+}

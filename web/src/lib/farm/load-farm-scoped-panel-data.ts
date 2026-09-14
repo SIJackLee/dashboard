@@ -14,8 +14,13 @@ import {
   filterBarnLayoutPrefsForFarm,
   gridDimensionsForBarnMap,
 } from "@/lib/data/barn-map";
-import type { ThermoCommand } from "@/lib/data/commands";
-import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
+import {
+  FARM_CHART_COMMAND_HISTORY_LIMIT,
+  farmChartCommandHistoryOptions,
+  getThermoCommandHistory,
+  getThermoSettingsMap,
+  type ThermoCommand,
+} from "@/lib/data/commands";
 import { getAlarmSettings } from "@/lib/data/alarm-settings";
 import type { AlarmRow, AlarmSettings } from "@/lib/data/alarms";
 import { fetchActiveModuleAlarms } from "@/lib/data/module-alarms";
@@ -137,7 +142,12 @@ export async function loadFarmScopedPanelData(params: {
       params.commandThermoMap
         ? Promise.resolve(params.commandThermoMap)
         : getThermoSettingsMap(500),
-      params.history ? Promise.resolve(params.history) : getThermoCommandHistory(100),
+      params.history
+        ? Promise.resolve(params.history)
+        : getThermoCommandHistory(
+            FARM_CHART_COMMAND_HISTORY_LIMIT,
+            farmChartCommandHistoryOptions(farmKey),
+          ),
     ]);
 
   const map = buildScopedBarnMap(farmKey, readings, layoutPrefs);

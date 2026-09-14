@@ -163,7 +163,8 @@ export function trendMsToPlotX(
   ) {
     return null;
   }
-  if (ms < t0 || ms > t1) return null;
+  if (ms < t0) return null;
+  if (ms > t1) return padL + innerW;
   return padL + ((ms - t0) / (t1 - t0)) * innerW;
 }
 

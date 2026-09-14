@@ -6,6 +6,7 @@ import {
   normalizeEqpmnNo,
 } from "@/lib/data/controller-key";
 import { parseFarmKeyId, type FarmKey } from "@/lib/data/farm-key";
+import { TREND_PERIODS } from "@/lib/data/farm-trend-types";
 import { normalizeCommandWireHex } from "@/lib/farm/command-wire";
 
 export type ThermoCommandStatus =
@@ -142,9 +143,30 @@ export type ThermoCommandHistoryOptions = {
   fromIso?: string;
   /** 비우면 상태 조건 없음 */
   statuses?: ThermoCommandStatus[];
+  /** 지정 시 해당 농장만 */
+  farmKey?: FarmKey;
   /** id·농장·축사·장비·메모·오류 부분 검색 */
   q?: string;
 };
+
+/** 통합 추이 30일 축과 맞춤. 전역 최근 N건만 가져오면 같은 날 테스트가 이전 날짜를 밀어낸다. */
+export const FARM_CHART_COMMAND_HISTORY_LIMIT = 500;
+export const FARM_CHART_COMMAND_WATCH_STATUSES: ThermoCommandStatus[] = [
+  "pending",
+  "sent",
+  "applied",
+];
+
+export function farmChartCommandHistoryOptions(
+  farmKey: FarmKey,
+  nowMs = Date.now(),
+): ThermoCommandHistoryOptions {
+  return {
+    farmKey,
+    fromIso: new Date(nowMs - TREND_PERIODS["30d"].durationMs).toISOString(),
+    statuses: FARM_CHART_COMMAND_WATCH_STATUSES,
+  };
+}
 
 export type ThermoCommandHistoryResult = {
   commands: ThermoCommand[];
@@ -179,9 +201,16 @@ async function queryThermoCommandHistory(
     query = query.in("status", statuses);
   }
 
+  const scopedFarm = options?.farmKey;
+  if (scopedFarm?.lsindRegistNo && scopedFarm?.itemCode) {
+    query = query
+      .eq("lsind_regist_no", scopedFarm.lsindRegistNo)
+      .eq("item_code", scopedFarm.itemCode);
+  }
+
   const needle = options?.q?.trim().slice(0, 64) ?? "";
   if (needle) {
-    const farm = parseFarmKeyId(needle);
+    const farm = scopedFarm ? null : parseFarmKeyId(needle);
     if (farm) {
       query = query
         .eq("lsind_regist_no", farm.lsindRegistNo)

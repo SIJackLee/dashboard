@@ -183,6 +183,7 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   assert.equal(trendMsToPlotX(t0, t0, t1, 6, 88), 6);
   assert.equal(trendMsToPlotX(t1, t0, t1, 6, 88), 94);
   assert.equal(trendMsToPlotX(t0 - 1, t0, t1, 6, 88), null);
+  assert.equal(trendMsToPlotX(t1 + 1, t0, t1, 6, 88), 94);
 }
 
 assert.equal(xScopeTouchesCommandLane(0.2, 0.8), false);

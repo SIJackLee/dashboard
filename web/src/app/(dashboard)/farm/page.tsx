@@ -10,10 +10,15 @@ import { resolveActiveFarmKey, canEditFarmScope } from "@/lib/auth/farm-access";
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { getPageShellContext } from "@/lib/data/page-shell-data";
 import { loadFarmScopedPanelData } from "@/lib/farm/load-farm-scoped-panel-data";
-import { getThermoCommandHistory, getThermoSettingsMap } from "@/lib/data/commands";
+import {
+  FARM_CHART_COMMAND_HISTORY_LIMIT,
+  farmChartCommandHistoryOptions,
+  getThermoCommandHistory,
+  getThermoSettingsMap,
+  type ThermoCommand,
+} from "@/lib/data/commands";
 import { mergeThermoSettingsMaps } from "@/lib/controllers/controller-settings";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
-import type { ThermoCommand } from "@/lib/data/commands";
 
 function stripLegacyOverviewView(params: {
   view?: string;
@@ -112,7 +117,12 @@ export default async function FarmPage({
         };
       }
       const [historyRes, commandThermoMap] = await Promise.all([
-        getThermoCommandHistory(100),
+        getThermoCommandHistory(
+          activeFarmKey ? FARM_CHART_COMMAND_HISTORY_LIMIT : 100,
+          activeFarmKey
+            ? farmChartCommandHistoryOptions(activeFarmKey)
+            : undefined,
+        ),
         getThermoSettingsMap(500),
       ]);
       const thermoSettings = mergeThermoSettingsMaps(commandThermoMap, {});

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  clampEventMarkXPx,
   clusterEventMarks,
   type ClusterInputMark,
 } from "./command-cluster";
@@ -70,4 +71,10 @@ test("입력 순서와 무관하게 x 오름차순으로 정렬해 묶는다", (
     24,
   );
   assert.deepEqual(layout.clusters[0]!.memberIds, ["a", "b", "c"]);
+});
+
+test("우측 끝 마크 x는 라벨 여백 안으로 클램프", () => {
+  assert.equal(clampEventMarkXPx(200, 200, 36), 164);
+  assert.equal(clampEventMarkXPx(-4, 200, 36), 36);
+  assert.equal(clampEventMarkXPx(100, 200, 36), 100);
 });

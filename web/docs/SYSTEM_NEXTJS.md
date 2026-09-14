@@ -73,6 +73,8 @@ SELECT 계약: [`live-read-select.ts`](../src/lib/data/live-read-select.ts)
 | `revalidateFarmLiveAction` | LIVE cache 무효화 |
 | `saveBarnGridsAction` / `persistBarnLayoutsAction` | 지도 레이아웃 |
 
+차트 명령 레인 이력은 `loadFarmScopedPanelData` / `/farm` SSR에서 **해당 농장 · 30일 · pending/sent/applied · limit 500**. 전역 최근 100건만 가져오면 당일 대량이 이전 날짜 점을 밀어낸다.
+
 ### A.6 Server Actions — 명령
 
 파일: [`app/(dashboard)/controllers/actions.ts`](../src/app/(dashboard)/controllers/actions.ts)

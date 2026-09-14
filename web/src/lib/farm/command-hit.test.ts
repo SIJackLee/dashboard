@@ -42,7 +42,8 @@ function cmd(
   const to = Date.parse("2026-09-10T00:00:00.000Z");
   assert.equal(commandHitX("2026-09-09T12:00:00.000Z", from, to), 0.5);
   assert.equal(commandHitX("2026-09-08T23:00:00.000Z", from, to), null);
-  assert.equal(commandHitX("2026-09-10T00:00:01.000Z", from, to), null);
+  assert.equal(commandHitX("2026-09-10T00:00:01.000Z", from, to), 1);
+  assert.equal(commandHitX("2026-09-10T02:00:01.000Z", from, to), null);
 }
 
 {
@@ -386,6 +387,44 @@ function cmd(
   assert.equal(result.marks.length, 1);
   assert.equal(result.marks[0]?.id, "newer");
   assert.equal(result.hiddenCount, 1);
+}
+
+{
+  const fromMs = Date.parse("2026-09-01T00:00:00.000Z");
+  const toMs = Date.parse("2026-09-08T00:00:00.000Z");
+  const late = Array.from({ length: 20 }, (_, i) =>
+    cmd({
+      id: `late-${i}`,
+      createdAt: new Date(
+        Date.parse("2026-09-07T12:00:00.000Z") + i * 60_000,
+      ).toISOString(),
+      status: "applied",
+    }),
+  );
+  const result = selectCommandHitResult({
+    farmKey: farm,
+    scope: { level: "farm" },
+    fromMs,
+    toMs,
+    limit: 8,
+    commands: [
+      cmd({
+        id: "early-a",
+        createdAt: "2026-09-01T12:00:00.000Z",
+        status: "applied",
+      }),
+      cmd({
+        id: "early-b",
+        createdAt: "2026-09-02T12:00:00.000Z",
+        status: "applied",
+      }),
+      ...late,
+    ],
+  });
+  assert.equal(result.marks.length, 8);
+  assert.equal(result.hiddenCount, 14);
+  assert.ok(result.marks.some((mark) => mark.id === "early-a"));
+  assert.ok(result.marks.some((mark) => mark.id === "early-b"));
 }
 
 {

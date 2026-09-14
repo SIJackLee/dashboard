@@ -94,8 +94,15 @@ export type CommandHitAxis = {
   end: string;
 };
 
-const MAX_MARKS = 80;
+/** 픽셀 클러스터가 겹침을 접으므로, 최신만 남기면 이전 날짜가 차트에서 사라진다. */
+export const COMMAND_HIT_MAX_MARKS = 400;
 const LIVE_END_MS = 2 * 60 * 60 * 1000;
+const STAGE_KEEP_RANK: Record<CommandHitStage, number> = {
+  확인: 4,
+  수신: 3,
+  전송: 2,
+  접수: 1,
+};
 /** 추이 플롯 하단 명령 행 높이(1×). 차트 탭은 farm-chart-ui 배율을 곱한다. */
 export const COMMAND_HIT_LANE_PX = 112;
 
@@ -145,7 +152,12 @@ export function commandHitX(
 ): number | null {
   const t = Date.parse(createdAt);
   if (!Number.isFinite(t) || !(toMs > fromMs)) return null;
-  if (t < fromMs || t > toMs) return null;
+  if (t < fromMs) return null;
+  if (t > toMs) {
+    /** 마지막 버킷 시각 직후 전송분 — 오른쪽 끝에 붙인다. */
+    if (t - toMs <= LIVE_END_MS) return 1;
+    return null;
+  }
   return (t - fromMs) / (toMs - fromMs);
 }
 
@@ -300,6 +312,62 @@ function commandHitPayload(command: CommandHitSource): Pick<
   };
 }
 
+function pickMarkInBucket(bucket: CommandHitMark[]): CommandHitMark {
+  let best = bucket[0]!;
+  for (const mark of bucket) {
+    const bestRank = STAGE_KEEP_RANK[best.stage];
+    const rank = STAGE_KEEP_RANK[mark.stage];
+    if (rank > bestRank || (rank === bestRank && mark.at >= best.at)) {
+      best = mark;
+    }
+  }
+  return best;
+}
+
+/**
+ * 상한을 넘으면 시간 구간에 나눠 남기고, 빈 칸은 최신으로 채운다.
+ * 최신만 자르면 같은 날 대량 전송이 이전 날짜 점을 밀어낸다.
+ */
+export function trimCommandHitMarks(
+  marks: CommandHitMark[],
+  limit: number,
+): CommandHitMark[] {
+  if (limit <= 0 || marks.length === 0) return [];
+  const sorted = [...marks].sort((a, b) =>
+    a.at < b.at ? -1 : a.at > b.at ? 1 : a.id < b.id ? -1 : 1,
+  );
+  if (sorted.length <= limit) return sorted;
+
+  const t0 = Date.parse(sorted[0]!.at);
+  const t1 = Date.parse(sorted[sorted.length - 1]!.at);
+  const span = Math.max(1, t1 - t0);
+  const buckets: CommandHitMark[][] = Array.from({ length: limit }, () => []);
+  for (const mark of sorted) {
+    const t = Date.parse(mark.at);
+    const idx =
+      !Number.isFinite(t) || span <= 1
+        ? limit - 1
+        : Math.min(limit - 1, Math.floor(((t - t0) / span) * limit));
+    buckets[idx]!.push(mark);
+  }
+
+  const picked: CommandHitMark[] = [];
+  const used = new Set<string>();
+  for (const bucket of buckets) {
+    if (bucket.length === 0) continue;
+    const best = pickMarkInBucket(bucket);
+    picked.push(best);
+    used.add(best.id);
+  }
+  for (let i = sorted.length - 1; i >= 0 && picked.length < limit; i--) {
+    const mark = sorted[i]!;
+    if (used.has(mark.id)) continue;
+    picked.push(mark);
+    used.add(mark.id);
+  }
+  return picked.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+}
+
 export function selectCommandHitResult(opts: {
   commands: CommandHitSource[];
   farmKey: FarmKey | null;
@@ -316,7 +384,7 @@ export function selectCommandHitResult(opts: {
   const farmId = farmKeyId(farmKey);
   const readings = opts.readings ?? [];
   const thermoSettings = opts.thermoSettings ?? {};
-  const limit = opts.limit ?? MAX_MARKS;
+  const limit = opts.limit ?? COMMAND_HIT_MAX_MARKS;
 
   const eligible = opts.commands
     .filter((command) => farmKeyId(command.farmKey) === farmId)
@@ -344,10 +412,9 @@ export function selectCommandHitResult(opts: {
         ...commandHitPayload(command),
       } satisfies CommandHitMark;
     })
-    .filter((mark): mark is CommandHitMark => mark != null)
-    .sort((a, b) => (a.at < b.at ? 1 : -1));
+    .filter((mark): mark is CommandHitMark => mark != null);
 
-  const trimmed = eligible.slice(0, limit).sort((a, b) => (a.at < b.at ? -1 : 1));
+  const trimmed = trimCommandHitMarks(eligible, limit);
   return {
     marks: trimmed,
     hiddenCount: Math.max(0, eligible.length - trimmed.length),
