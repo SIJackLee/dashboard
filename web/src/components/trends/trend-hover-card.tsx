@@ -416,21 +416,7 @@ export function TrendPointCardBody({
     spreadLow != null &&
     spreadHigh.zoneLabel === spreadLow.zoneLabel &&
     spreadHigh.equipmentLabel === spreadLow.equipmentLabel;
-  const spreadUnit = group === "temp" ? "℃" : "%";
-  const formatSpreadRow = (
-    side: "high" | "low",
-    c: NonNullable<typeof spreadHigh>,
-  ) => {
-    const delta =
-      alarmMeta != null
-        ? side === "high"
-          ? c.value - alarmMeta.hi
-          : alarmMeta.lo - c.value
-        : null;
-    const deltaText =
-      delta != null && delta >= -1e-9
-        ? formatLimitBreachDelta(Math.max(0, delta), spreadUnit, side)
-        : null;
+  const formatSpreadRow = (c: NonNullable<typeof spreadHigh>) => {
     const zone = splitSpreadZoneLabel(c.zoneLabel);
     const ctrlNo = spreadControllerNo(c.equipmentLabel);
     return (
@@ -448,15 +434,6 @@ export function TrendPointCardBody({
         ) : (
           <span>{c.equipmentLabel}</span>
         )}
-        <span className="tabular-nums text-muted-foreground">
-          {c.value.toFixed(1)}
-          {spreadUnit}
-        </span>
-        {deltaText ? (
-          <span className="tabular-nums font-medium text-amber-600 dark:text-amber-400">
-            {deltaText}
-          </span>
-        ) : null}
       </>
     );
   };
@@ -627,20 +604,20 @@ export function TrendPointCardBody({
           {spreadSame && spreadHigh ? (
             <div className="farm-chart-fs-legend flex flex-wrap items-center gap-x-1 leading-snug text-foreground/90">
               <span className="text-muted-foreground">산포 ·</span>
-              {formatSpreadRow("high", spreadHigh)}
+              {formatSpreadRow(spreadHigh)}
             </div>
           ) : (
             <>
               {showSpreadHigh && spreadHigh ? (
                 <div className="farm-chart-fs-legend flex flex-wrap items-center gap-x-1 leading-snug text-foreground/90">
                   <span className="text-muted-foreground">상단 ·</span>
-                  {formatSpreadRow("high", spreadHigh)}
+                  {formatSpreadRow(spreadHigh)}
                 </div>
               ) : null}
               {showSpreadLow && spreadLow ? (
                 <div className="farm-chart-fs-legend flex flex-wrap items-center gap-x-1 leading-snug text-foreground/90">
                   <span className="text-muted-foreground">하단 ·</span>
-                  {formatSpreadRow("low", spreadLow)}
+                  {formatSpreadRow(spreadLow)}
                 </div>
               ) : null}
             </>

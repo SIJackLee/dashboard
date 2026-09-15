@@ -64,7 +64,7 @@ function clone(q: string) {
 /** 2) soft home(로고·모니터링) — chart* 제거 · 그리드 홈 · 농장·기간 유지 */
 {
   const source = clone(
-    "lsind=FARM01&item=P00&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1&chartCtrl=x%2Fy",
+    "lsind=FARM01&item=P00&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1&chartCtrl=x%2Fy&chartCmd=1",
   );
   assert.equal(isFarmMonitoringSoftHome(source), false);
 
@@ -78,6 +78,7 @@ function clone(q: string) {
   assert.equal(home.get("chartSp"), null);
   assert.equal(home.get("chartStall"), null);
   assert.equal(home.get("chartCtrl"), null);
+  assert.equal(home.get("chartCmd"), null);
   assert.equal(resolveFarmHubView(home.get("view")), "map");
   assert.equal(resolveFarmChartScope(home).level, "farm");
   assert.equal(isFarmMonitoringSoftHome(home), true);
@@ -164,7 +165,7 @@ function clone(q: string) {
 /** 5) 농장 전환 — drill/탭/chart* 제거 후 새 키 */
 {
   const params = clone(
-    "lsind=FARM01&item=P00&view=list&listMode=graph&sp=SP02&stall=1&ctrl=a%2Fb&chartSp=SP03&planBldg=bd-1&planSp=SP02&trendPeriod=7d",
+    "lsind=FARM01&item=P00&view=list&listMode=graph&sp=SP02&stall=1&ctrl=a%2Fb&chartSp=SP03&chartCmd=1&planBldg=bd-1&planSp=SP02&trendPeriod=7d",
   );
   clearHubFarmDrillParams(params);
   params.set("lsind", "FARM02");
@@ -174,6 +175,7 @@ function clone(q: string) {
   assert.equal(params.get("sp"), null);
   assert.equal(params.get("ctrl"), null);
   assert.equal(params.get("chartSp"), null);
+  assert.equal(params.get("chartCmd"), null);
   assert.equal(params.get("planBldg"), null);
   assert.equal(params.get("planSp"), null);
   assert.equal(params.get("lsind"), "FARM02");
@@ -185,13 +187,14 @@ function clone(q: string) {
 /** 6) 차트 ↔ 모델 — chart* / plan* 서로 지움 */
 {
   const toPlan = clone(
-    "lsind=FARM01&item=P00&view=chart&chartSp=SP03&chartStall=1",
+    "lsind=FARM01&item=P00&view=chart&chartSp=SP03&chartStall=1&chartCmd=1",
   );
   applyHubScopedViewParams(toPlan, "plan");
   if (barnPlanEnabled()) {
     assert.equal(toPlan.get("view"), "model");
     assert.equal(toPlan.get("chartSp"), null);
     assert.equal(toPlan.get("chartStall"), null);
+    assert.equal(toPlan.get("chartCmd"), null);
   } else {
     assert.equal(resolveFarmHubView(toPlan.get("view")), "map");
   }

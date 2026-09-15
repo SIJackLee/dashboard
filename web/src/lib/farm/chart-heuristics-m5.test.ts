@@ -115,7 +115,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   assert.equal(masked.hum, false);
   assert.equal(masked.motors, false);
   assert.equal(masked.motorCh, false);
-  assert.equal(masked.thermo, true);
+  assert.equal(masked.thermo, false);
   assert.equal(masked.thermoMotor, false);
 
   const maskedAll = maskLayersForYBands(ALL_UNIFIED_LAYERS, ["temp"]);
@@ -123,7 +123,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   assert.equal(maskedAll.ema, true);
   assert.equal(maskedAll.hum, false);
   assert.equal(maskedAll.motors, false);
-  assert.equal(maskedAll.thermo, true);
+  assert.equal(maskedAll.thermo, false);
   assert.equal(maskedAll.thermoMotor, false);
 
   const maskedHum = maskLayersForYBands(DEFAULT_UNIFIED_LAYERS, ["hum"]);
@@ -133,7 +133,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
 
   const maskedMotor = maskLayersForYBands(DEFAULT_UNIFIED_LAYERS, ["motor"]);
   assert.equal(maskedMotor.thermo, false);
-  assert.equal(maskedMotor.thermoMotor, true);
+  assert.equal(maskedMotor.thermoMotor, false);
 }
 
 /* —— env comfort (mid / edge / over) —— */

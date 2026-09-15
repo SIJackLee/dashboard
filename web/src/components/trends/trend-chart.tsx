@@ -2,7 +2,6 @@
 
 import {
   Fragment,
-  useCallback,
   useMemo,
   useState,
   useRef,
@@ -14,11 +13,6 @@ import {
 } from "react";
 import { Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  focusCommandRangeFrame,
-  parseChannelSlotLabel,
-  type CommandMarkerFocus,
-} from "@/lib/farm/command-range-overlay";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
   buildTrendAxisMarks,
@@ -92,14 +86,13 @@ import { useTrendPinnedTips } from "./use-trend-pinned-tips";
 import { useTrendScopeGesture } from "./use-trend-scope-gesture";
 import {
   BandGuidesLayer,
-  CommandHoverPreview,
-  CommandChannelRangeOverlay,
   CoverageBandsLayer,
   NullGapsLayer,
   type TrendPlotGeom,
 } from "./trend-chart-svg-layers";
 import { TrendChartDataLayers } from "./trend-chart-data-layers";
 import {
+  CommandHoldLaneSvg,
   EventLaneHtmlOverlay,
   EventLaneSvgGuides,
   type PositionedEventMark,
@@ -355,15 +348,6 @@ export function TrendChart({
     useTrendPinnedTips({
       resetKey: pinResetKey ?? `${period ?? ""}|${categories.length}`,
     });
-  // 클러스터 줌인 이탈 시, 해당 멤버들의 이벤트 핀 카드 제거.
-  const clearEventPins = useCallback(
-    (markIds: string[]) => {
-      if (markIds.length === 0) return;
-      const ids = new Set(markIds.map((m) => `event:${m}`));
-      setPinnedTips((prev) => prev.filter((p) => !ids.has(p.id)));
-    },
-    [setPinnedTips],
-  );
   const [edgeDragId, setEdgeDragId] = useState<string | null>(null);
   const [edgeEdit, setEdgeEdit] = useState<{
     id: string;
@@ -387,7 +371,6 @@ export function TrendChart({
   const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
   const plotWidthNotifyRef = useRef(0);
   const glowFilterId = `tc-glow-${useId().replace(/:/g, "")}`;
-  const commandPreviewGradId = `tc-cmd-prev-${useId().replace(/:/g, "")}`;
   /** 기간 변경 시만 plot wipe — 카테고리 trim/X스코프는 remount 금지 */
   const plotEnterKey = animate ? String(period ?? "p") : "static";
 
@@ -756,40 +739,7 @@ export function TrendChart({
     const inCommandLane = yPx >= laneTopPx - 8;
     const pairMaxDx = Math.max(hoverPairSlotDx(innerW, n), 6);
 
-    let eventFromLane: PositionedEventMark | null = null;
-    if (inCommandLane && positionedEventMarks.length > 0) {
-      let bestD2 = hitR2;
-      for (const row of positionedEventMarks) {
-        const sx = (row.xView / viewW) * plotW;
-        const sy = (row.yView / chartH) * plotH;
-        const dx = xPx - sx;
-        const dy = yPx - sy;
-        const d2 = dx * dx + dy * dy;
-        if (d2 <= bestD2) {
-          bestD2 = d2;
-          eventFromLane = row;
-        }
-      }
-      if (!eventFromLane) {
-        const xView = (xPx / plotW) * viewW;
-        eventFromLane = nearestByXView(
-          positionedEventMarks,
-          xView,
-          pairMaxDx,
-        );
-      }
-    }
-
-    if (n === 0) {
-      if (!eventFromLane) return null;
-      return {
-        idx: 0,
-        xView: eventFromLane.xView,
-        yView: eventFromLane.yView,
-        seriesKey: `event:${eventFromLane.mark.id}`,
-        eventMark: eventFromLane.mark,
-      };
-    }
+    if (n === 0) return null;
     let bestD2 = hitR2;
     let best: {
       idx: number;
@@ -916,7 +866,7 @@ export function TrendChart({
       }
     }
 
-    /** 온도·모터 위 명령(설정 변경) 점 — 본선·막대보다 우선, 점 위 채널 라벨도 히트 */
+    /** 마커 전용 시리즈 — 본선·막대보다 우선 */
     const markerHitR = hitR * 2.2;
     const markerLabelHalfW = Math.max(22, hitR * 1.4);
     let markerHitD2 = markerHitR * markerHitR;
@@ -956,13 +906,6 @@ export function TrendChart({
       return markerHit;
     }
 
-    const motorSeriesKey =
-      histograms.find(
-        (h) => inferHoverMetricGroup(h.legendLabel ?? "") === "motor",
-      )?.legendLabel ??
-      series.find((s) => inferHoverMetricGroup(s.name) === "motor")?.name ??
-      null;
-
     const nearestMotorByX = (xView: number) => {
       let picked: {
         idx: number;
@@ -998,33 +941,19 @@ export function TrendChart({
       inCommandLane &&
       (!best || inferHoverMetricGroup(best.seriesKey) !== "motor")
     ) {
-      const xView = eventFromLane?.xView ?? (xPx / plotW) * viewW;
+      const xView = (xPx / plotW) * viewW;
       const motorAtX = nearestMotorByX(xView);
       if (motorAtX) best = motorAtX;
     }
 
     const motorHit =
       best != null && inferHoverMetricGroup(best.seriesKey) === "motor";
-    let eventMark = eventFromLane?.mark;
-    if (!eventMark && motorHit && best) {
-      eventMark =
-        nearestByXView(positionedEventMarks, best.xView, pairMaxDx)?.mark;
-    }
+    const eventMark =
+      motorHit && best
+        ? nearestByXView(positionedEventMarks, best.xView, pairMaxDx)?.mark
+        : undefined;
 
-    if (!best) {
-      if (!eventMark || !eventFromLane) return null;
-      const motorAtX = nearestMotorByX(eventFromLane.xView);
-      if (motorAtX) {
-        return { ...motorAtX, eventMark };
-      }
-      return {
-        idx: 0,
-        xView: eventFromLane.xView,
-        yView: eventFromLane.yView,
-        seriesKey: motorSeriesKey ?? `event:${eventMark.id}`,
-        eventMark,
-      };
-    }
+    if (!best) return null;
 
     return { ...best, eventMark };
   };
@@ -1206,7 +1135,7 @@ export function TrendChart({
     };
     /** 플롯 본문·명령 레인 모두 시간 줌 가능 — 알람선 전체폭 hit로 X스코프를 가로채지 않음.
      *  알람 세로 조절은 우측 숫자 라벨 드래그 / 우클릭 숫자 입력.
-     *  명령 점 위 탭/드래그는 EventLaneHtmlOverlay가 처리. */
+     *  명령 레인 유지띠 탭/드래그는 EventLaneHtmlOverlay가 처리. */
     if (xScopeSelect) onXScopePointerDown(e);
   };
 
@@ -1479,8 +1408,7 @@ export function TrendChart({
     );
     setCrosshairAt(xView, yView);
 
-    // 명령 점 HTML 버튼이 호버를 소유한다. 플롯 히트가 레이블(점 위)을
-    // 놓치면 농도 띠가 바로 꺼진다.
+    // 명령 레인 유지띠 HTML이 호버를 소유한다.
     if (
       e.target instanceof Element &&
       e.target.closest("[data-trend-event-mark]")
@@ -1778,53 +1706,6 @@ export function TrendChart({
     innerH,
     n,
   };
-  const commandPreviewMark =
-    hoverEventMark ??
-    [...pinnedTips].reverse().find((p) => p.eventMark)?.eventMark ??
-    null;
-  const commandMarkerFocus = ((): CommandMarkerFocus | null => {
-    const frameHost = (idx: number) =>
-      series.find(
-        (s) => (s.commandRangePreview?.[idx]?.channels.length ?? 0) > 0,
-      );
-    const fromPlot = (
-      idx: number | null,
-      seriesName: string | null,
-    ): CommandMarkerFocus | null => {
-      if (idx == null || seriesName == null) return null;
-      const hovered = series.find((s) => s.name === seriesName);
-      if (!hovered?.markerOnly) return null;
-      const channel = parseChannelSlotLabel(hovered.markerLabels?.[idx]);
-      if (!channel || !frameHost(idx)) return null;
-      return { idx, channel };
-    };
-    const fromEvent = (
-      mark: typeof hoverEventMark,
-      idx: number | null,
-    ): CommandMarkerFocus | null => {
-      if (!mark || idx == null) return null;
-      const channel = parseChannelSlotLabel(mark.markerLabel);
-      if (!channel || !frameHost(idx)) return null;
-      return { idx, channel, eventMarkId: mark.id };
-    };
-    return (
-      fromPlot(hoverIdx, hoverSeries) ??
-      fromEvent(hoverEventMark, hoverIdx) ??
-      [...pinnedTips]
-        .reverse()
-        .map((p) => (p.eventMark ? null : fromPlot(p.idx, p.seriesKey)))
-        .find((f) => f != null) ??
-      null
-    );
-  })();
-  const commandRangeHover = commandMarkerFocus
-    ? focusCommandRangeFrame(
-        series.find((s) => s.commandRangePreview)?.commandRangePreview?.[
-          commandMarkerFocus.idx
-        ] ?? null,
-        commandMarkerFocus.channel,
-      )
-    : null;
 
   return (
     <div
@@ -2147,40 +2028,29 @@ export function TrendChart({
           shouldShowMarker={shouldShowMarker}
           lineSegments={lineSegments}
           envelopePaths={envelopePaths}
-          commandMarkerFocus={commandMarkerFocus}
         />
         {eventLane && eventLaneH > 0 ? (
-          <EventLaneSvgGuides
-            padL={padL}
-            padR={padR}
-            viewW={viewW}
-            laneTop={eventLaneTop}
-            laneH={eventLaneH}
-            rowCount={eventLane.rowLabels.length}
-          />
+          <>
+            <CommandHoldLaneSvg
+              marks={positionedEventMarks}
+              padL={padL}
+              padR={padR}
+              viewW={viewW}
+              laneTop={eventLaneTop}
+              laneH={eventLaneH}
+              rowCount={eventLane.rowLabels.length}
+            />
+            <EventLaneSvgGuides
+              padL={padL}
+              padR={padR}
+              viewW={viewW}
+              laneTop={eventLaneTop}
+              laneH={eventLaneH}
+              rowCount={eventLane.rowLabels.length}
+            />
+          </>
         ) : null}
         </g>
-        {commandRangeHover?.channels.length ? (
-          <CommandChannelRangeOverlay
-            frame={commandRangeHover}
-            geom={plotGeom}
-            gradientId={`${commandPreviewGradId}-ch`}
-          />
-        ) : (
-          <CommandHoverPreview
-            mark={commandPreviewMark}
-            xView={
-              commandPreviewMark
-                ? (positionedEventMarks.find(
-                    (row) => row.mark.id === commandPreviewMark.id,
-                  )?.xView ?? null)
-                : null
-            }
-            geom={plotGeom}
-            gradientId={commandPreviewGradId}
-          />
-        )}
-
         {/* 마우스 기준 회색 십자선 — DOM 직접 갱신(리렌더 최소화) */}
         <line
           ref={crossVRef}
@@ -2315,11 +2185,8 @@ export function TrendChart({
           chartH={chartH}
           laneTop={eventLaneTop}
           laneH={eventLaneH}
-          compact={labelGutter}
-          hideEventMarks={Boolean(
-            commandMarkerFocus && !commandMarkerFocus.eventMarkId,
-          )}
-          focusEventMarkId={commandMarkerFocus?.eventMarkId ?? null}
+          padL={padL}
+          padR={padR}
           labelGutter={labelGutter}
           selectedId={
             [...pinnedTips]
@@ -2338,8 +2205,6 @@ export function TrendChart({
               if (prev.some((p) => p.id === id)) {
                 return prev.filter((p) => p.id !== id);
               }
-              // 부채꼴 클릭 시 anchor(펼친 표시 위치)를 우선 사용해
-              // 지시선이 실제 겹친 중심이 아닌 각 점을 가리키게 한다.
               const next: PinnedTip = {
                 id,
                 idx: 0,
@@ -2354,7 +2219,6 @@ export function TrendChart({
               return [...prev, next].slice(-MAX_PINNED_TIPS);
             });
           }}
-          onClearEventPins={clearEventPins}
           onEmptyContextMenu={() => {
             // 카드가 있으면 일괄 닫기(줌인 뒤로가기보다 우선). 처리 시 true.
             if (pinnedTips.length > 0) {

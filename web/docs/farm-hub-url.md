@@ -44,7 +44,8 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `chartSp` | 축사유형 코드 | — | 차트 집계 (유형). 맵 `sp`와 분리 |
 | `chartStall` | 축사번호 | — | 차트 집계 (축사). `chartSp` 필요 |
 | `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 (컨트롤러). `chartSp`+`chartStall` 필요 |
-| `chartYBand` | `temp` \| `hum` \| `motor` \| `command` (+로 복수) | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff. `command`=명령 이력 레인 |
+| `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수). 레거시 `command`는 `chartCmd`로 해석 | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
+| `chartCmd` | `1` | — | 컨트롤러 집계에서 **명령 이력** 전용 차트. 집계 트리 컨트롤러 행 「명령」 토글 |
 | `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |
 | `planBldg` | 건물 id | — | 모델 포커스(건물). **3단계(배치) 이후.** 지금은 미사용 |
 | `planSp` | 축사유형 코드 | — | 모델 구역(유형). **3단계 이후.** 지금은 미사용 |

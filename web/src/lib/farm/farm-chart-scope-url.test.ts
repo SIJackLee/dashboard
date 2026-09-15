@@ -5,11 +5,13 @@ import assert from "node:assert/strict";
 import {
   applyFarmChartScopeParams,
   applyFarmChartZoomParams,
+  applyFarmChartCmdParam,
   chartScopeEntryToZoomHint,
   clampChartScopeToType,
   clearFarmChartScopeParams,
   clearFarmChartZoomParams,
   filterFarmChartTreeByType,
+  resolveFarmChartCmdParam,
   resolveFarmChartScope,
   resolveFarmChartZoomHint,
   scopesEqual,
@@ -134,10 +136,27 @@ import {
     startRatio: 0.1,
     endRatio: 0.9,
   });
-  assert.equal(params.get("chartYBand"), "temp+command");
+  assert.equal(params.get("chartYBand"), "temp");
+  assert.equal(params.get("chartCmd"), "1");
   const zoom = resolveFarmChartZoomHint(params);
   assert.ok(zoom);
-  assert.deepEqual(zoom!.yBands, ["temp", "command"]);
+  assert.deepEqual(zoom!.yBands, ["temp"]);
+  assert.equal(resolveFarmChartCmdParam(params), true);
+}
+
+{
+  const params = new URLSearchParams("chartYBand=command");
+  assert.equal(resolveFarmChartCmdParam(params), true);
+  const zoom = resolveFarmChartZoomHint(params);
+  assert.equal(zoom, null);
+}
+
+{
+  const params = new URLSearchParams("chartCmd=1");
+  assert.equal(resolveFarmChartCmdParam(params), true);
+  applyFarmChartCmdParam(params, false);
+  assert.equal(params.get("chartCmd"), null);
+  assert.equal(resolveFarmChartCmdParam(params), false);
 }
 
 {

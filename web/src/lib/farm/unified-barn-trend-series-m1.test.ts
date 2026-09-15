@@ -15,7 +15,6 @@ import {
   pickUnifiedTrendLayers,
   resolveSplitYLayout,
   SPLIT_Y_BAND_GAP,
-  UNIFIED_CHART_LABELS,
   paddedExtentDomain,
   fitTempDisplayDomain,
   mapTempCToSplitY,
@@ -236,84 +235,13 @@ const layoutTempOnly = resolveSplitYLayout({
   const mapped = mapUnifiedBarnTrendRawToSplitY(raw!, layoutFull);
   assert.ok(mapped);
   assert.ok(mapped.tempDomain[1] < 29, "설정 구간은 온도 Y 도메인에 넣지 않음");
-  assert.equal(mapped!.available.thermo, true);
-  assert.equal(mapped!.available.thermoMotor, true);
-  assert.ok(mapped!.seriesThermoTempChange);
-  assert.ok(mapped!.seriesThermoMotorChange);
-  assert.equal(mapped!.seriesThermoTempChange!.name, UNIFIED_CHART_LABELS.thermoTempChange);
-  assert.equal(mapped!.seriesThermoTempChange!.data[0], null);
-  assert.equal(mapped!.seriesThermoTempChange!.data[1], null);
-  assert.ok(mapped!.seriesThermoTempChange!.data[2] != null);
-  assert.equal(mapped!.seriesThermoTempChange!.markerLabels?.[2], "A");
-  const rangeAt2 = mapped!.seriesThermoTempChange!.commandRangePreview?.[2];
-  assert.ok(rangeAt2);
-  assert.equal(rangeAt2!.channels.length, 3);
-  const [tLo, tHi] = mapped.tempDomain;
-  const tempLabel = (ch: "A" | "B" | "C", v: number) =>
-    v >= tLo && v <= tHi ? `${ch} ${v.toFixed(1)}℃` : null;
-  assert.equal(rangeAt2!.channels[0]?.tempLoText, tempLabel("A", 25));
-  assert.equal(rangeAt2!.channels[0]?.tempHiText, tempLabel("A", 30));
-  assert.equal(rangeAt2!.channels[1]?.tempLoText, tempLabel("B", 27));
-  assert.equal(rangeAt2!.channels[1]?.tempHiText, tempLabel("B", 31));
-  assert.equal(rangeAt2!.channels[2]?.tempLoText, tempLabel("C", 28));
-  assert.equal(rangeAt2!.channels[2]?.tempHiText, tempLabel("C", 31));
-  assert.equal(rangeAt2!.channels[0]?.motorLoText, "A 20%");
-  assert.equal(rangeAt2!.channels[0]?.motorHiText, "A 90%");
-  assert.equal(rangeAt2!.channels[1]?.motorLoText, "B 20%");
-  assert.equal(rangeAt2!.channels[1]?.motorHiText, "B 80%");
-  assert.equal(rangeAt2!.channels[2]?.motorLoText, "C 30%");
-  assert.equal(rangeAt2!.channels[2]?.motorHiText, "C 70%");
-  assert.match(
-    mapped!.seriesThermoTempChange!.hoverNote?.[2] ?? "",
-    /채널 A .*24\.0℃.*25\.0℃/,
-  );
+  assert.equal(mapped!.available.thermo, false);
+  assert.equal(mapped!.available.thermoMotor, false);
   const picked = pickUnifiedTrendLayers(mapped!, DEFAULT_UNIFIED_LAYERS);
   assert.equal(
-    picked.series.filter((s) => s.name === UNIFIED_CHART_LABELS.thermoTempChange)
-      .length,
-    1,
-  );
-  assert.equal(
-    picked.series.filter((s) => s.name === UNIFIED_CHART_LABELS.thermoMotorChange)
-      .length,
-    1,
-  );
-  const tempOff = pickUnifiedTrendLayers(mapped!, {
-    ...DEFAULT_UNIFIED_LAYERS,
-    temp: false,
-    band: false,
-    thermo: true,
-    thermoMotor: false,
-  });
-  assert.equal(
-    tempOff.series.filter((s) => s.name === UNIFIED_CHART_LABELS.thermoTempChange)
-      .length,
-    1,
-  );
-  assert.equal(
-    tempOff.series.filter((s) => s.name === UNIFIED_CHART_LABELS.thermoMotorChange)
-      .length,
+    picked.series.filter((s) => s.markerOnly).length,
     0,
   );
-  const motorSettingOnly = pickUnifiedTrendLayers(mapped!, {
-    ...DEFAULT_UNIFIED_LAYERS,
-    motors: false,
-    thermo: false,
-    thermoMotor: true,
-  });
-  assert.equal(
-    motorSettingOnly.series.filter(
-      (s) => s.name === UNIFIED_CHART_LABELS.thermoTempChange,
-    ).length,
-    0,
-  );
-  assert.equal(
-    motorSettingOnly.series.filter(
-      (s) => s.name === UNIFIED_CHART_LABELS.thermoMotorChange,
-    ).length,
-    1,
-  );
-
   const skipped = aggregateUnifiedBarnTrendRaw(list, categories, thresholds, {
     includeThermo: true,
   });

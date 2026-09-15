@@ -10,7 +10,6 @@ import {
   Droplets,
   Fan,
   Layers,
-  Settings,
   Thermometer,
   X,
 } from "lucide-react";
@@ -147,27 +146,7 @@ type Props = {
   overlayView?: boolean;
   overlayAvailable?: boolean;
   onToggleOverlay?: () => void;
-  onToggleSetting?: (kind: "temp" | "motor") => void;
 };
-
-function settingLayerOn(
-  layers: UnifiedLayerFlags,
-  kind: "temp" | "motor",
-): boolean {
-  return kind === "temp" ? layers.thermo : layers.thermoMotor;
-}
-
-function settingAvailable(
-  available: UnifiedTrendLayerAvailable,
-  kind: "temp" | "motor",
-): boolean {
-  return kind === "temp" ? available.thermo : available.thermoMotor;
-}
-
-function settingTooltip(kind: "temp" | "motor", on: boolean): string {
-  const name = kind === "temp" ? "온도 설정" : "모터 설정";
-  return on ? `${name} 보기 · 다음: ${name} 끔` : `${name} 끔 · 다음: ${name} 보기`;
-}
 
 function toneActiveClass(tone: Tone): string {
   switch (tone) {
@@ -254,27 +233,9 @@ function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
   );
 }
 
-function ChannelSettingGlyph({
-  Icon,
-}: {
-  Icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-}) {
-  return (
-    <span className="relative inline-flex size-4 items-center justify-center md:size-5">
-      <Icon className="size-4 md:size-5" aria-hidden />
-      <Settings
-        className="absolute -bottom-0.5 -right-1 size-2.5 md:size-3"
-        strokeWidth={dashboardUi.iconStroke}
-        aria-hidden
-      />
-    </span>
-  );
-}
-
 /**
  * 차트 레이어 툴바 — 온도·습도·모터 가로 버튼 (헤더용).
  * 각 버튼 클릭: 기본보기(본선+산포) ↔ 끔.
- * 컨트롤러 범위에서는 온도·모터 아래에 설정 변경 토글을 둔다.
  */
 export function UnifiedTrendLayerToolbar({
   layers,
@@ -284,7 +245,6 @@ export function UnifiedTrendLayerToolbar({
   overlayView = false,
   overlayAvailable = false,
   onToggleOverlay,
-  onToggleSetting,
 }: Props) {
   const groups = (
     [
@@ -296,16 +256,11 @@ export function UnifiedTrendLayerToolbar({
 
   if (groups.length === 0) return null;
 
-  const showTempSetting =
-    Boolean(onToggleSetting) && settingAvailable(available, "temp");
-  const showMotorSetting =
-    Boolean(onToggleSetting) && settingAvailable(available, "motor");
-
   return (
     <TooltipProvider delay={200}>
       <div
         className={cn(
-          "inline-flex items-start gap-1 overflow-visible",
+          "inline-flex items-center gap-1 overflow-visible",
           className,
         )}
         data-tour-id="unified-trend-layer-toolbar"
@@ -319,46 +274,23 @@ export function UnifiedTrendLayerToolbar({
           const mode = detectLayerGroupMode(layers, available, group);
           const on = mode !== "off";
           const tip = `${modeTooltip(group, mode)} · ${nextModeHint(group, mode)}`;
-          const settingKind =
-            group === "temp" || group === "motor" ? group : null;
-          const showSetting =
-            settingKind != null &&
-            (settingKind === "temp" ? showTempSetting : showMotorSetting);
-          const settingOn =
-            settingKind != null && settingLayerOn(layers, settingKind);
 
           return (
             <div
               key={group}
-              className="flex flex-col items-center gap-1 overflow-visible"
+              className="relative overflow-visible"
             >
-              <div className="relative overflow-visible">
-                <IconTipButton
-                  label={tip}
-                  pressed={on}
-                  on={on}
-                  muted={!on}
-                  tone={meta.tone}
-                  onClick={() => onCycleGroup(group)}
-                >
-                  <Icon className="size-4 md:size-5" aria-hidden />
-                  <ModeOverlay mode={mode} />
-                </IconTipButton>
-              </div>
-              {showSetting && settingKind && onToggleSetting ? (
-                <div className="relative overflow-visible">
-                  <IconTipButton
-                    label={settingTooltip(settingKind, settingOn)}
-                    pressed={settingOn}
-                    on={settingOn}
-                    muted={!settingOn}
-                    tone={meta.tone}
-                    onClick={() => onToggleSetting(settingKind)}
-                  >
-                    <ChannelSettingGlyph Icon={Icon} />
-                  </IconTipButton>
-                </div>
-              ) : null}
+              <IconTipButton
+                label={tip}
+                pressed={on}
+                on={on}
+                muted={!on}
+                tone={meta.tone}
+                onClick={() => onCycleGroup(group)}
+              >
+                <Icon className="size-4 md:size-5" aria-hidden />
+                <ModeOverlay mode={mode} />
+              </IconTipButton>
             </div>
           );
         })}

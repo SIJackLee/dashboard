@@ -13,6 +13,8 @@ import {
   CHART_Y_BAND_PARAM,
   CHART_X0_PARAM,
   CHART_X1_PARAM,
+  CHART_CMD_PARAM,
+  clearFarmChartCmdParam,
 } from "@/lib/farm/farm-chart-scope";
 import {
   barnPlanEnabled,
@@ -136,6 +138,7 @@ export function applyListViewParams(params: URLSearchParams): void {
   params.delete("mapLevel");
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
+  clearFarmChartCmdParam(params);
   clearBarnPlanParams(params);
 }
 
@@ -170,6 +173,7 @@ export function applyModelViewParams(
   params.delete("mapLevel");
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
+  clearFarmChartCmdParam(params);
 }
 
 /** 옛 델린 탭 주소 — 현장(그리드)으로 보냄. */
@@ -184,6 +188,7 @@ export function applyMapGridParams(params: URLSearchParams): void {
   clearMapDrillParams(params);
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
+  clearFarmChartCmdParam(params);
   clearBarnPlanParams(params);
 }
 
@@ -270,6 +275,7 @@ export function clearHubFarmDrillParams(params: URLSearchParams): void {
   params.delete("alarm");
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
+  clearFarmChartCmdParam(params);
   clearBarnPlanParams(params);
 }
 
@@ -341,7 +347,8 @@ export function isFarmMonitoringSoftHome(params: URLSearchParams): boolean {
     params.get(CHART_CTRL_PARAM) ||
     params.get(CHART_Y_BAND_PARAM) ||
     params.get(CHART_X0_PARAM) ||
-    params.get(CHART_X1_PARAM)
+    params.get(CHART_X1_PARAM) ||
+    params.get(CHART_CMD_PARAM)
   ) {
     return false;
   }

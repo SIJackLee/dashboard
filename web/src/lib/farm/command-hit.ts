@@ -18,6 +18,7 @@ import { formatTempDisplay, formatVentDisplay } from "@/lib/farm/command-confirm
 import type { FarmChartScope } from "@/lib/farm/farm-chart-scope";
 import { parseCategoryTimelineMs } from "@/lib/farm/trend-display-buckets";
 import type { TrendEventLane, TrendEventMark } from "@/lib/data/trend-chart-types";
+import { commandHoldRowIndex } from "@/lib/farm/command-hold-bands";
 
 /** 차트 레인에 남기는 단계. 적용(`applied`=확인)만 그린다. */
 export const COMMAND_HIT_STAGES = ["확인", "전송", "접수"] as const;
@@ -98,7 +99,9 @@ export type CommandHitAxis = {
   end: string;
 };
 
-/** 픽셀 클러스터가 겹침을 접으므로, 최신만 남기면 이전 날짜가 차트에서 사라진다. */
+/** 시간 구간에 나눠 남기고, 빈 칸은 최신으로 채운다.
+ * 최신만 자르면 같은 날 대량 전송이 이전 날짜 유지띠를 밀어낸다.
+ */
 export const COMMAND_HIT_MAX_MARKS = 400;
 const LIVE_END_MS = 2 * 60 * 60 * 1000;
 const STAGE_KEEP_RANK: Record<CommandHitStage, number> = {
@@ -106,8 +109,8 @@ const STAGE_KEEP_RANK: Record<CommandHitStage, number> = {
   전송: 2,
   접수: 1,
 };
-/** 추이 플롯 하단 적용 명령 행 높이(1×, 단일 행). 차트 탭은 farm-chart-ui 배율을 곱한다. */
-export const COMMAND_HIT_LANE_PX = 56;
+/** 추이 플롯 하단 명령 레인 높이(1×, A/B/C 3행). 차트 탭은 farm-chart-ui 배율을 곱한다. */
+export const COMMAND_HIT_LANE_PX = 96;
 
 export function isCommandHitStage(
   stage: ApplyQueueStage,
@@ -413,7 +416,7 @@ function pickMarkInBucket(bucket: CommandHitMark[]): CommandHitMark {
 
 /**
  * 상한을 넘으면 시간 구간에 나눠 남기고, 빈 칸은 최신으로 채운다.
- * 최신만 자르면 같은 날 대량 전송이 이전 날짜 점을 밀어낸다.
+ * 최신만 자르면 같은 날 대량 전송이 이전 날짜 유지띠를 밀어낸다.
  */
 export function trimCommandHitMarks(
   marks: CommandHitMark[],
@@ -531,33 +534,30 @@ function commandHitInfoStrength(
   return 1;
 }
 
-export function commandHitToEventMark(
-  mark: CommandHitMark,
-  map?: {
-    temp: (c: number | null) => number | null;
-    motor: (pct: number | null) => number | null;
-  },
-): TrendEventMark {
+export function commandHitToEventMark(mark: CommandHitMark): TrendEventMark {
   const channelLabel = commandChannelLabel(mark.channel);
-  const preview = map
-    ? {
-        tempLo: map.temp(mark.tempLoC),
-        tempHi: map.temp(mark.tempHiC),
-        motorLo: map.motor(mark.minVentPct),
-        motorHi: map.motor(mark.maxVentPct),
-      }
-    : undefined;
+  const row = commandHoldRowIndex(mark.channel) ?? 0;
+  const hold =
+    mark.channel != null
+      ? {
+          channel: mark.channel,
+          tempLo: mark.tempLoC,
+          tempHi: mark.tempHiC,
+          ventLo: mark.minVentPct,
+          ventHi: mark.maxVentPct,
+        }
+      : undefined;
   return {
     id: mark.id,
     atMs: Date.parse(mark.at),
-    row: 0,
+    row,
     tone: mark.stage === "확인" ? "ok" : "info",
     infoStrength: commandHitInfoStrength(mark.stage),
     ariaLabel: channelLabel
       ? `${formatKst(mark.at, "short")} ${mark.stage} ${channelLabel}`
       : `${formatKst(mark.at, "short")} ${mark.stage} ${mark.setpoint}`,
     markerLabel: mark.channel ?? undefined,
-    preview,
+    hold,
     card: {
       badge: "명령",
       time: formatKst(mark.at, "short"),
@@ -588,19 +588,13 @@ export function commandHitEventLane(opts: {
   marks: CommandHitMark[];
   hiddenCount?: number;
   windowLabel: string;
-  mapTemp?: (c: number | null) => number | null;
-  mapMotor?: (pct: number | null) => number | null;
 }): TrendEventLane {
   const stats = commandHitStats(opts.marks, opts.hiddenCount ?? 0);
-  const map =
-    opts.mapTemp && opts.mapMotor
-      ? { temp: opts.mapTemp, motor: opts.mapMotor }
-      : undefined;
   return {
     label: "명령",
-    rowLabels: ["적용"],
+    rowLabels: ["A", "B", "C"],
     statsLine: commandHitStatsLine(opts.windowLabel, stats),
     emptyLabel: "이 구간에 적용된 명령이 없습니다.",
-    marks: opts.marks.map((mark) => commandHitToEventMark(mark, map)),
+    marks: opts.marks.map((mark) => commandHitToEventMark(mark)),
   };
 }

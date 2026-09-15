@@ -30,36 +30,12 @@ export type TrendSeries = {
   hoverAlarmBand?: { lo: number; hi: number; unit: string };
   /** 산포 상·하단 기여자 (임계 초과 시 tip 표시). */
   hoverSpreadExtremes?: TrendSpreadExtremes;
-  /** true면 선 없이 점·라벨만 (설정 변경 등). */
+  /** true면 선 없이 점·라벨만. */
   markerOnly?: boolean;
   /** 마커 옆 짧은 라벨. data와 동일 길이. */
   markerLabels?: (string | null)[];
   /** 호버 부가 설명(이전→다음). data와 동일 길이. */
   hoverNote?: (string | null)[];
-  /**
-   * 명령/설정 마커 호버 — 채널별 온도·환기 구간 (data와 동일 길이).
-   * 플롯 X 전폭 농도 띠·수치 라벨에 쓴다.
-   */
-  commandRangePreview?: TrendCommandRangeFrame[];
-};
-
-/** 한 시점의 채널별 명령 구간 (split-Y 좌표 + 표시 문구) */
-export type TrendCommandChannelRange = {
-  channel: ChannelSlot;
-  tempLo: number | null;
-  tempHi: number | null;
-  motorLo: number | null;
-  motorHi: number | null;
-  /** 하한 선 라벨 (A 24.5℃) */
-  tempLoText: string | null;
-  /** 상한 선 라벨 (A 28.0℃) */
-  tempHiText: string | null;
-  motorLoText: string | null;
-  motorHiText: string | null;
-};
-
-export type TrendCommandRangeFrame = {
-  channels: TrendCommandChannelRange[];
 };
 
 /** 산포 min/max를 만든 구역·장비 (호버 카드용). */
@@ -227,18 +203,19 @@ export type TrendEventMarkCard = {
   };
 };
 
-/** 명령 호버 — 설정 구간을 플롯 domain Y로 미리보기 */
-export type TrendEventMarkPreview = {
+/** 명령 레인 유지띠 — 원단위 (본선 Y와 분리) */
+export type TrendEventMarkHold = {
+  channel: ChannelSlot;
   tempLo: number | null;
   tempHi: number | null;
-  motorLo: number | null;
-  motorHi: number | null;
+  ventLo: number | null;
+  ventHi: number | null;
 };
 
 export type TrendEventMark = {
   id: string;
   atMs: number;
-  /** 0 = 행 맨 위 */
+  /** 0 = 행 맨 위 (A=0 · B=1 · C=2) */
   row: number;
   tone: "ok" | "info";
   /** info일 때 농도 1(옅음)~3(진함) */
@@ -247,8 +224,8 @@ export type TrendEventMark = {
   card: TrendEventMarkCard;
   /** 레인 점 위 채널 슬롯 (A/B/C) */
   markerLabel?: string;
-  /** 호버 시 온도·환기 구간 농도 띠 (split Y) */
-  preview?: TrendEventMarkPreview;
+  /** 적용 시점부터 다음 같은 채널 명령까지 유지할 온도·환기 구간 */
+  hold?: TrendEventMarkHold;
 };
 
 export type TrendEventLane = {

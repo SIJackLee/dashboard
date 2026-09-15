@@ -64,6 +64,9 @@ type Props = {
   initialZoom?: ChartTrendZoomHint | null;
   /** E — 집중 칩 → URL chartYBand 동기화 */
   onZoomChange?: (zoom: ChartTrendZoomHint | null) => void;
+  /** 컨트롤러 행 토글 — 명령 이력 전용 차트 */
+  commandPaneOpen?: boolean;
+  onCommandPaneChange?: (open: boolean) => void;
   alarmSettings?: AlarmSettings;
   /** LIVE/명령 반영 제어값 */
   thermoSettings?: Record<string, ControllerThermoSettings>;
@@ -179,6 +182,8 @@ export function FarmChartView({
   onScopeChange,
   initialZoom = null,
   onZoomChange,
+  commandPaneOpen = false,
+  onCommandPaneChange,
   alarmSettings,
   thermoSettings,
   canCommand = false,
@@ -323,6 +328,16 @@ export function FarmChartView({
     if (isMobileStack) setScopePanelOpen(false);
   };
 
+  const toggleCommandPane = (ctrlScope: FarmChartScope) => {
+    const same = scopesEqual(effectiveScope, ctrlScope);
+    if (!same) {
+      selectScope(ctrlScope);
+      if (!commandPaneOpen) onCommandPaneChange?.(true);
+      return;
+    }
+    onCommandPaneChange?.(!commandPaneOpen);
+  };
+
   const scopeTree = (
     <nav
       className="space-y-0.5"
@@ -431,6 +446,12 @@ export function FarmChartView({
                                   scopeTones.byCtrl.get(c.controllerKey) ?? null
                                 }
                                 touchFriendly={isMobileStack}
+                                commandToggle={{
+                                  pressed:
+                                    commandPaneOpen &&
+                                    scopesEqual(effectiveScope, ctrlScope),
+                                  onToggle: () => toggleCommandPane(ctrlScope),
+                                }}
                               />
                             );
                           })
@@ -488,6 +509,7 @@ export function FarmChartView({
             onScopeChange={selectScope}
             initialZoom={initialZoom}
             onZoomChange={onZoomChange}
+            commandPaneOpen={commandPaneOpen}
             canCommand={canCommand}
             isMobileStack={isMobileStack}
             chartHeight={chartHeight}
@@ -666,6 +688,7 @@ function ScopeRow({
   expanded,
   onToggleExpand,
   touchFriendly = false,
+  commandToggle,
 }: {
   selected: boolean;
   onSelect: () => void;
@@ -679,6 +702,10 @@ function ScopeRow({
   expanded?: boolean;
   onToggleExpand?: () => void;
   touchFriendly?: boolean;
+  commandToggle?: {
+    pressed: boolean;
+    onToggle: () => void;
+  };
 }) {
   const toneLabel =
     tone === "guide"
@@ -788,6 +815,32 @@ function ScopeRow({
           </span>
         ) : null}
       </button>
+      {commandToggle ? (
+        <button
+          type="button"
+          data-tour-id="farm-chart-command-toggle"
+          aria-pressed={commandToggle.pressed}
+          aria-label={
+            commandToggle.pressed ? "명령 이력 숨기기" : "명령 이력 보기"
+          }
+          title={commandToggle.pressed ? "명령 이력 숨기기" : "명령 이력 보기"}
+          onClick={(e) => {
+            e.stopPropagation();
+            commandToggle.onToggle();
+          }}
+          className={cn(
+            "shrink-0 rounded-md border px-1.5 font-medium",
+            farmChartUi.fsLegend,
+            touchFriendly ? "min-h-11 py-2.5" : "py-1",
+            motionClass.microHover,
+            commandToggle.pressed
+              ? "border-channel-info/30 bg-channel-info/10 text-channel-info dark:bg-channel-info/15"
+              : cn(dashboardAffordance.chipToggleIdle, "text-muted-foreground"),
+          )}
+        >
+          명령
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -10,7 +10,6 @@ import type { AlarmThresholds } from "@/lib/data/alarms";
 import type { TrendControllerSeries } from "@/lib/data/farm-trend-types";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
-import { buildCommandRangePreview } from "@/lib/farm/command-range-overlay";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   formatHumidityAlarmRange,
@@ -20,10 +19,7 @@ import {
   absFanWindows,
   emptyChannelThermo,
   hasFiniteWindow,
-  thermoChangeMarks,
   type FanControlWindow,
-  type ThermoChannelChange,
-  type ThermoChangeMark,
 } from "@/lib/farm/channel-thermo";
 
 export const UNIFIED_TEMP_BAND_FILL = "var(--channel-temp)";
@@ -55,12 +51,7 @@ export const UNIFIED_CHART_LABELS = {
   motorA: CHANNEL_SLOT_LABELS.A,
   motorB: CHANNEL_SLOT_LABELS.B,
   motorC: CHANNEL_SLOT_LABELS.C,
-  thermoTempChange: "온도 설정 변경",
-  thermoMotorChange: "환기 설정 변경",
 } as const;
-
-export const UNIFIED_THERMO_TEMP_FILL = "var(--channel-temp)";
-export const UNIFIED_THERMO_MOTOR_FILL = "var(--channel-motor)";
 
 /** A안 — 임계 접촉 코리도 채움 */
 export const UNIFIED_TEMP_BREACH_HI_FILL = "var(--channel-temp)";
@@ -874,106 +865,6 @@ function thermoWindowsFromSeries(
   return w;
 }
 
-function formatTempC(v: number): string {
-  return `${v.toFixed(1)}℃`;
-}
-
-function formatVentRange(min: number, max: number): string {
-  return `${Math.round(min)}–${Math.round(max)}%`;
-}
-
-function formatTempChangeNote(ch: ThermoChannelChange): string {
-  const prevLo = ch.prev.loC;
-  const nextLo = ch.next.loC;
-  const prevHi = ch.prev.hiC;
-  const nextHi = ch.next.hiC;
-  const label = CHANNEL_SLOT_LABELS[ch.channel];
-  if (
-    prevLo != null &&
-    nextLo != null &&
-    prevHi != null &&
-    nextHi != null
-  ) {
-    return `${label} ${formatTempC(prevLo)}~${formatTempC(prevHi)} → ${formatTempC(nextLo)}~${formatTempC(nextHi)}`;
-  }
-  if (nextLo != null) return `${label} ${formatTempC(nextLo)}`;
-  return label;
-}
-
-function formatMotorChangeNote(ch: ThermoChannelChange): string {
-  const label = CHANNEL_SLOT_LABELS[ch.channel];
-  const pMin = ch.prev.minVent;
-  const pMax = ch.prev.maxVent;
-  const nMin = ch.next.minVent;
-  const nMax = ch.next.maxVent;
-  if (pMin != null && pMax != null && nMin != null && nMax != null) {
-    return `${label} ${formatVentRange(pMin, pMax)} → ${formatVentRange(nMin, nMax)}`;
-  }
-  return label;
-}
-
-function pickPrimaryChannel(
-  channels: ThermoChannelChange[],
-  kind: "temp" | "motor",
-): ThermoChannelChange | undefined {
-  const matched = channels.filter((c) =>
-    kind === "temp" ? c.tempChanged : c.motorChanged,
-  );
-  return matched.find((c) => c.channel === "A") ?? matched[0];
-}
-
-function changeSeriesFromMarks(
-  marks: ThermoChangeMark[],
-  len: number,
-  kind: "temp" | "motor",
-  mapY: (v: number | null | undefined) => number | null,
-  commandRangePreview?: TrendSeries["commandRangePreview"],
-): TrendSeries | null {
-  const data = new Array<number | null>(len).fill(null);
-  const hoverSecondary = new Array<number | null>(len).fill(null);
-  const markerLabels = new Array<string | null>(len).fill(null);
-  const hoverNote = new Array<string | null>(len).fill(null);
-  let hits = 0;
-  for (const mark of marks) {
-    const primary = pickPrimaryChannel(mark.channels, kind);
-    if (!primary) continue;
-    const next = primary.next;
-    const rawY =
-      kind === "temp"
-        ? next.loC
-        : next.minVent;
-    const plot = mapY(rawY);
-    if (plot == null || !Number.isFinite(plot) || rawY == null) continue;
-    data[mark.index] = plot;
-    hoverSecondary[mark.index] = rawY;
-    markerLabels[mark.index] = primary.channel;
-    hoverNote[mark.index] = mark.channels
-      .filter((c) => (kind === "temp" ? c.tempChanged : c.motorChanged))
-      .map((c) =>
-        kind === "temp" ? formatTempChangeNote(c) : formatMotorChangeNote(c),
-      )
-      .join("\n");
-    hits += 1;
-  }
-  if (!hits) return null;
-  return {
-    name:
-      kind === "temp"
-        ? UNIFIED_CHART_LABELS.thermoTempChange
-        : UNIFIED_CHART_LABELS.thermoMotorChange,
-    data,
-    color:
-      kind === "temp" ? UNIFIED_THERMO_TEMP_FILL : UNIFIED_THERMO_MOTOR_FILL,
-    axis: "left",
-    markerOnly: true,
-    markerLabels,
-    hoverNote,
-    hoverSecondary,
-    hoverSecondaryUnit: kind === "temp" ? "℃" : "%",
-    commandRangePreview,
-  };
-}
-
 export type UnifiedSeriesKey =
   | "temp"
   | "hum"
@@ -987,10 +878,6 @@ export type UnifiedBarnTrendBuild = {
   seriesByKey: Partial<Record<UnifiedSeriesKey, TrendSeries>>;
   envelopesBand: TrendEnvelope | null;
   envelopesHumBand: TrendEnvelope | null;
-  /** 컨트롤러 범위 — 설정온도 변경 마커 */
-  seriesThermoTempChange: TrendSeries | null;
-  /** 컨트롤러 범위 — 환기 설정 변경 마커 */
-  seriesThermoMotorChange: TrendSeries | null;
   histogramDev: TrendHistogram | null;
   histogramHumDev: TrendHistogram | null;
   /** 모터 max(A,B,C) 단일 바 */
@@ -1513,40 +1400,11 @@ export function mapUnifiedBarnTrendRawToSplitY(
         }
       : null;
 
-  const thermoMarks = raw.thermoWindows
-    ? thermoChangeMarks(raw.thermoWindows)
-    : [];
-  const commandRangePreview = raw.thermoWindows
-    ? buildCommandRangePreview(
-        raw.thermoWindows,
-        raw.categories.length,
-        mapTemp,
-        mapMotor,
-        fitted,
-      )
-    : undefined;
-  const seriesThermoTempChange = changeSeriesFromMarks(
-    thermoMarks,
-    raw.categories.length,
-    "temp",
-    mapTemp,
-    commandRangePreview,
-  );
-  const seriesThermoMotorChange = changeSeriesFromMarks(
-    thermoMarks,
-    raw.categories.length,
-    "motor",
-    mapMotor,
-    commandRangePreview,
-  );
-
   return {
     categories: raw.categories,
     seriesByKey,
     envelopesBand,
     envelopesHumBand,
-    seriesThermoTempChange,
-    seriesThermoMotorChange,
     histogramDev,
     histogramHumDev,
     histogramMotorsMax,
@@ -1573,8 +1431,8 @@ export function mapUnifiedBarnTrendRawToSplitY(
       humBand: Boolean(envelopesHumBand),
       humDev: Boolean(histogramHumDev),
       humEma: Boolean(seriesByKey.humEmaShort),
-      thermo: Boolean(raw.thermoWindows),
-      thermoMotor: Boolean(raw.thermoWindows),
+      thermo: false,
+      thermoMotor: false,
     },
   };
 }
@@ -1627,12 +1485,6 @@ export function pickUnifiedTrendLayers(
   }
 
   const envelopes: TrendEnvelope[] = [];
-  if (layers.thermo && built.seriesThermoTempChange) {
-    series.push(built.seriesThermoTempChange);
-  }
-  if (layers.thermoMotor && built.seriesThermoMotorChange) {
-    series.push(built.seriesThermoMotorChange);
-  }
   if (layers.temp && layers.band && built.envelopesBand) {
     envelopes.push(built.envelopesBand);
   }
@@ -1905,7 +1757,6 @@ export function trimPickedUnifiedTrend(
       markerLabels: sliceCol(s.markerLabels),
       hoverNote: sliceCol(s.hoverNote),
       hoverSpreadExtremes: sliceExtremes(s.hoverSpreadExtremes),
-      commandRangePreview: s.commandRangePreview?.slice(start, end + 1),
     })),
     envelopes: picked.envelopes.map((e) => ({
       ...e,
@@ -1977,7 +1828,6 @@ export function sliceUnifiedTrendByIndex(
       markerLabels: sliceCol(s.markerLabels),
       hoverNote: sliceCol(s.hoverNote),
       hoverSpreadExtremes: sliceExtremes(s.hoverSpreadExtremes),
-      commandRangePreview: s.commandRangePreview?.slice(lo, hi + 1),
     })),
     envelopes: picked.envelopes.map((e) => ({
       ...e,

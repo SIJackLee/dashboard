@@ -264,8 +264,8 @@ export const DEFAULT_UNIFIED_LAYERS: UnifiedLayerFlags = {
   humBand: true,
   humDev: false,
   humEma: false,
-  thermo: true,
-  thermoMotor: true,
+  thermo: false,
+  thermoMotor: false,
 };
 
 /** 분석용 — 본선 + 산포·편차·EMA5 + 모터 */
@@ -280,8 +280,8 @@ export const ALL_UNIFIED_LAYERS: UnifiedLayerFlags = {
   humBand: true,
   humDev: true,
   humEma: true,
-  thermo: true,
-  thermoMotor: true,
+  thermo: false,
+  thermoMotor: false,
 };
 
 /** 습도 밴드가 필요한지 (본선·편차·산포·EMA) */
@@ -298,12 +298,10 @@ export function splitYVisibilityFromLayers(
       layers.temp ||
       layers.ema ||
       layers.dev ||
-      layers.band ||
-      layers.thermo,
+      layers.band,
     showHum: needsHumidityBand(layers),
-    showMotors: layers.motors || layers.motorCh || layers.thermoMotor,
-    /** 브러시 차트에서 명령 레인 기본 on — yBands로만 숨김 */
-    showCommand: true,
+    showMotors: layers.motors || layers.motorCh,
+    showCommand: false,
   };
 }
 

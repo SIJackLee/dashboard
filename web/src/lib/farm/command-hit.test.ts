@@ -491,7 +491,9 @@ function cmd(
   assert.equal(event.markerLabel, "A");
   assert.equal(event.card.hero, "채널 A");
   assert.equal(event.card.values?.[0], "24.0℃");
-  assert.equal(event.preview, undefined);
+  assert.equal(event.hold?.channel, "A");
+  assert.equal(event.hold?.tempLo, 24);
+  assert.equal(event.hold?.tempHi, 27);
   assert.equal(/TEST01|SP07:/.test(event.card.footnote ?? ""), false);
 }
 
@@ -528,16 +530,15 @@ function cmd(
   const lane = commandHitEventLane({
     marks,
     windowLabel: "약 10분",
-    mapTemp: (c) => (c == null ? null : c * 10),
-    mapMotor: (pct) => (pct == null ? null : pct),
   });
-  assert.deepEqual(lane.rowLabels, ["적용"]);
+  assert.deepEqual(lane.rowLabels, ["A", "B", "C"]);
   assert.match(lane.statsLine ?? "", /적용 1건/);
   assert.equal(lane.marks[0]?.markerLabel, "A");
-  assert.equal(lane.marks[0]?.preview?.tempLo, 240);
-  assert.equal(lane.marks[0]?.preview?.tempHi, 280);
-  assert.equal(lane.marks[0]?.preview?.motorLo, 10);
-  assert.equal(lane.marks[0]?.preview?.motorHi, 70);
+  assert.equal(lane.marks[0]?.row, 0);
+  assert.equal(lane.marks[0]?.hold?.tempLo, 24);
+  assert.equal(lane.marks[0]?.hold?.tempHi, 28);
+  assert.equal(lane.marks[0]?.hold?.ventLo, 10);
+  assert.equal(lane.marks[0]?.hold?.ventHi, 70);
 }
 
 {

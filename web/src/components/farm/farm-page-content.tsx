@@ -39,9 +39,12 @@ import {
   type FarmHubView,
 } from "@/lib/farm/farm-view-url";
 import {
+  applyFarmChartCmdParam,
   applyFarmChartScopeParams,
   applyFarmChartZoomParams,
+  clearFarmChartCmdParam,
   clearFarmChartZoomParams,
+  resolveFarmChartCmdParam,
   resolveFarmChartScope,
   resolveFarmChartZoomHint,
   type ChartTrendZoomHint,
@@ -449,6 +452,7 @@ export function FarmPageContent({
     () => resolveFarmChartZoomHint(shallowParams),
     [shallowParams],
   );
+  const chartCommandPaneOpen = resolveFarmChartCmdParam(shallowParams);
 
   /** compact 차트는 하단 브러시 터치 확보 — 델린은 맵(및 데스크톱 차트)만 */
   const showDelinEnvBadge =
@@ -498,6 +502,7 @@ export function FarmPageContent({
       const params = new URLSearchParams(currentFarmSearchParams().toString());
       applyFarmChartScopeParams(params, scope);
       clearFarmChartZoomParams(params);
+      if (scope.level !== "controller") clearFarmChartCmdParam(params);
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
@@ -530,7 +535,20 @@ export function FarmPageContent({
   const onChartZoomChange = useCallback(
     (zoom: ChartTrendZoomHint | null) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
+      const cmdOpen = resolveFarmChartCmdParam(params);
       applyFarmChartZoomParams(params, zoom);
+      applyFarmChartCmdParam(params, cmdOpen);
+      pinFarmHubViewParam(params, "chart");
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
+    },
+    [setUrlTick],
+  );
+
+  const onChartCommandPaneChange = useCallback(
+    (open: boolean) => {
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      applyFarmChartCmdParam(params, open);
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
@@ -951,6 +969,8 @@ export function FarmPageContent({
                 onScopeChange={onChartScopeChange}
                 initialZoom={chartZoomHint}
                 onZoomChange={onChartZoomChange}
+                commandPaneOpen={chartCommandPaneOpen}
+                onCommandPaneChange={onChartCommandPaneChange}
                 alarmSettings={alarmSettings}
                 thermoSettings={thermoSettings}
                 canCommand={controller?.canCommand ?? false}

@@ -26,7 +26,6 @@ import {
   ReferenceLinesLayer,
   type TrendPlotGeom,
 } from "./trend-chart-svg-layers";
-import { parseChannelSlotLabel } from "@/lib/farm/command-range-overlay";
 
 /**
  * TrendChart SVG 데이터 레이어 (히스토그램·엔벨로프·시리즈·호버/핀).
@@ -67,10 +66,6 @@ export type TrendChartDataLayersProps = {
   shouldShowMarker: (i: number) => boolean;
   lineSegments: (s: TrendSeries) => string[];
   envelopePaths: (env: TrendEnvelope) => string[];
-  commandMarkerFocus?: {
-    idx: number;
-    channel: string;
-  } | null;
 };
 
 export function TrendChartDataLayers({
@@ -105,7 +100,6 @@ export function TrendChartDataLayers({
   shouldShowMarker,
   lineSegments,
   envelopePaths,
-  commandMarkerFocus = null,
 }: TrendChartDataLayersProps) {
   return (
     <>
@@ -347,23 +341,10 @@ export function TrendChartDataLayers({
                   ? s.data.map((v, i) => {
                       if (v == null || !Number.isFinite(v)) return null;
                       if (!s.markerOnly && !shouldShowMarker(i)) return null;
-                      if (s.markerOnly && commandMarkerFocus) {
-                        const ch = parseChannelSlotLabel(
-                          s.markerLabels?.[i] ?? null,
-                        );
-                        const focused =
-                          i === commandMarkerFocus.idx &&
-                          (ch == null || ch === commandMarkerFocus.channel);
-                        if (!focused) return null;
-                      }
                       const cx = xFor(i);
                       const cy = yFor(v, axis);
-                      const focusedCommand = Boolean(
-                        s.markerOnly && commandMarkerFocus,
-                      );
                       const rPx = s.markerOnly
-                        ? Math.max(markerRadiusPx, 2.1) *
-                          (focusedCommand ? 1.35 : 1)
+                        ? Math.max(markerRadiusPx, 2.1)
                         : markerRadiusPx;
                       const markerDelayMs =
                         120 +
@@ -412,18 +393,6 @@ export function TrendChartDataLayers({
                             ry={markerRy(rPx)}
                             fill={s.color}
                           />
-                          {focusedCommand ? (
-                            <ellipse
-                              cx={cx}
-                              cy={cy}
-                              rx={markerRx(rPx) * 1.85}
-                              ry={markerRy(rPx) * 1.85}
-                              fill="none"
-                              stroke={s.color}
-                              strokeWidth={0.7}
-                              vectorEffect="non-scaling-stroke"
-                            />
-                          ) : null}
                           {label ? (
                             <text
                               x={cx}

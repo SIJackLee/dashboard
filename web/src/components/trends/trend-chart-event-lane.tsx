@@ -1,11 +1,8 @@
 "use client";
 
 import {
-  useEffect,
   useMemo,
   useRef,
-  useState,
-  useSyncExternalStore,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
@@ -17,9 +14,14 @@ import { motionClass } from "@/lib/ui/motion-classes";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { cn } from "@/lib/utils";
 import {
-  clampEventMarkXPx,
-  clusterEventMarks,
-} from "@/lib/farm/command-cluster";
+  buildCommandHoldSegments,
+  commandHoldBandRect,
+  commandHoldRowIndex,
+  COMMAND_HOLD_FILL_OPACITY,
+  COMMAND_HOLD_LINE_OPACITY,
+  COMMAND_HOLD_TEMP_DOMAIN,
+  COMMAND_HOLD_VENT_DOMAIN,
+} from "@/lib/farm/command-hold-bands";
 import type { TrendEventLane, TrendEventMark } from "@/lib/data/trend-chart-types";
 import { X_SCOPE_DRAG_PX } from "./trend-chart-geometry";
 
@@ -28,82 +30,6 @@ export type PositionedEventMark = {
   xView: number;
   yView: number;
 };
-
-const EDGE_PAD = 8;
-/** +N 배지가 우측 단계 라벨 위로 밀리지 않을 만큼 안쪽으로. */
-const CLUSTER_EDGE_PAD = 36;
-
-/** effect 내 setState 없이 미디어쿼리 구독(react-hooks/set-state-in-effect 회피). */
-function useMediaQuery(query: string): boolean {
-  return useSyncExternalStore(
-    (onChange) => {
-      if (typeof window === "undefined" || !window.matchMedia) return () => {};
-      const mq = window.matchMedia(query);
-      mq.addEventListener?.("change", onChange);
-      return () => mq.removeEventListener?.("change", onChange);
-    },
-    () =>
-      typeof window !== "undefined" && window.matchMedia
-        ? window.matchMedia(query).matches
-        : false,
-    () => false,
-  );
-}
-
-/**
- * 단계 글리프: 적용 레인 row 0 = 원. (예전 전송=사각·접수=마름모는 차트에 두지 않음)
- */
-function stageShapeClass(row: number): string {
-  if (row === 1) return "rounded-[1px]";
-  if (row === 2) return "rounded-[1px] rotate-45";
-  return "rounded-full";
-}
-
-function EventMarkGlyph({
-  mark,
-  selected,
-}: {
-  mark: TrendEventMark;
-  selected: boolean;
-}) {
-  const label = mark.markerLabel;
-  return (
-    <span className="relative flex items-center justify-center">
-      {label ? (
-        <span
-          className={cn(
-            farmChartUi.fsMeta,
-            "absolute bottom-full left-1/2 mb-0.5 -translate-x-1/2 whitespace-nowrap text-center leading-none font-medium text-foreground",
-          )}
-          aria-hidden
-        >
-          {label}
-        </span>
-      ) : null}
-      <span className={markDotClass(mark, selected)} />
-    </span>
-  );
-}
-
-function markDotClass(mark: TrendEventMark, selected: boolean): string {
-  const fill =
-    mark.tone === "ok"
-      ? "bg-[var(--status-ok)] border-[color-mix(in_oklch,var(--status-ok)_40%,var(--background))]"
-      : mark.infoStrength === 3
-        ? "bg-[color-mix(in_oklch,var(--channel-command)_80%,transparent)] border-background"
-        : mark.infoStrength === 2
-          ? "bg-[color-mix(in_oklch,var(--channel-command)_55%,transparent)] border-background"
-          : "bg-[color-mix(in_oklch,var(--channel-command)_35%,transparent)] border-background";
-  return cn(
-    "block border size-1.5",
-    stageShapeClass(mark.row),
-    fill,
-    selected &&
-      (mark.tone === "ok"
-        ? "ring-1 ring-[color:var(--status-ok-ink)]"
-        : "ring-1 ring-foreground"),
-  );
-}
 
 export function EventLaneSvgGuides({
   padL,
@@ -134,20 +60,164 @@ export function EventLaneSvgGuides({
         strokeWidth={0.7}
         vectorEffect="non-scaling-stroke"
       />
+      {Array.from({ length: Math.max(0, rows - 1) }, (_, index) => (
+        <line
+          key={`row-${index}`}
+          x1={padL}
+          x2={x2}
+          y1={laneTop + ((index + 1) / rows) * laneH}
+          y2={laneTop + ((index + 1) / rows) * laneH}
+          stroke="currentColor"
+          className="text-border"
+          strokeWidth={0.65}
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
       {Array.from({ length: rows }, (_, index) => (
         <line
-          key={index}
+          key={`split-${index}`}
           x1={padL}
           x2={x2}
           y1={laneTop + ((index + 0.5) / rows) * laneH}
           y2={laneTop + ((index + 0.5) / rows) * laneH}
           stroke="currentColor"
           className="text-border"
-          strokeWidth={0.5}
-          strokeOpacity={0.55}
+          strokeWidth={0.4}
+          strokeOpacity={0.45}
           vectorEffect="non-scaling-stroke"
         />
       ))}
+    </g>
+  );
+}
+
+/** A/B/C 행의 온도·환기 유지띠. 본선 Y와 분리된 0–30℃ / 0–100% 축. */
+export function CommandHoldLaneSvg({
+  marks,
+  padL,
+  padR,
+  viewW,
+  laneTop,
+  laneH,
+  rowCount,
+}: {
+  marks: PositionedEventMark[];
+  padL: number;
+  padR: number;
+  viewW: number;
+  laneTop: number;
+  laneH: number;
+  rowCount: number;
+}) {
+  const rows = Math.max(1, rowCount);
+  const rowH = laneH / rows;
+  const xMin = padL;
+  const xMax = viewW - padR;
+  const segments = buildCommandHoldSegments(
+    marks.map((p) => ({
+      id: p.mark.id,
+      x: p.xView,
+      hold: p.mark.hold,
+    })),
+    xMax,
+  );
+  return (
+    <g aria-hidden>
+      {segments.map((seg) => {
+        const row = commandHoldRowIndex(seg.channel) ?? 0;
+        const top = laneTop + row * rowH;
+        const half = rowH / 2;
+        const x0 = Math.max(xMin, Math.min(xMax, seg.x0));
+        const x1 = Math.max(xMin, Math.min(xMax, seg.x1));
+        const w = x1 - x0;
+        if (!(w > 0.3)) return null;
+        const fillOp = COMMAND_HOLD_FILL_OPACITY[seg.channel];
+        const lineOp = COMMAND_HOLD_LINE_OPACITY[seg.channel];
+        const temp = commandHoldBandRect(
+          seg.tempLo,
+          seg.tempHi,
+          COMMAND_HOLD_TEMP_DOMAIN,
+          top,
+          half,
+        );
+        const vent = commandHoldBandRect(
+          seg.ventLo,
+          seg.ventHi,
+          COMMAND_HOLD_VENT_DOMAIN,
+          top + half,
+          half,
+        );
+        return (
+          <g key={seg.markId}>
+            {temp ? (
+              <>
+                <rect
+                  x={x0}
+                  y={temp.y}
+                  width={w}
+                  height={temp.h}
+                  fill="var(--channel-temp)"
+                  fillOpacity={fillOp}
+                  stroke="none"
+                />
+                <line
+                  x1={x0}
+                  x2={x0 + w}
+                  y1={temp.y}
+                  y2={temp.y}
+                  stroke="var(--channel-temp)"
+                  strokeOpacity={lineOp}
+                  strokeWidth={0.45}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <line
+                  x1={x0}
+                  x2={x0 + w}
+                  y1={temp.y + temp.h}
+                  y2={temp.y + temp.h}
+                  stroke="var(--channel-temp)"
+                  strokeOpacity={lineOp}
+                  strokeWidth={0.45}
+                  vectorEffect="non-scaling-stroke"
+                />
+              </>
+            ) : null}
+            {vent ? (
+              <>
+                <rect
+                  x={x0}
+                  y={vent.y}
+                  width={w}
+                  height={vent.h}
+                  fill="var(--channel-motor)"
+                  fillOpacity={fillOp}
+                  stroke="none"
+                />
+                <line
+                  x1={x0}
+                  x2={x0 + w}
+                  y1={vent.y}
+                  y2={vent.y}
+                  stroke="var(--channel-motor)"
+                  strokeOpacity={lineOp}
+                  strokeWidth={0.45}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <line
+                  x1={x0}
+                  x2={x0 + w}
+                  y1={vent.y + vent.h}
+                  y2={vent.y + vent.h}
+                  stroke="var(--channel-motor)"
+                  strokeOpacity={lineOp}
+                  strokeWidth={0.45}
+                  vectorEffect="non-scaling-stroke"
+                />
+              </>
+            ) : null}
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -160,6 +230,7 @@ type LaneScopeHandlers = {
   cancel: () => void;
 };
 
+/** 유지띠 탭=카드 · 가로 드래그=시간 스코프. 점·클러스터는 그리지 않는다. */
 export function EventLaneHtmlOverlay({
   lane,
   marks,
@@ -167,16 +238,14 @@ export function EventLaneHtmlOverlay({
   chartH,
   laneTop,
   laneH,
-  compact,
+  padL,
+  padR,
   labelGutter,
   selectedId,
   onSelect,
   onHover,
-  onClearEventPins,
   onEmptyContextMenu,
   scopeHandlers = null,
-  focusEventMarkId = null,
-  hideEventMarks = false,
 }: {
   lane: TrendEventLane;
   marks: PositionedEventMark[];
@@ -184,7 +253,8 @@ export function EventLaneHtmlOverlay({
   chartH: number;
   laneTop: number;
   laneH: number;
-  compact?: boolean;
+  padL: number;
+  padR: number;
   labelGutter?: boolean;
   selectedId: string | null;
   onSelect: (
@@ -192,147 +262,39 @@ export function EventLaneHtmlOverlay({
     anchor?: { nx: number; ny: number },
   ) => void;
   onHover: (mark: TrendEventMark | null) => void;
-  /** 클러스터 줌인 이탈 시 해당 멤버들의 핀 카드 제거 */
-  onClearEventPins?: (markIds: string[]) => void;
   /** 빈 공간 우클릭: 카드가 있으면 일괄 닫고 true 반환(줌인 뒤로가기보다 우선) */
   onEmptyContextMenu?: () => boolean;
-  /** 설정 시 점 위 가로 드래그도 시간 스코프 (탭=핀) */
+  /** 띠 위 가로 드래그도 시간 스코프 (탭=핀) */
   scopeHandlers?: LaneScopeHandlers | null;
-  /** 호버 중인 명령만 남기고 나머지는 숨김 */
-  focusEventMarkId?: string | null;
-  hideEventMarks?: boolean;
 }) {
   const rowCount = Math.max(1, lane.rowLabels.length);
+  const rowH = laneH / rowCount;
   const selectedRow =
     marks.find((row) => row.mark.id === selectedId)?.mark.row ?? null;
   const pctY = (yView: number) =>
     `${chartH > 0 ? (yView / chartH) * 100 : 0}%`;
+  const xMin = padL;
+  const xMax = viewW - padR;
 
-  // 오버레이 픽셀 폭 측정(클러스터 간격·펼침 계산은 px 기준).
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [widthPx, setWidthPx] = useState(0);
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) setWidthPx(entry.contentRect.width);
-    });
-    ro.observe(el);
-    setWidthPx(el.getBoundingClientRect().width);
-    return () => ro.disconnect();
-  }, []);
-
-  const coarse = useMediaQuery("(pointer: coarse)");
-  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
-
-  const [openClusterId, setOpenClusterId] = useState<string | null>(null);
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [fanIn, setFanIn] = useState(false);
-  const pointRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-
-  const hitPx = compact ? 36 : 28;
-  const minGapPx = hitPx;
-
-  const plotMarks = useMemo(() => {
-    if (!(viewW > 0)) return marks;
-    return marks.map((p) => ({
-      ...p,
-      xView: clampEventMarkXPx(p.xView, viewW, CLUSTER_EDGE_PAD),
-    }));
-  }, [marks, viewW]);
-
-  const posById = useMemo(() => {
+  const markById = useMemo(() => {
     const map = new Map<string, PositionedEventMark>();
-    for (const p of plotMarks) map.set(p.mark.id, p);
+    for (const p of marks) map.set(p.mark.id, p);
     return map;
-  }, [plotMarks]);
+  }, [marks]);
 
-  const layout = useMemo(() => {
-    if (widthPx <= 0) {
-      // 측정 전에는 전부 single → 오늘과 동일한 no-op 렌더.
-      return {
-        singleIds: new Set(plotMarks.map((p) => p.mark.id)),
-        clusters: [] as ReturnType<typeof clusterEventMarks>["clusters"],
-        clusterOf: new Map<string, string>(),
-      };
-    }
-    return clusterEventMarks(
-      plotMarks.map((p) => ({
-        id: p.mark.id,
-        row: p.mark.row,
-        xPx: viewW > 0 ? (p.xView / viewW) * widthPx : 0,
-      })),
-      minGapPx,
-    );
-  }, [plotMarks, widthPx, viewW, minGapPx]);
+  const segments = useMemo(
+    () =>
+      buildCommandHoldSegments(
+        marks.map((p) => ({
+          id: p.mark.id,
+          x: p.xView,
+          hold: p.mark.hold,
+        })),
+        xMax,
+      ),
+    [marks, xMax],
+  );
 
-  // 열린 클러스터가 마크 변화로 사라지면 파생값이 null → 렌더에서 자동 무시(정리 effect 불필요).
-  const openCluster =
-    layout.clusters.find((c) => c.id === openClusterId) ?? null;
-
-  // 펼침 진입 애니메이션(setState는 rAF 콜백에서만 → effect 동기 setState 회피).
-  useEffect(() => {
-    if (!openClusterId) return;
-    const r = requestAnimationFrame(() => setFanIn(true));
-    return () => cancelAnimationFrame(r);
-  }, [openClusterId]);
-
-  // 로빙: 포커스된 멤버로 실제 DOM 포커스 이동(스크린리더 낭독).
-  useEffect(() => {
-    if (openClusterId && focusedId) pointRefs.current[focusedId]?.focus();
-  }, [focusedId, openClusterId]);
-
-  // 열림 중 키보드: Esc 접기 / 화살표 로빙.
-  useEffect(() => {
-    if (!openCluster) return;
-    const ids = openCluster.memberIds;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClearEventPins?.(ids);
-        setFanIn(false);
-        setOpenClusterId(null);
-        setFocusedId(null);
-        return;
-      }
-      if (
-        ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)
-      ) {
-        event.preventDefault();
-        const dir =
-          event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1;
-        const cur = focusedId ? ids.indexOf(focusedId) : -1;
-        const next =
-          cur < 0
-            ? dir > 0
-              ? 0
-              : ids.length - 1
-            : Math.min(ids.length - 1, Math.max(0, cur + dir));
-        setFocusedId(ids[next] ?? null);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [openCluster, focusedId, onClearEventPins]);
-
-  const collapse = () => {
-    const cl = layout.clusters.find((c) => c.id === openClusterId);
-    if (cl) onClearEventPins?.(cl.memberIds);
-    setFanIn(false);
-    setOpenClusterId(null);
-    setFocusedId(null);
-  };
-
-  const toggleCluster = (id: string) => {
-    if (openClusterId === id) {
-      collapse();
-    } else {
-      setFanIn(false);
-      setOpenClusterId(id);
-      setFocusedId(null);
-    }
-  };
-
-  // ---- 싱글 마크: 점 위 탭=핀 / 가로 드래그=시간 스코프 (오늘과 동일) ----
   const armRef = useRef<{
     pointerId: number;
     x: number;
@@ -346,7 +308,7 @@ export function EventLaneHtmlOverlay({
     draggedRef.current = false;
   };
 
-  const onMarkPointerDown = (
+  const onSegPointerDown = (
     event: ReactPointerEvent<HTMLButtonElement>,
     mark: TrendEventMark,
   ) => {
@@ -367,7 +329,7 @@ export function EventLaneHtmlOverlay({
     scopeHandlers?.begin(event.clientX, event.clientY);
   };
 
-  const onMarkPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const onSegPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const arm = armRef.current;
     if (!arm || arm.pointerId !== event.pointerId) return;
     const dist = Math.hypot(event.clientX - arm.x, event.clientY - arm.y);
@@ -375,7 +337,7 @@ export function EventLaneHtmlOverlay({
     scopeHandlers?.move(event.clientX, event.clientY);
   };
 
-  const onMarkPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const onSegPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     const arm = armRef.current;
     if (!arm || arm.pointerId !== event.pointerId) {
@@ -395,7 +357,7 @@ export function EventLaneHtmlOverlay({
     onSelect(mark);
   };
 
-  const onMarkPointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
+  const onSegPointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     if (armRef.current?.pointerId === event.pointerId) {
       scopeHandlers?.cancel();
@@ -403,74 +365,8 @@ export function EventLaneHtmlOverlay({
     }
   };
 
-  const renderSingle = ({ mark, xView, yView }: PositionedEventMark) => {
-    if (hideEventMarks) return null;
-    if (focusEventMarkId && mark.id !== focusEventMarkId) return null;
-    const isSelected = selectedId === mark.id;
-    return (
-      <button
-        key={mark.id}
-        type="button"
-        className={cn(
-          "pointer-events-auto absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2",
-          compact ? "min-h-9 min-w-9" : "min-h-7 min-w-7",
-          dashboardAffordance.hitSurface,
-          motionClass.microHover,
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
-          isSelected && "z-[1]",
-        )}
-        style={{
-          left: `${viewW > 0 ? (xView / viewW) * 100 : 0}%`,
-          top: pctY(yView),
-        }}
-        aria-label={mark.ariaLabel}
-        aria-pressed={isSelected}
-        data-trend-event-mark=""
-        onPointerDown={(event) => onMarkPointerDown(event, mark)}
-        onPointerMove={onMarkPointerMove}
-        onPointerUp={onMarkPointerUp}
-        onPointerCancel={onMarkPointerCancel}
-        onClick={(event) => {
-          event.stopPropagation();
-          // 포인터 탭은 pointerUp에서 핀. 키보드(Enter/Space)만 click 경로.
-          if (event.detail !== 0) return;
-          onSelect(mark);
-        }}
-        onPointerEnter={() => onHover(mark)}
-        onMouseEnter={() => onHover(mark)}
-        onMouseMove={(event) => event.stopPropagation()}
-        onMouseLeave={() => onHover(null)}
-        onFocus={() => onHover(mark)}
-        onBlur={() => onHover(null)}
-      >
-        <EventMarkGlyph mark={mark} selected={isSelected} />
-      </button>
-    );
-  };
-
-  // ---- 펼침 기하 (px, 레인 밴드 내부) ----
-  const openCount = openCluster ? openCluster.memberIds.length : 0;
-  const fanGap = coarse ? hitPx + 16 : hitPx + 12;
-  const neededHalf = openCount > 0 ? ((openCount - 1) / 2) * fanGap : 0;
-  // 목록 폴백은 "폭이 부족하거나 터치"일 때만 — 넓은 차트에선 건수가 많아도 부채꼴로 펼친다.
-  const useList =
-    openCluster != null &&
-    (coarse || neededHalf * 2 > widthPx - 2 * EDGE_PAD);
-  let fanCenter = openCluster ? openCluster.centerXPx : 0;
-  if (openCluster && !useList) {
-    const min = EDGE_PAD + neededHalf;
-    const max = widthPx - EDGE_PAD - neededHalf;
-    if (max >= min) fanCenter = Math.min(max, Math.max(min, fanCenter));
-  }
-
-  const stageName = openCluster ? lane.rowLabels[openCluster.row] ?? "" : "";
-  const liveMsg = openCluster ? `${stageName} 명령 ${openCount}건 펼침` : "";
-  const laneTopPct = pctY(laneTop);
-  const laneHeightPct = `${chartH > 0 ? (laneH / chartH) * 100 : 0}%`;
-
   return (
     <div
-      ref={rootRef}
       className="pointer-events-none absolute inset-0 z-[3]"
       data-tour-id="chart-command-hit"
     >
@@ -505,357 +401,58 @@ export function EventLaneHtmlOverlay({
         </p>
       ) : null}
 
-      <div aria-live="polite" className="sr-only">
-        {liveMsg}
-      </div>
-
-      {/* 단독 마크 (펼침 중에는 보이되 상호작용 차단) */}
-      <div className={openCluster ? "pointer-events-none" : undefined}>
-        {plotMarks
-          .filter((p) =>
-            focusEventMarkId
-              ? p.mark.id === focusEventMarkId
-              : hideEventMarks
-                ? false
-                : layout.singleIds.has(p.mark.id),
-          )
-          .map(renderSingle)}
-      </div>
-
-      {/* 접힌 클러스터 배지 (펼침 중에는 다른 클러스터도 보이되 차단) */}
-      <div className={openCluster ? "pointer-events-none" : undefined}>
-        {hideEventMarks || focusEventMarkId
-          ? null
-          : layout.clusters
-          .filter((cl) => cl.id !== openClusterId)
-          .map((cl) => {
-          const sample = posById.get(cl.memberIds[0] ?? "");
-          if (!sample) return null;
-          const leftPct = widthPx > 0 ? (cl.centerXPx / widthPx) * 100 : 0;
-          const containsSelected =
-            selectedId != null && cl.memberIds.includes(selectedId);
-          return (
-            <button
-              key={cl.id}
-              type="button"
-              className={cn(
-                "pointer-events-auto absolute flex items-center gap-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-border bg-background/95 px-1.5 py-0.5 leading-none text-foreground",
-                farmChartUi.fsMeta,
-                dashboardAffordance.hitSurface,
-                motionClass.microHover,
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
-                containsSelected && "ring-1 ring-foreground",
-              )}
-              style={{ left: `${leftPct}%`, top: pctY(sample.yView) }}
-              aria-label={`${lane.rowLabels[cl.row] ?? ""} 명령 ${cl.memberIds.length}건, 펼치기`}
-              aria-expanded={false}
-              data-trend-event-mark=""
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                toggleCluster(cl.id);
-              }}
-              onPointerEnter={() => {
-                let latest = sample.mark;
-                for (const id of cl.memberIds) {
-                  const p = posById.get(id);
-                  if (p && p.mark.atMs >= latest.atMs) latest = p.mark;
-                }
-                onHover(latest);
-              }}
-              onMouseMove={(event) => event.stopPropagation()}
-              onMouseLeave={() => onHover(null)}
-            >
-              <span className={markDotClass(sample.mark, false)} />
-              <span className="tabular-nums">+{cl.memberIds.length}</span>
-            </button>
-          );
-          })}
-      </div>
-
-      {/* 열린 클러스터: 배경(닫기) + 펼침(부채꼴/목록) + 확장 배지 */}
-      {openCluster && !hideEventMarks && !focusEventMarkId ? (
-        <>
+      {segments.map((seg) => {
+        const placed = markById.get(seg.markId);
+        if (!placed) return null;
+        const row = commandHoldRowIndex(seg.channel) ?? placed.mark.row;
+        const x0 = Math.max(xMin, Math.min(xMax, seg.x0));
+        const x1 = Math.max(xMin, Math.min(xMax, seg.x1));
+        const w = x1 - x0;
+        if (!(w > 0.3) || !(viewW > 0) || !(chartH > 0)) return null;
+        const isSelected = selectedId === placed.mark.id;
+        return (
           <button
+            key={seg.markId}
             type="button"
-            aria-label="펼침 영역 · 우클릭 또는 Esc로 닫기"
-            className="pointer-events-auto absolute left-0 right-0"
+            className={cn(
+              "pointer-events-auto absolute",
+              dashboardAffordance.hitSurface,
+              motionClass.microHover,
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-foreground",
+              isSelected && "z-[1]",
+            )}
             style={{
-              top: laneTopPct,
-              height: laneHeightPct,
-              background: fanIn
-                ? "color-mix(in oklch, var(--foreground) 8%, transparent)"
-                : "transparent",
-              transition: reduced ? undefined : "background 180ms ease",
+              left: `${(x0 / viewW) * 100}%`,
+              width: `${(w / viewW) * 100}%`,
+              top: pctY(laneTop + row * rowH),
+              height: `${(rowH / chartH) * 100}%`,
             }}
-            onPointerDown={(event) => event.stopPropagation()}
+            aria-label={placed.mark.ariaLabel}
+            aria-pressed={isSelected}
+            data-trend-event-mark=""
+            onPointerDown={(event) => onSegPointerDown(event, placed.mark)}
+            onPointerMove={onSegPointerMove}
+            onPointerUp={onSegPointerUp}
+            onPointerCancel={onSegPointerCancel}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (event.detail !== 0) return;
+              onSelect(placed.mark);
+            }}
+            onPointerEnter={() => onHover(placed.mark)}
+            onMouseEnter={() => onHover(placed.mark)}
             onMouseMove={(event) => event.stopPropagation()}
+            onMouseLeave={() => onHover(null)}
+            onFocus={() => onHover(placed.mark)}
+            onBlur={() => onHover(null)}
             onContextMenu={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              // 카드가 있으면 일괄 닫기 우선, 없을 때만 줌인 뒤로가기(접기).
-              if (onEmptyContextMenu?.()) return;
-              collapse();
-            }}
-            onClick={(event) => {
-              // 좌클릭으로는 줌인을 닫지 않는다(카드 다수 유지). 종료는 우클릭/Esc.
-              event.stopPropagation();
+              onEmptyContextMenu?.();
             }}
           />
-
-          {useList ? (() => {
-            const sample = posById.get(openCluster.memberIds[0] ?? "");
-            const yView =
-              sample?.yView ??
-              laneTop + ((openCluster.row + 0.5) / rowCount) * laneH;
-            const leftPct =
-              widthPx > 0 ? (openCluster.centerXPx / widthPx) * 100 : 0;
-            return (
-              <button
-                type="button"
-                className={cn(
-                  "pointer-events-auto absolute z-[2] flex items-center gap-1 -translate-x-1/2 -translate-y-1/2 rounded-full border border-foreground/40 bg-background px-1.5 py-0.5 leading-none text-foreground",
-                  farmChartUi.fsMeta,
-                  dashboardAffordance.hitSurface,
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
-                )}
-                style={{ left: `${leftPct}%`, top: pctY(yView) }}
-                aria-label={`${stageName} 명령 ${openCount}건, 접기`}
-                aria-expanded
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  collapse();
-                }}
-              >
-                {sample ? (
-                  <span className={markDotClass(sample.mark, false)} />
-                ) : null}
-                <span className="tabular-nums">+{openCount}</span>
-              </button>
-            );
-          })() : null}
-
-          {useList
-            ? (() => {
-                const listW = 248;
-                const leftPx = Math.max(
-                  listW / 2 + EDGE_PAD,
-                  Math.min(openCluster.centerXPx, widthPx - listW / 2 - EDGE_PAD),
-                );
-                const sample = posById.get(openCluster.memberIds[0] ?? "");
-                const yView =
-                  sample?.yView ??
-                  laneTop + ((openCluster.row + 0.5) / rowCount) * laneH;
-                const belowPx = (yView / chartH) * 100;
-                const flipUp = yView + laneH > chartH - 8;
-                return (
-                  <div
-                    className={cn(
-                      "pointer-events-auto absolute z-[3] max-h-40 overflow-y-auto rounded-md border border-border bg-background shadow-sm -translate-x-1/2",
-                      flipUp ? "-translate-y-full" : "",
-                    )}
-                    style={{
-                      left: `${widthPx > 0 ? (leftPx / widthPx) * 100 : 0}%`,
-                      top: `${belowPx}%`,
-                      width: listW,
-                      opacity: fanIn ? 1 : 0,
-                      transition: reduced ? undefined : "opacity 180ms ease",
-                    }}
-                    role="listbox"
-                    aria-label={`${stageName} 명령 ${openCount}건`}
-                  >
-                    <div
-                      className={cn(
-                        "sticky top-0 z-[1] flex items-center gap-1.5 border-b border-border bg-background px-2.5 py-1 leading-none",
-                        farmChartUi.fsMeta,
-                        dashboardChroma.chromeActiveText,
-                      )}
-                    >
-                      {sample ? (
-                        <span className={markDotClass(sample.mark, false)} />
-                      ) : null}
-                      <span className="font-medium">{stageName}</span>
-                      <span className={dashboardChroma.chromeIdleText}>
-                        · {openCount}건
-                      </span>
-                    </div>
-                    {openCluster.memberIds.map((id) => {
-                      const p = posById.get(id);
-                      if (!p) return null;
-                      const isSel = selectedId === id;
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          ref={(el) => {
-                            pointRefs.current[id] = el;
-                          }}
-                          role="option"
-                          aria-selected={isSel}
-                          className={cn(
-                            "flex w-full items-start gap-2 border-b border-border/60 px-2.5 text-left last:border-b-0",
-                            coarse ? "min-h-11 py-2.5" : "py-2",
-                            isSel ? "bg-foreground/10" : "hover:bg-foreground/5",
-                            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-foreground",
-                          )}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onPointerUp={(event) => event.stopPropagation()}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onSelect(p.mark);
-                          }}
-                          onFocus={() => onHover(p.mark)}
-                          onBlur={() => onHover(null)}
-                        >
-                          <span
-                            className={cn(markDotClass(p.mark, isSel), "mt-1 shrink-0")}
-                          />
-                          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                            <span className="flex items-center justify-between gap-2">
-                              <span
-                                className={cn(
-                                  farmChartUi.fsMeta,
-                                  dashboardChroma.chromeIdleText,
-                                  "tabular-nums",
-                                )}
-                              >
-                                {p.mark.card.time}
-                              </span>
-                              <span
-                                className={cn(
-                                  farmChartUi.fsMeta,
-                                  "shrink-0 font-medium tabular-nums text-foreground",
-                                )}
-                              >
-                                {p.mark.card.hero}
-                              </span>
-                            </span>
-                            {(() => {
-                              const detail = p.mark.card.rows
-                                .filter((r) => r.label !== "단계")
-                                .map((r) => `${r.label} ${r.value}`)
-                                .join(" · ");
-                              const sub = [detail, p.mark.card.footnote]
-                                .filter(Boolean)
-                                .join(" · ");
-                              return sub ? (
-                                <span
-                                  className={cn(
-                                    farmChartUi.fsMeta,
-                                    dashboardChroma.chromeIdleText,
-                                    "truncate",
-                                  )}
-                                >
-                                  {sub}
-                                </span>
-                              ) : null;
-                            })()}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()
-            : (
-              <>
-                {(() => {
-                  const half = neededHalf + hitPx / 2 + 8;
-                  const boxLeftPx = fanCenter - half;
-                  const boxTopPx =
-                    (posById.get(openCluster.memberIds[0] ?? "")?.yView ??
-                      laneTop + ((openCluster.row + 0.5) / rowCount) * laneH) -
-                    (hitPx / 2 + 6);
-                  return (
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute z-[1] rounded-lg border border-foreground/30 bg-background/60"
-                      style={{
-                        left: `${widthPx > 0 ? (boxLeftPx / widthPx) * 100 : 0}%`,
-                        top: `${chartH > 0 ? (boxTopPx / chartH) * 100 : 0}%`,
-                        width: half * 2,
-                        height: `${chartH > 0 ? ((hitPx + 12) / chartH) * 100 : 0}%`,
-                        opacity: fanIn ? 1 : 0,
-                        transition: reduced ? undefined : "opacity 180ms ease",
-                      }}
-                    />
-                  );
-                })()}
-                {openCluster.memberIds.map((id, i) => {
-                const p = posById.get(id);
-                if (!p) return null;
-                const xPx = fanCenter + (i - (openCount - 1) / 2) * fanGap;
-                const leftPct = widthPx > 0 ? (xPx / widthPx) * 100 : 0;
-                const isSel = selectedId === id;
-                const isFoc = focusedId === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    ref={(el) => {
-                      pointRefs.current[id] = el;
-                    }}
-                    className={cn(
-                      "pointer-events-auto absolute z-[2] flex items-center justify-center -translate-x-1/2 -translate-y-1/2",
-                      compact ? "min-h-9 min-w-9" : "min-h-7 min-w-7",
-                      dashboardAffordance.hitSurface,
-                      motionClass.microHover,
-                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
-                      (isSel || isFoc) && "z-[3]",
-                    )}
-                    style={{
-                      left: `${leftPct}%`,
-                      top: pctY(p.yView),
-                      opacity: fanIn ? 1 : 0,
-                      transition: reduced
-                        ? undefined
-                        : `left 200ms cubic-bezier(0.16, 1, 0.3, 1) ${i * 16}ms, opacity 200ms ease ${i * 16}ms`,
-                    }}
-                    aria-label={p.mark.ariaLabel}
-                    aria-pressed={isSel}
-                    data-trend-event-mark=""
-                    onPointerDown={(event) => {
-                      // 플롯의 탭=핀 폴백과 이중 토글되지 않도록 전파 차단.
-                      event.stopPropagation();
-                    }}
-                    onPointerUp={(event) => event.stopPropagation()}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      // 핀 앵커를 '부채꼴 표시 위치'로 넘겨 지시선이 각 점을 가리키게 함.
-                      onSelect(p.mark, {
-                        nx:
-                          widthPx > 0
-                            ? xPx / widthPx
-                            : viewW > 0
-                              ? p.xView / viewW
-                              : 0,
-                        ny: chartH > 0 ? p.yView / chartH : 0,
-                      });
-                    }}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      collapse();
-                    }}
-                    onPointerEnter={() => onHover(p.mark)}
-                    onMouseEnter={() => onHover(p.mark)}
-                    onMouseMove={(event) => {
-                      // 플롯 전역 mousemove가 실제 좌표로 히트를 재계산해
-                      // 부채꼴 호버 카드를 지우는 것을 막는다.
-                      event.stopPropagation();
-                    }}
-                    onMouseLeave={() => onHover(null)}
-                    onFocus={() => onHover(p.mark)}
-                    onBlur={() => onHover(null)}
-                  >
-                    <EventMarkGlyph mark={p.mark} selected={isSel} />
-                  </button>
-                );
-                })}
-              </>
-            )}
-        </>
-      ) : null}
+        );
+      })}
     </div>
   );
 }

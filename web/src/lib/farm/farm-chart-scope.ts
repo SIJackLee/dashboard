@@ -236,11 +236,13 @@ export function scopesEqual(a: FarmChartScope, b: FarmChartScope): boolean {
 export const CHART_SP_PARAM = "chartSp";
 export const CHART_STALL_PARAM = "chartStall";
 export const CHART_CTRL_PARAM = "chartCtrl";
-/** P2 — 통합 추이 Y밴드 포커스 (temp|hum|motor|command, +로 복수) */
+/** P2 — 통합 추이 Y밴드 포커스 (temp|hum|motor, +로 복수). 레거시 `command`는 명령 패널로 해석 */
 export const CHART_Y_BAND_PARAM = "chartYBand";
 /** P2 — 현재 period 카테고리 상대 구간 0–1 */
 export const CHART_X0_PARAM = "chartX0";
 export const CHART_X1_PARAM = "chartX1";
+/** 컨트롤러 집계에서 명령 이력 전용 차트. `1`이면 켬 */
+export const CHART_CMD_PARAM = "chartCmd";
 
 export type ChartYBandId =
   | "temp"
@@ -274,6 +276,34 @@ export function clearFarmChartZoomParams(params: URLSearchParams): void {
   params.delete(CHART_X1_PARAM);
 }
 
+export function clearFarmChartCmdParam(params: URLSearchParams): void {
+  params.delete(CHART_CMD_PARAM);
+}
+
+export function yBandsWithoutCommand(
+  bands: ChartYBandId[] | null | undefined,
+): ChartYBandId[] | null {
+  if (!bands?.length) return null;
+  const next = bands.filter((b) => b !== "command");
+  return next.length > 0 ? next : null;
+}
+
+/** 명령 이력 전용 차트. `chartCmd=1` 또는 레거시 chartYBand의 command */
+export function resolveFarmChartCmdParam(params: URLSearchParams): boolean {
+  const raw = params.get(CHART_CMD_PARAM)?.trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "on") return true;
+  const yBands = parseYBandsParam(params.get(CHART_Y_BAND_PARAM));
+  return Boolean(yBands?.includes("command"));
+}
+
+export function applyFarmChartCmdParam(
+  params: URLSearchParams,
+  open: boolean,
+): void {
+  if (open) params.set(CHART_CMD_PARAM, "1");
+  else params.delete(CHART_CMD_PARAM);
+}
+
 function parseYBandsParam(raw: string | null): ChartYBandId[] | null {
   if (!raw?.trim()) return null;
   const allowed = new Set<string>([
@@ -294,16 +324,18 @@ function clamp01(n: number) {
   return Math.max(0, Math.min(1, n));
 }
 
-/** URL → 추이 줌 힌트 (집계 scope와 독립) */
+/** URL → 추이 줌 힌트 (집계 scope와 독립). 명령은 chartCmd로 분리. */
 export function resolveFarmChartZoomHint(
   params: URLSearchParams,
 ): ChartTrendZoomHint | null {
-  const yBands = parseYBandsParam(params.get(CHART_Y_BAND_PARAM));
-  if (!yBands) return null;
+  const yBands = yBandsWithoutCommand(
+    parseYBandsParam(params.get(CHART_Y_BAND_PARAM)),
+  );
   const x0Raw = params.get(CHART_X0_PARAM);
   const x1Raw = params.get(CHART_X1_PARAM);
   let startRatio = 0;
   let endRatio = 1;
+  let hasX = false;
   if (x0Raw != null && x1Raw != null) {
     const a = clamp01(Number(x0Raw));
     const b = clamp01(Number(x1Raw));
@@ -313,18 +345,29 @@ export function resolveFarmChartZoomHint(
       if (endRatio - startRatio < 0.04) {
         endRatio = Math.min(1, startRatio + 0.04);
       }
+      hasX = true;
     }
   }
-  return { yBands, startRatio, endRatio };
+  if (!yBands && !hasX) return null;
+  return { yBands: yBands ?? [], startRatio, endRatio };
 }
 
 export function applyFarmChartZoomParams(
   params: URLSearchParams,
   zoom: ChartTrendZoomHint | null,
 ): void {
+  const migrateCmd = Boolean(zoom?.yBands.includes("command"));
+  const measureBands = yBandsWithoutCommand(zoom?.yBands ?? null);
   clearFarmChartZoomParams(params);
-  if (!zoom || zoom.yBands.length === 0) return;
-  params.set(CHART_Y_BAND_PARAM, zoom.yBands.join("+"));
+  if (migrateCmd) applyFarmChartCmdParam(params, true);
+  if (!zoom || !measureBands || measureBands.length === 0) {
+    if (zoom && (zoom.startRatio > 0.001 || zoom.endRatio < 0.999)) {
+      params.set(CHART_X0_PARAM, zoom.startRatio.toFixed(3));
+      params.set(CHART_X1_PARAM, zoom.endRatio.toFixed(3));
+    }
+    return;
+  }
+  params.set(CHART_Y_BAND_PARAM, measureBands.join("+"));
   if (zoom.startRatio > 0.001 || zoom.endRatio < 0.999) {
     params.set(CHART_X0_PARAM, zoom.startRatio.toFixed(3));
     params.set(CHART_X1_PARAM, zoom.endRatio.toFixed(3));
@@ -343,12 +386,13 @@ export function chartScopeEntryToZoomHint(
   } | null,
   categoryCount: number,
 ): ChartTrendZoomHint | null {
-  if (!entry?.yBands?.length || categoryCount < 2) return null;
+  const measureBands = yBandsWithoutCommand(entry?.yBands);
+  if (!measureBands?.length || categoryCount < 2) return null;
   const denom = categoryCount - 1;
-  const start = Math.max(0, Math.min(entry.start, entry.end));
-  const end = Math.min(categoryCount - 1, Math.max(entry.start, entry.end));
+  const start = Math.max(0, Math.min(entry!.start, entry!.end));
+  const end = Math.min(categoryCount - 1, Math.max(entry!.start, entry!.end));
   return {
-    yBands: [...entry.yBands],
+    yBands: [...measureBands],
     startRatio: clamp01(start / denom),
     endRatio: clamp01(end / denom),
     startIndex: start,
