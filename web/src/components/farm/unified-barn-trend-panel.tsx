@@ -1,15 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { Check, PanelRight, Settings } from "lucide-react";
 import {
   TrendChart,
   type ScaleEdgeDragEvent,
   type ScaleEdgeNumericCommitEvent,
+  type TrendCommandSettingSeg,
   type TrendScaleEdgeLabel,
 } from "@/components/trends/trend-chart";
 import { formatTrendBandEdge } from "@/components/trends/trend-chart-format";
-import { xScopeTouchesCommandLane } from "@/components/trends/trend-chart-geometry";
 import {
   BRUSH_PERIOD_WINDOW,
   UnifiedTrendPeriodBrush,
@@ -108,15 +108,12 @@ import {
 } from "@/lib/controllers/controller-panel-map";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import { sliceControllerTrendByTime } from "@/lib/data/trend-period-slice";
-import {
-  COMMAND_HIT_LANE_PX,
-  commandHitEventLane,
-  commandHitTimeSpan,
-  selectCommandHitResult,
-} from "@/lib/farm/command-hit";
+import { buildDecodedSettingHoldSegments, sliceFanControlWindows } from "@/lib/farm/channel-thermo";
+import { decodedSettingHoldToEventMark } from "@/lib/farm/decoded-setting-hold";
 import {
   tickEveryForDisplayBars,
   formatTrendScopeRangeLabel,
+  parseCategoryTimelineMs,
 } from "@/lib/farm/trend-display-buckets";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
@@ -307,6 +304,8 @@ type Props = {
 /**
  * 차트 탭 통합 추이 — 온도+편차 · 모터 max/채널 · 네비 브러시.
  */
+const emptySubscribe = () => () => {};
+
 export function UnifiedBarnTrendPanel({
   label,
   controllers,
@@ -336,6 +335,11 @@ export function UnifiedBarnTrendPanel({
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
+  const commandChrome = useSyncExternalStore(
+    emptySubscribe,
+    () => canCommand,
+    () => false,
+  );
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
   /** 오버레이(하이브리드) 보기 — 온도+모터를 한 밴드에 겹침 (토글) */
   const [overlayView, setOverlayView] = useState(false);
@@ -905,6 +909,7 @@ export function UnifiedBarnTrendPanel({
         envelopes: picked.envelopes,
         histograms: picked.histograms,
         tempDomain: picked.tempDomain,
+        thermoWindows: trendRaw?.thermoWindows ?? null,
       };
     }
     if (windowBundle) {
@@ -940,6 +945,7 @@ export function UnifiedBarnTrendPanel({
               envelopes: pickedScoped.envelopes,
               histograms: pickedScoped.histograms,
               tempDomain: builtScoped.tempDomain,
+              thermoWindows: raw.thermoWindows,
             };
           }
         }
@@ -953,6 +959,13 @@ export function UnifiedBarnTrendPanel({
         xScope.end,
       ),
       tempDomain: picked.tempDomain,
+      thermoWindows: trendRaw?.thermoWindows
+        ? sliceFanControlWindows(
+            trendRaw.thermoWindows,
+            xScope.start,
+            xScope.end + 1,
+          )
+        : null,
     };
   }, [
     picked,
@@ -963,66 +976,73 @@ export function UnifiedBarnTrendPanel({
     layers,
     plotWidthPx,
     chartScope.level,
+    trendRaw,
   ]);
 
   const chartCategories = scoped?.categories ?? [];
   const tempMapDomain = scoped?.tempDomain ?? built?.tempDomain;
   const tempMapLayout = built?.layout ?? layout;
-  const commandHitSpan = useMemo(
-    () =>
-      commandHitTimeSpan(scoped?.categories ?? [], {
-        fromMs: brushFromMs ?? Number.NaN,
-        toMs: brushToMs ?? Number.NaN,
-      }),
-    [scoped?.categories, brushFromMs, brushToMs],
-  );
-  const commandHitLane = useMemo(() => {
-    if (!useBrushCanvas || !commandHitSpan) return null;
-    const confirmedIds = new Set<string>();
-    for (const row of applyQueue?.rows ?? []) {
-      if (row.liveConfirmed) confirmedIds.add(row.id);
-    }
-    const result = selectCommandHitResult({
-      commands: liveRefresh?.slice.controller?.commands ?? [],
-      farmKey: liveRefresh?.farmKey ?? null,
-      scope: chartScope,
-      fromMs: commandHitSpan.fromMs,
-      toMs: commandHitSpan.toMs,
-      readings: liveRefresh?.slice.readings ?? [],
-      thermoSettings: liveRefresh?.slice.controller?.thermoSettings ?? {},
-      confirmedIds,
-    });
-    const windowLabel =
-      xScope != null && picked
-        ? formatTrendScopeRangeLabel(
-            picked.categories[xScope.start] ?? "",
-            picked.categories[xScope.end] ?? "",
-          )
-        : formatBrushWindowLabel(brushWindow);
-    return commandHitEventLane({
-      marks: result.marks,
-      hiddenCount: result.hiddenCount,
-      windowLabel,
-    });
-  }, [
-    useBrushCanvas,
-    commandHitSpan,
-    applyQueue?.rows,
-    liveRefresh?.slice.controller?.commands,
-    liveRefresh?.farmKey,
-    liveRefresh?.slice.readings,
-    liveRefresh?.slice.controller?.thermoSettings,
-    chartScope,
-    xScope,
-    picked,
-    brushWindow,
-  ]);
-  const showCommandPane =
+  const showCommandOverlay =
     commandPaneOpen &&
     chartScope.level === "controller" &&
-    useBrushCanvas;
-  const commandPaneLaneH = chartUiPx(COMMAND_HIT_LANE_PX);
-  const commandPaneHeight = commandPaneLaneH + chartUiPx(28);
+    useBrushCanvas &&
+    !controlMode &&
+    layers.temp;
+  const commandSettingSegs = useMemo((): TrendCommandSettingSeg[] => {
+    const windows = scoped?.thermoWindows;
+    if (!showCommandOverlay || !built || !windows) return [];
+    const cats = scoped?.categories ?? [];
+    const times = parseCategoryTimelineMs(cats);
+    if (!times || times.length < 1) return [];
+    const endMs = times[times.length - 1]!;
+    const segs = buildDecodedSettingHoldSegments(windows, times, endMs);
+    const mapLo = mappingThresholds.tempLow;
+    const mapHi = mappingThresholds.tempHigh;
+    const bandLo = Math.min(layout.tempLo, layout.tempHi);
+    const bandHi = Math.max(layout.tempLo, layout.tempHi);
+    const out: TrendCommandSettingSeg[] = [];
+    for (const seg of segs) {
+      const yLo = mapTempCToSplitY(
+        seg.tempLo,
+        mapLo,
+        mapHi,
+        tempMapLayout,
+        tempMapDomain,
+      );
+      const yHi = mapTempCToSplitY(
+        seg.tempHi,
+        mapLo,
+        mapHi,
+        tempMapLayout,
+        tempMapDomain,
+      );
+      if (yLo == null || yHi == null) continue;
+      const lo = Math.min(yLo, yHi);
+      const hi = Math.max(yLo, yHi);
+      const cLo = Math.max(lo, bandLo);
+      const cHi = Math.min(hi, bandHi);
+      if (!(cHi > cLo)) continue;
+      out.push({
+        mark: decodedSettingHoldToEventMark(seg),
+        x0Ms: seg.x0Ms,
+        x1Ms: seg.x1Ms,
+        yLo: cLo,
+        yHi: cHi,
+      });
+    }
+    return out;
+  }, [
+    showCommandOverlay,
+    built,
+    scoped?.thermoWindows,
+    scoped?.categories,
+    mappingThresholds.tempLow,
+    mappingThresholds.tempHigh,
+    layout.tempLo,
+    layout.tempHi,
+    tempMapLayout,
+    tempMapDomain,
+  ]);
   const chartPlotHeightForChart = chartPlotHeight;
 
   const emitZoom = useCallback(
@@ -1055,16 +1075,13 @@ export function UnifiedBarnTrendPanel({
     if (!picked) return;
     const domain = built?.leftDomain ?? ([0, 100] as [number, number]);
     const timeOnly = Boolean(opts?.timeOnly);
-    const laneTouched =
-      !timeOnly &&
-      xScopeTouchesCommandLane(range.yStartRatio, range.yEndRatio);
     const domainY0 = domainYFromViewRatio(range.yStartRatio, domain);
     const domainY1 = domainYFromViewRatio(range.yEndRatio, domain);
     const multiPlot = countSplitYBands(layerVisibility) > 1;
     const detected =
       timeOnly || mode === "replace" || xScope?.yBands != null
         ? null
-        : multiPlot || laneTouched
+        : multiPlot
           ? resolveYScopeBands(domainY0, domainY1, layerLayout, layerVisibility)
           : null;
     let yBands: UnifiedYBandId[] | null =
@@ -1073,8 +1090,6 @@ export function UnifiedBarnTrendPanel({
         : (xScope?.yBands ?? detected);
     if (timeOnly) {
       yBands = xScope?.yBands ?? null;
-    } else if (mode !== "replace" && xScope?.yBands != null && laneTouched) {
-      yBands = xScope.yBands.filter((b) => b !== "command");
     } else if (mode !== "replace" && xScope?.yBands == null) {
       if (detected == null && multiPlot) {
         const centerY = (domainY0 + domainY1) / 2;
@@ -1779,6 +1794,7 @@ export function UnifiedBarnTrendPanel({
         labelLane?: "outer" | "inner";
         lineStrokeWidth?: number;
         lineDasharray?: string;
+        lineHighlight?: boolean;
         showApplyActions?: boolean;
         hideLabel?: boolean;
       },
@@ -1800,6 +1816,7 @@ export function UnifiedBarnTrendPanel({
         labelLane: opts?.labelLane,
         lineStrokeWidth: opts?.lineStrokeWidth,
         lineDasharray: opts?.lineDasharray,
+        lineHighlight: opts?.lineHighlight,
         showApplyActions: opts?.showApplyActions,
         hideLabel: opts?.hideLabel,
       });
@@ -1917,6 +1934,9 @@ export function UnifiedBarnTrendPanel({
         thresholds.tempHigh,
         {
           leadingText: controlMode ? "온도상한" : undefined,
+          lineStrokeWidth: 1.45,
+          lineDasharray: "solid",
+          lineHighlight: true,
         },
       );
       push(
@@ -1937,6 +1957,9 @@ export function UnifiedBarnTrendPanel({
         thresholds.tempLow,
         {
           leadingText: controlMode ? "온도하한" : undefined,
+          lineStrokeWidth: 1.45,
+          lineDasharray: "solid",
+          lineHighlight: true,
         },
       );
       if (controlMode && scopeVisibility.showTemp) {
@@ -1991,6 +2014,8 @@ export function UnifiedBarnTrendPanel({
         thresholds.humidityHigh,
         {
           leadingText: controlMode ? "습도상한" : undefined,
+          lineStrokeWidth: 1.65,
+          lineDasharray: "solid",
         },
       );
       push(
@@ -2010,6 +2035,8 @@ export function UnifiedBarnTrendPanel({
         thresholds.humidityLow,
         {
           leadingText: controlMode ? "습도하한" : undefined,
+          lineStrokeWidth: 1.65,
+          lineDasharray: "solid",
         },
       );
     }
@@ -2073,7 +2100,7 @@ export function UnifiedBarnTrendPanel({
       </div>
     ) : null;
 
-  const controlModeButton = canCommand ? (
+  const controlModeButton = commandChrome ? (
     <button
       type="button"
       className={cn(
@@ -2100,7 +2127,7 @@ export function UnifiedBarnTrendPanel({
     </button>
   ) : null;
 
-  const controlModeCluster = canCommand ? (
+  const controlModeCluster = commandChrome ? (
     <div
       className="flex shrink-0 flex-row items-center gap-1"
       data-tour-id="chart-control-mode-cluster"
@@ -2268,7 +2295,7 @@ export function UnifiedBarnTrendPanel({
       picked &&
       (scoped.series.length > 0 ||
         scoped.histograms.length > 0 ||
-        showCommandPane) ? (
+        showCommandOverlay) ? (
         <div className="space-y-3">
         <div
           data-tour-id="chart-control-plot"
@@ -2284,6 +2311,7 @@ export function UnifiedBarnTrendPanel({
           height={chartPlotHeightForChart}
           eventLane={null}
           eventLaneHeight={0}
+          commandSettingSegs={commandSettingSegs}
           leftUnit={chartLeftUnit}
           leftDomain={built.leftDomain}
           period={displayPeriod}
@@ -2406,54 +2434,6 @@ export function UnifiedBarnTrendPanel({
           overlayHoverMerge={overlayActive}
         />
         </div>
-        {showCommandPane ? (
-          <div data-tour-id="farm-chart-command-pane">
-            {commandHitLane ? (
-              <TrendChart
-                mode="line"
-                categories={chartCategories}
-                series={[]}
-                envelopes={[]}
-                histograms={[]}
-                height={commandPaneHeight}
-                eventLane={commandHitLane}
-                eventLaneHeight={commandPaneLaneH}
-                period={displayPeriod}
-                pinResetKey={`${alarmScopeKey ?? ""}|${period ?? ""}|cmd`}
-                tickEvery={tickEveryForDisplayBars(chartCategories.length, {
-                  compact: isMobileStack,
-                })}
-                showLegend
-                legendDensity="core"
-                labelGutter={isMobileStack}
-                showMarkers={false}
-                xScopeSelect={!controlMode}
-                onXScopeCommit={
-                  controlMode
-                    ? undefined
-                    : (range) =>
-                        commitXScope(
-                          range,
-                          activeGuidedXScope ? "replace" : "push",
-                          { timeOnly: true },
-                        )
-                }
-                onXScopeBack={controlMode ? undefined : popXScope}
-                scopeMotionKey={scopeMotionKey}
-                scopeMotionDir={scopeMotionDir}
-              />
-            ) : (
-              <p
-                className={cn(
-                  "rounded-md border border-border/60 px-3 py-4 text-center text-muted-foreground",
-                  farmChartUi.fsMeta,
-                )}
-              >
-                이 구간에 적용된 명령이 없습니다.
-              </p>
-            )}
-          </div>
-        ) : null}
         </div>
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">

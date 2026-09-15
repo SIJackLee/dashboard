@@ -3,8 +3,13 @@ import {
   buildCommandHoldSegments,
   commandHoldBandRect,
   commandHoldRowIndex,
+  commandSettingHasWindow,
   COMMAND_HOLD_FILL_OPACITY,
   COMMAND_HOLD_TEMP_DOMAIN,
+  COMMAND_SETTING_COLOR,
+  COMMAND_SETTING_DASH,
+  COMMAND_SETTING_FILL_OPACITY,
+  COMMAND_SETTING_STROKE,
 } from "./command-hold-bands";
 
 assert.equal(commandHoldRowIndex("A"), 0);
@@ -69,5 +74,17 @@ assert.ok(COMMAND_HOLD_FILL_OPACITY.B > COMMAND_HOLD_FILL_OPACITY.C);
   assert.ok(r!.h > 2);
   assert.equal(commandHoldBandRect(40, 50, COMMAND_HOLD_TEMP_DOMAIN, 0, 30), null);
 }
+
+assert.equal(COMMAND_SETTING_STROKE.A, COMMAND_SETTING_COLOR);
+assert.equal(COMMAND_SETTING_STROKE.B, COMMAND_SETTING_COLOR);
+assert.equal(COMMAND_SETTING_STROKE.C, COMMAND_SETTING_COLOR);
+assert.equal(COMMAND_SETTING_DASH.A, undefined);
+assert.equal(COMMAND_SETTING_DASH.B, "1.6 2.2");
+assert.ok((COMMAND_SETTING_DASH.C ?? "").split(" ").length >= 6);
+assert.equal(COMMAND_SETTING_FILL_OPACITY.A, COMMAND_SETTING_FILL_OPACITY.B);
+assert.equal(COMMAND_SETTING_FILL_OPACITY.C, 0);
+assert.equal(commandSettingHasWindow("A"), true);
+assert.equal(commandSettingHasWindow("B"), true);
+assert.equal(commandSettingHasWindow("C"), false);
 
 console.log("command-hold-bands.test.ts: ok");

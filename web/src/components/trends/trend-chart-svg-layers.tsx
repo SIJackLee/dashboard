@@ -139,43 +139,34 @@ export function BandGuidesLayer({
   );
 }
 
-/** 알람 밴드 상·하한(경고색 점선) */
+/** 알람 밴드 — 습도 등은 창 채움, 온도는 하이라이트선만 (scale edge) */
 export function AlarmBandsLayer({
   bands,
   geom,
 }: {
-  bands: { band: Band; axis: TrendAxis }[];
+  bands: { band: Band; axis: TrendAxis; color?: string; fillWindow?: boolean }[];
   geom: TrendPlotGeom;
 }) {
   const { yFor, padL, padR, viewW } = geom;
   return (
     <Fragment>
-      {bands.map(({ band, axis }, idx) => {
+      {bands.map(({ band, axis, color, fillWindow }, idx) => {
+        if (fillWindow === false) return null;
         const yTop = yFor(band.hi, axis);
         const yBot = yFor(band.lo, axis);
+        const y = Math.min(yTop, yBot);
+        const h = Math.max(2, Math.abs(yBot - yTop));
+        const fill = color ?? SEV_COLOR.warning;
         return (
           <g key={`alarm-${idx}`}>
-            <line
-              x1={padL}
-              x2={viewW - padR}
-              y1={yTop}
-              y2={yTop}
-              stroke={SEV_COLOR.warning}
-              strokeWidth={0.5}
-              strokeDasharray="2 1.5"
-              strokeOpacity={0.65}
-              vectorEffect="non-scaling-stroke"
-            />
-            <line
-              x1={padL}
-              x2={viewW - padR}
-              y1={yBot}
-              y2={yBot}
-              stroke={SEV_COLOR.warning}
-              strokeWidth={0.5}
-              strokeDasharray="2 1.5"
-              strokeOpacity={0.65}
-              vectorEffect="non-scaling-stroke"
+            <rect
+              x={padL}
+              y={y}
+              width={Math.max(0, viewW - padR - padL)}
+              height={h}
+              fill={fill}
+              fillOpacity={0.14}
+              stroke="none"
             />
           </g>
         );

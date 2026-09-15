@@ -490,7 +490,15 @@ function cmd(
   assert.equal(event.row, 0);
   assert.equal(event.markerLabel, "A");
   assert.equal(event.card.hero, "채널 A");
-  assert.equal(event.card.values?.[0], "24.0℃");
+  assert.equal(
+    event.card.rows.find((row) => row.label === "설정온도")?.value,
+    "24.0℃",
+  );
+  assert.equal(
+    event.card.rows.find((row) => row.label === "편차")?.value,
+    "±3.0℃",
+  );
+  assert.ok(event.card.rows.some((row) => row.label === "환기"));
   assert.equal(event.hold?.channel, "A");
   assert.equal(event.hold?.tempLo, 24);
   assert.equal(event.hold?.tempHi, 27);

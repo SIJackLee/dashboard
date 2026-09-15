@@ -563,9 +563,6 @@ export function commandHitToEventMark(mark: CommandHitMark): TrendEventMark {
       time: formatKst(mark.at, "short"),
       hero: channelLabel ?? mark.setpoint,
       heroTone: mark.stage === "확인" ? "ok" : undefined,
-      values: channelLabel
-        ? [mark.setpoint, mark.deviation, mark.vent]
-        : [mark.deviation, mark.vent],
       target: mark.targetRef
         ? {
             stallTyCode: mark.targetRef.stallTyCode,
@@ -575,7 +572,7 @@ export function commandHitToEventMark(mark: CommandHitMark): TrendEventMark {
           }
         : undefined,
       rows: [
-        { label: "단계", value: mark.stage },
+        { label: "설정온도", value: mark.setpoint },
         { label: "편차", value: mark.deviation },
         { label: "환기", value: mark.vent },
       ],

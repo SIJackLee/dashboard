@@ -281,6 +281,7 @@ export function useTrendScopeGesture(opts: UseTrendScopeGestureOptions) {
     clientX: number,
     clientY: number,
     plot: HTMLElement,
+    opts?: { timeOnly?: boolean },
   ): boolean => {
     if (guidedScopeActiveRef.current) return false;
     if (!xScopeSelect || xDraftRef.current == null) return false;
@@ -311,8 +312,8 @@ export function useTrendScopeGesture(opts: UseTrendScopeGestureOptions) {
     onXScopeCommit({
       start,
       end,
-      yStartRatio: yCenterRatioFromView(y0),
-      yEndRatio: yCenterRatioFromView(y),
+      yStartRatio: opts?.timeOnly ? 0 : yCenterRatioFromView(y0),
+      yEndRatio: opts?.timeOnly ? 1 : yCenterRatioFromView(y),
     });
     return true;
   };

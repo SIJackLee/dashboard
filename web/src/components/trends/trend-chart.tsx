@@ -28,6 +28,12 @@ import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { useClipPresence } from "@/lib/ui/use-clip-presence";
+import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
+import {
+  COMMAND_SETTING_COLOR,
+  COMMAND_SETTING_DASH,
+  COMMAND_SETTING_FILL_OPACITY,
+} from "@/lib/farm/command-hold-bands";
 
 import type {
   TrendAxis,
@@ -44,6 +50,7 @@ import type {
   ScaleEdgeNumericCommitEvent,
   TrendEventLane,
   TrendEventMark,
+  TrendCommandSettingSeg,
 } from "@/lib/data/trend-chart-types";
 import {
   type HoverMetricGroup,
@@ -93,8 +100,10 @@ import {
 import { TrendChartDataLayers } from "./trend-chart-data-layers";
 import {
   CommandHoldLaneSvg,
+  CommandSettingHitOverlay,
   EventLaneHtmlOverlay,
   EventLaneSvgGuides,
+  type PositionedCommandSettingHit,
   type PositionedEventMark,
 } from "./trend-chart-event-lane";
 
@@ -113,6 +122,7 @@ export type {
   ScaleEdgeNumericCommitEvent,
   TrendEventLane,
   TrendEventMark,
+  TrendCommandSettingSeg,
 };
 
 type TrendChartProps = {
@@ -269,6 +279,8 @@ type TrendChartProps = {
   eventLane?: TrendEventLane | null;
   /** `height`와 같은 단위(플롯 view Y). 기본 0 */
   eventLaneHeight?: number;
+  /** 온도 본선 위 채널 명령 이력. 토글로 끈 경우 빈 배열 */
+  commandSettingSegs?: TrendCommandSettingSeg[];
 };
 
 
@@ -326,6 +338,7 @@ export function TrendChart({
   onPlotWidthChange,
   eventLane = null,
   eventLaneHeight = 0,
+  commandSettingSegs = [],
   pinResetKey,
 }: TrendChartProps) {
   void _layoutKey;
@@ -552,6 +565,29 @@ export function TrendChart({
       const row = Math.min(rows - 1, Math.max(0, mark.row));
       const yView = eventLaneTop + ((row + 0.5) / rows) * eventLaneH;
       out.push({ mark, xView, yView });
+    }
+    return out;
+  })();
+
+  const positionedCommandHits: PositionedCommandSettingHit[] = (() => {
+    if (commandSettingSegs.length === 0) return [];
+    const xMin = padL;
+    const xMax = viewW - padR;
+    const out: PositionedCommandSettingHit[] = [];
+    for (const seg of commandSettingSegs) {
+      const raw0 = xForMs(seg.x0Ms);
+      const raw1 = xForMs(seg.x1Ms);
+      const x0 = raw0 ?? xMin;
+      const x1 = raw1 ?? xMax;
+      const xa = Math.max(xMin, Math.min(xMax, Math.min(x0, x1)));
+      const xb = Math.max(xMin, Math.min(xMax, Math.max(x0, x1)));
+      if (!(xb - xa > 0.3)) continue;
+      const yA = yFor(seg.yLo, "left");
+      const yB = yFor(seg.yHi, "left");
+      if (!Number.isFinite(yA) || !Number.isFinite(yB)) continue;
+      const y = Math.min(yA, yB);
+      const h = Math.max(2, Math.abs(yB - yA));
+      out.push({ seg, x0: xa, x1: xb, y, h });
     }
     return out;
   })();
@@ -1457,7 +1493,7 @@ export function TrendChart({
   };
 
   useLayoutEffect(() => {
-    if (hoverIdx == null) return;
+    if (hoverIdx == null && !hoverEventMark) return;
     const a = lastAnchorRef.current;
     placeTipNear(a.x, a.y, a.w, a.h);
   }, [hoverIdx, hoverEventMark]);
@@ -1506,14 +1542,20 @@ export function TrendChart({
   /** 알람/한계 점선 — 동일 axis·밴드 1회. */
   const uniqueAlarmBands = useMemo(() => {
     const seen = new Set<string>();
-    const out: { band: Band; axis: TrendAxis }[] = [];
+    const out: {
+      band: Band;
+      axis: TrendAxis;
+      color?: string;
+      fillWindow?: boolean;
+    }[] = [];
     for (const s of series) {
       if (!s.band) continue;
       const axis = s.axis ?? "left";
       const key = `${axis}:${s.band.lo}:${s.band.hi}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ band: s.band, axis });
+      const fillWindow = s.color === "var(--channel-hum)";
+      out.push({ band: s.band, axis, color: s.color, fillWindow });
     }
     return out;
   }, [series]);
@@ -1765,6 +1807,59 @@ export function TrendChart({
             });
           }
 
+          if (positionedCommandHits.length > 0) {
+            const seen = new Set<string>();
+            for (const hit of positionedCommandHits) {
+              const ch = hit.seg.mark.hold?.channel;
+              if (!ch || seen.has(ch)) continue;
+              seen.add(ch);
+              const label = CHANNEL_SLOT_LABELS[ch];
+              const dash = COMMAND_SETTING_DASH[ch];
+              const fillOp = COMMAND_SETTING_FILL_OPACITY[ch];
+              items.push({
+                key: `cmd-set-${ch}`,
+                group: "temp",
+                label,
+                node: (
+                  <span className="inline-flex items-center gap-1 farm-chart-fs-legend text-muted-foreground">
+                    <span
+                      className="relative inline-flex h-2 w-3 items-center"
+                      aria-hidden
+                    >
+                      {fillOp > 0 ? (
+                        <span
+                          className="absolute inset-0 rounded-sm"
+                          style={{
+                            backgroundColor: COMMAND_SETTING_COLOR,
+                            opacity: fillOp * 2,
+                          }}
+                        />
+                      ) : null}
+                      <svg
+                        width="12"
+                        height="8"
+                        viewBox="0 0 12 8"
+                        className="relative"
+                      >
+                        <line
+                          x1="0.5"
+                          y1="4"
+                          x2="11.5"
+                          y2="4"
+                          stroke={COMMAND_SETTING_COLOR}
+                          strokeWidth="1.5"
+                          strokeDasharray={dash}
+                          opacity="0.85"
+                        />
+                      </svg>
+                    </span>
+                    {label}
+                  </span>
+                ),
+              });
+            }
+          }
+
           if (legendDensity === "full") {
             envelopes.forEach((env, idx) => {
               if (!env.legendLabel) return;
@@ -1840,11 +1935,12 @@ export function TrendChart({
           const LABEL_RANK: Record<HoverMetricGroup, string[]> = {
             temp: [
               "온도",
+              "채널 A",
+              "채널 B",
+              "채널 C",
               "온도 추세",
               "온도 산포",
               "온도 편차",
-              "온도 상한 접촉",
-              "온도 하한 접촉",
             ],
             hum: [
               "습도",
@@ -2028,6 +2124,8 @@ export function TrendChart({
           shouldShowMarker={shouldShowMarker}
           lineSegments={lineSegments}
           envelopePaths={envelopePaths}
+          commandSettingHits={positionedCommandHits}
+          commandHoverId={hoverEventMark?.id ?? null}
         />
         {eventLane && eventLaneH > 0 ? (
           <>
@@ -2227,45 +2325,45 @@ export function TrendChart({
             }
             return false;
           }}
-          onHover={(mark) => {
-            hoverEventMarkRef.current = mark;
-            setHoverEventMark(mark);
-            if (!mark || n === 0) return;
-            const placed = positionedEventMarks.find(
-              (row) => row.mark.id === mark.id,
-            );
-            if (!placed) return;
-            const pairMaxDx = Math.max(hoverPairSlotDx(innerW, n), 6);
-            let bestIdx: number | null = null;
-            let bestKey: string | null = null;
-            let bestY = placed.yView;
-            let bestDx = pairMaxDx;
-            for (let hi = 0; hi < histograms.length; hi++) {
-              const h = histograms[hi]!;
-              const key = h.legendLabel ?? `hist-${hi}`;
-              if (inferHoverMetricGroup(key) !== "motor") continue;
-              for (let i = 0; i < n; i++) {
-                const v = h.values[i];
-                if (v == null || !Number.isFinite(v)) continue;
-                const dx = Math.abs(xAtIndex(i) - placed.xView);
-                if (dx <= bestDx) {
-                  bestDx = dx;
-                  bestIdx = i;
-                  bestKey = key;
-                  bestY = yFor(v, "left");
-                }
+          onHover={(mark, client) => {
+            if (!mark) {
+              if (hoverEventMarkRef.current) {
+                hoverEventMarkRef.current = null;
+                setHoverEventMark(null);
               }
+              if (hoverSeriesRef.current?.startsWith("event:")) {
+                hoverIdxRef.current = null;
+                hoverSeriesRef.current = null;
+                setHoverIdx(null);
+                setHoverSeries(null);
+              }
+              return;
             }
-            if (bestIdx == null || bestKey == null) return;
-            hoverIdxRef.current = bestIdx;
-            hoverSeriesRef.current = bestKey;
-            setHoverIdx(bestIdx);
-            setHoverSeries(bestKey);
+            const same = hoverEventMarkRef.current?.id === mark.id;
+            hoverEventMarkRef.current = mark;
+            if (!same) {
+              hoverIdxRef.current = null;
+              hoverSeriesRef.current = `event:${mark.id}`;
+              setHoverIdx(null);
+              setHoverSeries(`event:${mark.id}`);
+              setHoverEventMark(mark);
+            }
             const plot = plotRef.current;
             if (!plot) return;
             const rect = plot.getBoundingClientRect();
-            const anchorX = (xAtIndex(bestIdx) / viewW) * rect.width;
-            const anchorY = (bestY / chartH) * rect.height;
+            const placed = positionedEventMarks.find(
+              (row) => row.mark.id === mark.id,
+            );
+            const anchorX = client
+              ? Math.min(rect.width, Math.max(0, client.x - rect.left))
+              : placed
+                ? (placed.xView / viewW) * rect.width
+                : rect.width / 2;
+            const anchorY = client
+              ? Math.min(rect.height, Math.max(0, client.y - rect.top))
+              : placed
+                ? (placed.yView / chartH) * rect.height
+                : rect.height / 2;
             lastAnchorRef.current = {
               x: anchorX,
               y: anchorY,
@@ -2291,6 +2389,129 @@ export function TrendChart({
                     const plot = plotRef.current;
                     if (!plot) return false;
                     return endXScopeAt(clientX, clientY, plot);
+                  },
+                  cancel: () => onXScopePointerCancel(),
+                }
+              : null
+          }
+        />
+      ) : null}
+
+      {positionedCommandHits.length > 0 ? (
+        <CommandSettingHitOverlay
+          hits={positionedCommandHits}
+          viewW={viewW}
+          chartH={chartH}
+          selectedId={
+            [...pinnedTips]
+              .reverse()
+              .find((p) => p.eventMark)?.eventMark?.id ??
+            hoverEventMark?.id ??
+            null
+          }
+          onSelect={(mark, anchor) => {
+            const hit = positionedCommandHits.find(
+              (row) => row.seg.mark.id === mark.id,
+            );
+            if (!hit && !anchor) return;
+            const id = `event:${mark.id}`;
+            setPinnedTips((prev) => {
+              if (prev.some((p) => p.id === id)) {
+                return prev.filter((p) => p.id !== id);
+              }
+              const nx = anchor
+                ? anchor.nx
+                : (hit!.x0 + hit!.x1) / 2 / viewW;
+              const ny = anchor
+                ? anchor.ny
+                : (hit!.y + hit!.h / 2) / chartH;
+              const next: PinnedTip = {
+                id,
+                idx: 0,
+                seriesKey: id,
+                nx,
+                ny,
+                ox: 0,
+                oy: 0,
+                eventMark: mark,
+                atMs: mark.atMs,
+              };
+              return [...prev, next].slice(-MAX_PINNED_TIPS);
+            });
+          }}
+          onEmptyContextMenu={() => {
+            if (pinnedTips.length > 0) {
+              setPinnedTips([]);
+              return true;
+            }
+            return false;
+          }}
+          onHover={(mark, client) => {
+            if (!mark) {
+              if (hoverEventMarkRef.current) {
+                hoverEventMarkRef.current = null;
+                setHoverEventMark(null);
+              }
+              if (hoverSeriesRef.current?.startsWith("event:")) {
+                hoverIdxRef.current = null;
+                hoverSeriesRef.current = null;
+                setHoverIdx(null);
+                setHoverSeries(null);
+              }
+              return;
+            }
+            const same = hoverEventMarkRef.current?.id === mark.id;
+            hoverEventMarkRef.current = mark;
+            if (!same) {
+              hoverIdxRef.current = null;
+              hoverSeriesRef.current = `event:${mark.id}`;
+              setHoverIdx(null);
+              setHoverSeries(`event:${mark.id}`);
+              setHoverEventMark(mark);
+            }
+            const plot = plotRef.current;
+            if (!plot) return;
+            const rect = plot.getBoundingClientRect();
+            const hit = positionedCommandHits.find(
+              (row) => row.seg.mark.id === mark.id,
+            );
+            const anchorX = client
+              ? Math.min(rect.width, Math.max(0, client.x - rect.left))
+              : hit
+                ? ((hit.x0 + hit.x1) / 2 / viewW) * rect.width
+                : rect.width / 2;
+            const anchorY = client
+              ? Math.min(rect.height, Math.max(0, client.y - rect.top))
+              : hit
+                ? ((hit.y + hit.h / 2) / chartH) * rect.height
+                : rect.height / 2;
+            lastAnchorRef.current = {
+              x: anchorX,
+              y: anchorY,
+              w: rect.width,
+              h: rect.height,
+            };
+            placeTipNear(anchorX, anchorY, rect.width, rect.height);
+          }}
+          scopeHandlers={
+            xScopeSelect
+              ? {
+                  begin: (clientX, clientY) => {
+                    const plot = plotRef.current;
+                    if (!plot) return;
+                    beginXScopeAt(clientX, clientY, plot);
+                  },
+                  move: (clientX, clientY) => {
+                    const plot = plotRef.current;
+                    if (!plot) return;
+                    moveXScopeAt(clientX, clientY, plot);
+                  },
+                  end: (clientX, clientY) => {
+                    const plot = plotRef.current;
+                    if (!plot) return false;
+                    return endXScopeAt(clientX, clientY, plot, {
+                      timeOnly: true,
+                    });
                   },
                   cancel: () => onXScopePointerCancel(),
                 }
@@ -2786,26 +3007,44 @@ export function TrendChart({
         );
       })}
 
-      {hoverIdx != null &&
-      hoverIdx >= 0 &&
-      hoverIdx < n &&
-      hoverSeries != null &&
-      !hoverSeries.startsWith("event:") &&
-      !(
+      {hoverEventMark &&
+      !pinnedTips.some((p) => p.eventMark?.id === hoverEventMark.id) ? (
+        <div
+          ref={tipRef}
+          className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"
+          style={{ opacity: 0, willChange: "transform" }}
+          aria-live="polite"
+          data-tour-id="trend-chart-hover-card"
+        >
+          <div
+            className={cn(
+              "rounded-md border border-border/80 bg-popover/95 px-2.5 py-1.5 text-popover-foreground shadow-lg backdrop-blur-sm",
+              motionClass.farmChartTipIn,
+            )}
+          >
+            <TrendEventCardBody mark={hoverEventMark} />
+          </div>
+        </div>
+      ) : hoverIdx != null &&
+        hoverIdx >= 0 &&
+        hoverIdx < n &&
         hoverSeries != null &&
-        pinnedTips.some(
-          (p) =>
-            p.id ===
-            tipPinId(
-              hoverIdx,
-              overlayHoverMerge &&
-                (inferHoverMetricGroup(hoverSeries) === "temp" ||
-                  inferHoverMetricGroup(hoverSeries) === "motor")
-                ? "온도"
-                : hoverSeries,
-            ),
-        )
-      ) ? (
+        !hoverSeries.startsWith("event:") &&
+        !(
+          hoverSeries != null &&
+          pinnedTips.some(
+            (p) =>
+              p.id ===
+              tipPinId(
+                hoverIdx,
+                overlayHoverMerge &&
+                  (inferHoverMetricGroup(hoverSeries) === "temp" ||
+                    inferHoverMetricGroup(hoverSeries) === "motor")
+                  ? "온도"
+                  : hoverSeries,
+              ),
+          )
+        ) ? (
         <div
           ref={tipRef}
           className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"

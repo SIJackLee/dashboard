@@ -192,6 +192,154 @@ export function hasFiniteWindow(win: FanControlWindow): boolean {
   return win.loC.some((v, i) => isFiniteNum(v) && isFiniteNum(win.hiC[i]));
 }
 
+export function sliceFanControlWindow(
+  win: FanControlWindow,
+  from: number,
+  to: number,
+): FanControlWindow {
+  return {
+    loC: win.loC.slice(from, to),
+    hiC: win.hiC.slice(from, to),
+    minVent: win.minVent.slice(from, to),
+    maxVent: win.maxVent.slice(from, to),
+  };
+}
+
+export function sliceFanControlWindows(
+  windows: {
+    a: FanControlWindow;
+    b: FanControlWindow;
+    c: FanControlWindow;
+  },
+  from: number,
+  to: number,
+): {
+  a: FanControlWindow;
+  b: FanControlWindow;
+  c: FanControlWindow;
+} {
+  return {
+    a: sliceFanControlWindow(windows.a, from, to),
+    b: sliceFanControlWindow(windows.b, from, to),
+    c: sliceFanControlWindow(windows.c, from, to),
+  };
+}
+
+/** decoded 설정 유지 구간 — command 테이블이 아니라 RPC 시계열. */
+export type DecodedSettingHoldSeg = {
+  channel: ThermoChannelId;
+  i0: number;
+  x0Ms: number;
+  x1Ms: number;
+  tempLo: number;
+  tempHi: number;
+  ventLo: number | null;
+  ventHi: number | null;
+};
+
+function holdSnapshotAt(
+  win: FanControlWindow,
+  i: number,
+): {
+  loC: number;
+  hiC: number;
+  minVent: number | null;
+  maxVent: number | null;
+} | null {
+  const loC = win.loC[i];
+  const hiC = win.hiC[i];
+  if (!isFiniteNum(loC) || !isFiniteNum(hiC)) return null;
+  return {
+    loC,
+    hiC,
+    minVent: isFiniteNum(win.minVent[i]) ? win.minVent[i]! : null,
+    maxVent: isFiniteNum(win.maxVent[i]) ? win.maxVent[i]! : null,
+  };
+}
+
+function sameDecodedHold(
+  a: NonNullable<ReturnType<typeof holdSnapshotAt>>,
+  b: NonNullable<ReturnType<typeof holdSnapshotAt>>,
+): boolean {
+  return (
+    Math.abs(a.loC - b.loC) <= TEMP_CHANGE_EPS &&
+    Math.abs(a.hiC - b.hiC) <= TEMP_CHANGE_EPS &&
+    !numChanged(a.minVent, b.minVent, VENT_CHANGE_EPS) &&
+    !numChanged(a.maxVent, b.maxVent, VENT_CHANGE_EPS)
+  );
+}
+
+function runEndMs(
+  i1Exclusive: number,
+  times: number[],
+  endMs: number,
+): number {
+  if (i1Exclusive < times.length) return times[i1Exclusive]!;
+  const last = times[times.length - 1]!;
+  const prev = times.length >= 2 ? times[times.length - 2]! : last - 60_000;
+  return Math.max(endMs, last + Math.max(1, last - prev));
+}
+
+/**
+ * hold-forward된 decoded 창을 같은 값이 이어지는 구간으로 접는다.
+ * 시각은 추이 버킷. command 테이블 시각·페이로드는 쓰지 않는다.
+ */
+export function buildDecodedSettingHoldSegments(
+  windows: {
+    a: FanControlWindow;
+    b: FanControlWindow;
+    c: FanControlWindow;
+  },
+  timeAxisMs: number[],
+  endMs: number,
+): DecodedSettingHoldSeg[] {
+  const n = Math.min(
+    timeAxisMs.length,
+    windows.a.loC.length,
+    windows.b.loC.length,
+    windows.c.loC.length,
+  );
+  if (n < 1) return [];
+  const slots: { channel: ThermoChannelId; win: FanControlWindow }[] = [
+    { channel: "A", win: windows.a },
+    { channel: "B", win: windows.b },
+    { channel: "C", win: windows.c },
+  ];
+  const out: DecodedSettingHoldSeg[] = [];
+  for (const { channel, win } of slots) {
+    let i = 0;
+    while (i < n) {
+      const start = holdSnapshotAt(win, i);
+      if (!start) {
+        i += 1;
+        continue;
+      }
+      let j = i + 1;
+      while (j < n) {
+        const next = holdSnapshotAt(win, j);
+        if (!next || !sameDecodedHold(start, next)) break;
+        j += 1;
+      }
+      const x0 = timeAxisMs[i]!;
+      const x1 = runEndMs(j, timeAxisMs, endMs);
+      if (x1 > x0) {
+        out.push({
+          channel,
+          i0: i,
+          x0Ms: x0,
+          x1Ms: x1,
+          tempLo: start.loC,
+          tempHi: start.hiC,
+          ventLo: start.minVent,
+          ventHi: start.maxVent,
+        });
+      }
+      i = j;
+    }
+  }
+  return out;
+}
+
 const TEMP_CHANGE_EPS = 0.05;
 const VENT_CHANGE_EPS = 0.5;
 

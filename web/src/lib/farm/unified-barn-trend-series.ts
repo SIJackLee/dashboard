@@ -53,14 +53,6 @@ export const UNIFIED_CHART_LABELS = {
   motorC: CHANNEL_SLOT_LABELS.C,
 } as const;
 
-/** A안 — 임계 접촉 코리도 채움 */
-export const UNIFIED_TEMP_BREACH_HI_FILL = "var(--channel-temp)";
-export const UNIFIED_TEMP_BREACH_LO_FILL =
-  "color-mix(in oklch, var(--channel-temp) 55%, var(--channel-hum))";
-export const UNIFIED_HUM_BREACH_HI_FILL = "var(--channel-hum)";
-export const UNIFIED_HUM_BREACH_LO_FILL =
-  "color-mix(in oklch, var(--channel-hum) 55%, var(--channel-fan-exhaust))";
-
 /** 닿음 허용 (부동소수) */
 const BREACH_TOUCH_EPS = 1e-6;
 
@@ -1490,118 +1482,6 @@ export function pickUnifiedTrendLayers(
   }
   if (layers.hum && layers.humBand && built.envelopesHumBand) {
     envelopes.push(built.envelopesHumBand);
-  }
-  /*
-   * A안 — 임계 접촉/초과 코리도 (2단계).
-   * · 접촉(touch): 산포 극단(min/max)이 임계에 닿음 → 옅은 채움(먼저 그려 아래로).
-   * · 초과(exceed): 평균 본선이 임계를 넘음 → 진한 채움(위로 겹쳐 자연스러운 단계).
-   * 임계선 y는 본선과 동일 매핑(오버레이 앵커 포함)인 built.tempHi/LoPlot 재사용 → 정합.
-   */
-  if (layers.temp && built.seriesByKey.temp) {
-    const raw = built.seriesByKey.temp.hoverSecondary ?? null;
-    const plot = built.seriesByKey.temp.data;
-    const { tempLow, tempHigh } = built.thresholds;
-    const hiPlot = built.tempHiPlot;
-    const loPlot = built.tempLoPlot;
-    const band = built.envelopesBand;
-    const spreadHiRaw = band?.hoverExtremes?.high.map((c) => c?.value ?? null);
-    const spreadLoRaw = band?.hoverExtremes?.low.map((c) => c?.value ?? null);
-    if (hiPlot != null) {
-      // 접촉: 산포 최대가 상한 닿음 (옅게, 초과와 겹치면 더 진해짐)
-      if (band && spreadHiRaw) {
-        const touchHi = buildThresholdBreachCorridor({
-          seriesPlot: band.high,
-          seriesRaw: spreadHiRaw,
-          thresholdRaw: tempHigh,
-          thresholdPlot: hiPlot,
-          side: "high",
-          fill: UNIFIED_TEMP_BREACH_HI_FILL,
-          fillOpacity: 0.08,
-          legendLabel: "온도 상한 접촉",
-        });
-        if (touchHi) envelopes.push(touchHi);
-      }
-      const hiEnv = buildThresholdBreachCorridor({
-        seriesPlot: plot,
-        seriesRaw: raw,
-        thresholdRaw: tempHigh,
-        thresholdPlot: hiPlot,
-        side: "high",
-        fill: UNIFIED_TEMP_BREACH_HI_FILL,
-        fillOpacity: 0.2,
-        legendLabel: "온도 상한 초과",
-      });
-      if (hiEnv) envelopes.push(hiEnv);
-    }
-    if (loPlot != null) {
-      if (band && spreadLoRaw) {
-        const touchLo = buildThresholdBreachCorridor({
-          seriesPlot: band.low,
-          seriesRaw: spreadLoRaw,
-          thresholdRaw: tempLow,
-          thresholdPlot: loPlot,
-          side: "low",
-          fill: UNIFIED_TEMP_BREACH_LO_FILL,
-          fillOpacity: 0.07,
-          legendLabel: "온도 하한 접촉",
-        });
-        if (touchLo) envelopes.push(touchLo);
-      }
-      const loEnv = buildThresholdBreachCorridor({
-        seriesPlot: plot,
-        seriesRaw: raw,
-        thresholdRaw: tempLow,
-        thresholdPlot: loPlot,
-        side: "low",
-        fill: UNIFIED_TEMP_BREACH_LO_FILL,
-        fillOpacity: 0.18,
-        legendLabel: "온도 하한 초과",
-      });
-      if (loEnv) envelopes.push(loEnv);
-    }
-  }
-  if (layers.hum && built.seriesByKey.hum) {
-    const raw = built.seriesByKey.hum.hoverSecondary ?? null;
-    const plot = built.seriesByKey.hum.data;
-    const { humidityLow, humidityHigh } = built.thresholds;
-    const hiPlot = mapHumPctToSplitY(
-      humidityHigh,
-      humidityLow,
-      humidityHigh,
-      built.layout,
-    );
-    const loPlot = mapHumPctToSplitY(
-      humidityLow,
-      humidityLow,
-      humidityHigh,
-      built.layout,
-    );
-    if (hiPlot != null) {
-      const hiEnv = buildThresholdBreachCorridor({
-        seriesPlot: plot,
-        seriesRaw: raw,
-        thresholdRaw: humidityHigh,
-        thresholdPlot: hiPlot,
-        side: "high",
-        fill: UNIFIED_HUM_BREACH_HI_FILL,
-        fillOpacity: 0.2,
-        legendLabel: "습도 상한 접촉",
-      });
-      if (hiEnv) envelopes.push(hiEnv);
-    }
-    if (loPlot != null) {
-      const loEnv = buildThresholdBreachCorridor({
-        seriesPlot: plot,
-        seriesRaw: raw,
-        thresholdRaw: humidityLow,
-        thresholdPlot: loPlot,
-        side: "low",
-        fill: UNIFIED_HUM_BREACH_LO_FILL,
-        fillOpacity: 0.18,
-        legendLabel: "습도 하한 접촉",
-      });
-      if (loEnv) envelopes.push(loEnv);
-    }
   }
 
   const histograms: TrendHistogram[] = [];

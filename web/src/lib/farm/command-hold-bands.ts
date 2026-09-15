@@ -20,6 +20,38 @@ export const COMMAND_HOLD_LINE_OPACITY: Record<ChannelSlot, number> = {
   C: 0.32,
 };
 
+/**
+ * 명령 이력 선·창 — 팬 배기 토큰(보라). A/B/C는 색이 아니라 선 종류로만 구분.
+ * 하드코딩 violet 금지.
+ */
+export const COMMAND_SETTING_COLOR = "var(--channel-fan-exhaust)";
+
+export const COMMAND_SETTING_STROKE: Record<ChannelSlot, string> = {
+  A: COMMAND_SETTING_COLOR,
+  B: COMMAND_SETTING_COLOR,
+  C: COMMAND_SETTING_COLOR,
+};
+
+/** A 실선 · B 점선 · C 이중점선(이점쇄선) */
+export const COMMAND_SETTING_DASH: Record<ChannelSlot, string | undefined> = {
+  A: undefined,
+  B: "1.6 2.2",
+  C: "6 2.2 1.3 2.2 1.3 2.2",
+};
+
+/** A·B만 창. 같은 투명도라서 겹친 구간은 합성으로 진해진다. */
+export const COMMAND_SETTING_FILL_OPACITY: Record<ChannelSlot, number> = {
+  A: 0.16,
+  B: 0.16,
+  C: 0,
+};
+
+export const COMMAND_SETTING_LINE_OPACITY = 0.5;
+
+export function commandSettingHasWindow(channel: ChannelSlot): boolean {
+  return COMMAND_SETTING_FILL_OPACITY[channel] > 0;
+}
+
 export function commandHoldRowIndex(
   channel: ChannelSlot | null | undefined,
 ): number | null {

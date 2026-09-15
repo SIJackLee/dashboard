@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   fetchFarmControllerTrendPeriodAction,
   fetchFarmControllerTrendWindowAction,
@@ -37,6 +37,8 @@ type TrendSnapshot = {
   bundle: TrendBundle;
   window15m: TrendWindow15m | null;
 };
+
+const emptySubscribe = () => () => {};
 
 /** map/list 훅 인스턴스 간 공유 — 탭 전환 시 이중 fetch 방지 · TTL 90s */
 const trendCache = new Map<string, TimedCacheEntry<TrendSnapshot>>();
@@ -267,19 +269,21 @@ export function useFarmControllerTrend(params: {
   const scopeId = params.farmKey ? farmKeyId(params.farmKey) : "";
   const active = params.enabled && Boolean(params.farmKey);
   const applyTokenRef = useRef(0);
+  /** 모듈 캐시는 클라이언트 전용 — 첫 페인트에서 읽으면 SSR 빈 차트와 hydration 불일치 */
+  const clientReady = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
   const [snap, setSnap] = useState<{
     scopeId: string;
     data: TrendSnapshot;
-  } | null>(() => {
-    if (!scopeId) return null;
-    const cached = readTrendCache(scopeId);
-    return cached ? { scopeId, data: cached } : null;
-  });
+  } | null>(null);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [window15mLoading, setWindow15mLoading] = useState(false);
 
-  if (active && scopeId) {
+  if (clientReady && active && scopeId) {
     const cached = readTrendCache(scopeId);
     if (cached && snap?.scopeId !== scopeId) {
       setSnap({ scopeId, data: cached });
@@ -335,7 +339,7 @@ export function useFarmControllerTrend(params: {
           if (token === applyTokenRef.current) setWindow15mLoading(false);
         });
     },
-    [params.farmKey, scopeId],
+    [params.farmKey, scopeId, setWindow15mLoading, setSnap, setError],
   );
 
   const refresh = useCallback(() => {
@@ -355,7 +359,7 @@ export function useFarmControllerTrend(params: {
       .finally(() => {
         if (token === applyTokenRef.current) setRefreshing(false);
       });
-  }, [params.farmKey, scopeId]);
+  }, [params.farmKey, scopeId, setRefreshing, setSnap, setError]);
 
   const data = snap?.scopeId === scopeId ? snap.data.bundle : null;
   const window15m =

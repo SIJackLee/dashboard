@@ -160,6 +160,8 @@ export type TrendScaleEdgeLabel = {
   lineStrokeWidth?: number;
   /** 미지정=점선, "" 또는 "solid"=실선 */
   lineDasharray?: string;
+  /** true면 본선 글로우와 같은 하이라이트 밑선 (온도 상·하한) */
+  lineHighlight?: boolean;
   /**
    * 우측 라벨 레인 — outer=알람(바깥), inner=제어값(그래프에 가까운 쪽).
    * side=center|plotStart 일 때는 무시.
@@ -226,6 +228,16 @@ export type TrendEventMark = {
   markerLabel?: string;
   /** 적용 시점부터 다음 같은 채널 명령까지 유지할 온도·환기 구간 */
   hold?: TrendEventMarkHold;
+};
+
+/** 온도 본선 위 채널 명령 이력 (측정 Y · 토글) */
+export type TrendCommandSettingSeg = {
+  mark: TrendEventMark;
+  x0Ms: number;
+  x1Ms: number;
+  /** split-Y 플롯 좌표 (℃ 매핑 후). 축을 늘리지 않음 */
+  yLo: number;
+  yHi: number;
 };
 
 export type TrendEventLane = {

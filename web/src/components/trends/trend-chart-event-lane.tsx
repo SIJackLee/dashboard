@@ -21,8 +21,17 @@ import {
   COMMAND_HOLD_LINE_OPACITY,
   COMMAND_HOLD_TEMP_DOMAIN,
   COMMAND_HOLD_VENT_DOMAIN,
+  COMMAND_SETTING_COLOR,
+  COMMAND_SETTING_DASH,
+  COMMAND_SETTING_FILL_OPACITY,
+  COMMAND_SETTING_LINE_OPACITY,
+  commandSettingHasWindow,
 } from "@/lib/farm/command-hold-bands";
-import type { TrendEventLane, TrendEventMark } from "@/lib/data/trend-chart-types";
+import type {
+  TrendCommandSettingSeg,
+  TrendEventLane,
+  TrendEventMark,
+} from "@/lib/data/trend-chart-types";
 import { X_SCOPE_DRAG_PX } from "./trend-chart-geometry";
 
 export type PositionedEventMark = {
@@ -261,7 +270,10 @@ export function EventLaneHtmlOverlay({
     mark: TrendEventMark,
     anchor?: { nx: number; ny: number },
   ) => void;
-  onHover: (mark: TrendEventMark | null) => void;
+  onHover: (
+    mark: TrendEventMark | null,
+    client?: { x: number; y: number },
+  ) => void;
   /** 빈 공간 우클릭: 카드가 있으면 일괄 닫고 true 반환(줌인 뒤로가기보다 우선) */
   onEmptyContextMenu?: () => boolean;
   /** 띠 위 가로 드래그도 시간 스코프 (탭=핀) */
@@ -439,11 +451,254 @@ export function EventLaneHtmlOverlay({
               if (event.detail !== 0) return;
               onSelect(placed.mark);
             }}
-            onPointerEnter={() => onHover(placed.mark)}
-            onMouseEnter={() => onHover(placed.mark)}
-            onMouseMove={(event) => event.stopPropagation()}
+            onPointerEnter={(event) =>
+              onHover(placed.mark, { x: event.clientX, y: event.clientY })
+            }
+            onMouseEnter={(event) =>
+              onHover(placed.mark, { x: event.clientX, y: event.clientY })
+            }
+            onMouseMove={(event) => {
+              event.stopPropagation();
+              onHover(placed.mark, { x: event.clientX, y: event.clientY });
+            }}
             onMouseLeave={() => onHover(null)}
             onFocus={() => onHover(placed.mark)}
+            onBlur={() => onHover(null)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onEmptyContextMenu?.();
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+export type PositionedCommandSettingHit = {
+  seg: TrendCommandSettingSeg;
+  x0: number;
+  x1: number;
+  y: number;
+  h: number;
+};
+
+export function CommandSettingBandsSvg({
+  hits,
+  hoverId,
+}: {
+  hits: PositionedCommandSettingHit[];
+  hoverId: string | null;
+}) {
+  return (
+    <g aria-hidden data-tour-id="farm-chart-command-pane">
+      {hits.map((hit) => {
+        const ch = hit.seg.mark.hold?.channel;
+        if (!ch || !commandSettingHasWindow(ch)) return null;
+        const w = hit.x1 - hit.x0;
+        if (!(w > 0.3) || !(hit.h > 0.3)) return null;
+        const dim = hoverId != null && hoverId !== hit.seg.mark.id;
+        return (
+          <rect
+            key={`win-${hit.seg.mark.id}`}
+            x={hit.x0}
+            y={hit.y}
+            width={w}
+            height={hit.h}
+            fill={COMMAND_SETTING_COLOR}
+            fillOpacity={COMMAND_SETTING_FILL_OPACITY[ch]}
+            stroke="none"
+            opacity={dim ? 0.4 : 1}
+          />
+        );
+      })}
+      {hits.map((hit) => {
+        const ch = hit.seg.mark.hold?.channel;
+        if (!ch) return null;
+        const w = hit.x1 - hit.x0;
+        if (!(w > 0.3) || !(hit.h > 0.3)) return null;
+        const dim = hoverId != null && hoverId !== hit.seg.mark.id;
+        const dash = COMMAND_SETTING_DASH[ch];
+        const y1 = hit.y;
+        const y2 = hit.y + hit.h;
+        return (
+          <g key={`edge-${hit.seg.mark.id}`} opacity={dim ? 0.28 : 1}>
+            <line
+              x1={hit.x0}
+              x2={hit.x1}
+              y1={y1}
+              y2={y1}
+              stroke={COMMAND_SETTING_COLOR}
+              strokeOpacity={COMMAND_SETTING_LINE_OPACITY}
+              strokeWidth={1.2}
+              strokeDasharray={dash}
+              vectorEffect="non-scaling-stroke"
+            />
+            <line
+              x1={hit.x0}
+              x2={hit.x1}
+              y1={y2}
+              y2={y2}
+              stroke={COMMAND_SETTING_COLOR}
+              strokeOpacity={COMMAND_SETTING_LINE_OPACITY}
+              strokeWidth={1.2}
+              strokeDasharray={dash}
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+export function CommandSettingHitOverlay({
+  hits,
+  viewW,
+  chartH,
+  selectedId,
+  onSelect,
+  onHover,
+  onEmptyContextMenu,
+  scopeHandlers = null,
+}: {
+  hits: PositionedCommandSettingHit[];
+  viewW: number;
+  chartH: number;
+  selectedId: string | null;
+  onSelect: (
+    mark: TrendEventMark,
+    anchor?: { nx: number; ny: number },
+  ) => void;
+  onHover: (
+    mark: TrendEventMark | null,
+    client?: { x: number; y: number },
+  ) => void;
+  onEmptyContextMenu?: () => boolean;
+  scopeHandlers?: LaneScopeHandlers | null;
+}) {
+  const pctY = (yView: number) =>
+    `${chartH > 0 ? (yView / chartH) * 100 : 0}%`;
+  const armRef = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    mark: TrendEventMark;
+  } | null>(null);
+  const draggedRef = useRef(false);
+
+  const clearArm = () => {
+    armRef.current = null;
+    draggedRef.current = false;
+  };
+
+  const onSegPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    mark: TrendEventMark,
+  ) => {
+    event.stopPropagation();
+    if (!isPrimaryPress(event)) return;
+    armRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      mark,
+    };
+    draggedRef.current = false;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    scopeHandlers?.begin(event.clientX, event.clientY);
+  };
+
+  const onSegPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const arm = armRef.current;
+    if (!arm || arm.pointerId !== event.pointerId) return;
+    const dist = Math.hypot(event.clientX - arm.x, event.clientY - arm.y);
+    if (dist >= X_SCOPE_DRAG_PX) draggedRef.current = true;
+    scopeHandlers?.move(event.clientX, event.clientY);
+  };
+
+  const onSegPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    const arm = armRef.current;
+    if (!arm || arm.pointerId !== event.pointerId) {
+      clearArm();
+      return;
+    }
+    const committed = scopeHandlers?.end(event.clientX, event.clientY) ?? false;
+    const wasDrag = draggedRef.current || committed;
+    const mark = arm.mark;
+    clearArm();
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (wasDrag) return;
+    onSelect(mark);
+  };
+
+  const onSegPointerCancel = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (armRef.current?.pointerId === event.pointerId) {
+      scopeHandlers?.cancel();
+      clearArm();
+    }
+  };
+
+  if (hits.length === 0 || !(viewW > 0) || !(chartH > 0)) return null;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[3]">
+      {hits.map((hit) => {
+        const w = hit.x1 - hit.x0;
+        if (!(w > 0.3) || !(hit.h > 0.3)) return null;
+        const isSelected = selectedId === hit.seg.mark.id;
+        return (
+          <button
+            key={hit.seg.mark.id}
+            type="button"
+            className={cn(
+              "pointer-events-auto absolute",
+              dashboardAffordance.hitSurface,
+              motionClass.microHover,
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-foreground",
+              isSelected && "z-[1]",
+            )}
+            style={{
+              left: `${(hit.x0 / viewW) * 100}%`,
+              width: `${(w / viewW) * 100}%`,
+              top: pctY(hit.y),
+              height: `${(hit.h / chartH) * 100}%`,
+            }}
+            aria-label={hit.seg.mark.ariaLabel}
+            aria-pressed={isSelected}
+            data-trend-event-mark=""
+            onPointerDown={(event) => onSegPointerDown(event, hit.seg.mark)}
+            onPointerMove={onSegPointerMove}
+            onPointerUp={onSegPointerUp}
+            onPointerCancel={onSegPointerCancel}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (event.detail !== 0) return;
+              onSelect(hit.seg.mark);
+            }}
+            onPointerEnter={(event) =>
+              onHover(hit.seg.mark, { x: event.clientX, y: event.clientY })
+            }
+            onMouseEnter={(event) =>
+              onHover(hit.seg.mark, { x: event.clientX, y: event.clientY })
+            }
+            onMouseMove={(event) => {
+              event.stopPropagation();
+              onHover(hit.seg.mark, { x: event.clientX, y: event.clientY });
+            }}
+            onMouseLeave={() => onHover(null)}
+            onFocus={() => onHover(hit.seg.mark)}
             onBlur={() => onHover(null)}
             onContextMenu={(event) => {
               event.preventDefault();

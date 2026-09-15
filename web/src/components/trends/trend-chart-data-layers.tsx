@@ -26,6 +26,7 @@ import {
   ReferenceLinesLayer,
   type TrendPlotGeom,
 } from "./trend-chart-svg-layers";
+import { CommandSettingBandsSvg, type PositionedCommandSettingHit } from "./trend-chart-event-lane";
 
 /**
  * TrendChart SVG 데이터 레이어 (히스토그램·엔벨로프·시리즈·호버/핀).
@@ -54,7 +55,7 @@ export type TrendChartDataLayersProps = {
   envelopePresence: ClipPresenceEntry<TrendEnvelope>[];
   seriesPresence: ClipPresenceEntry<TrendSeries>[];
   scaleEdgeLabels: TrendScaleEdgeLabel[];
-  uniqueAlarmBands: { band: Band; axis: TrendAxis }[];
+  uniqueAlarmBands: { band: Band; axis: TrendAxis; color?: string; fillWindow?: boolean }[];
   dedupedReferenceLines: TrendReferenceLine[];
   pinnedTips: PinnedTip[];
   plotGeom: TrendPlotGeom;
@@ -66,6 +67,8 @@ export type TrendChartDataLayersProps = {
   shouldShowMarker: (i: number) => boolean;
   lineSegments: (s: TrendSeries) => string[];
   envelopePaths: (env: TrendEnvelope) => string[];
+  commandSettingHits?: PositionedCommandSettingHit[];
+  commandHoverId?: string | null;
 };
 
 export function TrendChartDataLayers({
@@ -100,6 +103,8 @@ export function TrendChartDataLayers({
   shouldShowMarker,
   lineSegments,
   envelopePaths,
+  commandSettingHits = [],
+  commandHoverId = null,
 }: TrendChartDataLayersProps) {
   return (
     <>
@@ -237,6 +242,13 @@ export function TrendChartDataLayers({
         <AlarmBandsLayer bands={uniqueAlarmBands} geom={plotGeom} />
       ) : null}
 
+      {mode === "line" && commandSettingHits.length > 0 ? (
+        <CommandSettingBandsSvg
+          hits={commandSettingHits}
+          hoverId={commandHoverId}
+        />
+      ) : null}
+
       <ReferenceLinesLayer lines={dedupedReferenceLines} geom={plotGeom} />
 
       {scaleEdgeLabels
@@ -250,20 +262,35 @@ export function TrendChartDataLayers({
             guide.lineDasharray === "solid" || guide.lineDasharray === ""
               ? undefined
               : (guide.lineDasharray ?? "1.5 2");
+          const coreOpacity = dragging ? 0.95 : guide.lineHighlight ? 0.88 : 0.7;
           return (
-            <line
-              key={`scale-guide-${guide.id}`}
-              x1={padL}
-              x2={viewW - padR}
-              y1={y}
-              y2={y}
-              stroke={guide.color}
-              strokeWidth={dragging ? baseW + 0.35 : baseW}
-              strokeDasharray={dash}
-              vectorEffect="non-scaling-stroke"
-              opacity={dragging ? 0.95 : 0.7}
-              pointerEvents="none"
-            />
+            <g key={`scale-guide-${guide.id}`} pointerEvents="none">
+              {guide.lineHighlight ? (
+                <line
+                  x1={padL}
+                  x2={viewW - padR}
+                  y1={y}
+                  y2={y}
+                  stroke={guide.color}
+                  strokeWidth={baseW + 2.8}
+                  vectorEffect="non-scaling-stroke"
+                  opacity={dragging ? 0.5 : 0.34}
+                  filter={`url(#${glowFilterId})`}
+                  className={motionClass.farmChartLineGlow}
+                />
+              ) : null}
+              <line
+                x1={padL}
+                x2={viewW - padR}
+                y1={y}
+                y2={y}
+                stroke={guide.color}
+                strokeWidth={dragging ? baseW + 0.35 : baseW}
+                strokeDasharray={dash}
+                vectorEffect="non-scaling-stroke"
+                opacity={coreOpacity}
+              />
+            </g>
           );
         })}
 

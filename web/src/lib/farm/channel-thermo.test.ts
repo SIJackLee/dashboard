@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   absFanWindows,
+  buildDecodedSettingHoldSegments,
   emptyChannelThermo,
   holdForwardThermo,
   thermoChangeMarks,
@@ -70,6 +71,44 @@ import {
   assert.equal(marks[0]!.channels[0]!.channel, "A");
   assert.equal(marks[0]!.channels[0]!.tempChanged, true);
   assert.equal(marks[0]!.channels[0]!.motorChanged, false);
+}
+
+{
+  const a = emptyChannelThermo(4);
+  const b = emptyChannelThermo(4);
+  const c = emptyChannelThermo(4);
+  for (let i = 0; i < 4; i++) {
+    a.setpoint[i] = i >= 2 ? 25 : 24;
+    a.deviation[i] = 5;
+    a.minVent[i] = 10;
+    a.maxVent[i] = 90;
+    b.setpoint[i] = 2;
+    b.deviation[i] = 4;
+    b.minVent[i] = 20;
+    b.maxVent[i] = 80;
+    c.setpoint[i] = 3;
+    c.deviation[i] = 3;
+    c.minVent[i] = 30;
+    c.maxVent[i] = 70;
+  }
+  const w = absFanWindows(a, b, c);
+  const times = [1000, 2000, 3000, 4000];
+  const segs = buildDecodedSettingHoldSegments(w, times, 5000);
+  const aSegs = segs.filter((s) => s.channel === "A");
+  const bSegs = segs.filter((s) => s.channel === "B");
+  const cSegs = segs.filter((s) => s.channel === "C");
+  assert.equal(aSegs.length, 2);
+  assert.equal(aSegs[0]!.tempLo, 24);
+  assert.equal(aSegs[0]!.x0Ms, 1000);
+  assert.equal(aSegs[0]!.x1Ms, 3000);
+  assert.equal(aSegs[1]!.tempLo, 25);
+  assert.equal(aSegs[1]!.x0Ms, 3000);
+  assert.equal(bSegs.length, 2);
+  assert.equal(bSegs[0]!.tempLo, 26);
+  assert.equal(bSegs[1]!.tempLo, 27);
+  assert.equal(cSegs.length, 2);
+  assert.equal(cSegs[0]!.tempLo, 27);
+  assert.equal(cSegs[1]!.x1Ms, 5000);
 }
 
 console.log("channel-thermo.test.ts ok");
