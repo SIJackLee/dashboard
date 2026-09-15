@@ -7,7 +7,6 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import { ApplyQueueDock } from "@/components/farm/apply-queue-dock";
 import {
   useBulkCommandPipelineTracker,
   type BulkLiveProgress,
@@ -55,7 +54,7 @@ export function FarmApplyQueueProvider({ children }: { children: ReactNode }) {
     onCommandAck: (cmd) => live?.patchThermoFromCommand(cmd),
   });
 
-  const { startSession, dismissBanner, setDockOpen, rows, progress, bannerVisible } =
+  const { startSession, setDockOpen, rows, progress } =
     tracker;
 
   const startFromCommand = useCallback(
@@ -79,12 +78,6 @@ export function FarmApplyQueueProvider({ children }: { children: ReactNode }) {
   return (
     <ApplyQueueContext.Provider value={value}>
       {children}
-      <ApplyQueueDock
-        rows={rows}
-        readings={readings}
-        open={bannerVisible}
-        onToggle={dismissBanner}
-      />
     </ApplyQueueContext.Provider>
   );
 }

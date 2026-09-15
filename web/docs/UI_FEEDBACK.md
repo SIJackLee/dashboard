@@ -1,9 +1,9 @@
 # UI Feedback (H4 — 운영 피드백)
 
-명령은 **접수 → 전송 → 수신 → 확인** 네 단으로 안내합니다. 허브 왼쪽 아래 **적용 큐**(A 티켓)가 건마다 게이지를 보여 주고, 실측이 맞기 전에는 「적용 완료」로 닫지 않습니다.
+명령은 **접수 → 전송 → 확인** 세 단입니다 (`pending` → `sent` → `applied`). `applied`는 command_ack가 LIVE 설정과 명령을 맞춰 올린 적용 확인입니다. 필드 격자에서는 해당 **환경 덮개** 값 아래에 채널별 잉크 게이지를 붙입니다.
 
 관련: [UI_MOTION.md](./UI_MOTION.md) · [UI_CHROMA.md](./UI_CHROMA.md) · [UI_ELEVATION.md](./UI_ELEVATION.md)  
-코드: `src/lib/ui/ops-feedback.ts` · `src/lib/farm/apply-queue.ts` · `apply-queue-dock.tsx` · `command-pipeline-overlay.tsx` · `command-confirm-overlay.tsx` · `inline-status-toast.tsx`
+코드: `src/lib/ui/ops-feedback.ts` · `src/lib/farm/apply-queue.ts` · `controller-env-cover.tsx` · `command-pipeline-overlay.tsx` · `command-confirm-overlay.tsx` · `inline-status-toast.tsx`
 
 ## 톤 (`opsFeedbackTone`)
 
@@ -24,27 +24,26 @@
 | loading | 오버레이 fade |
 | success / error | `.ui-motion-feedback-icon` soft scale-in (amplitude 토큰) |
 
-허브 왼쪽 아래 **적용 큐**는 필드에서 명령을 보내지 않아도 항상 접기·펼치기를 둔다. 최근 1시간 접수·전송·수신을 올린다. 실측이 이미 맞아도 확인 티켓으로 남긴다. **축사·컨트롤러·채널당 가장 최근 1건**만 큐에 남긴다. 1시간이 지나면 티켓을 내린다. 건이 없으면 목록에 안내만 둔다.
+필드 **환경 덮개**는 명령을 보내지 않은 칸에는 스트립을 그리지 않는다. 최근 1시간 접수·전송·확인 티켓이 있는 컨트롤러만 값·알람 띠 아래에 채널 A/B/C 행을 올린다. **축사·컨트롤러·채널당 가장 최근 1건**만 큐에 남긴다. 1시간이 지나면 티켓을 내린다. 좌하단 상주 도크와 와이어 헥스는 운영 화면에 두지 않는다. 델린은 오른쪽 아래.
 
-## 적용 큐 (왼쪽 아래)
+## 적용 큐 (필드 덮개)
 
 | 화면 단계 | 의미 |
 |-----------|------|
 | 접수 | 대기열 등록 |
-| 전송 | 현장 송신 |
-| 수신 | 장치 응답 |
-| 확인 | 실측 일치 |
+| 전송 | 현장 송신 (`sent`) |
+| 확인 | 적용 확인 (`applied`) |
 
-진행 중이던 건이 전부 확인되면 6.5초 뒤 핸들로 접힌다. 핸들은 비어 있어도 남는다. 최근 1시간 티켓은 접혀도 유지한다. 실패·시간 초과는 카드를 유지한다. 티켓에 장비로 나가는 15바이트 명령을 보여 준다. 델린은 오른쪽 아래.
+게이지는 덮개 잉크(`currentColor`)와 투명도만 쓴다. 3단 채움은 `scaleX` + `duration-motion-moderate`로 이어 간다. 오른쪽은 로딩 도넛, `applied`면 체크 후 `exit`로 해당 행을 내린다.
 
 ## 명령 적중 (통합 추이 모터 아래)
 
-큐는 **최근 1시간**, 적중은 **그 구간에서 맞은 이력**이다. 통합 추이 플롯 맨 아래(모터 아래) 행에 두고, 온·습·모터 레인과 겹치지 않는다. 가로 시각·기간은 추이와 같다. 최근 ~1시간은 시간 칸이 붙어 점으로 읽기 어려우니 적용 큐를 본다.
+큐(덮개 스트립)는 **최근 1시간**의 접수·전송·확인이다. 차트 적중 레인은 **적용된 명령만** 그 구간에 남긴다. 통합 추이 플롯 맨 아래(모터 아래) **한 행**에 두고, 온·습·모터 레인과 겹치지 않는다. 가로 시각·기간은 추이와 같다. 최근 ~1시간은 시간 칸이 붙어 점으로 읽기 어려우니 필드 덮개 스트립을 본다.
 
 | 축 | 의미 |
 |----|------|
 | 가로 | 통합 추이와 같은 시각 |
-| 세로 | 접수 → 전송 → 수신 → 확인 (위가 적중) |
+| 세로 | 적용만 (접수·전송 행 없음) |
 
 **상호작용 (온·습·모터와 동일 계약)**
 
@@ -55,9 +54,9 @@
 - **명령만 스코프** (`chartYBand=command`): 온·습·모터 시리즈는 숨기고 명령 레인을 본문으로 둔다. 시리즈가 비어도 「데이터 없음」으로 떨어지지 않는다(타임라인+레인 = 유효 콘텐츠).
 - **레이어 on/off 높이**: 켜진 온·습·모터·명령 밴드를 **동등 슬롯**으로 총 높이를 나눈다. 명령 레인은 고정 px가 아니라, 끈 밴드가 남긴 공간을 함께 채운다. 플롯 split-Y와 명령 레인 높이는 **동일 rAF 시계·moderate·easeOut**으로 보간해 속도가 어긋나지 않게 한다.
 
-설정온도·편차·환기 요약을 카드에 둔다. 실패·취소는 그리지 않는다. 집계 범위와 같은 명령만 본다. 점은 이전의 절반 크기.
+설정온도·편차·환기 요약을 카드에 둔다. 접수·전송·실패·취소는 그리지 않는다. 집계 범위와 같은 적용 명령만 본다. 점은 이전의 절반 크기.
 
-확인은 `--status-ok`, 접수·전송·수신은 `--channel-command`(hue≈210) 농도 35/55/80. 단계 라벨은 온·습·모터 눈금과 같은 우측. 본문에 카드 겹쌓기·primary 점·임의 duration 없음.
+적용 점은 `--status-ok`. 접수·전송은 차트에 그리지 않는다(덮개 큐만). 단계 라벨은 온·습·모터 눈금과 같은 우측. 본문에 카드 겹쌓기·primary 점·임의 duration 없음. 필드 덮개 적용 스트립은 차트와 달리 **덮개 잉크만** 쓰고 채널·상태 hue를 올리지 않는다.
 
 코드: `src/lib/farm/command-hit.ts` · `trend-chart-event-lane.tsx` · `use-trend-scope-gesture.ts`
 
@@ -67,7 +66,7 @@
 |----|--------|
 | `CommandPipelineOverlay` | FEEDBACK_Z.overlay |
 | `CommandConfirmOverlay` | overlay — 전송 전 승인(자동 닫힘 없음) |
-| `ApplyQueueDock` | liveBanner — 왼쪽 아래 티켓 |
+| `ControllerEnvCover` 채널 스트립 | 필드 칸 — 적용 중인 컨트롤러만 |
 | `InlineStatusToast` | toast |
 
 ## reduced-motion / CI
@@ -80,4 +79,4 @@
 ## Do / Don't
 
 **Do** — 상태 변화에만 모션 · 공통 `ops-feedback` 톤 · 적용 큐는 정식 명칭만  
-**Don't** — 토스트마다 다른 border 색 · success에 spring overshoot · 확인 전 「적용 완료」
+**Don't** — 토스트마다 다른 border 색 · success에 spring overshoot · `applied` 전 「적용 완료」

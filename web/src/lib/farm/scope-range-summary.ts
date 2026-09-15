@@ -199,6 +199,7 @@ export function buildScopeSummaryFromColumns(
     humSpreadExtremes: { high: [], low: [] },
     tempRangeLabel: "",
     humidityRangeLabel: "",
+    thermoWindows: null,
   } satisfies UnifiedBarnTrendRaw;
 
   return buildUnifiedScopeSummary(fakeRaw, start, end, visibility);

@@ -9,8 +9,9 @@ export const APPLY_QUEUE_WINDOW_MS = 60 * 60 * 1000;
 /** 방금 보낸 명령이 이력에 안 잡혀도 큐에 잠시 남김 */
 export const APPLY_QUEUE_START_GRACE_MS = 8_000;
 
-export const APPLY_QUEUE_STAGES = ["접수", "전송", "수신", "확인"] as const;
+export const APPLY_QUEUE_STAGES = ["접수", "전송", "확인"] as const;
 export type ApplyQueueStage = (typeof APPLY_QUEUE_STAGES)[number] | "실패";
+export const APPLY_QUEUE_STAGE_COUNT = APPLY_QUEUE_STAGES.length;
 
 export type ApplyQueueTicket = {
   status: ThermoCommandStatus;
@@ -32,8 +33,7 @@ export type ApplyQueueTargetParts = {
 
 export function applyQueueStage(ticket: ApplyQueueTicket): ApplyQueueStage {
   if (ticket.status === "failed" || ticket.status === "cancelled") return "실패";
-  if (ticket.liveConfirmed) return "확인";
-  if (ticket.status === "applied") return "수신";
+  if (ticket.status === "applied") return "확인";
   if (ticket.status === "sent") return "전송";
   return "접수";
 }
@@ -41,17 +41,16 @@ export function applyQueueStage(ticket: ApplyQueueTicket): ApplyQueueStage {
 export function applyQueueGauge(ticket: ApplyQueueTicket): ApplyQueueGauge {
   const stage = applyQueueStage(ticket);
   if (stage === "실패") {
-    return { filled: 0, current: 1, rest: 3, fail: true };
+    return { filled: 0, current: 1, rest: APPLY_QUEUE_STAGE_COUNT - 1, fail: true };
   }
   if (stage === "확인") {
-    return { filled: 4, current: 0, rest: 0, fail: false };
+    return { filled: APPLY_QUEUE_STAGE_COUNT, current: 0, rest: 0, fail: false };
   }
-  const currentIndex =
-    stage === "접수" ? 1 : stage === "전송" ? 2 : 3;
+  const currentIndex = stage === "접수" ? 1 : 2;
   return {
     filled: currentIndex - 1,
     current: 1,
-    rest: 4 - currentIndex,
+    rest: APPLY_QUEUE_STAGE_COUNT - currentIndex,
     fail: false,
   };
 }
@@ -75,7 +74,7 @@ export function applyQueueHandleLabel(tickets: ApplyQueueTicket[]): string {
 }
 
 export function applyQueueStageCounts(tickets: ApplyQueueTicket[]) {
-  const counts = { 접수: 0, 전송: 0, 수신: 0, 확인: 0, 실패: 0 };
+  const counts = { 접수: 0, 전송: 0, 확인: 0, 실패: 0 };
   for (const ticket of tickets) {
     counts[applyQueueStage(ticket)] += 1;
   }
@@ -110,14 +109,93 @@ export function formatApplyQueueTargetLine(opts: {
 
 export function applyQueueStep(ticket: ApplyQueueTicket): number {
   const stage = applyQueueStage(ticket);
-  if (stage === "확인") return 4;
-  if (stage === "수신") return 3;
+  if (stage === "확인") return APPLY_QUEUE_STAGE_COUNT;
   if (stage === "전송") return 2;
   return 1;
 }
 
 export function applyQueueCaption(ticket: ApplyQueueTicket): string {
-  return `${applyQueueStage(ticket)} · ${applyQueueStep(ticket)}/4`;
+  return `${applyQueueStage(ticket)} · ${applyQueueStep(ticket)}/${APPLY_QUEUE_STAGE_COUNT}`;
+}
+
+const CHANNEL_STRIP_ORDER: ChannelSlot[] = ["A", "B", "C"];
+
+/** 덮개 잉크 게이지 — 실패는 1칸, 확인(applied)은 3칸. */
+export function applyQueueInkFilled(ticket: ApplyQueueTicket): number {
+  const gauge = applyQueueGauge(ticket);
+  if (gauge.fail) return 1;
+  return gauge.filled + gauge.current;
+}
+
+export type ApplyQueueChannelStripItem = {
+  id: string;
+  slot: ChannelSlot | null;
+  stage: ApplyQueueStage;
+  filled: number;
+};
+
+export function applyQueueChannelStripForReading<
+  T extends {
+    id: string;
+    key: string;
+    liveConfirmed: boolean;
+    command: {
+      farmKey: FarmKey;
+      moduleUid: number;
+      controllerKey: string;
+      channel?: ChannelSlot | null;
+      status: ThermoCommandStatus;
+    };
+  },
+>(rows: readonly T[], reading: {
+  key: string;
+  farmKey: FarmKey;
+  moduleUid: number;
+  controllerKey: string;
+}): ApplyQueueChannelStripItem[] {
+  const farmId = farmKeyId(reading.farmKey);
+  const matched = rows.filter(
+    (row) =>
+      row.key === reading.key ||
+      (farmKeyId(row.command.farmKey) === farmId &&
+        row.command.moduleUid === reading.moduleUid &&
+        row.command.controllerKey === reading.controllerKey),
+  );
+  const seen = new Set<string>();
+  const items: ApplyQueueChannelStripItem[] = [];
+  for (const row of matched) {
+    const slot = row.command.channel ?? null;
+    const dedupe = slot ?? "_";
+    if (seen.has(dedupe)) continue;
+    seen.add(dedupe);
+    const ticket = {
+      status: row.command.status,
+      liveConfirmed: row.liveConfirmed,
+    };
+    items.push({
+      id: row.id,
+      slot,
+      stage: applyQueueStage(ticket),
+      filled: applyQueueInkFilled(ticket),
+    });
+  }
+  items.sort((a, b) => {
+    const ia = a.slot ? CHANNEL_STRIP_ORDER.indexOf(a.slot) : CHANNEL_STRIP_ORDER.length;
+    const ib = b.slot ? CHANNEL_STRIP_ORDER.indexOf(b.slot) : CHANNEL_STRIP_ORDER.length;
+    return ia - ib;
+  });
+  return items;
+}
+
+export function applyQueueChannelStripAria(
+  items: readonly ApplyQueueChannelStripItem[],
+): string {
+  if (items.length === 0) return "";
+  return items
+    .map((item) =>
+      item.slot ? `채널 ${item.slot} ${item.stage}` : item.stage,
+    )
+    .join(", ");
 }
 
 export function isApplyQueueWatchStatus(

@@ -15,6 +15,10 @@ import {
   pickLttbIndices,
   targetChartDisplayBars,
 } from "@/lib/farm/trend-display-buckets";
+import {
+  downsampleThermoByIndices,
+  sliceChannelThermo,
+} from "@/lib/farm/channel-thermo";
 
 /**
  * UnifiedBarnTrendPanel의 순수 계산 헬퍼.
@@ -48,6 +52,9 @@ export function sliceControllerSeries(
     fanIntake: series.fanIntake.slice(from, to),
     sampleCount: series.sampleCount.slice(from, to),
     uplinkKind: series.uplinkKind?.slice(from, to),
+    thermoA: sliceChannelThermo(series.thermoA, from, to),
+    thermoB: sliceChannelThermo(series.thermoB, from, to),
+    thermoC: sliceChannelThermo(series.thermoC, from, to),
   };
 }
 
@@ -112,6 +119,9 @@ export function downsampleSeriesForChart(
       uplinkKind: s.uplinkKind
         ? downsampleByIndices(s.uplinkKind, idx)
         : undefined,
+      thermoA: downsampleThermoByIndices(s.thermoA, idx),
+      thermoB: downsampleThermoByIndices(s.thermoB, idx),
+      thermoC: downsampleThermoByIndices(s.thermoC, idx),
     })),
   };
 }

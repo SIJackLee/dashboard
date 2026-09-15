@@ -16,6 +16,8 @@ export type HoverMetricGroup = "temp" | "hum" | "motor";
 /** 시리즈/히스토그램 라벨 → 호버 카드 그룹 */
 export function inferHoverMetricGroup(label: string): HoverMetricGroup {
   if (/습도/.test(label)) return "hum";
+  if (/환기/.test(label)) return "motor";
+  if (/설정/.test(label)) return "temp";
   if (/모터|채널|입기|배기|송풍|^[ABC]$/.test(label)) return "motor";
   return "temp";
 }

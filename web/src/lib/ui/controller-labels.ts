@@ -73,6 +73,9 @@ export function formatUserError(error: string): string {
   if (error === "invalid_vent_range") {
     return "환기 범위를 확인하세요. (0~100%, 최저 ≤ 최고)";
   }
+  if (error === "invalid_eqpmn_code") {
+    return "장비코드 형식이 올바르지 않습니다.";
+  }
   if (error === "unauthorized") return "권한이 없습니다.";
   if (error.includes("row-level security")) {
     return "이 컨트롤러에 대한 명령 권한이 없습니다.";

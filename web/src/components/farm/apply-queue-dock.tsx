@@ -1,5 +1,7 @@
 "use client";
 
+/** 좌하단 도크 — 필드 진행은 ControllerEnvCover 채널 스트립. 마운트하지 않음. */
+
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {

@@ -17,10 +17,7 @@ import {
 } from "@/lib/data/alarms";
 import { farmKeyId } from "@/lib/data/farm-key";
 import type { BarnReading } from "@/lib/data/iot";
-import {
-  DEFAULT_CHANNEL_EQPMN,
-  type ChannelSlot,
-} from "@/lib/data/iot-channel";
+import { type ChannelSlot } from "@/lib/data/iot-channel";
 import { isReadingOnline } from "@/lib/data/reading-display";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
@@ -224,7 +221,7 @@ export function buildBulkThermoCommands(
           stallNo: r.stallNo ?? "01",
           eqpmnNo: r.eqpmnNo,
           channel: ch.channel,
-          eqpmnCode: ch.eqpmnCode || DEFAULT_CHANNEL_EQPMN[ch.channel],
+          eqpmnCode: ch.eqpmnCode.trim() || null,
           ...values,
         });
       }

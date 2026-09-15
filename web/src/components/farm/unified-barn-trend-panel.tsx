@@ -146,7 +146,6 @@ import {
   unmapTempCFromSplitY,
   type UnifiedLayerFlags,
   type UnifiedYBandId,
-  type TempBandAnchor,
 } from "@/lib/farm/unified-barn-trend-series";
 import { envComfortScore } from "@/lib/farm/env-comfort-score";
 import { useUnifiedChartBandTransition } from "@/lib/farm/use-split-y-layout-transition";
@@ -472,9 +471,9 @@ export function UnifiedBarnTrendPanel({
     () => splitYVisibilityFromLayers(layers),
     [layers],
   );
-  /** 오버레이는 온도·모터가 모두 켜져 있을 때만 유효 */
+  /** 오버레이는 온도·모터 본선이 모두 켜져 있을 때만 유효 */
   const overlayAvailable =
-    layerVisibility.showTemp && layerVisibility.showMotors;
+    layers.temp && (layers.motors || layers.motorCh);
   const overlayActive = overlayView && overlayAvailable;
   const scopeVisibility = useMemo(() => {
     const bandVis = visibilityForYBands(xScope?.yBands ?? null);
@@ -798,29 +797,14 @@ export function UnifiedBarnTrendPanel({
       down.seriesList,
       down.categories,
       mappingThresholds,
+      { includeThermo: chartScope.level === "controller" },
     );
-  }, [windowBundle, mappingThresholds, plotWidthPx]);
-
-  /**
-   * 오버레이 온도 스케일 — 「알람 앵커 + 부드러운 비잘림 압축」.
-   * 알람 목표존은 밴드 중앙 고정(정상 구간 스케일 불변), 알람 밖은 경계에서
-   * 코어 기울기로 이어받아 지수적으로 완만히 압축(꺾임 없음·비잘림).
-   * 데이터 극단값과 무관 → 헤드룸 비율만 지정.
-   */
-  const overlayTempAnchor = useMemo<TempBandAnchor | undefined>(
-    () => (overlayActive ? { headFrac: 0.18 } : undefined),
-    [overlayActive],
-  );
+  }, [windowBundle, mappingThresholds, plotWidthPx, chartScope.level]);
 
   const built = useMemo(() => {
     if (!trendRaw) return null;
-    return mapUnifiedBarnTrendRawToSplitY(
-      trendRaw,
-      layout,
-      undefined,
-      overlayTempAnchor,
-    );
-  }, [trendRaw, layout, overlayTempAnchor]);
+    return mapUnifiedBarnTrendRawToSplitY(trendRaw, layout);
+  }, [trendRaw, layout]);
 
   const picked = useMemo(() => {
     if (!built) return null;
@@ -833,6 +817,7 @@ export function UnifiedBarnTrendPanel({
       envelopes: raw.envelopes,
       histograms: raw.histograms,
       trimmed: false as const,
+      tempDomain: built.tempDomain,
     };
   }, [built, layers, xScope?.yBands]);
 
@@ -927,6 +912,7 @@ export function UnifiedBarnTrendPanel({
         series: picked.series,
         envelopes: picked.envelopes,
         histograms: picked.histograms,
+        tempDomain: picked.tempDomain,
       };
     }
     if (windowBundle) {
@@ -949,14 +935,10 @@ export function UnifiedBarnTrendPanel({
           down.seriesList,
           down.categories,
           mappingThresholds,
+          { includeThermo: chartScope.level === "controller" },
         );
         if (raw) {
-          const builtScoped = mapUnifiedBarnTrendRawToSplitY(
-            raw,
-            layout,
-            undefined,
-            overlayTempAnchor,
-          );
+          const builtScoped = mapUnifiedBarnTrendRawToSplitY(raw, layout);
           if (builtScoped) {
             const pickLayers = maskLayersForYBands(layers, xScope.yBands);
             const pickedScoped = pickUnifiedTrendLayers(builtScoped, pickLayers);
@@ -965,6 +947,7 @@ export function UnifiedBarnTrendPanel({
               series: pickedScoped.series,
               envelopes: pickedScoped.envelopes,
               histograms: pickedScoped.histograms,
+              tempDomain: builtScoped.tempDomain,
             };
           }
         }
@@ -977,6 +960,7 @@ export function UnifiedBarnTrendPanel({
         xScope.start,
         xScope.end,
       ),
+      tempDomain: picked.tempDomain,
     };
   }, [
     picked,
@@ -986,10 +970,12 @@ export function UnifiedBarnTrendPanel({
     layout,
     layers,
     plotWidthPx,
-    overlayTempAnchor,
+    chartScope.level,
   ]);
 
   const chartCategories = scoped?.categories ?? [];
+  const tempMapDomain = scoped?.tempDomain ?? built?.tempDomain;
+  const tempMapLayout = built?.layout ?? layout;
   const commandHitSpan = useMemo(
     () =>
       commandHitTimeSpan(scoped?.categories ?? [], {
@@ -1025,6 +1011,15 @@ export function UnifiedBarnTrendPanel({
       marks: result.marks,
       hiddenCount: result.hiddenCount,
       windowLabel,
+      mapTemp: (c) =>
+        mapTempCToSplitY(
+          c,
+          mappingThresholds.tempLow,
+          mappingThresholds.tempHigh,
+          tempMapLayout,
+          tempMapDomain,
+        ),
+      mapMotor: (pct) => mapMotorPctToSplitY(pct, layout),
     });
   }, [
     useBrushCanvas,
@@ -1038,6 +1033,11 @@ export function UnifiedBarnTrendPanel({
     xScope,
     picked,
     brushWindow,
+    mappingThresholds.tempLow,
+    mappingThresholds.tempHigh,
+    layout,
+    tempMapLayout,
+    tempMapDomain,
   ]);
   const showCommandLane = eventLaneVisibleForYBands(xScope?.yBands ?? null);
   const showCommandLanePlot = Boolean(
@@ -1399,9 +1399,8 @@ export function UnifiedBarnTrendPanel({
             event.value,
             mapLo,
             mapHi,
-            layout,
-            undefined,
-            overlayTempAnchor,
+            tempMapLayout,
+            tempMapDomain,
           );
           if (rawC == null || !Number.isFinite(rawC)) return;
           if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
@@ -1459,9 +1458,8 @@ export function UnifiedBarnTrendPanel({
               event.value,
               freeze.tempLow,
               freeze.tempHigh,
-              layout,
-              undefined,
-              overlayTempAnchor,
+              tempMapLayout,
+              tempMapDomain,
             )
           : unmapHumPctFromSplitY(
               event.value,
@@ -1782,7 +1780,7 @@ export function UnifiedBarnTrendPanel({
     applyQueue,
   ]);
 
-  /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 알람 고정 스케일. */
+  /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 온도는 표시값+여유. */
   const scaleEdgeLabels = useMemo((): TrendScaleEdgeLabel[] => {
     if (!built) return [];
     const out: TrendScaleEdgeLabel[] = [];
@@ -1932,9 +1930,8 @@ export function UnifiedBarnTrendPanel({
           thresholds.tempHigh,
           mapLo,
           mapHi,
-          layout,
-          undefined,
-          overlayTempAnchor,
+          tempMapLayout,
+          tempMapDomain,
         ),
         formatTrendBandEdge(thresholds.tempHigh, "℃"),
         TREND_CHART_COLORS.temp,
@@ -1953,9 +1950,8 @@ export function UnifiedBarnTrendPanel({
           thresholds.tempLow,
           mapLo,
           mapHi,
-          layout,
-          undefined,
-          overlayTempAnchor,
+          tempMapLayout,
+          tempMapDomain,
         ),
         formatTrendBandEdge(thresholds.tempLow, "℃"),
         TREND_CHART_COLORS.temp,
@@ -1975,7 +1971,7 @@ export function UnifiedBarnTrendPanel({
         // 온도 밴드 = 기점만 / 최저·최고 환기량(%)은 모터 밴드
         pushThermoControl(
           CHART_THERMO_EDGE_IDS.highVentTemp,
-          mapTempCToSplitY(highT, mapLo, mapHi, layout, undefined, overlayTempAnchor),
+          mapTempCToSplitY(highT, mapLo, mapHi, tempMapLayout, tempMapDomain),
           "온도편차",
           `+${formatTrendBandEdge(dev, "℃")}`,
           "overline",
@@ -1987,7 +1983,7 @@ export function UnifiedBarnTrendPanel({
         );
         pushThermoControl(
           CHART_THERMO_EDGE_IDS.setpoint,
-          mapTempCToSplitY(sp, mapLo, mapHi, layout, undefined, overlayTempAnchor),
+          mapTempCToSplitY(sp, mapLo, mapHi, tempMapLayout, tempMapDomain),
           "설정온도",
           formatTrendBandEdge(sp, "℃"),
           "overline",
@@ -2055,7 +2051,8 @@ export function UnifiedBarnTrendPanel({
     thermo,
     thermoDragEnabled,
     overlayActive,
-    overlayTempAnchor,
+    tempMapLayout,
+    tempMapDomain,
   ]);
 
   const cycleGroupLayers = (group: "temp" | "hum" | "motor") => {
@@ -2097,6 +2094,13 @@ export function UnifiedBarnTrendPanel({
           overlayView={overlayView}
           overlayAvailable={overlayAvailable}
           onToggleOverlay={() => setOverlayView((v) => !v)}
+          onToggleSetting={(kind) => {
+            setLayers((prev) =>
+              kind === "temp"
+                ? { ...prev, thermo: !prev.thermo }
+                : { ...prev, thermoMotor: !prev.thermoMotor },
+            );
+          }}
         />
       </div>
     ) : null;

@@ -110,7 +110,7 @@ PR 체크: `LIVE_LIST_FORBIDDEN_TOKENS` · `npm run measure:live` p95<300ms ([`L
 | `decode-batch` | pg_cron ~10s | raw→decoded · clock_kst · sparse |
 | `push-dispatch` | 이벤트/cron | FCM 1차 |
 | `farm_trend_history` | RPC | 축사 추이 · `mesure_at` 버킷 |
-| `farm_trend_history_by_controller` | RPC | 컨트롤러 추이 · `avg_fan_a/b/c`(슬롯) + `avg_fan_supply/exhaust/intake`(EC 하위호환) |
+| `farm_trend_history_by_controller` | RPC | 컨트롤러 추이 · `avg_fan_a/b/c`(슬롯) + `avg_fan_supply/exhaust/intake`(EC 하위호환) + 버킷 마지막 `a_/b_/c_` 설정(thermo) |
 | `farm_trend_uplink_coverage_json` | RPC | 차트 coverage · clock 정렬 |
 
 **모터% 저장 정본 = 채널 슬롯(A/B/C).** `iot_room_state_decoded.fan_a/b/c_pct`
@@ -118,6 +118,8 @@ PR 체크: `LIVE_LIST_FORBIDDEN_TOKENS` · `npm run measure:live` p95<300ms ([`L
 `fan_supply/exhaust/intake_pct`는 eqpmnCode(EC01/02/03)-role 기준 레거시 컬럼으로,
 같은 eqpmnCode를 공유하는 다중 슬롯을 구분하지 못한다(하위호환 병행). 모터 그래프는
 슬롯 컬럼(`avg_fan_a/b/c`)만 참조한다. Edge `decode-batch`가 두 계열을 함께 기록한다.
+
+차트 컨트롤러 범위는 같은 RPC의 버킷 마지막 thermo를 읽어 **설정이 바뀐 시점만** 점으로 표시한다. A는 평탄 컬럼(`setpoint_temp` 등), B·C는 `decoded_json.channels[].thermo`이며 B·C 설정온도는 A에 더하는 오프셋이다. migration `20260915104500` — **iot-cloud 적용됨**(2026-09-15).
 
 **Sparse (Edge only):** ε_temp=0.2°C · ε_fan=2%p · heartbeat=1800s · RS 필터 **금지** ([`DECODED_ROWCOUNT_PLAN.md`](./DECODED_ROWCOUNT_PLAN.md)).
 
@@ -151,6 +153,7 @@ PR 체크: `LIVE_LIST_FORBIDDEN_TOKENS` · `npm run measure:live` p95<300ms ([`L
 | `20260805150000_iot_decoded_sparse_poc.sql` | sparse PoC |
 | `20260805170000_iot_retention_30d_cron.sql` | retention cron |
 | `20260901003000_farm_trend_uplink_coverage_mesure_align.sql` | coverage RPC |
+| `20260915104500_farm_trend_history_channel_thermo.sql` | 컨트롤러 추이 A/B/C 설정(thermo) |
 
 ---
 

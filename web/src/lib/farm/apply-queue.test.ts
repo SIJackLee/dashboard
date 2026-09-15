@@ -11,6 +11,9 @@ import {
   selectApplyQueueCommands,
   formatApplyQueueTargetLine,
   formatApplyQueueTargetParts,
+  applyQueueInkFilled,
+  applyQueueChannelStripForReading,
+  applyQueueChannelStripAria,
 } from "./apply-queue";
 
 {
@@ -24,7 +27,7 @@ import {
   );
   assert.equal(
     applyQueueStage({ status: "applied", liveConfirmed: false }),
-    "수신",
+    "확인",
   );
   assert.equal(
     applyQueueStage({ status: "applied", liveConfirmed: true }),
@@ -40,17 +43,17 @@ import {
   assert.deepEqual(applyQueueGauge({ status: "pending", liveConfirmed: false }), {
     filled: 0,
     current: 1,
-    rest: 3,
+    rest: 2,
     fail: false,
   });
   assert.deepEqual(applyQueueGauge({ status: "sent", liveConfirmed: false }), {
     filled: 1,
     current: 1,
-    rest: 2,
+    rest: 1,
     fail: false,
   });
-  assert.deepEqual(applyQueueGauge({ status: "applied", liveConfirmed: true }), {
-    filled: 4,
+  assert.deepEqual(applyQueueGauge({ status: "applied", liveConfirmed: false }), {
+    filled: 3,
     current: 0,
     rest: 0,
     fail: false,
@@ -58,7 +61,7 @@ import {
   assert.deepEqual(applyQueueGauge({ status: "failed", liveConfirmed: false }), {
     filled: 0,
     current: 1,
-    rest: 3,
+    rest: 2,
     fail: true,
   });
 }
@@ -77,7 +80,6 @@ import {
   assert.deepEqual(applyQueueStageCounts(tickets), {
     접수: 1,
     전송: 0,
-    수신: 0,
     확인: 1,
     실패: 0,
   });
@@ -88,8 +90,8 @@ import {
     { status: "applied" as const, liveConfirmed: true },
     { status: "sent" as const, liveConfirmed: true },
   ];
-  assert.equal(applyQueueHandleLabel(done), "적용 2 · 확인");
-  assert.equal(applyQueueShouldAutoCollapse(done, false), true);
+  assert.equal(applyQueueHandleLabel(done), "적용 2 · 전송");
+  assert.equal(applyQueueShouldAutoCollapse(done, false), false);
   assert.equal(applyQueueShouldAutoCollapse(done, true), false);
 }
 
@@ -124,7 +126,7 @@ import {
   );
   assert.equal(
     applyQueueCaption({ status: "sent", liveConfirmed: false }),
-    "전송 · 2/4",
+    "전송 · 2/3",
   );
 }
 
@@ -234,3 +236,77 @@ import {
     ["fresh"],
   );
 }
+
+{
+  assert.equal(
+    applyQueueInkFilled({ status: "pending", liveConfirmed: false }),
+    1,
+  );
+  assert.equal(
+    applyQueueInkFilled({ status: "sent", liveConfirmed: false }),
+    2,
+  );
+  assert.equal(
+    applyQueueInkFilled({ status: "applied", liveConfirmed: false }),
+    3,
+  );
+  assert.equal(
+    applyQueueInkFilled({ status: "failed", liveConfirmed: false }),
+    1,
+  );
+
+  const farm = { lsindRegistNo: "A", itemCode: "B" };
+  const reading = {
+    key: "r1",
+    farmKey: farm,
+    moduleUid: 1,
+    controllerKey: "barn:01:01",
+  };
+  const other = {
+    key: "r2",
+    id: "x",
+    liveConfirmed: false,
+    command: {
+      farmKey: farm,
+      moduleUid: 2,
+      controllerKey: "barn:01:02",
+      channel: "A" as const,
+      status: "sent" as const,
+    },
+  };
+  const rows = [
+    {
+      key: "r1",
+      id: "a",
+      liveConfirmed: false,
+      command: {
+        farmKey: farm,
+        moduleUid: 1,
+        controllerKey: "barn:01:01",
+        channel: "B" as const,
+        status: "sent" as const,
+      },
+    },
+    {
+      key: "r1",
+      id: "b",
+      liveConfirmed: false,
+      command: {
+        farmKey: farm,
+        moduleUid: 1,
+        controllerKey: "barn:01:01",
+        channel: "A" as const,
+        status: "applied" as const,
+      },
+    },
+    other,
+  ];
+  const strip = applyQueueChannelStripForReading(rows, reading);
+  assert.deepEqual(
+    strip.map((item) => `${item.slot}:${item.stage}:${item.filled}`),
+    ["A:확인:3", "B:전송:2"],
+  );
+  assert.equal(applyQueueChannelStripAria(strip), "채널 A 확인, 채널 B 전송");
+  assert.equal(applyQueueChannelStripForReading([other], reading).length, 0);
+}
+

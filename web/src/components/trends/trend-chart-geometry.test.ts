@@ -20,6 +20,7 @@ import {
   xScopeTouchesCommandLane,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
+import { inferHoverMetricGroup } from "./trend-chart-format";
 import type {
   TrendEnvelope,
   TrendSeries,
@@ -190,5 +191,14 @@ assert.equal(xScopeTouchesCommandLane(0.2, 0.8), false);
 assert.equal(xScopeTouchesCommandLane(0.9, 1.0), false);
 assert.equal(xScopeTouchesCommandLane(0.5, 1.05), true);
 assert.equal(xScopeTouchesCommandLane(1.2, 1.4), true);
+
+assert.equal(inferHoverMetricGroup("채널 A 설정"), "temp");
+assert.equal(inferHoverMetricGroup("채널 B 설정"), "temp");
+assert.equal(inferHoverMetricGroup("채널 A 환기"), "motor");
+assert.equal(inferHoverMetricGroup("온도 설정 변경"), "temp");
+assert.equal(inferHoverMetricGroup("환기 설정 변경"), "motor");
+assert.equal(inferHoverMetricGroup("채널 A"), "motor");
+assert.equal(inferHoverMetricGroup("온도 산포"), "temp");
+assert.equal(inferHoverMetricGroup("습도 산포"), "hum");
 
 console.log("trend-chart-geometry.test.ts: ok");

@@ -51,13 +51,38 @@ function useMediaQuery(query: string): boolean {
 }
 
 /**
- * 단계 글리프: command 레인의 row(=COMMAND_HIT_STAGES 인덱스)로 모양을 구분한다.
- * 0 확인·1 수신 = 원, 2 전송 = 사각, 3 접수 = 마름모. 색약 대응(색+모양 이중 코딩).
+ * 단계 글리프: 적용 레인 row 0 = 원. (예전 전송=사각·접수=마름모는 차트에 두지 않음)
  */
 function stageShapeClass(row: number): string {
-  if (row === 2) return "rounded-[1px]";
-  if (row === 3) return "rounded-[1px] rotate-45";
+  if (row === 1) return "rounded-[1px]";
+  if (row === 2) return "rounded-[1px] rotate-45";
   return "rounded-full";
+}
+
+function EventMarkGlyph({
+  mark,
+  selected,
+}: {
+  mark: TrendEventMark;
+  selected: boolean;
+}) {
+  const label = mark.markerLabel;
+  return (
+    <span className="relative flex items-center justify-center">
+      {label ? (
+        <span
+          className={cn(
+            farmChartUi.fsMeta,
+            "absolute bottom-full left-1/2 mb-0.5 -translate-x-1/2 whitespace-nowrap text-center leading-none font-medium text-foreground",
+          )}
+          aria-hidden
+        >
+          {label}
+        </span>
+      ) : null}
+      <span className={markDotClass(mark, selected)} />
+    </span>
+  );
 }
 
 function markDotClass(mark: TrendEventMark, selected: boolean): string {
@@ -150,6 +175,8 @@ export function EventLaneHtmlOverlay({
   onClearEventPins,
   onEmptyContextMenu,
   scopeHandlers = null,
+  focusEventMarkId = null,
+  hideEventMarks = false,
 }: {
   lane: TrendEventLane;
   marks: PositionedEventMark[];
@@ -171,6 +198,9 @@ export function EventLaneHtmlOverlay({
   onEmptyContextMenu?: () => boolean;
   /** 설정 시 점 위 가로 드래그도 시간 스코프 (탭=핀) */
   scopeHandlers?: LaneScopeHandlers | null;
+  /** 호버 중인 명령만 남기고 나머지는 숨김 */
+  focusEventMarkId?: string | null;
+  hideEventMarks?: boolean;
 }) {
   const rowCount = Math.max(1, lane.rowLabels.length);
   const selectedRow =
@@ -374,6 +404,8 @@ export function EventLaneHtmlOverlay({
   };
 
   const renderSingle = ({ mark, xView, yView }: PositionedEventMark) => {
+    if (hideEventMarks) return null;
+    if (focusEventMarkId && mark.id !== focusEventMarkId) return null;
     const isSelected = selectedId === mark.id;
     return (
       <button
@@ -381,7 +413,7 @@ export function EventLaneHtmlOverlay({
         type="button"
         className={cn(
           "pointer-events-auto absolute flex items-center justify-center -translate-x-1/2 -translate-y-1/2",
-          compact ? "size-9" : "size-7",
+          compact ? "min-h-9 min-w-9" : "min-h-7 min-w-7",
           dashboardAffordance.hitSurface,
           motionClass.microHover,
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
@@ -393,6 +425,7 @@ export function EventLaneHtmlOverlay({
         }}
         aria-label={mark.ariaLabel}
         aria-pressed={isSelected}
+        data-trend-event-mark=""
         onPointerDown={(event) => onMarkPointerDown(event, mark)}
         onPointerMove={onMarkPointerMove}
         onPointerUp={onMarkPointerUp}
@@ -403,12 +436,14 @@ export function EventLaneHtmlOverlay({
           if (event.detail !== 0) return;
           onSelect(mark);
         }}
+        onPointerEnter={() => onHover(mark)}
         onMouseEnter={() => onHover(mark)}
+        onMouseMove={(event) => event.stopPropagation()}
         onMouseLeave={() => onHover(null)}
         onFocus={() => onHover(mark)}
         onBlur={() => onHover(null)}
       >
-        <span className={markDotClass(mark, isSelected)} />
+        <EventMarkGlyph mark={mark} selected={isSelected} />
       </button>
     );
   };
@@ -477,13 +512,21 @@ export function EventLaneHtmlOverlay({
       {/* 단독 마크 (펼침 중에는 보이되 상호작용 차단) */}
       <div className={openCluster ? "pointer-events-none" : undefined}>
         {plotMarks
-          .filter((p) => layout.singleIds.has(p.mark.id))
+          .filter((p) =>
+            focusEventMarkId
+              ? p.mark.id === focusEventMarkId
+              : hideEventMarks
+                ? false
+                : layout.singleIds.has(p.mark.id),
+          )
           .map(renderSingle)}
       </div>
 
       {/* 접힌 클러스터 배지 (펼침 중에는 다른 클러스터도 보이되 차단) */}
       <div className={openCluster ? "pointer-events-none" : undefined}>
-        {layout.clusters
+        {hideEventMarks || focusEventMarkId
+          ? null
+          : layout.clusters
           .filter((cl) => cl.id !== openClusterId)
           .map((cl) => {
           const sample = posById.get(cl.memberIds[0] ?? "");
@@ -506,11 +549,22 @@ export function EventLaneHtmlOverlay({
               style={{ left: `${leftPct}%`, top: pctY(sample.yView) }}
               aria-label={`${lane.rowLabels[cl.row] ?? ""} 명령 ${cl.memberIds.length}건, 펼치기`}
               aria-expanded={false}
+              data-trend-event-mark=""
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
                 toggleCluster(cl.id);
               }}
+              onPointerEnter={() => {
+                let latest = sample.mark;
+                for (const id of cl.memberIds) {
+                  const p = posById.get(id);
+                  if (p && p.mark.atMs >= latest.atMs) latest = p.mark;
+                }
+                onHover(latest);
+              }}
+              onMouseMove={(event) => event.stopPropagation()}
+              onMouseLeave={() => onHover(null)}
             >
               <span className={markDotClass(sample.mark, false)} />
               <span className="tabular-nums">+{cl.memberIds.length}</span>
@@ -520,7 +574,7 @@ export function EventLaneHtmlOverlay({
       </div>
 
       {/* 열린 클러스터: 배경(닫기) + 펼침(부채꼴/목록) + 확장 배지 */}
-      {openCluster ? (
+      {openCluster && !hideEventMarks && !focusEventMarkId ? (
         <>
           <button
             type="button"
@@ -744,7 +798,7 @@ export function EventLaneHtmlOverlay({
                     }}
                     className={cn(
                       "pointer-events-auto absolute z-[2] flex items-center justify-center -translate-x-1/2 -translate-y-1/2",
-                      compact ? "size-9" : "size-7",
+                      compact ? "min-h-9 min-w-9" : "min-h-7 min-w-7",
                       dashboardAffordance.hitSurface,
                       motionClass.microHover,
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground",
@@ -760,6 +814,7 @@ export function EventLaneHtmlOverlay({
                     }}
                     aria-label={p.mark.ariaLabel}
                     aria-pressed={isSel}
+                    data-trend-event-mark=""
                     onPointerDown={(event) => {
                       // 플롯의 탭=핀 폴백과 이중 토글되지 않도록 전파 차단.
                       event.stopPropagation();
@@ -782,6 +837,7 @@ export function EventLaneHtmlOverlay({
                       event.preventDefault();
                       collapse();
                     }}
+                    onPointerEnter={() => onHover(p.mark)}
                     onMouseEnter={() => onHover(p.mark)}
                     onMouseMove={(event) => {
                       // 플롯 전역 mousemove가 실제 좌표로 히트를 재계산해
@@ -792,7 +848,7 @@ export function EventLaneHtmlOverlay({
                     onFocus={() => onHover(p.mark)}
                     onBlur={() => onHover(null)}
                   >
-                    <span className={markDotClass(p.mark, isSel)} />
+                    <EventMarkGlyph mark={p.mark} selected={isSel} />
                   </button>
                 );
                 })}

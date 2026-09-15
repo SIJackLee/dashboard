@@ -29,6 +29,7 @@ import {
   emptyCompactControllerPeriod,
   type CompactControllerPeriod,
   type CompactControllerSeries,
+  type CompactThermoPoint,
 } from "@/lib/data/farm-trend-compact";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import {
@@ -70,6 +71,18 @@ type RpcRow = {
 type ControllerRpcRow = RpcRow & {
   controller_key: string | null;
   eqpmn_no: string | null;
+  a_setpoint_temp?: number | string | null;
+  a_temp_deviation?: number | string | null;
+  a_min_vent_pct?: number | string | null;
+  a_max_vent_pct?: number | string | null;
+  b_setpoint_temp?: number | string | null;
+  b_temp_deviation?: number | string | null;
+  b_min_vent_pct?: number | string | null;
+  b_max_vent_pct?: number | string | null;
+  c_setpoint_temp?: number | string | null;
+  c_temp_deviation?: number | string | null;
+  c_min_vent_pct?: number | string | null;
+  c_max_vent_pct?: number | string | null;
 };
 
 function stallNoSortKey(stallNo: string): number {
@@ -77,10 +90,35 @@ function stallNoSortKey(stallNo: string): number {
   return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
 }
 
-function toNum(v: number | string | null): number | null {
+function toNum(v: number | string | null | undefined): number | null {
   if (v == null) return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function compactThermoFromRow(
+  row: ControllerRpcRow,
+  slot: number,
+): CompactThermoPoint | null {
+  const vals: CompactThermoPoint = [
+    slot,
+    toNum(row.a_setpoint_temp),
+    toNum(row.a_temp_deviation),
+    toNum(row.a_min_vent_pct),
+    toNum(row.a_max_vent_pct),
+    toNum(row.b_setpoint_temp),
+    toNum(row.b_temp_deviation),
+    toNum(row.b_min_vent_pct),
+    toNum(row.b_max_vent_pct),
+    toNum(row.c_setpoint_temp),
+    toNum(row.c_temp_deviation),
+    toNum(row.c_min_vent_pct),
+    toNum(row.c_max_vent_pct),
+  ];
+  for (let i = 1; i < vals.length; i++) {
+    if (vals[i] != null) return vals;
+  }
+  return null;
 }
 
 function alignedToMs(now: number): number {
@@ -309,6 +347,11 @@ function compactFromControllerRows(
       toNum(row.avg_fan_c),
       n,
     ]);
+    const th = compactThermoFromRow(row, slot);
+    if (th) {
+      series.th ??= [];
+      series.th.push(th);
+    }
   }
 
   return {
@@ -371,9 +414,9 @@ export async function getFarmTrendAllPeriods(params: {
 }
 
 function trendCacheKind(cfg: TrendPeriodConfig, overview?: boolean): string {
-  if (overview) return "rpc-json-overview-1d-chunk24h-mst";
+  if (overview) return "rpc-json-overview-1d-chunk24h-mst-th1";
   const bucket = cfg.bucket.replace(/\s+/g, "");
-  return `rpc-json-chunk24h-${bucket}-${cfg.bucketCount}-mst`;
+  return `rpc-json-chunk24h-${bucket}-${cfg.bucketCount}-mst-th1`;
 }
 
 export async function getFarmControllerTrendHistoryCompact(params: {
@@ -537,7 +580,7 @@ export async function getFarmControllerTrendWindowCompact(params: {
       scopeKey,
       String(aligned.fromMs),
       String(aligned.toMs),
-      "rpc-json-window15m-chunk24h-mst",
+      "rpc-json-window15m-chunk24h-mst-th1",
     ],
     ["live", `controller-trend:${scopeKey}`],
     () =>

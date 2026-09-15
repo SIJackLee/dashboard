@@ -6,12 +6,11 @@ import {
 } from "@/lib/controllers/controller-settings";
 import type { ThermoCommandStatus } from "@/lib/data/commands";
 import { farmKeyId, type FarmKey } from "@/lib/data/farm-key";
-import type { ChannelSlot } from "@/lib/data/iot-channel";
+import { CHANNEL_SLOT_LABELS, type ChannelSlot } from "@/lib/data/iot-channel";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
   applyQueueStage,
   formatApplyQueueTargetLine,
-  isApplyQueueWatchStatus,
   type ApplyQueueStage,
 } from "@/lib/farm/apply-queue";
 import { formatKst } from "@/lib/datetime/kst";
@@ -20,8 +19,8 @@ import type { FarmChartScope } from "@/lib/farm/farm-chart-scope";
 import { parseCategoryTimelineMs } from "@/lib/farm/trend-display-buckets";
 import type { TrendEventLane, TrendEventMark } from "@/lib/data/trend-chart-types";
 
-/** 위(확인) → 아래(접수). 실측 온도 차트와 겹치지 않는 적중 축. */
-export const COMMAND_HIT_STAGES = ["확인", "수신", "전송", "접수"] as const;
+/** 차트 레인에 남기는 단계. 적용(`applied`=확인)만 그린다. */
+export const COMMAND_HIT_STAGES = ["확인", "전송", "접수"] as const;
 
 export type CommandHitStage = (typeof COMMAND_HIT_STAGES)[number];
 
@@ -75,6 +74,11 @@ export type CommandHitMark = {
   setpoint: string;
   deviation: string;
   vent: string;
+  channel: ChannelSlot | null;
+  tempLoC: number | null;
+  tempHiC: number | null;
+  minVentPct: number;
+  maxVentPct: number;
 };
 
 export type CommandHitStats = {
@@ -98,20 +102,18 @@ export type CommandHitAxis = {
 export const COMMAND_HIT_MAX_MARKS = 400;
 const LIVE_END_MS = 2 * 60 * 60 * 1000;
 const STAGE_KEEP_RANK: Record<CommandHitStage, number> = {
-  확인: 4,
-  수신: 3,
+  확인: 3,
   전송: 2,
   접수: 1,
 };
-/** 추이 플롯 하단 명령 행 높이(1×). 차트 탭은 farm-chart-ui 배율을 곱한다. */
-export const COMMAND_HIT_LANE_PX = 112;
+/** 추이 플롯 하단 적용 명령 행 높이(1×, 단일 행). 차트 탭은 farm-chart-ui 배율을 곱한다. */
+export const COMMAND_HIT_LANE_PX = 56;
 
 export function isCommandHitStage(
   stage: ApplyQueueStage,
 ): stage is CommandHitStage {
   return (
     stage === "확인" ||
-    stage === "수신" ||
     stage === "전송" ||
     stage === "접수"
   );
@@ -180,6 +182,91 @@ export function commandInChartScope(
   if (!stallNosEqual(command.stallNo, scope.stallNo)) return false;
   if (scope.level === "stall") return true;
   return command.controllerKey === scope.controllerKey;
+}
+
+function sameController(
+  a: Pick<CommandHitSource, "farmKey" | "moduleUid" | "controllerKey">,
+  b: Pick<CommandHitSource, "farmKey" | "moduleUid" | "controllerKey">,
+): boolean {
+  return (
+    farmKeyId(a.farmKey) === farmKeyId(b.farmKey) &&
+    a.moduleUid === b.moduleUid &&
+    a.controllerKey === b.controllerKey
+  );
+}
+
+function isChannelA(
+  channel: ChannelSlot | null | undefined,
+): boolean {
+  return channel == null || channel === "A";
+}
+
+/**
+ * B·C 명령의 설정온도는 A에 더하는 오프셋.
+ * 같은 컨트롤러에서 이 시각 이전(포함) 최신 A 적용값, 없으면 LIVE A.
+ */
+export function latestChannelASetpoint(
+  command: CommandHitSource,
+  applied: readonly CommandHitSource[],
+  readings: readonly CommandHitReading[] = [],
+  thermoSettings: Record<string, ControllerThermoSettings> = {},
+): number | null {
+  if (isChannelA(command.channel)) return command.setpointTemp;
+  let best: CommandHitSource | null = null;
+  for (const row of applied) {
+    if (!sameController(row, command)) continue;
+    if (!isChannelA(row.channel)) continue;
+    if (row.createdAt > command.createdAt) continue;
+    if (!Number.isFinite(row.setpointTemp)) continue;
+    if (!best || row.createdAt >= best.createdAt) best = row;
+  }
+  if (best && Number.isFinite(best.setpointTemp)) return best.setpointTemp;
+  const reading = readings.find(
+    (row) =>
+      farmKeyId(row.farmKey) === farmKeyId(command.farmKey) &&
+      row.moduleUid === command.moduleUid &&
+      row.controllerKey === command.controllerKey,
+  );
+  if (reading) {
+    const liveA = liveThermoForCommand(reading, "A");
+    if (liveA && Number.isFinite(liveA.setpointTemp)) return liveA.setpointTemp;
+  }
+  const fromMap = resolveThermoSettings(
+    thermoSettings,
+    command.farmKey,
+    command.moduleUid,
+    command.controllerKey,
+    "A",
+  );
+  return fromMap && Number.isFinite(fromMap.setpointTemp)
+    ? fromMap.setpointTemp
+    : null;
+}
+
+/** 차트 ℃ 구간. A는 절대값, B·C는 A+오프셋. */
+export function commandAbsTempWindow(
+  command: Pick<
+    CommandHitSource,
+    "channel" | "setpointTemp" | "tempDeviation"
+  >,
+  channelASetpoint: number | null,
+): { loC: number; hiC: number } | null {
+  const sp = command.setpointTemp;
+  const dev = command.tempDeviation;
+  if (!Number.isFinite(sp) || !Number.isFinite(dev)) return null;
+  if (isChannelA(command.channel)) {
+    return { loC: sp, hiC: sp + dev };
+  }
+  if (channelASetpoint == null || !Number.isFinite(channelASetpoint)) return null;
+  const loC = channelASetpoint + sp;
+  return { loC, hiC: loC + dev };
+}
+
+export function commandChannelLabel(
+  channel: ChannelSlot | null | undefined,
+): string | undefined {
+  if (!channel) return undefined;
+  return CHANNEL_SLOT_LABELS[channel];
 }
 
 function liveThermoForCommand(
@@ -256,7 +343,7 @@ export function commandHitStatsLine(
     stats.hiddenCount > 0
       ? `최근 ${stats.total}건`
       : `${stats.total}건`;
-  return `${windowLabel} · ${count} · 확인 ${stats.confirmed} · 적중 ${stats.hitPctLabel}`;
+  return `${windowLabel} · 적용 ${count}`;
 }
 
 export function commandHitAxis(fromMs: number, toMs: number, nowMs: number): CommandHitAxis {
@@ -382,35 +469,44 @@ export function selectCommandHitResult(opts: {
   const farmKey = opts.farmKey;
   if (!farmKey) return { marks: [], hiddenCount: 0 };
   const farmId = farmKeyId(farmKey);
-  const readings = opts.readings ?? [];
-  const thermoSettings = opts.thermoSettings ?? {};
   const limit = opts.limit ?? COMMAND_HIT_MAX_MARKS;
 
-  const eligible = opts.commands
+  const applied = opts.commands
     .filter((command) => farmKeyId(command.farmKey) === farmId)
-    .filter((command) => isApplyQueueWatchStatus(command.status))
-    .filter((command) => commandInChartScope(command, opts.scope))
+    .filter((command) => command.status === "applied")
+    .filter((command) => commandInChartScope(command, opts.scope));
+  const readings = opts.readings ?? [];
+  const thermoSettings = opts.thermoSettings ?? {};
+
+  const eligible = applied
     .map((command) => {
       const x = commandHitX(command.createdAt, opts.fromMs, opts.toMs);
       if (x == null) return null;
-      const liveConfirmed = commandLiveConfirmed(
-        command,
-        readings,
-        thermoSettings,
-        opts.confirmedIds,
-      );
       const stage = applyQueueStage({
         status: command.status,
-        liveConfirmed,
+        liveConfirmed: false,
       });
-      if (!isCommandHitStage(stage)) return null;
-      return {
+      if (!isCommandHitStage(stage) || stage !== "확인") return null;
+      const aBase = latestChannelASetpoint(
+        command,
+        applied,
+        readings,
+        thermoSettings,
+      );
+      const abs = commandAbsTempWindow(command, aBase);
+      const mark: CommandHitMark = {
         id: command.id,
         at: command.createdAt,
         x,
-        stage,
+        stage: "확인",
+        channel: command.channel ?? null,
+        tempLoC: abs?.loC ?? null,
+        tempHiC: abs?.hiC ?? null,
+        minVentPct: command.minVentPct,
+        maxVentPct: command.maxVentPct,
         ...commandHitPayload(command),
-      } satisfies CommandHitMark;
+      };
+      return mark;
     })
     .filter((mark): mark is CommandHitMark => mark != null);
 
@@ -431,28 +527,45 @@ function commandHitInfoStrength(
   stage: CommandHitStage,
 ): 1 | 2 | 3 | undefined {
   if (stage === "확인") return undefined;
-  if (stage === "수신") return 3;
   if (stage === "전송") return 2;
   return 1;
 }
 
-export function commandHitToEventMark(mark: CommandHitMark): TrendEventMark {
-  const row = Math.max(0, COMMAND_HIT_STAGES.indexOf(mark.stage));
+export function commandHitToEventMark(
+  mark: CommandHitMark,
+  map?: {
+    temp: (c: number | null) => number | null;
+    motor: (pct: number | null) => number | null;
+  },
+): TrendEventMark {
+  const channelLabel = commandChannelLabel(mark.channel);
+  const preview = map
+    ? {
+        tempLo: map.temp(mark.tempLoC),
+        tempHi: map.temp(mark.tempHiC),
+        motorLo: map.motor(mark.minVentPct),
+        motorHi: map.motor(mark.maxVentPct),
+      }
+    : undefined;
   return {
     id: mark.id,
     atMs: Date.parse(mark.at),
-    row,
+    row: 0,
     tone: mark.stage === "확인" ? "ok" : "info",
     infoStrength: commandHitInfoStrength(mark.stage),
-    ariaLabel: `${formatKst(mark.at, "short")} ${mark.stage} ${mark.setpoint}`,
+    ariaLabel: channelLabel
+      ? `${formatKst(mark.at, "short")} ${mark.stage} ${channelLabel}`
+      : `${formatKst(mark.at, "short")} ${mark.stage} ${mark.setpoint}`,
+    markerLabel: mark.channel ?? undefined,
+    preview,
     card: {
       badge: "명령",
       time: formatKst(mark.at, "short"),
-      hero: mark.setpoint,
+      hero: channelLabel ?? mark.setpoint,
       heroTone: mark.stage === "확인" ? "ok" : undefined,
-      // 라벨 없이 값만: 온도편차 · 최저–최대 환기량
-      values: [mark.deviation, mark.vent],
-      // 대상: 축사·컨트롤러 아이콘 + 채널
+      values: channelLabel
+        ? [mark.setpoint, mark.deviation, mark.vent]
+        : [mark.deviation, mark.vent],
       target: mark.targetRef
         ? {
             stallTyCode: mark.targetRef.stallTyCode,
@@ -461,7 +574,6 @@ export function commandHitToEventMark(mark: CommandHitMark): TrendEventMark {
             channel: mark.targetRef.channel,
           }
         : undefined,
-      // 목록 폴백·접근성용 텍스트(유지)
       rows: [
         { label: "단계", value: mark.stage },
         { label: "편차", value: mark.deviation },
@@ -476,13 +588,19 @@ export function commandHitEventLane(opts: {
   marks: CommandHitMark[];
   hiddenCount?: number;
   windowLabel: string;
+  mapTemp?: (c: number | null) => number | null;
+  mapMotor?: (pct: number | null) => number | null;
 }): TrendEventLane {
   const stats = commandHitStats(opts.marks, opts.hiddenCount ?? 0);
+  const map =
+    opts.mapTemp && opts.mapMotor
+      ? { temp: opts.mapTemp, motor: opts.mapMotor }
+      : undefined;
   return {
     label: "명령",
-    rowLabels: [...COMMAND_HIT_STAGES],
+    rowLabels: ["적용"],
     statsLine: commandHitStatsLine(opts.windowLabel, stats),
-    emptyLabel: "이 구간에 명령이 없습니다.",
-    marks: opts.marks.map(commandHitToEventMark),
+    emptyLabel: "이 구간에 적용된 명령이 없습니다.",
+    marks: opts.marks.map((mark) => commandHitToEventMark(mark, map)),
   };
 }

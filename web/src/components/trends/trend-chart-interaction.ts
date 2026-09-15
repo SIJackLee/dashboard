@@ -76,3 +76,31 @@ export function clipWipeClass(phase: ClipPhase): string | undefined {
   if (phase === "exit") return motionClass.farmChartClipWipeOut;
   return undefined;
 }
+
+/** 모터 바·명령 점을 같은 시각으로 묶을 때 허용 가로 거리(viewBox). */
+export function hoverPairSlotDx(innerW: number, n: number): number {
+  if (!(innerW > 0)) return 0;
+  if (n <= 1) return innerW;
+  return (innerW / (n - 1)) * 0.75;
+}
+
+export function nearestByXView<T extends { xView: number }>(
+  items: readonly T[],
+  xView: number,
+  maxDx: number,
+): T | null {
+  if (!(maxDx > 0) || items.length === 0 || !Number.isFinite(xView)) {
+    return null;
+  }
+  let best: T | null = null;
+  let bestD = maxDx;
+  for (const item of items) {
+    if (!Number.isFinite(item.xView)) continue;
+    const d = Math.abs(item.xView - xView);
+    if (d <= bestD) {
+      bestD = d;
+      best = item;
+    }
+  }
+  return best;
+}

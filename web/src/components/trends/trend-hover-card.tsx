@@ -383,6 +383,13 @@ export function TrendPointCardBody({
   }
 
   const heroKey = heroSeries?.name ?? heroHist?.legendLabel ?? "";
+  const heroNote = heroSeries?.hoverNote?.[idx] ?? null;
+
+  const secondarySeries = tipSeries.filter((s) => {
+    if (s.name === heroKey) return false;
+    if (s.markerOnly) return Boolean(s.hoverNote?.[idx]);
+    return true;
+  });
 
   const alarmMeta =
     group === "temp" || group === "hum"
@@ -454,7 +461,6 @@ export function TrendPointCardBody({
     );
   };
 
-  const secondarySeries = tipSeries.filter((s) => s.name !== heroKey);
   const secondaryHists = tipHists.filter((h) => {
     const lab = h.legendLabel ?? "";
     if (lab === heroKey) return false;
@@ -510,10 +516,43 @@ export function TrendPointCardBody({
         ) : null}
       </div>
 
+      {heroNote ? (
+        <div className="mt-1 space-y-0.5 farm-chart-fs-legend text-muted-foreground">
+          {heroNote.split("\n").map((line) => (
+            <div key={line} className="tabular-nums">
+              {line}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {(secondarySeries.length > 0 || secondaryHists.length > 0) &&
       !showMotorMatrix ? (
         <div className="mt-1.5 space-y-0.5">
           {secondarySeries.map((s) => {
+            const note = s.hoverNote?.[idx];
+            if (note) {
+              return (
+                <div key={s.name} className="space-y-0.5 farm-chart-fs-legend">
+                  {note.split("\n").map((line) => (
+                    <div
+                      key={line}
+                      className="flex items-start justify-between gap-2"
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-1">
+                        <span
+                          className="inline-block h-1.5 w-1.5 shrink-0 rounded-sm"
+                          style={{ backgroundColor: s.color }}
+                        />
+                        <span className="tabular-nums text-muted-foreground">
+                          {line}
+                        </span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            }
             const unit =
               (s.axis ?? "left") === "right" ? rightUnit : leftUnit;
             const sec = s.hoverSecondary?.[idx];

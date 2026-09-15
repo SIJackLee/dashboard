@@ -44,6 +44,36 @@ describe("expandCompactControllerPeriod", () => {
     assert.equal(ctrl.humidity[2], 61);
   });
 
+  it("hold-forwards sparse channel thermo", () => {
+    const fromMs = Date.UTC(2026, 7, 1, 0, 0, 0);
+    const compact: CompactControllerPeriod = {
+      v: 1,
+      period: "24h",
+      fromMs,
+      bucketCount: TREND_PERIODS["24h"].bucketCount,
+      strideMs: TREND_PERIODS["24h"].strideMs,
+      totalSamples: 1,
+      series: [
+        {
+          ty: "SP02",
+          lb: "임신사",
+          sn: "1",
+          k: "SP02:1:01",
+          e: "01",
+          p: [[1, 20, null, null, null, null, null, null, null, 1]],
+          th: [[1, 24, 5, 10, 90, 2, 4, 20, 80, 3, 3, 30, 70]],
+        },
+      ],
+    };
+    const ctrl = expandCompactControllerPeriod(compact).sp[0]!.stalls[0]!
+      .controllers[0]!;
+    assert.equal(ctrl.thermoA?.setpoint[0], null);
+    assert.equal(ctrl.thermoA?.setpoint[1], 24);
+    assert.equal(ctrl.thermoA?.setpoint[2], 24);
+    assert.equal(ctrl.thermoB?.setpoint[2], 2);
+    assert.equal(ctrl.thermoC?.maxVent[2], 70);
+  });
+
   it("does not allocate sample rows for empty series list", () => {
     const out = expandCompactControllerPeriod({
       v: 1,
@@ -80,6 +110,7 @@ describe("synthesizeOverview30dFrom7d", () => {
             [0, 10, null, null, null, null, null, null, null, 1],
             [n - 1, 20, null, null, null, null, null, null, null, 1],
           ],
+          th: [[0, 24, 5, 10, 90, 2, 4, 20, 80, 3, 3, 30, 70]],
         },
       ],
     });
@@ -90,5 +121,8 @@ describe("synthesizeOverview30dFrom7d", () => {
     assert.equal(ctrl.temp[22], null);
     assert.equal(ctrl.temp[23], 10);
     assert.equal(ctrl.temp[29], 20);
+    assert.equal(ctrl.thermoA?.setpoint[23], 24);
+    assert.equal(ctrl.thermoA?.setpoint[29], 24);
+    assert.equal(ctrl.thermoB?.setpoint[29], 2);
   });
 });

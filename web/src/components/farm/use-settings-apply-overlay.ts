@@ -84,7 +84,15 @@ export function useSettingsApplyOverlay({
       return { visible: false, phase: "info", title: "", autoDismiss: true };
     }
 
-    if (panelError) {
+    const commandAccepted =
+      Boolean(command) &&
+      isUserInitiatedCommand(command?.id) &&
+      (command?.status === "pending" ||
+        command?.status === "sent" ||
+        command?.status === "applied");
+
+    /** 채널 명령이 이미 접수되면 카드 에러보다 큐 진행이 우선 */
+    if (panelError && !commandAccepted && !liveConfirmed) {
       return {
         visible: true,
         phase: "error",

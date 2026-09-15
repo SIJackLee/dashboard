@@ -12,6 +12,7 @@ import {
   type TrendPeriodId,
   type TrendStallSeries,
 } from "@/lib/data/farm-trend-types";
+import { sliceChannelThermo } from "@/lib/farm/channel-thermo";
 
 type PeriodTable = Record<TrendPeriodId, TrendPeriodConfig>;
 
@@ -20,7 +21,7 @@ function sliceNumericCols<T extends TrendStallSeries>(
   start: number,
   count: number,
 ): T {
-  return {
+  const sliced = {
     ...series,
     temp: series.temp.slice(start, start + count),
     humidity: series.humidity.slice(start, start + count),
@@ -31,6 +32,18 @@ function sliceNumericCols<T extends TrendStallSeries>(
     fanExhaust: series.fanExhaust.slice(start, start + count),
     fanIntake: series.fanIntake.slice(start, start + count),
     sampleCount: series.sampleCount.slice(start, start + count),
+  } as T;
+  if (!("controllerKey" in series)) return sliced;
+  const ctrl = series as unknown as TrendControllerSeries;
+  if (!ctrl.thermoA && !ctrl.thermoB && !ctrl.thermoC) {
+    return sliced;
+  }
+  const end = start + count;
+  return {
+    ...sliced,
+    thermoA: sliceChannelThermo(ctrl.thermoA, start, end),
+    thermoB: sliceChannelThermo(ctrl.thermoB, start, end),
+    thermoC: sliceChannelThermo(ctrl.thermoC, start, end),
   };
 }
 

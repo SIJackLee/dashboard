@@ -14,6 +14,11 @@ import {
 } from "react";
 import { Check, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  focusCommandRangeFrame,
+  parseChannelSlotLabel,
+  type CommandMarkerFocus,
+} from "@/lib/farm/command-range-overlay";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
   buildTrendAxisMarks,
@@ -79,12 +84,16 @@ import {
   SCALE_EDGE_DOUBLE_TAP_MS,
   SCALE_EDGE_DOUBLE_TAP_SLOP_PX,
   handleScaleEdgeDoubleTap,
+  hoverPairSlotDx,
+  nearestByXView,
   type PinnedTip,
 } from "./trend-chart-interaction";
 import { useTrendPinnedTips } from "./use-trend-pinned-tips";
 import { useTrendScopeGesture } from "./use-trend-scope-gesture";
 import {
   BandGuidesLayer,
+  CommandHoverPreview,
+  CommandChannelRangeOverlay,
   CoverageBandsLayer,
   NullGapsLayer,
   type TrendPlotGeom,
@@ -364,6 +373,7 @@ export function TrendChart({
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const hoverIdxRef = useRef<number | null>(null);
   const hoverSeriesRef = useRef<string | null>(null);
+  const hoverEventMarkRef = useRef<TrendEventMark | null>(null);
   const crossVRef = useRef<SVGLineElement | null>(null);
   const crossHRef = useRef<SVGLineElement | null>(null);
   const tipRef = useRef<HTMLDivElement | null>(null);
@@ -377,6 +387,7 @@ export function TrendChart({
   const [plotPx, setPlotPx] = useState({ w: 1, h: 1 });
   const plotWidthNotifyRef = useRef(0);
   const glowFilterId = `tc-glow-${useId().replace(/:/g, "")}`;
+  const commandPreviewGradId = `tc-cmd-prev-${useId().replace(/:/g, "")}`;
   /** 기간 변경 시만 plot wipe — 카테고리 trim/X스코프는 remount 금지 */
   const plotEnterKey = animate ? String(period ?? "p") : "static";
 
@@ -738,33 +749,47 @@ export function TrendChart({
     if (plotW <= 0 || plotH <= 0) return null;
     const hitR = Math.max(14, markerRadiusPx * 4.2);
     const hitR2 = hitR * hitR;
-    if (eventLane && eventLaneH > 0 && plotH > 0) {
-      const laneTopPx = (eventLaneTop / chartH) * plotH;
-      if (yPx >= laneTopPx - 4) {
-        let bestD2 = hitR2;
-        let best: PositionedEventMark | null = null;
-        for (const row of positionedEventMarks) {
-          const sx = (row.xView / viewW) * plotW;
-          const sy = (row.yView / chartH) * plotH;
-          const dx = xPx - sx;
-          const dy = yPx - sy;
-          const d2 = dx * dx + dy * dy;
-          if (d2 <= bestD2) {
-            bestD2 = d2;
-            best = row;
-          }
+    const laneTopPx =
+      eventLane && eventLaneH > 0 && plotH > 0
+        ? (eventLaneTop / chartH) * plotH
+        : Infinity;
+    const inCommandLane = yPx >= laneTopPx - 8;
+    const pairMaxDx = Math.max(hoverPairSlotDx(innerW, n), 6);
+
+    let eventFromLane: PositionedEventMark | null = null;
+    if (inCommandLane && positionedEventMarks.length > 0) {
+      let bestD2 = hitR2;
+      for (const row of positionedEventMarks) {
+        const sx = (row.xView / viewW) * plotW;
+        const sy = (row.yView / chartH) * plotH;
+        const dx = xPx - sx;
+        const dy = yPx - sy;
+        const d2 = dx * dx + dy * dy;
+        if (d2 <= bestD2) {
+          bestD2 = d2;
+          eventFromLane = row;
         }
-        if (!best) return null;
-        return {
-          idx: 0,
-          xView: best.xView,
-          yView: best.yView,
-          seriesKey: `event:${best.mark.id}`,
-          eventMark: best.mark,
-        };
+      }
+      if (!eventFromLane) {
+        const xView = (xPx / plotW) * viewW;
+        eventFromLane = nearestByXView(
+          positionedEventMarks,
+          xView,
+          pairMaxDx,
+        );
       }
     }
-    if (n === 0) return null;
+
+    if (n === 0) {
+      if (!eventFromLane) return null;
+      return {
+        idx: 0,
+        xView: eventFromLane.xView,
+        yView: eventFromLane.yView,
+        seriesKey: `event:${eventFromLane.mark.id}`,
+        eventMark: eventFromLane.mark,
+      };
+    }
     let bestD2 = hitR2;
     let best: {
       idx: number;
@@ -891,12 +916,123 @@ export function TrendChart({
       }
     }
 
-    return best;
+    /** 온도·모터 위 명령(설정 변경) 점 — 본선·막대보다 우선, 점 위 채널 라벨도 히트 */
+    const markerHitR = hitR * 2.2;
+    const markerLabelHalfW = Math.max(22, hitR * 1.4);
+    let markerHitD2 = markerHitR * markerHitR;
+    let markerHit: {
+      idx: number;
+      xView: number;
+      yView: number;
+      seriesKey: string;
+    } | null = null;
+    for (const s of series) {
+      if (!s.markerOnly) continue;
+      const axis = s.axis ?? "left";
+      const rPx = Math.max(markerRadiusPx, 2.1);
+      const labelYOff = markerRy(rPx) * 2.35;
+      for (let i = 0; i < n; i++) {
+        const v = s.data[i];
+        if (v == null || !Number.isFinite(v)) continue;
+        const xView = xFor(i);
+        const yView = yFor(v, axis);
+        const sx = (xView / viewW) * plotW;
+        const sy = (yView / chartH) * plotH;
+        const dx = xPx - sx;
+        const dy = yPx - sy;
+        const d2 = dx * dx + dy * dy;
+        const labelSy = ((yView - labelYOff) / chartH) * plotH;
+        const onLabel =
+          Math.abs(dx) <= markerLabelHalfW &&
+          yPx <= sy + 4 &&
+          yPx >= labelSy - markerHitR * 0.45;
+        if (onLabel || d2 <= markerHitD2) {
+          markerHitD2 = onLabel ? Math.min(markerHitD2, d2) : d2;
+          markerHit = { idx: i, xView, yView, seriesKey: s.name };
+        }
+      }
+    }
+    if (markerHit) {
+      return markerHit;
+    }
+
+    const motorSeriesKey =
+      histograms.find(
+        (h) => inferHoverMetricGroup(h.legendLabel ?? "") === "motor",
+      )?.legendLabel ??
+      series.find((s) => inferHoverMetricGroup(s.name) === "motor")?.name ??
+      null;
+
+    const nearestMotorByX = (xView: number) => {
+      let picked: {
+        idx: number;
+        xView: number;
+        yView: number;
+        seriesKey: string;
+      } | null = null;
+      let bestDx = pairMaxDx;
+      for (let hi = 0; hi < histograms.length; hi++) {
+        const h = histograms[hi]!;
+        const key = h.legendLabel ?? `hist-${hi}`;
+        if (inferHoverMetricGroup(key) !== "motor") continue;
+        for (let i = 0; i < n; i++) {
+          const v = h.values[i];
+          if (v == null || !Number.isFinite(v)) continue;
+          const cx = xAtIndex(i);
+          const dx = Math.abs(cx - xView);
+          if (dx <= bestDx) {
+            bestDx = dx;
+            picked = {
+              idx: i,
+              xView: cx,
+              yView: yFor(v, "left"),
+              seriesKey: key,
+            };
+          }
+        }
+      }
+      return picked;
+    };
+
+    if (
+      inCommandLane &&
+      (!best || inferHoverMetricGroup(best.seriesKey) !== "motor")
+    ) {
+      const xView = eventFromLane?.xView ?? (xPx / plotW) * viewW;
+      const motorAtX = nearestMotorByX(xView);
+      if (motorAtX) best = motorAtX;
+    }
+
+    const motorHit =
+      best != null && inferHoverMetricGroup(best.seriesKey) === "motor";
+    let eventMark = eventFromLane?.mark;
+    if (!eventMark && motorHit && best) {
+      eventMark =
+        nearestByXView(positionedEventMarks, best.xView, pairMaxDx)?.mark;
+    }
+
+    if (!best) {
+      if (!eventMark || !eventFromLane) return null;
+      const motorAtX = nearestMotorByX(eventFromLane.xView);
+      if (motorAtX) {
+        return { ...motorAtX, eventMark };
+      }
+      return {
+        idx: 0,
+        xView: eventFromLane.xView,
+        yView: eventFromLane.yView,
+        seriesKey: motorSeriesKey ?? `event:${eventMark.id}`,
+        eventMark,
+      };
+    }
+
+    return { ...best, eventMark };
   };
 
   const clearHover = () => {
     hoverIdxRef.current = null;
     hoverSeriesRef.current = null;
+    hoverEventMarkRef.current = null;
     setHoverIdx(null);
     setHoverSeries(null);
     setHoverEventMark(null);
@@ -1209,13 +1345,20 @@ export function TrendChart({
     const hitGroup = hit.seriesKey
       ? inferHoverMetricGroup(hit.seriesKey)
       : null;
+    const yPx = e.clientY - rect.top;
+    const laneTopPx =
+      eventLane && eventLaneH > 0
+        ? (eventLaneTop / chartH) * rect.height
+        : Infinity;
+    const pinAsEvent =
+      Boolean(hit.eventMark) && yPx >= laneTopPx - 4;
     const mergePin =
       overlayHoverMerge &&
-      !hit.eventMark &&
+      !pinAsEvent &&
       (hitGroup === "temp" || hitGroup === "motor");
     const pinSeriesKey = mergePin ? "온도" : hit.seriesKey;
-    const id = hit.eventMark
-      ? `event:${hit.eventMark.id}`
+    const id = pinAsEvent
+      ? `event:${hit.eventMark!.id}`
       : tipPinId(hit.idx, pinSeriesKey);
     setPinnedTips((prev) => {
       if (prev.some((p) => p.id === id)) {
@@ -1229,8 +1372,10 @@ export function TrendChart({
         ny: hit.yView / chartH,
         ox: 0,
         oy: 0,
-        eventMark: hit.eventMark,
-        atMs: hit.eventMark ? hit.eventMark.atMs : (timeAxisMs?.[hit.idx] ?? undefined),
+        eventMark: pinAsEvent ? hit.eventMark : undefined,
+        atMs: pinAsEvent
+          ? hit.eventMark!.atMs
+          : (timeAxisMs?.[hit.idx] ?? undefined),
       };
       return [...prev, next].slice(-MAX_PINNED_TIPS);
     });
@@ -1334,15 +1479,25 @@ export function TrendChart({
     );
     setCrosshairAt(xView, yView);
 
+    // 명령 점 HTML 버튼이 호버를 소유한다. 플롯 히트가 레이블(점 위)을
+    // 놓치면 농도 띠가 바로 꺼진다.
+    if (
+      e.target instanceof Element &&
+      e.target.closest("[data-trend-event-mark]")
+    ) {
+      return;
+    }
+
     const hit = findDataPointHit(xPx, yPx, rect.width, rect.height);
     if (!hit) {
       if (
         hoverIdxRef.current != null ||
         hoverSeriesRef.current != null ||
-        hoverEventMark
+        hoverEventMarkRef.current
       ) {
         hoverIdxRef.current = null;
         hoverSeriesRef.current = null;
+        hoverEventMarkRef.current = null;
         setHoverIdx(null);
         setHoverSeries(null);
         setHoverEventMark(null);
@@ -1357,30 +1512,24 @@ export function TrendChart({
       w: rect.width,
       h: rect.height,
     };
-    placeTipNear(anchorX, anchorY, rect.width, rect.height);
-    if (hit.eventMark) {
-      if (hoverEventMark?.id === hit.eventMark.id) return;
-      hoverIdxRef.current = null;
-      hoverSeriesRef.current = null;
-      setHoverIdx(null);
-      setHoverSeries(null);
-      setHoverEventMark(hit.eventMark);
-      return;
+    if (hit.seriesKey && !hit.seriesKey.startsWith("event:")) {
+      placeTipNear(anchorX, anchorY, rect.width, rect.height);
     }
     const same =
       hit.idx === hoverIdxRef.current &&
       hit.seriesKey === hoverSeriesRef.current &&
-      hoverEventMark == null;
+      (hit.eventMark?.id ?? null) === (hoverEventMarkRef.current?.id ?? null);
     if (same) return;
     hoverIdxRef.current = hit.idx;
     hoverSeriesRef.current = hit.seriesKey;
+    hoverEventMarkRef.current = hit.eventMark ?? null;
     setHoverIdx(hit.idx);
     setHoverSeries(hit.seriesKey);
-    setHoverEventMark(null);
+    setHoverEventMark(hit.eventMark ?? null);
   };
 
   useLayoutEffect(() => {
-    if (hoverIdx == null && hoverEventMark == null) return;
+    if (hoverIdx == null) return;
     const a = lastAnchorRef.current;
     placeTipNear(a.x, a.y, a.w, a.h);
   }, [hoverIdx, hoverEventMark]);
@@ -1629,6 +1778,53 @@ export function TrendChart({
     innerH,
     n,
   };
+  const commandPreviewMark =
+    hoverEventMark ??
+    [...pinnedTips].reverse().find((p) => p.eventMark)?.eventMark ??
+    null;
+  const commandMarkerFocus = ((): CommandMarkerFocus | null => {
+    const frameHost = (idx: number) =>
+      series.find(
+        (s) => (s.commandRangePreview?.[idx]?.channels.length ?? 0) > 0,
+      );
+    const fromPlot = (
+      idx: number | null,
+      seriesName: string | null,
+    ): CommandMarkerFocus | null => {
+      if (idx == null || seriesName == null) return null;
+      const hovered = series.find((s) => s.name === seriesName);
+      if (!hovered?.markerOnly) return null;
+      const channel = parseChannelSlotLabel(hovered.markerLabels?.[idx]);
+      if (!channel || !frameHost(idx)) return null;
+      return { idx, channel };
+    };
+    const fromEvent = (
+      mark: typeof hoverEventMark,
+      idx: number | null,
+    ): CommandMarkerFocus | null => {
+      if (!mark || idx == null) return null;
+      const channel = parseChannelSlotLabel(mark.markerLabel);
+      if (!channel || !frameHost(idx)) return null;
+      return { idx, channel, eventMarkId: mark.id };
+    };
+    return (
+      fromPlot(hoverIdx, hoverSeries) ??
+      fromEvent(hoverEventMark, hoverIdx) ??
+      [...pinnedTips]
+        .reverse()
+        .map((p) => (p.eventMark ? null : fromPlot(p.idx, p.seriesKey)))
+        .find((f) => f != null) ??
+      null
+    );
+  })();
+  const commandRangeHover = commandMarkerFocus
+    ? focusCommandRangeFrame(
+        series.find((s) => s.commandRangePreview)?.commandRangePreview?.[
+          commandMarkerFocus.idx
+        ] ?? null,
+        commandMarkerFocus.channel,
+      )
+    : null;
 
   return (
     <div
@@ -1951,6 +2147,7 @@ export function TrendChart({
           shouldShowMarker={shouldShowMarker}
           lineSegments={lineSegments}
           envelopePaths={envelopePaths}
+          commandMarkerFocus={commandMarkerFocus}
         />
         {eventLane && eventLaneH > 0 ? (
           <EventLaneSvgGuides
@@ -1963,6 +2160,26 @@ export function TrendChart({
           />
         ) : null}
         </g>
+        {commandRangeHover?.channels.length ? (
+          <CommandChannelRangeOverlay
+            frame={commandRangeHover}
+            geom={plotGeom}
+            gradientId={`${commandPreviewGradId}-ch`}
+          />
+        ) : (
+          <CommandHoverPreview
+            mark={commandPreviewMark}
+            xView={
+              commandPreviewMark
+                ? (positionedEventMarks.find(
+                    (row) => row.mark.id === commandPreviewMark.id,
+                  )?.xView ?? null)
+                : null
+            }
+            geom={plotGeom}
+            gradientId={commandPreviewGradId}
+          />
+        )}
 
         {/* 마우스 기준 회색 십자선 — DOM 직접 갱신(리렌더 최소화) */}
         <line
@@ -2099,6 +2316,10 @@ export function TrendChart({
           laneTop={eventLaneTop}
           laneH={eventLaneH}
           compact={labelGutter}
+          hideEventMarks={Boolean(
+            commandMarkerFocus && !commandMarkerFocus.eventMarkId,
+          )}
+          focusEventMarkId={commandMarkerFocus?.eventMarkId ?? null}
           labelGutter={labelGutter}
           selectedId={
             [...pinnedTips]
@@ -2143,15 +2364,44 @@ export function TrendChart({
             return false;
           }}
           onHover={(mark) => {
+            hoverEventMarkRef.current = mark;
             setHoverEventMark(mark);
-            if (!mark || !plotRef.current) return;
+            if (!mark || n === 0) return;
             const placed = positionedEventMarks.find(
               (row) => row.mark.id === mark.id,
             );
             if (!placed) return;
-            const rect = plotRef.current.getBoundingClientRect();
-            const anchorX = (placed.xView / viewW) * rect.width;
-            const anchorY = (placed.yView / chartH) * rect.height;
+            const pairMaxDx = Math.max(hoverPairSlotDx(innerW, n), 6);
+            let bestIdx: number | null = null;
+            let bestKey: string | null = null;
+            let bestY = placed.yView;
+            let bestDx = pairMaxDx;
+            for (let hi = 0; hi < histograms.length; hi++) {
+              const h = histograms[hi]!;
+              const key = h.legendLabel ?? `hist-${hi}`;
+              if (inferHoverMetricGroup(key) !== "motor") continue;
+              for (let i = 0; i < n; i++) {
+                const v = h.values[i];
+                if (v == null || !Number.isFinite(v)) continue;
+                const dx = Math.abs(xAtIndex(i) - placed.xView);
+                if (dx <= bestDx) {
+                  bestDx = dx;
+                  bestIdx = i;
+                  bestKey = key;
+                  bestY = yFor(v, "left");
+                }
+              }
+            }
+            if (bestIdx == null || bestKey == null) return;
+            hoverIdxRef.current = bestIdx;
+            hoverSeriesRef.current = bestKey;
+            setHoverIdx(bestIdx);
+            setHoverSeries(bestKey);
+            const plot = plotRef.current;
+            if (!plot) return;
+            const rect = plot.getBoundingClientRect();
+            const anchorX = (xAtIndex(bestIdx) / viewW) * rect.width;
+            const anchorY = (bestY / chartH) * rect.height;
             lastAnchorRef.current = {
               x: anchorX,
               y: anchorY,
@@ -2672,28 +2922,26 @@ export function TrendChart({
         );
       })}
 
-      {((hoverEventMark &&
-        !pinnedTips.some((p) => p.eventMark?.id === hoverEventMark.id)) ||
-        (hoverEventMark == null &&
-          hoverIdx != null &&
-          hoverIdx >= 0 &&
-          hoverIdx < n &&
-          !(
-            hoverSeries != null &&
-            pinnedTips.some(
-              (p) =>
-                p.id ===
-                tipPinId(
-                  hoverIdx,
-                  // 오버레이 병합 핀은 "온도"로 정규화되어 있음
-                  overlayHoverMerge &&
-                    (inferHoverMetricGroup(hoverSeries) === "temp" ||
-                      inferHoverMetricGroup(hoverSeries) === "motor")
-                    ? "온도"
-                    : hoverSeries,
-                ),
-            )
-          ))) ? (
+      {hoverIdx != null &&
+      hoverIdx >= 0 &&
+      hoverIdx < n &&
+      hoverSeries != null &&
+      !hoverSeries.startsWith("event:") &&
+      !(
+        hoverSeries != null &&
+        pinnedTips.some(
+          (p) =>
+            p.id ===
+            tipPinId(
+              hoverIdx,
+              overlayHoverMerge &&
+                (inferHoverMetricGroup(hoverSeries) === "temp" ||
+                  inferHoverMetricGroup(hoverSeries) === "motor")
+                ? "온도"
+                : hoverSeries,
+            ),
+        )
+      ) ? (
         <div
           ref={tipRef}
           className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"
@@ -2707,64 +2955,32 @@ export function TrendChart({
               motionClass.farmChartTipIn,
             )}
           >
-            {hoverEventMark ? (
-              <TrendEventCardBody mark={hoverEventMark} />
-            ) : (
-              <>
-                {(() => {
-                  const band = coverageBands.find(
-                    (b) => hoverIdx != null && hoverIdx >= b.i0 && hoverIdx <= b.i1,
-                  );
-                  return band ? (
-                    <p className="mb-1 farm-chart-fs-legend text-muted-foreground">
-                      {band.label}
-                    </p>
-                  ) : null;
-                })()}
-                {(() => {
-                  const hg = hoverSeries
-                    ? inferHoverMetricGroup(hoverSeries)
-                    : null;
-                  /**
-                   * 오버레이(온도+모터 겹침): 겹치는 밴드 hover 시 두 카드를 병합.
-                   * 온도/모터 그룹일 때만 — 습도 밴드는 단일 유지.
-                   */
-                  const merge =
-                    overlayHoverMerge && (hg === "temp" || hg === "motor");
-                  if (merge) {
-                    return (
-                      <>
-                        <TrendPointCardBody
-                          idx={hoverIdx ?? 0}
-                          seriesKey="온도"
-                          categories={categories}
-                          series={series}
-                          envelopes={envelopes}
-                          histograms={histograms}
-                          leftUnit={leftUnit}
-                          rightUnit={rightUnit}
-                          onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                        />
-                        <div className="my-1.5 border-t border-border/50" />
-                        <TrendPointCardBody
-                          idx={hoverIdx ?? 0}
-                          seriesKey="모터"
-                          categories={categories}
-                          series={series}
-                          envelopes={envelopes}
-                          histograms={histograms}
-                          leftUnit={leftUnit}
-                          rightUnit={rightUnit}
-                          hideTime
-                          onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                        />
-                      </>
-                    );
-                  }
-                  return (
+            {(() => {
+              const band = coverageBands.find(
+                (b) => hoverIdx != null && hoverIdx >= b.i0 && hoverIdx <= b.i1,
+              );
+              return band ? (
+                <p className="mb-1 farm-chart-fs-legend text-muted-foreground">
+                  {band.label}
+                </p>
+              ) : null;
+            })()}
+            {(() => {
+              const hg = hoverSeries
+                ? inferHoverMetricGroup(hoverSeries)
+                : null;
+              /**
+               * 오버레이(온도+모터 겹침): 겹치는 밴드 hover 시 두 카드를 병합.
+               * 온도/모터 그룹일 때만 — 습도 밴드는 단일 유지.
+               */
+              const merge =
+                overlayHoverMerge && (hg === "temp" || hg === "motor");
+              if (merge) {
+                return (
+                  <>
                     <TrendPointCardBody
                       idx={hoverIdx ?? 0}
-                      seriesKey={hoverSeries}
+                      seriesKey="온도"
                       categories={categories}
                       series={series}
                       envelopes={envelopes}
@@ -2773,10 +2989,36 @@ export function TrendChart({
                       rightUnit={rightUnit}
                       onBreachEquipmentNavigate={onBreachEquipmentNavigate}
                     />
-                  );
-                })()}
-              </>
-            )}
+                    <div className="my-1.5 border-t border-border/50" />
+                    <TrendPointCardBody
+                      idx={hoverIdx ?? 0}
+                      seriesKey="모터"
+                      categories={categories}
+                      series={series}
+                      envelopes={envelopes}
+                      histograms={histograms}
+                      leftUnit={leftUnit}
+                      rightUnit={rightUnit}
+                      hideTime
+                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                    />
+                  </>
+                );
+              }
+              return (
+                <TrendPointCardBody
+                  idx={hoverIdx ?? 0}
+                  seriesKey={hoverSeries}
+                  categories={categories}
+                  series={series}
+                  envelopes={envelopes}
+                  histograms={histograms}
+                  leftUnit={leftUnit}
+                  rightUnit={rightUnit}
+                  onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                />
+              );
+            })()}
           </div>
         </div>
       ) : null}

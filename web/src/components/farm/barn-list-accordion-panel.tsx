@@ -10,6 +10,11 @@ import { ControllerTempDualSlider } from "@/components/controllers/controller-te
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
 import { useControllerDetail } from "@/components/controllers/use-controller-detail";
 import { useControllerPanel } from "@/components/controllers/use-controller-panel";
+import type {
+  DirtyChannelSave,
+  PanelChannelContext,
+} from "@/lib/controllers/controller-panel-draft";
+import type { BulkSentCommandItem } from "@/app/(dashboard)/controllers/actions";
 import { useCommandPipelineTracker } from "@/components/controllers/use-command-pipeline-tracker";
 import { CommandPipelineOverlay } from "@/components/farm/command-pipeline-overlay";
 import { CommandConfirmOverlay } from "@/components/farm/command-confirm-overlay";
@@ -17,6 +22,7 @@ import { useSettingsApplyOverlay } from "@/components/farm/use-settings-apply-ov
 import { useApplyQueueOptional } from "@/components/farm/apply-queue-context";
 import {
   buildCommandConfirmModel,
+  buildMultiChannelCommandConfirmModel,
   formatCommandConfirmTarget,
   type CommandConfirmModel,
   type CommandThermoValues,
@@ -30,14 +36,11 @@ import {
   type ControllerThermoSettings,
   resolveThermoSettings,
   thermoFromDecoded,
+  thermoSettingsKey,
 } from "@/lib/controllers/controller-settings";
 import { resolveReadingThermo } from "@/lib/farm/controller-summary-display";
 import { DEFAULT_ALARM_SETTINGS, type AlarmSettings } from "@/lib/data/alarms";
-import {
-  channelBySlot,
-  DEFAULT_CHANNEL_EQPMN,
-  type ChannelSlot,
-} from "@/lib/data/iot-channel";
+import { channelBySlot, type ChannelSlot } from "@/lib/data/iot-channel";
 import { farmKeyId } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
@@ -116,6 +119,7 @@ export function BarnListAccordionPanel({
     null,
   );
   const confirmSentRef = useRef(false);
+  const confirmControlSavesRef = useRef<DirtyChannelSave[] | null>(null);
 
   const { reading: detail, showLoading, refresh: refreshDetail } =
     useControllerDetail(reading);
@@ -135,8 +139,7 @@ export function BarnListAccordionPanel({
   }
 
   const channelEqpmnCode =
-    channelBySlot(channels, activeChannel)?.eqpmnCode ??
-    DEFAULT_CHANNEL_EQPMN[activeChannel];
+    channelBySlot(channels, activeChannel)?.eqpmnCode ?? "";
 
   const knownSettings = useMemo(() => {
     const fromMap = resolveThermoSettings(
@@ -162,6 +165,40 @@ export function BarnListAccordionPanel({
       : (detail?.thermo ?? reading.thermo);
     return thermoFromDecoded(raw);
   }, [hasChannels, channels, activeChannel, detail?.thermo, reading.thermo]);
+
+  const channelContexts = useMemo((): PanelChannelContext[] | undefined => {
+    if (!hasChannels) return undefined;
+    const farmKey = detail?.farmKey ?? reading.farmKey;
+    const moduleUid = detail?.moduleUid ?? reading.moduleUid;
+    const controllerKey = detail?.controllerKey ?? reading.controllerKey;
+    return channelSlots.map((slot) => {
+      const fromMap =
+        farmKey && moduleUid != null && controllerKey
+          ? (thermoSettings[
+              thermoSettingsKey(farmKey, moduleUid, controllerKey, slot)
+            ] ?? null)
+          : null;
+      return {
+        slot,
+        eqpmnCode: channelBySlot(channels, slot)?.eqpmnCode ?? "",
+        knownSettings: fromMap,
+        liveBaseline: thermoFromDecoded(
+          channelBySlot(channels, slot)?.thermo,
+        ),
+      };
+    });
+  }, [
+    hasChannels,
+    channelSlots,
+    channels,
+    thermoSettings,
+    detail?.farmKey,
+    detail?.moduleUid,
+    detail?.controllerKey,
+    reading.farmKey,
+    reading.moduleUid,
+    reading.controllerKey,
+  ]);
 
   const onRefreshLive = useCallback(() => {
     refreshDetail();
@@ -193,6 +230,18 @@ export function BarnListAccordionPanel({
     [liveRefresh, pipeline.registerCommand, applyQueue?.startFromCommand, reading.key],
   );
 
+  const registerBulkCommands = useCallback(
+    (items: BulkSentCommandItem[]) => {
+      for (const item of items) {
+        liveRefresh?.patchThermoFromCommand(item.command);
+        pipeline.registerCommand(item.command);
+      }
+      applyQueue?.startSession(items);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 의도적 생략
+    [liveRefresh, pipeline.registerCommand, applyQueue?.startSession],
+  );
+
   const panelTarget = detail ?? reading;
 
   const panel = useControllerPanel(
@@ -203,6 +252,8 @@ export function BarnListAccordionPanel({
     hasChannels ? channelEqpmnCode : undefined,
     registerCommand,
     liveThermo,
+    channelContexts,
+    registerBulkCommands,
   );
 
   /** 카드 LIVE 상태 우선 — detail API가 늦거나 offline이면 적용이 잠기지 않게 */
@@ -255,29 +306,55 @@ export function BarnListAccordionPanel({
   const handleSaveAll = () => {
     if (isSaving) return;
     if (canSaveControl) {
-      const current = panel.currentValues
-        ? sliderFieldsToThermo(panel.currentValues)
-        : liveThermo
-          ? {
-              setpointTemp: liveThermo.setpointTemp,
-              tempDeviation: liveThermo.tempDeviation,
-              minVentPct: liveThermo.minVentPct,
-              maxVentPct: liveThermo.maxVentPct,
-            }
-          : null;
-      const model = buildCommandConfirmModel({
-        target: formatCommandConfirmTarget({
-          stallTyCode: reading.stallTyCode,
-          stallNo: reading.stallNo,
-          eqpmnNo: reading.eqpmnNo,
-          channel: hasChannels ? activeChannel : null,
-          onlineCount: 1,
-        }),
-        current,
-        command: sliderFieldsToThermo(panel.sliderValues),
-      });
-      confirmSentRef.current = false;
-      setConfirmModel(model);
+      const focused = document.activeElement;
+      if (focused instanceof HTMLElement) focused.blur();
+      window.setTimeout(() => {
+        const dirty = panel.peekDirtySaves();
+        if (dirty.length > 0) {
+          const model = buildMultiChannelCommandConfirmModel({
+            target: formatCommandConfirmTarget({
+              stallTyCode: reading.stallTyCode,
+              stallNo: reading.stallNo,
+              eqpmnNo: reading.eqpmnNo,
+              channels: dirty.map((row) => row.slot),
+              onlineCount: 1,
+            }),
+            channels: dirty.map((row) => ({
+              channel: row.slot,
+              current: row.current,
+              command: row.values,
+            })),
+          });
+          confirmSentRef.current = false;
+          confirmControlSavesRef.current = dirty;
+          setConfirmModel(model);
+          return;
+        }
+        const current = panel.currentValues
+          ? sliderFieldsToThermo(panel.currentValues)
+          : liveThermo
+            ? {
+                setpointTemp: liveThermo.setpointTemp,
+                tempDeviation: liveThermo.tempDeviation,
+                minVentPct: liveThermo.minVentPct,
+                maxVentPct: liveThermo.maxVentPct,
+              }
+            : null;
+        const model = buildCommandConfirmModel({
+          target: formatCommandConfirmTarget({
+            stallTyCode: reading.stallTyCode,
+            stallNo: reading.stallNo,
+            eqpmnNo: reading.eqpmnNo,
+            channel: hasChannels ? activeChannel : null,
+            onlineCount: 1,
+          }),
+          current,
+          command: sliderFieldsToThermo(panel.sliderValues),
+        });
+        confirmSentRef.current = false;
+        confirmControlSavesRef.current = null;
+        setConfirmModel(model);
+      }, 0);
       return;
     }
     if (canSaveAlarm) thresholdHeader!.onSave();
@@ -285,6 +362,7 @@ export function BarnListAccordionPanel({
 
   const dismissConfirm = useCallback(() => {
     if (panel.pending) return;
+    confirmControlSavesRef.current = null;
     setConfirmModel(null);
   }, [panel.pending]);
 
@@ -292,9 +370,11 @@ export function BarnListAccordionPanel({
     if (confirmSentRef.current || panel.pending) return;
     confirmSentRef.current = true;
     const saveAlarm = canSaveAlarm;
+    const queued = confirmControlSavesRef.current ?? undefined;
+    confirmControlSavesRef.current = null;
     setConfirmModel(null);
     if (saveAlarm) thresholdHeader?.onSave();
-    panel.save();
+    panel.save(queued);
   }, [canSaveAlarm, panel, thresholdHeader]);
 
   const handleApplyDefaults = () => {
@@ -341,12 +421,14 @@ export function BarnListAccordionPanel({
       >
         {channelSlots.map((slot) => {
           const selected = slot === activeChannel;
+          const dirty = panel.dirtyChannelSlots.includes(slot);
           return (
             <button
               key={slot}
               type="button"
               role="tab"
               aria-selected={selected}
+              aria-label={dirty ? `${slot} 변경됨` : slot}
               disabled={isSaving}
               className={cn(
                 "relative z-[1] inline-flex min-h-8 min-w-8 items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium",
@@ -359,9 +441,21 @@ export function BarnListAccordionPanel({
                   : dashboardAffordance.choiceIdle,
                 isSaving && "opacity-50",
               )}
-              onClick={() => setActiveChannel(slot)}
+              onClick={() => {
+                const active = document.activeElement;
+                if (active instanceof HTMLElement) active.blur();
+                setActiveChannel(slot);
+              }}
             >
-              {slot}
+              <span className="inline-flex items-center gap-1">
+                {slot}
+                {dirty ? (
+                  <span
+                    className="size-1.5 rounded-full bg-primary"
+                    aria-hidden
+                  />
+                ) : null}
+              </span>
             </button>
           );
         })}
@@ -404,6 +498,7 @@ export function BarnListAccordionPanel({
           </div>
         </div>
         <ControllerTempDualSlider
+          key={`temp-${activeChannel}`}
           setpoint={panel.sliderValues.setpoint}
           deviation={panel.sliderValues.deviation}
           disabled={controlsDisabled}
@@ -417,6 +512,7 @@ export function BarnListAccordionPanel({
         />
       </div>
       <ThresholdRangeSlider
+        key={`vent-${activeChannel}`}
         title="환기"
         icon={
           <span

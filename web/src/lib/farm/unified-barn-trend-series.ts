@@ -10,11 +10,21 @@ import type { AlarmThresholds } from "@/lib/data/alarms";
 import type { TrendControllerSeries } from "@/lib/data/farm-trend-types";
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
+import { buildCommandRangePreview } from "@/lib/farm/command-range-overlay";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
   formatHumidityAlarmRange,
   formatTempAlarmRange,
 } from "@/lib/farm/controller-summary-display";
+import {
+  absFanWindows,
+  emptyChannelThermo,
+  hasFiniteWindow,
+  thermoChangeMarks,
+  type FanControlWindow,
+  type ThermoChannelChange,
+  type ThermoChangeMark,
+} from "@/lib/farm/channel-thermo";
 
 export const UNIFIED_TEMP_BAND_FILL = "var(--channel-temp)";
 /** 온도 편차 히스토그램 — 본선(채널 temp)과 톤만 구분 */
@@ -45,7 +55,12 @@ export const UNIFIED_CHART_LABELS = {
   motorA: CHANNEL_SLOT_LABELS.A,
   motorB: CHANNEL_SLOT_LABELS.B,
   motorC: CHANNEL_SLOT_LABELS.C,
+  thermoTempChange: "온도 설정 변경",
+  thermoMotorChange: "환기 설정 변경",
 } as const;
+
+export const UNIFIED_THERMO_TEMP_FILL = "var(--channel-temp)";
+export const UNIFIED_THERMO_MOTOR_FILL = "var(--channel-motor)";
 
 /** A안 — 임계 접촉 코리도 채움 */
 export const UNIFIED_TEMP_BREACH_HI_FILL = "var(--channel-temp)";
@@ -230,6 +245,10 @@ export {
   splitYLayoutsEqual,
   easeOutCubic,
   ALARM_PAD_RATIO,
+  TEMP_DISPLAY_PAD_RATIO,
+  paddedExtentDomain,
+  finiteExtent,
+  fitTempDisplayDomain,
   DEFAULT_UNIFIED_LAYERS,
   ALL_UNIFIED_LAYERS,
   needsHumidityBand,
@@ -267,6 +286,7 @@ export type {
 import {
   ALARM_PAD_RATIO,
   countSplitYBands,
+  fitTempDisplayDomain,
   resolveSplitYLayout,
   SPLIT_Y_WITH_HUM,
 } from "./unified-barn-trend-layout";
@@ -283,6 +303,8 @@ export type UnifiedBuildOptions = {
   visibility?: SplitYVisibility;
   /** 지정 시 resolveSplitYLayout 대신 이 레이아웃으로 매핑 (보간 중) */
   layout?: SplitYLayout;
+  /** 컨트롤러 1대 범위에서만 설정 변경 마커 */
+  includeThermo?: boolean;
 };
 
 function avgFinite(nums: (number | null | undefined)[]): number | null {
@@ -834,6 +856,124 @@ function hasFinite(data: (number | null)[]): boolean {
   return data.some((v) => v != null && Number.isFinite(v));
 }
 
+function thermoWindowsFromSeries(
+  list: TrendControllerSeries[],
+  includeThermo: boolean,
+): UnifiedBarnTrendRaw["thermoWindows"] {
+  if (!includeThermo || list.length !== 1) return null;
+  const series = list[0]!;
+  const len = series.temp.length;
+  const w = absFanWindows(
+    series.thermoA ?? emptyChannelThermo(len),
+    series.thermoB ?? emptyChannelThermo(len),
+    series.thermoC ?? emptyChannelThermo(len),
+  );
+  if (!hasFiniteWindow(w.a) && !hasFiniteWindow(w.b) && !hasFiniteWindow(w.c)) {
+    return null;
+  }
+  return w;
+}
+
+function formatTempC(v: number): string {
+  return `${v.toFixed(1)}℃`;
+}
+
+function formatVentRange(min: number, max: number): string {
+  return `${Math.round(min)}–${Math.round(max)}%`;
+}
+
+function formatTempChangeNote(ch: ThermoChannelChange): string {
+  const prevLo = ch.prev.loC;
+  const nextLo = ch.next.loC;
+  const prevHi = ch.prev.hiC;
+  const nextHi = ch.next.hiC;
+  const label = CHANNEL_SLOT_LABELS[ch.channel];
+  if (
+    prevLo != null &&
+    nextLo != null &&
+    prevHi != null &&
+    nextHi != null
+  ) {
+    return `${label} ${formatTempC(prevLo)}~${formatTempC(prevHi)} → ${formatTempC(nextLo)}~${formatTempC(nextHi)}`;
+  }
+  if (nextLo != null) return `${label} ${formatTempC(nextLo)}`;
+  return label;
+}
+
+function formatMotorChangeNote(ch: ThermoChannelChange): string {
+  const label = CHANNEL_SLOT_LABELS[ch.channel];
+  const pMin = ch.prev.minVent;
+  const pMax = ch.prev.maxVent;
+  const nMin = ch.next.minVent;
+  const nMax = ch.next.maxVent;
+  if (pMin != null && pMax != null && nMin != null && nMax != null) {
+    return `${label} ${formatVentRange(pMin, pMax)} → ${formatVentRange(nMin, nMax)}`;
+  }
+  return label;
+}
+
+function pickPrimaryChannel(
+  channels: ThermoChannelChange[],
+  kind: "temp" | "motor",
+): ThermoChannelChange | undefined {
+  const matched = channels.filter((c) =>
+    kind === "temp" ? c.tempChanged : c.motorChanged,
+  );
+  return matched.find((c) => c.channel === "A") ?? matched[0];
+}
+
+function changeSeriesFromMarks(
+  marks: ThermoChangeMark[],
+  len: number,
+  kind: "temp" | "motor",
+  mapY: (v: number | null | undefined) => number | null,
+  commandRangePreview?: TrendSeries["commandRangePreview"],
+): TrendSeries | null {
+  const data = new Array<number | null>(len).fill(null);
+  const hoverSecondary = new Array<number | null>(len).fill(null);
+  const markerLabels = new Array<string | null>(len).fill(null);
+  const hoverNote = new Array<string | null>(len).fill(null);
+  let hits = 0;
+  for (const mark of marks) {
+    const primary = pickPrimaryChannel(mark.channels, kind);
+    if (!primary) continue;
+    const next = primary.next;
+    const rawY =
+      kind === "temp"
+        ? next.loC
+        : next.minVent;
+    const plot = mapY(rawY);
+    if (plot == null || !Number.isFinite(plot) || rawY == null) continue;
+    data[mark.index] = plot;
+    hoverSecondary[mark.index] = rawY;
+    markerLabels[mark.index] = primary.channel;
+    hoverNote[mark.index] = mark.channels
+      .filter((c) => (kind === "temp" ? c.tempChanged : c.motorChanged))
+      .map((c) =>
+        kind === "temp" ? formatTempChangeNote(c) : formatMotorChangeNote(c),
+      )
+      .join("\n");
+    hits += 1;
+  }
+  if (!hits) return null;
+  return {
+    name:
+      kind === "temp"
+        ? UNIFIED_CHART_LABELS.thermoTempChange
+        : UNIFIED_CHART_LABELS.thermoMotorChange,
+    data,
+    color:
+      kind === "temp" ? UNIFIED_THERMO_TEMP_FILL : UNIFIED_THERMO_MOTOR_FILL,
+    axis: "left",
+    markerOnly: true,
+    markerLabels,
+    hoverNote,
+    hoverSecondary,
+    hoverSecondaryUnit: kind === "temp" ? "℃" : "%",
+    commandRangePreview,
+  };
+}
+
 export type UnifiedSeriesKey =
   | "temp"
   | "hum"
@@ -847,6 +987,10 @@ export type UnifiedBarnTrendBuild = {
   seriesByKey: Partial<Record<UnifiedSeriesKey, TrendSeries>>;
   envelopesBand: TrendEnvelope | null;
   envelopesHumBand: TrendEnvelope | null;
+  /** 컨트롤러 범위 — 설정온도 변경 마커 */
+  seriesThermoTempChange: TrendSeries | null;
+  /** 컨트롤러 범위 — 환기 설정 변경 마커 */
+  seriesThermoMotorChange: TrendSeries | null;
   histogramDev: TrendHistogram | null;
   histogramHumDev: TrendHistogram | null;
   /** 모터 max(A,B,C) 단일 바 */
@@ -856,6 +1000,8 @@ export type UnifiedBarnTrendBuild = {
   layout: SplitYLayout;
   leftDomain: [number, number];
   rightDomain: [number, number];
+  /** 온도 매핑에 쓴 ℃ 도메인 (표시 최솟·최댓값 + 여유) */
+  tempDomain: [number, number];
   controllerCount: number;
   tempRangeLabel: string;
   humidityRangeLabel: string;
@@ -878,6 +1024,8 @@ export type UnifiedBarnTrendBuild = {
     humBand: boolean;
     humDev: boolean;
     humEma: boolean;
+    thermo: boolean;
+    thermoMotor: boolean;
   };
 };
 
@@ -924,12 +1072,48 @@ export type UnifiedBarnTrendRaw = {
   humDevOpacity: (number | null)[];
   tempRangeLabel: string;
   humidityRangeLabel: string;
+  thermoWindows: {
+    a: FanControlWindow;
+    b: FanControlWindow;
+    c: FanControlWindow;
+  } | null;
 };
+
+/** 측정 온도(본선·산포·EMA)의 최솟·최댓값 + 여유. 설정·명령 구간은 넣지 않는다. */
+export function tempDisplayDomainFromRaw(
+  raw: Pick<
+    UnifiedBarnTrendRaw,
+    | "tempAvg"
+    | "tempMin"
+    | "tempMax"
+    | "emaShortRaw"
+    | "emaLongRaw"
+    | "tempLow"
+    | "tempHigh"
+  >,
+): [number, number] {
+  return fitTempDisplayDomain(
+    [raw.tempAvg, raw.tempMin, raw.tempMax, raw.emaShortRaw, raw.emaLongRaw],
+    paddedAlarmDomain(raw.tempLow, raw.tempHigh),
+  );
+}
+
+function isNativeTempIdentityLayout(layout: SplitYLayout): boolean {
+  return (
+    layout.tempHi > layout.tempLo &&
+    layout.tempLo === layout.domain[0] &&
+    layout.tempHi === layout.domain[1] &&
+    layout.motorHi <= layout.motorLo &&
+    layout.humHi <= layout.humLo &&
+    !(layout.domain[0] === 0 && layout.domain[1] === 100)
+  );
+}
 
 export function aggregateUnifiedBarnTrendRaw(
   controllerSeriesList: TrendControllerSeries[],
   categories: string[],
   thresholds: AlarmThresholds,
+  options?: { includeThermo?: boolean },
 ): UnifiedBarnTrendRaw | null {
   const len = categories.length;
   if (!len || !controllerSeriesList.length) return null;
@@ -1031,6 +1215,10 @@ export function aggregateUnifiedBarnTrendRaw(
     humDevOpacity,
     tempRangeLabel: formatTempAlarmRange(thresholds),
     humidityRangeLabel: formatHumidityAlarmRange(thresholds),
+    thermoWindows: thermoWindowsFromSeries(
+      controllerSeriesList,
+      Boolean(options?.includeThermo),
+    ),
   };
 }
 
@@ -1040,7 +1228,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
   layout: SplitYLayout,
   /** 오버레이 auto-fit: 온도 매핑 도메인 오버라이드(생략 시 알람±여유) */
   tempDomain?: [number, number],
-  /** 오버레이 앵커: 알람 목표존 고정 + 비잘림 헤드룸(지정 시 domain보다 우선) */
+  /** 오버레이 앵커: 지정 시 데이터 도메인보다 우선(알람 코어 + 헤드룸) */
   tempAnchor?: TempBandAnchor,
 ): UnifiedBarnTrendBuild | null {
   const {
@@ -1052,8 +1240,18 @@ export function mapUnifiedBarnTrendRawToSplitY(
     humMid,
   } = raw;
 
+  const fitted = tempDomain ?? tempDisplayDomainFromRaw(raw);
+  const plotLayout = isNativeTempIdentityLayout(layout)
+    ? {
+        ...layout,
+        tempLo: fitted[0],
+        tempHi: fitted[1],
+        domain: fitted,
+      }
+    : layout;
+
   const mapTemp = (v: number | null | undefined) =>
-    mapTempCToSplitY(v, tempLow, tempHigh, layout, tempDomain, tempAnchor);
+    mapTempCToSplitY(v, tempLow, tempHigh, plotLayout, fitted, tempAnchor);
   const mapHum = (v: number | null | undefined) =>
     mapHumPctToSplitY(v, humidityLow, humidityHigh, layout);
   const mapMotor = (v: number | null | undefined) =>
@@ -1074,14 +1272,21 @@ export function mapUnifiedBarnTrendRawToSplitY(
     if (d == null || !Number.isFinite(d) || Math.abs(d) < DEV_HIDE_ABS_C) {
       return null;
     }
-    return mapTempDeviationToSplitY(d, tempLow, tempHigh, layout, tempDomain, tempAnchor);
+    return mapTempDeviationToSplitY(
+      d,
+      tempLow,
+      tempHigh,
+      plotLayout,
+      fitted,
+      tempAnchor,
+    );
   });
   const tempMidPlot = mapTempCToSplitY(
     tempMid,
     tempLow,
     tempHigh,
-    layout,
-    tempDomain,
+    plotLayout,
+    fitted,
     tempAnchor,
   );
   /** 임계선 split-Y — 본선과 동일 매핑(앵커 포함). 코리도 정합용 */
@@ -1308,18 +1513,48 @@ export function mapUnifiedBarnTrendRawToSplitY(
         }
       : null;
 
+  const thermoMarks = raw.thermoWindows
+    ? thermoChangeMarks(raw.thermoWindows)
+    : [];
+  const commandRangePreview = raw.thermoWindows
+    ? buildCommandRangePreview(
+        raw.thermoWindows,
+        raw.categories.length,
+        mapTemp,
+        mapMotor,
+        fitted,
+      )
+    : undefined;
+  const seriesThermoTempChange = changeSeriesFromMarks(
+    thermoMarks,
+    raw.categories.length,
+    "temp",
+    mapTemp,
+    commandRangePreview,
+  );
+  const seriesThermoMotorChange = changeSeriesFromMarks(
+    thermoMarks,
+    raw.categories.length,
+    "motor",
+    mapMotor,
+    commandRangePreview,
+  );
+
   return {
     categories: raw.categories,
     seriesByKey,
     envelopesBand,
     envelopesHumBand,
+    seriesThermoTempChange,
+    seriesThermoMotorChange,
     histogramDev,
     histogramHumDev,
     histogramMotorsMax,
     histogramMotorsChannels,
-    layout,
-    leftDomain: [...layout.domain],
-    rightDomain: [...layout.domain],
+    layout: plotLayout,
+    leftDomain: [...plotLayout.domain],
+    rightDomain: [...plotLayout.domain],
+    tempDomain: fitted,
     controllerCount: raw.controllerCount,
     tempRangeLabel: raw.tempRangeLabel,
     humidityRangeLabel: raw.humidityRangeLabel,
@@ -1338,6 +1573,8 @@ export function mapUnifiedBarnTrendRawToSplitY(
       humBand: Boolean(envelopesHumBand),
       humDev: Boolean(histogramHumDev),
       humEma: Boolean(seriesByKey.humEmaShort),
+      thermo: Boolean(raw.thermoWindows),
+      thermoMotor: Boolean(raw.thermoWindows),
     },
   };
 }
@@ -1356,6 +1593,7 @@ export function buildUnifiedBarnTrendSeries(
     controllerSeriesList,
     categories,
     thresholds,
+    { includeThermo: options.includeThermo },
   );
   if (!raw) return null;
 
@@ -1389,6 +1627,12 @@ export function pickUnifiedTrendLayers(
   }
 
   const envelopes: TrendEnvelope[] = [];
+  if (layers.thermo && built.seriesThermoTempChange) {
+    series.push(built.seriesThermoTempChange);
+  }
+  if (layers.thermoMotor && built.seriesThermoMotorChange) {
+    series.push(built.seriesThermoMotorChange);
+  }
   if (layers.temp && layers.band && built.envelopesBand) {
     envelopes.push(built.envelopesBand);
   }
@@ -1658,7 +1902,10 @@ export function trimPickedUnifiedTrend(
       ...s,
       data: s.data.slice(start, end + 1),
       hoverSecondary: sliceCol(s.hoverSecondary),
+      markerLabels: sliceCol(s.markerLabels),
+      hoverNote: sliceCol(s.hoverNote),
       hoverSpreadExtremes: sliceExtremes(s.hoverSpreadExtremes),
+      commandRangePreview: s.commandRangePreview?.slice(start, end + 1),
     })),
     envelopes: picked.envelopes.map((e) => ({
       ...e,
@@ -1727,7 +1974,10 @@ export function sliceUnifiedTrendByIndex(
       ...s,
       data: s.data.slice(lo, hi + 1),
       hoverSecondary: sliceCol(s.hoverSecondary),
+      markerLabels: sliceCol(s.markerLabels),
+      hoverNote: sliceCol(s.hoverNote),
       hoverSpreadExtremes: sliceExtremes(s.hoverSpreadExtremes),
+      commandRangePreview: s.commandRangePreview?.slice(lo, hi + 1),
     })),
     envelopes: picked.envelopes.map((e) => ({
       ...e,

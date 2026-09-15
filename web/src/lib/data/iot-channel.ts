@@ -18,6 +18,7 @@ export type DecodedChannel = {
 
 export type ChannelReading = {
   channel: ChannelSlot;
+  /** LIVE 원문. 슬롯 기본값으로 채우지 않음. 비면 채널 명령 거절. */
   eqpmnCode: string;
   tempC: number | null;
   humidityPct: number | null;
@@ -59,12 +60,6 @@ export function normalizeChannelSlot(raw: unknown): ChannelSlot | null {
   return null;
 }
 
-export const DEFAULT_CHANNEL_EQPMN: Record<ChannelSlot, string> = {
-  A: "EC03",
-  B: "EC02",
-  C: "EC01",
-};
-
 export function mapDecodedChannels(raw: unknown): ChannelReading[] {
   if (!Array.isArray(raw)) return [];
   const out: ChannelReading[] = [];
@@ -73,8 +68,7 @@ export function mapDecodedChannels(raw: unknown): ChannelReading[] {
     const ch = item as DecodedChannel;
     const slot = normalizeChannelSlot(ch.channel);
     if (!slot) continue;
-    const eqpmnRaw = String(ch.eqpmnCode ?? "").trim();
-    const eqpmnCode = eqpmnRaw || DEFAULT_CHANNEL_EQPMN[slot];
+    const eqpmnCode = String(ch.eqpmnCode ?? "").trim();
     out.push({
       channel: slot,
       eqpmnCode,

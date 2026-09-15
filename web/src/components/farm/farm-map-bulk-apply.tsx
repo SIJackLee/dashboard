@@ -788,7 +788,6 @@ export function FarmMapBulkApply({
   const queueCountLine = [
     queueCounts.접수 ? `접수 ${queueCounts.접수}` : null,
     queueCounts.전송 ? `전송 ${queueCounts.전송}` : null,
-    queueCounts.수신 ? `수신 ${queueCounts.수신}` : null,
     queueCounts.확인 ? `확인 ${queueCounts.확인}` : null,
     queueCounts.실패 ? `실패 ${queueCounts.실패}` : null,
   ]

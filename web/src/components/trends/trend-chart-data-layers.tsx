@@ -26,6 +26,7 @@ import {
   ReferenceLinesLayer,
   type TrendPlotGeom,
 } from "./trend-chart-svg-layers";
+import { parseChannelSlotLabel } from "@/lib/farm/command-range-overlay";
 
 /**
  * TrendChart SVG 데이터 레이어 (히스토그램·엔벨로프·시리즈·호버/핀).
@@ -66,6 +67,10 @@ export type TrendChartDataLayersProps = {
   shouldShowMarker: (i: number) => boolean;
   lineSegments: (s: TrendSeries) => string[];
   envelopePaths: (env: TrendEnvelope) => string[];
+  commandMarkerFocus?: {
+    idx: number;
+    channel: string;
+  } | null;
 };
 
 export function TrendChartDataLayers({
@@ -100,6 +105,7 @@ export function TrendChartDataLayers({
   shouldShowMarker,
   lineSegments,
   envelopePaths,
+  commandMarkerFocus = null,
 }: TrendChartDataLayersProps) {
   return (
     <>
@@ -290,7 +296,7 @@ export function TrendChartDataLayers({
           )
         : seriesPresence.map(({ item: s, key: seriesKey, phase }, si) => {
             const axis = s.axis ?? "left";
-            const segs = lineSegments(s);
+            const segs = s.markerOnly ? [] : lineSegments(s);
             const hoverGroup = hoverSeries
               ? inferHoverMetricGroup(hoverSeries)
               : null;
@@ -337,13 +343,28 @@ export function TrendChartDataLayers({
                     />
                   </g>
                 ))}
-                {showMarkers
+                {(showMarkers || s.markerOnly)
                   ? s.data.map((v, i) => {
                       if (v == null || !Number.isFinite(v)) return null;
-                      if (!shouldShowMarker(i)) return null;
+                      if (!s.markerOnly && !shouldShowMarker(i)) return null;
+                      if (s.markerOnly && commandMarkerFocus) {
+                        const ch = parseChannelSlotLabel(
+                          s.markerLabels?.[i] ?? null,
+                        );
+                        const focused =
+                          i === commandMarkerFocus.idx &&
+                          (ch == null || ch === commandMarkerFocus.channel);
+                        if (!focused) return null;
+                      }
                       const cx = xFor(i);
                       const cy = yFor(v, axis);
-                      const rPx = markerRadiusPx;
+                      const focusedCommand = Boolean(
+                        s.markerOnly && commandMarkerFocus,
+                      );
+                      const rPx = s.markerOnly
+                        ? Math.max(markerRadiusPx, 2.1) *
+                          (focusedCommand ? 1.35 : 1)
+                        : markerRadiusPx;
                       const markerDelayMs =
                         120 +
                         si * motionStaggerStepMs +
@@ -359,6 +380,8 @@ export function TrendChartDataLayers({
                         phase === "enter"
                           ? motionClass.farmChartMarkerPop
                           : undefined;
+                      const label = s.markerLabels?.[i] ?? null;
+                      const fontSize = Math.max(2.4, markerRy(rPx) * 2.6);
                       if (s.band) {
                         const sev = sevOfScore(severityScore(v, s.band));
                         if (sev !== "normal") {
@@ -377,16 +400,47 @@ export function TrendChartDataLayers({
                         }
                       }
                       return (
-                        <ellipse
+                        <g
                           key={`${s.name}-dot-${i}`}
-                          cx={cx}
-                          cy={cy}
-                          rx={markerRx(rPx)}
-                          ry={markerRy(rPx)}
-                          fill={s.color}
                           className={markerClass}
                           style={markerStyle}
-                        />
+                        >
+                          <ellipse
+                            cx={cx}
+                            cy={cy}
+                            rx={markerRx(rPx)}
+                            ry={markerRy(rPx)}
+                            fill={s.color}
+                          />
+                          {focusedCommand ? (
+                            <ellipse
+                              cx={cx}
+                              cy={cy}
+                              rx={markerRx(rPx) * 1.85}
+                              ry={markerRy(rPx) * 1.85}
+                              fill="none"
+                              stroke={s.color}
+                              strokeWidth={0.7}
+                              vectorEffect="non-scaling-stroke"
+                            />
+                          ) : null}
+                          {label ? (
+                            <text
+                              x={cx}
+                              y={cy - markerRy(rPx) * 2.35}
+                              textAnchor="middle"
+                              fill={s.color}
+                              stroke="var(--background)"
+                              strokeWidth={0.45}
+                              paintOrder="stroke"
+                              fontSize={fontSize}
+                              fontWeight={600}
+                              pointerEvents="none"
+                            >
+                              {label}
+                            </text>
+                          ) : null}
+                        </g>
                       );
                     })
                   : null}

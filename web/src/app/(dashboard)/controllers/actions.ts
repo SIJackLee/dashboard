@@ -15,6 +15,8 @@ import {
 import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import { revalidateLiveCache } from "@/lib/data/live-cache";
 import { farmScopeCacheKey } from "@/lib/data/live-config";
+import { MENU_STEPS } from "@/lib/controllers/controller-panel-map";
+import { isValidEqpmnCode } from "@/lib/data/eqpmn-code";
 
 export type SendThermoCommandResult =
   | { ok: true; id: string; command: ThermoCommand }
@@ -44,8 +46,7 @@ export async function sendThermoCommandAction(
       ? channelRaw
       : null;
   const eqpmnCode = String(formData.get("eqpmn_code") ?? "").trim() || null;
-  const action =
-    channel && eqpmnCode ? "SET_CHANNEL_THERMO" : "SET_CTRL_THERMO";
+  const action = channel ? "SET_CHANNEL_THERMO" : "SET_CTRL_THERMO";
 
   if (
     !lsindRegistNo ||
@@ -87,7 +88,10 @@ export async function sendThermoCommandAction(
     return { ok: false, error: "invalid_vent_range" };
   }
 
-  if (setpointTemp < 10 || setpointTemp > 40) {
+  if (
+    setpointTemp < MENU_STEPS.setpoint.min ||
+    setpointTemp > MENU_STEPS.setpoint.max
+  ) {
     return { ok: false, error: "invalid_setpoint" };
   }
 
@@ -95,7 +99,7 @@ export async function sendThermoCommandAction(
     return { ok: false, error: "invalid_deviation" };
   }
 
-  if (channel && !/^EC(0[1-9]|[1-9][0-9])$/.test(eqpmnCode ?? "")) {
+  if (eqpmnCode && !isValidEqpmnCode(eqpmnCode)) {
     return { ok: false, error: "invalid_eqpmn_code" };
   }
 
@@ -231,8 +235,7 @@ export async function sendBulkThermoCommandAction(
         ? channelRaw
         : null;
     const eqpmnCode = String(c.eqpmnCode ?? "").trim() || null;
-    const action =
-      channel && eqpmnCode ? "SET_CHANNEL_THERMO" : "SET_CTRL_THERMO";
+    const action = channel ? "SET_CHANNEL_THERMO" : "SET_CTRL_THERMO";
     const failKey = channel ? `${c.key}:${channel}` : c.key;
 
     if (
@@ -268,8 +271,8 @@ export async function sendBulkThermoCommandAction(
       maxVentPct < 0 ||
       maxVentPct > 100 ||
       minVentPct > maxVentPct ||
-      setpointTemp < 10 ||
-      setpointTemp > 40 ||
+      setpointTemp < MENU_STEPS.setpoint.min ||
+      setpointTemp > MENU_STEPS.setpoint.max ||
       tempDeviation < 0 ||
       tempDeviation > 20
     ) {
@@ -277,7 +280,7 @@ export async function sendBulkThermoCommandAction(
       continue;
     }
 
-    if (channel && !/^EC(0[1-9]|[1-9][0-9])$/.test(eqpmnCode ?? "")) {
+    if (eqpmnCode && !isValidEqpmnCode(eqpmnCode)) {
       failed.push({ key: failKey, error: "invalid_eqpmn_code" });
       continue;
     }

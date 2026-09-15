@@ -134,6 +134,31 @@ function guideToneFromPeriodSeries(
   return null;
 }
 
+function stallExpandKey(ty: string, stallNo: string) {
+  return `${ty}::${stallNo}`;
+}
+
+function scopeExpandKeyOf(scope: FarmChartScope): string {
+  if (scope.level === "farm") return "farm";
+  if (scope.level === "sp") return `sp:${scope.stallTyCode}`;
+  if (scope.level === "stall") {
+    return `stall:${scope.stallTyCode}:${scope.stallNo}`;
+  }
+  return `ctrl:${scope.stallTyCode}:${scope.stallNo}:${scope.controllerKey}`;
+}
+
+function expandedSpFromScope(scope: FarmChartScope): Record<string, boolean> {
+  if (scope.level === "farm") return {};
+  return { [scope.stallTyCode]: true };
+}
+
+function expandedStallFromScope(
+  scope: FarmChartScope,
+): Record<string, boolean> {
+  if (scope.level === "farm" || scope.level === "sp") return {};
+  return { [stallExpandKey(scope.stallTyCode, scope.stallNo)]: true };
+}
+
 /**
  * 농장 보기 «차트» 탭 — 좌측 큰 통합 추이 + 우측 집계 범위 트리.
  * 기본 집계: 선택 농장 전체. 유형 → 축사 → 컨트롤러 (URL chartSp/Stall/Ctrl).
@@ -162,27 +187,31 @@ export function FarmChartView({
   embedStallTyCode,
   className,
 }: Props) {
-  const [expandedSp, setExpandedSp] = useState<Record<string, boolean>>({});
-  const [expandedStall, setExpandedStall] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [expandScopeKey, setExpandScopeKey] = useState("");
-  /** 모바일 — 집계 오버레이 */
-  const [scopePanelOpen, setScopePanelOpen] = useState(false);
-  /** PC — 우측 집계 레일 (필드 현황과 동일 접기 정책) */
-  const [scopeRailOpen, setScopeRailOpen] = useState(true);
-
   const lockedTy = embedStallTyCode
     ? normalizeStallTyCode(embedStallTyCode)
     : "";
   const embed = Boolean(lockedTy);
+  const effectiveScope = lockedTy
+    ? clampChartScopeToType(scope, lockedTy)
+    : scope;
+
+  const [expandedSp, setExpandedSp] = useState(() =>
+    expandedSpFromScope(effectiveScope),
+  );
+  const [expandedStall, setExpandedStall] = useState(() =>
+    expandedStallFromScope(effectiveScope),
+  );
+  const [expandScopeKey, setExpandScopeKey] = useState(() =>
+    scopeExpandKeyOf(effectiveScope),
+  );
+  /** 모바일 — 집계 오버레이 */
+  const [scopePanelOpen, setScopePanelOpen] = useState(false);
+  /** PC — 우측 집계 레일 (필드 현황과 동일 접기 정책) */
+  const [scopeRailOpen, setScopeRailOpen] = useState(true);
   const tree = useMemo(() => {
     const all = buildFarmChartTree(readings);
     return lockedTy ? filterFarmChartTreeByType(all, lockedTy) : all;
   }, [readings, lockedTy]);
-  const effectiveScope = lockedTy
-    ? clampChartScopeToType(scope, lockedTy)
-    : scope;
   const scopedReadings = useMemo(
     () => filterReadingsByChartScope(readings, effectiveScope),
     [readings, effectiveScope],
@@ -268,23 +297,20 @@ export function FarmChartView({
   const label = chartScopeLabel(effectiveScope, readings);
   const chartHeight = embed ? 280 : isMobileStack ? 320 : 420;
 
-  const stallExpandKey = (ty: string, stallNo: string) => `${ty}::${stallNo}`;
-
-  /** 딥링크 범위 변경 시 트리 펼침 (render-time sync) */
-  const scopeExpandKey =
-    effectiveScope.level === "farm"
-      ? "farm"
-      : effectiveScope.level === "sp"
-        ? `sp:${effectiveScope.stallTyCode}`
-        : effectiveScope.level === "stall"
-          ? `stall:${effectiveScope.stallTyCode}:${effectiveScope.stallNo}`
-          : `ctrl:${effectiveScope.stallTyCode}:${effectiveScope.stallNo}:${effectiveScope.controllerKey}`;
-  if (scopeExpandKey !== expandScopeKey) {
-    setExpandScopeKey(scopeExpandKey);
+  /** 딥링크 범위 변경 시 트리 펼침. 첫 렌더는 초기 state와 키가 같아 setState 없음. */
+  const nextExpandScopeKey = scopeExpandKeyOf(effectiveScope);
+  if (nextExpandScopeKey !== expandScopeKey) {
+    setExpandScopeKey(nextExpandScopeKey);
     if (effectiveScope.level !== "farm") {
-      setExpandedSp((prev) => ({ ...prev, [effectiveScope.stallTyCode]: true }));
+      setExpandedSp((prev) => ({
+        ...prev,
+        [effectiveScope.stallTyCode]: true,
+      }));
       if (effectiveScope.level !== "sp") {
-        const sk = stallExpandKey(effectiveScope.stallTyCode, effectiveScope.stallNo);
+        const sk = stallExpandKey(
+          effectiveScope.stallTyCode,
+          effectiveScope.stallNo,
+        );
         setExpandedStall((prev) => ({ ...prev, [sk]: true }));
       }
     }

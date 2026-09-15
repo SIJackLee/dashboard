@@ -16,6 +16,13 @@ export function normalizeEqpmnCode(code: string | null | undefined): string {
   return (code ?? "").trim().toUpperCase();
 }
 
+/** 채널 명령에 실을 수 있는 장비코드. 슬롯(A/B/C)과 1:1이 아니다. */
+export const EQPMN_CODE_PATTERN = /^EC(0[1-9]|[1-9][0-9])$/;
+
+export function isValidEqpmnCode(code: string | null | undefined): boolean {
+  return EQPMN_CODE_PATTERN.test(normalizeEqpmnCode(code));
+}
+
 /** UI 표시용 — EC01 → 송풍팬 */
 export function formatEqpmnCodeLabel(code: string | null | undefined): string {
   const key = normalizeEqpmnCode(code);
@@ -26,16 +33,9 @@ export function formatEqpmnCodeLabel(code: string | null | undefined): string {
   return "장비";
 }
 
-const SLOT_DEFAULT_EQPMN = {
-  A: "EC03",
-  B: "EC02",
-  C: "EC01",
-} as const;
-
 export function formatChannelEquipmentLabel(
-  slot: keyof typeof SLOT_DEFAULT_EQPMN,
+  _slot: "A" | "B" | "C",
   eqpmnCode?: string | null
 ): string {
-  const code = eqpmnCode ?? SLOT_DEFAULT_EQPMN[slot];
-  return formatEqpmnCodeLabel(code);
+  return formatEqpmnCodeLabel(eqpmnCode);
 }

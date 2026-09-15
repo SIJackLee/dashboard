@@ -83,11 +83,19 @@ export function formatCommandConfirmTarget(opts: {
   stallNo?: string | null;
   eqpmnNo?: string | null;
   channel?: ChannelSlot | null;
+  channels?: ChannelSlot[] | null;
   onlineCount: number;
   stallTyCodes?: Array<string | null | undefined>;
   chartScoped?: boolean;
 }): string {
-  const channelSuffix = opts.channel ? ` 채널 ${opts.channel}` : "";
+  const channelList =
+    opts.channels && opts.channels.length > 0
+      ? opts.channels
+      : opts.channel
+        ? [opts.channel]
+        : [];
+  const channelSuffix =
+    channelList.length > 0 ? ` 채널 ${channelList.join(", ")}` : "";
   const typeLabel = formatStallTypeLabel(opts.stallTyCode);
   const stall = formatOrdinalNo(opts.stallNo);
   const ctrl = formatOrdinalNo(opts.eqpmnNo);
@@ -148,5 +156,42 @@ export function buildCommandConfirmModel(input: {
             : formatVentDisplay(toValue),
       };
     }),
+  };
+}
+
+export function buildMultiChannelCommandConfirmModel(input: {
+  target: string;
+  channels: Array<{
+    channel: ChannelSlot;
+    current: CommandThermoValues | null;
+    command: CommandThermoValues;
+  }>;
+}): CommandConfirmModel {
+  if (input.channels.length === 1) {
+    const only = input.channels[0];
+    return buildCommandConfirmModel({
+      target: input.target,
+      current: only.current,
+      command: only.command,
+    });
+  }
+  return {
+    title: "명령을 보낼까요?",
+    target: input.target,
+    lines: input.channels.flatMap((ch) =>
+      THERMO_ROWS.map((row) => {
+        const from = displayFrom(ch.current, row.key, row.kind);
+        const toValue = ch.command[row.key];
+        return {
+          label: `${ch.channel} ${row.label}`,
+          from: from.text,
+          fromWarn: from.warn,
+          to:
+            row.kind === "temp"
+              ? formatTempDisplay(toValue)
+              : formatVentDisplay(toValue),
+        };
+      }),
+    ),
   };
 }

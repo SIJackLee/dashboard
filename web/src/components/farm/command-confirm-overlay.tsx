@@ -133,12 +133,12 @@ export function CommandConfirmOverlay({
             {model.target}
           </p>
           <div className="flex flex-col items-center gap-1">
-            {model.lines.map((line) => (
+            {model.lines.map((line, index) => (
               <p
-                key={line.label}
+                key={`${line.label}-${index}`}
                 className="flex items-center justify-center gap-2 text-xs leading-snug text-muted-foreground"
               >
-                <span className="w-[4.5rem] text-right font-semibold text-foreground">
+                <span className="min-w-[4.5rem] text-right font-semibold text-foreground">
                   {line.label}:
                 </span>
                 <span

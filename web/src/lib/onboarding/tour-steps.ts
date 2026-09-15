@@ -381,6 +381,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     skipIfMissing: true,
     bullets: [
       "클릭할 때마다 기본보기(본선·산포) → 끔 순으로 바뀝니다",
+      "컨트롤러에서는 온도·모터 아래 톱니 버튼으로 설정이 바뀐 시점만 켭니다",
       "지표를 하나만 켜면 축 눈금이 해당 단위로 맞춰집니다",
     ],
   },

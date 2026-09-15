@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import {
@@ -26,6 +26,12 @@ import {
 } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
+import { useApplyQueueOptional } from "@/components/farm/apply-queue-context";
+import { CoverChannelApplyStrip } from "@/components/farm/cover-channel-apply-strip";
+import {
+  applyQueueChannelStripAria,
+  applyQueueChannelStripForReading,
+} from "@/lib/farm/apply-queue";
 
 const COVER_FILL: Record<ControllerEnvCoverLevel, string> = {
   ok: "bg-[var(--status-ok)]",
@@ -81,6 +87,24 @@ export function ControllerEnvCover({
   const reasonAria = [reason.valueLabel, reason.bandLabel]
     .filter(Boolean)
     .join(" ");
+  const applyQueue = useApplyQueueOptional();
+  const applyStrip = useMemo(
+    () =>
+      applyQueueChannelStripForReading(applyQueue?.rows ?? [], {
+        key: reading.key,
+        farmKey: reading.farmKey,
+        moduleUid: reading.moduleUid,
+        controllerKey: reading.controllerKey,
+      }),
+    [
+      applyQueue?.rows,
+      reading.key,
+      reading.farmKey,
+      reading.moduleUid,
+      reading.controllerKey,
+    ],
+  );
+  const applyAria = applyQueueChannelStripAria(applyStrip);
 
   const finishOpen = useCallback(() => {
     onOpen();
@@ -105,7 +129,7 @@ export function ControllerEnvCover({
     <button
       type="button"
       data-farm-env-cover="on"
-      aria-label={`${typeLabel} ${stallLabel} ${ctrlLabel}, ${statusLabel}${reasonAria ? `, ${reasonAria}` : ""}. 상세 보기`}
+      aria-label={`${typeLabel} ${stallLabel} ${ctrlLabel}, ${statusLabel}${reasonAria ? `, ${reasonAria}` : ""}${applyAria ? `, 적용 ${applyAria}` : ""}. 상세 보기`}
       onClick={(e) => {
         e.stopPropagation();
         requestOpen();
@@ -192,6 +216,9 @@ export function ControllerEnvCover({
               </span>
             ) : null}
           </>
+        ) : null}
+        {applyStrip.length > 0 ? (
+          <CoverChannelApplyStrip items={applyStrip} />
         ) : null}
       </span>
       <span

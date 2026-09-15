@@ -143,7 +143,7 @@ DB에 RLS가 적용되어 있어 권한이 DB 레벨에서 강제된다.
 | 관리자 `/admin/ops` (디렉터리·명령·헬스 DAG 아이콘 타일) | 완료 |
 | `/farm` 허브 — 관리자 전국 지도 관제 · 단건 농장 그리드·목록·차트 · ARIA | 완료 (ARIA는 PoC) |
 | 일괄적용 · 컨트롤러 설정 · 명령 insert | 완료 |
-| 적용 큐·티켓 · 명령 이력 UI | 완료 — `apply-queue-dock` · `/admin/ops/commands` |
+| 적용 큐·티켓 · 명령 이력 UI | 필드 덮개 채널 스트립 · `/admin/ops/commands` |
 | LIVE view 경로 (`dashboard_list` / `decoded_latest`) | 완료 — §5 |
 | REPLAY 전용 UI (`/replay`, `/logs`) | **비목표** — 재연결 백필은 추이(`mesure_at`)로 흡수 |
 | 명령 downlink (`pending` → MQTT → `sent`) | **완료** — EC2 **C.py** (대시보드는 DB insert·적용큐·이력) |

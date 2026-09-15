@@ -14,6 +14,8 @@ assert.equal(snapToStep(73, 5, 0), 75);
 
 // clampMenuValue: 설정온도·편차 0.1
 assert.equal(clampMenuValue("setpoint", 24.55), 24.6);
+assert.equal(clampMenuValue("setpoint", -0.1), 0);
+assert.equal(clampMenuValue("setpoint", 30.1), 30);
 assert.equal(clampMenuValue("deviation", 3.54), 3.5);
 assert.equal(clampMenuValue("minVent", 11.4), 11);
 

@@ -67,7 +67,7 @@ export type BulkLiveProgress = {
 type Args = {
   thermoSettings: Record<string, ControllerThermoSettings>;
   readings: BarnReading[];
-  /** 이 농장 명령 이력 — 최근 1시간 접수·전송·수신(취소·실패 제외)을 큐에 반영 */
+  /** 이 농장 명령 이력 — 최근 1시간 접수·전송·확인(취소·실패 제외)을 큐에 반영 */
   watchCommands?: ThermoCommand[];
   farmKey?: FarmKey | null;
   /** farm soft refresh / RSC refresh */

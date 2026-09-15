@@ -8,6 +8,11 @@ import {
   type TrendControllerSeries,
   type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import {
+  collapseThermoRange,
+  emptyChannelThermo,
+  holdForwardThermo,
+} from "@/lib/farm/channel-thermo";
 
 /**
  * slot, temp, humidity, fanSupply, fanExhaust, fanIntake,
@@ -27,6 +32,23 @@ export type CompactControllerPoint = [
   number,
 ];
 
+/** slot + A/B/C thermo 4값. 희소 — 설정이 있는 칸만. */
+export type CompactThermoPoint = [
+  number,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+];
+
 export type CompactControllerSeries = {
   ty: string;
   lb: string;
@@ -34,6 +56,7 @@ export type CompactControllerSeries = {
   k: string;
   e: string;
   p: CompactControllerPoint[];
+  th?: CompactThermoPoint[];
 };
 
 export type CompactControllerPeriod = {
@@ -191,6 +214,30 @@ export function expandCompactControllerPeriod(
       ctrl.fanC[slot] = point[8];
       ctrl.sampleCount[slot] = point[9] ?? 0;
     }
+    if (row.th?.length) {
+      const a = emptyChannelThermo(bucketCount);
+      const b = emptyChannelThermo(bucketCount);
+      const c = emptyChannelThermo(bucketCount);
+      for (const t of row.th) {
+        const slot = t[0];
+        if (slot < 0 || slot >= bucketCount) continue;
+        a.setpoint[slot] = t[1];
+        a.deviation[slot] = t[2];
+        a.minVent[slot] = t[3];
+        a.maxVent[slot] = t[4];
+        b.setpoint[slot] = t[5];
+        b.deviation[slot] = t[6];
+        b.minVent[slot] = t[7];
+        b.maxVent[slot] = t[8];
+        c.setpoint[slot] = t[9];
+        c.deviation[slot] = t[10];
+        c.minVent[slot] = t[11];
+        c.maxVent[slot] = t[12];
+      }
+      ctrl.thermoA = holdForwardThermo(a);
+      ctrl.thermoB = holdForwardThermo(b);
+      ctrl.thermoC = holdForwardThermo(c);
+    }
   }
 
   const sp = [...spMap.values()]
@@ -291,6 +338,34 @@ export function synthesizeOverview30dFrom7d(
           next.fanIntake[slot] = avgRange(c.fanIntake, from, to);
           next.sampleCount[slot] = sumRange(c.sampleCount, from, to);
           totalSamples += next.sampleCount[slot] ?? 0;
+        }
+        if (c.thermoA || c.thermoB || c.thermoC) {
+          const a = emptyChannelThermo(TREND_OVERVIEW_30D.bucketCount);
+          const b = emptyChannelThermo(TREND_OVERVIEW_30D.bucketCount);
+          const cTh = emptyChannelThermo(TREND_OVERVIEW_30D.bucketCount);
+          for (let day = 0; day < days7; day++) {
+            const from = day * slotsPerDay;
+            const to = from + slotsPerDay;
+            const slot = dayOffset + day;
+            const dayA = collapseThermoRange(c.thermoA, from, to);
+            const dayB = collapseThermoRange(c.thermoB, from, to);
+            const dayC = collapseThermoRange(c.thermoC, from, to);
+            a.setpoint[slot] = dayA?.setpoint[0] ?? null;
+            a.deviation[slot] = dayA?.deviation[0] ?? null;
+            a.minVent[slot] = dayA?.minVent[0] ?? null;
+            a.maxVent[slot] = dayA?.maxVent[0] ?? null;
+            b.setpoint[slot] = dayB?.setpoint[0] ?? null;
+            b.deviation[slot] = dayB?.deviation[0] ?? null;
+            b.minVent[slot] = dayB?.minVent[0] ?? null;
+            b.maxVent[slot] = dayB?.maxVent[0] ?? null;
+            cTh.setpoint[slot] = dayC?.setpoint[0] ?? null;
+            cTh.deviation[slot] = dayC?.deviation[0] ?? null;
+            cTh.minVent[slot] = dayC?.minVent[0] ?? null;
+            cTh.maxVent[slot] = dayC?.maxVent[0] ?? null;
+          }
+          next.thermoA = holdForwardThermo(a);
+          next.thermoB = holdForwardThermo(b);
+          next.thermoC = holdForwardThermo(cTh);
         }
         return next;
       }),

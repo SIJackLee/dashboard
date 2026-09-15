@@ -184,6 +184,58 @@ export function easeOutCubic(t: number): number {
 /** 알람 lo–hi 대비 상·하 여유 비율 */
 export const ALARM_PAD_RATIO = 0.2;
 
+/** 표시 온도 최솟·최댓값 대비 상·하 여유 비율 (잘림 방지) */
+export const TEMP_DISPLAY_PAD_RATIO = ALARM_PAD_RATIO;
+
+/** 최솟·최댓값 구간에 padRatio만큼 위·아래 여유. 거의 평탄하면 minSpan ℃. */
+export function paddedExtentDomain(
+  min: number,
+  max: number,
+  padRatio: number = TEMP_DISPLAY_PAD_RATIO,
+  minSpan = 1,
+): [number, number] {
+  let lo = min;
+  let hi = max;
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || !(hi > lo)) {
+    const mid = Number.isFinite(lo)
+      ? lo
+      : Number.isFinite(hi)
+        ? hi
+        : 0;
+    lo = mid - minSpan / 2;
+    hi = mid + minSpan / 2;
+  }
+  const span = Math.max(hi - lo, minSpan);
+  const pad = span * padRatio;
+  return [lo - pad, hi + pad];
+}
+
+export function finiteExtent(
+  columns: readonly (readonly (number | null | undefined)[])[],
+): { min: number; max: number } | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const col of columns) {
+    for (const v of col) {
+      if (v == null || !Number.isFinite(v)) continue;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  return { min, max };
+}
+
+/** 그래프에 올라가는 값의 최솟·최댓값 + 여유. 값 없으면 fallback. */
+export function fitTempDisplayDomain(
+  columns: readonly (readonly (number | null | undefined)[])[],
+  fallback: [number, number],
+): [number, number] {
+  const ext = finiteExtent(columns);
+  if (!ext) return fallback;
+  return paddedExtentDomain(ext.min, ext.max);
+}
+
 export type UnifiedLayerId =
   | "motors"
   | "motorCh"
@@ -194,7 +246,9 @@ export type UnifiedLayerId =
   | "ema"
   | "humBand"
   | "humDev"
-  | "humEma";
+  | "humEma"
+  | "thermo"
+  | "thermoMotor";
 
 export type UnifiedLayerFlags = Record<UnifiedLayerId, boolean>;
 
@@ -210,6 +264,8 @@ export const DEFAULT_UNIFIED_LAYERS: UnifiedLayerFlags = {
   humBand: true,
   humDev: false,
   humEma: false,
+  thermo: true,
+  thermoMotor: true,
 };
 
 /** 분석용 — 본선 + 산포·편차·EMA5 + 모터 */
@@ -224,6 +280,8 @@ export const ALL_UNIFIED_LAYERS: UnifiedLayerFlags = {
   humBand: true,
   humDev: true,
   humEma: true,
+  thermo: true,
+  thermoMotor: true,
 };
 
 /** 습도 밴드가 필요한지 (본선·편차·산포·EMA) */
@@ -237,9 +295,13 @@ export function splitYVisibilityFromLayers(
 ): SplitYVisibility {
   return {
     showTemp:
-      layers.temp || layers.ema || layers.dev || layers.band,
+      layers.temp ||
+      layers.ema ||
+      layers.dev ||
+      layers.band ||
+      layers.thermo,
     showHum: needsHumidityBand(layers),
-    showMotors: layers.motors || layers.motorCh,
+    showMotors: layers.motors || layers.motorCh || layers.thermoMotor,
     /** 브러시 차트에서 명령 레인 기본 on — yBands로만 숨김 */
     showCommand: true,
   };
@@ -602,6 +664,8 @@ export function maskLayersForYBands(
     humBand: keepHum && layers.humBand,
     motors: keepMotor && (layers.motors || layers.motorCh),
     motorCh: keepMotor && layers.motorCh,
+    thermo: keepTemp && layers.thermo,
+    thermoMotor: keepMotor && layers.thermoMotor,
   };
 }
 

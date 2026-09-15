@@ -151,10 +151,21 @@ export function hasStallTrendByPeriod(
   return trend != null && trend["24h"] != null;
 }
 
+/** 채널 설정 시계열 (A 절대 ℃ · B/C는 A 오프셋). */
+export type TrendChannelThermo = {
+  setpoint: (number | null)[];
+  deviation: (number | null)[];
+  minVent: (number | null)[];
+  maxVent: (number | null)[];
+};
+
 /** One controller (eqpmn) aligned series — list graph mode. */
 export type TrendControllerSeries = TrendStallSeries & {
   controllerKey: string;
   eqpmnNo: string;
+  thermoA?: TrendChannelThermo;
+  thermoB?: TrendChannelThermo;
+  thermoC?: TrendChannelThermo;
   /** 호버용 구역 표시명 (축사유형). */
   zoneLabel?: string;
   /** 호버용 장비 표시명 (컨트롤러 M). */

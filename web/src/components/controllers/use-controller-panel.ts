@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { sendThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
+import {
+  sendBulkThermoCommandAction,
+  sendThermoCommandAction,
+  type BulkSentCommandItem,
+  type BulkThermoCommand,
+} from "@/app/(dashboard)/controllers/actions";
 import type { ControllerReading } from "@/lib/data/iot";
 import {
   clampMenuValue,
@@ -10,23 +15,24 @@ import {
   type PanelMenuId,
 } from "@/lib/controllers/controller-panel-map";
 import {
+  collectDirtyChannelSaves,
+  mergeDirtyChannelSaves,
+  panelChannelKey,
+  type DirtyChannelSave,
+  type PanelChannelContext,
+  type PanelDraft,
+  type PanelThermoValues,
+} from "@/lib/controllers/controller-panel-draft";
+import {
   thermoValuesMatch,
   type ControllerThermoSettings,
 } from "@/lib/controllers/controller-settings";
 import type { ChannelSlot } from "@/lib/data/iot-channel";
 import { formatUserError } from "@/lib/ui/controller-labels";
 
-type ThermoValues = Pick<
-  ControllerThermoSettings,
-  "setpointTemp" | "tempDeviation" | "minVentPct" | "maxVentPct"
->;
+export type { PanelDraft, PanelChannelContext };
 
-export type PanelDraft = {
-  setpointTemp: number;
-  tempDeviation: number;
-  minVentPct: number;
-  maxVentPct: number;
-};
+type ThermoValues = PanelThermoValues;
 
 function draftFromSettings(s: ControllerThermoSettings): PanelDraft {
   return {
@@ -35,6 +41,15 @@ function draftFromSettings(s: ControllerThermoSettings): PanelDraft {
     minVentPct: s.minVentPct,
     maxVentPct: s.maxVentPct,
   };
+}
+
+function patchKeyMap<T>(
+  map: Record<string, T>,
+  key: string,
+  value: T,
+): Record<string, T> {
+  if (map[key] === value) return map;
+  return { ...map, [key]: value };
 }
 
 function getDraftField(draft: PanelDraft, menu: PanelMenuId): number {
@@ -151,41 +166,85 @@ export function useControllerPanel(
   onCommandRegistered?: (command: import("@/lib/data/commands").ThermoCommand) => void,
   /** LIVE 디코드 설정 — dirty/「현재」표시 기준 (낙관 knownSettings와 분리) */
   liveBaseline?: ThermoValues | null,
+  channelContexts?: PanelChannelContext[],
+  onBulkCommandsRegistered?: (items: BulkSentCommandItem[]) => void,
 ) {
   const [pending, setPending] = useState(false);
   const [activeMenu, setActiveMenu] = useState<PanelMenuId>("setpoint");
-  const [draft, setDraft] = useState<PanelDraft | null>(null);
-  const [hasEdited, setHasEdited] = useState(false);
+  const [draftByKey, setDraftByKey] = useState<Record<string, PanelDraft | null>>(
+    {},
+  );
+  const [editedByKey, setEditedByKey] = useState<Record<string, boolean>>({});
   /** Apply 성공 직후 dirty 기준 — LIVE 반영 전 동일값 재전송 방지 */
-  const [saveBaseline, setSaveBaseline] = useState<PanelDraft | null>(null);
+  const [saveBaselineByKey, setSaveBaselineByKey] = useState<
+    Record<string, PanelDraft | null>
+  >({});
   const [message, setMessage] = useState<{
     tone: "ok" | "error";
     text: string;
   } | null>(null);
 
+  const settingsKnown = knownSettings != null;
+  const targetKey = target?.key;
+  const channelKey = panelChannelKey(activeChannel);
+  const settingsKey = settingsSyncKey(knownSettings);
+  const channelSyncKey = (channelContexts ?? [])
+    .map((ctx) => {
+      const t = ctx.liveBaseline ?? ctx.knownSettings;
+      return [
+        ctx.slot,
+        t?.setpointTemp ?? "",
+        t?.tempDeviation ?? "",
+        t?.minVentPct ?? "",
+        t?.maxVentPct ?? "",
+      ].join(":");
+    })
+    .join("|");
+  const controllerIdentity = targetKey ?? "";
+  const [prevControllerIdentity, setPrevControllerIdentity] =
+    useState(controllerIdentity);
+
+  const draft = draftByKey[channelKey] ?? null;
+  const hasEdited = Boolean(editedByKey[channelKey]);
+  const saveBaseline = saveBaselineByKey[channelKey] ?? null;
+  const anyEdited = Object.values(editedByKey).some(Boolean);
+
   const hasEditedRef = useRef(hasEdited);
   const knownSettingsRef = useRef(knownSettings);
+  const channelKeyRef = useRef(channelKey);
+  const editedByKeyRef = useRef(editedByKey);
+  const draftByKeyRef = useRef(draftByKey);
+  const saveBaselineByKeyRef = useRef(saveBaselineByKey);
+  const channelContextsRef = useRef(channelContexts);
   useEffect(() => {
     hasEditedRef.current = hasEdited;
   });
   useEffect(() => {
     knownSettingsRef.current = knownSettings;
   });
+  useEffect(() => {
+    channelKeyRef.current = channelKey;
+  });
+  useEffect(() => {
+    editedByKeyRef.current = editedByKey;
+  });
+  useEffect(() => {
+    draftByKeyRef.current = draftByKey;
+  });
+  useEffect(() => {
+    saveBaselineByKeyRef.current = saveBaselineByKey;
+  });
+  useEffect(() => {
+    channelContextsRef.current = channelContexts;
+  });
 
-  const settingsKnown = knownSettings != null;
-  const targetKey = target?.key;
-  const channelKey = activeChannel ?? "";
-  const settingsKey = settingsSyncKey(knownSettings);
-  const panelIdentity = `${targetKey ?? ""}|${channelKey}`;
-  const [prevPanelIdentity, setPrevPanelIdentity] = useState(panelIdentity);
-
-  /** 컨트롤러·채널 전환 시 편집 상태 초기화 */
-  if (panelIdentity !== prevPanelIdentity) {
-    setPrevPanelIdentity(panelIdentity);
-    setHasEdited(false);
-    setSaveBaseline(null);
+  /** 컨트롤러가 바뀔 때만 초안 초기화 — 채널 탭 전환은 A/B/C 입력을 유지 */
+  if (controllerIdentity !== prevControllerIdentity) {
+    setPrevControllerIdentity(controllerIdentity);
+    setDraftByKey({});
+    setEditedByKey({});
+    setSaveBaselineByKey({});
     setMessage(null);
-    setDraft(knownSettings ? draftFromSettings(knownSettings) : null);
   }
 
   /** LIVE가 제출값과 일치하면 saveBaseline 해제 → 이후 dirty는 LIVE 기준 */
@@ -194,35 +253,65 @@ export function useControllerPanel(
     liveBaseline &&
     thermoValuesMatch(draftToThermo(saveBaseline), liveBaseline)
   ) {
-    setSaveBaseline(null);
+    setSaveBaselineByKey((prev) => patchKeyMap(prev, channelKey, null));
   }
 
   /**
-   * 폴링·LIVE 갱신 시: 편집 중이면 draft 유지.
-   * 편집 중이 아니면 서버 설정값으로 draft 동기화.
-   * settingsKey(값)만 dep — 참조만 바뀌는 knownSettings로 무한 setState/레이스 방지.
+   * 폴링·LIVE 갱신 시: 해당 채널 초안이 LIVE와 다르면 유지.
+   * B·C는 컨트롤러 공통 설정이 아니라 그 채널 LIVE로만 맞춘다.
    */
   useEffect(() => {
     if (!targetKey) return;
-    const s = knownSettingsRef.current;
-    if (!s) {
-      setDraft((prev) => (hasEditedRef.current ? prev : null));
-      return;
-    }
-    const next = draftFromSettings(s);
-    setDraft((prev) => {
-      if (hasEditedRef.current && prev) return prev;
-      return draftsEqual(prev, next) ? prev : next;
+    setDraftByKey((prev) => {
+      if (channelContexts && channelContexts.length > 0) {
+        let next = prev;
+        for (const ctx of channelContexts) {
+          if (editedByKeyRef.current[ctx.slot]) continue;
+          const source = ctx.liveBaseline
+            ? {
+                setpointTemp: ctx.liveBaseline.setpointTemp,
+                tempDeviation: ctx.liveBaseline.tempDeviation,
+                minVentPct: ctx.liveBaseline.minVentPct,
+                maxVentPct: ctx.liveBaseline.maxVentPct,
+              }
+            : ctx.knownSettings
+              ? draftFromSettings(ctx.knownSettings)
+              : null;
+          const cur = next[ctx.slot] ?? null;
+          if (source == null) {
+            if (cur == null) continue;
+            next = patchKeyMap(next, ctx.slot, null);
+            continue;
+          }
+          if (draftsEqual(cur, source)) continue;
+          next = patchKeyMap(next, ctx.slot, source);
+        }
+        return next;
+      }
+      const key = channelKeyRef.current;
+      const s = knownSettingsRef.current;
+      if (!s) {
+        if (hasEditedRef.current) return prev;
+        return patchKeyMap(prev, key, null);
+      }
+      const synced = draftFromSettings(s);
+      if (hasEditedRef.current && prev[key]) return prev;
+      const cur = prev[key] ?? null;
+      return draftsEqual(cur, synced) ? prev : patchKeyMap(prev, key, synced);
     });
-  }, [settingsKey, targetKey]);
+  }, [settingsKey, targetKey, channelKey, channelSyncKey, channelContexts]);
+
+  const markActiveEdited = useCallback(() => {
+    setEditedByKey((prev) => patchKeyMap(prev, channelKey, true));
+  }, [channelKey]);
 
   const ensureDraft = useCallback((): PanelDraft => {
     if (draft) return draft;
     const start = panelDraftOrDefault(draft, knownSettings);
-    setDraft(start);
-    setHasEdited(true);
+    setDraftByKey((prev) => patchKeyMap(prev, channelKey, start));
+    markActiveEdited();
     return start;
-  }, [draft, knownSettings]);
+  }, [channelKey, draft, knownSettings, markActiveEdited]);
 
   const resolveDraftBase = useCallback(
     (): PanelDraft => panelDraftOrDefault(draft, knownSettings),
@@ -232,42 +321,46 @@ export function useControllerPanel(
   const setField = useCallback(
     (menu: PanelMenuId, raw: number) => {
       const clamped = clampMenuValue(menu, raw);
-      setDraft((prev) => {
-        const base = prev ?? resolveDraftBase();
-        return setDraftField(base, menu, clamped);
+      setDraftByKey((prev) => {
+        const base = prev[channelKey] ?? resolveDraftBase();
+        return patchKeyMap(prev, channelKey, setDraftField(base, menu, clamped));
       });
-      setHasEdited(true);
+      markActiveEdited();
     },
-    [resolveDraftBase],
+    [channelKey, markActiveEdited, resolveDraftBase],
   );
 
   const setTempControl = useCallback(
     (setpointTemp: number, tempDeviation: number) => {
-      setDraft((prev) => {
-        const base = prev ?? resolveDraftBase();
-        return {
+      setDraftByKey((prev) => {
+        const base = prev[channelKey] ?? resolveDraftBase();
+        return patchKeyMap(prev, channelKey, {
           ...base,
           setpointTemp: clampMenuValue("setpoint", setpointTemp),
           tempDeviation: clampMenuValue("deviation", tempDeviation),
-        };
+        });
       });
-      setHasEdited(true);
+      markActiveEdited();
     },
-    [resolveDraftBase],
+    [channelKey, markActiveEdited, resolveDraftBase],
   );
 
   const setVentRange = useCallback(
     (minVentPct: number, maxVentPct: number) => {
-      setDraft((prev) => {
-        const base = prev ?? resolveDraftBase();
+      setDraftByKey((prev) => {
+        const base = prev[channelKey] ?? resolveDraftBase();
         let min = clampMenuValue("minVent", minVentPct);
         let max = clampMenuValue("maxVent", maxVentPct);
         if (min > max) [min, max] = [max, min];
-        return { ...base, minVentPct: min, maxVentPct: max };
+        return patchKeyMap(prev, channelKey, {
+          ...base,
+          minVentPct: min,
+          maxVentPct: max,
+        });
       });
-      setHasEdited(true);
+      markActiveEdited();
     },
-    [resolveDraftBase],
+    [channelKey, markActiveEdited, resolveDraftBase],
   );
 
   const adjust = useCallback(
@@ -280,19 +373,87 @@ export function useControllerPanel(
         targetMenu,
         current + direction * cfg.step,
       );
-      setDraft((prev) => setDraftField(prev ?? base, targetMenu, next));
-      setHasEdited(true);
+      setDraftByKey((prev) =>
+        patchKeyMap(
+          prev,
+          channelKey,
+          setDraftField(prev[channelKey] ?? base, targetMenu, next),
+        ),
+      );
+      markActiveEdited();
     },
-    [activeMenu, ensureDraft],
+    [activeMenu, channelKey, ensureDraft, markActiveEdited],
   );
 
   const applyDefaults = useCallback(() => {
-    setDraft({ ...EDIT_START_DRAFT });
-    setHasEdited(true);
+    setDraftByKey((prev) =>
+      patchKeyMap(prev, channelKey, { ...EDIT_START_DRAFT }),
+    );
+    markActiveEdited();
     setMessage(null);
-  }, []);
+  }, [channelKey, markActiveEdited]);
 
-  const save = useCallback(() => {
+  const NETWORK_ERROR_TEXT =
+    "네트워크 오류입니다. 연결을 확인한 뒤 다시 시도하세요.";
+  const SAVE_TIMEOUT_MS = 20_000;
+
+  const runSaveRequest = useCallback(
+    async (work: () => Promise<void>) => {
+      setPending(true);
+      let timer: number | undefined;
+      try {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          setMessage({ tone: "error", text: NETWORK_ERROR_TEXT });
+          return;
+        }
+        await Promise.race([
+          work(),
+          new Promise<never>((_, reject) => {
+            timer = window.setTimeout(
+              () => reject(new Error("network_timeout")),
+              SAVE_TIMEOUT_MS,
+            );
+          }),
+        ]);
+      } catch (err) {
+        const raw = err instanceof Error ? err.message : String(err ?? "");
+        const networkLike =
+          /network_timeout|Failed to fetch|NetworkError|Load failed|fetch/i.test(
+            raw,
+          ) ||
+          (typeof navigator !== "undefined" && navigator.onLine === false);
+        setMessage({
+          tone: "error",
+          text: networkLike ? NETWORK_ERROR_TEXT : formatUserError(raw || "unknown"),
+        });
+      } finally {
+        if (timer != null) window.clearTimeout(timer);
+        setPending(false);
+      }
+    },
+    [],
+  );
+
+  const markSavesCommitted = useCallback(
+    (keys: string[], valuesByKey: Record<string, PanelDraft>) => {
+      setSaveBaselineByKey((prev) => {
+        const next = { ...prev };
+        for (const key of keys) {
+          const values = valuesByKey[key];
+          if (values) next[key] = { ...values };
+        }
+        return next;
+      });
+      setEditedByKey((prev) => {
+        const next = { ...prev };
+        for (const key of keys) next[key] = false;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const save = useCallback((queued?: DirtyChannelSave[]) => {
     if (pending) return;
     if (!target) {
       setMessage({ tone: "error", text: "대상 컨트롤러를 선택하세요." });
@@ -300,6 +461,86 @@ export function useControllerPanel(
     }
     if (!canCommand) {
       setMessage({ tone: "error", text: "명령 권한이 없습니다." });
+      return;
+    }
+
+    const contexts = channelContextsRef.current;
+    const multi =
+      contexts &&
+      contexts.length > 0 &&
+      Boolean(activeChannel);
+    const latest = multi
+      ? collectDirtyChannelSaves(
+          contexts,
+          draftByKeyRef.current,
+          saveBaselineByKeyRef.current,
+        )
+      : [];
+    const dirtySaves = multi
+      ? mergeDirtyChannelSaves(queued ?? [], latest)
+      : [];
+
+    if (multi) {
+      if (dirtySaves.length === 0) {
+        setMessage({
+          tone: "error",
+          text: "설정값을 올림·내림으로 입력한 뒤 저장하세요.",
+        });
+        return;
+      }
+      if (dirtySaves.some((row) => row.values.minVentPct > row.values.maxVentPct)) {
+        setMessage({
+          tone: "error",
+          text: "최저 환기는 최고 환기 이하여야 합니다.",
+        });
+        return;
+      }
+      const commands: BulkThermoCommand[] = dirtySaves.map((row) => ({
+        key: target.key,
+        lsindRegistNo: target.farmKey.lsindRegistNo,
+        itemCode: target.farmKey.itemCode,
+        moduleUid: target.moduleUid,
+        stallTyCode: target.stallTyCode ?? "SP01",
+        stallNo: target.stallNo ?? "01",
+        eqpmnNo: target.eqpmnNo,
+        minVentPct: row.values.minVentPct,
+        maxVentPct: row.values.maxVentPct,
+        setpointTemp: row.values.setpointTemp,
+        tempDeviation: row.values.tempDeviation,
+        channel: row.slot,
+        eqpmnCode: row.eqpmnCode,
+      }));
+      setMessage(null);
+      void runSaveRequest(async () => {
+        const result = await sendBulkThermoCommandAction(commands);
+        if (result.sentItems.length > 0) {
+          setMessage(null);
+          if (onBulkCommandsRegistered) {
+            onBulkCommandsRegistered(result.sentItems);
+          } else {
+            for (const item of result.sentItems) {
+              onCommandRegistered?.(item.command);
+            }
+          }
+          const valuesByKey: Record<string, PanelDraft> = {};
+          const keys: string[] = [];
+          for (const item of result.sentItems) {
+            const slot = item.command.channel;
+            if (!slot) continue;
+            const row = dirtySaves.find((d) => d.slot === slot);
+            if (!row) continue;
+            keys.push(slot);
+            valuesByKey[slot] = row.values;
+          }
+          markSavesCommitted(keys, valuesByKey);
+        }
+        if (!result.ok && result.sentItems.length === 0) {
+          setMessage({
+            tone: "error",
+            text: formatUserError(result.error ?? result.failed[0]?.error ?? "unknown"),
+          });
+        }
+      });
       return;
     }
 
@@ -328,61 +569,34 @@ export function useControllerPanel(
     formData.set("max_vent_pct", String(values.maxVentPct));
     formData.set("setpoint_temp", String(values.setpointTemp));
     formData.set("temp_deviation", String(values.tempDeviation));
-    if (activeChannel && channelEqpmnCode) {
+    if (activeChannel) {
       formData.set("channel", activeChannel);
-      formData.set("eqpmn_code", channelEqpmnCode);
+      if (channelEqpmnCode) {
+        formData.set("eqpmn_code", channelEqpmnCode);
+      }
     }
 
-    const NETWORK_ERROR_TEXT =
-      "네트워크 오류입니다. 연결을 확인한 뒤 다시 시도하세요.";
-    const SAVE_TIMEOUT_MS = 8_000;
-
-    setPending(true);
-    void (async () => {
-      try {
-        if (typeof navigator !== "undefined" && navigator.onLine === false) {
-          setMessage({ tone: "error", text: NETWORK_ERROR_TEXT });
-          return;
-        }
-        const result = await Promise.race([
-          sendThermoCommandAction(formData),
-          new Promise<never>((_, reject) => {
-            window.setTimeout(
-              () => reject(new Error("network_timeout")),
-              SAVE_TIMEOUT_MS,
-            );
-          }),
-        ]);
-        if (result.ok) {
-          onCommandRegistered?.(result.command);
-          setSaveBaseline({ ...values });
-          setHasEdited(false);
-        } else {
-          setMessage({ tone: "error", text: formatUserError(result.error) });
-        }
-      } catch (err) {
-        const raw = err instanceof Error ? err.message : String(err ?? "");
-        const networkLike =
-          /network_timeout|Failed to fetch|NetworkError|Load failed|fetch/i.test(
-            raw,
-          ) ||
-          (typeof navigator !== "undefined" && navigator.onLine === false);
-        setMessage({
-          tone: "error",
-          text: networkLike ? NETWORK_ERROR_TEXT : formatUserError(raw || "unknown"),
-        });
-      } finally {
-        setPending(false);
+    void runSaveRequest(async () => {
+      const result = await sendThermoCommandAction(formData);
+      if (result.ok) {
+        onCommandRegistered?.(result.command);
+        markSavesCommitted([channelKey], { [channelKey]: values });
+      } else {
+        setMessage({ tone: "error", text: formatUserError(result.error) });
       }
-    })();
+    });
   }, [
     activeChannel,
     canCommand,
     channelEqpmnCode,
+    channelKey,
     draft,
     knownSettings,
+    markSavesCommitted,
+    onBulkCommandsRegistered,
     onCommandRegistered,
     pending,
+    runSaveRequest,
     target,
   ]);
 
@@ -438,14 +652,50 @@ export function useControllerPanel(
     [dirtyBaseline, hasEdited, sliderValues],
   );
 
+  const dirtySaves = useMemo(
+    () =>
+      channelContexts && channelContexts.length > 0
+        ? collectDirtyChannelSaves(
+            channelContexts,
+            draftByKey,
+            saveBaselineByKey,
+          )
+        : [],
+    [channelContexts, draftByKey, saveBaselineByKey],
+  );
+
+  const dirtyChannelSlots = useMemo(
+    () => dirtySaves.map((row) => row.slot),
+    [dirtySaves],
+  );
+
+  const peekDirtySaves = useCallback((): DirtyChannelSave[] => {
+    const contexts = channelContextsRef.current;
+    if (!contexts?.length) return [];
+    return collectDirtyChannelSaves(
+      contexts,
+      draftByKeyRef.current,
+      saveBaselineByKeyRef.current,
+    );
+  }, []);
+
   const hasChanges = useMemo(() => {
+    if (channelContexts && channelContexts.length > 0) {
+      return dirtySaves.length > 0;
+    }
     if (!hasEdited && !dirtyBaseline) return false;
     if (!dirtyBaseline) return hasEdited;
     return !thermoValuesMatch(
       fieldsToThermo(sliderValues),
       fieldsToThermo(dirtyBaseline),
     );
-  }, [dirtyBaseline, hasEdited, sliderValues]);
+  }, [
+    channelContexts,
+    dirtyBaseline,
+    dirtySaves.length,
+    hasEdited,
+    sliderValues,
+  ]);
 
   return {
     activeMenu,
@@ -457,6 +707,9 @@ export function useControllerPanel(
     currentValues,
     isFieldChanged,
     hasChanges,
+    dirtySaves,
+    dirtyChannelSlots,
+    peekDirtySaves,
     setField,
     setTempControl,
     setVentRange,
@@ -468,6 +721,6 @@ export function useControllerPanel(
     canCommand,
     settingsKnown,
     settingsSource: knownSettings?.source ?? null,
-    hasEdited,
+    hasEdited: anyEdited,
   };
 }

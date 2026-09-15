@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import {
   buildCommandConfirmModel,
+  buildMultiChannelCommandConfirmModel,
   formatCommandConfirmTarget,
   formatOrdinalNo,
   mergeCurrentThermo,
@@ -105,6 +106,17 @@ import {
 }
 
 {
+  const multiTarget = formatCommandConfirmTarget({
+    stallTyCode: "SP02",
+    stallNo: "01",
+    eqpmnNo: "01",
+    channels: ["A", "B"],
+    onlineCount: 1,
+  });
+  assert.equal(multiTarget, "임신사 1번 축사, 1번 컨트롤러 채널 A, B");
+}
+
+{
   const mixed = buildCommandConfirmModel({
     target: "차트에 보이는 임신사 온라인 3대",
     current: "mixed",
@@ -117,6 +129,48 @@ import {
   });
   assert.ok(mixed.lines.every((line) => line.from === "다름" && line.fromWarn));
   assert.equal(mixed.lines[3].to, "100%");
+}
+
+{
+  const multi = buildMultiChannelCommandConfirmModel({
+    target: "임신사 1번 축사, 1번 컨트롤러 채널 A, B",
+    channels: [
+      {
+        channel: "A",
+        current: {
+          setpointTemp: 24,
+          tempDeviation: 3,
+          minVentPct: 20,
+          maxVentPct: 70,
+        },
+        command: {
+          setpointTemp: 25,
+          tempDeviation: 3,
+          minVentPct: 20,
+          maxVentPct: 70,
+        },
+      },
+      {
+        channel: "B",
+        current: {
+          setpointTemp: 1,
+          tempDeviation: 3,
+          minVentPct: 20,
+          maxVentPct: 70,
+        },
+        command: {
+          setpointTemp: 2,
+          tempDeviation: 3,
+          minVentPct: 20,
+          maxVentPct: 70,
+        },
+      },
+    ],
+  });
+  assert.equal(multi.lines[0].label, "A 설정온도");
+  assert.equal(multi.lines[0].to, "25.0℃");
+  assert.equal(multi.lines[4].label, "B 설정온도");
+  assert.equal(multi.lines[4].to, "2.0℃");
 }
 
 console.log("command-confirm.test.ts ok");

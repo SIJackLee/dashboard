@@ -54,7 +54,7 @@ Glass(서리·투시)는 **이 표의 종류를 고른 뒤에만** 넣는다. �
 | 차트 | `farm-chart-view`, `trend-chart`, `severity-heatmap` | B + 데이터 잉크 |
 | 모델 | `farm-plan-view`, `farm-plan-field-canvas` | 지도 + E 틴트 |
 | 시트 | `barn-panel-bottom-sheet`, `farm-plan-dock-sheet`, 모바일 시트 | F |
-| 명령 | `command-pipeline-overlay`, `apply-queue-dock` | G |
+| 명령 | `command-pipeline-overlay`, 필드 덮개 채널 스트립 | G |
 | 델린 | `delin-env-badge` | H |
 | 운영 | `/admin/ops`, `opsTypography` | B · 밀도는 허브 2× 없음 |
 

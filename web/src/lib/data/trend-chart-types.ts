@@ -1,3 +1,4 @@
+import type { ChannelSlot } from "@/lib/data/iot-channel";
 import type { Band } from "@/lib/farm/severity-score";
 
 /**
@@ -29,6 +30,36 @@ export type TrendSeries = {
   hoverAlarmBand?: { lo: number; hi: number; unit: string };
   /** 산포 상·하단 기여자 (임계 초과 시 tip 표시). */
   hoverSpreadExtremes?: TrendSpreadExtremes;
+  /** true면 선 없이 점·라벨만 (설정 변경 등). */
+  markerOnly?: boolean;
+  /** 마커 옆 짧은 라벨. data와 동일 길이. */
+  markerLabels?: (string | null)[];
+  /** 호버 부가 설명(이전→다음). data와 동일 길이. */
+  hoverNote?: (string | null)[];
+  /**
+   * 명령/설정 마커 호버 — 채널별 온도·환기 구간 (data와 동일 길이).
+   * 플롯 X 전폭 농도 띠·수치 라벨에 쓴다.
+   */
+  commandRangePreview?: TrendCommandRangeFrame[];
+};
+
+/** 한 시점의 채널별 명령 구간 (split-Y 좌표 + 표시 문구) */
+export type TrendCommandChannelRange = {
+  channel: ChannelSlot;
+  tempLo: number | null;
+  tempHi: number | null;
+  motorLo: number | null;
+  motorHi: number | null;
+  /** 하한 선 라벨 (A 24.5℃) */
+  tempLoText: string | null;
+  /** 상한 선 라벨 (A 28.0℃) */
+  tempHiText: string | null;
+  motorLoText: string | null;
+  motorHiText: string | null;
+};
+
+export type TrendCommandRangeFrame = {
+  channels: TrendCommandChannelRange[];
 };
 
 /** 산포 min/max를 만든 구역·장비 (호버 카드용). */
@@ -196,6 +227,14 @@ export type TrendEventMarkCard = {
   };
 };
 
+/** 명령 호버 — 설정 구간을 플롯 domain Y로 미리보기 */
+export type TrendEventMarkPreview = {
+  tempLo: number | null;
+  tempHi: number | null;
+  motorLo: number | null;
+  motorHi: number | null;
+};
+
 export type TrendEventMark = {
   id: string;
   atMs: number;
@@ -206,6 +245,10 @@ export type TrendEventMark = {
   infoStrength?: 1 | 2 | 3;
   ariaLabel: string;
   card: TrendEventMarkCard;
+  /** 레인 점 위 채널 슬롯 (A/B/C) */
+  markerLabel?: string;
+  /** 호버 시 온도·환기 구간 농도 띠 (split Y) */
+  preview?: TrendEventMarkPreview;
 };
 
 export type TrendEventLane = {

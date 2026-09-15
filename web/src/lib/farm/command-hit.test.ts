@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import type { FarmKey } from "@/lib/data/farm-key";
 import {
+  commandAbsTempWindow,
   commandHitAxis,
+  commandHitEventLane,
   commandHitNeighborId,
   commandHitStats,
   commandHitStatsLine,
@@ -10,6 +12,7 @@ import {
   commandHitX,
   commandInChartScope,
   commandLiveConfirmed,
+  latestChannelASetpoint,
   selectCommandHitMarks,
   selectCommandHitResult,
   type CommandHitSource,
@@ -229,7 +232,7 @@ function cmd(
 
   assert.deepEqual(
     marks.map((mark) => `${mark.stage}:${mark.id}`),
-    ["확인:hit", "수신:recv", "전송:sent"],
+    ["확인:hit", "확인:recv"],
   );
   assert.equal(marks.find((mark) => mark.id === "hit")?.setpoint, "24.0℃");
   assert.equal(marks.find((mark) => mark.id === "hit")?.deviation, "±3.0℃");
@@ -239,11 +242,12 @@ function cmd(
     /비육사 1번 축사 · 1번 컨트롤러 · 채널 A/,
   );
   assert.equal(/TEST01|SP07:/.test(marks[0]?.target ?? ""), false);
+  assert.equal(marks.some((mark) => mark.id === "sent"), false);
 
   const stats = commandHitStats(marks);
-  assert.equal(stats.total, 3);
-  assert.equal(stats.confirmed, 1);
-  assert.equal(stats.hitPctLabel, "33%");
+  assert.equal(stats.total, 2);
+  assert.equal(stats.confirmed, 2);
+  assert.equal(stats.hitPctLabel, "100%");
 }
 
 {
@@ -258,17 +262,17 @@ function cmd(
       cmd({
         id: "a",
         createdAt: "2026-09-10T02:05:00.000Z",
-        status: "pending",
+        status: "applied",
       }),
       cmd({
         id: "b",
         createdAt: "2026-09-10T02:05:02.000Z",
-        status: "pending",
+        status: "applied",
       }),
       cmd({
         id: "c",
         createdAt: "2026-09-10T02:05:04.000Z",
-        status: "pending",
+        status: "applied",
       }),
     ],
   });
@@ -315,7 +319,7 @@ function cmd(
   const stats = commandHitStats(
     [
       { id: "a", at: "", x: 0.2, stage: "확인", target: "", setpoint: "", deviation: "", vent: "" },
-      { id: "b", at: "", x: 0.4, stage: "수신", target: "", setpoint: "", deviation: "", vent: "" },
+      { id: "b", at: "", x: 0.4, stage: "전송", target: "", setpoint: "", deviation: "", vent: "" },
     ],
     3,
   );
@@ -325,7 +329,7 @@ function cmd(
   assert.equal(stats.hitPctLabel, "50%");
   assert.equal(
     commandHitStatsLine("약 7일", stats),
-    "약 7일 · 최근 2건 · 확인 1 · 적중 50%",
+    "약 7일 · 적용 최근 2건",
   );
 }
 
@@ -484,8 +488,94 @@ function cmd(
   assert.equal(event.card.badge, "명령");
   assert.equal(event.tone, "ok");
   assert.equal(event.row, 0);
-  assert.equal(event.card.hero, "24.0℃");
+  assert.equal(event.markerLabel, "A");
+  assert.equal(event.card.hero, "채널 A");
+  assert.equal(event.card.values?.[0], "24.0℃");
+  assert.equal(event.preview, undefined);
   assert.equal(/TEST01|SP07:/.test(event.card.footnote ?? ""), false);
+}
+
+{
+  const fromMs = Date.parse("2026-09-10T02:00:00.000Z");
+  const toMs = Date.parse("2026-09-10T02:10:00.000Z");
+  const marks = selectCommandHitMarks({
+    farmKey: farm,
+    scope: { level: "farm" },
+    fromMs,
+    toMs,
+    commands: [
+      cmd({
+        id: "pending",
+        createdAt: "2026-09-10T02:05:00.000Z",
+        status: "pending",
+      }),
+      cmd({
+        id: "sent",
+        createdAt: "2026-09-10T02:06:00.000Z",
+        status: "sent",
+      }),
+      cmd({
+        id: "applied",
+        createdAt: "2026-09-10T02:07:00.000Z",
+        status: "applied",
+      }),
+    ],
+  });
+  assert.deepEqual(
+    marks.map((mark) => mark.id),
+    ["applied"],
+  );
+  const lane = commandHitEventLane({
+    marks,
+    windowLabel: "약 10분",
+    mapTemp: (c) => (c == null ? null : c * 10),
+    mapMotor: (pct) => (pct == null ? null : pct),
+  });
+  assert.deepEqual(lane.rowLabels, ["적용"]);
+  assert.match(lane.statsLine ?? "", /적용 1건/);
+  assert.equal(lane.marks[0]?.markerLabel, "A");
+  assert.equal(lane.marks[0]?.preview?.tempLo, 240);
+  assert.equal(lane.marks[0]?.preview?.tempHi, 280);
+  assert.equal(lane.marks[0]?.preview?.motorLo, 10);
+  assert.equal(lane.marks[0]?.preview?.motorHi, 70);
+}
+
+{
+  const aWin = commandAbsTempWindow(
+    { channel: "A", setpointTemp: 24, tempDeviation: 5 },
+    null,
+  );
+  assert.deepEqual(aWin, { loC: 24, hiC: 29 });
+  const bWin = commandAbsTempWindow(
+    { channel: "B", setpointTemp: 2, tempDeviation: 4 },
+    24,
+  );
+  assert.deepEqual(bWin, { loC: 26, hiC: 30 });
+  assert.equal(
+    commandAbsTempWindow(
+      { channel: "B", setpointTemp: 2, tempDeviation: 4 },
+      null,
+    ),
+    null,
+  );
+}
+
+{
+  const a = cmd({
+    id: "a-cmd",
+    createdAt: "2026-09-10T02:00:00.000Z",
+    status: "applied",
+    channel: "A",
+    setpointTemp: 24,
+  });
+  const b = cmd({
+    id: "b-cmd",
+    createdAt: "2026-09-10T02:05:00.000Z",
+    status: "applied",
+    channel: "B",
+    setpointTemp: 2,
+  });
+  assert.equal(latestChannelASetpoint(b, [a, b]), 24);
 }
 
 console.log("command-hit.test.ts ok");

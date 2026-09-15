@@ -7,7 +7,7 @@
 
 export type ClusterInputMark = {
   id: string;
-  /** 0 = 맨 위 행(단계). command 레인에서는 COMMAND_HIT_STAGES 인덱스와 동일. */
+  /** 0 = 맨 위 행. 적용 명령 레인은 단일 행. */
   row: number;
   /** 플롯 내부 픽셀 x. */
   xPx: number;
