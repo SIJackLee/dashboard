@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { Check, PanelRight, Settings } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { PanelRight } from "lucide-react";
 import {
   TrendChart,
-  type ScaleEdgeDragEvent,
   type ScaleEdgeNumericCommitEvent,
   type TrendCommandSettingSeg,
   type TrendScaleEdgeLabel,
@@ -19,15 +18,12 @@ import {
 } from "@/components/farm/unified-trend-period-brush";
 import {
   UnifiedTrendLayerToolbar,
+  CommandChannelLayerToolbar,
   applyLayerGroupMode,
   detectLayerGroupMode,
   nextLayerGroupMode,
 } from "@/components/farm/unified-trend-layer-toolbar";
-import { CommandConfirmOverlay } from "@/components/farm/command-confirm-overlay";
-import { useApplyQueueOptional } from "@/components/farm/apply-queue-context";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
-import { sendBulkThermoCommandAction } from "@/app/(dashboard)/controllers/actions";
-import { isReadingOnline } from "@/lib/data/reading-display";
 import {
   applyScopeAlarmThresholdsWithCascade,
   resolveThresholdsForScope,
@@ -55,6 +51,7 @@ import {
 import {
   applyCoverageToWindow,
   brushSliceRange,
+  buildTrendBrushOverview,
   clampAlarmDraft,
   downsampleSeriesForChart,
   sliceControllerSeries,
@@ -70,7 +67,6 @@ import {
   formatControllerHeaderSecondary,
   formatControllerHeaderStallType,
   resolveReadingAlarmThresholds,
-  resolveReadingThermo,
 } from "@/lib/farm/controller-summary-display";
 import {
   ControllerAffiliationMarks,
@@ -83,33 +79,18 @@ import {
   type FarmChartScope,
   scopesEqual,
 } from "@/lib/farm/farm-chart-scope";
-import {
-  CHART_THERMO_CONTROL_COLOR,
-  CHART_THERMO_EDGE_IDS,
-  clampChartVentDraft,
-  isChartMotorVentEdgeId,
-  isChartThermoEdgeId,
-  type ChartThermoDraft,
-} from "@/lib/farm/chart-thermo-control";
-import {
-  buildBulkThermoCommands,
-  BULK_CHANNEL_OPTIONS,
-} from "@/components/farm/farm-map-bulk-apply-parts";
-import {
-  buildCommandConfirmModel,
-  formatCommandConfirmTarget,
-  mergeCurrentThermo,
-  type CommandConfirmModel,
-  type CommandThermoValues,
-} from "@/lib/farm/command-confirm";
-import {
-  clampMenuValue,
-  EDIT_START_DRAFT,
-} from "@/lib/controllers/controller-panel-map";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import { sliceControllerTrendByTime } from "@/lib/data/trend-period-slice";
 import { buildDecodedSettingHoldSegments, sliceFanControlWindows } from "@/lib/farm/channel-thermo";
-import { decodedSettingHoldToEventMark } from "@/lib/farm/decoded-setting-hold";
+import {
+  clipCommandSettingY,
+  decodedSettingHoldToEventMark,
+} from "@/lib/farm/decoded-setting-hold";
+import {
+  DEFAULT_COMMAND_CHANNEL_FLAGS,
+  toggleCommandChannelFlag,
+  type CommandChannelFlags,
+} from "@/lib/farm/command-hold-bands";
 import {
   tickEveryForDisplayBars,
   formatTrendScopeRangeLabel,
@@ -136,13 +117,9 @@ import {
   isSingleYBandFocus,
   allocateUnifiedChartBandHeights,
   unifiedYBandsScopeLabel,
-  unmapHumPctFromSplitY,
-  unmapMotorPctFromSplitY,
-  unmapTempCFromSplitY,
   type UnifiedLayerFlags,
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
-import { envComfortScore } from "@/lib/farm/env-comfort-score";
 import { useUnifiedChartBandTransition } from "@/lib/farm/use-split-y-layout-transition";
 import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
@@ -159,11 +136,6 @@ import {
   FARM_CHART_UI_SCALE,
 } from "@/lib/ui/farm-chart-ui-scale";
 import { cn } from "@/lib/utils";
-import {
-  FARM_TOUR_ACTION_EVENT,
-  type TourGridAction,
-} from "@/lib/onboarding/tour-steps";
-import { dispatchTourGridActionDone, afterFrames } from "@/lib/onboarding/tour-timing";
 
 const ALARM_EDGE_KEY: Record<string, keyof AlarmThresholds> = {
   "temp-hi": "tempHigh",
@@ -246,7 +218,7 @@ type Props = {
   period: TrendPeriodId;
   onPeriodChange?: (period: TrendPeriodId) => void;
   alarmSettings?: AlarmSettings;
-  /** LIVE/명령 반영 제어값 — 설정모드 초깃값 */
+  /** 호출부 호환. 차트 환기 안내는 디코드 오버레이를 씀 */
   thermoSettings?: Record<string, ControllerThermoSettings>;
   /** 차트 집계 범위 — 알람 저장 계층과 동일 */
   chartScope: FarmChartScope;
@@ -275,13 +247,23 @@ type Props = {
     durationMs?: number;
   } | null;
   onGuidedXScopeComplete?: () => void;
-  /** 조회 전용(뷰어)이면 알람·제어 편집 비활성 */
+  /** 조회 전용(뷰어)이면 알람 편집 비활성 */
   canCommand?: boolean;
   isMobileStack?: boolean;
   /** 미지정 시 모바일 320 / 데스크톱 340 */
   chartHeight?: number;
+  /** 차트 탭 — 남는 세로를 플롯이 채움. 임베드는 끄고 `chartHeight`만 씀 */
+  plotFill?: boolean;
   /** 차트 탭 활성 시에만 TopBar 레이어 툴바 표시 */
   layersToolbarActive?: boolean;
+  /** 위젯 칸 — 제목을 컨트롤러 명칭만, 헤더 우측 액션 */
+  headingMode?: "full" | "widget";
+  headerActions?: ReactNode;
+  /** true면 패널 안 기간 브러시를 그리지 않음(공유 브러시) */
+  hidePeriodBrush?: boolean;
+  /** 있으면 내부 브러시 상태 대신 이 창을 씀 */
+  brushWindow?: BrushWindow;
+  onBrushWindowChange?: (window: BrushWindow) => void;
   /** 모바일 — 헤더에 집계 범위 핸들 (우측 패널 오픈) */
   mobileScopeHandle?: {
     open: boolean;
@@ -304,15 +286,12 @@ type Props = {
 /**
  * 차트 탭 통합 추이 — 온도+편차 · 모터 max/채널 · 네비 브러시.
  */
-const emptySubscribe = () => () => {};
-
 export function UnifiedBarnTrendPanel({
   label,
   controllers,
   controllerTrendByPeriod,
   period,
   alarmSettings,
-  thermoSettings = {},
   chartScope,
   onScopeChange,
   initialZoom = null,
@@ -323,7 +302,13 @@ export function UnifiedBarnTrendPanel({
   canCommand = false,
   isMobileStack = false,
   chartHeight,
+  plotFill = false,
   layersToolbarActive = true,
+  headingMode = "full",
+  headerActions = null,
+  hidePeriodBrush = false,
+  brushWindow: brushWindowProp,
+  onBrushWindowChange,
   mobileScopeHandle = null,
   trendLoading = false,
   trendError = false,
@@ -335,14 +320,13 @@ export function UnifiedBarnTrendPanel({
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
-  const commandChrome = useSyncExternalStore(
-    emptySubscribe,
-    () => canCommand,
-    () => false,
-  );
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
   /** 오버레이(하이브리드) 보기 — 온도+모터를 한 밴드에 겹침 (토글) */
   const [overlayView, setOverlayView] = useState(false);
+  const [commandChannels, setCommandChannels] = useState<CommandChannelFlags>(
+    DEFAULT_COMMAND_CHANNEL_FLAGS,
+  );
+  const [commandPaneSeen, setCommandPaneSeen] = useState(commandPaneOpen);
   const [toolbarActiveSeen, setToolbarActiveSeen] = useState(layersToolbarActive);
   const [layersToolbarMounted, setLayersToolbarMounted] = useState(
     layersToolbarActive,
@@ -355,9 +339,22 @@ export function UnifiedBarnTrendPanel({
   const [xScopeStack, setXScopeStack] = useState<ScopeEntry[]>([]);
   const xScope =
     xScopeStack.length > 0 ? xScopeStack[xScopeStack.length - 1]! : null;
-  const [brushWindow, setBrushWindow] = useState<BrushWindow>(
+  const brushControlled =
+    brushWindowProp != null && onBrushWindowChange != null;
+  const [innerBrushWindow, setInnerBrushWindow] = useState<BrushWindow>(
     () => BRUSH_PERIOD_WINDOW[period],
   );
+  const brushWindow = brushControlled ? brushWindowProp : innerBrushWindow;
+  const applyBrushWindow = (next: BrushWindow) => {
+    if (brushControlled) onBrushWindowChange(next);
+    else setInnerBrushWindow(next);
+  };
+  const brushSyncKey = `${brushWindow.start.toFixed(4)}:${brushWindow.width.toFixed(4)}`;
+  const [seenBrushKey, setSeenBrushKey] = useState(brushSyncKey);
+  if (brushControlled && brushSyncKey !== seenBrushKey) {
+    setSeenBrushKey(brushSyncKey);
+    if (xScopeStack.length > 0) setXScopeStack([]);
+  }
   const [chartPlotWidth, setChartPlotWidth] = useState(0);
   const onChartPlotWidth = useCallback((w: number) => {
     setChartPlotWidth((prev) => (Math.abs(prev - w) < 8 ? prev : w));
@@ -366,20 +363,9 @@ export function UnifiedBarnTrendPanel({
   const [draftThresholds, setDraftThresholds] = useState<AlarmThresholds | null>(
     null,
   );
-  const [dragFreeze, setDragFreeze] = useState<AlarmThresholds | null>(null);
   const [alarmSaving, setAlarmSaving] = useState(false);
   const [alarmSaveError, setAlarmSaveError] = useState<string | null>(null);
   const draftRef = useRef<AlarmThresholds | null>(null);
-  const freezeRef = useRef<AlarmThresholds | null>(null);
-  /** view=줌·알람 · control=설정온도·편차 */
-  const [chartMode, setChartMode] = useState<"view" | "control">("view");
-  const [thermoDraft, setThermoDraft] = useState<ChartThermoDraft | null>(null);
-  const [thermoApplying, setThermoApplying] = useState(false);
-  const [thermoApplyError, setThermoApplyError] = useState<string | null>(null);
-  const [thermoConfirm, setThermoConfirm] = useState<CommandConfirmModel | null>(
-    null,
-  );
-  const thermoDraftRef = useRef<ChartThermoDraft | null>(null);
   const [scopeMotionKey, setScopeMotionKey] = useState(0);
   const [scopeMotionDir, setScopeMotionDir] = useState<"in" | "out">("in");
   const bumpScopeMotion = useCallback((dir: "in" | "out") => {
@@ -398,6 +384,12 @@ export function UnifiedBarnTrendPanel({
       setLayersToolbarPhase("exit");
     }
   }
+  if (commandPaneSeen !== commandPaneOpen) {
+    setCommandPaneSeen(commandPaneOpen);
+    if (!commandPaneOpen) {
+      setCommandChannels(DEFAULT_COMMAND_CHANNEL_FLAGS);
+    }
+  }
 
   const scopedReadings = useMemo(
     () =>
@@ -406,8 +398,6 @@ export function UnifiedBarnTrendPanel({
         .filter((r): r is BarnReading => r != null),
     [controllers],
   );
-
-  const applyQueue = useApplyQueueOptional();
 
   const alarmScopeKey = useMemo(
     () => alarmScopeKeyFromFarmChartScope(scopedReadings, chartScope),
@@ -418,7 +408,6 @@ export function UnifiedBarnTrendPanel({
   if ((alarmScopeKey ?? "") !== alarmScopeEpoch) {
     setAlarmScopeEpoch(alarmScopeKey ?? "");
     setDraftThresholds(null);
-    setDragFreeze(null);
     setAlarmSaveError(null);
   }
 
@@ -432,45 +421,7 @@ export function UnifiedBarnTrendPanel({
     return resolveReadingAlarmThresholds(withReading, settings);
   }, [controllers, alarmSettings, alarmScopeKey]);
 
-  const thresholds = draftThresholds ?? baseThresholds;
-  /** 드래그 중 Y 도메인 고정 — 선이 커서를 따라가게 */
-  const mappingThresholds = dragFreeze ?? thresholds;
-
-  const baseThermo: ChartThermoDraft = (() => {
-    for (const c of controllers) {
-      const r = c.reading;
-      if (!r) continue;
-      // 채널 A·명령 우선 (slim LIVE 베이스 키만 보면 ACK 전 옛값으로 시드됨)
-      const hit = resolveReadingThermo(r, thermoSettings);
-      if (hit) {
-        return {
-          setpointTemp: hit.setpointTemp,
-          tempDeviation: hit.tempDeviation,
-          minVentPct: hit.minVentPct,
-          maxVentPct: hit.maxVentPct,
-        };
-      }
-    }
-    return {
-      setpointTemp: EDIT_START_DRAFT.setpointTemp,
-      tempDeviation: EDIT_START_DRAFT.tempDeviation,
-      minVentPct: EDIT_START_DRAFT.minVentPct,
-      maxVentPct: EDIT_START_DRAFT.maxVentPct,
-    };
-  })();
-
-  const thermo = thermoDraft ?? baseThermo;
-  const controlMode = chartMode === "control";
-  const onlineScopedReadings = scopedReadings.filter((r) =>
-    isReadingOnline(r.status),
-  );
-  const thermoDirty =
-    controlMode &&
-    thermoDraft != null &&
-    (Math.abs(thermoDraft.setpointTemp - baseThermo.setpointTemp) > 0.05 ||
-      Math.abs(thermoDraft.tempDeviation - baseThermo.tempDeviation) > 0.05 ||
-      thermoDraft.minVentPct !== baseThermo.minVentPct ||
-      thermoDraft.maxVentPct !== baseThermo.maxVentPct);
+  const mappingThresholds = draftThresholds ?? baseThresholds;
 
   const layerVisibility = useMemo(
     () => splitYVisibilityFromLayers(layers),
@@ -536,59 +487,17 @@ export function UnifiedBarnTrendPanel({
   );
 
   /** 브러시 — 30일 1시간 양호도 */
-  const brushSourceByPeriod = useMemo(() => {
-    if (isContextControllerTrend30d(controllerTrendByPeriod?.["30d"])) {
-      return controllerTrendByPeriod ?? null;
-    }
-    return null;
-  }, [controllerTrendByPeriod]);
-
-  const brushOverview = useMemo(() => {
-    const periodData = brushSourceByPeriod?.["30d"] ?? null;
-    if (!periodData) return [];
-    const paired = controllers
-      .map((c) => {
-        const r = c.reading;
-        if (!r) return null;
-        const series = findControllerTrendSeries(
-          brushSourceByPeriod,
-          "30d",
-          r.stallTyCode,
-          r.stallNo,
-          r.controllerKey,
-        );
-        if (!series) return null;
-        return {
-          series,
-          thresholds: resolveReadingAlarmThresholds(r, alarmSettings),
-        };
-      })
-      .filter((p): p is NonNullable<typeof p> => p != null);
-    if (!paired.length) return [];
-    const len = Math.max(
-      ...paired.map((p) =>
-        Math.max(p.series.temp?.length ?? 0, p.series.humidity?.length ?? 0),
-      ),
-    );
-    const out: (number | null)[] = [];
-    for (let i = 0; i < len; i++) {
-      const scores: number[] = [];
-      for (const p of paired) {
-        const s = envComfortScore(
-          p.series.temp?.[i],
-          p.series.humidity?.[i],
-          p.thresholds,
-        );
-        if (s != null) scores.push(s);
-      }
-      out.push(
-        scores.length
-          ? scores.reduce((a, b) => a + b, 0) / scores.length
-          : null,
-      );
-    }
-    return out;
-  }, [controllers, brushSourceByPeriod, alarmSettings]);
+  const brushOverview = useMemo(
+    () =>
+      hidePeriodBrush
+        ? []
+        : buildTrendBrushOverview(
+            controllers,
+            controllerTrendByPeriod,
+            alarmSettings,
+          ),
+    [hidePeriodBrush, controllers, controllerTrendByPeriod, alarmSettings],
+  );
 
   const splitBandGuides = useMemo(() => {
     const guides: number[] = [];
@@ -819,7 +728,7 @@ export function UnifiedBarnTrendPanel({
   if (period !== scopePeriod) {
     setScopePeriod(period);
     setXScopeStack([]);
-    setBrushWindow(BRUSH_PERIOD_WINDOW[period]);
+    if (!brushControlled) applyBrushWindow(BRUSH_PERIOD_WINDOW[period]);
   }
 
   /** 데이터 길이/인덱스 불일치 시 스택 비우기 */
@@ -982,12 +891,17 @@ export function UnifiedBarnTrendPanel({
   const chartCategories = scoped?.categories ?? [];
   const tempMapDomain = scoped?.tempDomain ?? built?.tempDomain;
   const tempMapLayout = built?.layout ?? layout;
-  const showCommandOverlay =
+  const commandOverlayBase =
     commandPaneOpen &&
     chartScope.level === "controller" &&
-    useBrushCanvas &&
-    !controlMode &&
-    layers.temp;
+    useBrushCanvas;
+  const showTempCommandOverlay = commandOverlayBase && Boolean(layers.temp);
+  const showMotorCommandOverlay =
+    commandOverlayBase &&
+    !overlayActive &&
+    Boolean(layers.motors || layers.motorCh) &&
+    layout.motorHi > layout.motorLo;
+  const showCommandOverlay = showTempCommandOverlay || showMotorCommandOverlay;
   const commandSettingSegs = useMemo((): TrendCommandSettingSeg[] => {
     const windows = scoped?.thermoWindows;
     if (!showCommandOverlay || !built || !windows) return [];
@@ -998,41 +912,64 @@ export function UnifiedBarnTrendPanel({
     const segs = buildDecodedSettingHoldSegments(windows, times, endMs);
     const mapLo = mappingThresholds.tempLow;
     const mapHi = mappingThresholds.tempHigh;
-    const bandLo = Math.min(layout.tempLo, layout.tempHi);
-    const bandHi = Math.max(layout.tempLo, layout.tempHi);
     const out: TrendCommandSettingSeg[] = [];
     for (const seg of segs) {
-      const yLo = mapTempCToSplitY(
-        seg.tempLo,
-        mapLo,
-        mapHi,
-        tempMapLayout,
-        tempMapDomain,
-      );
-      const yHi = mapTempCToSplitY(
-        seg.tempHi,
-        mapLo,
-        mapHi,
-        tempMapLayout,
-        tempMapDomain,
-      );
-      if (yLo == null || yHi == null) continue;
-      const lo = Math.min(yLo, yHi);
-      const hi = Math.max(yLo, yHi);
-      const cLo = Math.max(lo, bandLo);
-      const cHi = Math.min(hi, bandHi);
-      if (!(cHi > cLo)) continue;
-      out.push({
-        mark: decodedSettingHoldToEventMark(seg),
-        x0Ms: seg.x0Ms,
-        x1Ms: seg.x1Ms,
-        yLo: cLo,
-        yHi: cHi,
-      });
+      if (!commandChannels[seg.channel]) continue;
+      const mark = decodedSettingHoldToEventMark(seg);
+      if (showTempCommandOverlay) {
+        const clipped = clipCommandSettingY(
+          mapTempCToSplitY(
+            seg.tempLo,
+            mapLo,
+            mapHi,
+            tempMapLayout,
+            tempMapDomain,
+          ),
+          mapTempCToSplitY(
+            seg.tempHi,
+            mapLo,
+            mapHi,
+            tempMapLayout,
+            tempMapDomain,
+          ),
+          layout.tempLo,
+          layout.tempHi,
+        );
+        if (clipped) {
+          out.push({
+            mark,
+            x0Ms: seg.x0Ms,
+            x1Ms: seg.x1Ms,
+            yLo: clipped.yLo,
+            yHi: clipped.yHi,
+            band: "temp",
+          });
+        }
+      }
+      if (showMotorCommandOverlay) {
+        const clipped = clipCommandSettingY(
+          mapMotorPctToSplitY(seg.ventLo, tempMapLayout),
+          mapMotorPctToSplitY(seg.ventHi, tempMapLayout),
+          tempMapLayout.motorLo,
+          tempMapLayout.motorHi,
+        );
+        if (clipped) {
+          out.push({
+            mark,
+            x0Ms: seg.x0Ms,
+            x1Ms: seg.x1Ms,
+            yLo: clipped.yLo,
+            yHi: clipped.yHi,
+            band: "motor",
+          });
+        }
+      }
     }
     return out;
   }, [
     showCommandOverlay,
+    showTempCommandOverlay,
+    showMotorCommandOverlay,
     built,
     scoped?.thermoWindows,
     scoped?.categories,
@@ -1042,6 +979,7 @@ export function UnifiedBarnTrendPanel({
     layout.tempHi,
     tempMapLayout,
     tempMapDomain,
+    commandChannels,
   ]);
   const chartPlotHeightForChart = chartPlotHeight;
 
@@ -1151,13 +1089,8 @@ export function UnifiedBarnTrendPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [xScopeStack.length, popXScope]);
 
-  const alarmDragEnabled =
-    canCommand &&
-    Boolean(alarmScopeKey) &&
-    !alarmSaving &&
-    controlMode;
-  const thermoDragEnabled =
-    canCommand && controlMode && !thermoApplying;
+  const alarmEditEnabled =
+    canCommand && Boolean(alarmScopeKey) && !alarmSaving;
 
   /** 가이드 제스처 토큰 변경 시 스택 비움 — TrendChart 전달은 비운 뒤 */
   const gestureToken = guidedXScopeGesture?.token ?? 0;
@@ -1297,13 +1230,11 @@ export function UnifiedBarnTrendPanel({
     if (err) {
       setAlarmSaveError(err);
       setDraftThresholds(null);
-      setDragFreeze(null);
       draftRef.current = null;
-      freezeRef.current = null;
       return;
     }
     const previous = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
-    /** farm/sp 저장 시 하위·legacy 유형 오버라이드 제거 — 설정모드 제어 일괄과 동일하게 스코프 상속 */
+    /** farm/sp 저장 시 하위·legacy 유형 오버라이드 제거 — 스코프 상속 */
     const cascadeStallTy =
       !alarmScopeKey.includes("|stall:") &&
       !alarmScopeKey.includes("|ctrl:");
@@ -1337,193 +1268,11 @@ export function UnifiedBarnTrendPanel({
         draftRef.current = null;
       } finally {
         setAlarmSaving(false);
-        setDragFreeze(null);
-        freezeRef.current = null;
       }
     })();
   };
 
-  const onScaleEdgeDrag = (event: ScaleEdgeDragEvent) => {
-    if (controlMode && isChartThermoEdgeId(event.id)) {
-      if (!thermoDragEnabled && event.phase !== "cancel") return;
-      const mapLo = mappingThresholds.tempLow;
-      const mapHi = mappingThresholds.tempHigh;
-
-      if (event.phase === "start") {
-        const base = thermoDraftRef.current ?? baseThermo;
-        setThermoDraft(base);
-        thermoDraftRef.current = base;
-        setThermoApplyError(null);
-        return;
-      }
-      if (event.phase === "cancel") {
-        setThermoDraft(null);
-        thermoDraftRef.current = null;
-        return;
-      }
-      if (event.phase === "move") {
-        const cur = thermoDraftRef.current ?? baseThermo;
-        let next: ChartThermoDraft = cur;
-        if (isChartMotorVentEdgeId(event.id)) {
-          const rawPct = unmapMotorPctFromSplitY(event.value, layout);
-          if (rawPct == null || !Number.isFinite(rawPct)) return;
-          if (event.id === CHART_THERMO_EDGE_IDS.minVentPct) {
-            next = clampChartVentDraft(
-              {
-                ...cur,
-                minVentPct: clampMenuValue("minVent", rawPct),
-              },
-              "minVentPct",
-            );
-          } else {
-            next = clampChartVentDraft(
-              {
-                ...cur,
-                maxVentPct: clampMenuValue("maxVent", rawPct),
-              },
-              "maxVentPct",
-            );
-          }
-        } else {
-          const rawC = unmapTempCFromSplitY(
-            event.value,
-            mapLo,
-            mapHi,
-            tempMapLayout,
-            tempMapDomain,
-          );
-          if (rawC == null || !Number.isFinite(rawC)) return;
-          if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
-            next = {
-              ...cur,
-              setpointTemp: clampMenuValue("setpoint", rawC),
-            };
-          } else if (event.id === CHART_THERMO_EDGE_IDS.highVentTemp) {
-            next = {
-              ...cur,
-              tempDeviation: clampMenuValue(
-                "deviation",
-                Math.max(0, rawC - cur.setpointTemp),
-              ),
-            };
-          }
-        }
-        thermoDraftRef.current = next;
-        setThermoDraft(next);
-        return;
-      }
-      // end — draft kept until apply / exit
-      return;
-    }
-
-    if (!canCommand || !alarmScopeKey) return;
-    if (alarmSaving && event.phase !== "cancel") return;
-    const key = ALARM_EDGE_KEY[event.id];
-    if (!key) return;
-
-    if (event.phase === "start") {
-      const base = draftRef.current ?? baseThresholds;
-      freezeRef.current = base;
-      draftRef.current = base;
-      setDragFreeze(base);
-      setDraftThresholds(base);
-      setAlarmSaveError(null);
-      return;
-    }
-
-    if (event.phase === "cancel") {
-      draftRef.current = null;
-      freezeRef.current = null;
-      setDraftThresholds(null);
-      setDragFreeze(null);
-      return;
-    }
-
-    if (event.phase === "move") {
-      const freeze = freezeRef.current ?? baseThresholds;
-      const cur = draftRef.current ?? freeze;
-      const raw =
-        key === "tempHigh" || key === "tempLow"
-          ? unmapTempCFromSplitY(
-              event.value,
-              freeze.tempLow,
-              freeze.tempHigh,
-              tempMapLayout,
-              tempMapDomain,
-            )
-          : unmapHumPctFromSplitY(
-              event.value,
-              freeze.humidityLow,
-              freeze.humidityHigh,
-              layout,
-            );
-      if (raw == null || !Number.isFinite(raw)) return;
-      const next = clampAlarmDraft({ ...cur, [key]: raw }, key);
-      draftRef.current = next;
-      setDraftThresholds(next);
-      return;
-    }
-
-    if (event.phase === "end") {
-      const next = draftRef.current;
-      freezeRef.current = null;
-      setDragFreeze(null);
-      if (!next) {
-        draftRef.current = null;
-        setDraftThresholds(null);
-        return;
-      }
-      const unchanged =
-        next.tempHigh === baseThresholds.tempHigh &&
-        next.tempLow === baseThresholds.tempLow &&
-        next.humidityHigh === baseThresholds.humidityHigh &&
-        next.humidityLow === baseThresholds.humidityLow;
-      if (unchanged) {
-        draftRef.current = null;
-        setDraftThresholds(null);
-        return;
-      }
-      persistAlarmDraft(next);
-    }
-  };
-
   const onScaleEdgeNumericCommit = (event: ScaleEdgeNumericCommitEvent) => {
-    if (controlMode && isChartThermoEdgeId(event.id)) {
-      if (!thermoDragEnabled) return;
-      const cur = thermoDraftRef.current ?? baseThermo;
-      let next: ChartThermoDraft = cur;
-      if (event.id === CHART_THERMO_EDGE_IDS.setpoint) {
-        next = {
-          ...cur,
-          setpointTemp: clampMenuValue("setpoint", event.value),
-        };
-      } else if (event.id === CHART_THERMO_EDGE_IDS.highVentTemp) {
-        next = {
-          ...cur,
-          tempDeviation: clampMenuValue("deviation", Math.max(0, event.value)),
-        };
-      } else if (event.id === CHART_THERMO_EDGE_IDS.minVentPct) {
-        next = clampChartVentDraft(
-          {
-            ...cur,
-            minVentPct: clampMenuValue("minVent", event.value),
-          },
-          "minVentPct",
-        );
-      } else if (event.id === CHART_THERMO_EDGE_IDS.maxVentPct) {
-        next = clampChartVentDraft(
-          {
-            ...cur,
-            maxVentPct: clampMenuValue("maxVent", event.value),
-          },
-          "maxVentPct",
-        );
-      }
-      setThermoDraft(next);
-      thermoDraftRef.current = next;
-      setThermoApplyError(null);
-      return;
-    }
     if (!canCommand || !alarmScopeKey || alarmSaving) return;
     const key = ALARM_EDGE_KEY[event.id];
     if (!key) return;
@@ -1543,234 +1292,7 @@ export function UnifiedBarnTrendPanel({
     persistAlarmDraft(next);
   };
 
-  const enterControlMode = () => {
-    if (!canCommand) return;
-    setChartMode("control");
-    setThermoDraft(baseThermo);
-    thermoDraftRef.current = baseThermo;
-    setThermoApplyError(null);
-    setXScopeStack([]);
-    setDraftThresholds(null);
-    setDragFreeze(null);
-    draftRef.current = null;
-    freezeRef.current = null;
-    // 환기%는 모터 밴드에 표시 — 꺼져 있으면 켠다
-    setLayers((prev) => (prev.motors ? prev : { ...prev, motors: true }));
-  };
-
-  const exitControlMode = () => {
-    setChartMode("view");
-    setThermoDraft(null);
-    thermoDraftRef.current = null;
-    setThermoApplyError(null);
-    setThermoConfirm(null);
-  };
-
-  /** 스포트라이트 투어 — 설정모드 진입/종료 */
-  useEffect(() => {
-    const onTourAction = (e: Event) => {
-      const action = (e as CustomEvent<{ action?: TourGridAction }>).detail
-        ?.action;
-      if (action !== "chart-enter-control" && action !== "chart-exit-control") {
-        return;
-      }
-      if (action === "chart-enter-control") {
-        if (canCommand) {
-          setChartMode("control");
-          setThermoDraft(baseThermo);
-          thermoDraftRef.current = baseThermo;
-          setThermoApplyError(null);
-          setXScopeStack([]);
-          setDraftThresholds(null);
-          setDragFreeze(null);
-          draftRef.current = null;
-          freezeRef.current = null;
-          setLayers((prev) => (prev.motors ? prev : { ...prev, motors: true }));
-        }
-      } else {
-        setChartMode("view");
-        setThermoDraft(null);
-        thermoDraftRef.current = null;
-        setThermoApplyError(null);
-      }
-      void (async () => {
-        await afterFrames(2);
-        dispatchTourGridActionDone(action);
-      })();
-    };
-    window.addEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-    return () => window.removeEventListener(FARM_TOUR_ACTION_EVENT, onTourAction);
-  }, [canCommand, baseThermo]);
-
-  /** 더블클릭 — 설정모드 진입만 (종료는 빈 플롯 우클릭) */
-  const enterControlModeFromPlot = () => {
-    if (controlMode || !canCommand) return;
-    enterControlMode();
-  };
-
-  const requestThermoConfirm = useCallback(() => {
-    if (!canCommand) {
-      setThermoApplyError("명령 권한이 없습니다.");
-      return;
-    }
-    if (thermoApplying) return;
-    const draftValues = thermoDraftRef.current ?? thermoDraft;
-    if (!draftValues) {
-      setThermoApplyError("적용할 설정값이 없습니다.");
-      return;
-    }
-    if (onlineScopedReadings.length === 0) {
-      setThermoApplyError("적용할 온라인 컨트롤러가 없습니다.");
-      return;
-    }
-    const draft = {
-      applyTemp: true,
-      applyVent: true,
-      setpoint: draftValues.setpointTemp,
-      deviation: draftValues.tempDeviation,
-      minVent: draftValues.minVentPct,
-      maxVent: draftValues.maxVentPct,
-      selectedChannels: [...BULK_CHANNEL_OPTIONS],
-    };
-    const commands = buildBulkThermoCommands(
-      onlineScopedReadings,
-      thermoSettings,
-      draft,
-    );
-    if (commands.length === 0) {
-      setThermoApplyError("적용할 제어 대상이 없습니다.");
-      return;
-    }
-    const current = mergeCurrentThermo(
-      onlineScopedReadings.map((r) => {
-        const hit = resolveReadingThermo(r, thermoSettings);
-        if (!hit) return null;
-        const values: CommandThermoValues = {
-          setpointTemp: hit.setpointTemp,
-          tempDeviation: hit.tempDeviation,
-          minVentPct: hit.minVentPct,
-          maxVentPct: hit.maxVentPct,
-        };
-        return values;
-      }),
-    );
-    const head = onlineScopedReadings[0];
-    setThermoApplyError(null);
-    setThermoConfirm(
-      buildCommandConfirmModel({
-        target: formatCommandConfirmTarget({
-          stallTyCode: head?.stallTyCode,
-          stallNo: head?.stallNo,
-          eqpmnNo: head?.eqpmnNo,
-          onlineCount: onlineScopedReadings.length,
-          stallTyCodes: onlineScopedReadings.map((r) => r.stallTyCode),
-          chartScoped: true,
-        }),
-        current,
-        command: draftValues,
-      }),
-    );
-  }, [
-    canCommand,
-    thermoApplying,
-    thermoDraft,
-    onlineScopedReadings,
-    thermoSettings,
-  ]);
-
-  const applyThermoDraft = useCallback(() => {
-    if (!canCommand) {
-      setThermoApplyError("명령 권한이 없습니다.");
-      return;
-    }
-    if (thermoApplying) return;
-    const draftValues = thermoDraftRef.current ?? thermoDraft;
-    if (!draftValues) {
-      setThermoApplyError("적용할 설정값이 없습니다.");
-      return;
-    }
-    if (onlineScopedReadings.length === 0) {
-      setThermoApplyError("적용할 온라인 컨트롤러가 없습니다.");
-      return;
-    }
-    const draft = {
-      applyTemp: true,
-      applyVent: true,
-      setpoint: draftValues.setpointTemp,
-      deviation: draftValues.tempDeviation,
-      minVent: draftValues.minVentPct,
-      maxVent: draftValues.maxVentPct,
-      selectedChannels: [...BULK_CHANNEL_OPTIONS],
-    };
-    const commands = buildBulkThermoCommands(
-      onlineScopedReadings,
-      thermoSettings,
-      draft,
-    );
-    if (commands.length === 0) {
-      setThermoApplyError("적용할 제어 대상이 없습니다.");
-      return;
-    }
-    setThermoConfirm(null);
-    setThermoApplying(true);
-    setThermoApplyError(null);
-    void (async () => {
-      try {
-        const result = await sendBulkThermoCommandAction(commands);
-        if (result.sentItems.length > 0) {
-          for (const item of result.sentItems) {
-            liveRefresh?.patchThermoFromCommand(item.command);
-          }
-          applyQueue?.startSession(result.sentItems);
-          void liveRefresh?.revalidateFarmLive();
-        }
-        if (!result.ok && result.sent === 0) {
-          setThermoApplyError(
-            result.error === "forbidden"
-              ? "명령 권한이 없습니다."
-              : result.error === "unauthorized"
-                ? "로그인이 필요합니다."
-                : result.error === "no_targets"
-                  ? "적용할 제어 대상이 없습니다."
-                  : "제어값 적용에 실패했습니다.",
-          );
-          return;
-        }
-        if (result.failed.length > 0 && result.sent === 0) {
-          setThermoApplyError(
-            result.failed[0]?.error ?? "제어값 적용에 실패했습니다.",
-          );
-          return;
-        }
-        if (result.sent > 0 && result.failed.length > 0) {
-          setThermoApplyError(
-            `${result.sent}대 전송 · ${result.failed.length}대 실패`,
-          );
-        }
-        setThermoDraft(null);
-        thermoDraftRef.current = null;
-        setChartMode("view");
-      } catch (e) {
-        setThermoApplyError(
-          e instanceof Error
-            ? `적용 중 오류: ${e.message}`
-            : "적용 중 오류가 발생했습니다. 네트워크를 확인하세요.",
-        );
-      } finally {
-        setThermoApplying(false);
-      }
-    })();
-  }, [
-    canCommand,
-    thermoApplying,
-    thermoDraft,
-    onlineScopedReadings,
-    thermoSettings,
-    liveRefresh,
-    applyQueue,
-  ]);
-
-  /** 우측 Y — 밴드별 모터%/온도℃/습도% 개별 상·하한. 온도는 표시값+여유. */
+  /** 우측 Y — 온·습 상·하한. 더블클릭으로 숫자 입력. */
   const scaleEdgeLabels = useMemo((): TrendScaleEdgeLabel[] => {
     if (!built) return [];
     const out: TrendScaleEdgeLabel[] = [];
@@ -1822,176 +1344,51 @@ export function UnifiedBarnTrendPanel({
       });
     };
 
-    /** 설정모드 — 중앙 칩에 명칭+수치 (선·드래그 동일) */
-    const pushThermoControl = (
-      id: string,
-      chartY: number | null,
-      name: string,
-      valueText: string,
-      mark: "overline" | "underline",
-      editValue: number,
-      opts: {
-        lineStrokeWidth: number;
-        lineDasharray: string;
-        showApplyActions?: boolean;
-        /** 라벨 배치(생략 시 중앙). 오버레이 환기 라벨은 좌측 */
-        side?: "center" | "left" | "right";
-      },
-    ) => {
-      push(
-        id,
-        chartY,
-        valueText,
-        CHART_THERMO_CONTROL_COLOR,
-        mark,
-        `${name} · ${valueText}`,
-        true,
-        thermoDragEnabled,
-        editValue,
-        {
-          side: opts.side ?? "center",
-          leadingText: name,
-          lineStrokeWidth: opts.lineStrokeWidth,
-          lineDasharray: opts.lineDasharray,
-          showApplyActions: opts.showApplyActions,
-        },
-      );
-    };
-
-    if (scopeVisibility.showMotors && (layers.motors || layers.motorCh)) {
-      const minV = thermo.minVentPct;
-      const maxV = thermo.maxVentPct;
-      if (controlMode) {
-        pushThermoControl(
-          CHART_THERMO_EDGE_IDS.maxVentPct,
-          mapMotorPctToSplitY(maxV, layout),
-          "최고환기",
-          formatTrendBandEdge(maxV, "%"),
-          "overline",
-          maxV,
-          {
-            lineStrokeWidth: 0.55,
-            lineDasharray: "2 2",
-            side: overlayActive ? "left" : "center",
-          },
-        );
-        pushThermoControl(
-          CHART_THERMO_EDGE_IDS.minVentPct,
-          mapMotorPctToSplitY(minV, layout),
-          "최저환기",
-          formatTrendBandEdge(minV, "%"),
-          "underline",
-          minV,
-          {
-            lineStrokeWidth: 1.15,
-            lineDasharray: "solid",
-            side: overlayActive ? "left" : "center",
-          },
-        );
-      } else {
-        push(
-          "motor-hi",
-          mapMotorPctToSplitY(maxV, layout),
-          formatTrendBandEdge(maxV, "%"),
-          "#64748b",
-          "overline",
-          "최고환기",
-          false,
-          undefined,
-          undefined,
-          overlayActive ? { side: "left" } : undefined,
-        );
-        push(
-          "motor-lo",
-          mapMotorPctToSplitY(minV, layout),
-          formatTrendBandEdge(minV, "%"),
-          "#64748b",
-          "underline",
-          "최저환기",
-          false,
-          undefined,
-          undefined,
-          overlayActive ? { side: "left" } : undefined,
-        );
-      }
-    }
     if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
       push(
         "temp-hi",
         mapTempCToSplitY(
-          thresholds.tempHigh,
+          mappingThresholds.tempHigh,
           mapLo,
           mapHi,
           tempMapLayout,
           tempMapDomain,
         ),
-        formatTrendBandEdge(thresholds.tempHigh, "℃"),
+        formatTrendBandEdge(mappingThresholds.tempHigh, "℃"),
         TREND_CHART_COLORS.temp,
         "overline",
-        "온도 상한(가이드)",
+        "온도 상한",
         true,
-        alarmDragEnabled,
-        thresholds.tempHigh,
+        alarmEditEnabled,
+        mappingThresholds.tempHigh,
         {
-          leadingText: controlMode ? "온도상한" : undefined,
           lineStrokeWidth: 1.45,
-          lineDasharray: "solid",
+          lineDasharray: "2 2",
           lineHighlight: true,
         },
       );
       push(
         "temp-lo",
         mapTempCToSplitY(
-          thresholds.tempLow,
+          mappingThresholds.tempLow,
           mapLo,
           mapHi,
           tempMapLayout,
           tempMapDomain,
         ),
-        formatTrendBandEdge(thresholds.tempLow, "℃"),
+        formatTrendBandEdge(mappingThresholds.tempLow, "℃"),
         TREND_CHART_COLORS.temp,
         "underline",
-        "온도 하한(가이드)",
+        "온도 하한",
         true,
-        alarmDragEnabled,
-        thresholds.tempLow,
+        alarmEditEnabled,
+        mappingThresholds.tempLow,
         {
-          leadingText: controlMode ? "온도하한" : undefined,
           lineStrokeWidth: 1.45,
-          lineDasharray: "solid",
+          lineDasharray: "2 2",
           lineHighlight: true,
         },
       );
-      if (controlMode && scopeVisibility.showTemp) {
-        const sp = thermo.setpointTemp;
-        const dev = thermo.tempDeviation;
-        const highT = sp + dev;
-        // 온도 밴드 = 기점만 / 최저·최고 환기량(%)은 모터 밴드
-        pushThermoControl(
-          CHART_THERMO_EDGE_IDS.highVentTemp,
-          mapTempCToSplitY(highT, mapLo, mapHi, tempMapLayout, tempMapDomain),
-          "온도편차",
-          `+${formatTrendBandEdge(dev, "℃")}`,
-          "overline",
-          dev,
-          {
-            lineStrokeWidth: 0.55,
-            lineDasharray: "2 2",
-          },
-        );
-        pushThermoControl(
-          CHART_THERMO_EDGE_IDS.setpoint,
-          mapTempCToSplitY(sp, mapLo, mapHi, tempMapLayout, tempMapDomain),
-          "설정온도",
-          formatTrendBandEdge(sp, "℃"),
-          "overline",
-          sp,
-          {
-            lineStrokeWidth: 1.15,
-            lineDasharray: "solid",
-          },
-        );
-      }
     }
     if (
       scopeVisibility.showHum &&
@@ -2000,43 +1397,43 @@ export function UnifiedBarnTrendPanel({
       push(
         "hum-hi",
         mapHumPctToSplitY(
-          thresholds.humidityHigh,
+          mappingThresholds.humidityHigh,
           mapHumLo,
           mapHumHi,
           layout,
         ),
-        formatTrendBandEdge(thresholds.humidityHigh, "%"),
+        formatTrendBandEdge(mappingThresholds.humidityHigh, "%"),
         TREND_CHART_COLORS.humidity,
         "overline",
-        "습도 상한(가이드)",
+        "습도 상한",
         true,
-        alarmDragEnabled,
-        thresholds.humidityHigh,
+        alarmEditEnabled,
+        mappingThresholds.humidityHigh,
         {
-          leadingText: controlMode ? "습도상한" : undefined,
           lineStrokeWidth: 1.65,
-          lineDasharray: "solid",
+          lineDasharray: "2 2",
+          lineHighlight: true,
         },
       );
       push(
         "hum-lo",
         mapHumPctToSplitY(
-          thresholds.humidityLow,
+          mappingThresholds.humidityLow,
           mapHumLo,
           mapHumHi,
           layout,
         ),
-        formatTrendBandEdge(thresholds.humidityLow, "%"),
+        formatTrendBandEdge(mappingThresholds.humidityLow, "%"),
         TREND_CHART_COLORS.humidity,
         "underline",
-        "습도 하한(가이드)",
+        "습도 하한",
         true,
-        alarmDragEnabled,
-        thresholds.humidityLow,
+        alarmEditEnabled,
+        mappingThresholds.humidityLow,
         {
-          leadingText: controlMode ? "습도하한" : undefined,
           lineStrokeWidth: 1.65,
-          lineDasharray: "solid",
+          lineDasharray: "2 2",
+          lineHighlight: true,
         },
       );
     }
@@ -2044,15 +1441,10 @@ export function UnifiedBarnTrendPanel({
   }, [
     built,
     layers,
-    thresholds,
     mappingThresholds,
     layout,
     scopeVisibility,
-    alarmDragEnabled,
-    controlMode,
-    thermo,
-    thermoDragEnabled,
-    overlayActive,
+    alarmEditEnabled,
     tempMapLayout,
     tempMapDomain,
   ]);
@@ -2096,84 +1488,10 @@ export function UnifiedBarnTrendPanel({
           overlayView={overlayView}
           overlayAvailable={overlayAvailable}
           onToggleOverlay={() => setOverlayView((v) => !v)}
+          compact={headingMode === "widget"}
         />
       </div>
     ) : null;
-
-  const controlModeButton = commandChrome ? (
-    <button
-      type="button"
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-        farmChartUi.fsBody,
-        controlMode
-          ? dashboardControlFill.active
-          : dashboardControlFill.idle,
-      )}
-      aria-pressed={controlMode}
-      aria-label={controlMode ? "설정모드 종료" : "설정모드"}
-      title={controlMode ? "설정모드 종료" : "설정모드"}
-      data-tour-id="chart-control-mode"
-      onClick={() => {
-        if (controlMode) exitControlMode();
-        else enterControlMode();
-      }}
-    >
-      <Settings
-        className="size-[1em] shrink-0"
-        strokeWidth={dashboardUi.iconStroke}
-        aria-hidden
-      />
-    </button>
-  ) : null;
-
-  const controlModeCluster = commandChrome ? (
-    <div
-      className="flex shrink-0 flex-row items-center gap-1"
-      data-tour-id="chart-control-mode-cluster"
-    >
-      {controlMode && thermoDirty ? (
-        <button
-          type="button"
-          className={cn(
-            "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-            farmChartUi.fsBody,
-            "border-primary/50 bg-primary/10 text-primary",
-            "hover:bg-primary/15 disabled:opacity-40",
-          )}
-          aria-label="설정값 적용"
-          title="적용 (명령 전송)"
-          data-tour-id="chart-control-apply"
-          disabled={thermoApplying || onlineScopedReadings.length === 0}
-          onClick={() => {
-            if (thermoApplying || onlineScopedReadings.length === 0) return;
-            requestThermoConfirm();
-          }}
-        >
-          <Check
-            className="size-[1em] shrink-0"
-            strokeWidth={dashboardUi.iconStroke}
-            aria-hidden
-          />
-        </button>
-      ) : controlMode ? (
-        /** 설정모드·드래그 중 설정 버튼 위치 고정 */
-        <span
-          className={cn(
-            "invisible inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-            farmChartUi.fsBody,
-          )}
-          aria-hidden
-        >
-          <Check
-            className="size-[1em] shrink-0"
-            strokeWidth={dashboardUi.iconStroke}
-          />
-        </span>
-      ) : null}
-      {controlModeButton}
-    </div>
-  ) : null;
 
   const focusBandActive = isSingleYBandFocus(xScope?.yBands)
     ? xScope.yBands[0]
@@ -2190,7 +1508,14 @@ export function UnifiedBarnTrendPanel({
 
   return (
     <div
-      className={cn("mt-2 space-y-2 select-none", farmChartUi.root, className)}
+      className={cn(
+        "select-none",
+        farmChartUi.root,
+        plotFill
+          ? "relative flex min-h-0 flex-1 flex-col gap-2"
+          : "mt-2 space-y-2",
+        className,
+      )}
       style={
         {
           ["--farm-chart-ui-scale"]: String(FARM_CHART_UI_SCALE),
@@ -2207,7 +1532,7 @@ export function UnifiedBarnTrendPanel({
           : "false"
       }
     >
-      <div className="flex w-full flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
+      <div className="flex w-full shrink-0 flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
         <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
           {isMobileStack ? (
             <div className="flex w-full min-w-0 flex-nowrap items-center gap-2">
@@ -2228,7 +1553,7 @@ export function UnifiedBarnTrendPanel({
               </div>
               <div className="flex shrink-0 flex-nowrap items-center gap-1">
                 {layerToolbar}
-                {controlModeCluster}
+                {headerActions}
                 {mobileScopeHandle ? (
                   <button
                     type="button"
@@ -2250,11 +1575,53 @@ export function UnifiedBarnTrendPanel({
               </div>
             </div>
           ) : (
-            <div className="flex min-w-0 w-full items-center gap-2">
-              <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
-                  <span className={cn("shrink-0 font-semibold", farmChartUi.fsTitle)}>
-                    통합 추이
+              <div
+                className={cn(
+                  "flex min-w-0 w-full items-center gap-2",
+                  headingMode === "widget" &&
+                    "h-11 shrink-0 overflow-hidden px-1.5",
+                )}
+              >
+              <div
+                className={cn(
+                  "flex min-w-0 flex-1 gap-2",
+                  headingMode === "widget"
+                    ? "h-full flex-nowrap items-center overflow-hidden"
+                    : "flex-wrap items-baseline",
+                )}
+              >
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      headingMode === "widget"
+                        ? "inline-flex min-w-0 items-center truncate"
+                        : "shrink-0",
+                      farmChartUi.fsTitle,
+                    )}
+                  >
+                    {headingMode === "widget" ? (
+                      <ChartScopeTargetMarks
+                        chartScope={chartScope}
+                        controllers={controllers}
+                        fallbackLabel={label}
+                        typeClassName={cn("font-semibold", farmChartUi.fsTitle)}
+                      />
+                    ) : (
+                      "통합 추이"
+                    )}
                   </span>
+                  {headingMode === "widget" ? (
+                    <span
+                      className={cn(
+                        "shrink-0 leading-snug text-muted-foreground",
+                        farmChartUi.fsMeta,
+                      )}
+                    >
+                      {useBrushCanvas
+                        ? formatBrushWindowLabel(brushWindow)
+                        : trendPeriodLabel(canvasPeriod)}
+                    </span>
+                  ) : (
                   <span
                     className={cn(
                       "leading-snug text-muted-foreground",
@@ -2267,11 +1634,17 @@ export function UnifiedBarnTrendPanel({
                       : trendPeriodLabel(canvasPeriod)}
                     {picked?.trimmed ? " · 실데이터 구간" : ""}
                   </span>
+                  )}
                 </div>
-              {layerToolbar || controlModeCluster ? (
-                <div className="flex shrink-0 items-center gap-1">
+              {layerToolbar || headerActions ? (
+                <div
+                  className={cn(
+                    "flex shrink-0 items-center gap-1",
+                    headingMode === "widget" && "h-full",
+                  )}
+                >
                   {layerToolbar}
-                  {controlModeCluster}
+                  {headerActions}
                 </div>
               ) : null}
             </div>
@@ -2296,19 +1669,35 @@ export function UnifiedBarnTrendPanel({
       (scoped.series.length > 0 ||
         scoped.histograms.length > 0 ||
         showCommandOverlay) ? (
-        <div className="space-y-3">
+        <div
+          className={cn(
+            plotFill
+              ? cn(
+                  "flex min-h-0 flex-1 flex-col",
+                  headingMode === "widget" ? "gap-1.5" : "gap-3",
+                )
+              : "space-y-3",
+          )}
+        >
         <div
           data-tour-id="chart-control-plot"
-          data-chart-mode={controlMode ? "control" : "view"}
+          data-chart-mode="view"
+          className={plotFill ? "flex min-h-0 flex-1 flex-col" : undefined}
+        >
+        <div
+          className={
+            plotFill ? "flex h-full min-h-0 flex-1 flex-col" : undefined
+          }
         >
         <TrendChart
           mode="line"
           onPlotWidthChange={onChartPlotWidth}
+          fillParent={plotFill}
           categories={chartCategories}
           series={scoped.series}
           envelopes={scoped.envelopes}
           histograms={scoped.histograms}
-          height={chartPlotHeightForChart}
+          height={plotFill ? 48 : chartPlotHeightForChart}
           eventLane={null}
           eventLaneHeight={0}
           commandSettingSegs={commandSettingSegs}
@@ -2319,7 +1708,7 @@ export function UnifiedBarnTrendPanel({
           tickEvery={tickEveryForDisplayBars(chartCategories.length, {
             compact: isMobileStack,
           })}
-          showLegend
+          showLegend={headingMode !== "widget"}
           legendTrailing={
             xScope != null && picked ? (
               <div
@@ -2383,26 +1772,15 @@ export function UnifiedBarnTrendPanel({
           layerClipWipe
           splitBandGuides={splitBandGuides}
           scaleEdgeLabels={scaleEdgeLabels}
-          xScopeSelect={!controlMode}
-          onXScopeCommit={
-            controlMode
-              ? undefined
-              : (range) =>
-                  commitXScope(range, activeGuidedXScope ? "replace" : "push")
+          xScopeSelect
+          onXScopeCommit={(range) =>
+            commitXScope(range, activeGuidedXScope ? "replace" : "push")
           }
-          guidedXScopeGesture={controlMode ? null : activeGuidedXScope}
-          onGuidedXScopeComplete={
-            controlMode ? undefined : onGuidedXScopeComplete
-          }
-          onXScopeBack={controlMode ? undefined : popXScope}
+          guidedXScopeGesture={activeGuidedXScope}
+          onGuidedXScopeComplete={onGuidedXScopeComplete}
+          onXScopeBack={popXScope}
           scopeMotionKey={scopeMotionKey}
           scopeMotionDir={scopeMotionDir}
-          onPlotDoubleClick={
-            canCommand && !controlMode ? enterControlModeFromPlot : undefined
-          }
-          onPlotBackgroundContextMenu={
-            controlMode ? exitControlMode : undefined
-          }
           onBreachEquipmentNavigate={
             onScopeChange
               ? (target) => {
@@ -2417,22 +1795,36 @@ export function UnifiedBarnTrendPanel({
                 }
               : undefined
           }
-          onScaleEdgeDrag={
-            thermoDragEnabled || alarmDragEnabled
-              ? onScaleEdgeDrag
-              : undefined
-          }
           onScaleEdgeNumericCommit={
-            thermoDragEnabled || alarmDragEnabled
-              ? onScaleEdgeNumericCommit
-              : undefined
+            alarmEditEnabled ? onScaleEdgeNumericCommit : undefined
           }
-          onScaleEdgeApply={undefined}
-          onScaleEdgeRevert={undefined}
-          scaleEdgeApplyBusy={false}
-          scaleEdgeApplyDisabled={false}
           overlayHoverMerge={overlayActive}
         />
+        </div>
+        {showCommandOverlay ? (
+          <div
+            className={cn(
+              headingMode === "widget"
+                ? "pointer-events-none absolute bottom-[calc(1.6rem*var(--farm-chart-ui-scale,1)+0.35rem)] left-2 z-[3]"
+                : "mt-2 flex shrink-0 justify-start overflow-visible",
+            )}
+          >
+            <div
+              className={
+                headingMode === "widget" ? "pointer-events-auto" : undefined
+              }
+            >
+            <CommandChannelLayerToolbar
+              channels={commandChannels}
+              onToggle={(channel) =>
+                setCommandChannels((prev) =>
+                  toggleCommandChannelFlag(prev, channel),
+                )
+              }
+            />
+            </div>
+          </div>
+        ) : null}
         </div>
         </div>
       ) : (
@@ -2460,32 +1852,19 @@ export function UnifiedBarnTrendPanel({
         </p>
       ) : null}
 
-      {thermoApplyError ? (
-        <p className="text-[0.65rem] text-destructive" role="alert">
-          {thermoApplyError}
-        </p>
-      ) : null}
-
-      <CommandConfirmOverlay
-        model={thermoConfirm}
-        busy={thermoApplying}
-        onCancel={() => {
-          if (!thermoApplying) setThermoConfirm(null);
-        }}
-        onConfirm={applyThermoDraft}
-      />
-
-      {useBrushCanvas ? (
+      {useBrushCanvas && !hidePeriodBrush ? (
+        <div className="shrink-0">
         <UnifiedTrendPeriodBrush
           window={brushWindow}
           onWindowChange={(next) => {
             clearXScope();
-            setBrushWindow(next);
+            applyBrushWindow(next);
           }}
           overviewValues={brushOverview}
           xScope={xScope}
           chartPointCount={picked?.categories.length ?? 0}
         />
+        </div>
       ) : null}
     </div>
   );

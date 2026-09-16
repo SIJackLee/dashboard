@@ -501,7 +501,7 @@ export function CommandSettingBandsSvg({
         const dim = hoverId != null && hoverId !== hit.seg.mark.id;
         return (
           <rect
-            key={`win-${hit.seg.mark.id}`}
+            key={`win-${hit.seg.mark.id}:${hit.seg.band ?? "temp"}`}
             x={hit.x0}
             y={hit.y}
             width={w}
@@ -523,7 +523,10 @@ export function CommandSettingBandsSvg({
         const y1 = hit.y;
         const y2 = hit.y + hit.h;
         return (
-          <g key={`edge-${hit.seg.mark.id}`} opacity={dim ? 0.28 : 1}>
+          <g
+            key={`edge-${hit.seg.mark.id}:${hit.seg.band ?? "temp"}`}
+            opacity={dim ? 0.28 : 1}
+          >
             <line
               x1={hit.x0}
               x2={hit.x1}
@@ -660,7 +663,7 @@ export function CommandSettingHitOverlay({
         const isSelected = selectedId === hit.seg.mark.id;
         return (
           <button
-            key={hit.seg.mark.id}
+            key={`${hit.seg.mark.id}:${hit.seg.band ?? "temp"}`}
             type="button"
             className={cn(
               "pointer-events-auto absolute",

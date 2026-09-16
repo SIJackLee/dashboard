@@ -1747,6 +1747,12 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   height: calc(1.6rem * var(--farm-chart-ui-scale, 1));
 }
 
+/** PC 위젯 우측 Y숫자 칸 — 플롯·날짜축·공유 브러시가 같은 폭 */
+.farm-chart-y-gutter {
+  width: 3.75rem;
+  flex-shrink: 0;
+}
+
 @keyframes farm-chart-layers-enter {
   from {
     opacity: 0;

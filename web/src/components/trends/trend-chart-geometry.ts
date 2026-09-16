@@ -99,8 +99,8 @@ export function buildEnvelopePaths(
 
 export const PAD_X = 6;
 export const PAD_TOP = 6;
-/** 모터 0%를 회색 시간축에 붙임 — 하단 여백 없음 */
-export const PAD_BOTTOM = 0;
+/** 모터 하단과 날짜축 사이 간격 (viewBox 단위) */
+export const PAD_BOTTOM = 6;
 /** 측정 전 fallback · 패딩 비율 기준 */
 export const VIEW_W_NORM = 100;
 

@@ -19,6 +19,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CHANNEL_SLOT_LABELS, type ChannelSlot } from "@/lib/data/iot-channel";
+import {
+  COMMAND_HOLD_CHANNELS,
+  type CommandChannelFlags,
+} from "@/lib/farm/command-hold-bands";
 import type {
   UnifiedLayerFlags,
   UnifiedLayerId,
@@ -27,7 +32,7 @@ import { dashboardAffordance, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
-type Tone = "temp" | "hum" | "motor" | "neutral";
+type Tone = "temp" | "hum" | "motor" | "command" | "neutral";
 
 export type LayerGroupId = "temp" | "hum" | "motor";
 
@@ -146,6 +151,8 @@ type Props = {
   overlayView?: boolean;
   overlayAvailable?: boolean;
   onToggleOverlay?: () => void;
+  /** 위젯 헤더 — 상·좌 여백과 같은 32px 버튼 */
+  compact?: boolean;
 };
 
 function toneActiveClass(tone: Tone): string {
@@ -156,14 +163,22 @@ function toneActiveClass(tone: Tone): string {
       return dashboardUi.chartLayerGroupHum;
     case "motor":
       return dashboardUi.chartLayerGroupMotor;
+    case "command":
+      return dashboardUi.chartLayerGroupCommand;
     default:
       return "border-border bg-muted text-foreground";
   }
 }
 
-function iconBtnClass(active: boolean, muted: boolean, tone: Tone) {
+function iconBtnClass(
+  active: boolean,
+  muted: boolean,
+  tone: Tone,
+  compact = false,
+) {
   return cn(
-    "relative inline-flex size-9 shrink-0 items-center justify-center overflow-visible rounded-md border md:size-11",
+    "relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-md border",
+    compact ? "size-8" : "size-9 md:size-11",
     motionClass.microInteractive,
     active
       ? toneActiveClass(tone)
@@ -179,6 +194,7 @@ function IconTipButton({
   pressed,
   muted,
   tone = "neutral",
+  compact = false,
   onClick,
   children,
   className,
@@ -189,6 +205,7 @@ function IconTipButton({
   pressed?: boolean;
   muted?: boolean;
   tone?: Tone;
+  compact?: boolean;
   onClick: () => void;
   children: ReactNode;
   className?: string;
@@ -202,7 +219,10 @@ function IconTipButton({
         aria-label={label}
         aria-pressed={pressed}
         onClick={onClick}
-        className={cn(iconBtnClass(active, Boolean(muted), tone), className)}
+        className={cn(
+          iconBtnClass(active, Boolean(muted), tone, compact),
+          className,
+        )}
         style={style}
       >
         {children}
@@ -245,6 +265,7 @@ export function UnifiedTrendLayerToolbar({
   overlayView = false,
   overlayAvailable = false,
   onToggleOverlay,
+  compact = false,
 }: Props) {
   const groups = (
     [
@@ -286,9 +307,13 @@ export function UnifiedTrendLayerToolbar({
                 on={on}
                 muted={!on}
                 tone={meta.tone}
+                compact={compact}
                 onClick={() => onCycleGroup(group)}
               >
-                <Icon className="size-4 md:size-5" aria-hidden />
+                <Icon
+                  className={compact ? "size-4" : "size-4 md:size-5"}
+                  aria-hidden
+                />
                 <ModeOverlay mode={mode} />
               </IconTipButton>
             </div>
@@ -306,12 +331,65 @@ export function UnifiedTrendLayerToolbar({
               on={overlayView}
               muted={!overlayView}
               tone="motor"
+              compact={compact}
               onClick={onToggleOverlay}
             >
-              <Layers className="size-4 md:size-5" aria-hidden />
+              <Layers
+                className={compact ? "size-4" : "size-4 md:size-5"}
+                aria-hidden
+              />
             </IconTipButton>
           </div>
         ) : null}
+      </div>
+    </TooltipProvider>
+  );
+}
+
+/** 명령 이력 채널 A·B·C 켜기/끄기. 명령 토글이 켜진 뒤 그래프 아래에 둔다. */
+export function CommandChannelLayerToolbar({
+  channels,
+  onToggle,
+  className,
+}: {
+  channels: CommandChannelFlags;
+  onToggle: (channel: ChannelSlot) => void;
+  className?: string;
+}) {
+  return (
+    <TooltipProvider delay={200}>
+      <div
+        className={cn(
+          "inline-flex items-center gap-1 overflow-visible",
+          className,
+        )}
+        data-tour-id="chart-command-channel-toolbar"
+        role="group"
+        aria-label="명령 이력 채널"
+      >
+        {COMMAND_HOLD_CHANNELS.map((channel) => {
+          const on = channels[channel];
+          const label = on
+            ? `${CHANNEL_SLOT_LABELS[channel]} 명령 이력 · 다음: 끔`
+            : `${CHANNEL_SLOT_LABELS[channel]} 명령 이력 끔 · 다음: 켬`;
+          return (
+            <div key={channel} className="relative overflow-visible">
+              <IconTipButton
+                label={label}
+                pressed={on}
+                on={on}
+                muted={!on}
+                tone="command"
+                onClick={() => onToggle(channel)}
+              >
+                <span className="text-[0.7rem] font-semibold md:text-sm" aria-hidden>
+                  {channel}
+                </span>
+                <ModeOverlay mode={on ? "base" : "off"} />
+              </IconTipButton>
+            </div>
+          );
+        })}
       </div>
     </TooltipProvider>
   );

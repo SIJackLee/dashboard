@@ -19,4 +19,6 @@ export const farmChartUi = {
   fsAxis: "farm-chart-fs-axis",
   control: "farm-chart-control",
   tickRail: "farm-chart-tick-rail",
+  /** PC 위젯 — 우측 Y숫자 전용 칸. 브러시·플롯·날짜축이 같은 폭을 씀 */
+  yGutter: "farm-chart-y-gutter",
 } as const;

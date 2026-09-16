@@ -9,6 +9,7 @@ import {
   domainFor,
   finiteValues,
   nudgeEdgeLabelTops,
+  PAD_BOTTOM,
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
   tipPinId,
@@ -177,6 +178,7 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   assert.equal(px.padL, 12);
   assert.equal(px.padR, 12);
   assert.equal(px.innerW, 176);
+  assert.equal(PAD_BOTTOM, 6);
   const t0 = Date.parse("2026-09-08T00:00:00.000Z");
   const t1 = Date.parse("2026-09-10T00:00:00.000Z");
   const mid = Date.parse("2026-09-09T00:00:00.000Z");

@@ -139,7 +139,7 @@ export function BandGuidesLayer({
   );
 }
 
-/** 알람 밴드 — 습도 등은 창 채움, 온도는 하이라이트선만 (scale edge) */
+/** 알람 밴드 창 — 온·습 모두 채움 없음 (scale edge 점선만) */
 export function AlarmBandsLayer({
   bands,
   geom,

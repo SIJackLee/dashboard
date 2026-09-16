@@ -225,6 +225,8 @@ export const dashboardUi = {
     "border-channel-hum/50 bg-channel-hum/10 text-channel-hum",
   chartLayerGroupMotor:
     "border-channel-motor/50 bg-channel-motor/10 text-channel-motor",
+  chartLayerGroupCommand:
+    "border-channel-fan-exhaust/50 bg-channel-fan-exhaust/10 text-channel-fan-exhaust",
   chartLayerBadge: "bg-primary text-primary-foreground",
   chartLayerBadgeTemp: "bg-channel-temp text-white",
   chartLayerBadgeHum: "bg-channel-hum text-white",

@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import {
   applyFarmChartScopeParams,
+  applyFarmChartWidgetSlotParams,
   applyFarmChartZoomParams,
   applyFarmChartCmdParam,
   chartScopeEntryToZoomHint,
@@ -11,8 +12,12 @@ import {
   clearFarmChartScopeParams,
   clearFarmChartZoomParams,
   filterFarmChartTreeByType,
+  parseChartWidgetDragPayload,
+  parseChartWidgetSlot,
+  placeFarmChartWidget,
   resolveFarmChartCmdParam,
   resolveFarmChartScope,
+  resolveFarmChartWidgetSlots,
   resolveFarmChartZoomHint,
   scopesEqual,
   type FarmChartScope,
@@ -221,6 +226,68 @@ import {
   );
   assert.equal(tree.length, 1);
   assert.equal(tree[0]?.stallTyCode, "SP02");
+}
+
+{
+  const ctrl = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "a/b",
+  };
+  const params = new URLSearchParams();
+  applyFarmChartWidgetSlotParams(params, { w1: ctrl, w2: null });
+  assert.equal(params.get("chartW1"), "SP07|1|a/b");
+  assert.equal(params.get("chartW2"), "-");
+  const slots = resolveFarmChartWidgetSlots(params);
+  assert.ok(slots.w1 && scopesEqual(slots.w1, ctrl));
+  assert.equal(slots.w2, null);
+  assert.ok(
+    parseChartWidgetSlot(params.get("chartW1")) &&
+      scopesEqual(parseChartWidgetSlot(params.get("chartW1"))!, ctrl),
+  );
+}
+
+{
+  const params = new URLSearchParams(
+    "chartSp=SP07&chartStall=1&chartCtrl=" + encodeURIComponent("a/b"),
+  );
+  const seeded = resolveFarmChartWidgetSlots(params);
+  assert.equal(seeded.w1?.controllerKey, "a/b");
+  assert.equal(seeded.w2, null);
+  applyFarmChartWidgetSlotParams(params, { w1: null, w2: null });
+  const cleared = resolveFarmChartWidgetSlots(params);
+  assert.equal(cleared.w1, null);
+  assert.equal(cleared.w2, null);
+}
+
+{
+  const a = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "01",
+  };
+  const b = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "02",
+  };
+  const placed = placeFarmChartWidget({ w1: a, w2: b }, "w2", a);
+  assert.ok(placed.w2 && scopesEqual(placed.w2, a));
+  assert.equal(placed.w1, null);
+  const drag = parseChartWidgetDragPayload(JSON.stringify(b));
+  assert.ok(drag && scopesEqual(drag, b));
+}
+
+{
+  const params = new URLSearchParams(
+    "lsind=FARM01&item=P00&view=chart&chartW1=SP07%7C1%7Ca%2Fb",
+  );
+  applyListViewParams(params);
+  assert.equal(params.get("chartW1"), null);
+  assert.equal(params.get("chartW2"), null);
 }
 
 console.log("farm-chart-scope-url.test.ts: ok");

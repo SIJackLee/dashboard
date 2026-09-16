@@ -47,6 +47,7 @@ export type TrendChartDataLayersProps = {
   hoverIdx: number | null;
   hoverSeries: string | null;
   edgeDragId: string | null;
+  hoveredEdgeId?: string | null;
   glowFilterId: string;
   showMarkers: boolean;
   markerRadiusPx: number;
@@ -83,6 +84,7 @@ export function TrendChartDataLayers({
   hoverIdx,
   hoverSeries,
   edgeDragId,
+  hoveredEdgeId = null,
   glowFilterId,
   showMarkers,
   markerRadiusPx,
@@ -257,26 +259,29 @@ export function TrendChartDataLayers({
           const y = yFor(guide.value, guide.axis ?? "left");
           if (!Number.isFinite(y)) return null;
           const dragging = edgeDragId === guide.id;
+          const highlighted =
+            dragging ||
+            (Boolean(guide.lineHighlight) && hoveredEdgeId === guide.id);
           const baseW = guide.lineStrokeWidth ?? 0.45;
           const dash =
             guide.lineDasharray === "solid" || guide.lineDasharray === ""
               ? undefined
               : (guide.lineDasharray ?? "1.5 2");
-          const coreOpacity = dragging ? 0.95 : guide.lineHighlight ? 0.88 : 0.7;
+          const coreOpacity = highlighted ? 0.95 : 0.7;
           return (
             <g key={`scale-guide-${guide.id}`} pointerEvents="none">
-              {guide.lineHighlight ? (
+              {highlighted ? (
                 <line
                   x1={padL}
                   x2={viewW - padR}
                   y1={y}
                   y2={y}
                   stroke={guide.color}
-                  strokeWidth={baseW + 2.8}
+                  strokeWidth={baseW + 4.2}
+                  strokeDasharray={dash}
                   vectorEffect="non-scaling-stroke"
-                  opacity={dragging ? 0.5 : 0.34}
+                  opacity={dragging ? 0.58 : 0.42}
                   filter={`url(#${glowFilterId})`}
-                  className={motionClass.farmChartLineGlow}
                 />
               ) : null}
               <line

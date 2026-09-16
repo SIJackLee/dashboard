@@ -7,6 +7,7 @@ import {
   comfortScoreToColor,
 } from "@/lib/farm/env-comfort-score";
 import { downsampleTrendValues } from "@/lib/farm/trend-display-buckets";
+import { trendPlotPadRatios } from "@/components/trends/trend-chart-geometry";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,33 @@ export function formatBrushWindowLabel(win: BrushWindow): string {
   if (hours < 20) return `약 ${Math.max(1, Math.round(hours))}시간`;
   if (days < 1.6) return "약 1일";
   return `약 ${Math.round(days)}일`;
+}
+
+/** 차트 플롯과 같은 좌·우 패딩으로 브러시 막대·선택창을 맞춘다. */
+export function brushPlotPad(labelGutter = false) {
+  return trendPlotPadRatios({ leftUnit: true, labelGutter });
+}
+
+/** 트랙 가로 비율(0–1) → 데이터 구간 비율(패딩 제외). */
+export function brushRatioFromTrackU(
+  u: number,
+  labelGutter = false,
+): number {
+  const pad = brushPlotPad(labelGutter);
+  if (!(pad.innerW > 0) || !Number.isFinite(u)) return 0;
+  return Math.min(1, Math.max(0, (u - pad.padL) / pad.innerW));
+}
+
+/** 데이터 구간 창 → 트랙 CSS % (차트 xFor와 같은 패딩). */
+export function brushWindowCssPct(
+  win: BrushWindow,
+  labelGutter = false,
+): { leftPct: number; widthPct: number } {
+  const pad = brushPlotPad(labelGutter);
+  return {
+    leftPct: (pad.padL + win.start * pad.innerW) * 100,
+    widthPct: win.width * pad.innerW * 100,
+  };
 }
 
 /** 차트 X 스코프 → 브러시 선택창 안 하이라이트 (0~1) */
@@ -141,6 +169,10 @@ type Props = {
   xScope?: { start: number; end: number } | null;
   /** 현재 기간 차트 포인트 수 (스코프 인덱스 기준) */
   chartPointCount?: number;
+  /** 공유 브러시가 영역 맨 위일 때 점수는 트랙 아래 */
+  hoverPlacement?: "above" | "below";
+  /** 모바일 차트와 같이 우측 거터가 넓을 때 */
+  labelGutter?: boolean;
   className?: string;
 };
 
@@ -154,6 +186,8 @@ export function UnifiedTrendPeriodBrush({
   overviewValues = [],
   xScope = null,
   chartPointCount = 0,
+  hoverPlacement = "above",
+  labelGutter = false,
   className,
 }: Props) {
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -190,12 +224,18 @@ export function UnifiedTrendPeriodBrush({
         }
       : null;
 
+  const plotPad = useMemo(() => brushPlotPad(labelGutter), [labelGutter]);
+  const activeCss = brushWindowCssPct(activeWin, labelGutter);
+  const draftCss =
+    draftWin != null ? brushWindowCssPct(draftWin, labelGutter) : null;
+
   const ratioFromEvent = (clientX: number) => {
     const el = trackRef.current;
     if (!el) return 0;
     const rect = el.getBoundingClientRect();
     if (rect.width <= 0) return 0;
-    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    const u = (clientX - rect.left) / rect.width;
+    return brushRatioFromTrackU(u, labelGutter);
   };
 
   const updateHoverFromClientX = (clientX: number) => {
@@ -239,12 +279,14 @@ export function UnifiedTrendPeriodBrush({
         {hover && hoverBand ? (
           <div
             className={cn(
-              "pointer-events-none absolute bottom-[calc(100%+0.35rem)] z-20 w-[7.5rem] -translate-x-1/2",
+              hoverPlacement === "below"
+                ? "pointer-events-none absolute top-[calc(100%+0.35rem)] z-20 w-[7.5rem] -translate-x-1/2"
+                : "pointer-events-none absolute bottom-[calc(100%+0.35rem)] z-20 w-[7.5rem] -translate-x-1/2",
               "rounded-lg border border-border/80 bg-popover px-2.5 py-2 text-popover-foreground",
               "ring-1 ring-foreground/10",
             )}
             style={{
-              left: `clamp(3.75rem, ${hover.ratio * 100}%, calc(100% - 3.75rem))`,
+              left: `clamp(3.75rem, ${(plotPad.padL + hover.ratio * plotPad.innerW) * 100}%, calc(100% - 3.75rem))`,
             }}
             role="status"
             data-tour-id="unified-trend-brush-score-card"
@@ -382,8 +424,8 @@ export function UnifiedTrendPeriodBrush({
             {spark.map((v, i) => {
               if (v == null || !Number.isFinite(v)) return null;
               const n = Math.max(1, spark.length);
-              const x = (i / n) * 100;
-              const w = Math.max(0.55, 100 / n - 0.2);
+              const x = (plotPad.padL + (i / n) * plotPad.innerW) * 100;
+              const w = Math.max(0.55, (plotPad.innerW * 100) / n - 0.2);
               const score = Math.max(0, Math.min(100, v));
               const h = Math.max(3, (score / 100) * BRUSH_MAX_BAR);
               const delayMs = Math.min(480, Math.round((i / n) * 420));
@@ -408,8 +450,8 @@ export function UnifiedTrendPeriodBrush({
               );
             })}
             <line
-              x1={0}
-              x2={100}
+              x1={plotPad.padL * 100}
+              x2={(plotPad.padL + plotPad.innerW) * 100}
               y1={BRUSH_BASELINE - 0.75 * BRUSH_MAX_BAR}
               y2={BRUSH_BASELINE - 0.75 * BRUSH_MAX_BAR}
               stroke="currentColor"
@@ -427,7 +469,7 @@ export function UnifiedTrendPeriodBrush({
             )}
             style={{
               left: 0,
-              width: `${activeWin.start * 100}%`,
+              width: `${activeCss.leftPct}%`,
             }}
           />
           <div
@@ -436,7 +478,7 @@ export function UnifiedTrendPeriodBrush({
               !draft && motionClass.farmChartBrushWindow,
             )}
             style={{
-              left: `${(activeWin.start + activeWin.width) * 100}%`,
+              left: `${activeCss.leftPct + activeCss.widthPct}%`,
               right: 0,
             }}
           />
@@ -445,8 +487,8 @@ export function UnifiedTrendPeriodBrush({
             <div
               className="pointer-events-none absolute inset-y-1 rounded-sm border border-dashed border-foreground/35 bg-foreground/5"
               style={{
-                left: `${draftWin.start * 100}%`,
-                width: `${draftWin.width * 100}%`,
+                left: `${draftCss?.leftPct ?? 0}%`,
+                width: `${draftCss?.widthPct ?? 0}%`,
               }}
               aria-hidden
             />
@@ -459,8 +501,8 @@ export function UnifiedTrendPeriodBrush({
               draft && resolvedDraft != null && "border-foreground/60",
             )}
             style={{
-              left: `${activeWin.start * 100}%`,
-              width: `${activeWin.width * 100}%`,
+              left: `${activeCss.leftPct}%`,
+              width: `${activeCss.widthPct}%`,
             }}
           >
             <span

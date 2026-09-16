@@ -64,7 +64,7 @@ function clone(q: string) {
 /** 2) soft home(로고·모니터링) — chart* 제거 · 그리드 홈 · 농장·기간 유지 */
 {
   const source = clone(
-    "lsind=FARM01&item=P00&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1&chartCtrl=x%2Fy&chartCmd=1",
+    "lsind=FARM01&item=P00&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1&chartCtrl=x%2Fy&chartCmd=1&chartW1=SP03%7C1%7Cx%2Fy",
   );
   assert.equal(isFarmMonitoringSoftHome(source), false);
 
@@ -79,6 +79,8 @@ function clone(q: string) {
   assert.equal(home.get("chartStall"), null);
   assert.equal(home.get("chartCtrl"), null);
   assert.equal(home.get("chartCmd"), null);
+  assert.equal(home.get("chartW1"), null);
+  assert.equal(home.get("chartW2"), null);
   assert.equal(resolveFarmHubView(home.get("view")), "map");
   assert.equal(resolveFarmChartScope(home).level, "farm");
   assert.equal(isFarmMonitoringSoftHome(home), true);

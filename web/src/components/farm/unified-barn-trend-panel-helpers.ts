@@ -1,10 +1,19 @@
 import { type BrushWindow } from "@/components/farm/unified-trend-period-brush";
-import type { AlarmThresholds } from "@/lib/data/alarms";
+import type { AlarmSettings, AlarmThresholds } from "@/lib/data/alarms";
+import type { BarnReading } from "@/lib/data/iot";
 import { snapToStep } from "@/lib/controllers/controller-panel-map";
 import {
   TREND_PERIODS,
+  isContextControllerTrend30d,
+  type TrendControllerPeriodData,
   type TrendControllerSeries,
+  type TrendPeriodId,
 } from "@/lib/data/farm-trend-types";
+import { envComfortScore } from "@/lib/farm/env-comfort-score";
+import {
+  findControllerTrendSeries,
+  resolveReadingAlarmThresholds,
+} from "@/lib/farm/controller-summary-display";
 import {
   applyUplinkCoverageToSeries,
   pickUplinkCoverageIndex,
@@ -175,4 +184,58 @@ export function clampAlarmDraft(
     }
   }
   return { tempLow, tempHigh, humidityLow, humidityHigh };
+}
+
+/** 30일 브러시 양호도 스파크 — 컨트롤러 실측 평균 */
+export function buildTrendBrushOverview(
+  controllers: { reading?: BarnReading | null }[],
+  controllerTrendByPeriod:
+    | Record<TrendPeriodId, TrendControllerPeriodData>
+    | null
+    | undefined,
+  alarmSettings?: AlarmSettings,
+): (number | null)[] {
+  if (!isContextControllerTrend30d(controllerTrendByPeriod?.["30d"])) {
+    return [];
+  }
+  const paired = controllers
+    .map((c) => {
+      const r = c.reading;
+      if (!r) return null;
+      const series = findControllerTrendSeries(
+        controllerTrendByPeriod,
+        "30d",
+        r.stallTyCode,
+        r.stallNo,
+        r.controllerKey,
+      );
+      if (!series) return null;
+      return {
+        series,
+        thresholds: resolveReadingAlarmThresholds(r, alarmSettings),
+      };
+    })
+    .filter((p): p is NonNullable<typeof p> => p != null);
+  if (!paired.length) return [];
+  const len = Math.max(
+    ...paired.map((p) =>
+      Math.max(p.series.temp?.length ?? 0, p.series.humidity?.length ?? 0),
+    ),
+  );
+  const out: (number | null)[] = [];
+  for (let i = 0; i < len; i++) {
+    const scores: number[] = [];
+    for (const p of paired) {
+      const s = envComfortScore(
+        p.series.temp?.[i],
+        p.series.humidity?.[i],
+        p.thresholds,
+      );
+      if (s != null) scores.push(s);
+    }
+    out.push(
+      scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
+    );
+  }
+  return out;
 }

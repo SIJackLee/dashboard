@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { PanelRight, PanelRightClose, X } from "lucide-react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
+import { buildTrendBrushOverview } from "@/components/farm/unified-barn-trend-panel-helpers";
+import {
+  BRUSH_PERIOD_WINDOW,
+  UnifiedTrendPeriodBrush,
+  type BrushWindow,
+} from "@/components/farm/unified-trend-period-brush";
 import { resolveThresholdsForScope } from "@/lib/data/alarm-scope";
 import {
   DEFAULT_ALARM_SETTINGS,
@@ -11,10 +17,11 @@ import {
 } from "@/lib/data/alarms";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { BarnReading } from "@/lib/data/iot";
-import type {
-  TrendControllerPeriodData,
-  TrendPeriodId,
-  TrendWindow15m,
+import {
+  isContextControllerTrend30d,
+  type TrendControllerPeriodData,
+  type TrendPeriodId,
+  type TrendWindow15m,
 } from "@/lib/data/farm-trend-types";
 import type { FarmKey } from "@/lib/data/farm-key";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
@@ -26,20 +33,27 @@ import {
   clampChartScopeToType,
   filterFarmChartTreeByType,
   filterReadingsByChartScope,
+  isFarmChartControllerScope,
+  parseChartWidgetDragPayload,
+  placeFarmChartWidget,
   scopesEqual,
+  CHART_WIDGET_DND_TYPE,
   type ChartTrendZoomHint,
+  type FarmChartControllerScope,
   type FarmChartScope,
+  type FarmChartWidgetSlotId,
+  type FarmChartWidgetSlots,
 } from "@/lib/farm/farm-chart-scope";
 import {
   coverageIndexesFromSnap,
   useFarmTrendUplinkCoverage,
 } from "@/lib/farm/use-farm-trend-uplink-coverage";
+import type { UplinkCoverageIndex } from "@/lib/farm/trend-uplink-coverage";
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { dashboardAffordance } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 import { StallUnitNoMark, ControllerNoMark } from "@/components/farm/controller-summary-parts";
-import type { ReactNode } from "react";
 
 type Props = {
   readings: BarnReading[];
@@ -67,10 +81,13 @@ type Props = {
   /** 컨트롤러 행 토글 — 명령 이력 전용 차트 */
   commandPaneOpen?: boolean;
   onCommandPaneChange?: (open: boolean) => void;
+  /** 왼쪽 위·아래 위젯 칸 (컨트롤러 단건). 임베드는 미사용 */
+  widgets?: FarmChartWidgetSlots;
+  onWidgetsChange?: (slots: FarmChartWidgetSlots) => void;
   alarmSettings?: AlarmSettings;
   /** LIVE/명령 반영 제어값 */
   thermoSettings?: Record<string, ControllerThermoSettings>;
-  //** 조회 전용이면 임계 가이드·설정모드 비활성 */
+  /** 조회 전용이면 온·습 상하한 숫자 편집 비활성 */
   canCommand?: boolean;
   isMobileStack?: boolean;
   /** 차트 탭 활성 — TopBar 레이어 툴바 enter/exit */
@@ -163,8 +180,9 @@ function expandedStallFromScope(
 }
 
 /**
- * 농장 보기 «차트» 탭 — 좌측 큰 통합 추이 + 우측 집계 범위 트리.
+ * 농장 보기 «차트» 탭 — 좌측 컨트롤러 위젯 두 칸 + 우측 집계 범위 트리.
  * 기본 집계: 선택 농장 전체. 유형 → 축사 → 컨트롤러 (URL chartSp/Stall/Ctrl).
+ * 위젯 칸은 chartW1/chartW2. 트리에서 컨트롤러를 끌어다 넣으면 단건 추이.
  */
 export function FarmChartView({
   readings,
@@ -184,6 +202,8 @@ export function FarmChartView({
   onZoomChange,
   commandPaneOpen = false,
   onCommandPaneChange,
+  widgets,
+  onWidgetsChange,
   alarmSettings,
   thermoSettings,
   canCommand = false,
@@ -338,6 +358,75 @@ export function FarmChartView({
     onCommandPaneChange?.(!commandPaneOpen);
   };
 
+  const widgetSlots: FarmChartWidgetSlots = widgets ?? { w1: null, w2: null };
+  const useSharedBrush = isContextControllerTrend30d(
+    controllerTrendByPeriod?.["30d"],
+  );
+  const [sharedBrushWindow, setSharedBrushWindow] = useState<BrushWindow>(
+    () => BRUSH_PERIOD_WINDOW[period],
+  );
+  const [sharedBrushPeriod, setSharedBrushPeriod] = useState(period);
+  if (period !== sharedBrushPeriod) {
+    setSharedBrushPeriod(period);
+    setSharedBrushWindow(BRUSH_PERIOD_WINDOW[period]);
+  }
+  const sharedBrushOverview = useMemo(
+    () =>
+      buildTrendBrushOverview(
+        readings.map((r) => ({ reading: r })),
+        controllerTrendByPeriod,
+        alarmSettings,
+      ),
+    [readings, controllerTrendByPeriod, alarmSettings],
+  );
+  const [dragOverSlot, setDragOverSlot] = useState<FarmChartWidgetSlotId | null>(
+    null,
+  );
+
+  const assignWidget = (
+    target: FarmChartWidgetSlotId,
+    ctrl: FarmChartControllerScope,
+  ) => {
+    onWidgetsChange?.(placeFarmChartWidget(widgetSlots, target, ctrl));
+    selectScope(ctrl);
+  };
+
+  const clearWidget = (target: FarmChartWidgetSlotId) => {
+    onWidgetsChange?.({ ...widgetSlots, [target]: null });
+  };
+
+  const onWidgetDragOver = (
+    e: DragEvent,
+    target: FarmChartWidgetSlotId,
+  ) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    if (dragOverSlot !== target) setDragOverSlot(target);
+  };
+
+  const onWidgetDrop = (e: DragEvent, target: FarmChartWidgetSlotId) => {
+    e.preventDefault();
+    setDragOverSlot(null);
+    const raw =
+      e.dataTransfer.getData(CHART_WIDGET_DND_TYPE) ||
+      e.dataTransfer.getData("text/plain");
+    const ctrl = parseChartWidgetDragPayload(raw);
+    if (!ctrl) return;
+    if (lockedTy && normalizeStallTyCode(ctrl.stallTyCode) !== lockedTy) {
+      return;
+    }
+    assignWidget(target, ctrl);
+  };
+
+  const placedSlotOf = (
+    scope: FarmChartScope,
+  ): FarmChartWidgetSlotId | null => {
+    if (!isFarmChartControllerScope(scope)) return null;
+    if (widgetSlots.w1 && scopesEqual(widgetSlots.w1, scope)) return "w1";
+    if (widgetSlots.w2 && scopesEqual(widgetSlots.w2, scope)) return "w2";
+    return null;
+  };
+
   const scopeTree = (
     <nav
       className="space-y-0.5"
@@ -446,6 +535,8 @@ export function FarmChartView({
                                   scopeTones.byCtrl.get(c.controllerKey) ?? null
                                 }
                                 touchFriendly={isMobileStack}
+                                dragPayload={ctrlScope}
+                                placedSlot={placedSlotOf(ctrlScope)}
                                 commandToggle={{
                                   pressed:
                                     commandPaneOpen &&
@@ -468,12 +559,17 @@ export function FarmChartView({
 
   return (
     <div
-      className={cn("relative min-h-0", className)}
+      className={cn(
+        "relative min-h-0",
+        !embed && "flex h-full min-h-0 flex-1 flex-col",
+        className,
+      )}
       data-tour-id="farm-chart-view"
     >
       <div
         className={cn(
           "grid min-h-0 grid-cols-1 gap-3 lg:items-stretch",
+          !embed && "min-h-0 flex-1 grid-rows-[minmax(0,1fr)]",
           "transition-[grid-template-columns] duration-motion-moderate ease-[var(--motion-ease-standard)]",
           embed
             ? scopeRailOpen
@@ -489,7 +585,14 @@ export function FarmChartView({
           isMobileStack ? undefined : scopeRailOpen ? "open" : "collapsed"
         }
       >
-        <div className="min-w-0 min-h-0">
+        <div
+          className={cn(
+            "min-w-0 min-h-0",
+            !embed && "flex h-full min-h-0 flex-1 flex-col",
+            !embed && !isMobileStack && "overflow-hidden",
+          )}
+        >
+          {embed ? (
           <UnifiedBarnTrendPanel
             label={label}
             controllers={controllers}
@@ -513,6 +616,7 @@ export function FarmChartView({
             canCommand={canCommand}
             isMobileStack={isMobileStack}
             chartHeight={chartHeight}
+            plotFill={false}
             layersToolbarActive={layersToolbarActive}
             mobileScopeHandle={
               isMobileStack
@@ -524,10 +628,139 @@ export function FarmChartView({
             }
             className="mt-0"
           />
+          ) : (
+            <div
+              className={cn(
+                "flex h-full min-h-0 flex-1 flex-col gap-2",
+                !isMobileStack && "overflow-hidden",
+              )}
+              data-tour-id="farm-chart-widget-stack"
+            >
+              {useSharedBrush ? (
+                <div
+                  className={cn(
+                    "flex shrink-0 items-stretch",
+                    !isMobileStack && "px-px",
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <UnifiedTrendPeriodBrush
+                      window={sharedBrushWindow}
+                      onWindowChange={setSharedBrushWindow}
+                      overviewValues={sharedBrushOverview}
+                      hoverPlacement="below"
+                      labelGutter={Boolean(isMobileStack)}
+                    />
+                  </div>
+                  {!isMobileStack ? (
+                    <div className={farmChartUi.yGutter} aria-hidden />
+                  ) : null}
+                </div>
+              ) : null}
+              <div
+                className={cn(
+                  "flex min-h-0 flex-1 flex-col gap-2",
+                  !isMobileStack && "overflow-hidden",
+                )}
+              >
+              <ChartWidgetSlot
+                slotId="w1"
+                slotLabel="위칸"
+                scope={widgetSlots.w1}
+                readings={readings}
+                dragOver={dragOverSlot === "w1"}
+                onDragOver={(e) => onWidgetDragOver(e, "w1")}
+                onDragLeave={() =>
+                  setDragOverSlot((cur) => (cur === "w1" ? null : cur))
+                }
+                onDrop={(e) => onWidgetDrop(e, "w1")}
+                onClear={() => clearWidget("w1")}
+                onAssign={(ctrl) => assignWidget("w1", ctrl)}
+                onEmptyActivate={() => {
+                  if (isFarmChartControllerScope(effectiveScope)) {
+                    assignWidget("w1", effectiveScope);
+                  }
+                }}
+                selectedScope={effectiveScope}
+                controllerTrendByPeriod={controllerTrendByPeriod}
+                trendLoading={trendLoading}
+                trendError={trendError}
+                trendExtending={trendExtending}
+                window15mLoading={window15mLoading}
+                window15m={window15m}
+                onNeedWindow15m={onNeedWindow15m}
+                uplinkCoverage={uplinkCoverage}
+                period={period}
+                hidePeriodBrush
+                brushWindow={sharedBrushWindow}
+                onBrushWindowChange={setSharedBrushWindow}
+                alarmSettings={alarmSettings}
+                thermoSettings={thermoSettings}
+                onScopeChange={selectScope}
+                initialZoom={initialZoom}
+                onZoomChange={onZoomChange}
+                commandPaneOpen={commandPaneOpen}
+                canCommand={canCommand}
+                isMobileStack={isMobileStack}
+                layersToolbarActive={layersToolbarActive}
+                mobileScopeHandle={
+                  isMobileStack
+                    ? {
+                        open: scopePanelOpen,
+                        onOpen: () => setScopePanelOpen(true),
+                      }
+                    : null
+                }
+              />
+              <ChartWidgetSlot
+                slotId="w2"
+                slotLabel="아래칸"
+                scope={widgetSlots.w2}
+                readings={readings}
+                dragOver={dragOverSlot === "w2"}
+                onDragOver={(e) => onWidgetDragOver(e, "w2")}
+                onDragLeave={() =>
+                  setDragOverSlot((cur) => (cur === "w2" ? null : cur))
+                }
+                onDrop={(e) => onWidgetDrop(e, "w2")}
+                onClear={() => clearWidget("w2")}
+                onAssign={(ctrl) => assignWidget("w2", ctrl)}
+                onEmptyActivate={() => {
+                  if (isFarmChartControllerScope(effectiveScope)) {
+                    assignWidget("w2", effectiveScope);
+                  }
+                }}
+                selectedScope={effectiveScope}
+                controllerTrendByPeriod={controllerTrendByPeriod}
+                trendLoading={trendLoading}
+                trendError={trendError}
+                trendExtending={trendExtending}
+                window15mLoading={window15mLoading}
+                window15m={window15m}
+                onNeedWindow15m={onNeedWindow15m}
+                uplinkCoverage={uplinkCoverage}
+                period={period}
+                hidePeriodBrush
+                brushWindow={sharedBrushWindow}
+                onBrushWindowChange={setSharedBrushWindow}
+                alarmSettings={alarmSettings}
+                thermoSettings={thermoSettings}
+                onScopeChange={selectScope}
+                initialZoom={initialZoom}
+                onZoomChange={onZoomChange}
+                commandPaneOpen={commandPaneOpen}
+                canCommand={canCommand}
+                isMobileStack={isMobileStack}
+                layersToolbarActive={layersToolbarActive}
+                mobileScopeHandle={null}
+              />
+              </div>
+            </div>
+          )}
         </div>
 
         {!isMobileStack ? (
-          <div className="min-w-0 overflow-hidden">
+          <div className="h-full min-h-0 min-w-0 overflow-hidden">
             <div
               className={cn(
                 "ml-auto transition-[width,max-width] duration-motion-moderate ease-[var(--motion-ease-standard)]",
@@ -540,8 +773,8 @@ export function FarmChartView({
             >
               <aside
                 className={cn(
-                  "flex w-full flex-col rounded-xl border bg-card",
-                  embed ? "max-h-full" : "lg:max-h-[min(70dvh,36rem)]",
+                  "flex h-full min-h-0 w-full flex-col rounded-xl border bg-card",
+                  embed ? "max-h-full" : "lg:max-h-none",
                   farmChartUi.root,
                   motionClass.farmChartPanelShell,
                 )}
@@ -558,14 +791,26 @@ export function FarmChartView({
                   )}
                 >
                   {scopeRailOpen ? (
+                    <div className="min-w-0 flex-1">
                     <p
                       className={cn(
-                        "min-w-0 flex-1 truncate font-semibold",
+                        "min-w-0 truncate font-semibold",
                         farmChartUi.fsLegend,
                       )}
                     >
                       집계 범위
                     </p>
+                    {!embed ? (
+                      <p
+                        className={cn(
+                          "truncate text-muted-foreground",
+                          farmChartUi.fsLegend,
+                        )}
+                      >
+                        컨트롤러를 왼쪽 칸으로 끌어다 놓으세요
+                      </p>
+                    ) : null}
+                    </div>
                   ) : null}
                   {scopeRailOpen ? (
                     <button
@@ -601,8 +846,8 @@ export function FarmChartView({
                   className={cn(
                     "overflow-hidden transition-[opacity,max-height] duration-motion-moderate ease-[var(--motion-ease-standard)]",
                     scopeRailOpen
-                      ? "max-h-[200rem] opacity-100 lg:overflow-y-auto"
-                      : "pointer-events-none max-h-0 opacity-0",
+                      ? "min-h-0 flex-1 opacity-100 lg:overflow-y-auto"
+                      : "pointer-events-none max-h-0 overflow-hidden opacity-0",
                   )}
                   aria-hidden={!scopeRailOpen}
                 >
@@ -676,6 +921,196 @@ export function FarmChartView({
   );
 }
 
+function ChartWidgetSlot({
+  slotId,
+  slotLabel,
+  scope,
+  readings,
+  dragOver,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onClear,
+  onAssign,
+  onEmptyActivate,
+  selectedScope,
+  controllerTrendByPeriod,
+  trendLoading,
+  trendError,
+  trendExtending,
+  window15mLoading,
+  window15m,
+  onNeedWindow15m,
+  uplinkCoverage,
+  period,
+  hidePeriodBrush = false,
+  brushWindow,
+  onBrushWindowChange,
+  alarmSettings,
+  thermoSettings,
+  onScopeChange,
+  initialZoom,
+  onZoomChange,
+  commandPaneOpen,
+  canCommand,
+  isMobileStack,
+  layersToolbarActive,
+  mobileScopeHandle,
+}: {
+  slotId: FarmChartWidgetSlotId;
+  slotLabel: string;
+  scope: FarmChartControllerScope | null;
+  readings: BarnReading[];
+  dragOver: boolean;
+  onDragOver: (e: DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: DragEvent) => void;
+  onClear: () => void;
+  onAssign: (ctrl: FarmChartControllerScope) => void;
+  onEmptyActivate: () => void;
+  selectedScope: FarmChartScope;
+  controllerTrendByPeriod?: Record<
+    TrendPeriodId,
+    TrendControllerPeriodData
+  > | null;
+  trendLoading?: boolean;
+  trendError?: boolean;
+  trendExtending?: boolean;
+  window15mLoading?: boolean;
+  window15m?: TrendWindow15m | null;
+  onNeedWindow15m?: (fromMs: number, toMs: number) => void;
+  uplinkCoverage: UplinkCoverageIndex[];
+  period: TrendPeriodId;
+  hidePeriodBrush?: boolean;
+  brushWindow?: BrushWindow;
+  onBrushWindowChange?: (window: BrushWindow) => void;
+  alarmSettings?: AlarmSettings;
+  thermoSettings?: Record<string, ControllerThermoSettings>;
+  onScopeChange?: (scope: FarmChartScope) => void;
+  initialZoom?: ChartTrendZoomHint | null;
+  onZoomChange?: (zoom: ChartTrendZoomHint | null) => void;
+  commandPaneOpen?: boolean;
+  canCommand?: boolean;
+  isMobileStack?: boolean;
+  layersToolbarActive?: boolean;
+  mobileScopeHandle?: {
+    open: boolean;
+    onOpen: () => void;
+  } | null;
+}) {
+  const scopedReadings = useMemo(
+    () => (scope ? filterReadingsByChartScope(readings, scope) : []),
+    [readings, scope],
+  );
+  const controllers = useMemo(
+    () =>
+      scopedReadings.map((r) => ({
+        key: r.controllerKey,
+        reading: r,
+      })),
+    [scopedReadings],
+  );
+  const label = scope ? chartScopeLabel(scope, readings) : slotLabel;
+  const selectedCtrlHint = isFarmChartControllerScope(selectedScope)
+    ? chartScopeLabel(selectedScope, readings)
+    : null;
+  const overlayOpen = Boolean(
+    commandPaneOpen && scope && scopesEqual(selectedScope, scope),
+  );
+
+  return (
+    <div
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card",
+        !isMobileStack && "basis-0",
+        farmChartUi.root,
+        motionClass.farmChartPanelShell,
+        dragOver && "border-channel-info/50 bg-channel-info/10",
+      )}
+      data-farm-chart-widget={slotId}
+      onDragOver={onDragOver}
+      onDragLeave={(e) => {
+        const next = e.relatedTarget as Node | null;
+        if (next && e.currentTarget.contains(next)) return;
+        onDragLeave();
+      }}
+      onDrop={onDrop}
+    >
+      {scope ? (
+        <UnifiedBarnTrendPanel
+          label={label}
+          controllers={controllers}
+          controllerTrendByPeriod={controllerTrendByPeriod}
+          trendLoading={trendLoading}
+          trendError={trendError}
+          trendExtending={trendExtending}
+          window15mLoading={window15mLoading}
+          window15m={window15m}
+          onNeedWindow15m={onNeedWindow15m}
+          uplinkCoverage={uplinkCoverage}
+          period={period}
+          alarmSettings={alarmSettings}
+          thermoSettings={thermoSettings}
+          chartScope={scope}
+          onScopeChange={(next) => {
+            if (isFarmChartControllerScope(next)) onAssign(next);
+            else onScopeChange?.(next);
+          }}
+          initialZoom={initialZoom}
+          onZoomChange={onZoomChange}
+          commandPaneOpen={overlayOpen}
+          canCommand={canCommand}
+          isMobileStack={isMobileStack}
+          plotFill
+          headingMode="widget"
+          hidePeriodBrush={hidePeriodBrush}
+          brushWindow={brushWindow}
+          onBrushWindowChange={onBrushWindowChange}
+          layersToolbarActive={layersToolbarActive}
+          mobileScopeHandle={mobileScopeHandle}
+          headerActions={
+            <button
+              type="button"
+              onClick={onClear}
+              className={cn(
+                "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground",
+                "hover:bg-muted/50 hover:text-foreground",
+                motionClass.microHover,
+              )}
+              aria-label={`${slotLabel}에서 빼기`}
+              title={`${slotLabel}에서 빼기`}
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          }
+          className="mt-0 h-full min-h-0 flex-1"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={onEmptyActivate}
+          className={cn(
+            "flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center gap-1 px-4 text-center",
+            farmChartUi.fsLegend,
+            "text-muted-foreground",
+            motionClass.microHover,
+          )}
+          aria-label={`${slotLabel}. 컨트롤러를 끌어다 놓으세요`}
+        >
+          <span className="font-medium text-foreground">{slotLabel}</span>
+          <span>
+            집계 범위에서 컨트롤러를 이 칸으로 끌어다 놓으면 그 컨트롤러의
+            추이만 봅니다.
+          </span>
+          {selectedCtrlHint ? (
+            <span>선택한 {selectedCtrlHint}를 넣으려면 이 칸을 누르세요.</span>
+          ) : null}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function ScopeRow({
   selected,
   onSelect,
@@ -689,6 +1124,8 @@ function ScopeRow({
   onToggleExpand,
   touchFriendly = false,
   commandToggle,
+  dragPayload,
+  placedSlot,
 }: {
   selected: boolean;
   onSelect: () => void;
@@ -706,6 +1143,8 @@ function ScopeRow({
     pressed: boolean;
     onToggle: () => void;
   };
+  dragPayload?: FarmChartControllerScope;
+  placedSlot?: FarmChartWidgetSlotId | null;
 }) {
   const toneLabel =
     tone === "guide"
@@ -716,10 +1155,23 @@ function ScopeRow({
   const labelText =
     nameForA11y ?? (typeof label === "string" ? label : undefined);
 
+  const startWidgetDrag = (e: DragEvent) => {
+    if (!dragPayload) return;
+    const json = JSON.stringify(dragPayload);
+    e.dataTransfer.setData(CHART_WIDGET_DND_TYPE, json);
+    e.dataTransfer.setData("text/plain", json);
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
   return (
     <div
-      className="flex items-center gap-0.5"
+      className={cn(
+        "flex items-center gap-0.5",
+        dragPayload && "cursor-grab",
+      )}
       style={{ paddingLeft: `${depth * 0.75}rem` }}
+      draggable={Boolean(dragPayload)}
+      onDragStart={startWidgetDrag}
     >
       {expandable ? (
         <button
@@ -747,6 +1199,8 @@ function ScopeRow({
       )}
       <button
         type="button"
+        draggable={Boolean(dragPayload)}
+        onDragStart={startWidgetDrag}
         onClick={onSelect}
         title={
           toneLabel && labelText
@@ -815,6 +1269,16 @@ function ScopeRow({
           </span>
         ) : null}
       </button>
+      {placedSlot ? (
+        <span
+          className={cn(
+            "shrink-0 text-muted-foreground",
+            farmChartUi.fsLegend,
+          )}
+        >
+          {placedSlot === "w1" ? "위칸" : "아래칸"}
+        </span>
+      ) : null}
       {commandToggle ? (
         <button
           type="button"

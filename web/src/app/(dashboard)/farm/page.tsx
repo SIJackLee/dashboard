@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/layout/page-shell";
 import { FarmDashboardShell } from "@/components/farm/farm-dashboard-shell";
 import { AdminHubControlView } from "@/components/farm/admin-hub-control-view";
@@ -152,8 +153,14 @@ export default async function FarmPage({
 
   const { scopedPanelData, thermoSettings, history } = panelBundle;
 
+  const fillChartViewport = params.view === "chart";
   const pageBody = (content: ReactNode) => (
-    <div className="space-y-4 md:space-y-5">
+    <div
+      className={cn(
+        "space-y-4 md:space-y-5",
+        fillChartViewport && "flex min-h-0 flex-1 flex-col overflow-hidden",
+      )}
+    >
       <Suspense fallback={<FarmContentSkeleton view={params.view} />}>
         {content}
       </Suspense>

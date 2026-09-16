@@ -21,8 +21,8 @@ export function tempTrendLeftDomain(
   return [thresholds.tempLow, thresholds.tempHigh];
 }
 
-/** 알람 상·하한 점선 — 채널 시리즈와 분리, status-warn만 */
-const ALARM_REF_COLOR = "var(--status-warn)";
+/** 알람 상·하한 — 채널 시리즈와 분리, status-warn만 */
+export const ALARM_REF_COLOR = "var(--status-warn)";
 
 export function tempTrendReferenceLines(
   thresholds: AlarmThresholds = DEFAULT_ALARM_THRESHOLDS

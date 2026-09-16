@@ -656,7 +656,7 @@ function TourOverlay({
         height: rect.height + HOLE_PAD * 2,
       }
     : null;
-  // 보조 타깃(설정모드 톱니 등)도 딤을 뚫어 밝게 표시
+  // 보조 타깃도 딤을 뚫어 밝게 표시
   const accentHole =
     holeReady && accentRect
       ? {

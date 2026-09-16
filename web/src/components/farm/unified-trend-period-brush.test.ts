@@ -3,6 +3,9 @@
  */
 import assert from "node:assert/strict";
 import {
+  brushPlotPad,
+  brushRatioFromTrackU,
+  brushWindowCssPct,
   BRUSH_MIN_WIDTH,
   BRUSH_PERIOD_WINDOW,
   brushWindowFromDraft,
@@ -74,6 +77,18 @@ import {
   assert.equal(BRUSH_PERIOD_WINDOW["30d"].start, 0);
   assert.equal(BRUSH_PERIOD_WINDOW["30d"].width, 1);
   assert.ok(BRUSH_PERIOD_WINDOW["7d"].start > 0.7);
+}
+
+{
+  const pad = brushPlotPad(false);
+  assert.ok(Math.abs(pad.padL - 0.06) < 1e-12);
+  assert.ok(Math.abs(pad.innerW - 0.88) < 1e-12);
+  assert.equal(brushRatioFromTrackU(0.06, false), 0);
+  assert.ok(Math.abs(brushRatioFromTrackU(0.5, false) - 0.5) < 1e-12);
+  assert.equal(brushRatioFromTrackU(0.94, false), 1);
+  const css = brushWindowCssPct({ start: 0, width: 1 }, false);
+  assert.ok(Math.abs(css.leftPct - 6) < 1e-9);
+  assert.ok(Math.abs(css.widthPct - 88) < 1e-9);
 }
 
 console.log("unified-trend-period-brush.test.ts: ok");

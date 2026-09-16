@@ -160,7 +160,7 @@ export type TrendScaleEdgeLabel = {
   lineStrokeWidth?: number;
   /** 미지정=점선, "" 또는 "solid"=실선 */
   lineDasharray?: string;
-  /** true면 본선 글로우와 같은 하이라이트 밑선 (온도 상·하한) */
+  /** true면 호버·드래그 때 블러 강조선 (온·습 알람 상·하한) */
   lineHighlight?: boolean;
   /**
    * 우측 라벨 레인 — outer=알람(바깥), inner=제어값(그래프에 가까운 쪽).
@@ -230,14 +230,16 @@ export type TrendEventMark = {
   hold?: TrendEventMarkHold;
 };
 
-/** 온도 본선 위 채널 명령 이력 (측정 Y · 토글) */
+/** 온도·모터 본선 위 채널 명령 이력 (측정 Y · 토글) */
 export type TrendCommandSettingSeg = {
   mark: TrendEventMark;
   x0Ms: number;
   x1Ms: number;
-  /** split-Y 플롯 좌표 (℃ 매핑 후). 축을 늘리지 않음 */
+  /** split-Y 플롯 좌표 (℃ 또는 환기% 매핑 후). 축을 늘리지 않음 */
   yLo: number;
   yHi: number;
+  /** 같은 명령이 온도·모터 밴드에 각각 그려질 때 구분 */
+  band?: "temp" | "motor";
 };
 
 export type TrendEventLane = {

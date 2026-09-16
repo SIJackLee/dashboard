@@ -26,6 +26,7 @@ import {
 } from "@/lib/farm/severity-score";
 import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { useClipPresence } from "@/lib/ui/use-clip-presence";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
@@ -273,6 +274,11 @@ type TrendChartProps = {
   /** 플롯 CSS 너비(px). 차트 탭 다운샘플 밀도용 */
   onPlotWidthChange?: (widthPx: number) => void;
   /**
+   * 부모 flex 높이를 플롯이 채움. `height`는 최솟값.
+   * 범례·시간축은 내용 높이, SVG만 남는 세로를 씀.
+   */
+  fillParent?: boolean;
+  /**
    * 데이터 밴드 아래 이벤트 행(명령 적중).
    * X는 추이 `xFor`와 같은 시각 축. height에 eventLaneHeight를 더해 전달.
    */
@@ -336,6 +342,7 @@ export function TrendChart({
   scaleEdgeApplyDisabled = false,
   overlayHoverMerge = false,
   onPlotWidthChange,
+  fillParent = false,
   eventLane = null,
   eventLaneHeight = 0,
   commandSettingSegs = [],
@@ -439,8 +446,7 @@ export function TrendChart({
     if (!el || typeof ResizeObserver === "undefined") return;
     let tid = 0;
     const apply = () => {
-      window.clearTimeout(tid);
-      tid = window.setTimeout(() => {
+      const run = () => {
         const rect = el.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
           setPlotPx((prev) =>
@@ -454,7 +460,13 @@ export function TrendChart({
             onPlotWidthChange?.(rect.width);
           }
         }
-      }, 100);
+      };
+      if (fillParent) {
+        run();
+        return;
+      }
+      window.clearTimeout(tid);
+      tid = window.setTimeout(run, 100);
     };
     apply();
     const ro = new ResizeObserver(apply);
@@ -463,7 +475,7 @@ export function TrendChart({
       window.clearTimeout(tid);
       ro.disconnect();
     };
-  }, [height, categories.length, series.length, onPlotWidthChange]);
+  }, [fillParent, height, categories.length, series.length, onPlotWidthChange]);
 
   const hasAny = trendChartHasRenderableContent({
     series,
@@ -478,7 +490,10 @@ export function TrendChart({
   );
 
   const axisH = 16;
-  const chartH = height - axisH;
+  const yLabelColumn = fillParent && !labelGutter;
+  const chartH = fillParent
+    ? Math.max(48, plotPx.h > 8 ? plotPx.h : 48)
+    : height - axisH;
   /** 원단위 Y축(C2) 또는 모바일 거터 */
   const showNativeLeftAxis = Boolean(leftUnit);
   const viewW = plotPx.w > 32 ? plotPx.w : VIEW_W_NORM;
@@ -1194,7 +1209,11 @@ export function TrendChart({
     if (arm && !edgeDragRef.current) {
       const dx = Math.abs(e.clientX - arm.x);
       const dy = Math.abs(e.clientY - arm.y);
-      if (dx >= SCALE_EDGE_LABEL_DRAG_PX || dy >= SCALE_EDGE_LABEL_DRAG_PX) {
+                    if (dx >= SCALE_EDGE_LABEL_DRAG_PX || dy >= SCALE_EDGE_LABEL_DRAG_PX) {
+        if (!onScaleEdgeDrag) {
+          labelDragArmRef.current = null;
+          return;
+        }
         scaleEdgeTapRef.current = null;
         labelDragArmRef.current = null;
         pinClickArmRef.current = null;
@@ -1554,7 +1573,7 @@ export function TrendChart({
       const key = `${axis}:${s.band.lo}:${s.band.hi}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const fillWindow = s.color === "var(--channel-hum)";
+      const fillWindow = false;
       out.push({ band: s.band, axis, color: s.color, fillWindow });
     }
     return out;
@@ -1754,13 +1773,20 @@ export function TrendChart({
       ref={chartRootRef}
       className={cn(
         "select-none",
-        showLegend || legendTrailing ? "space-y-1.5" : "space-y-1",
+        fillParent
+          ? "flex h-full min-h-0 flex-col gap-1.5"
+          : showLegend || legendTrailing
+            ? "space-y-1.5"
+            : "space-y-1",
       )}
       data-trend-chart-root=""
     >
       {showLegend || legendTrailing ? (
       <div
-        className="flex flex-wrap items-center gap-x-4 gap-y-1.5"
+        className={cn(
+          "flex flex-wrap items-center gap-x-4 gap-y-1.5",
+          fillParent && "shrink-0",
+        )}
         data-trend-chart-legend=""
       >
         {showLegend ? (() => {
@@ -2028,11 +2054,22 @@ export function TrendChart({
       </div>
       ) : null}
 
-      <div className="min-w-0">
+      <div
+        className={cn("min-w-0", fillParent && "flex min-h-0 flex-1 flex-col")}
+      >
+      <div
+        className={cn(
+          fillParent && "min-h-0 flex-1",
+          fillParent && yLabelColumn && "flex",
+          fillParent && !yLabelColumn && "relative",
+        )}
+      >
       <div
         ref={plotRef}
         className={cn(
           "relative touch-none select-none",
+          fillParent && yLabelColumn && "min-h-0 min-w-0 flex-1 overflow-visible",
+          fillParent && !yLabelColumn && "absolute inset-0",
           edgeDragId
             ? "cursor-ns-resize"
             : xScopeSelect
@@ -2043,6 +2080,7 @@ export function TrendChart({
         onMouseLeave={() => {
           if (xDraftRef.current != null || edgeDragRef.current != null) return;
           clearHover();
+          setHoveredEdgeId(null);
         }}
         onPointerDown={onPlotPointerDown}
         onPointerMove={onPlotPointerMove}
@@ -2055,7 +2093,7 @@ export function TrendChart({
         viewBox={`0 0 ${viewW} ${chartH}`}
         preserveAspectRatio="none"
         className="w-full select-none"
-        style={{ height: chartH }}
+        style={{ height: fillParent ? "100%" : chartH }}
         shapeRendering="geometricPrecision"
         role="img"
         aria-label="추이 차트"
@@ -2074,7 +2112,7 @@ export function TrendChart({
         <g
           key={`${plotEnterKey}:${scopeMotionKey}`}
           style={{
-            opacity: hoveredEdge ? 0.5 : 1,
+            opacity: 1,
             transition: "opacity 120ms linear",
           }}
           className={cn(
@@ -2104,6 +2142,7 @@ export function TrendChart({
           hoverIdx={hoverIdx}
           hoverSeries={hoverSeries}
           edgeDragId={edgeDragId}
+          hoveredEdgeId={hoveredEdgeId}
           glowFilterId={glowFilterId}
           showMarkers={showMarkers}
           markerRadiusPx={markerRadiusPx}
@@ -2610,7 +2649,9 @@ export function TrendChart({
                 !editing &&
                 "shadow-sm ring-1 ring-current/20",
               label.draggable && !editing
-                ? "pointer-events-auto cursor-ns-resize select-none"
+                ? onScaleEdgeDrag
+                  ? "pointer-events-auto cursor-ns-resize select-none"
+                  : "pointer-events-auto cursor-text select-none"
                 : "pointer-events-auto",
               "transition-opacity duration-motion-fast",
               hoveredEdgeId != null &&
@@ -2624,22 +2665,28 @@ export function TrendChart({
               /** 설정 수치 — 플롯 중앙 (leadingText 있으면 명칭+수치) */
               label.side === "center" &&
                 "left-1/2 z-[3] -translate-x-1/2 text-center",
-              /** 모바일 거터 — 우측 단일 열(큰 칩). PC는 기존 inner/outer 레인 */
+              /** 모바일 거터 — 우측 단일 열(큰 칩). PC 위젯은 플롯 밖 칸 */
+              label.side === "right" &&
+                yLabelColumn &&
+                "left-full ml-0.5 right-auto z-[3] text-left",
               label.side === "right" &&
                 labelGutter &&
                 "right-1 max-w-[6.5rem] text-center",
               label.side === "right" &&
                 !labelGutter &&
+                !yLabelColumn &&
                 label.labelLane === "inner" &&
                 !showActions &&
                 "right-11 text-center",
               label.side === "right" &&
                 !labelGutter &&
+                !yLabelColumn &&
                 label.labelLane === "inner" &&
                 showActions &&
                 "right-1 text-center",
               label.side === "right" &&
                 !labelGutter &&
+                !yLabelColumn &&
                 label.labelLane !== "inner" &&
                 "right-0.5 text-center",
               !editing && label.mark === "overline" && "border-t border-current pt-px",
@@ -2654,7 +2701,9 @@ export function TrendChart({
             style={{ top: `${label.topPct}%`, color: label.color }}
             title={
               label.draggable
-                ? `${label.title} · 드래그 조절 · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
+                ? onScaleEdgeDrag
+                  ? `${label.title} · 드래그 조절 · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
+                  : `${label.title} · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
                 : label.title
             }
             onPointerEnter={() => setHoveredEdgeId(label.id)}
@@ -3126,8 +3175,18 @@ export function TrendChart({
         </div>
       ) : null}
       </div>
+      {yLabelColumn ? (
+        <div className={farmChartUi.yGutter} aria-hidden />
+      ) : null}
+      </div>
 
-      <div className="relative overflow-visible border-t border-border">
+      <div
+        className={cn(
+          "relative shrink-0 overflow-visible border-t border-border",
+          yLabelColumn && "flex",
+        )}
+      >
+        <div className={cn(yLabelColumn && "relative min-w-0 flex-1")}>
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1]" aria-hidden>
           {axisMarks.minors.map((t) => (
             <span
@@ -3177,6 +3236,10 @@ export function TrendChart({
             ) : null,
           )}
         </div>
+        </div>
+        {yLabelColumn ? (
+          <div className={farmChartUi.yGutter} aria-hidden />
+        ) : null}
       </div>
       </div>
     </div>

@@ -2,6 +2,22 @@ import type { ChannelSlot } from "@/lib/data/iot-channel";
 
 export const COMMAND_HOLD_CHANNELS: readonly ChannelSlot[] = ["A", "B", "C"];
 
+/** 명령 이력 채널 표시. 기본은 전부 켬. */
+export type CommandChannelFlags = Record<ChannelSlot, boolean>;
+
+export const DEFAULT_COMMAND_CHANNEL_FLAGS: CommandChannelFlags = {
+  A: true,
+  B: true,
+  C: true,
+};
+
+export function toggleCommandChannelFlag(
+  prev: CommandChannelFlags,
+  channel: ChannelSlot,
+): CommandChannelFlags {
+  return { ...prev, [channel]: !prev[channel] };
+}
+
 /** 명령 레인 온도구간 축 (설정온도 0~30℃와 동일). 본선 측정 Y와 분리. */
 export const COMMAND_HOLD_TEMP_DOMAIN: readonly [number, number] = [0, 30];
 /** 명령 레인 환기구간 축 */
@@ -39,11 +55,11 @@ export const COMMAND_SETTING_DASH: Record<ChannelSlot, string | undefined> = {
   C: "6 2.2 1.3 2.2 1.3 2.2",
 };
 
-/** A·B만 창. 같은 투명도라서 겹친 구간은 합성으로 진해진다. */
+/** A·B·C 같은 투명 창. 겹친 구간은 합성으로 진해진다. 구분은 선 종류만. */
 export const COMMAND_SETTING_FILL_OPACITY: Record<ChannelSlot, number> = {
   A: 0.16,
   B: 0.16,
-  C: 0,
+  C: 0.16,
 };
 
 export const COMMAND_SETTING_LINE_OPACITY = 0.5;

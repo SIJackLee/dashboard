@@ -166,7 +166,7 @@ SELECT 계약: [`live-read-select.ts`](../src/lib/data/live-read-select.ts)
 | `trendPeriod` | 없음=7d · `24h|30d` |
 | `sp`, `mapLevel`, `stall` | 그리드 drill |
 | `listMode` | `controller|graph|settings` |
-| `chartSp`, `chartStall`, `chartCtrl`, … | 차트 drill |
+| `chartSp`, `chartStall`, `chartCtrl`, `chartW1`, `chartW2`, … | 차트 drill · 위젯 칸 |
 
 **Epoch:** `farmUrlEpoch` (shallow) · `hubUrlEpoch` (탭/농장) — **기간만 변경 시 hub epoch bump 금지**.
 

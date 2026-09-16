@@ -27,7 +27,25 @@ export type FarmChartScope =
       controllerKey: string;
     };
 
+export type FarmChartControllerScope = Extract<
+  FarmChartScope,
+  { level: "controller" }
+>;
+
+export type FarmChartWidgetSlotId = "w1" | "w2";
+
+export type FarmChartWidgetSlots = {
+  w1: FarmChartControllerScope | null;
+  w2: FarmChartControllerScope | null;
+};
+
 export const DEFAULT_FARM_CHART_SCOPE: FarmChartScope = { level: "farm" };
+
+export function isFarmChartControllerScope(
+  scope: FarmChartScope,
+): scope is FarmChartControllerScope {
+  return scope.level === "controller";
+}
 
 export type FarmChartTreeController = {
   controllerKey: string;
@@ -243,6 +261,12 @@ export const CHART_X0_PARAM = "chartX0";
 export const CHART_X1_PARAM = "chartX1";
 /** 컨트롤러 집계에서 명령 이력 전용 차트. `1`이면 켬 */
 export const CHART_CMD_PARAM = "chartCmd";
+/** 차트 위젯 칸 — 컨트롤러 단건 추이. `-`는 빈 칸(집계 딥링크 재시드 방지) */
+export const CHART_W1_PARAM = "chartW1";
+export const CHART_W2_PARAM = "chartW2";
+export const CHART_WIDGET_EMPTY = "-";
+/** 집계 트리 → 위젯 칸 HTML5 DnD */
+export const CHART_WIDGET_DND_TYPE = "application/x-farm-chart-widget";
 
 export type ChartYBandId =
   | "temp"
@@ -278,6 +302,98 @@ export function clearFarmChartZoomParams(params: URLSearchParams): void {
 
 export function clearFarmChartCmdParam(params: URLSearchParams): void {
   params.delete(CHART_CMD_PARAM);
+}
+
+export function clearFarmChartWidgetParams(params: URLSearchParams): void {
+  params.delete(CHART_W1_PARAM);
+  params.delete(CHART_W2_PARAM);
+}
+
+export function encodeChartWidgetSlot(
+  scope: FarmChartControllerScope,
+): string {
+  return [
+    normalizeStallTyCode(scope.stallTyCode),
+    scope.stallNo.trim(),
+    scope.controllerKey,
+  ].join("|");
+}
+
+export function parseChartWidgetSlot(
+  raw: string | null | undefined,
+): FarmChartControllerScope | null {
+  if (!raw?.trim() || raw.trim() === CHART_WIDGET_EMPTY) return null;
+  const decoded = safeDecodeCtrl(raw.trim());
+  const i1 = decoded.indexOf("|");
+  const i2 = decoded.indexOf("|", i1 + 1);
+  if (i1 < 0 || i2 < 0) return null;
+  const stallTyCode = normalizeStallTyCode(decoded.slice(0, i1));
+  const stallNo = decoded.slice(i1 + 1, i2).trim();
+  const controllerKey = decoded.slice(i2 + 1).trim();
+  if (!stallTyCode || !stallNo || !controllerKey) return null;
+  return { level: "controller", stallTyCode, stallNo, controllerKey };
+}
+
+/**
+ * URL → 위젯 두 칸.
+ * chartW*가 하나도 없고 집계가 컨트롤러면 위칸에 시드(필드「차트에서 보기」·옛 딥링크).
+ */
+export function resolveFarmChartWidgetSlots(
+  params: URLSearchParams,
+): FarmChartWidgetSlots {
+  const w1Raw = params.get(CHART_W1_PARAM);
+  const w2Raw = params.get(CHART_W2_PARAM);
+  const explicit = w1Raw != null || w2Raw != null;
+  let w1 = parseChartWidgetSlot(w1Raw);
+  let w2 = parseChartWidgetSlot(w2Raw);
+  if (!explicit) {
+    const scope = resolveFarmChartScope(params);
+    if (isFarmChartControllerScope(scope)) w1 = scope;
+  }
+  if (w1 && w2 && scopesEqual(w1, w2)) w2 = null;
+  return { w1, w2 };
+}
+
+export function applyFarmChartWidgetSlotParams(
+  params: URLSearchParams,
+  slots: FarmChartWidgetSlots,
+): void {
+  params.set(
+    CHART_W1_PARAM,
+    slots.w1 ? encodeChartWidgetSlot(slots.w1) : CHART_WIDGET_EMPTY,
+  );
+  params.set(
+    CHART_W2_PARAM,
+    slots.w2 ? encodeChartWidgetSlot(slots.w2) : CHART_WIDGET_EMPTY,
+  );
+}
+
+export function placeFarmChartWidget(
+  slots: FarmChartWidgetSlots,
+  target: FarmChartWidgetSlotId,
+  ctrl: FarmChartControllerScope,
+): FarmChartWidgetSlots {
+  const next: FarmChartWidgetSlots = { ...slots, [target]: ctrl };
+  const other: FarmChartWidgetSlotId = target === "w1" ? "w2" : "w1";
+  if (next[other] && scopesEqual(next[other]!, ctrl)) next[other] = null;
+  return next;
+}
+
+export function parseChartWidgetDragPayload(
+  raw: string | null | undefined,
+): FarmChartControllerScope | null {
+  if (!raw?.trim()) return null;
+  try {
+    const data = JSON.parse(raw) as Partial<FarmChartControllerScope>;
+    if (data.level !== "controller") return null;
+    const stallTyCode = normalizeStallTyCode(data.stallTyCode ?? "");
+    const stallNo = (data.stallNo ?? "").trim();
+    const controllerKey = (data.controllerKey ?? "").trim();
+    if (!stallTyCode || !stallNo || !controllerKey) return null;
+    return { level: "controller", stallTyCode, stallNo, controllerKey };
+  } catch {
+    return parseChartWidgetSlot(raw);
+  }
 }
 
 export function yBandsWithoutCommand(

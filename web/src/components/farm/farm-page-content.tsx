@@ -41,14 +41,18 @@ import {
 import {
   applyFarmChartCmdParam,
   applyFarmChartScopeParams,
+  applyFarmChartWidgetSlotParams,
   applyFarmChartZoomParams,
   clearFarmChartCmdParam,
   clearFarmChartZoomParams,
+  isFarmChartControllerScope,
   resolveFarmChartCmdParam,
   resolveFarmChartScope,
+  resolveFarmChartWidgetSlots,
   resolveFarmChartZoomHint,
   type ChartTrendZoomHint,
   type FarmChartScope,
+  type FarmChartWidgetSlots,
 } from "@/lib/farm/farm-chart-scope";
 import { isFarmHubPanelLiveActive } from "@/lib/farm/farm-hub-keepalive";
 import { useFarmHubViewShell } from "@/lib/farm/use-farm-hub-view-shell";
@@ -453,6 +457,10 @@ export function FarmPageContent({
     [shallowParams],
   );
   const chartCommandPaneOpen = resolveFarmChartCmdParam(shallowParams);
+  const chartWidgets = useMemo(
+    () => resolveFarmChartWidgetSlots(shallowParams),
+    [shallowParams],
+  );
 
   /** compact 차트는 하단 브러시 터치 확보 — 델린은 맵(및 데스크톱 차트)만 */
   const showDelinEnvBadge =
@@ -526,10 +534,20 @@ export function FarmPageContent({
           : sp
             ? { level: "sp", stallTyCode: sp }
             : { level: "farm" };
-      onChartScopeChange(scope);
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      applyFarmChartScopeParams(params, scope);
+      clearFarmChartZoomParams(params);
+      if (scope.level !== "controller") clearFarmChartCmdParam(params);
+      applyFarmChartWidgetSlotParams(params, {
+        w1: isFarmChartControllerScope(scope) ? scope : null,
+        w2: null,
+      });
+      pinFarmHubViewParam(params, "chart");
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
       setView("chart");
     },
-    [onChartScopeChange, setView],
+    [setUrlTick, setView],
   );
 
   const onChartZoomChange = useCallback(
@@ -549,6 +567,17 @@ export function FarmPageContent({
     (open: boolean) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
       applyFarmChartCmdParam(params, open);
+      pinFarmHubViewParam(params, "chart");
+      replaceFarmUrlShallow(params);
+      setUrlTick((n) => n + 1);
+    },
+    [setUrlTick],
+  );
+
+  const onChartWidgetsChange = useCallback(
+    (slots: FarmChartWidgetSlots) => {
+      const params = new URLSearchParams(currentFarmSearchParams().toString());
+      applyFarmChartWidgetSlotParams(params, slots);
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
@@ -768,9 +797,10 @@ export function FarmPageContent({
 
   return (
     <div
-      className={cn(
+        className={cn(
         embedInScopeHeader ? "space-y-3" : "space-y-4",
         "flex min-h-0 flex-1 flex-col",
+        view === "chart" && !viewportCompact && "overflow-hidden",
       )}
     >
       <FarmFeatureTour
@@ -787,7 +817,7 @@ export function FarmPageContent({
       <div
         className={cn(
           "relative min-h-0 overflow-hidden",
-          view === "model" && "flex min-h-0 flex-1 flex-col",
+          (view === "model" || view === "chart") && "flex min-h-0 flex-1 flex-col",
         )}
         data-farm-view-slot
       >
@@ -947,12 +977,15 @@ export function FarmPageContent({
 
         {chartEverOpened ? (
           <div
-            className={panelMotionClass("chart")}
+            className={cn(
+              panelMotionClass("chart"),
+              view === "chart" && "flex min-h-0 min-w-0 flex-1 flex-col",
+            )}
             aria-hidden={view !== "chart"}
             data-farm-view-panel="chart"
             data-farm-view-active={view === "chart"}
           >
-            <div className="relative min-h-0">
+            <div className="relative flex min-h-0 flex-1 flex-col">
               <FarmChartView
                 readings={readings}
                 farmKey={gridFarmKey}
@@ -971,6 +1004,8 @@ export function FarmPageContent({
                 onZoomChange={onChartZoomChange}
                 commandPaneOpen={chartCommandPaneOpen}
                 onCommandPaneChange={onChartCommandPaneChange}
+                widgets={chartWidgets}
+                onWidgetsChange={onChartWidgetsChange}
                 alarmSettings={alarmSettings}
                 thermoSettings={thermoSettings}
                 canCommand={controller?.canCommand ?? false}

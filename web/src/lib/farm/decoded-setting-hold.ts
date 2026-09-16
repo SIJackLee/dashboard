@@ -12,6 +12,26 @@ function ventLabel(lo: number | null, hi: number | null): string {
   return `${formatVentDisplay(lo).replace("%", "")}–${formatVentDisplay(hi)}`;
 }
 
+/** 매핑된 설정 창을 해당 밴드 안으로만 자른다. 축을 늘리지 않음. */
+export function clipCommandSettingY(
+  yLo: number | null,
+  yHi: number | null,
+  bandLo: number,
+  bandHi: number,
+): { yLo: number; yHi: number } | null {
+  if (yLo == null || yHi == null || !Number.isFinite(yLo) || !Number.isFinite(yHi)) {
+    return null;
+  }
+  const lo = Math.min(yLo, yHi);
+  const hi = Math.max(yLo, yHi);
+  const bLo = Math.min(bandLo, bandHi);
+  const bHi = Math.max(bandLo, bandHi);
+  const cLo = Math.max(lo, bLo);
+  const cHi = Math.min(hi, bHi);
+  if (!(cHi > cLo)) return null;
+  return { yLo: cLo, yHi: cHi };
+}
+
 /** decoded 유지 구간 → 호버 카드. 값은 RPC 설정(절대 ℃ 창). */
 export function decodedSettingHoldToEventMark(
   seg: DecodedSettingHoldSeg,

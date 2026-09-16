@@ -204,16 +204,6 @@ export function settleSelectorsForGridAction(
       return ['[data-tour-id="header-tools-panel"]'];
     case "close-header-tools":
       return ['[data-tour-id="header-tools"]'];
-    case "chart-enter-control":
-      return [
-        '[data-tour-id="chart-control-plot"][data-chart-mode="control"]',
-        '[data-tour-id="chart-control-mode"]',
-      ];
-    case "chart-exit-control":
-      return [
-        '[data-tour-id="unified-trend-period-brush"]',
-        '[data-tour-id="farm-chart-unified-trend"]',
-      ];
     case "field-mobile-sheet-controller":
       return [
         '[data-tour-id="controller-gauge-metrics"]',

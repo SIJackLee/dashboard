@@ -4,7 +4,7 @@
  *
  * 스코프:
  *   field(필드) — 병합 UI(좌 현황·우 목록) PC 1차 루트
- *   chart(차트) — 통합 추이 · 레이어 · 설정모드 · 구간/양호도
+ *   chart(차트) — 통합 추이 · 레이어 · 온·습 상하한 · 구간/양호도
  *   DELIN 뱃지는 필드·차트 투어에 포함 (전용 탭 없음)
  *
  * 큰 컨테이너는 hole로 쓰지 않음 — 개별 카드/툴바만 스포트라이트.
@@ -23,7 +23,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 28;
+export const TOUR_VERSION = 30;
 
 export type TourScrollPolicy =
   | "none"
@@ -360,15 +360,15 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "c-overview",
     scope: "chart",
-    selector: '[data-tour-id="farm-chart-unified-trend"]',
+    selector: '[data-tour-id="farm-chart-widget-stack"]',
     view: "chart",
     scrollPolicy: "anchor-top",
     title: "통합 추이",
-    body: "농장 전체의 온도·습도·모터 추이를 한 화면에서 봅니다.",
+    body: "왼쪽 두 칸에 컨트롤러를 올려 단건 추이를 비교합니다.",
     bullets: [
-      "오른쪽 집계 범위에서 축사·컨트롤러로 좁힐 수 있습니다",
-      "컨트롤러 행 오른쪽 명령으로 설정 이력을 온도 그래프에 겹칩니다",
-      "아래 구간 바로 기간과 관심 구간을 고릅니다",
+      "오른쪽 집계에서 컨트롤러를 칸으로 끌어다 놓습니다",
+      "컨트롤러 행 오른쪽 명령으로 설정 이력을 온도·모터 그래프에 겹칩니다",
+      "왼쪽 맨 위 기간 막대로 두 칸이 같은 구간을 봅니다",
     ],
   },
   {
@@ -388,19 +388,15 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "c-control",
     scope: "chart",
-    selector:
-      '[data-tour-id="chart-control-plot"][data-chart-mode="control"]',
-    accentSelector: '[data-tour-id="chart-control-mode"]',
+    selector: '[data-tour-id="chart-control-plot"]',
     view: "chart",
-    gridAction: "chart-enter-control",
     scrollPolicy: "fit-between",
-    title: "설정모드",
-    body: "톱니 설정모드를 켜면 차트에서 알람·설정온도·환기 가이드를 조정합니다.",
+    title: "온·습 상·하한",
+    body: "오른쪽 온도·습도 숫자를 더블클릭(모바일은 더블탭)하면 알람 상·하한을 바로 고칩니다.",
     skipIfMissing: true,
     bullets: [
-      "설정모드에서만 알람·제어 가이드선을 드래그해 값을 바꿉니다",
-      "선·칩의 적용으로 반영합니다(권한이 있을 때)",
-      "종료는 설정모드 버튼을 다시 누르거나 빈 플롯을 우클릭합니다",
+      "설정모드 없이 숫자만 입력합니다",
+      "컨트롤러 설정 명령은 목록 설정에서 보냅니다",
     ],
   },
   {
@@ -408,7 +404,6 @@ export const TOUR_STEPS: TourStepDef[] = [
     scope: "chart",
     selector: '[data-tour-id="unified-trend-period-brush"]',
     view: "chart",
-    gridAction: "chart-exit-control",
     scrollPolicy: "fit-between",
     title: "기간 · 구간 · 양호도",
     body: "아래 30일 바에서 드래그하면 그 구간이 차트에 그대로 열립니다. 탭은 지금 폭을 유지한 채 위치를 옮기고, 우클릭하면 30일 전체로 돌아갑니다. 옅은 점선은 양호도 75점 기준입니다.",

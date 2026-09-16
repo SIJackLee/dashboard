@@ -10,6 +10,8 @@ import {
   COMMAND_SETTING_DASH,
   COMMAND_SETTING_FILL_OPACITY,
   COMMAND_SETTING_STROKE,
+  DEFAULT_COMMAND_CHANNEL_FLAGS,
+  toggleCommandChannelFlag,
 } from "./command-hold-bands";
 
 assert.equal(commandHoldRowIndex("A"), 0);
@@ -82,9 +84,18 @@ assert.equal(COMMAND_SETTING_DASH.A, undefined);
 assert.equal(COMMAND_SETTING_DASH.B, "1.6 2.2");
 assert.ok((COMMAND_SETTING_DASH.C ?? "").split(" ").length >= 6);
 assert.equal(COMMAND_SETTING_FILL_OPACITY.A, COMMAND_SETTING_FILL_OPACITY.B);
-assert.equal(COMMAND_SETTING_FILL_OPACITY.C, 0);
+assert.equal(COMMAND_SETTING_FILL_OPACITY.C, COMMAND_SETTING_FILL_OPACITY.A);
 assert.equal(commandSettingHasWindow("A"), true);
 assert.equal(commandSettingHasWindow("B"), true);
-assert.equal(commandSettingHasWindow("C"), false);
+assert.equal(commandSettingHasWindow("C"), true);
+
+{
+  const offB = toggleCommandChannelFlag(DEFAULT_COMMAND_CHANNEL_FLAGS, "B");
+  assert.equal(offB.A, true);
+  assert.equal(offB.B, false);
+  assert.equal(offB.C, true);
+  const onB = toggleCommandChannelFlag(offB, "B");
+  assert.equal(onB.B, true);
+}
 
 console.log("command-hold-bands.test.ts: ok");

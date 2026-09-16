@@ -43,9 +43,10 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `alarm` | 알람 id | — | 딥링크 |
 | `chartSp` | 축사유형 코드 | — | 차트 집계 (유형). 맵 `sp`와 분리 |
 | `chartStall` | 축사번호 | — | 차트 집계 (축사). `chartSp` 필요 |
-| `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 (컨트롤러). `chartSp`+`chartStall` 필요 |
+| `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 트리 선택(컨트롤러). `chartSp`+`chartStall` 필요. 명령 이력 대상 |
+| `chartW1` / `chartW2` | `축사유형\|축사번호\|컨트롤러키` 또는 `-` | — | 차트 왼쪽 위·아래 위젯 칸. 컨트롤러 단건 추이. `-`는 빈 칸(집계 딥링크 재시드 방지). 없으면 `chartCtrl` 컨트롤러를 위칸에 시드 |
 | `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수). 레거시 `command`는 `chartCmd`로 해석 | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
-| `chartCmd` | `1` | — | 컨트롤러 집계에서 온도 본선 **명령 이력**(A/B 창·A/B/C 선). 집계 트리 컨트롤러 행 「명령」 토글 |
+| `chartCmd` | `1` | — | 컨트롤러 집계에서 온도·모터 본선 **명령 이력**(A/B/C 창·선). 집계 트리 컨트롤러 행 「명령」 토글 |
 | `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |
 | `planBldg` | 건물 id | — | 모델 포커스(건물). **3단계(배치) 이후.** 지금은 미사용 |
 | `planSp` | 축사유형 코드 | — | 모델 구역(유형). **3단계 이후.** 지금은 미사용 |

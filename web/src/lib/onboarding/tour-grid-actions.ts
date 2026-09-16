@@ -11,6 +11,4 @@ export type TourGridAction =
   /** 모바일 fieldMerge — 축사 시트 닫기 */
   | "field-mobile-sheet-close"
   | "open-header-tools"
-  | "close-header-tools"
-  | "chart-enter-control"
-  | "chart-exit-control";
+  | "close-header-tools";
