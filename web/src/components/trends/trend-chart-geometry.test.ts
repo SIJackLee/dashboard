@@ -10,6 +10,7 @@ import {
   finiteValues,
   mergeOverlappingTempHumEdgeLabels,
   nudgeEdgeLabelTops,
+  stackLeftAlarmBaselineLabels,
   PAD_BOTTOM,
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
@@ -175,6 +176,60 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   assert.equal(left.some((l) => l.id === "band-tick-motor-0"), true);
   assert.equal(right.some((l) => l.text === "27℃, 65%"), true);
   assert.equal(right.some((l) => l.title === "온도, 습도"), true);
+}
+
+{
+  const labels: EdgeBandLabel[] = [
+    {
+      id: "temp-farm-mid",
+      side: "left",
+      topPct: 40,
+      text: "17.5℃",
+      color: "#000",
+      title: "온도 알람 기준",
+    },
+    {
+      id: "hum-farm-mid",
+      side: "left",
+      topPct: 40.2,
+      text: "50%",
+      color: "#000",
+      title: "습도 알람 기준",
+    },
+    {
+      id: "temp-hi",
+      side: "right",
+      topPct: 20,
+      text: "20℃",
+      color: "#000",
+      title: "권장 온도 상한",
+    },
+    {
+      id: "hum-hi",
+      side: "right",
+      topPct: 20.4,
+      text: "60%",
+      color: "#000",
+      title: "권장 습도 상한",
+    },
+  ];
+  const merged = mergeOverlappingTempHumEdgeLabels(labels, 5.5);
+  const left = merged.filter((l) => l.side === "left");
+  const right = merged.filter((l) => l.side === "right");
+  assert.equal(left.length, 2);
+  assert.equal(left.some((l) => l.id === "temp-farm-mid" && l.text === "17.5℃"), true);
+  assert.equal(left.some((l) => l.id === "hum-farm-mid" && l.text === "50%"), true);
+  assert.equal(right.some((l) => l.text === "20℃, 60%"), true);
+  const stacked = stackLeftAlarmBaselineLabels(merged, 8.5);
+  const stackedLeft = stacked
+    .filter((l) => l.side === "left")
+    .sort((a, b) => a.topPct - b.topPct);
+  assert.equal(stackedLeft[0]?.id, "temp-farm-mid");
+  assert.equal(stackedLeft[1]?.id, "hum-farm-mid");
+  assert.ok(
+    stackedLeft[1]!.topPct - stackedLeft[0]!.topPct >= 8.5 - 1e-6,
+    "온·습 기준 세로 간격",
+  );
 }
 
 // buildLineSegments: null에서 세그먼트가 끊긴다.

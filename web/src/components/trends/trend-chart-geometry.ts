@@ -287,9 +287,63 @@ function edgeLabelTempHumKind(
   return null;
 }
 
+/** 왼쪽 알람 기준 — 오버레이에서 한 줄로 합치지 않고 세로로 쌓는다. */
+export function isStackedAlarmBaselineLabel(id: string): boolean {
+  return (
+    id.endsWith("-farm-mid") ||
+    id === "band-tick-temp-mid" ||
+    id === "band-tick-hum-mid"
+  );
+}
+
+const LEFT_BASELINE_STACK_ORDER = [
+  "temp-farm-mid",
+  "band-tick-temp-mid",
+  "hum-farm-mid",
+  "band-tick-hum-mid",
+] as const;
+
+/**
+ * 같은 높이의 왼쪽 온·습 기준을 온도→습도 순으로 세로 배치한다.
+ * 스택 중심은 원래 높이의 평균.
+ */
+export function stackLeftAlarmBaselineLabels(
+  labels: EdgeBandLabel[],
+  minGapPct: number,
+): EdgeBandLabel[] {
+  if (!(minGapPct > 0) || labels.length < 2) return labels;
+  const picked = labels
+    .map((label, index) => ({ label, index }))
+    .filter(
+      ({ label }) =>
+        label.side === "left" && isStackedAlarmBaselineLabel(label.id),
+    );
+  if (picked.length < 2) return labels;
+  const orderIndex = (id: string) => {
+    const i = LEFT_BASELINE_STACK_ORDER.indexOf(
+      id as (typeof LEFT_BASELINE_STACK_ORDER)[number],
+    );
+    return i < 0 ? LEFT_BASELINE_STACK_ORDER.length : i;
+  };
+  const sorted = [...picked].sort(
+    (a, b) => orderIndex(a.label.id) - orderIndex(b.label.id),
+  );
+  const mean =
+    sorted.reduce((sum, item) => sum + item.label.topPct, 0) / sorted.length;
+  const start = mean - ((sorted.length - 1) * minGapPct) / 2;
+  return labels.map((label, index) => {
+    const slot = sorted.findIndex((item) => item.index === index);
+    if (slot < 0) return label;
+    return {
+      ...label,
+      topPct: Math.min(96, Math.max(4, start + slot * minGapPct)),
+    };
+  });
+}
+
 /**
  * 같은 끝단에서 온도·습도 눈금/기준선이 겹치면 「28.0℃, 67%」로 합친다.
- * 모터 % 눈금은 건드리지 않는다. nudge보다 먼저 호출한다.
+ * 왼쪽 알람 기준·모터 % 눈금은 합치지 않는다. nudge보다 먼저 호출한다.
  */
 export function mergeOverlappingTempHumEdgeLabels(
   labels: EdgeBandLabel[],
@@ -300,8 +354,16 @@ export function mergeOverlappingTempHumEdgeLabels(
   for (const side of sides) {
     const list = labels.filter((l) => l.side === side);
     const used = new Set<string>();
-    const temps = list.filter((l) => edgeLabelTempHumKind(l.id) === "temp");
-    const hums = list.filter((l) => edgeLabelTempHumKind(l.id) === "hum");
+    const temps = list.filter(
+      (l) =>
+        edgeLabelTempHumKind(l.id) === "temp" &&
+        !isStackedAlarmBaselineLabel(l.id),
+    );
+    const hums = list.filter(
+      (l) =>
+        edgeLabelTempHumKind(l.id) === "hum" &&
+        !isStackedAlarmBaselineLabel(l.id),
+    );
     for (const temp of temps) {
       let best: EdgeBandLabel | null = null;
       let bestD = Infinity;

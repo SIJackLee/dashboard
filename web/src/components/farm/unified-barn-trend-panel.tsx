@@ -57,6 +57,8 @@ import {
   downsampleSeriesForChart,
   FARM_ALARM_RANGE_FILL,
   FARM_ALARM_RANGE_FILL_OPACITY,
+  FARM_ALARM_RANGE_HUM_OVERLAY_OPACITY,
+  FARM_ALARM_RANGE_TEMP_OVERLAY_OPACITY,
   farmAlarmMidValue,
   sliceControllerSeries,
 } from "@/components/farm/unified-barn-trend-panel-helpers";
@@ -1342,7 +1344,8 @@ export function UnifiedBarnTrendPanel({
     const mapHumLo = plotThresholds.humidityLow;
     const mapHumHi = plotThresholds.humidityHigh;
     const guideEditEnabled = alarmEditEnabled && !recommendBand;
-    const farmAlarmEditEnabled = alarmEditEnabled && Boolean(recommendBand);
+    const farmAlarmEditEnabled =
+      alarmEditEnabled && (Boolean(recommendBand) || Boolean(overlayAlign));
     const tempHiTitle = recommendBand ? "권장 온도 상한" : "온도 상한";
     const tempLoTitle = recommendBand ? "권장 온도 하한" : "온도 하한";
     const humHiTitle = recommendBand ? "권장 습도 상한" : "습도 상한";
@@ -1518,21 +1521,25 @@ export function UnifiedBarnTrendPanel({
         },
       );
     }
-    if (recommendBand && !overlayAlign) {
+    if (recommendBand) {
+      const tempFarmLayout = overlayAlign ? layout : tempMapLayout;
+      const tempFarmDomain = overlayAlign ? undefined : tempMapDomain;
       if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
         const tempFarmHiY = mapTempCToSplitY(
           mappingThresholds.tempHigh,
           mapLo,
           mapHi,
-          tempMapLayout,
-          tempMapDomain,
+          tempFarmLayout,
+          tempFarmDomain,
+          overlayAlign,
         );
         const tempFarmLoY = mapTempCToSplitY(
           mappingThresholds.tempLow,
           mapLo,
           mapHi,
-          tempMapLayout,
-          tempMapDomain,
+          tempFarmLayout,
+          tempFarmDomain,
+          overlayAlign,
         );
         const tempFarmMid = farmAlarmMidValue(
           mappingThresholds.tempLow,
@@ -1545,8 +1552,9 @@ export function UnifiedBarnTrendPanel({
               tempFarmMid,
               mapLo,
               mapHi,
-              tempMapLayout,
-              tempMapDomain,
+              tempFarmLayout,
+              tempFarmDomain,
+              overlayAlign,
             ),
             formatTrendBandEdge(tempFarmMid, "℃"),
             TREND_CHART_COLORS.temp,
@@ -1569,8 +1577,12 @@ export function UnifiedBarnTrendPanel({
             lo: tempFarmLoY,
             hi: tempFarmHiY,
             axis: "left",
-            color: FARM_ALARM_RANGE_FILL,
-            fillOpacity: FARM_ALARM_RANGE_FILL_OPACITY,
+            color: overlayAlign
+              ? TREND_CHART_COLORS.temp
+              : FARM_ALARM_RANGE_FILL,
+            fillOpacity: overlayAlign
+              ? FARM_ALARM_RANGE_TEMP_OVERLAY_OPACITY
+              : FARM_ALARM_RANGE_FILL_OPACITY,
           });
         }
       }
@@ -1578,17 +1590,20 @@ export function UnifiedBarnTrendPanel({
         scopeVisibility.showHum &&
         (layers.hum || layers.humDev || layers.humBand || layers.humEma)
       ) {
-        const humDomain = alarmEdgeDomain(
-          mapHumLo,
-          mapHumHi,
-          SPLIT_Y_HUM_EDGE_PAD_PCT,
-        );
+        const humDomain = overlayAlign
+          ? undefined
+          : alarmEdgeDomain(
+              mapHumLo,
+              mapHumHi,
+              SPLIT_Y_HUM_EDGE_PAD_PCT,
+            );
         const humFarmHiY = mapHumPctToSplitY(
           mappingThresholds.humidityHigh,
           mapHumLo,
           mapHumHi,
           layout,
           humDomain,
+          overlayAlign,
         );
         const humFarmLoY = mapHumPctToSplitY(
           mappingThresholds.humidityLow,
@@ -1596,6 +1611,7 @@ export function UnifiedBarnTrendPanel({
           mapHumHi,
           layout,
           humDomain,
+          overlayAlign,
         );
         const humFarmMid = farmAlarmMidValue(
           mappingThresholds.humidityLow,
@@ -1610,6 +1626,7 @@ export function UnifiedBarnTrendPanel({
               mapHumHi,
               layout,
               humDomain,
+              overlayAlign,
             ),
             formatTrendBandEdge(humFarmMid, "%"),
             TREND_CHART_COLORS.humidity,
@@ -1632,8 +1649,12 @@ export function UnifiedBarnTrendPanel({
             lo: humFarmLoY,
             hi: humFarmHiY,
             axis: "left",
-            color: FARM_ALARM_RANGE_FILL,
-            fillOpacity: FARM_ALARM_RANGE_FILL_OPACITY,
+            color: overlayAlign
+              ? TREND_CHART_COLORS.humidity
+              : FARM_ALARM_RANGE_FILL,
+            fillOpacity: overlayAlign
+              ? FARM_ALARM_RANGE_HUM_OVERLAY_OPACITY
+              : FARM_ALARM_RANGE_FILL_OPACITY,
           });
         }
       }

@@ -77,7 +77,108 @@ export function clipWipeClass(phase: ClipPhase): string | undefined {
   return undefined;
 }
 
-/** 모터 바·명령 점을 같은 시각으로 묶을 때 허용 가로 거리(viewBox). */
+export type ScaleEdgeHitGuide = {
+  id: string;
+  value: number;
+  axis?: "left" | "right";
+  draggable?: boolean;
+};
+
+/** 왼쪽/오른쪽 거터 칩 — 칩 높이(~27px)를 덮도록 플롯 선 hit보다 넓게 */
+export const SCALE_EDGE_GUTTER_HIT_PX = 28;
+
+export type ScaleEdgeGutterLabel = {
+  id: string;
+  side: "left" | "right" | "center" | "plotStart";
+  draggable?: boolean;
+  topPct: number;
+};
+
+export function isScaleEdgeMidId(id: string): boolean {
+  return id.endsWith("-mid");
+}
+
+function pickPreferredScaleEdgeHit<T extends { d: number; mid: boolean }>(
+  hits: T[],
+): T | null {
+  if (hits.length === 0) return null;
+  const mids = hits.filter((h) => h.mid);
+  const pool = mids.length > 0 ? mids : hits;
+  pool.sort((a, b) => a.d - b.d);
+  return pool[0] ?? null;
+}
+
+/**
+ * 스케일 끝단 히트. 기준(mid) 칩은 선이 없어도 잡고,
+ * hit 안에 중간값이 있으면 더 가까운 상·하한보다 중간값을 고른다.
+ */
+export function pickDraggableScaleEdgeHit(
+  guides: readonly ScaleEdgeHitGuide[],
+  screenY: number,
+  yFor: (value: number, axis: "left" | "right") => number,
+  chartH: number,
+  rectHeight: number,
+  hitPx: number,
+): { id: string; axis: "left" | "right"; value: number } | null {
+  if (!(rectHeight > 0) || !(chartH > 0) || !(hitPx > 0)) return null;
+  if (!Number.isFinite(screenY)) return null;
+  const hits: {
+    id: string;
+    axis: "left" | "right";
+    value: number;
+    d: number;
+    mid: boolean;
+  }[] = [];
+  for (const guide of guides) {
+    if (!guide.draggable) continue;
+    const axis = guide.axis ?? "left";
+    const y = yFor(guide.value, axis);
+    if (!Number.isFinite(y)) continue;
+    const d = Math.abs(screenY - (y / chartH) * rectHeight);
+    if (d > hitPx) continue;
+    hits.push({
+      id: guide.id,
+      axis,
+      value: guide.value,
+      d,
+      mid: isScaleEdgeMidId(guide.id),
+    });
+  }
+  const best = pickPreferredScaleEdgeHit(hits);
+  if (!best) return null;
+  return { id: best.id, axis: best.axis, value: best.value };
+}
+
+/**
+ * 거터 클릭 — 그 쪽(left/right) 칩만 본다.
+ * 왼쪽은 알람 기준(중간값), 오른쪽은 권장/상하한.
+ */
+export function pickGutterScaleEdgeId(
+  labels: readonly ScaleEdgeGutterLabel[],
+  side: "left" | "right",
+  clientY: number,
+  rectTop: number,
+  rectHeight: number,
+  hitPx: number,
+): string | null {
+  if (!(rectHeight > 0) || !(hitPx > 0) || !Number.isFinite(clientY)) {
+    return null;
+  }
+  const yPct = ((clientY - rectTop) / rectHeight) * 100;
+  const hitPct = (hitPx / rectHeight) * 100;
+  const hits: { id: string; d: number; mid: boolean }[] = [];
+  for (const label of labels) {
+    if (label.side !== side || !label.draggable) continue;
+    const d = Math.abs(label.topPct - yPct);
+    if (d > hitPct) continue;
+    hits.push({
+      id: label.id,
+      d,
+      mid: isScaleEdgeMidId(label.id),
+    });
+  }
+  return pickPreferredScaleEdgeHit(hits)?.id ?? null;
+}
 export function hoverPairSlotDx(innerW: number, n: number): number {
   if (!(innerW > 0)) return 0;
   if (n <= 1) return innerW;

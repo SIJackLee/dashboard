@@ -39,9 +39,12 @@ import {
 
 const TEMP_STEP = 0.1;
 
-/** 현장 알람 구간 — 기준±편차, 투명 정상색 띠만 */
+/** 현장 알람 구간 — 기준±편차, 투명 정상색 띠만(분리 보기) */
 export const FARM_ALARM_RANGE_FILL = "var(--status-ok)";
 export const FARM_ALARM_RANGE_FILL_OPACITY = 0.22;
+/** 오버레이 — 온·습 각자 채널색. 겹치면 source-over로 조금 더 진해진다. */
+export const FARM_ALARM_RANGE_TEMP_OVERLAY_OPACITY = 0.2;
+export const FARM_ALARM_RANGE_HUM_OVERLAY_OPACITY = 0.16;
 
 export function farmAlarmMidValue(lo: number, hi: number): number | null {
   if (!(Number.isFinite(lo) && Number.isFinite(hi))) return null;

@@ -80,6 +80,7 @@ import {
   finiteValues,
   mergeOverlappingTempHumEdgeLabels,
   nudgeEdgeLabelTops,
+  stackLeftAlarmBaselineLabels,
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
   tipPinId,
@@ -96,6 +97,9 @@ import {
   handleScaleEdgeDoubleTap,
   hoverPairSlotDx,
   nearestByXView,
+  pickDraggableScaleEdgeHit,
+  pickGutterScaleEdgeId,
+  SCALE_EDGE_GUTTER_HIT_PX,
   type PinnedTip,
 } from "./trend-chart-interaction";
 import { useTrendPinnedTips } from "./use-trend-pinned-tips";
@@ -343,12 +347,29 @@ function TrendYLabelChip({
 function TrendYGutterCaption({
   className,
   caption,
+  onScaleEdgeActivate,
 }: {
   className: string;
   caption?: string;
+  onScaleEdgeActivate?: (clientY: number, rect: DOMRect) => boolean;
 }) {
+  const activate = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onScaleEdgeActivate) return;
+    if (
+      onScaleEdgeActivate(e.clientY, e.currentTarget.getBoundingClientRect())
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
   return (
-    <div className={cn(className, "relative")} aria-hidden>
+    <div
+      className={cn(className, "relative z-[2]")}
+      aria-hidden
+      onClick={onScaleEdgeActivate ? activate : undefined}
+      onDoubleClick={onScaleEdgeActivate ? activate : undefined}
+      onContextMenu={onScaleEdgeActivate ? activate : undefined}
+    >
       {caption ? (
         <span className="pointer-events-none absolute inset-x-0 top-0.5 text-center farm-chart-fs-axis font-medium leading-none text-muted-foreground">
           {caption}
@@ -1180,23 +1201,14 @@ export function TrendChart({
     rect: DOMRect,
   ): { id: string; axis: TrendAxis; value: number } | null => {
     if (!onScaleEdgeDrag && !onScaleEdgeNumericCommit) return null;
-    if (rect.height <= 0) return null;
-    const yPx = clientY - rect.top;
-    let best: { id: string; axis: TrendAxis; value: number; d: number } | null =
-      null;
-    for (const guide of scaleEdgeLabels) {
-      if (!guide.draggable || !guide.showLine) continue;
-      const axis = guide.axis ?? "left";
-      const y = yFor(guide.value, axis);
-      if (!Number.isFinite(y)) continue;
-      const screenY = (y / chartH) * rect.height;
-      const d = Math.abs(yPx - screenY);
-      if (d > scaleEdgeHitPx) continue;
-      if (!best || d < best.d) {
-        best = { id: guide.id, axis, value: guide.value, d };
-      }
-    }
-    return best ? { id: best.id, axis: best.axis, value: best.value } : null;
+    return pickDraggableScaleEdgeHit(
+      scaleEdgeLabels,
+      clientY - rect.top,
+      yFor,
+      chartH,
+      rect.height,
+      scaleEdgeHitPx,
+    );
   };
 
   const emitScaleEdgeDrag = (
@@ -1776,7 +1788,10 @@ export function TrendChart({
       });
     }
     return nudgeEdgeLabelTops(
-      mergeOverlappingTempHumEdgeLabels(out, 5.5),
+      stackLeftAlarmBaselineLabels(
+        mergeOverlappingTempHumEdgeLabels(out, 5.5),
+        8.5,
+      ),
       5.5,
     );
     // yFor/chartH are stable for given domains+height
@@ -1804,6 +1819,23 @@ export function TrendChart({
     hoveredEdgeId != null
       ? (edgeBandLabels.find((l) => l.id === hoveredEdgeId) ?? null)
       : null;
+
+  const activateGutterScaleEdge = onScaleEdgeNumericCommit
+    ? (side: "left" | "right") =>
+        (clientY: number, rect: DOMRect) => {
+          const id = pickGutterScaleEdgeId(
+            edgeBandLabels,
+            side,
+            clientY,
+            rect.top,
+            rect.height,
+            Math.max(scaleEdgeHitPx, SCALE_EDGE_GUTTER_HIT_PX),
+          );
+          if (!id) return false;
+          beginScaleEdgeEdit(id);
+          return true;
+        }
+    : undefined;
 
   const edgeValueMaxCh = edgeBandLabels.reduce(
     (max, label) => Math.max(max, label.text.length),
@@ -2170,6 +2202,7 @@ export function TrendChart({
         <TrendYGutterCaption
           className={farmChartUi.yGutter}
           caption={yGutterStartCaption}
+          onScaleEdgeActivate={activateGutterScaleEdge?.("left")}
         />
       ) : null}
       <div
@@ -2827,7 +2860,7 @@ export function TrendChart({
               label.draggable
                 ? onScaleEdgeDrag
                   ? `${label.title} · 드래그 조절 · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
-                  : `${label.title} · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
+                  : `${label.title} · 클릭·더블클릭·우클릭으로 숫자 입력`
                 : label.title
             }
             onPointerEnter={() => setHoveredEdgeId(label.id)}
@@ -2838,10 +2871,11 @@ export function TrendChart({
               label.draggable && !editing
                 ? (e) => {
                     if (!isPrimaryPress(e) || !plotRef.current) return;
-                    e.preventDefault();
                     e.stopPropagation();
                     const guide = scaleEdgeLabels.find((g) => g.id === label.id);
                     if (!guide?.draggable) return;
+                    if (!onScaleEdgeDrag) return;
+                    e.preventDefault();
                     plotRef.current.setPointerCapture(e.pointerId);
                     labelDragArmRef.current = {
                       id: guide.id,
@@ -2854,6 +2888,15 @@ export function TrendChart({
                     };
                     clearHover();
                     setHoveredEdgeId(null);
+                  }
+                : undefined
+            }
+            onClick={
+              label.draggable && !editing && onScaleEdgeNumericCommit
+                ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    beginScaleEdgeEdit(label.id);
                   }
                 : undefined
             }
@@ -3267,6 +3310,7 @@ export function TrendChart({
         <TrendYGutterCaption
           className={farmChartUi.yGutterEnd}
           caption={yGutterEndCaption}
+          onScaleEdgeActivate={activateGutterScaleEdge?.("right")}
         />
       ) : null}
       </div>
