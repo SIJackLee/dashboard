@@ -18,7 +18,16 @@ import {
   paddedExtentDomain,
   fitTempDisplayDomain,
   mapTempCToSplitY,
+  mapHumPctToSplitY,
+  mapMotorPctToSplitY,
   tempDisplayDomainFromRaw,
+  buildSplitYBandScaleTicks,
+  OVERLAY_ALIGN_ANCHOR,
+  alarmEdgeDomain,
+  SPLIT_Y_TEMP_EDGE_PAD_C,
+  SPLIT_Y_TEMP_OVERFLOW_MIN_C,
+  tempBrokenAxisPlotZones,
+  unmapTempCFromSplitY,
 } from "./unified-barn-trend-series";
 import { emptyChannelThermo } from "./channel-thermo";
 
@@ -234,7 +243,16 @@ const layoutTempOnly = resolveSplitYLayout({
   assert.equal(raw!.thermoWindows!.c.loC[0], 27);
   const mapped = mapUnifiedBarnTrendRawToSplitY(raw!, layoutFull);
   assert.ok(mapped);
-  assert.ok(mapped.tempDomain[1] < 29, "설정 구간은 온도 Y 도메인에 넣지 않음");
+  const linearTemp = alarmEdgeDomain(
+    thresholds.tempLow,
+    thresholds.tempHigh,
+    SPLIT_Y_TEMP_EDGE_PAD_C,
+  );
+  assert.equal(mapped.tempDomain[0], linearTemp[0]);
+  assert.ok(
+    mapped.tempDomain[1] >= linearTemp[1] + SPLIT_Y_TEMP_OVERFLOW_MIN_C - 1e-6,
+    "설정 구간은 온도 Y 도메인에 넣지 않음 · 꺾인 축만 위칸",
+  );
   assert.equal(mapped!.available.thermo, false);
   assert.equal(mapped!.available.thermoMotor, false);
   const picked = pickUnifiedTrendLayers(mapped!, DEFAULT_UNIFIED_LAYERS);
@@ -276,10 +294,15 @@ const layoutTempOnly = resolveSplitYLayout({
   assert.ok(finite.length > 0);
   const lo = Math.min(...finite);
   const hi = Math.max(...finite);
-  assert.ok(lo > layoutFull.tempLo, "표시 최저는 밴드 바닥에 붙지 않음");
-  assert.ok(hi < layoutFull.tempHi, "표시 최고는 밴드 천장에 붙지 않음");
-  const alarmClamped = mapTempCToSplitY(28, 24, 27, layoutFull);
-  assert.equal(alarmClamped, layoutFull.tempHi);
+  assert.equal(lo, layoutFull.tempLo);
+  assert.ok(hi < layoutFull.tempHi);
+  const edge = alarmEdgeDomain(24, 27, SPLIT_Y_TEMP_EDGE_PAD_C);
+  const yAlarmLo = mapTempCToSplitY(24, 24, 27, layoutFull, edge);
+  const yAlarmHi = mapTempCToSplitY(27, 24, 27, layoutFull, edge);
+  assert.ok(yAlarmLo != null && yAlarmLo > layoutFull.tempLo);
+  assert.ok(yAlarmHi != null && yAlarmHi < layoutFull.tempHi);
+  assert.equal(mapTempCToSplitY(22, 24, 27, layoutFull, edge), layoutFull.tempLo);
+  assert.equal(mapTempCToSplitY(29, 24, 27, layoutFull, edge), layoutFull.tempHi);
   const fittedPeak = mapTempCToSplitY(
     28,
     24,
@@ -291,6 +314,135 @@ const layoutTempOnly = resolveSplitYLayout({
     fittedPeak != null && fittedPeak < layoutFull.tempHi,
     "표시 최댓값+여유면 최고점도 밴드 안에 남음",
   );
+}
+
+{
+  const ticks = buildSplitYBandScaleTicks({
+    layout: layoutFull,
+    showTemp: true,
+    showHum: true,
+    showMotors: true,
+    tempLow: 23,
+    tempHigh: 27,
+    humidityLow: 55,
+    humidityHigh: 65,
+  });
+  assert.equal(ticks.length, 3);
+  assert.equal(ticks.find((t) => t.id === "band-tick-temp-mid")?.value, 25);
+  assert.equal(ticks.find((t) => t.id === "band-tick-hum-mid")?.value, 60);
+  assert.equal(ticks.find((t) => t.id === "band-tick-motor-mid")?.value, 50);
+  const overlayTicks = buildSplitYBandScaleTicks({
+    layout: layoutFull,
+    showTemp: true,
+    showHum: true,
+    showMotors: true,
+    overlay: true,
+    tempLow: 23,
+    tempHigh: 27,
+    humidityLow: 55,
+    humidityHigh: 65,
+  });
+  assert.equal(overlayTicks.length, 0);
+
+  const overlayLayout = resolveSplitYLayout(
+    {
+      showTemp: true,
+      showHum: true,
+      showMotors: true,
+      showCommand: true,
+    },
+    true,
+  );
+  assert.equal(overlayLayout.tempLo, overlayLayout.humLo);
+  assert.equal(overlayLayout.tempHi, overlayLayout.humHi);
+  assert.equal(overlayLayout.motorLo, overlayLayout.humLo);
+  assert.ok(Math.abs(overlayLayout.tempLo) < 1e-6);
+  assert.ok(Math.abs(overlayLayout.tempHi - 100) < 1e-6);
+  const overlayOnTicks = buildSplitYBandScaleTicks({
+    layout: overlayLayout,
+    showTemp: true,
+    showHum: true,
+    showMotors: true,
+    overlay: true,
+    tempLow: 23,
+    tempHigh: 27,
+    humidityLow: 55,
+    humidityHigh: 65,
+  });
+  assert.equal(overlayOnTicks.length, 0);
+
+  const yTempHi = mapTempCToSplitY(
+    27,
+    23,
+    27,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+  );
+  const yHumHi = mapHumPctToSplitY(
+    65,
+    55,
+    65,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+  );
+  const yMotorHi = mapMotorPctToSplitY(100, overlayLayout, OVERLAY_ALIGN_ANCHOR);
+  const yTempLo = mapTempCToSplitY(
+    23,
+    23,
+    27,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+  );
+  const yHumLo = mapHumPctToSplitY(
+    55,
+    55,
+    65,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+  );
+  const yMotorLo = mapMotorPctToSplitY(0, overlayLayout, OVERLAY_ALIGN_ANCHOR);
+  assert.ok(yTempHi != null && yHumHi != null && yMotorHi != null);
+  assert.ok(Math.abs(yTempHi - yHumHi) < 1e-6);
+  assert.ok(Math.abs(yTempHi - yMotorHi) < 1e-6);
+  assert.ok(yTempLo != null && yHumLo != null && yMotorLo != null);
+  assert.ok(Math.abs(yTempLo - yHumLo) < 1e-6);
+  assert.ok(Math.abs(yTempLo - yMotorLo) < 1e-6);
+}
+
+{
+  const usable = 100 - 2 * SPLIT_Y_BAND_GAP;
+  assert.ok(Math.abs(layoutFull.motorHi - layoutFull.motorLo - usable / 6) < 1e-6);
+  assert.ok(Math.abs(layoutFull.humHi - layoutFull.humLo - usable / 3) < 1e-6);
+  assert.ok(Math.abs(layoutFull.tempHi - layoutFull.tempLo - usable / 2) < 1e-6);
+  const noMotor = resolveSplitYLayout({
+    showTemp: true,
+    showHum: true,
+    showMotors: false,
+    showCommand: true,
+  });
+  assert.ok(
+    Math.abs(noMotor.tempHi - noMotor.tempLo - (noMotor.humHi - noMotor.humLo)) <
+      1e-6,
+  );
+  assert.equal(tempBrokenAxisPlotZones(noMotor), null);
+}
+
+{
+  const domain: [number, number] = [13, 27];
+  const zones = tempBrokenAxisPlotZones(layoutFull);
+  assert.ok(zones);
+  const yMid = mapTempCToSplitY(17.5, 15, 20, layoutFull, domain);
+  const yHot = mapTempCToSplitY(24, 15, 20, layoutFull, domain);
+  const yEdge = mapTempCToSplitY(20, 15, 20, layoutFull, domain);
+  assert.ok(yMid != null && yMid >= zones.linear.lo && yMid <= zones.linear.hi);
+  assert.ok(yEdge != null && yEdge <= zones.linear.hi);
+  assert.ok(yHot != null && yHot >= zones.overflow.lo && yHot <= zones.overflow.hi);
+  const back = unmapTempCFromSplitY(yHot, 15, 20, layoutFull, domain);
+  assert.ok(back != null && Math.abs(back - 24) < 0.05);
 }
 
 console.log("unified-barn-trend-series-m1.test.ts: ok");

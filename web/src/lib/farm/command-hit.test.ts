@@ -317,10 +317,7 @@ function cmd(
 
 {
   const stats = commandHitStats(
-    [
-      { id: "a", at: "", x: 0.2, stage: "확인", target: "", setpoint: "", deviation: "", vent: "" },
-      { id: "b", at: "", x: 0.4, stage: "전송", target: "", setpoint: "", deviation: "", vent: "" },
-    ],
+    [{ stage: "확인" }, { stage: "전송" }],
     3,
   );
   assert.equal(stats.total, 2);

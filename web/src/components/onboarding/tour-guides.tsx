@@ -54,7 +54,7 @@ export function GaugeAnatomy({ compact = false }: GuideProps) {
               : "relative h-4 w-full overflow-hidden rounded-md border bg-muted/40"
           }
           role="img"
-          aria-label="게이지 예시 — 알람 하한~상한, 설정온도±편차, 현재값 마커"
+          aria-label="게이지 예시 — 알람 기준±편차, 설정온도±편차, 현재값 마커"
         >
           <div
             className="pointer-events-none absolute inset-y-0 z-[1] rounded-sm bg-[color-mix(in_oklch,var(--channel-temp)_34%,var(--mix-lift))] ring-1 ring-inset ring-[color-mix(in_oklch,var(--channel-temp)_58%,transparent)]"

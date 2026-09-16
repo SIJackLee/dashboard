@@ -173,6 +173,16 @@ export type TrendScaleEdgeLabel = {
   hideLabel?: boolean;
 };
 
+/** 플롯 안 투명 구간(현장 알람 범위 등). lo/hi는 스케일 가이드와 같은 차트 domain Y. */
+export type TrendRangeBand = {
+  id: string;
+  lo: number;
+  hi: number;
+  axis?: TrendAxis;
+  color: string;
+  fillOpacity?: number;
+};
+
 export type ScaleEdgeDragEvent = {
   id: string;
   /** 차트 domain Y (guide.value와 동일 공간) */

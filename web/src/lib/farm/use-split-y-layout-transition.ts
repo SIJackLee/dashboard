@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import {
   easeOutCubic,
+  isOverlayStagedLayoutTransition,
   lerpSplitYLayout,
+  lerpSplitYLayoutStaged,
   splitYLayoutsEqual,
   type SplitYLayout,
 } from "@/lib/farm/unified-barn-trend-series";
@@ -68,8 +70,20 @@ function lerpMotion(
   from: UnifiedChartBandMotion,
   to: UnifiedChartBandMotion,
   t: number,
+  staged: boolean,
 ): UnifiedChartBandMotion {
-  const u = easeOutCubic(Math.min(1, Math.max(0, t)));
+  const clamped = Math.min(1, Math.max(0, t));
+  if (staged) {
+    return {
+      layout: lerpSplitYLayoutStaged(from.layout, to.layout, clamped),
+      heights: lerpHeights(
+        from.heights,
+        to.heights,
+        easeOutCubic(clamped),
+      ),
+    };
+  }
+  const u = easeOutCubic(clamped);
   return {
     layout: lerpSplitYLayout(from.layout, to.layout, u),
     heights: lerpHeights(from.heights, to.heights, u),
@@ -79,6 +93,7 @@ function lerpMotion(
 /**
  * split-Y 밴드 + 플롯/명령 픽셀 높이를 **같은 시계·easing**으로 보간.
  * 레이어 on/off 시 그래프 간 속도 어긋남 방지.
+ * 오버레이(습도 슬롯 만남 → 위젯 높이 팽창)는 두 번의 `moderate` 단계.
  */
 export function useUnifiedChartBandTransition(
   targetLayout: SplitYLayout,
@@ -129,14 +144,19 @@ export function useUnifiedChartBandTransition(
       }
 
       const from = currentRef.current;
+      const staged = isOverlayStagedLayoutTransition(
+        from.layout,
+        nextTarget.layout,
+      );
+      const runMs = staged ? durationMs * 2 : durationMs;
       const started = performance.now();
       cancelAnimationFrame(rafRef.current);
 
       const tick = (now: number) => {
         if (cancelled) return;
-        const raw = (now - started) / durationMs;
+        const raw = (now - started) / runMs;
         const t = Math.min(1, Math.max(0, raw));
-        const eased = lerpMotion(from, nextTarget, t);
+        const eased = lerpMotion(from, nextTarget, t, staged);
         currentRef.current = eased;
         setCurrent(eased);
         if (t < 1) {

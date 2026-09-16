@@ -47,6 +47,7 @@ import type {
   TrendHistogram,
   TrendReferenceLine,
   TrendScaleEdgeLabel,
+  TrendRangeBand,
   ScaleEdgeDragEvent,
   ScaleEdgeNumericCommitEvent,
   TrendEventLane,
@@ -57,9 +58,15 @@ import {
   type HoverMetricGroup,
   formatTrendBandEdge,
   inferHoverMetricGroup,
+  isOverlayMergedHoverGroup,
   resolveBreachNavTarget,
+  TREND_Y_LABEL_CHIP_SAMPLE,
 } from "./trend-chart-format";
-import { TrendPointCardBody, TrendEventCardBody } from "./trend-hover-card";
+import {
+  OverlayMergedPointCards,
+  TrendPointCardBody,
+  TrendEventCardBody,
+} from "./trend-hover-card";
 import {
   PAD_TOP,
   PAD_BOTTOM,
@@ -71,6 +78,7 @@ import {
   computeTipPlacement,
   domainFor,
   finiteValues,
+  mergeOverlappingTempHumEdgeLabels,
   nudgeEdgeLabelTops,
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
@@ -119,6 +127,7 @@ export type {
   TrendHistogram,
   TrendReferenceLine,
   TrendScaleEdgeLabel,
+  TrendRangeBand,
   ScaleEdgeDragEvent,
   ScaleEdgeNumericCommitEvent,
   TrendEventLane,
@@ -138,12 +147,18 @@ type TrendChartProps = {
   rightDomain?: [number, number];
   /**
    * 좌측 원단위 Y 눈금.
-   * full=5단(기본) · ends=상·하한만 (현장 카드 미니차트)
+   * full=5단(기본) · thirds=밴드 위·가운데·아래(1안) · ends=상·하한만 (현장 카드)
    */
-  yAxisTicks?: "full" | "ends";
+  yAxisTicks?: "full" | "thirds" | "ends";
   referenceLines?: TrendReferenceLine[];
   /** 우측/좌측 스케일 상하한(원단위 텍스트). */
   scaleEdgeLabels?: TrendScaleEdgeLabel[];
+  /** 위젯 왼쪽 Y칸 상단 표기 (알람). */
+  yGutterStartCaption?: string;
+  /** 위젯 오른쪽 Y칸 상단 표기 (권장). */
+  yGutterEndCaption?: string;
+  /** 플롯 안 투명 구간(현장 알람 범위 등). */
+  rangeBands?: TrendRangeBand[];
   /** line 모드 — 시리즈 아래 면 채우기(클라우드·밴드). */
   envelopes?: TrendEnvelope[];
   /** line 모드 — MACD형 히스토그램 막대. */
@@ -269,7 +284,7 @@ type TrendChartProps = {
   onScaleEdgeRevert?: () => void;
   scaleEdgeApplyBusy?: boolean;
   scaleEdgeApplyDisabled?: boolean;
-  /** 오버레이(온도+모터 겹침): hover 카드에 온도·모터를 병합해 표시 */
+  /** 오버레이(온도·습도·모터 겹침): hover 카드에 세 지표를 병합해 표시 */
   overlayHoverMerge?: boolean;
   /** 플롯 CSS 너비(px). 차트 탭 다운샘플 밀도용 */
   onPlotWidthChange?: (widthPx: number) => void;
@@ -292,6 +307,57 @@ type TrendChartProps = {
 
 
 
+function TrendYLabelChip({
+  text,
+  className,
+  mark,
+}: {
+  text: string;
+  className?: string;
+  mark?: "overline" | "underline";
+}) {
+  const sizer =
+    text.length > TREND_Y_LABEL_CHIP_SAMPLE.length
+      ? text
+      : TREND_Y_LABEL_CHIP_SAMPLE;
+  return (
+    <span
+      className={cn(
+        "relative inline-flex items-center justify-center rounded-sm bg-background/85 px-0.5 leading-none tabular-nums",
+        "border-y border-transparent pt-px pb-px",
+        mark === "overline" && "border-t-current",
+        mark === "underline" && "border-b-current",
+        className,
+      )}
+    >
+      <span className="invisible whitespace-nowrap" aria-hidden>
+        {sizer}
+      </span>
+      <span className="absolute inset-0 flex items-center justify-center whitespace-nowrap">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function TrendYGutterCaption({
+  className,
+  caption,
+}: {
+  className: string;
+  caption?: string;
+}) {
+  return (
+    <div className={cn(className, "relative")} aria-hidden>
+      {caption ? (
+        <span className="pointer-events-none absolute inset-x-0 top-0.5 text-center farm-chart-fs-axis font-medium leading-none text-muted-foreground">
+          {caption}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function TrendChart({
   mode,
   categories,
@@ -304,6 +370,9 @@ export function TrendChart({
   yAxisTicks = "full",
   referenceLines = [],
   scaleEdgeLabels = [],
+  yGutterStartCaption,
+  yGutterEndCaption,
+  rangeBands = [],
   envelopes = [],
   histograms = [],
   emptyLabel = "데이터 없음",
@@ -530,7 +599,12 @@ export function TrendChart({
 
   const leftAxisTicks =
     showNativeLeftAxis && Number.isFinite(lMin) && Number.isFinite(lMax) && lMax > lMin
-      ? (yAxisTicks === "ends" ? [0, 1] : [0, 1, 2, 3, 4]).map((i, _, steps) => {
+      ? (yAxisTicks === "ends"
+          ? [0, 1]
+          : yAxisTicks === "thirds"
+            ? [0, 1, 2]
+            : [0, 1, 2, 3, 4]
+        ).map((i, _, steps) => {
           const denom = Math.max(1, steps.length - 1);
           const value = lMin + ((lMax - lMin) * i) / denom;
           const y = yFor(value, "left");
@@ -1105,7 +1179,8 @@ export function TrendChart({
     clientY: number,
     rect: DOMRect,
   ): { id: string; axis: TrendAxis; value: number } | null => {
-    if (!onScaleEdgeDrag || rect.height <= 0) return null;
+    if (!onScaleEdgeDrag && !onScaleEdgeNumericCommit) return null;
+    if (rect.height <= 0) return null;
     const yPx = clientY - rect.top;
     let best: { id: string; axis: TrendAxis; value: number; d: number } | null =
       null;
@@ -1185,7 +1260,8 @@ export function TrendChart({
       pointerId: e.pointerId,
     };
     /** 플롯 본문·명령 레인 모두 시간 줌 가능 — 알람선 전체폭 hit로 X스코프를 가로채지 않음.
-     *  알람 세로 조절은 우측 숫자 라벨 드래그 / 우클릭 숫자 입력.
+     *  알람 세로 조절은 좌·우측 숫자 라벨 더블클릭·우클릭 숫자 입력
+     *  (권장 띠가 있으면 좌측 현장 알람, 없으면 우측).
      *  명령 레인 유지띠 탭/드래그는 EventLaneHtmlOverlay가 처리. */
     if (xScopeSelect) onXScopePointerDown(e);
   };
@@ -1323,7 +1399,7 @@ export function TrendChart({
     plotEmptyTapRef.current = null;
 
     /**
-     * 오버레이(온도+모터 겹침): 온도·모터 어느 쪽을 클릭해도 한 핀으로 정규화
+     * 오버레이(온도·습도·모터 겹침): 어느 쪽을 클릭해도 한 핀으로 정규화
      * → 병합 카드 1개만 고정(중복 방지·토글 일관).
      */
     const hitGroup = hit.seriesKey
@@ -1339,7 +1415,7 @@ export function TrendChart({
     const mergePin =
       overlayHoverMerge &&
       !pinAsEvent &&
-      (hitGroup === "temp" || hitGroup === "motor");
+      isOverlayMergedHoverGroup(hitGroup);
     const pinSeriesKey = mergePin ? "온도" : hit.seriesKey;
     const id = pinAsEvent
       ? `event:${hit.eventMark!.id}`
@@ -1379,11 +1455,20 @@ export function TrendChart({
   };
 
   const onPlotDoubleClickHandler = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (!onPlotDoubleClick) return;
     if (plotTouchDoubleTapLockRef.current) return;
     if (edgeEdit || edgeDragRef.current || labelDragArmRef.current) return;
-    // 직전 포인터가 줌 드래그였으면 무시
     if (xScopeDraggingRef.current) return;
+    if (onScaleEdgeNumericCommit) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const hit = hitDraggableScaleEdge(e.clientY, rect);
+      if (hit) {
+        e.preventDefault();
+        e.stopPropagation();
+        beginScaleEdgeEdit(hit.id);
+        return;
+      }
+    }
+    if (!onPlotDoubleClick) return;
     e.preventDefault();
     onPlotDoubleClick();
   };
@@ -1566,6 +1651,8 @@ export function TrendChart({
       axis: TrendAxis;
       color?: string;
       fillWindow?: boolean;
+      fillOpacity?: number;
+      id?: string;
     }[] = [];
     for (const s of series) {
       if (!s.band) continue;
@@ -1576,8 +1663,18 @@ export function TrendChart({
       const fillWindow = false;
       out.push({ band: s.band, axis, color: s.color, fillWindow });
     }
+    for (const range of rangeBands) {
+      out.push({
+        id: range.id,
+        band: { lo: range.lo, hi: range.hi },
+        axis: range.axis ?? "left",
+        color: range.color,
+        fillWindow: true,
+        fillOpacity: range.fillOpacity,
+      });
+    }
     return out;
-  }, [series]);
+  }, [series, rangeBands]);
 
   /** referenceLines 중 알람 band 모서리와 중복되는 점선 제거. */
   const dedupedReferenceLines = useMemo(() => {
@@ -1617,7 +1714,8 @@ export function TrendChart({
       }
       return SEV_COLOR.warning;
     };
-    uniqueAlarmBands.forEach(({ band, axis }, idx) => {
+    uniqueAlarmBands.forEach(({ band, axis, fillWindow }, idx) => {
+      if (fillWindow) return;
       const unit = unitForAxis(axis);
       const side = sideForLimit(axis);
       const color = colorForLimit(axis);
@@ -1658,7 +1756,7 @@ export function TrendChart({
       });
     }
     for (const guide of scaleEdgeLabels) {
-      if (guide.hideLabel) continue;
+      if (guide.hideLabel && edgeEdit?.id !== guide.id) continue;
       const axis = guide.axis ?? "left";
       const y = yFor(guide.value, axis);
       if (!Number.isFinite(y)) continue;
@@ -1677,7 +1775,10 @@ export function TrendChart({
         showApplyActions: Boolean(guide.showApplyActions),
       });
     }
-    return nudgeEdgeLabelTops(out, 5.5);
+    return nudgeEdgeLabelTops(
+      mergeOverlappingTempHumEdgeLabels(out, 5.5),
+      5.5,
+    );
     // yFor/chartH are stable for given domains+height
     // eslint-disable-next-line react-hooks/exhaustive-deps -- yFor closes over domain/size
   }, [
@@ -1695,6 +1796,7 @@ export function TrendChart({
     rMin,
     rMax,
     innerH,
+    edgeEdit?.id,
   ]);
 
   /** hover 중인 스케일 칩(강조 대상). 없으면 dim 미적용 */
@@ -1705,7 +1807,7 @@ export function TrendChart({
 
   const edgeValueMaxCh = edgeBandLabels.reduce(
     (max, label) => Math.max(max, label.text.length),
-    1,
+    TREND_Y_LABEL_CHIP_SAMPLE.length,
   );
 
   if (!hasAny || n === 0) {
@@ -2059,11 +2161,17 @@ export function TrendChart({
       >
       <div
         className={cn(
-          fillParent && "min-h-0 flex-1",
+          fillParent && "min-h-0 flex-1 overflow-visible",
           fillParent && yLabelColumn && "flex",
           fillParent && !yLabelColumn && "relative",
         )}
       >
+      {yLabelColumn ? (
+        <TrendYGutterCaption
+          className={farmChartUi.yGutter}
+          caption={yGutterStartCaption}
+        />
+      ) : null}
       <div
         ref={plotRef}
         className={cn(
@@ -2594,13 +2702,24 @@ export function TrendChart({
         <span
           key={tick.id}
           className={cn(
-            "pointer-events-none absolute left-0.5 z-[1] -translate-y-1/2 rounded-sm bg-background/85 leading-none tabular-nums text-muted-foreground",
-            labelGutter ? "px-1 py-0.5 farm-chart-fs-legend font-medium" : "px-0.5 farm-chart-fs-axis",
+            "pointer-events-none absolute z-[1] -translate-y-1/2 leading-none text-muted-foreground",
+            yLabelColumn
+              ? cn("right-full left-auto", farmChartUi.yGutterLabel)
+              : "left-0.5",
+            !yLabelColumn &&
+              (labelGutter ? "farm-chart-fs-legend font-medium" : "farm-chart-fs-axis"),
           )}
           style={{ top: `${tick.topPct}%` }}
           aria-hidden
         >
-          {tick.text}
+          <TrendYLabelChip
+            text={tick.text}
+            className={
+              labelGutter && !yLabelColumn
+                ? "min-h-7 px-1.5 py-1 farm-chart-fs-legend font-medium"
+                : "farm-chart-fs-axis"
+            }
+          />
         </span>
       ))}
 
@@ -2627,21 +2746,22 @@ export function TrendChart({
           Boolean(label.showApplyActions) &&
           (onScaleEdgeApply != null || onScaleEdgeRevert != null);
         const valueText = (
-          <span
-            className="inline-block text-center tabular-nums"
-            style={{ minWidth: `${edgeValueMaxCh}ch` }}
-          >
-            {label.text}
-          </span>
+          <TrendYLabelChip
+            text={label.text}
+            mark={!editing ? label.mark : undefined}
+            className={
+              labelGutter
+                ? "min-h-7 px-1.5 py-1 text-xs font-semibold"
+                : "farm-chart-fs-axis"
+            }
+          />
         );
         return (
           <span
             key={label.id}
             className={cn(
-              "absolute z-[2] -translate-y-1/2 rounded-sm bg-background/85 leading-none tabular-nums",
-              labelGutter
-                ? "min-h-7 px-1.5 py-1 text-xs font-semibold"
-                : "px-0.5 farm-chart-fs-axis",
+              "absolute z-[2] -translate-y-1/2 leading-none tabular-nums",
+              labelGutter ? "text-xs font-semibold" : "farm-chart-fs-axis",
               showActions && "inline-flex items-center gap-0.5 pr-0",
               (editing || Boolean(label.leadingText)) &&
                 "inline-flex items-center gap-1 whitespace-nowrap",
@@ -2658,7 +2778,10 @@ export function TrendChart({
                 hoveredEdgeId !== label.id &&
                 "opacity-45",
               hoveredEdgeId === label.id && "z-[6] font-semibold",
-              label.side === "left" && "left-0.5 text-left",
+              label.side === "left" &&
+                yLabelColumn &&
+                cn("right-full left-auto", farmChartUi.yGutterLabel),
+              label.side === "left" && !yLabelColumn && "left-0.5 text-left",
               /** 설정 명칭 단독(레거시) — 수치 칩 바로 왼쪽 */
               label.side === "plotStart" &&
                 "left-1/2 z-[3] -translate-x-[calc(100%+0.35rem)] text-right font-medium",
@@ -2668,7 +2791,10 @@ export function TrendChart({
               /** 모바일 거터 — 우측 단일 열(큰 칩). PC 위젯은 플롯 밖 칸 */
               label.side === "right" &&
                 yLabelColumn &&
-                "left-full ml-0.5 right-auto z-[3] text-left",
+                cn(
+                  "left-full right-auto z-[3] whitespace-nowrap",
+                  farmChartUi.yGutterLabel,
+                ),
               label.side === "right" &&
                 labelGutter &&
                 "right-1 max-w-[6.5rem] text-center",
@@ -2689,8 +2815,6 @@ export function TrendChart({
                 !yLabelColumn &&
                 label.labelLane !== "inner" &&
                 "right-0.5 text-center",
-              !editing && label.mark === "overline" && "border-t border-current pt-px",
-              !editing && label.mark === "underline" && "border-b border-current pb-px",
               edgeDragId === label.id &&
                 (labelGutter ||
                 label.side === "center" ||
@@ -3009,34 +3133,19 @@ export function TrendChart({
                 {pin.eventMark ? (
                   <TrendEventCardBody mark={pin.eventMark} />
                 ) : overlayHoverMerge &&
-                  (inferHoverMetricGroup(pin.seriesKey) === "temp" ||
-                    inferHoverMetricGroup(pin.seriesKey) === "motor") ? (
-                  <>
-                    <TrendPointCardBody
-                      idx={pin.idx}
-                      seriesKey="온도"
-                      categories={categories}
-                      series={series}
-                      envelopes={envelopes}
-                      histograms={histograms}
-                      leftUnit={leftUnit}
-                      rightUnit={rightUnit}
-                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                    />
-                    <div className="my-1.5 border-t border-border/50" />
-                    <TrendPointCardBody
-                      idx={pin.idx}
-                      seriesKey="모터"
-                      categories={categories}
-                      series={series}
-                      envelopes={envelopes}
-                      histograms={histograms}
-                      leftUnit={leftUnit}
-                      rightUnit={rightUnit}
-                      hideTime
-                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                    />
-                  </>
+                  isOverlayMergedHoverGroup(
+                    inferHoverMetricGroup(pin.seriesKey),
+                  ) ? (
+                  <OverlayMergedPointCards
+                    idx={pin.idx}
+                    categories={categories}
+                    series={series}
+                    envelopes={envelopes}
+                    histograms={histograms}
+                    leftUnit={leftUnit}
+                    rightUnit={rightUnit}
+                    onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                  />
                 ) : (
                   <TrendPointCardBody
                     idx={pin.idx}
@@ -3087,8 +3196,9 @@ export function TrendChart({
               tipPinId(
                 hoverIdx,
                 overlayHoverMerge &&
-                  (inferHoverMetricGroup(hoverSeries) === "temp" ||
-                    inferHoverMetricGroup(hoverSeries) === "motor")
+                  isOverlayMergedHoverGroup(
+                    inferHoverMetricGroup(hoverSeries),
+                  )
                   ? "온도"
                   : hoverSeries,
               ),
@@ -3121,40 +3231,18 @@ export function TrendChart({
               const hg = hoverSeries
                 ? inferHoverMetricGroup(hoverSeries)
                 : null;
-              /**
-               * 오버레이(온도+모터 겹침): 겹치는 밴드 hover 시 두 카드를 병합.
-               * 온도/모터 그룹일 때만 — 습도 밴드는 단일 유지.
-               */
-              const merge =
-                overlayHoverMerge && (hg === "temp" || hg === "motor");
-              if (merge) {
+              if (overlayHoverMerge && isOverlayMergedHoverGroup(hg)) {
                 return (
-                  <>
-                    <TrendPointCardBody
-                      idx={hoverIdx ?? 0}
-                      seriesKey="온도"
-                      categories={categories}
-                      series={series}
-                      envelopes={envelopes}
-                      histograms={histograms}
-                      leftUnit={leftUnit}
-                      rightUnit={rightUnit}
-                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                    />
-                    <div className="my-1.5 border-t border-border/50" />
-                    <TrendPointCardBody
-                      idx={hoverIdx ?? 0}
-                      seriesKey="모터"
-                      categories={categories}
-                      series={series}
-                      envelopes={envelopes}
-                      histograms={histograms}
-                      leftUnit={leftUnit}
-                      rightUnit={rightUnit}
-                      hideTime
-                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                    />
-                  </>
+                  <OverlayMergedPointCards
+                    idx={hoverIdx ?? 0}
+                    categories={categories}
+                    series={series}
+                    envelopes={envelopes}
+                    histograms={histograms}
+                    leftUnit={leftUnit}
+                    rightUnit={rightUnit}
+                    onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                  />
                 );
               }
               return (
@@ -3176,7 +3264,10 @@ export function TrendChart({
       ) : null}
       </div>
       {yLabelColumn ? (
-        <div className={farmChartUi.yGutter} aria-hidden />
+        <TrendYGutterCaption
+          className={farmChartUi.yGutterEnd}
+          caption={yGutterEndCaption}
+        />
       ) : null}
       </div>
 
@@ -3186,6 +3277,9 @@ export function TrendChart({
           yLabelColumn && "flex",
         )}
       >
+        {yLabelColumn ? (
+          <div className={farmChartUi.yGutter} aria-hidden />
+        ) : null}
         <div className={cn(yLabelColumn && "relative min-w-0 flex-1")}>
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1]" aria-hidden>
           {axisMarks.minors.map((t) => (
@@ -3238,7 +3332,7 @@ export function TrendChart({
         </div>
         </div>
         {yLabelColumn ? (
-          <div className={farmChartUi.yGutter} aria-hidden />
+          <div className={farmChartUi.yGutterEnd} aria-hidden />
         ) : null}
       </div>
       </div>

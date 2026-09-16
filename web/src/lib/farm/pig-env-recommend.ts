@@ -99,6 +99,122 @@ const PIG_ENV_BAND_BY_TYPE: Record<string, Omit<PigEnvBand, "stallTyCode">> = {
   },
 };
 
+/** 국립축산과학원 성장단계 표 — 화면에는 label만. */
+export type PigEnvAgeStage = {
+  label: string;
+  tempMinC: number;
+  tempMaxC: number;
+  humidityMinPct: number;
+  humidityMaxPct: number;
+};
+
+const PIG_ENV_AGE_STAGE = {
+  newborn: {
+    label: "출생 직후",
+    tempMinC: 30,
+    tempMaxC: 35,
+    humidityMinPct: 60,
+    humidityMaxPct: 70,
+  },
+  week1: {
+    label: "1주일령",
+    tempMinC: 25,
+    tempMaxC: 30,
+    humidityMinPct: 60,
+    humidityMaxPct: 70,
+  },
+  preWean: {
+    label: "1주일~이유 전",
+    tempMinC: 25,
+    tempMaxC: 28,
+    humidityMinPct: 60,
+    humidityMaxPct: 80,
+  },
+  wean: {
+    label: "이유 시",
+    tempMinC: 20,
+    tempMaxC: 25,
+    humidityMinPct: 60,
+    humidityMaxPct: 80,
+  },
+  weanTo45: {
+    label: "이유~45kg",
+    tempMinC: 18,
+    tempMaxC: 22,
+    humidityMinPct: 50,
+    humidityMaxPct: 80,
+  },
+  growFinish: {
+    label: "45kg~성돈",
+    tempMinC: 15,
+    tempMaxC: 20,
+    humidityMinPct: 40,
+    humidityMaxPct: 60,
+  },
+  sowRoom: {
+    label: "모돈 실온",
+    tempMinC: 18,
+    tempMaxC: 21,
+    humidityMinPct: 50,
+    humidityMaxPct: 60,
+  },
+  pregnant: {
+    label: "임신돈",
+    tempMinC: 16,
+    tempMaxC: 21,
+    humidityMinPct: 50,
+    humidityMaxPct: 60,
+  },
+  boar: {
+    label: "종모돈",
+    tempMinC: 16,
+    tempMaxC: 21,
+    humidityMinPct: 50,
+    humidityMaxPct: 60,
+  },
+} as const satisfies Record<string, PigEnvAgeStage>;
+
+const PIG_ENV_AGE_BY_TYPE: Record<string, readonly (keyof typeof PIG_ENV_AGE_STAGE)[]> = {
+  SP01: ["pregnant"],
+  SP02: ["pregnant"],
+  SP03: ["sowRoom", "newborn", "week1", "preWean"],
+  SP04: ["wean", "weanTo45"],
+  SP05: ["weanTo45"],
+  SP06: ["growFinish"],
+  SP07: ["growFinish"],
+  SP08: ["growFinish"],
+  SP09: ["boar"],
+};
+
+export const PIG_ENV_AGE_PROMPT = "일령별 권장 온·습도도 알려드릴까요?";
+export const PIG_ENV_AGE_DECLINE = "축사유형 권장만 안내했습니다.";
+
+export function pigEnvAgeStagesForStallTy(
+  stallTyCode: string | null | undefined,
+): PigEnvAgeStage[] {
+  const code = normalizeStallTyCode(stallTyCode);
+  const keys = PIG_ENV_AGE_BY_TYPE[code];
+  if (!keys) return [];
+  return keys.map((k) => PIG_ENV_AGE_STAGE[k]);
+}
+
+export function pigEnvAgeAdviceLines(
+  stallTyCode: string | null | undefined,
+): string[] {
+  return pigEnvAgeStagesForStallTy(stallTyCode).map(
+    (s) =>
+      `${s.label} 온도 ${fmtTempSpoken(s.tempMinC)}~${fmtTempSpoken(s.tempMaxC)} · 습도 ${fmtPctSpoken(s.humidityMinPct)}~${fmtPctSpoken(s.humidityMaxPct)}`,
+  );
+}
+
+export function pigEnvAgeFollowupOpen(
+  tier: "ok" | "offband" | "offline" | "stale" | "alarm" | "none",
+  stallTyCode: string | null | undefined,
+): boolean {
+  if (tier !== "ok" && tier !== "offband") return false;
+  return pigEnvAgeStagesForStallTy(stallTyCode).length > 0;
+}
+
 export function pigEnvBandForStallTy(
   stallTyCode: string | null | undefined,
 ): PigEnvBand | null {
@@ -242,6 +358,17 @@ export function pigEnvFocusReadings<
   return readings.filter(
     (r) => normalizeStallTyCode(r.stallTyCode) === code,
   );
+}
+
+export function pigEnvAdviceStallTyCode(
+  readings: Pick<BarnReading, "stallTyCode" | "tempC" | "humidityPct" | "status">[],
+  stallTyCode?: string | null,
+): string | null {
+  const focus = pigEnvFocusReadings(readings, stallTyCode);
+  const worst = pigEnvWorstVerdict(pigEnvTypeVerdicts(focus));
+  if (worst) return worst.stallTyCode;
+  const code = normalizeStallTyCode(stallTyCode);
+  return code === "UNK" ? null : code;
 }
 
 export type PigEnvAdviceCopy = {

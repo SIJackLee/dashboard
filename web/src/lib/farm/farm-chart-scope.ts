@@ -379,6 +379,20 @@ export function placeFarmChartWidget(
   return next;
 }
 
+/**
+ * 위칸이 비면 위칸, 차 있으면 아래칸.
+ * 이미 들어 있는 컨트롤러면 칸을 바꾸지 않는다.
+ */
+export function placeFarmChartWidgetNext(
+  slots: FarmChartWidgetSlots,
+  ctrl: FarmChartControllerScope,
+): FarmChartWidgetSlots {
+  if (slots.w1 && scopesEqual(slots.w1, ctrl)) return slots;
+  if (slots.w2 && scopesEqual(slots.w2, ctrl)) return slots;
+  if (!slots.w1) return placeFarmChartWidget(slots, "w1", ctrl);
+  return placeFarmChartWidget(slots, "w2", ctrl);
+}
+
 export function parseChartWidgetDragPayload(
   raw: string | null | undefined,
 ): FarmChartControllerScope | null {

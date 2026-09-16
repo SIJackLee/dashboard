@@ -324,7 +324,7 @@ export function commandLiveConfirmed(
 }
 
 export function commandHitStats(
-  marks: CommandHitMark[],
+  marks: readonly Pick<CommandHitMark, "stage">[],
   hiddenCount = 0,
 ): CommandHitStats {
   const confirmed = marks.filter((mark) => mark.stage === "확인").length;

@@ -23,7 +23,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 30;
+export const TOUR_VERSION = 32;
 
 export type TourScrollPolicy =
   | "none"
@@ -280,15 +280,16 @@ export const TOUR_STEPS: TourStepDef[] = [
     mobileScrollPolicy: "fit-between",
     title: "차트에서 보기",
     body: "카드 헤더의 차트 아이콘을 누르면 해당 컨트롤러 이력을 차트 탭에서 확인합니다.",
-    mobileTitle: "차트에서 보기",
-    mobileBody: "카드 헤더의 차트 아이콘으로 이력 차트를 엽니다.",
+    mobileTitle: "차트로 옮기기",
+    mobileBody:
+      "설정 시트의 「차트로 옮기기」를 누르면 그 컨트롤러가 차트 위칸에 들어갑니다. 위칸이 이미 있으면 아래칸에 넣어 두 대를 비교합니다.",
     bullets: [
       "온도·습도·채널 추이는 차트 탭에서 확인",
       "기간·브러시로 원하는 구간을 자세히 탐색",
     ],
     mobileBullets: [
-      "이력은 차트 탭에서 확인",
-      "기간·브러시로 구간 탐색",
+      "첫 대는 위칸, 다음 대는 아래칸",
+      "두 칸으로 컨트롤러를 비교",
     ],
     mobileHideExtra: true,
     skipIfMissing: true,
@@ -311,11 +312,11 @@ export const TOUR_STEPS: TourStepDef[] = [
     mobileTitle: "설정",
     mobileBody: "시트 상단의 설정 탭에서 알람·설정온도·환기 범위를 조정합니다.",
     bullets: [
-      "알람 상·하한, 설정온도·편차, 환기 범위",
+      "알람 기준·편차, 설정온도·편차, 환기 범위",
       "값을 바꾼 뒤 적용은 화면의 적용 버튼으로",
     ],
     mobileBullets: [
-      "알람 상·하한 · 설정온도·편차 · 환기 범위",
+      "알람 기준·편차 · 설정온도·편차 · 환기 범위",
       "변경 후 적용 버튼으로 반영합니다",
     ],
     skipIfMissing: true,
@@ -328,10 +329,11 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     skipIfMissing: true,
     title: "DELIN",
-    body: "보고 있는 축사유형의 권장 온·습도를 알려 줍니다.",
+    body: "보고 있는 축사유형의 권장 온·습도를 알려 줍니다. 이어서 일령별 권장도 물을 수 있습니다.",
     bullets: [
       "우측 하단 뱃지 · 말풍선",
       "필드·차트·모델에서 동일합니다",
+      "일령 안내는 네·아니요로 이어갑니다",
     ],
   },
   {
@@ -383,6 +385,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     bullets: [
       "클릭할 때마다 기본보기(본선·산포) → 끔 순으로 바뀝니다",
       "지표를 하나만 켜면 축 눈금이 해당 단위로 맞춰집니다",
+      "오버레이로 온도·습도·모터를 한 칸에 겹쳐 봅니다",
     ],
   },
   {
@@ -392,7 +395,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     view: "chart",
     scrollPolicy: "fit-between",
     title: "온·습 상·하한",
-    body: "오른쪽 온도·습도 숫자를 더블클릭(모바일은 더블탭)하면 알람 상·하한을 바로 고칩니다.",
+    body: "왼쪽 온도·습도 숫자를 더블클릭(모바일은 더블탭)하거나 우클릭하면 알람 상·하한을 바로 고칩니다. 오른쪽 숫자는 축사유형 권장이며 고치지 않습니다.",
     skipIfMissing: true,
     bullets: [
       "설정모드 없이 숫자만 입력합니다",
@@ -406,13 +409,13 @@ export const TOUR_STEPS: TourStepDef[] = [
     view: "chart",
     scrollPolicy: "fit-between",
     title: "기간 · 구간 · 양호도",
-    body: "아래 30일 바에서 드래그하면 그 구간이 차트에 그대로 열립니다. 탭은 지금 폭을 유지한 채 위치를 옮기고, 우클릭하면 30일 전체로 돌아갑니다. 옅은 점선은 양호도 75점 기준입니다.",
+    body: "왼쪽 맨 위 30일 바에서 드래그하면 그 구간이 차트에 그대로 열립니다. 칸이 하나면 그 컨트롤러 양호도이고, 두 칸이면 위칸·아래칸 양호도를 나란히 봅니다. 탭은 지금 폭을 유지한 채 위치를 옮기고, 우클릭하면 30일 전체로 돌아갑니다.",
     skipIfMissing: true,
     bullets: [
       "드래그 — 보고 싶은 구간을 직접 고름 (24/7/30으로 접지 않음)",
       "탭 — 같은 폭으로 위치만 이동",
       "우클릭 — 30일 전체",
-      "옅은 점선 — 양호도 75점 기준. 숫자는 호버 카드",
+      "한 칸 — 양호도 막대 · 점선은 75점. 두 칸 — 위칸·아래칸을 나란히",
     ],
   },
   {
@@ -423,10 +426,11 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     skipIfMissing: true,
     title: "DELIN",
-    body: "지금 집계 중인 축사유형의 권장 온·습도를 알려 줍니다.",
+    body: "지금 집계 중인 축사유형의 권장 온·습도를 알려 줍니다. 이어서 일령별 권장도 물을 수 있습니다.",
     bullets: [
       "우측 하단 뱃지 · 말풍선",
       "유형을 바꾸면 권장도 따라갑니다",
+      "일령 안내는 네·아니요로 이어갑니다",
     ],
   },
 ];

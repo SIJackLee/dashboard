@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
   comfortScoreBandLabel,
@@ -25,6 +25,34 @@ export const BRUSH_PERIOD_WINDOW: Record<
 const BRUSH_VIEW_H = 88;
 const BRUSH_BASELINE = 82;
 const BRUSH_MAX_BAR = 70;
+
+export type BrushOverviewMode = "comfort" | "dual";
+
+export function brushOverviewBarRect(value: number): { y: number; height: number } {
+  const score = Math.max(0, Math.min(100, value));
+  const height = Math.max(3, (score / 100) * BRUSH_MAX_BAR);
+  return { y: BRUSH_BASELINE - height, height };
+}
+
+/** 이중 막대 — 같은 시각 칸을 위칸(왼쪽)·아래칸(오른쪽)으로 나눈다. */
+export function brushGroupedBarSlot(
+  index: number,
+  count: number,
+  padL: number,
+  innerW: number,
+): { a: { x: number; width: number }; b: { x: number; width: number } } {
+  const n = Math.max(1, count);
+  const slotW = (innerW * 100) / n;
+  const outerGap = Math.min(0.22, slotW * 0.14);
+  const pairGap = Math.min(0.14, slotW * 0.1);
+  const inner = Math.max(0.5, slotW - outerGap);
+  const barW = Math.max(0.26, (inner - pairGap) / 2);
+  const x0 = (padL + (index / n) * innerW) * 100;
+  return {
+    a: { x: x0, width: barW },
+    b: { x: x0 + barW + pairGap, width: barW },
+  };
+}
 
 /** 드래그 없이 탭으로 판정하는 최대 폭(비율) */
 const BRUSH_CLICK_SPAN = 0.02;
@@ -153,9 +181,51 @@ function brushTimeHint(index: number, count: number): string {
   return `약 ${daysAgo}일 전`;
 }
 
+function BrushScoreHoverBlock({
+  label,
+  score,
+  color,
+  band,
+}: {
+  label?: string;
+  score: number;
+  color: string;
+  band: string;
+}) {
+  return (
+    <div>
+      {label ? (
+        <p className="farm-chart-fs-legend font-medium text-muted-foreground">
+          {label}
+        </p>
+      ) : null}
+      <div className={cn(label ? "mt-0.5" : null, "flex items-baseline gap-1.5")}>
+        <span
+          className="text-xl font-bold tabular-nums leading-none tracking-tight"
+          style={{ color }}
+        >
+          {Math.round(score)}
+        </span>
+        <span className="farm-chart-fs-legend text-muted-foreground">/ 100</span>
+      </div>
+      <div className="mt-1 flex items-center gap-1.5">
+        <span
+          className="size-2 shrink-0 rounded-sm"
+          style={{ background: color }}
+          aria-hidden
+        />
+        <span className="farm-chart-fs-meta font-semibold text-foreground">
+          {band}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 type HoverBar = {
   index: number;
-  score: number;
+  score: number | null;
+  score2: number | null;
   /** 0~1 — 카드 가로 위치 */
   ratio: number;
 };
@@ -163,8 +233,11 @@ type HoverBar = {
 type Props = {
   window: BrushWindow;
   onWindowChange: (next: BrushWindow) => void;
-  /** 30d 환경 양호도 점수(0~100) */
+  /** 30일 환경 양호도(0~100). 한 칸 또는 위칸 */
   overviewValues?: (number | null)[];
+  /** 두 칸일 때 아래칸 양호도 */
+  overviewSecondaryValues?: (number | null)[] | null;
+  overviewMode?: BrushOverviewMode;
   /** 차트 X 스코프 — 브러시 선택창 동기화 */
   xScope?: { start: number; end: number } | null;
   /** 현재 기간 차트 포인트 수 (스코프 인덱스 기준) */
@@ -184,6 +257,8 @@ export function UnifiedTrendPeriodBrush({
   window: winProp,
   onWindowChange,
   overviewValues = [],
+  overviewSecondaryValues = null,
+  overviewMode = "comfort",
   xScope = null,
   chartPointCount = 0,
   hoverPlacement = "above",
@@ -200,6 +275,12 @@ export function UnifiedTrendPeriodBrush({
     if (overviewValues.length <= 96) return overviewValues;
     return downsampleTrendValues(overviewValues, 96);
   }, [overviewValues]);
+  const spark2 = useMemo(() => {
+    if (overviewMode !== "dual" || overviewSecondaryValues == null) return [];
+    if (overviewSecondaryValues.length <= 96) return overviewSecondaryValues;
+    return downsampleTrendValues(overviewSecondaryValues, 96);
+  }, [overviewMode, overviewSecondaryValues]);
+  const dual = overviewMode === "dual" && spark2.length > 0;
 
   const win = useMemo(
     () => resolveBrushHighlightWindow(winProp, xScope, chartPointCount),
@@ -215,6 +296,10 @@ export function UnifiedTrendPeriodBrush({
   const avgScore = useMemo(
     () => averageSparkScore(spark, activeWin),
     [spark, activeWin],
+  );
+  const avgScore2 = useMemo(
+    () => (dual ? averageSparkScore(spark2, activeWin) : null),
+    [dual, spark2, activeWin],
   );
   const draftWin =
     draft != null
@@ -239,21 +324,31 @@ export function UnifiedTrendPeriodBrush({
   };
 
   const updateHoverFromClientX = (clientX: number) => {
-    if (dragRef.current || spark.length === 0) {
+    if (dragRef.current || (spark.length === 0 && spark2.length === 0)) {
       setHover(null);
       return;
     }
     const r = ratioFromEvent(clientX);
-    const n = spark.length;
+    const n = Math.max(spark.length, spark2.length, 1);
     const index = Math.min(n - 1, Math.max(0, Math.floor(r * n)));
     const raw = spark[index];
-    if (raw == null || !Number.isFinite(raw)) {
+    const raw2 = dual ? spark2[index] : null;
+    const score =
+      raw != null && Number.isFinite(raw)
+        ? Math.max(0, Math.min(100, raw))
+        : null;
+    const score2 =
+      raw2 != null && Number.isFinite(raw2)
+        ? Math.max(0, Math.min(100, raw2))
+        : null;
+    if (score == null && score2 == null) {
       setHover(null);
       return;
     }
     setHover({
       index,
-      score: Math.max(0, Math.min(100, raw)),
+      score,
+      score2,
       ratio: (index + 0.5) / n,
     });
   };
@@ -265,9 +360,19 @@ export function UnifiedTrendPeriodBrush({
     dragRef.current = null;
   };
 
-  const hoverBand = hover ? comfortScoreBandLabel(hover.score) : null;
-  const scoreLabel =
-    avgScore != null ? String(Math.round(avgScore)) : "—";
+  const hoverBand =
+    hover?.score != null ? comfortScoreBandLabel(hover.score) : null;
+  const hoverBand2 =
+    hover?.score2 != null ? comfortScoreBandLabel(hover.score2) : null;
+  const scoreLabel = dual
+    ? `위 ${avgScore != null ? Math.round(avgScore) : "—"} · 아래 ${avgScore2 != null ? Math.round(avgScore2) : "—"}`
+    : avgScore != null
+      ? String(Math.round(avgScore))
+      : "—";
+  const hoverColor =
+    hover?.score != null ? comfortScoreToColor(hover.score) : null;
+  const hoverColor2 =
+    hover?.score2 != null ? comfortScoreToColor(hover.score2) : null;
 
   return (
     <div
@@ -276,12 +381,12 @@ export function UnifiedTrendPeriodBrush({
       data-farm-chart-period-nav=""
     >
       <div className="relative">
-        {hover && hoverBand ? (
+        {hover && (hoverBand || hoverBand2) ? (
           <div
             className={cn(
               hoverPlacement === "below"
-                ? "pointer-events-none absolute top-[calc(100%+0.35rem)] z-20 w-[7.5rem] -translate-x-1/2"
-                : "pointer-events-none absolute bottom-[calc(100%+0.35rem)] z-20 w-[7.5rem] -translate-x-1/2",
+                ? "pointer-events-none absolute top-[calc(100%+0.35rem)] z-20 w-max min-w-[7.5rem] -translate-x-1/2"
+                : "pointer-events-none absolute bottom-[calc(100%+0.35rem)] z-20 w-max min-w-[7.5rem] -translate-x-1/2",
               "rounded-lg border border-border/80 bg-popover px-2.5 py-2 text-popover-foreground",
               "ring-1 ring-foreground/10",
             )}
@@ -294,27 +399,26 @@ export function UnifiedTrendPeriodBrush({
             <p className="farm-chart-fs-legend font-medium text-muted-foreground">
               환경 양호도
             </p>
-            <div className="mt-0.5 flex items-baseline gap-1.5">
-              <span
-                className="text-xl font-bold tabular-nums leading-none tracking-tight"
-                style={{ color: comfortScoreToColor(hover.score) }}
-              >
-                {Math.round(hover.score)}
-              </span>
-              <span className="farm-chart-fs-legend text-muted-foreground">/ 100</span>
-            </div>
-            <div className="mt-1.5 flex items-center gap-1.5">
-              <span
-                className="size-2 shrink-0 rounded-sm"
-                style={{ background: comfortScoreToColor(hover.score) }}
-                aria-hidden
-              />
-              <span className="farm-chart-fs-meta font-semibold text-foreground">
-                {hoverBand}
-              </span>
+            <div className={cn(dual ? "mt-1.5 flex flex-col gap-2" : "mt-0.5")}>
+              {hover.score != null && hoverBand && hoverColor ? (
+                <BrushScoreHoverBlock
+                  label={dual ? "위칸" : undefined}
+                  score={hover.score}
+                  color={hoverColor}
+                  band={hoverBand}
+                />
+              ) : null}
+              {dual && hover.score2 != null && hoverBand2 && hoverColor2 ? (
+                <BrushScoreHoverBlock
+                  label="아래칸"
+                  score={hover.score2}
+                  color={hoverColor2}
+                  band={hoverBand2}
+                />
+              ) : null}
             </div>
             <p className="mt-1 farm-chart-fs-legend leading-snug text-muted-foreground">
-              {brushTimeHint(hover.index, spark.length)}
+              {brushTimeHint(hover.index, Math.max(spark.length, spark2.length))}
             </p>
           </div>
         ) : null}
@@ -421,34 +525,81 @@ export function UnifiedTrendPeriodBrush({
               height={BRUSH_VIEW_H}
               fill={`url(#${sheenId})`}
             />
-            {spark.map((v, i) => {
-              if (v == null || !Number.isFinite(v)) return null;
-              const n = Math.max(1, spark.length);
-              const x = (plotPad.padL + (i / n) * plotPad.innerW) * 100;
-              const w = Math.max(0.55, (plotPad.innerW * 100) / n - 0.2);
-              const score = Math.max(0, Math.min(100, v));
-              const h = Math.max(3, (score / 100) * BRUSH_MAX_BAR);
-              const delayMs = Math.min(480, Math.round((i / n) * 420));
-              const active = hover?.index === i;
-              return (
-                <rect
-                  key={i}
-                  className={motionClass.farmChartBrushBar}
-                  x={x}
-                  y={BRUSH_BASELINE - h}
-                  width={w}
-                  height={h}
-                  rx={Math.min(0.45, w * 0.35)}
-                  fill={comfortScoreToColor(score)}
-                  opacity={active ? 1 : 0.88}
-                  style={
-                    {
-                      ["--farm-brush-bar-delay" as string]: `${delayMs}ms`,
-                    } as CSSProperties
+            {(() => {
+              const n = Math.max(1, dual ? Math.max(spark.length, spark2.length) : spark.length);
+              const bars: ReactNode[] = [];
+              for (let i = 0; i < n; i++) {
+                const v = spark[i];
+                const v2 = dual ? spark2[i] : null;
+                const delayMs = Math.min(480, Math.round((i / n) * 420));
+                const active = hover?.index === i;
+                const delayStyle = {
+                  ["--farm-brush-bar-delay" as string]: `${delayMs}ms`,
+                } as CSSProperties;
+                if (dual) {
+                  const slot = brushGroupedBarSlot(
+                    i,
+                    n,
+                    plotPad.padL,
+                    plotPad.innerW,
+                  );
+                  if (v != null && Number.isFinite(v)) {
+                    const bar = brushOverviewBarRect(v);
+                    bars.push(
+                      <rect
+                        key={`${i}-a`}
+                        className={motionClass.farmChartBrushBar}
+                        x={slot.a.x}
+                        y={bar.y}
+                        width={slot.a.width}
+                        height={bar.height}
+                        rx={Math.min(0.45, slot.a.width * 0.35)}
+                        fill={comfortScoreToColor(Math.max(0, Math.min(100, v)))}
+                        opacity={active ? 1 : 0.9}
+                        style={delayStyle}
+                      />,
+                    );
                   }
-                />
-              );
-            })}
+                  if (v2 != null && Number.isFinite(v2)) {
+                    const bar = brushOverviewBarRect(v2);
+                    bars.push(
+                      <rect
+                        key={`${i}-b`}
+                        className={motionClass.farmChartBrushBar}
+                        x={slot.b.x}
+                        y={bar.y}
+                        width={slot.b.width}
+                        height={bar.height}
+                        rx={Math.min(0.45, slot.b.width * 0.35)}
+                        fill={comfortScoreToColor(Math.max(0, Math.min(100, v2)))}
+                        opacity={active ? 1 : 0.78}
+                        style={delayStyle}
+                      />,
+                    );
+                  }
+                  continue;
+                }
+                if (v == null || !Number.isFinite(v)) continue;
+                const x = (plotPad.padL + (i / n) * plotPad.innerW) * 100;
+                const w = Math.max(0.55, (plotPad.innerW * 100) / n - 0.2);
+                const bar = brushOverviewBarRect(v);
+                bars.push(
+                  <rect
+                    key={i}
+                    className={motionClass.farmChartBrushBar}
+                    x={x}
+                    y={bar.y}
+                    width={w}
+                    height={bar.height}
+                    rx={Math.min(0.45, w * 0.35)}
+                    fill={comfortScoreToColor(Math.max(0, Math.min(100, v)))}
+                    opacity={active ? 1 : 0.88}
+                    style={delayStyle}
+                  />,
+                );
+              }
+              return bars;
+            })()}
             <line
               x1={plotPad.padL * 100}
               x2={(plotPad.padL + plotPad.innerW) * 100}

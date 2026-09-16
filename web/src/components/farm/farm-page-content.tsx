@@ -46,6 +46,7 @@ import {
   clearFarmChartCmdParam,
   clearFarmChartZoomParams,
   isFarmChartControllerScope,
+  placeFarmChartWidgetNext,
   resolveFarmChartCmdParam,
   resolveFarmChartScope,
   resolveFarmChartWidgetSlots,
@@ -518,7 +519,7 @@ export function FarmPageContent({
     [setUrlTick],
   );
 
-  /** 현장 카드 «차트에서 보기» — 해당 컨트롤러 스코프로 차트 탭 이동 */
+  /** 현장 카드 «차트에서 보기» — 컨트롤러 스코프로 차트 탭. 모바일은 위·아래 칸에 순차 배치 */
   const onOpenControllerChart = useCallback(
     (reading: BarnReading) => {
       const sp = normalizeStallTyCode(reading.stallTyCode ?? "");
@@ -538,16 +539,23 @@ export function FarmPageContent({
       applyFarmChartScopeParams(params, scope);
       clearFarmChartZoomParams(params);
       if (scope.level !== "controller") clearFarmChartCmdParam(params);
-      applyFarmChartWidgetSlotParams(params, {
-        w1: isFarmChartControllerScope(scope) ? scope : null,
-        w2: null,
-      });
+      const widgets =
+        viewportCompact && isFarmChartControllerScope(scope)
+          ? placeFarmChartWidgetNext(
+              resolveFarmChartWidgetSlots(params),
+              scope,
+            )
+          : {
+              w1: isFarmChartControllerScope(scope) ? scope : null,
+              w2: null,
+            };
+      applyFarmChartWidgetSlotParams(params, widgets);
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
       setView("chart");
     },
-    [setUrlTick, setView],
+    [setUrlTick, setView, viewportCompact],
   );
 
   const onChartZoomChange = useCallback(

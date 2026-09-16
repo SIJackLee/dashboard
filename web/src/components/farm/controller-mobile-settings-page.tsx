@@ -95,7 +95,7 @@ export function ControllerMobileSettingsPage({
               strokeWidth={dashboardUi.iconStroke}
               aria-hidden
             />
-            차트에서 추이 보기
+            차트로 옮기기
           </button>
         </div>
       ) : null}

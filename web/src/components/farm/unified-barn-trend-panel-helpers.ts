@@ -38,6 +38,30 @@ import {
  */
 
 const TEMP_STEP = 0.1;
+
+/** 현장 알람 구간 — 기준±편차, 투명 정상색 띠만 */
+export const FARM_ALARM_RANGE_FILL = "var(--status-ok)";
+export const FARM_ALARM_RANGE_FILL_OPACITY = 0.22;
+
+export function farmAlarmMidValue(lo: number, hi: number): number | null {
+  if (!(Number.isFinite(lo) && Number.isFinite(hi))) return null;
+  return (lo + hi) / 2;
+}
+
+/**
+ * 차트 스케일 라벨 id → 알람 상·하한.
+ * `temp-hi`는 권장 띠가 없을 때. `temp-farm-hi`는 현장 알람 편차 커밋용.
+ */
+export const SCALE_EDGE_ALARM_KEY: Record<string, keyof AlarmThresholds> = {
+  "temp-hi": "tempHigh",
+  "temp-lo": "tempLow",
+  "hum-hi": "humidityHigh",
+  "hum-lo": "humidityLow",
+  "temp-farm-hi": "tempHigh",
+  "temp-farm-lo": "tempLow",
+  "hum-farm-hi": "humidityHigh",
+  "hum-farm-lo": "humidityLow",
+};
 const HUM_STEP = 1;
 const TEMP_MIN = 10;
 const TEMP_MAX = 35;
@@ -238,4 +262,89 @@ export function buildTrendBrushOverview(
     );
   }
   return out;
+}
+
+export type BrushOverviewMode = "comfort" | "dual";
+
+export type SharedBrushOverview = {
+  values: (number | null)[];
+  /** 두 칸일 때 아래칸 양호도 */
+  secondaryValues: (number | null)[] | null;
+  mode: BrushOverviewMode;
+};
+
+type BrushOverviewController = { reading?: BarnReading | null };
+
+export function pickSharedBrushOverviewKind(
+  hasTop: boolean,
+  hasBottom: boolean,
+): "top" | "bottom" | "dual" | "farm" {
+  if (hasTop && hasBottom) return "dual";
+  if (hasTop) return "top";
+  if (hasBottom) return "bottom";
+  return "farm";
+}
+
+/** 두 시계열을 같은 길이에 맞춘다. 빈 칸은 null. */
+export function alignBrushScoreSeries(
+  top: (number | null)[],
+  bottom: (number | null)[],
+): { top: (number | null)[]; bottom: (number | null)[] } {
+  const n = Math.max(top.length, bottom.length);
+  return {
+    top: Array.from({ length: n }, (_, i) => top[i] ?? null),
+    bottom: Array.from({ length: n }, (_, i) => bottom[i] ?? null),
+  };
+}
+
+/**
+ * 공유 브러시 막대.
+ * 한 칸 → 그 양호도. 두 칸 → 위·아래 이중 막대. 둘 다 비면 농장 평균.
+ */
+export function buildSharedWidgetBrushOverview(
+  top: BrushOverviewController[],
+  bottom: BrushOverviewController[],
+  farm: BrushOverviewController[],
+  controllerTrendByPeriod:
+    | Record<TrendPeriodId, TrendControllerPeriodData>
+    | null
+    | undefined,
+  alarmSettings?: AlarmSettings,
+): SharedBrushOverview {
+  const topLive = top.filter((c) => c.reading);
+  const bottomLive = bottom.filter((c) => c.reading);
+  const kind = pickSharedBrushOverviewKind(
+    topLive.length > 0,
+    bottomLive.length > 0,
+  );
+  if (kind === "dual") {
+    const aligned = alignBrushScoreSeries(
+      buildTrendBrushOverview(
+        topLive,
+        controllerTrendByPeriod,
+        alarmSettings,
+      ),
+      buildTrendBrushOverview(
+        bottomLive,
+        controllerTrendByPeriod,
+        alarmSettings,
+      ),
+    );
+    return {
+      mode: "dual",
+      values: aligned.top,
+      secondaryValues: aligned.bottom,
+    };
+  }
+  const source =
+    kind === "top" ? topLive : kind === "bottom" ? bottomLive : farm;
+  return {
+    mode: "comfort",
+    values: buildTrendBrushOverview(
+      source,
+      controllerTrendByPeriod,
+      alarmSettings,
+    ),
+    secondaryValues: null,
+  };
 }

@@ -18,6 +18,11 @@ import {
   DEFAULT_UNIFIED_LAYERS,
   ALL_UNIFIED_LAYERS,
   resolveUnifiedPlotLayout,
+  listSplitYBands,
+  overlayMeetSplitYLayout,
+  isOverlayStagedLayoutTransition,
+  lerpSplitYLayoutStaged,
+  splitYLayoutIsFullyMerged,
   mapTempCToSplitY,
   paddedAlarmDomain,
   unifiedYBandFocusLabel,
@@ -68,7 +73,7 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
     "온도 밴드 중앙 드래그 → [temp]",
   );
   assert.deepEqual(
-    resolveYScopeBands(40, 55, layoutAll, ALL_VIS),
+    resolveYScopeBands(30, 45, layoutAll, ALL_VIS),
     ["hum"],
     "습도 밴드 중앙 드래그 → [hum]",
   );
@@ -89,12 +94,12 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
 
 {
   assert.equal(
-    resolveYScopeBands(30, 34, layoutAll, ALL_VIS),
+    resolveYScopeBands(52, 56, layoutAll, ALL_VIS),
     null,
     "습·온 사이 갭 → null(레이어 유지)",
   );
   assert.equal(
-    resolveYScopeBands(30, 34, layoutAll, ALL_VIS),
+    resolveYScopeBands(16, 20, layoutAll, ALL_VIS),
     null,
     "모터·습 사이 갭 → null",
   );
@@ -384,6 +389,35 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
     ["temp"],
     "플롯만(명령 미터치) → [temp] (command 제외)",
   );
+}
+
+/* —— 오버레이: 온도·습도·모터 한 밴드 + 2단 보간 —— */
+{
+  const overlayLayout = resolveSplitYLayout(ALL_VIS, true);
+  assert.ok(splitYLayoutIsFullyMerged(overlayLayout));
+  const overlayBands = listSplitYBands(overlayLayout, ALL_VIS).filter(
+    (b) => b.id !== "command",
+  );
+  assert.deepEqual(
+    overlayBands.map((b) => b.id),
+    ["overlay"],
+  );
+  const overlayVis = visibilityForYBands(["overlay"]);
+  assert.equal(overlayVis?.showHum, true);
+  assert.equal(overlayVis?.showTemp, true);
+  assert.equal(overlayVis?.showMotors, true);
+  const maskedOverlay = maskLayersForYBands(ALL_UNIFIED_LAYERS, ["overlay"]);
+  assert.equal(maskedOverlay.hum, true);
+  assert.equal(isOverlayStagedLayoutTransition(layoutAll, overlayLayout), true);
+  const meet = overlayMeetSplitYLayout(layoutAll);
+  assert.ok(Math.abs(meet.tempLo - layoutAll.humLo) < 1e-6);
+  assert.ok(Math.abs(meet.motorHi - layoutAll.humHi) < 1e-6);
+  const mid = lerpSplitYLayoutStaged(layoutAll, overlayLayout, 0.5);
+  assert.ok(Math.abs(mid.tempLo - layoutAll.humLo) < 1e-6);
+  assert.ok(Math.abs(mid.tempHi - layoutAll.humHi) < 1e-6);
+  const end = lerpSplitYLayoutStaged(layoutAll, overlayLayout, 1);
+  assert.ok(Math.abs(end.tempLo - overlayLayout.tempLo) < 1e-6);
+  assert.ok(Math.abs(end.tempHi - 100) < 1e-6);
 }
 
 console.log("chart-heuristics-m5.test.ts: ok");

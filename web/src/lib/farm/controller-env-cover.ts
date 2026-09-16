@@ -1,4 +1,5 @@
 import type { AlarmSettings } from "@/lib/data/alarms";
+import { formatAlarmBaselinePair } from "@/lib/data/alarm-baseline";
 import type { BarnReading } from "@/lib/data/iot";
 import { formatHumidityPct, formatTempC } from "@/lib/data/farm-summaries";
 import {
@@ -83,7 +84,7 @@ function channelOff(tint: BarnPlanRoomEnvTint | null | undefined): boolean {
 
 function tempAlarmBandLabel(reading: CoverReasonReading, alarmSettings?: AlarmSettings): string {
   const band = barnPlanEnvAlarmThresholds(reading, alarmSettings);
-  return `알람 ${band.tempLow}~${band.tempHigh}℃`;
+  return `알람 ${formatAlarmBaselinePair(band.tempLow, band.tempHigh, "℃")}`;
 }
 
 function humidityAlarmBandLabel(
@@ -91,7 +92,7 @@ function humidityAlarmBandLabel(
   alarmSettings?: AlarmSettings,
 ): string {
   const band = barnPlanEnvAlarmThresholds(reading, alarmSettings);
-  return `알람 ${band.humidityLow}~${band.humidityHigh}%`;
+  return `알람 ${formatAlarmBaselinePair(band.humidityLow, band.humidityHigh, "%")}`;
 }
 
 /**

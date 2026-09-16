@@ -14,6 +14,8 @@ import {
   formatBrushWindowLabel,
   moveBrushWindow,
   resolveBrushHighlightWindow,
+  brushOverviewBarRect,
+  brushGroupedBarSlot,
 } from "./unified-trend-period-brush";
 
 {
@@ -81,14 +83,25 @@ import {
 
 {
   const pad = brushPlotPad(false);
-  assert.ok(Math.abs(pad.padL - 0.06) < 1e-12);
-  assert.ok(Math.abs(pad.innerW - 0.88) < 1e-12);
-  assert.equal(brushRatioFromTrackU(0.06, false), 0);
+  assert.ok(Math.abs(pad.padL - 0.01) < 1e-12);
+  assert.ok(Math.abs(pad.innerW - 0.98) < 1e-12);
+  assert.equal(brushRatioFromTrackU(0.01, false), 0);
   assert.ok(Math.abs(brushRatioFromTrackU(0.5, false) - 0.5) < 1e-12);
-  assert.equal(brushRatioFromTrackU(0.94, false), 1);
+  assert.equal(brushRatioFromTrackU(0.99, false), 1);
   const css = brushWindowCssPct({ start: 0, width: 1 }, false);
-  assert.ok(Math.abs(css.leftPct - 6) < 1e-9);
-  assert.ok(Math.abs(css.widthPct - 88) < 1e-9);
+  assert.ok(Math.abs(css.leftPct - 1) < 1e-9);
+  assert.ok(Math.abs(css.widthPct - 98) < 1e-9);
+}
+
+{
+  const comfort = brushOverviewBarRect(100);
+  assert.ok(comfort.height > brushOverviewBarRect(50).height);
+  const slot = brushGroupedBarSlot(0, 10, 0.01, 0.98);
+  assert.ok(slot.a.x < slot.b.x);
+  assert.ok(slot.a.width > 0);
+  assert.ok(Math.abs(slot.a.width - slot.b.width) < 1e-9);
+  const next = brushGroupedBarSlot(1, 10, 0.01, 0.98);
+  assert.ok(next.a.x > slot.b.x);
 }
 
 console.log("unified-trend-period-brush.test.ts: ok");

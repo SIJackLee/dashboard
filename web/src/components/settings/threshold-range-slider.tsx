@@ -12,6 +12,10 @@ import {
   SliderBoundFields,
   type SliderValueInputSize,
 } from "@/components/ui/slider-value-input";
+import {
+  alarmBaselineFromRange,
+  alarmRangeFromBaseline,
+} from "@/lib/data/alarm-baseline";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { useMobileLayout } from "@/lib/ui/use-mobile-layout";
 import { useSliderDragThumb } from "@/lib/ui/use-slider-drag-thumb";
@@ -31,8 +35,13 @@ type ThresholdRangeSliderProps = {
   disabled?: boolean;
   compact?: boolean;
   accentClass?: string;
-  /** 트랙 양끝 축 — domain=정적 min/max, editable=트랙 위 하한·상한 필드 */
+  /** 트랙 양끝 축 — domain=정적 min/max, editable=트랙 위 숫자 필드 */
   axisMode?: "hidden" | "domain" | "editable";
+  /**
+   * range=하한·상한(환기).
+   * baseline-dev=기준±편차(온·습 알람). 저장은 여전히 lo/hi.
+   */
+  valueMode?: "range" | "baseline-dev";
   /** @deprecated axisMode="domain" 사용 */
   showAxis?: boolean;
   /** axisMode editable 시 Input 크기 */
@@ -79,12 +88,13 @@ export function ThresholdRangeSlider({
   low,
   high,
   unit,
-  lowLabel = "하한",
-  highLabel = "상한",
+  lowLabel,
+  highLabel,
   disabled = false,
   compact = false,
   accentClass = "bg-emerald-500/35",
   axisMode,
+  valueMode = "range",
   showAxis = false,
   axisInputSize,
   thumbLabelClassName,
@@ -105,6 +115,16 @@ export function ThresholdRangeSlider({
   const mobileDrag = mobile && dragging;
 
   const resolvedAxisMode = axisMode ?? (showAxis ? "domain" : "hidden");
+  const baselineMode = valueMode === "baseline-dev";
+  const resolvedLowLabel =
+    lowLabel ?? (baselineMode ? "기준" : "하한");
+  const resolvedHighLabel =
+    highLabel ?? (baselineMode ? "편차" : "상한");
+  const { baseline, deviation } = alarmBaselineFromRange(low, high);
+  const maxDeviation = Math.max(
+    step,
+    snap(Math.min(baseline - min, max - baseline), step),
+  );
   const inputSize = axisInputSize ?? (compact ? "compact" : "dashboard");
   const showBoundFields = resolvedAxisMode === "editable";
   const hideTrackOnPc = showBoundFields && compact && !mobile;
@@ -126,20 +146,60 @@ export function ThresholdRangeSlider({
 
   const setLow = useCallback(
     (raw: number) => {
+      if (baselineMode) {
+        const { baseline } = alarmBaselineFromRange(low, high);
+        const next = snap(clamp(raw, min, max), step);
+        const range = alarmRangeFromBaseline(baseline, Math.abs(next - baseline), {
+          min,
+          max,
+          step,
+        });
+        onChange(range.lo, range.hi);
+        return;
+      }
       const next = snap(clamp(raw, min, max), step);
       if (next > high) onChange(high, next);
       else onChange(next, high);
     },
-    [high, max, min, onChange, step]
+    [baselineMode, high, low, max, min, onChange, step],
   );
 
   const setHigh = useCallback(
     (raw: number) => {
+      if (baselineMode) {
+        const { baseline } = alarmBaselineFromRange(low, high);
+        const next = snap(clamp(raw, min, max), step);
+        const range = alarmRangeFromBaseline(baseline, Math.abs(next - baseline), {
+          min,
+          max,
+          step,
+        });
+        onChange(range.lo, range.hi);
+        return;
+      }
       const next = snap(clamp(raw, min, max), step);
       if (next < low) onChange(next, low);
       else onChange(low, next);
     },
-    [low, max, min, onChange, step]
+    [baselineMode, high, low, max, min, onChange, step],
+  );
+
+  const setBaseline = useCallback(
+    (raw: number) => {
+      const { deviation } = alarmBaselineFromRange(low, high);
+      const range = alarmRangeFromBaseline(raw, deviation, { min, max, step });
+      onChange(range.lo, range.hi);
+    },
+    [high, low, max, min, onChange, step],
+  );
+
+  const setDeviation = useCallback(
+    (raw: number) => {
+      const { baseline } = alarmBaselineFromRange(low, high);
+      const range = alarmRangeFromBaseline(baseline, raw, { min, max, step });
+      onChange(range.lo, range.hi);
+    },
+    [high, low, max, min, onChange, step],
   );
 
   const rangeClass = cn(
@@ -173,24 +233,25 @@ export function ThresholdRangeSlider({
 
       {showBoundFields ? (
         <SliderBoundFields
-          low={low}
-          high={high}
-          lowMin={min}
-          lowMax={high}
-          highMin={low}
-          highMax={max}
+          low={baselineMode ? baseline : low}
+          high={baselineMode ? deviation : high}
+          lowMin={baselineMode ? min + step : min}
+          lowMax={baselineMode ? max - step : high}
+          highMin={baselineMode ? step : low}
+          highMax={baselineMode ? maxDeviation : max}
           step={step}
           unit={unit}
-          lowCaption={lowLabel}
-          highCaption={highLabel}
-          lowAria={`${title} ${lowLabel}`}
-          highAria={`${title} ${highLabel}`}
+          lowCaption={resolvedLowLabel}
+          highCaption={resolvedHighLabel}
+          lowAria={`${title} ${resolvedLowLabel}`}
+          highAria={`${title} ${resolvedHighLabel}`}
+          highPrefix={baselineMode ? "±" : undefined}
           disabled={disabled}
           size={inputSize}
           domainText={`${min}–${max}${unit}`}
           domainClassName={axisClassName}
-          onLowCommit={setLow}
-          onHighCommit={setHigh}
+          onLowCommit={baselineMode ? setBaseline : setLow}
+          onHighCommit={baselineMode ? setDeviation : setHigh}
         />
       ) : null}
 
@@ -249,7 +310,7 @@ export function ThresholdRangeSlider({
             step={step}
             value={low}
             disabled={disabled}
-            aria-label={`${title} ${lowLabel}`}
+            aria-label={`${title} ${baselineMode ? "구간 하한" : resolvedLowLabel}`}
             aria-valuetext={lowText}
             className={cn(rangeClass, "z-[3]")}
             onPointerDown={onLowPointerDown}
@@ -263,7 +324,7 @@ export function ThresholdRangeSlider({
             step={step}
             value={high}
             disabled={disabled}
-            aria-label={`${title} ${highLabel}`}
+            aria-label={`${title} ${baselineMode ? "구간 상한" : resolvedHighLabel}`}
             aria-valuetext={highText}
             className={cn(rangeClass, "z-[4]")}
             onPointerDown={onHighPointerDown}

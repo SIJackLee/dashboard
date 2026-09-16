@@ -8,6 +8,7 @@ import {
   computeTipPlacement,
   domainFor,
   finiteValues,
+  mergeOverlappingTempHumEdgeLabels,
   nudgeEdgeLabelTops,
   PAD_BOTTOM,
   parseScaleEdgeEditSeed,
@@ -124,6 +125,58 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   assert.ok(tops[1]! - tops[0]! >= 5, "최소 간격 확보");
 }
 
+{
+  const labels: EdgeBandLabel[] = [
+    {
+      id: "band-tick-temp-0",
+      side: "left",
+      topPct: 10,
+      text: "29.0℃",
+      color: "#000",
+      title: "눈금",
+    },
+    {
+      id: "band-tick-hum-0",
+      side: "left",
+      topPct: 10.4,
+      text: "67%",
+      color: "#000",
+      title: "눈금",
+    },
+    {
+      id: "temp-hi",
+      side: "right",
+      topPct: 20,
+      text: "27℃",
+      color: "#000",
+      title: "온도 상한",
+    },
+    {
+      id: "hum-hi",
+      side: "right",
+      topPct: 21,
+      text: "65%",
+      color: "#000",
+      title: "습도 상한",
+    },
+    {
+      id: "band-tick-motor-0",
+      side: "left",
+      topPct: 10.2,
+      text: "100%",
+      color: "#000",
+      title: "눈금",
+    },
+  ];
+  const merged = mergeOverlappingTempHumEdgeLabels(labels, 5.5);
+  const left = merged.filter((l) => l.side === "left");
+  const right = merged.filter((l) => l.side === "right");
+  assert.equal(left.some((l) => l.text === "29.0℃, 67%"), true);
+  assert.equal(left.some((l) => l.id === "band-tick-motor-0"), true);
+  assert.equal(right.some((l) => l.text === "27℃, 65%"), true);
+  assert.equal(right.some((l) => l.title === "온도, 습도"), true);
+}
+
 // buildLineSegments: null에서 세그먼트가 끊긴다.
 {
   const s: TrendSeries = {
@@ -160,24 +213,24 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
 
 {
   const pc = trendPlotPadRatios({ leftUnit: true, labelGutter: false });
-  assert.ok(Math.abs(pc.padL - 0.06) < 1e-12);
-  assert.ok(Math.abs(pc.padR - 0.06) < 1e-12);
-  assert.ok(Math.abs(pc.innerW - 0.88) < 1e-12);
-  assert.ok(Math.abs(trendTimeToPlotRatio(0, { leftUnit: true }) - 0.06) < 1e-12);
-  assert.ok(Math.abs(trendTimeToPlotRatio(1, { leftUnit: true }) - 0.94) < 1e-12);
+  assert.ok(Math.abs(pc.padL - 0.01) < 1e-12);
+  assert.ok(Math.abs(pc.padR - 0.01) < 1e-12);
+  assert.ok(Math.abs(pc.innerW - 0.98) < 1e-12);
+  assert.ok(Math.abs(trendTimeToPlotRatio(0, { leftUnit: true }) - 0.01) < 1e-12);
+  assert.ok(Math.abs(trendTimeToPlotRatio(1, { leftUnit: true }) - 0.99) < 1e-12);
   assert.ok(Math.abs(trendTimeToPlotRatio(0.5, { leftUnit: true }) - 0.5) < 1e-12);
   const mobile = trendPlotPadRatios({ leftUnit: true, labelGutter: true });
-  assert.ok(Math.abs(mobile.padL - 0.06) < 1e-12);
+  assert.ok(Math.abs(mobile.padL - 0.01) < 1e-12);
   assert.ok(Math.abs(mobile.padR - 0.2) < 1e-12);
-  assert.ok(Math.abs(mobile.innerW - 0.74) < 1e-12);
+  assert.ok(Math.abs(mobile.innerW - 0.79) < 1e-12);
   assert.ok(
-    Math.abs(trendTimeToPlotRatio(0.5, { leftUnit: true, labelGutter: true }) - 0.43) <
+    Math.abs(trendTimeToPlotRatio(0.5, { leftUnit: true, labelGutter: true }) - 0.405) <
       1e-12,
   );
   const px = trendPlotPadPx(200, { leftUnit: true, labelGutter: false });
-  assert.equal(px.padL, 12);
-  assert.equal(px.padR, 12);
-  assert.equal(px.innerW, 176);
+  assert.equal(px.padL, 2);
+  assert.equal(px.padR, 2);
+  assert.equal(px.innerW, 196);
   assert.equal(PAD_BOTTOM, 6);
   const t0 = Date.parse("2026-09-08T00:00:00.000Z");
   const t1 = Date.parse("2026-09-10T00:00:00.000Z");

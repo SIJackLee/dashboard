@@ -186,7 +186,7 @@ export function applyAriaViewParams(params: URLSearchParams): void {
   applyMapGridParams(params);
 }
 
-/** 지도 탭 — 그리드 진입(드릴 쿼리 제거) */
+/** 지도 탭 — 그리드 진입(드릴 쿼리 제거). 위젯 칸은 유지(필드로 돌아와도 차트로 옮기기 비교). */
 export function applyMapGridParams(params: URLSearchParams): void {
   params.delete("view");
   params.delete("listMode");
@@ -194,7 +194,6 @@ export function applyMapGridParams(params: URLSearchParams): void {
   clearFarmChartScopeParams(params);
   clearFarmChartZoomParams(params);
   clearFarmChartCmdParam(params);
-  clearFarmChartWidgetParams(params);
   clearBarnPlanParams(params);
 }
 

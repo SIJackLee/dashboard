@@ -147,7 +147,7 @@ type Props = {
   className?: string;
   /** @deprecated 헤더 인라인만 사용. hub 무시 */
   placement?: "hub" | "inline";
-  /** 오버레이(하이브리드) 보기 — 온도+모터 겹침. 온·모터 모두 켜져야 노출 */
+  /** 오버레이 — 켜진 온도·습도·모터를 한 밴드에 겹침. 플롯 밴드 2개 이상일 때 노출 */
   overlayView?: boolean;
   overlayAvailable?: boolean;
   onToggleOverlay?: () => void;
@@ -324,8 +324,8 @@ export function UnifiedTrendLayerToolbar({
             <IconTipButton
               label={
                 overlayView
-                  ? "오버레이 보기 끔 · 온도·모터 분리"
-                  : "오버레이 보기 · 온도·모터 겹쳐보기"
+                  ? "오버레이 보기 끔 · 온도·습도·모터 분리"
+                  : "오버레이 보기 · 온도·습도·모터 겹쳐보기"
               }
               pressed={overlayView}
               on={overlayView}

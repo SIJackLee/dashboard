@@ -192,7 +192,7 @@ import {
     stallTyCode: "SP02",
   });
   assert.equal(tempFirst.valueLabel, "36.5℃");
-  assert.equal(tempFirst.bandLabel, "알람 10~35℃");
+  assert.equal(tempFirst.bandLabel, "알람 22.5℃ ±12.5℃");
 }
 
 {
@@ -203,7 +203,7 @@ import {
     stallTyCode: "SP02",
   });
   assert.equal(humidityOnly.valueLabel, "93.0%");
-  assert.equal(humidityOnly.bandLabel, "알람 30~90%");
+  assert.equal(humidityOnly.bandLabel, "알람 60% ±30%");
 }
 
 {
@@ -214,7 +214,7 @@ import {
     stallTyCode: "SP05",
   });
   assert.equal(okTemp.valueLabel, "20.0℃");
-  assert.equal(okTemp.bandLabel, "알람 10~35℃");
+  assert.equal(okTemp.bandLabel, "알람 22.5℃ ±12.5℃");
 }
 
 {

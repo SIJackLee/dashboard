@@ -36,11 +36,7 @@ import {
 } from "@/lib/data/reading-hierarchy";
 import { formatStallTypeLabel } from "@/lib/data/stall-type";
 import { ThresholdRangeSlider } from "@/components/settings/threshold-range-slider";
-import {
-  ThresholdFieldGroup,
-  tempFields,
-  humidityFields,
-} from "@/components/settings/alarm-threshold-fields";
+import { formatAlarmBaselineSummary } from "@/lib/data/alarm-baseline";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { dashboardTypography, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { cn } from "@/lib/utils";
@@ -60,7 +56,7 @@ export type AlarmThresholdHeaderState = {
 };
 
 function formatAlarmCollapsedSummary(draft: AlarmThresholds): string {
-  return `온도 ${draft.tempLow}–${draft.tempHigh}℃ · 습도 ${draft.humidityLow}–${draft.humidityHigh}%`;
+  return formatAlarmBaselineSummary(draft);
 }
 
 type Props = {
@@ -533,7 +529,7 @@ export function AlarmThresholdForm({
           !mobileSplit && "grid-cols-1 lg:grid-cols-2"
         )}
       >
-        {mobileSplit ? (
+        {mobileSplit || compact ? (
           <>
             <ThresholdRangeSlider
               title="온도 알림"
@@ -544,6 +540,7 @@ export function AlarmThresholdForm({
               low={draft.tempLow}
               high={draft.tempHigh}
               unit="℃"
+              valueMode="baseline-dev"
               accentClass="bg-channel-temp/35"
               disabled={fieldsDisabled}
               compact
@@ -553,8 +550,8 @@ export function AlarmThresholdForm({
                 sliderThumbLabelClassName ?? "md:text-[1.75rem]"
               }
               axisClassName={sliderAxisClassName}
-              axisInputSize={mobileSplit ? "compact" : "dashboard"}
-              axisMode={mobileSplit ? "editable" : "hidden"}
+              axisInputSize="compact"
+              axisMode="editable"
               onChange={(low, high) =>
                 updateDraft({ ...draft, tempLow: low, tempHigh: high })
               }
@@ -568,6 +565,7 @@ export function AlarmThresholdForm({
               low={draft.humidityLow}
               high={draft.humidityHigh}
               unit="%"
+              valueMode="baseline-dev"
               accentClass="bg-channel-info/35"
               disabled={fieldsDisabled}
               compact
@@ -577,38 +575,17 @@ export function AlarmThresholdForm({
                 sliderThumbLabelClassName ?? "md:text-[1.75rem]"
               }
               axisClassName={sliderAxisClassName}
-              axisInputSize={mobileSplit ? "compact" : "dashboard"}
-              axisMode={mobileSplit ? "editable" : "hidden"}
+              axisInputSize="compact"
+              axisMode="editable"
               onChange={(low, high) =>
                 updateDraft({ ...draft, humidityLow: low, humidityHigh: high })
               }
             />
           </>
-        ) : compact ? (
-          <>
-            <ThresholdFieldGroup
-              title="온도"
-              icon={<AlarmDomainIcon domain="temp" />}
-              fields={tempFields}
-              values={draft}
-              onChange={updateDraft}
-              disabled={fieldsDisabled}
-              compact
-            />
-            <ThresholdFieldGroup
-              title="습도"
-              icon={<AlarmDomainIcon domain="humidity" />}
-              fields={humidityFields}
-              values={draft}
-              onChange={updateDraft}
-              disabled={fieldsDisabled}
-              compact
-            />
-          </>
         ) : (
           <>
             <ThresholdRangeSlider
-              title="온도"
+              title="온도 알림"
               icon={
                 <AlarmDomainIcon domain="temp" sizeClass={dashboardUi.iconSm} />
               }
@@ -618,6 +595,8 @@ export function AlarmThresholdForm({
               low={draft.tempLow}
               high={draft.tempHigh}
               unit="℃"
+              valueMode="baseline-dev"
+              axisMode="editable"
               accentClass="bg-channel-temp/35"
               disabled={fieldsDisabled}
               onChange={(tempLow, tempHigh) =>
@@ -625,7 +604,7 @@ export function AlarmThresholdForm({
               }
             />
             <ThresholdRangeSlider
-              title="습도"
+              title="습도 알림"
               icon={
                 <AlarmDomainIcon
                   domain="humidity"
@@ -638,6 +617,8 @@ export function AlarmThresholdForm({
               low={draft.humidityLow}
               high={draft.humidityHigh}
               unit="%"
+              valueMode="baseline-dev"
+              axisMode="editable"
               accentClass="bg-channel-info/35"
               disabled={fieldsDisabled}
               onChange={(humidityLow, humidityHigh) =>

@@ -97,7 +97,8 @@ export function buildEnvelopePaths(
   return paths;
 }
 
-export const PAD_X = 6;
+/** 플롯 안 좌우 여백 — 라벨은 바깥 칸. 선이 테두리에 붙지 않을 정도만 (너비의 1%). */
+export const PAD_X = 1;
 export const PAD_TOP = 6;
 /** 모터 하단과 날짜축 사이 간격 (viewBox 단위) */
 export const PAD_BOTTOM = 6;
@@ -107,7 +108,7 @@ export const VIEW_W_NORM = 100;
 export type TrendPlotPadOpts = {
   /** 왼쪽 단위축(℃ 등) — padL = PAD_X */
   leftUnit?: boolean;
-  /** 모바일 우측 거터 — padR 확대, leftUnit 없으면 padL 축소 */
+  /** 모바일 우측 거터(레거시 플롯 안 라벨) — padR 확대, leftUnit 없으면 padL 축소 */
   labelGutter?: boolean;
 };
 
@@ -276,6 +277,59 @@ export function nudgeEdgeLabelTops(
     ...bySide.center,
     ...bySide.plotStart,
   ];
+}
+
+function edgeLabelTempHumKind(
+  id: string,
+): "temp" | "hum" | null {
+  if (id.startsWith("temp-") || id.startsWith("band-tick-temp-")) return "temp";
+  if (id.startsWith("hum-") || id.startsWith("band-tick-hum-")) return "hum";
+  return null;
+}
+
+/**
+ * 같은 끝단에서 온도·습도 눈금/기준선이 겹치면 「28.0℃, 67%」로 합친다.
+ * 모터 % 눈금은 건드리지 않는다. nudge보다 먼저 호출한다.
+ */
+export function mergeOverlappingTempHumEdgeLabels(
+  labels: EdgeBandLabel[],
+  maxGapPct: number,
+): EdgeBandLabel[] {
+  const sides = ["left", "right", "center", "plotStart"] as const;
+  const out: EdgeBandLabel[] = [];
+  for (const side of sides) {
+    const list = labels.filter((l) => l.side === side);
+    const used = new Set<string>();
+    const temps = list.filter((l) => edgeLabelTempHumKind(l.id) === "temp");
+    const hums = list.filter((l) => edgeLabelTempHumKind(l.id) === "hum");
+    for (const temp of temps) {
+      let best: EdgeBandLabel | null = null;
+      let bestD = Infinity;
+      for (const hum of hums) {
+        if (used.has(hum.id)) continue;
+        const d = Math.abs(hum.topPct - temp.topPct);
+        if (d <= maxGapPct && d < bestD) {
+          best = hum;
+          bestD = d;
+        }
+      }
+      if (!best) continue;
+      used.add(temp.id);
+      used.add(best.id);
+      out.push({
+        ...temp,
+        text: `${temp.text}, ${best.text}`,
+        title:
+          temp.title === "눈금" && best.title === "눈금"
+            ? "눈금"
+            : "온도, 습도",
+      });
+    }
+    for (const l of list) {
+      if (!used.has(l.id)) out.push(l);
+    }
+  }
+  return out;
 }
 
 export function finiteValues(

@@ -6,6 +6,7 @@ import {
   TrendChart,
   type ScaleEdgeNumericCommitEvent,
   type TrendCommandSettingSeg,
+  type TrendRangeBand,
   type TrendScaleEdgeLabel,
 } from "@/components/trends/trend-chart";
 import { formatTrendBandEdge } from "@/components/trends/trend-chart-format";
@@ -36,6 +37,7 @@ import {
 } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import { normalizeStallTyCode } from "@/lib/data/stall-type";
+import { pigEnvBandForStallTy } from "@/lib/farm/pig-env-recommend";
 import {
   emptyTrendControllerPeriodData,
   isContextControllerTrend30d,
@@ -52,10 +54,13 @@ import {
   applyCoverageToWindow,
   brushSliceRange,
   buildTrendBrushOverview,
-  clampAlarmDraft,
   downsampleSeriesForChart,
+  FARM_ALARM_RANGE_FILL,
+  FARM_ALARM_RANGE_FILL_OPACITY,
+  farmAlarmMidValue,
   sliceControllerSeries,
 } from "@/components/farm/unified-barn-trend-panel-helpers";
+import { applyAlarmScaleEdgeCommit } from "@/lib/data/alarm-baseline";
 import {
   brushWindowNeeds15m,
   brushWindowToRangeMs,
@@ -103,7 +108,9 @@ import {
   mapHumPctToSplitY,
   mapMotorPctToSplitY,
   mapTempCToSplitY,
+  tempBrokenAxisPlotZones,
   mapUnifiedBarnTrendRawToSplitY,
+  buildSplitYBandScaleTicks,
   pickUnifiedTrendLayers,
   resolveUnifiedPlotLayout,
   sliceUnifiedTrendByIndex,
@@ -117,6 +124,9 @@ import {
   isSingleYBandFocus,
   allocateUnifiedChartBandHeights,
   unifiedYBandsScopeLabel,
+  OVERLAY_ALIGN_ANCHOR,
+  alarmEdgeDomain,
+  SPLIT_Y_HUM_EDGE_PAD_PCT,
   type UnifiedLayerFlags,
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
@@ -136,13 +146,6 @@ import {
   FARM_CHART_UI_SCALE,
 } from "@/lib/ui/farm-chart-ui-scale";
 import { cn } from "@/lib/utils";
-
-const ALARM_EDGE_KEY: Record<string, keyof AlarmThresholds> = {
-  "temp-hi": "tempHigh",
-  "temp-lo": "tempLow",
-  "hum-hi": "humidityHigh",
-  "hum-lo": "humidityLow",
-};
 
 export type UnifiedBarnTrendControllerRef = {
   key: string;
@@ -321,7 +324,7 @@ export function UnifiedBarnTrendPanel({
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
-  /** 오버레이(하이브리드) 보기 — 온도+모터를 한 밴드에 겹침 (토글) */
+  /** 오버레이 — 켜진 온도·습도·모터를 한 밴드에 겹침 (토글) */
   const [overlayView, setOverlayView] = useState(false);
   const [commandChannels, setCommandChannels] = useState<CommandChannelFlags>(
     DEFAULT_COMMAND_CHANNEL_FLAGS,
@@ -422,15 +425,32 @@ export function UnifiedBarnTrendPanel({
   }, [controllers, alarmSettings, alarmScopeKey]);
 
   const mappingThresholds = draftThresholds ?? baseThresholds;
+  const recommendBand = useMemo(() => {
+    const code =
+      chartScope.level === "farm" ? null : chartScope.stallTyCode;
+    return pigEnvBandForStallTy(code);
+  }, [chartScope]);
+  const plotThresholds: AlarmThresholds = useMemo(
+    () =>
+      recommendBand
+        ? {
+            tempLow: recommendBand.tempMinC,
+            tempHigh: recommendBand.tempMaxC,
+            humidityLow: recommendBand.humidityMinPct,
+            humidityHigh: recommendBand.humidityMaxPct,
+          }
+        : mappingThresholds,
+    [recommendBand, mappingThresholds],
+  );
 
   const layerVisibility = useMemo(
     () => splitYVisibilityFromLayers(layers),
     [layers],
   );
-  /** 오버레이는 온도·모터 본선이 모두 켜져 있을 때만 유효 */
-  const overlayAvailable =
-    layers.temp && (layers.motors || layers.motorCh);
+  /** 오버레이는 켜진 플롯 밴드가 2개 이상일 때만 유효 */
+  const overlayAvailable = countSplitYBands(layerVisibility) >= 2;
   const overlayActive = overlayView && overlayAvailable;
+  const overlayAlign = overlayActive ? OVERLAY_ALIGN_ANCHOR : undefined;
   const scopeVisibility = useMemo(() => {
     const bandVis = visibilityForYBands(xScope?.yBands ?? null);
     if (!bandVis) return layerVisibility;
@@ -442,8 +462,8 @@ export function UnifiedBarnTrendPanel({
     };
   }, [layerVisibility, xScope]);
   const targetPlot = useMemo(
-    () => resolveUnifiedPlotLayout(scopeVisibility, mappingThresholds, overlayActive),
-    [scopeVisibility, mappingThresholds, overlayActive],
+    () => resolveUnifiedPlotLayout(scopeVisibility, plotThresholds, overlayActive),
+    [scopeVisibility, plotThresholds, overlayActive],
   );
   const chartLeftUnit = targetPlot.leftUnit;
   /** 브러시 캔버스 여부 — 높이 풀·레이아웃 보간을 같은 훅에서 맞추기 위해 조기 계산 */
@@ -481,9 +501,9 @@ export function UnifiedBarnTrendPanel({
   /** 드래그 hit/미리보기 — 레이어 기준(스코프 전) */
   const layerLayout = useMemo(
     () =>
-      resolveUnifiedPlotLayout(layerVisibility, mappingThresholds, overlayActive)
+      resolveUnifiedPlotLayout(layerVisibility, plotThresholds, overlayActive)
         .layout,
-    [layerVisibility, mappingThresholds, overlayActive],
+    [layerVisibility, plotThresholds, overlayActive],
   );
 
   /** 브러시 — 30일 1시간 양호도 */
@@ -698,15 +718,20 @@ export function UnifiedBarnTrendPanel({
     return aggregateUnifiedBarnTrendRaw(
       down.seriesList,
       down.categories,
-      mappingThresholds,
+      plotThresholds,
       { includeThermo: chartScope.level === "controller" },
     );
-  }, [windowBundle, mappingThresholds, plotWidthPx, chartScope.level]);
+  }, [windowBundle, plotThresholds, plotWidthPx, chartScope.level]);
 
   const built = useMemo(() => {
     if (!trendRaw) return null;
-    return mapUnifiedBarnTrendRawToSplitY(trendRaw, layout);
-  }, [trendRaw, layout]);
+    return mapUnifiedBarnTrendRawToSplitY(
+      trendRaw,
+      layout,
+      undefined,
+      overlayAlign,
+    );
+  }, [trendRaw, layout, overlayAlign]);
 
   const picked = useMemo(() => {
     if (!built) return null;
@@ -840,11 +865,16 @@ export function UnifiedBarnTrendPanel({
         const raw = aggregateUnifiedBarnTrendRaw(
           down.seriesList,
           down.categories,
-          mappingThresholds,
+          plotThresholds,
           { includeThermo: chartScope.level === "controller" },
         );
         if (raw) {
-          const builtScoped = mapUnifiedBarnTrendRawToSplitY(raw, layout);
+          const builtScoped = mapUnifiedBarnTrendRawToSplitY(
+            raw,
+            layout,
+            undefined,
+            overlayAlign,
+          );
           if (builtScoped) {
             const pickLayers = maskLayersForYBands(layers, xScope.yBands);
             const pickedScoped = pickUnifiedTrendLayers(builtScoped, pickLayers);
@@ -880,12 +910,13 @@ export function UnifiedBarnTrendPanel({
     picked,
     xScope,
     windowBundle,
-    mappingThresholds,
+    plotThresholds,
     layout,
     layers,
     plotWidthPx,
     chartScope.level,
     trendRaw,
+    overlayAlign,
   ]);
 
   const chartCategories = scoped?.categories ?? [];
@@ -910,8 +941,8 @@ export function UnifiedBarnTrendPanel({
     if (!times || times.length < 1) return [];
     const endMs = times[times.length - 1]!;
     const segs = buildDecodedSettingHoldSegments(windows, times, endMs);
-    const mapLo = mappingThresholds.tempLow;
-    const mapHi = mappingThresholds.tempHigh;
+    const mapLo = plotThresholds.tempLow;
+    const mapHi = plotThresholds.tempHigh;
     const out: TrendCommandSettingSeg[] = [];
     for (const seg of segs) {
       if (!commandChannels[seg.channel]) continue;
@@ -923,14 +954,16 @@ export function UnifiedBarnTrendPanel({
             mapLo,
             mapHi,
             tempMapLayout,
-            tempMapDomain,
+            overlayAlign ? undefined : tempMapDomain,
+            overlayAlign,
           ),
           mapTempCToSplitY(
             seg.tempHi,
             mapLo,
             mapHi,
             tempMapLayout,
-            tempMapDomain,
+            overlayAlign ? undefined : tempMapDomain,
+            overlayAlign,
           ),
           layout.tempLo,
           layout.tempHi,
@@ -973,12 +1006,13 @@ export function UnifiedBarnTrendPanel({
     built,
     scoped?.thermoWindows,
     scoped?.categories,
-    mappingThresholds.tempLow,
-    mappingThresholds.tempHigh,
+    plotThresholds.tempLow,
+    plotThresholds.tempHigh,
     layout.tempLo,
     layout.tempHi,
     tempMapLayout,
     tempMapDomain,
+    overlayAlign,
     commandChannels,
   ]);
   const chartPlotHeightForChart = chartPlotHeight;
@@ -1274,12 +1308,12 @@ export function UnifiedBarnTrendPanel({
 
   const onScaleEdgeNumericCommit = (event: ScaleEdgeNumericCommitEvent) => {
     if (!canCommand || !alarmScopeKey || alarmSaving) return;
-    const key = ALARM_EDGE_KEY[event.id];
-    if (!key) return;
-    const next = clampAlarmDraft(
-      { ...(draftRef.current ?? baseThresholds), [key]: event.value },
-      key,
+    const next = applyAlarmScaleEdgeCommit(
+      draftRef.current ?? baseThresholds,
+      event.id,
+      event.value,
     );
+    if (!next) return;
     const unchanged =
       next.tempHigh === baseThresholds.tempHigh &&
       next.tempLow === baseThresholds.tempLow &&
@@ -1292,20 +1326,33 @@ export function UnifiedBarnTrendPanel({
     persistAlarmDraft(next);
   };
 
-  /** 우측 Y — 온·습 상·하한. 더블클릭으로 숫자 입력. */
-  const scaleEdgeLabels = useMemo((): TrendScaleEdgeLabel[] => {
-    if (!built) return [];
+  /**
+   * 우측 Y — 축사유형 권장 상·하한(숫자 저장 없음).
+   * 권장 띠가 있으면 좌측은 현장 알람 기준, 구간은 기준±편차다.
+   */
+  const { scaleEdgeLabels, alarmRangeBands } = useMemo((): {
+    scaleEdgeLabels: TrendScaleEdgeLabel[];
+    alarmRangeBands: TrendRangeBand[];
+  } => {
+    if (!built) return { scaleEdgeLabels: [], alarmRangeBands: [] };
     const out: TrendScaleEdgeLabel[] = [];
-    const mapLo = mappingThresholds.tempLow;
-    const mapHi = mappingThresholds.tempHigh;
-    const mapHumLo = mappingThresholds.humidityLow;
-    const mapHumHi = mappingThresholds.humidityHigh;
+    const rangeBands: TrendRangeBand[] = [];
+    const mapLo = plotThresholds.tempLow;
+    const mapHi = plotThresholds.tempHigh;
+    const mapHumLo = plotThresholds.humidityLow;
+    const mapHumHi = plotThresholds.humidityHigh;
+    const guideEditEnabled = alarmEditEnabled && !recommendBand;
+    const farmAlarmEditEnabled = alarmEditEnabled && Boolean(recommendBand);
+    const tempHiTitle = recommendBand ? "권장 온도 상한" : "온도 상한";
+    const tempLoTitle = recommendBand ? "권장 온도 하한" : "온도 하한";
+    const humHiTitle = recommendBand ? "권장 습도 상한" : "습도 상한";
+    const humLoTitle = recommendBand ? "권장 습도 하한" : "습도 하한";
     const push = (
       id: string,
       chartY: number | null,
       text: string,
       color: string,
-      mark: "overline" | "underline",
+      mark: "overline" | "underline" | undefined,
       title: string,
       showLine: boolean,
       draggable = false,
@@ -1348,19 +1395,20 @@ export function UnifiedBarnTrendPanel({
       push(
         "temp-hi",
         mapTempCToSplitY(
-          mappingThresholds.tempHigh,
+          plotThresholds.tempHigh,
           mapLo,
           mapHi,
           tempMapLayout,
-          tempMapDomain,
+          overlayAlign ? undefined : tempMapDomain,
+          overlayAlign,
         ),
-        formatTrendBandEdge(mappingThresholds.tempHigh, "℃"),
+        formatTrendBandEdge(plotThresholds.tempHigh, "℃"),
         TREND_CHART_COLORS.temp,
         "overline",
-        "온도 상한",
+        tempHiTitle,
         true,
-        alarmEditEnabled,
-        mappingThresholds.tempHigh,
+        guideEditEnabled,
+        plotThresholds.tempHigh,
         {
           lineStrokeWidth: 1.45,
           lineDasharray: "2 2",
@@ -1370,25 +1418,46 @@ export function UnifiedBarnTrendPanel({
       push(
         "temp-lo",
         mapTempCToSplitY(
-          mappingThresholds.tempLow,
+          plotThresholds.tempLow,
           mapLo,
           mapHi,
           tempMapLayout,
-          tempMapDomain,
+          overlayAlign ? undefined : tempMapDomain,
+          overlayAlign,
         ),
-        formatTrendBandEdge(mappingThresholds.tempLow, "℃"),
+        formatTrendBandEdge(plotThresholds.tempLow, "℃"),
         TREND_CHART_COLORS.temp,
         "underline",
-        "온도 하한",
+        tempLoTitle,
         true,
-        alarmEditEnabled,
-        mappingThresholds.tempLow,
+        guideEditEnabled,
+        plotThresholds.tempLow,
         {
           lineStrokeWidth: 1.45,
           lineDasharray: "2 2",
           lineHighlight: true,
         },
       );
+      const breakZones =
+        !overlayAlign ? tempBrokenAxisPlotZones(tempMapLayout) : null;
+      if (breakZones) {
+        push(
+          "temp-break",
+          breakZones.breakY,
+          "",
+          "var(--border)",
+          undefined,
+          "권장 구간 위",
+          true,
+          false,
+          undefined,
+          {
+            hideLabel: true,
+            lineStrokeWidth: 1,
+            lineDasharray: "2 4",
+          },
+        );
+      }
     }
     if (
       scopeVisibility.showHum &&
@@ -1397,18 +1466,24 @@ export function UnifiedBarnTrendPanel({
       push(
         "hum-hi",
         mapHumPctToSplitY(
-          mappingThresholds.humidityHigh,
+          plotThresholds.humidityHigh,
           mapHumLo,
           mapHumHi,
           layout,
+          overlayAlign
+            ? undefined
+            : chartLeftUnit === "%"
+              ? undefined
+              : alarmEdgeDomain(mapHumLo, mapHumHi, SPLIT_Y_HUM_EDGE_PAD_PCT),
+          overlayAlign,
         ),
-        formatTrendBandEdge(mappingThresholds.humidityHigh, "%"),
+        formatTrendBandEdge(plotThresholds.humidityHigh, "%"),
         TREND_CHART_COLORS.humidity,
         "overline",
-        "습도 상한",
+        humHiTitle,
         true,
-        alarmEditEnabled,
-        mappingThresholds.humidityHigh,
+        guideEditEnabled,
+        plotThresholds.humidityHigh,
         {
           lineStrokeWidth: 1.65,
           lineDasharray: "2 2",
@@ -1418,18 +1493,24 @@ export function UnifiedBarnTrendPanel({
       push(
         "hum-lo",
         mapHumPctToSplitY(
-          mappingThresholds.humidityLow,
+          plotThresholds.humidityLow,
           mapHumLo,
           mapHumHi,
           layout,
+          overlayAlign
+            ? undefined
+            : chartLeftUnit === "%"
+              ? undefined
+              : alarmEdgeDomain(mapHumLo, mapHumHi, SPLIT_Y_HUM_EDGE_PAD_PCT),
+          overlayAlign,
         ),
-        formatTrendBandEdge(mappingThresholds.humidityLow, "%"),
+        formatTrendBandEdge(plotThresholds.humidityLow, "%"),
         TREND_CHART_COLORS.humidity,
         "underline",
-        "습도 하한",
+        humLoTitle,
         true,
-        alarmEditEnabled,
-        mappingThresholds.humidityLow,
+        guideEditEnabled,
+        plotThresholds.humidityLow,
         {
           lineStrokeWidth: 1.65,
           lineDasharray: "2 2",
@@ -1437,16 +1518,196 @@ export function UnifiedBarnTrendPanel({
         },
       );
     }
-    return out;
+    if (recommendBand && !overlayAlign) {
+      if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
+        const tempFarmHiY = mapTempCToSplitY(
+          mappingThresholds.tempHigh,
+          mapLo,
+          mapHi,
+          tempMapLayout,
+          tempMapDomain,
+        );
+        const tempFarmLoY = mapTempCToSplitY(
+          mappingThresholds.tempLow,
+          mapLo,
+          mapHi,
+          tempMapLayout,
+          tempMapDomain,
+        );
+        const tempFarmMid = farmAlarmMidValue(
+          mappingThresholds.tempLow,
+          mappingThresholds.tempHigh,
+        );
+        if (tempFarmMid != null) {
+          push(
+            "temp-farm-mid",
+            mapTempCToSplitY(
+              tempFarmMid,
+              mapLo,
+              mapHi,
+              tempMapLayout,
+              tempMapDomain,
+            ),
+            formatTrendBandEdge(tempFarmMid, "℃"),
+            TREND_CHART_COLORS.temp,
+            undefined,
+            "온도 알람 기준",
+            false,
+            farmAlarmEditEnabled,
+            tempFarmMid,
+            { side: "left" },
+          );
+        }
+        if (
+          tempFarmHiY != null &&
+          Number.isFinite(tempFarmHiY) &&
+          tempFarmLoY != null &&
+          Number.isFinite(tempFarmLoY)
+        ) {
+          rangeBands.push({
+            id: "temp-farm-range",
+            lo: tempFarmLoY,
+            hi: tempFarmHiY,
+            axis: "left",
+            color: FARM_ALARM_RANGE_FILL,
+            fillOpacity: FARM_ALARM_RANGE_FILL_OPACITY,
+          });
+        }
+      }
+      if (
+        scopeVisibility.showHum &&
+        (layers.hum || layers.humDev || layers.humBand || layers.humEma)
+      ) {
+        const humDomain = alarmEdgeDomain(
+          mapHumLo,
+          mapHumHi,
+          SPLIT_Y_HUM_EDGE_PAD_PCT,
+        );
+        const humFarmHiY = mapHumPctToSplitY(
+          mappingThresholds.humidityHigh,
+          mapHumLo,
+          mapHumHi,
+          layout,
+          humDomain,
+        );
+        const humFarmLoY = mapHumPctToSplitY(
+          mappingThresholds.humidityLow,
+          mapHumLo,
+          mapHumHi,
+          layout,
+          humDomain,
+        );
+        const humFarmMid = farmAlarmMidValue(
+          mappingThresholds.humidityLow,
+          mappingThresholds.humidityHigh,
+        );
+        if (humFarmMid != null) {
+          push(
+            "hum-farm-mid",
+            mapHumPctToSplitY(
+              humFarmMid,
+              mapHumLo,
+              mapHumHi,
+              layout,
+              humDomain,
+            ),
+            formatTrendBandEdge(humFarmMid, "%"),
+            TREND_CHART_COLORS.humidity,
+            undefined,
+            "습도 알람 기준",
+            false,
+            farmAlarmEditEnabled,
+            humFarmMid,
+            { side: "left" },
+          );
+        }
+        if (
+          humFarmHiY != null &&
+          Number.isFinite(humFarmHiY) &&
+          humFarmLoY != null &&
+          Number.isFinite(humFarmLoY)
+        ) {
+          rangeBands.push({
+            id: "hum-farm-range",
+            lo: humFarmLoY,
+            hi: humFarmHiY,
+            axis: "left",
+            color: FARM_ALARM_RANGE_FILL,
+            fillOpacity: FARM_ALARM_RANGE_FILL_OPACITY,
+          });
+        }
+      }
+    }
+    if (!chartLeftUnit) {
+      const ticks = buildSplitYBandScaleTicks({
+        layout,
+        showTemp: Boolean(
+          scopeVisibility.showTemp && layers.temp && built.available.temp,
+        ),
+        showHum: Boolean(
+          scopeVisibility.showHum &&
+            (layers.hum || layers.humDev || layers.humBand || layers.humEma),
+        ),
+        showMotors: Boolean(
+          scopeVisibility.showMotors && (layers.motors || layers.motorCh),
+        ),
+        overlay: overlayActive,
+        tempLow: mapLo,
+        tempHigh: mapHi,
+        humidityLow: mapHumLo,
+        humidityHigh: mapHumHi,
+      });
+      for (const tick of ticks) {
+        if (
+          recommendBand &&
+          (tick.id === "band-tick-temp-mid" || tick.id === "band-tick-hum-mid")
+        ) {
+          continue;
+        }
+        const tickIsAlarmMid =
+          tick.id === "band-tick-temp-mid" || tick.id === "band-tick-hum-mid";
+        push(
+          tick.id,
+          tick.chartY,
+          formatTrendBandEdge(tick.value, tick.unit),
+          tickIsAlarmMid
+            ? tick.unit === "℃"
+              ? TREND_CHART_COLORS.temp
+              : TREND_CHART_COLORS.humidity
+            : "var(--muted-foreground)",
+          undefined,
+          tickIsAlarmMid
+            ? tick.unit === "℃"
+              ? "온도 알람 기준"
+              : "습도 알람 기준"
+            : "눈금",
+          !tickIsAlarmMid,
+          tickIsAlarmMid && alarmEditEnabled,
+          tickIsAlarmMid ? tick.value : undefined,
+          {
+            side: "left",
+            lineStrokeWidth: tickIsAlarmMid ? 0 : 0.35,
+            lineDasharray: "solid",
+            lineHighlight: false,
+          },
+        );
+      }
+    }
+    return { scaleEdgeLabels: out, alarmRangeBands: rangeBands };
   }, [
     built,
     layers,
+    plotThresholds,
     mappingThresholds,
+    recommendBand,
     layout,
     scopeVisibility,
     alarmEditEnabled,
     tempMapLayout,
     tempMapDomain,
+    chartLeftUnit,
+    overlayActive,
+    overlayAlign,
   ]);
 
   const cycleGroupLayers = (group: "temp" | "hum" | "motor") => {
@@ -1511,6 +1772,7 @@ export function UnifiedBarnTrendPanel({
       className={cn(
         "select-none",
         farmChartUi.root,
+        isMobileStack && farmChartUi.yGutterCompact,
         plotFill
           ? "relative flex min-h-0 flex-1 flex-col gap-2"
           : "mt-2 space-y-2",
@@ -1702,6 +1964,7 @@ export function UnifiedBarnTrendPanel({
           eventLaneHeight={0}
           commandSettingSegs={commandSettingSegs}
           leftUnit={chartLeftUnit}
+          yAxisTicks={chartLeftUnit ? "thirds" : "full"}
           leftDomain={built.leftDomain}
           period={displayPeriod}
           pinResetKey={`${alarmScopeKey ?? ""}|${period ?? ""}`}
@@ -1764,7 +2027,7 @@ export function UnifiedBarnTrendPanel({
               : "full"
           }
           scaleEdgeHitPx={isMobileStack ? chartUiPx(22) : chartUiPx(10)}
-          labelGutter={isMobileStack}
+          labelGutter={isMobileStack && !plotFill}
           showMarkers
           markerDensity={displayPeriod === "24h" ? "all" : "sparse"}
           markerRadiusPx={isMobileStack ? chartUiPx(1.4) : chartUiPx(1.6)}
@@ -1772,6 +2035,9 @@ export function UnifiedBarnTrendPanel({
           layerClipWipe
           splitBandGuides={splitBandGuides}
           scaleEdgeLabels={scaleEdgeLabels}
+          rangeBands={alarmRangeBands}
+          yGutterStartCaption="알람"
+          yGutterEndCaption={recommendBand ? "권장" : undefined}
           xScopeSelect
           onXScopeCommit={(range) =>
             commitXScope(range, activeGuidedXScope ? "replace" : "push")

@@ -23,7 +23,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 - 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
 - 좌 현황 숨기기/나타내기 · 카드 헤더 단일 순환 버튼
 - 모바일: 그리드만 + 카드 탭 시 Bottom sheet 직행 (인라인 상세 없음)
-- 모바일 상세 «차트에서 보기»: `view=chart`만 (시드/`chart*` 자동은 비범위)
+- 모바일 상세 «차트로 옮기기»: 차트 탭으로 이동하며 위젯 위칸에 넣고, 위칸이 있으면 아래칸에 넣음. 필드 탭으로 돌아와도 `chartW1`/`chartW2`는 유지(두 대 비교)
 
 ---
 
@@ -73,7 +73,7 @@ resolveFarmHubView(raw)
 
 | 전환 헬퍼 | 부수 효과 |
 |-----------|-----------|
-| `applyMapGridParams` | `view`·`listMode`·drill·`chart*`·`plan*` 제거 |
+| `applyMapGridParams` | `view`·`listMode`·drill·집계·줌·명령·`plan*` 제거. **위젯 칸(`chartW1`/`chartW2`)은 유지** |
 | `applyListViewParams` | `view=list`, `stall`·`mapLevel` 제거 (`sp` 유지 가능). `plan*` 정리 |
 | `applyChartViewParams` | `view=chart`, `listMode`·`stall`·`mapLevel` 제거 (`chart*` 유지). `plan*` 정리 |
 | `applyPlanViewParams` | `applyModelViewParams`와 동일 (`view=model`). 게이트 off면 그리드 |
@@ -86,7 +86,7 @@ resolveFarmHubView(raw)
 
 - 헬퍼: `resolveFarmChartScope` / `applyFarmChartScopeParams` / `clearFarmChartScopeParams` (`farm-chart-scope.ts`)
 - 범위 변경: shallow + `pinFarmHubViewParam(chart)` — **hub epoch 올리지 않음**
-- soft home·맵/목록/ARIA 전환·농장 전환 시 `chart*` 제거
+- 목록·모델·soft home·농장 전환 시 `chart*` 전부 제거. 필드(맵) 전환은 집계·줌·명령만 제거하고 위젯 칸은 유지
 - 예: `/farm?lsind=…&item=…&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1`
 - 줌 예: `chartYBand=temp+command&chartX0=0.2&chartX1=0.6` — 온도·명령 레인 집중 + 시간 구간
 

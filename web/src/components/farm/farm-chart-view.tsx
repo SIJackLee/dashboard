@@ -3,7 +3,7 @@
 import { useMemo, useState, type DragEvent, type ReactNode } from "react";
 import { PanelRight, PanelRightClose, X } from "lucide-react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
-import { buildTrendBrushOverview } from "@/components/farm/unified-barn-trend-panel-helpers";
+import { buildSharedWidgetBrushOverview } from "@/components/farm/unified-barn-trend-panel-helpers";
 import {
   BRUSH_PERIOD_WINDOW,
   UnifiedTrendPeriodBrush,
@@ -372,12 +372,28 @@ export function FarmChartView({
   }
   const sharedBrushOverview = useMemo(
     () =>
-      buildTrendBrushOverview(
+      buildSharedWidgetBrushOverview(
+        widgetSlots.w1
+          ? filterReadingsByChartScope(readings, widgetSlots.w1).map((r) => ({
+              reading: r,
+            }))
+          : [],
+        widgetSlots.w2
+          ? filterReadingsByChartScope(readings, widgetSlots.w2).map((r) => ({
+              reading: r,
+            }))
+          : [],
         readings.map((r) => ({ reading: r })),
         controllerTrendByPeriod,
         alarmSettings,
       ),
-    [readings, controllerTrendByPeriod, alarmSettings],
+    [
+      readings,
+      controllerTrendByPeriod,
+      alarmSettings,
+      widgetSlots.w1,
+      widgetSlots.w2,
+    ],
   );
   const [dragOverSlot, setDragOverSlot] = useState<FarmChartWidgetSlotId | null>(
     null,
@@ -641,20 +657,21 @@ export function FarmChartView({
                   className={cn(
                     "flex shrink-0 items-stretch",
                     !isMobileStack && "px-px",
+                    isMobileStack && farmChartUi.yGutterCompact,
                   )}
                 >
+                  <div className={farmChartUi.yGutter} aria-hidden />
                   <div className="min-w-0 flex-1">
                     <UnifiedTrendPeriodBrush
                       window={sharedBrushWindow}
                       onWindowChange={setSharedBrushWindow}
-                      overviewValues={sharedBrushOverview}
+                      overviewValues={sharedBrushOverview.values}
+                      overviewSecondaryValues={sharedBrushOverview.secondaryValues}
+                      overviewMode={sharedBrushOverview.mode}
                       hoverPlacement="below"
-                      labelGutter={Boolean(isMobileStack)}
                     />
                   </div>
-                  {!isMobileStack ? (
-                    <div className={farmChartUi.yGutter} aria-hidden />
-                  ) : null}
+                  <div className={farmChartUi.yGutterEnd} aria-hidden />
                 </div>
               ) : null}
               <div
@@ -703,14 +720,7 @@ export function FarmChartView({
                 canCommand={canCommand}
                 isMobileStack={isMobileStack}
                 layersToolbarActive={layersToolbarActive}
-                mobileScopeHandle={
-                  isMobileStack
-                    ? {
-                        open: scopePanelOpen,
-                        onOpen: () => setScopePanelOpen(true),
-                      }
-                    : null
-                }
+                mobileScopeHandle={null}
               />
               <ChartWidgetSlot
                 slotId="w2"
@@ -1024,6 +1034,7 @@ function ChartWidgetSlot({
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card",
         !isMobileStack && "basis-0",
         farmChartUi.root,
+        isMobileStack && farmChartUi.yGutterCompact,
         motionClass.farmChartPanelShell,
         dragOver && "border-channel-info/50 bg-channel-info/10",
       )}

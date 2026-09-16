@@ -14,6 +14,12 @@ import {
   pigEnvTypeVerdicts,
   pigEnvVerdictForAverages,
   pigEnvVerdictOffBand,
+  pigEnvAgeStagesForStallTy,
+  pigEnvAgeAdviceLines,
+  pigEnvAgeFollowupOpen,
+  pigEnvAdviceStallTyCode,
+  PIG_ENV_AGE_PROMPT,
+  PIG_ENV_AGE_DECLINE,
 } from "./pig-env-recommend";
 
 {
@@ -28,6 +34,35 @@ import {
   assert.equal(farrow?.tempMinC, 18);
   assert.equal(farrow?.tempMaxC, 21);
   assert.equal(pigEnvBandForStallTy("SP10"), null);
+}
+
+{
+  const finish = pigEnvAgeStagesForStallTy("SP07");
+  assert.equal(finish.length, 1);
+  assert.equal(finish[0]?.label, "45kg~성돈");
+  assert.equal(finish[0]?.tempMinC, 15);
+  const farrowAge = pigEnvAgeAdviceLines("SP03");
+  assert.equal(farrowAge.length, 4);
+  assert.match(farrowAge[0] ?? "", /모돈 실온/);
+  assert.match(farrowAge[1] ?? "", /출생 직후/);
+  const finishLine = pigEnvAgeAdviceLines("SP07")[0] ?? "";
+  assert.match(finishLine, /45kg~성돈 온도 15도~20도 · 습도 40%~60%/);
+  assert.equal((finishLine.match(/%/g) ?? []).length, 2);
+  assert.equal(pigEnvAgeFollowupOpen("ok", "SP07"), true);
+  assert.equal(pigEnvAgeFollowupOpen("offline", "SP07"), false);
+  assert.equal(pigEnvAgeFollowupOpen("ok", "SP10"), false);
+  assert.equal(
+    pigEnvAdviceStallTyCode(
+      [{ stallTyCode: "SP07", tempC: 18, humidityPct: 50, status: "normal" }],
+      "SP07",
+    ),
+    "SP07",
+  );
+  const pregAge = pigEnvAgeStagesForStallTy("SP02");
+  assert.equal(pregAge[0]?.label, "임신돈");
+  assert.equal(pregAge[0]?.tempMinC, 16);
+  assert.match(PIG_ENV_AGE_PROMPT, /일령별 권장/);
+  assert.equal(PIG_ENV_AGE_DECLINE, "축사유형 권장만 안내했습니다.");
 }
 
 {

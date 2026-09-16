@@ -74,3 +74,38 @@ export function comfortScoreBandLabel(
   if (s >= 45) return "주의";
   return "이탈";
 }
+
+/** 아래칸 − 위칸. 이 이내면 비슷. */
+export const COMFORT_DELTA_NEAR = 8;
+
+/** 양호도 차이 막대 색. 양수=아래칸이 더 양호. */
+export function comfortDeltaToColor(delta: number): string {
+  const d = Math.max(-100, Math.min(100, delta));
+  if (d >= COMFORT_DELTA_NEAR) {
+    const t = Math.round(
+      ((d - COMFORT_DELTA_NEAR) / (100 - COMFORT_DELTA_NEAR)) * 100,
+    );
+    return `color-mix(in oklch, var(--status-ok) ${t}%, var(--status-warn))`;
+  }
+  if (d <= -COMFORT_DELTA_NEAR) {
+    const t = Math.round(
+      ((Math.abs(d) - COMFORT_DELTA_NEAR) / (100 - COMFORT_DELTA_NEAR)) * 100,
+    );
+    return `color-mix(in oklch, var(--status-danger) ${t}%, var(--status-warn))`;
+  }
+  return "var(--status-warn)";
+}
+
+export function comfortDeltaBandLabel(
+  delta: number,
+): "아래칸이 더 양호" | "위칸이 더 양호" | "비슷" {
+  if (delta >= COMFORT_DELTA_NEAR) return "아래칸이 더 양호";
+  if (delta <= -COMFORT_DELTA_NEAR) return "위칸이 더 양호";
+  return "비슷";
+}
+
+export function formatComfortDelta(delta: number): string {
+  const n = Math.round(delta);
+  if (n > 0) return `+${n}`;
+  return String(n);
+}

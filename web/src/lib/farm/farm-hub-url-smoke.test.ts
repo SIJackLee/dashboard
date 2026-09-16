@@ -92,10 +92,11 @@ function clone(q: string) {
   );
   assert.equal(keep24.get("trendPeriod"), "24h");
 
-  // 그리드 탭 전환도 chart* 정리
+  // 그리드 탭 전환은 집계 정리, 위젯 칸은 유지(차트로 옮기기 비교)
   const leaveChart = clone(source.toString());
   applyMapGridParams(leaveChart);
   assert.equal(leaveChart.get("chartSp"), null);
+  assert.equal(leaveChart.get("chartW1"), "SP03|1|x/y");
   assert.equal(resolveFarmHubView(leaveChart.get("view")), "map");
   console.log("smoke 2: soft home clears chart* — ok");
 }

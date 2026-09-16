@@ -15,6 +15,7 @@ import {
   parseChartWidgetDragPayload,
   parseChartWidgetSlot,
   placeFarmChartWidget,
+  placeFarmChartWidgetNext,
   resolveFarmChartCmdParam,
   resolveFarmChartScope,
   resolveFarmChartWidgetSlots,
@@ -24,6 +25,7 @@ import {
 } from "./farm-chart-scope";
 import {
   applyListViewParams,
+  applyMapGridParams,
   buildFarmMonitoringHomeParams,
   isFarmMonitoringSoftHome,
 } from "./farm-view-url";
@@ -282,12 +284,55 @@ import {
 }
 
 {
+  const a = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "01",
+  };
+  const b = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "02",
+  };
+  const c = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "03",
+  };
+  const first = placeFarmChartWidgetNext({ w1: null, w2: null }, a);
+  assert.ok(first.w1 && scopesEqual(first.w1, a));
+  assert.equal(first.w2, null);
+  const second = placeFarmChartWidgetNext(first, b);
+  assert.ok(second.w1 && scopesEqual(second.w1, a));
+  assert.ok(second.w2 && scopesEqual(second.w2, b));
+  const again = placeFarmChartWidgetNext(second, a);
+  assert.ok(again.w1 && scopesEqual(again.w1, a));
+  assert.ok(again.w2 && scopesEqual(again.w2, b));
+  const replaceBottom = placeFarmChartWidgetNext(second, c);
+  assert.ok(replaceBottom.w1 && scopesEqual(replaceBottom.w1, a));
+  assert.ok(replaceBottom.w2 && scopesEqual(replaceBottom.w2, c));
+}
+
+{
   const params = new URLSearchParams(
     "lsind=FARM01&item=P00&view=chart&chartW1=SP07%7C1%7Ca%2Fb",
   );
   applyListViewParams(params);
   assert.equal(params.get("chartW1"), null);
   assert.equal(params.get("chartW2"), null);
+}
+
+{
+  const params = new URLSearchParams(
+    "lsind=FARM01&item=P00&view=chart&chartSp=SP07&chartW1=SP07%7C1%7Ca%2Fb&chartW2=-",
+  );
+  applyMapGridParams(params);
+  assert.equal(params.get("chartSp"), null);
+  assert.equal(params.get("chartW1"), "SP07|1|a/b");
+  assert.equal(params.get("chartW2"), "-");
 }
 
 console.log("farm-chart-scope-url.test.ts: ok");

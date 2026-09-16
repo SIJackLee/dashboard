@@ -7,7 +7,12 @@ import type { BarnReading } from "@/lib/data/iot";
 import { DELIN_NAME } from "@/lib/aria/aria-mode";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import {
+  PIG_ENV_AGE_DECLINE,
+  PIG_ENV_AGE_PROMPT,
   pigEnvAdviceListPreview,
+  pigEnvAdviceStallTyCode,
+  pigEnvAgeAdviceLines,
+  pigEnvAgeFollowupOpen,
   pigEnvBadgeAdvice,
 } from "@/lib/farm/pig-env-recommend";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -43,9 +48,24 @@ export function DelinEnvBadge({
     () => pigEnvBadgeAdvice(readings, stallTyCode),
     [readings, stallTyCode],
   );
+  const ageStallTy = useMemo(
+    () => pigEnvAdviceStallTyCode(readings, stallTyCode),
+    [readings, stallTyCode],
+  );
+  const ageFollowup = pigEnvAgeFollowupOpen(advice.tier, ageStallTy);
+  const ageLines = useMemo(
+    () => (ageFollowup ? pigEnvAgeAdviceLines(ageStallTy) : []),
+    [ageFollowup, ageStallTy],
+  );
   const danger = advice.tier === "offline" || advice.tier === "alarm";
   const adviceKey = `${advice.stallLabel ?? ""}:${advice.tier}:${advice.summary}`;
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const [ageStep, setAgeStep] = useState<"ask" | "age" | "declined">("ask");
+  const [ageStepKey, setAgeStepKey] = useState(adviceKey);
+  if (ageStepKey !== adviceKey) {
+    setAgeStepKey(adviceKey);
+    setAgeStep("ask");
+  }
   const open = advice.offBand
     ? dismissedKey !== adviceKey
     : dismissedKey === `open:${adviceKey}`;
@@ -116,6 +136,56 @@ export function DelinEnvBadge({
             <p className="mt-1 text-[length:var(--density-meta)] leading-snug text-muted-foreground break-keep">
               외 {listPreview.extraCount}건
             </p>
+          ) : null}
+          {open && ageFollowup ? (
+            <div className="mt-2 border-t border-border/70 pt-2">
+              {ageStep === "ask" ? (
+                <>
+                  <p
+                    className="text-[length:var(--density-meta)] leading-snug text-foreground break-keep"
+                    data-testid="delin-env-age-prompt"
+                  >
+                    {PIG_ENV_AGE_PROMPT}
+                  </p>
+                  <div className="mt-2 flex justify-end gap-1.5">
+                    <button
+                      type="button"
+                      className="rounded-md border border-border bg-background px-2 py-1 text-[length:var(--density-meta)] text-muted-foreground hover:bg-muted/40"
+                      data-testid="delin-env-age-decline"
+                      onClick={() => setAgeStep("declined")}
+                    >
+                      아니요
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-md border border-primary/40 bg-primary px-2 py-1 text-[length:var(--density-meta)] font-medium text-primary-foreground hover:bg-primary/90"
+                      data-testid="delin-env-age-accept"
+                      onClick={() => setAgeStep("age")}
+                    >
+                      네
+                    </button>
+                  </div>
+                </>
+              ) : null}
+              {ageStep === "age" ? (
+                <ul
+                  className="list-disc space-y-1 pl-4 text-[length:var(--density-meta)] leading-snug text-muted-foreground break-keep"
+                  data-testid="delin-env-age-lines"
+                >
+                  {ageLines.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {ageStep === "declined" ? (
+                <p
+                  className="text-[length:var(--density-meta)] leading-snug text-muted-foreground break-keep"
+                  data-testid="delin-env-age-declined"
+                >
+                  {PIG_ENV_AGE_DECLINE}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

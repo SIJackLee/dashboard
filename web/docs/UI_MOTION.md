@@ -157,7 +157,7 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | 항목 | 정책 |
 |------|------|
 | duration / easing | **동일** |
-| bottom sheet | `motionClass.sheetEnter` + `durationEmphasis` (접힘·펼침 360ms). 차트에서 추이 보기: 탭 전환 280ms + 인지 360ms 뒤 시트 접힘 360ms |
+| bottom sheet | `motionClass.sheetEnter` + `durationEmphasis` (접힘·펼침 360ms). 차트로 옮기기: 탭 전환 280ms + 인지 360ms 뒤 시트 접힘 360ms |
 | portal (dialog) | `motionClass.portalEnter` + `durationNormal` |
 | scroll-driven | 모바일 `auto` (투어·vv 대응), duration은 동일 |
 | preview frame | `[data-viewport-preview="mobile"]` — duration 동일, max-height만 조정 |
@@ -168,7 +168,7 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 
 | 규칙 | 내용 |
 |------|------|
-| Duration | 차트 surface는 `fast`/`normal`/`moderate`/`emphasis`/`exit`만 |
+| Duration | 차트 surface는 `fast`/`normal`/`moderate`/`emphasis`/`exit`만. 오버레이(습도 슬롯 만남 → 위젯 높이 팽창)는 `moderate` 두 단계 |
 | Infinite | hover-ring · scope-handle-pulse는 **정적** |
 | Amplitude | enter `scale ≥ 0.85` (토큰 `--motion-chart-scale-from: 0.92`) · exit `0.94` · **overshoot ≤ 1.08 금지** |
 | Rotate | `farm-chart-*` 키프레임에서 `rotate()` 금지 |

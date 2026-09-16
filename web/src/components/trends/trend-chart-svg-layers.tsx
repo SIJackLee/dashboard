@@ -139,18 +139,25 @@ export function BandGuidesLayer({
   );
 }
 
-/** 알람 밴드 창 — 온·습 모두 채움 없음 (scale edge 점선만) */
+/** 알람·범위 밴드 창 — fillWindow=false면 채움 없음 */
 export function AlarmBandsLayer({
   bands,
   geom,
 }: {
-  bands: { band: Band; axis: TrendAxis; color?: string; fillWindow?: boolean }[];
+  bands: {
+    band: Band;
+    axis: TrendAxis;
+    color?: string;
+    fillWindow?: boolean;
+    fillOpacity?: number;
+    id?: string;
+  }[];
   geom: TrendPlotGeom;
 }) {
   const { yFor, padL, padR, viewW } = geom;
   return (
     <Fragment>
-      {bands.map(({ band, axis, color, fillWindow }, idx) => {
+      {bands.map(({ band, axis, color, fillWindow, fillOpacity, id }, idx) => {
         if (fillWindow === false) return null;
         const yTop = yFor(band.hi, axis);
         const yBot = yFor(band.lo, axis);
@@ -158,15 +165,16 @@ export function AlarmBandsLayer({
         const h = Math.max(2, Math.abs(yBot - yTop));
         const fill = color ?? SEV_COLOR.warning;
         return (
-          <g key={`alarm-${idx}`}>
+          <g key={id ?? `alarm-${idx}`} pointerEvents="none">
             <rect
               x={padL}
               y={y}
               width={Math.max(0, viewW - padR - padL)}
               height={h}
               fill={fill}
-              fillOpacity={0.14}
+              fillOpacity={fillOpacity ?? 0.14}
               stroke="none"
+              data-farm-alarm-range={id}
             />
           </g>
         );

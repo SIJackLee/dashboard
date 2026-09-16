@@ -23,6 +23,7 @@ import {
   type SendBulkThermoCommandResult,
 } from "@/app/(dashboard)/controllers/actions";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
+import { formatAlarmBaselineSummary } from "@/lib/data/alarm-baseline";
 import type { ControllerGridData } from "@/lib/farm/controller-grid-data";
 import {
   DEFAULT_ALARM_SETTINGS,
@@ -570,7 +571,7 @@ export function FarmMapBulkApply({
           .filter(Boolean)
           .join(" · ");
   const alarmSummary = applyAlarm
-    ? `${alarm.tempLow}–${alarm.tempHigh}℃ · ${alarm.humidityLow}–${alarm.humidityHigh}%`
+    ? formatAlarmBaselineSummary(alarm)
     : "적용 안 함";
 
   const tempSectionBody = (collapsible: boolean) => (
@@ -678,7 +679,7 @@ export function FarmMapBulkApply({
             aria-hidden
           />
         }
-        label="임계 가이드 (온·습 상하한)"
+        label="온·습 알람 (기준·편차)"
       />
       <div
         className={cn(
@@ -697,6 +698,7 @@ export function FarmMapBulkApply({
           low={alarm.tempLow}
           high={alarm.tempHigh}
           unit="℃"
+          valueMode="baseline-dev"
           accentClass="bg-channel-temp/35"
           axisMode="editable"
           axisInputSize="dashboard"
@@ -724,6 +726,7 @@ export function FarmMapBulkApply({
           low={alarm.humidityLow}
           high={alarm.humidityHigh}
           unit="%"
+          valueMode="baseline-dev"
           accentClass="bg-channel-info/35"
           axisMode="editable"
           axisInputSize="dashboard"

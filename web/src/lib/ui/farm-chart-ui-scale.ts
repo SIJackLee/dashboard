@@ -19,6 +19,12 @@ export const farmChartUi = {
   fsAxis: "farm-chart-fs-axis",
   control: "farm-chart-control",
   tickRail: "farm-chart-tick-rail",
-  /** PC 위젯 — 우측 Y숫자 전용 칸. 브러시·플롯·날짜축이 같은 폭을 씀 */
+  /** 위젯 — 좌측 Y숫자 칸. 브러시·플롯·날짜축이 같은 폭을 씀 */
   yGutter: "farm-chart-y-gutter",
+  /** 위젯 — 우측 Y숫자 칸. 좌측과 같은 너비 */
+  yGutterEnd: "farm-chart-y-gutter-end",
+  /** 위젯 — 거터 안 Y숫자 가운데 정렬 */
+  yGutterLabel: "farm-chart-y-gutter-label",
+  /** 모바일 스택 — 좌·우 거터를 6rem으로 (PC는 8rem) */
+  yGutterCompact: "farm-chart-y-gutter-compact",
 } as const;

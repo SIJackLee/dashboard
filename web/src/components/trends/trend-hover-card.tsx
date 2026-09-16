@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import {
   ControllerAffiliationMarks,
   ControllerNoMark,
@@ -720,6 +721,60 @@ export function TrendEventCardBody({ mark }: { mark: TrendEventMark }) {
           {card.footnote}
         </div>
       ) : null}
+    </>
+  );
+}
+
+const OVERLAY_MERGE_KEYS = ["온도", "습도", "모터"] as const;
+
+function overlayMergeSectionKeys(
+  series: TrendSeries[],
+  histograms: TrendHistogram[],
+): (typeof OVERLAY_MERGE_KEYS)[number][] {
+  return OVERLAY_MERGE_KEYS.filter((key) => {
+    const group = inferHoverMetricGroup(key);
+    return (
+      series.some((s) => inferHoverMetricGroup(s.name) === group) ||
+      histograms.some(
+        (h) => inferHoverMetricGroup(h.legendLabel ?? "") === group,
+      )
+    );
+  });
+}
+
+/** 오버레이 hover/핀 — 온도·습도·모터 카드를 한 장으로 이어 붙인다. */
+export function OverlayMergedPointCards({
+  idx,
+  categories,
+  series,
+  envelopes,
+  histograms,
+  leftUnit,
+  rightUnit,
+  onBreachEquipmentNavigate,
+}: Omit<Parameters<typeof TrendPointCardBody>[0], "seriesKey" | "hideTime">) {
+  const keys = overlayMergeSectionKeys(series, histograms);
+  return (
+    <>
+      {keys.map((key, i) => (
+        <Fragment key={key}>
+          {i > 0 ? (
+            <div className="my-1.5 border-t border-border/50" />
+          ) : null}
+          <TrendPointCardBody
+            idx={idx}
+            seriesKey={key}
+            categories={categories}
+            series={series}
+            envelopes={envelopes}
+            histograms={histograms}
+            leftUnit={leftUnit}
+            rightUnit={rightUnit}
+            hideTime={i > 0}
+            onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+          />
+        </Fragment>
+      ))}
     </>
   );
 }

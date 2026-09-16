@@ -22,6 +22,13 @@ export function inferHoverMetricGroup(label: string): HoverMetricGroup {
   return "temp";
 }
 
+/** 오버레이 겹침 카드 — 온도·습도·모터 어느 쪽이든 한 핀으로 합친다. */
+export function isOverlayMergedHoverGroup(
+  group: HoverMetricGroup | null | undefined,
+): boolean {
+  return group === "temp" || group === "hum" || group === "motor";
+}
+
 function contributorToNav(
   c: TrendSpreadContributor,
 ): TrendBreachNavTarget | null {
@@ -149,6 +156,9 @@ export function formatTrendBandEdge(value: number, unit: string): string {
       : value.toFixed(1);
   return `${rounded}${unit}`;
 }
+
+/** Y숫자 회색 칩 기준 폭. 100.0℃ · 100.0도와 같은 자리. */
+export const TREND_Y_LABEL_CHIP_SAMPLE = "100.0℃";
 
 /** 임계 대비 이탈량 — 상한 +n / 하한 −n */
 export function formatLimitBreachDelta(
