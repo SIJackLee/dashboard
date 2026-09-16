@@ -393,6 +393,23 @@ export function placeFarmChartWidgetNext(
   return placeFarmChartWidget(slots, "w2", ctrl);
 }
 
+/**
+ * 칸 세로 배분. PC는 항상 남은 높이를 반씩(빈 칸 포함).
+ * 모바일은 한 칸만 차 있으면 그 그래프가 남는 높이를 쓰고, 빈 칸은 짧게 둔다.
+ */
+export type FarmChartWidgetSlotGrow = "equal" | "rest" | "compact";
+
+export function farmChartWidgetSlotGrow(
+  isMobileStack: boolean,
+  thisFilled: boolean,
+  otherFilled: boolean,
+): FarmChartWidgetSlotGrow {
+  if (!isMobileStack) return "equal";
+  if (thisFilled && !otherFilled) return "rest";
+  if (!thisFilled && otherFilled) return "compact";
+  return "equal";
+}
+
 export function parseChartWidgetDragPayload(
   raw: string | null | undefined,
 ): FarmChartControllerScope | null {

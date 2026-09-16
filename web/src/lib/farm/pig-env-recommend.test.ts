@@ -18,9 +18,11 @@ import {
   pigEnvAgeAdviceLines,
   pigEnvAgeFollowupOpen,
   pigEnvAdviceStallTyCode,
+  delinExplainSituationAlarms,
   PIG_ENV_AGE_PROMPT,
   PIG_ENV_AGE_DECLINE,
 } from "./pig-env-recommend";
+import type { AlarmRow } from "@/lib/data/alarms";
 
 {
   const preg = pigEnvBandForStallTy("SP02");
@@ -289,6 +291,117 @@ import {
   assert.equal(ok.tier, "ok");
   assert.equal(ok.offBand, false);
   assert.equal(ok.noticeCount, 0);
+}
+
+{
+  const farmKey = { lsindRegistNo: "F1", itemCode: "P00" };
+  function row(
+    partial: Pick<AlarmRow, "controllerKey" | "alarmType"> &
+      Partial<AlarmRow>,
+  ): AlarmRow {
+    return {
+      id: partial.id ?? partial.controllerKey,
+      occurredAt: new Date().toISOString(),
+      farmKey,
+      moduleUid: 1,
+      controllerKey: partial.controllerKey,
+      eqpmnNo: "01",
+      stallNo: "1",
+      stallTyCode: "SP07",
+      alarmType: partial.alarmType,
+      severity: partial.severity ?? "warning",
+      status: "active",
+      detail: partial.detail ?? "",
+      controllerStatus: partial.controllerStatus ?? "normal",
+      source: partial.source,
+    };
+  }
+  const readings = [
+    {
+      stallTyCode: "SP07",
+      tempC: 21,
+      humidityPct: 50,
+      status: "offline" as const,
+      controllerKey: "c-off",
+      stallNo: "1",
+      eqpmnNo: "01",
+    },
+    {
+      stallTyCode: "SP07",
+      tempC: 21,
+      humidityPct: 50,
+      status: "normal" as const,
+      controllerKey: "c-rec",
+      stallNo: "2",
+      eqpmnNo: "02",
+    },
+  ];
+  const explained = delinExplainSituationAlarms(
+    [
+      row({
+        controllerKey: "c-off",
+        alarmType: "통신 두절",
+        stallNo: "1",
+        eqpmnNo: "01",
+        severity: "critical",
+        controllerStatus: "offline",
+      }),
+      row({
+        controllerKey: "c-rec",
+        alarmType: "권장 이탈",
+        stallNo: "2",
+        eqpmnNo: "02",
+        detail: "온도 21.0℃ (권장 15~20℃)",
+      }),
+    ],
+    readings,
+    "SP07",
+  );
+  assert.equal(explained.tier, "offline");
+  assert.equal(explained.noticeCount, 2);
+  assert.equal(explained.items.length, 2);
+  assert.match(explained.items[0] ?? "", /통신이 끊겼/);
+  assert.match(explained.items[1] ?? "", /권장/);
+  assert.equal(pigEnvAgeFollowupOpen(explained.tier, "SP07"), false);
+  assert.doesNotMatch(explained.items.join(" "), /적용했습니다/);
+
+  const fieldOnly = delinExplainSituationAlarms(
+    [
+      row({
+        controllerKey: "c-rec",
+        alarmType: "알람값 초과",
+        detail: "온도 25.0℃ (17.5℃ ±1.5℃)",
+      }),
+    ],
+    [
+      {
+        stallTyCode: "SP07",
+        tempC: 25,
+        humidityPct: 50,
+        status: "normal" as const,
+        controllerKey: "c-rec",
+      },
+    ],
+    "SP07",
+  );
+  assert.equal(fieldOnly.tier, "alarm");
+  assert.match(fieldOnly.items[0] ?? "", /현장 알람/);
+  assert.match(fieldOnly.items[0] ?? "", /축사유형 권장/);
+  assert.equal(pigEnvAgeFollowupOpen(fieldOnly.tier, "SP07"), false);
+
+  const recOnly = delinExplainSituationAlarms(
+    [
+      row({
+        controllerKey: "c-rec",
+        alarmType: "권장 이탈",
+        detail: "온도 21.0℃ (권장 15~20℃)",
+      }),
+    ],
+    readings,
+    "SP07",
+  );
+  assert.equal(recOnly.tier, "offband");
+  assert.equal(pigEnvAgeFollowupOpen(recOnly.tier, "SP07"), true);
 }
 
 console.log("pig-env-recommend.test.ts: ok");

@@ -15,7 +15,26 @@ function emit() {
   for (const l of listeners) l();
 }
 
+function sameAlarmInbox(a: AlarmRow[], b: AlarmRow[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i]!;
+    const right = b[i]!;
+    if (
+      left.id !== right.id ||
+      left.alarmType !== right.alarmType ||
+      left.detail !== right.detail ||
+      left.status !== right.status
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function publishShellAlarms(next: AlarmRow[]): void {
+  if (published != null && sameAlarmInbox(published, next)) return;
   published = next;
   emit();
 }
@@ -63,6 +82,8 @@ function subscribe(onStoreChange: () => void): () => void {
     listeners.delete(onStoreChange);
   };
 }
+
+export const EMPTY_SITUATION_ALARMS: AlarmRow[] = [];
 
 function getSnapshot(fallback: AlarmRow[]): AlarmRow[] {
   return published ?? fallback;

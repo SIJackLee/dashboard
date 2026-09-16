@@ -403,6 +403,35 @@ export function getFarmUrlEpochServer(): number {
   return 0;
 }
 
+/**
+ * 허브 탭 실측(클라이언트). 차트 높이 채움은 URL `view`보다 이 값을 따른다.
+ * shallow 직후 화면은 차트인데 주소는 아직 필드인 레이스를 막는다.
+ */
+let liveFarmHubView: FarmHubView | null = null;
+const liveFarmHubViewListeners = new Set<() => void>();
+
+export function publishLiveFarmHubView(view: FarmHubView): void {
+  if (liveFarmHubView === view) return;
+  liveFarmHubView = view;
+  liveFarmHubViewListeners.forEach((l) => l());
+}
+
+export function getLiveFarmHubView(): FarmHubView {
+  return (
+    liveFarmHubView ??
+    resolveFarmHubView(currentFarmSearchParams().get("view"))
+  );
+}
+
+export function subscribeLiveFarmHubView(
+  onStoreChange: () => void,
+): () => void {
+  liveFarmHubViewListeners.add(onStoreChange);
+  return () => {
+    liveFarmHubViewListeners.delete(onStoreChange);
+  };
+}
+
 /** Provider 밖 shallow 후 탭 view 재동기화 (기간 변경에는 사용 금지) */
 const hubViewResyncListeners = new Set<() => void>();
 

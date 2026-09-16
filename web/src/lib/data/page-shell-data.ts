@@ -9,6 +9,7 @@ import {
 import { getCurrentUser, canCommand } from "@/lib/auth/get-current-user";
 import { fetchActiveModuleAlarms } from "@/lib/data/module-alarms";
 import { mergeSituationAlarms, type AlarmRow } from "@/lib/data/alarms";
+import { getAlarmSettings } from "@/lib/data/alarm-settings";
 import {
   summarizeControllers,
   toFarmOverview,
@@ -88,16 +89,21 @@ export const getPageShellContext = cache(
 
     /** Admin 단일 농장 — global v_iot_farm_overview(타임아웃) 대신 hub 캐시 + scoped LIVE */
     if (isAdmin && activeFarmKey) {
-      const [hub, readings, moduleAlarms] = await Promise.all([
+      const [hub, readings, moduleAlarms, alarmSettings] = await Promise.all([
         getAdminHubOverviewContext(),
         fetchLiveReadings({ farmKey: activeFarmKey }),
         fetchActiveModuleAlarms(activeFarmKey),
+        getAlarmSettings(),
       ]);
       const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
       const overview = toFarmOverview(
         summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
       );
-      const alarms = mergeSituationAlarms(moduleAlarms, scopedReadings);
+      const alarms = mergeSituationAlarms(
+        moduleAlarms,
+        scopedReadings,
+        alarmSettings,
+      );
 
       return {
         readings,
@@ -118,15 +124,20 @@ export const getPageShellContext = cache(
       };
     }
 
-    const readings = await fetchLiveReadings(
-      activeFarmKey ? { farmKey: activeFarmKey } : {},
-    );
+    const [readings, moduleAlarms, alarmSettings] = await Promise.all([
+      fetchLiveReadings(activeFarmKey ? { farmKey: activeFarmKey } : {}),
+      fetchActiveModuleAlarms(activeFarmKey),
+      getAlarmSettings(),
+    ]);
     const scopedReadings = filterReadingsByFarmKey(readings, activeFarmKey);
     const overview = toFarmOverview(
       summarizeControllers(scopedReadings, FIRMWARE_CTRL_COUNT),
     );
-    const moduleAlarms = await fetchActiveModuleAlarms(activeFarmKey);
-    const alarms = mergeSituationAlarms(moduleAlarms, scopedReadings);
+    const alarms = mergeSituationAlarms(
+      moduleAlarms,
+      scopedReadings,
+      alarmSettings,
+    );
 
     let farmLocationOptions: EditableFarmOption[] = [];
     const canEditLocation = user ? canCommand(user) : false;

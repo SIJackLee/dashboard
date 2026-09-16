@@ -329,7 +329,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     skipIfMissing: true,
     title: "DELIN",
-    body: "보고 있는 축사유형의 권장 온·습도를 알려 줍니다. 이어서 일령별 권장도 물을 수 있습니다.",
+    body: "헤더 이상상황에 올라온 통신 두절·알람값 초과·에러코드를 해설합니다. 권장만 있을 때는 이어서 일령별 권장도 물을 수 있습니다.",
     bullets: [
       "우측 하단 뱃지 · 말풍선",
       "필드·차트·모델에서 동일합니다",
@@ -426,7 +426,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     skipIfMissing: true,
     title: "DELIN",
-    body: "지금 집계 중인 축사유형의 권장 온·습도를 알려 줍니다. 이어서 일령별 권장도 물을 수 있습니다.",
+    body: "지금 집계 중인 축사유형의 이상상황을 해설합니다. 권장만 있을 때는 이어서 일령별 권장도 물을 수 있습니다.",
     bullets: [
       "우측 하단 뱃지 · 말풍선",
       "유형을 바꾸면 권장도 따라갑니다",

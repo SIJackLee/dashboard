@@ -143,6 +143,9 @@ flowchart LR
 | `farmUrlEpoch` | 모든 shallow / popstate | `subscribeFarmUrlEpoch` |
 | `hubUrlEpoch` | 농장·탭 전환 (`onHubUrlChange` / notify) | `FarmPageContent` effect |
 | `requestFarmHubViewResync` | Provider **밖** soft home | `subscribeFarmHubViewResync` |
+| `liveFarmHubView` | React 탭 state와 동기 (`publishLiveFarmHubView`) | 차트 본문 높이 채움 (`FarmPageViewport`) |
+
+차트 탭 높이는 URL `view`가 아니라 **화면 탭 상태**를 따른다. 진입 직후 위젯을 끌어다 놓아도 남는 높이를 쓴다.
 
 **금지:** 기간(`trendPeriod`)만 바꿀 때 `onHubUrlChange` / `requestFarmHubViewResync`  
 → URL에 `pinFarmHubViewParam` + `replaceFarmUrlShallow` + `urlTick`만.

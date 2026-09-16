@@ -14,6 +14,7 @@ import {
   filterFarmChartTreeByType,
   parseChartWidgetDragPayload,
   parseChartWidgetSlot,
+  farmChartWidgetSlotGrow,
   placeFarmChartWidget,
   placeFarmChartWidgetNext,
   resolveFarmChartCmdParam,
@@ -314,6 +315,15 @@ import {
   const replaceBottom = placeFarmChartWidgetNext(second, c);
   assert.ok(replaceBottom.w1 && scopesEqual(replaceBottom.w1, a));
   assert.ok(replaceBottom.w2 && scopesEqual(replaceBottom.w2, c));
+}
+
+{
+  assert.equal(farmChartWidgetSlotGrow(false, true, false), "equal");
+  assert.equal(farmChartWidgetSlotGrow(false, false, false), "equal");
+  assert.equal(farmChartWidgetSlotGrow(true, true, false), "rest");
+  assert.equal(farmChartWidgetSlotGrow(true, false, true), "compact");
+  assert.equal(farmChartWidgetSlotGrow(true, true, true), "equal");
+  assert.equal(farmChartWidgetSlotGrow(true, false, false), "equal");
 }
 
 {

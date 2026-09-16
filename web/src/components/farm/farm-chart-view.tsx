@@ -35,8 +35,10 @@ import {
   filterReadingsByChartScope,
   isFarmChartControllerScope,
   parseChartWidgetDragPayload,
+  farmChartWidgetSlotGrow,
   placeFarmChartWidget,
   scopesEqual,
+  type FarmChartWidgetSlotGrow,
   CHART_WIDGET_DND_TYPE,
   type ChartTrendZoomHint,
   type FarmChartControllerScope,
@@ -577,7 +579,7 @@ export function FarmChartView({
     <div
       className={cn(
         "relative min-h-0",
-        !embed && "flex h-full min-h-0 flex-1 flex-col",
+        !embed && "flex h-full min-h-0 flex-1 flex-col overflow-hidden",
         className,
       )}
       data-tour-id="farm-chart-view"
@@ -605,7 +607,7 @@ export function FarmChartView({
           className={cn(
             "min-w-0 min-h-0",
             !embed && "flex h-full min-h-0 flex-1 flex-col",
-            !embed && !isMobileStack && "overflow-hidden",
+            !embed && "overflow-hidden",
           )}
         >
           {embed ? (
@@ -647,8 +649,7 @@ export function FarmChartView({
           ) : (
             <div
               className={cn(
-                "flex h-full min-h-0 flex-1 flex-col gap-2",
-                !isMobileStack && "overflow-hidden",
+                "flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden",
               )}
               data-tour-id="farm-chart-widget-stack"
             >
@@ -674,15 +675,15 @@ export function FarmChartView({
                   <div className={farmChartUi.yGutterEnd} aria-hidden />
                 </div>
               ) : null}
-              <div
-                className={cn(
-                  "flex min-h-0 flex-1 flex-col gap-2",
-                  !isMobileStack && "overflow-hidden",
-                )}
-              >
+              <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
               <ChartWidgetSlot
                 slotId="w1"
                 slotLabel="위칸"
+                grow={farmChartWidgetSlotGrow(
+                  isMobileStack,
+                  Boolean(widgetSlots.w1),
+                  Boolean(widgetSlots.w2),
+                )}
                 scope={widgetSlots.w1}
                 readings={readings}
                 dragOver={dragOverSlot === "w1"}
@@ -725,6 +726,11 @@ export function FarmChartView({
               <ChartWidgetSlot
                 slotId="w2"
                 slotLabel="아래칸"
+                grow={farmChartWidgetSlotGrow(
+                  isMobileStack,
+                  Boolean(widgetSlots.w2),
+                  Boolean(widgetSlots.w1),
+                )}
                 scope={widgetSlots.w2}
                 readings={readings}
                 dragOver={dragOverSlot === "w2"}
@@ -931,9 +937,16 @@ export function FarmChartView({
   );
 }
 
+function widgetSlotGrowClass(grow: FarmChartWidgetSlotGrow) {
+  if (grow === "rest") return "grow";
+  if (grow === "compact") return "shrink-0";
+  return "flex-1 basis-0";
+}
+
 function ChartWidgetSlot({
   slotId,
   slotLabel,
+  grow,
   scope,
   readings,
   dragOver,
@@ -969,6 +982,7 @@ function ChartWidgetSlot({
 }: {
   slotId: FarmChartWidgetSlotId;
   slotLabel: string;
+  grow: FarmChartWidgetSlotGrow;
   scope: FarmChartControllerScope | null;
   readings: BarnReading[];
   dragOver: boolean;
@@ -1031,8 +1045,8 @@ function ChartWidgetSlot({
   return (
     <div
       className={cn(
-        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card",
-        !isMobileStack && "basis-0",
+        "flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-card",
+        widgetSlotGrowClass(grow),
         farmChartUi.root,
         isMobileStack && farmChartUi.yGutterCompact,
         motionClass.farmChartPanelShell,
@@ -1101,21 +1115,34 @@ function ChartWidgetSlot({
           type="button"
           onClick={onEmptyActivate}
           className={cn(
-            "flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center gap-1 px-4 text-center",
+            "flex w-full flex-col items-center justify-center gap-1 px-4 py-3 text-center",
+            grow !== "compact" && "h-full min-h-0 flex-1",
             farmChartUi.fsLegend,
             "text-muted-foreground",
             motionClass.microHover,
           )}
-          aria-label={`${slotLabel}. 컨트롤러를 끌어다 놓으세요`}
+          aria-label={
+            grow === "compact"
+              ? `${slotLabel}. 다른 컨트롤러는 필드에서 차트로 옮기세요`
+              : `${slotLabel}. 컨트롤러를 끌어다 놓으세요`
+          }
         >
           <span className="font-medium text-foreground">{slotLabel}</span>
-          <span>
-            집계 범위에서 컨트롤러를 이 칸으로 끌어다 놓으면 그 컨트롤러의
-            추이만 봅니다.
-          </span>
-          {selectedCtrlHint ? (
-            <span>선택한 {selectedCtrlHint}를 넣으려면 이 칸을 누르세요.</span>
-          ) : null}
+          {grow === "compact" ? (
+            <span>다른 컨트롤러는 필드에서 차트로 옮기세요</span>
+          ) : (
+            <>
+              <span>
+                집계 범위에서 컨트롤러를 이 칸으로 끌어다 놓으면 그 컨트롤러의
+                추이만 봅니다.
+              </span>
+              {selectedCtrlHint ? (
+                <span>
+                  선택한 {selectedCtrlHint}를 넣으려면 이 칸을 누르세요.
+                </span>
+              ) : null}
+            </>
+          )}
         </button>
       )}
     </div>

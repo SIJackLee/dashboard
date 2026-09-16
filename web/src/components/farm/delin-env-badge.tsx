@@ -3,18 +3,25 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Bot } from "lucide-react";
+import type { AlarmRow } from "@/lib/data/alarms";
+import { mergeSituationAlarms } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import { DELIN_NAME } from "@/lib/aria/aria-mode";
 import { useHydrationSafeDashboardCompact } from "@/components/layout/dashboard-viewport-context";
 import {
   PIG_ENV_AGE_DECLINE,
   PIG_ENV_AGE_PROMPT,
+  delinExplainSituationAlarms,
   pigEnvAdviceListPreview,
   pigEnvAdviceStallTyCode,
   pigEnvAgeAdviceLines,
   pigEnvAgeFollowupOpen,
-  pigEnvBadgeAdvice,
 } from "@/lib/farm/pig-env-recommend";
+import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
+import {
+  EMPTY_SITUATION_ALARMS,
+  useShellAlarms,
+} from "@/lib/navigation/shell-live-alarms-store";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
 
@@ -37,17 +44,26 @@ type Props = {
   readings: BarnReading[];
   /** 축사유형 코드. 없으면 농장 전체에서 가장 나쁜 유형. */
   stallTyCode?: string | null;
+  /** SSR 종 목록. LIVE 스토어가 있으면 그걸 우선. */
+  alarms?: AlarmRow[];
 };
 
-/** 현장·차트·모델 우측 하단 — 권장표·경보·측정정체·통신두절 말풍선. 적용·음성 없음. */
+/** 현장·차트 우측 하단 — 종(이상상황) 해설. 적용·음성 없음. */
 export function DelinEnvBadge({
   readings,
   stallTyCode = null,
+  alarms = EMPTY_SITUATION_ALARMS,
 }: Props) {
-  const advice = useMemo(
-    () => pigEnvBadgeAdvice(readings, stallTyCode),
-    [readings, stallTyCode],
-  );
+  const liveAlarms = useShellAlarms(alarms);
+  const liveRefresh = useFarmLiveRefreshOptional();
+  const alarmSettings = liveRefresh?.slice.controller?.alarmSettings;
+  const advice = useMemo(() => {
+    const inbox =
+      liveAlarms.length > 0
+        ? liveAlarms
+        : mergeSituationAlarms([], readings, alarmSettings);
+    return delinExplainSituationAlarms(inbox, readings, stallTyCode);
+  }, [liveAlarms, readings, stallTyCode, alarmSettings]);
   const ageStallTy = useMemo(
     () => pigEnvAdviceStallTyCode(readings, stallTyCode),
     [readings, stallTyCode],
@@ -205,9 +221,9 @@ export function DelinEnvBadge({
         aria-label={
           docked
             ? showNotice
-              ? `${DELIN_NAME} 권장 환경 열기, 안내 ${noticeCount}건`
-              : `${DELIN_NAME} 권장 환경 열기`
-            : `${DELIN_NAME} 권장 환경`
+              ? `${DELIN_NAME} 이상상황 해설 열기, 안내 ${noticeCount}건`
+              : `${DELIN_NAME} 이상상황 해설 열기`
+            : `${DELIN_NAME} 이상상황 해설`
         }
         onClick={() => {
           if (advice.offBand) {

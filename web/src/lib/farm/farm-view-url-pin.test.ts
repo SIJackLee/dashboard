@@ -10,6 +10,8 @@ import {
   normalizeLegacyListModeParam,
   parseListViewMode,
   pinFarmHubViewParam,
+  publishLiveFarmHubView,
+  getLiveFarmHubView,
   resolveFarmHubView,
   resolveListViewMode,
   resolveTrendPeriodParam,
@@ -119,6 +121,14 @@ import {
   assert.equal(params.get("listMode"), "settings");
   setListViewMode(params, "controller");
   assert.equal(params.get("listMode"), null);
+}
+
+{
+  publishLiveFarmHubView("map");
+  assert.equal(getLiveFarmHubView(), "map");
+  publishLiveFarmHubView("chart");
+  assert.equal(getLiveFarmHubView(), "chart");
+  publishLiveFarmHubView("map");
 }
 
 console.log("farm-view-url-pin.test.ts: ok");

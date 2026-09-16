@@ -304,14 +304,15 @@ const LEFT_BASELINE_STACK_ORDER = [
 ] as const;
 
 /**
- * 같은 높이의 왼쪽 온·습 기준을 온도→습도 순으로 세로 배치한다.
- * 스택 중심은 원래 높이의 평균.
+ * 오버레이에서만: 같은 높이의 왼쪽 온·습 기준을 온도→습도 순으로 세로 배치한다.
+ * 끄면 각 그래프 칸의 매핑 높이를 그대로 둔다.
  */
 export function stackLeftAlarmBaselineLabels(
   labels: EdgeBandLabel[],
   minGapPct: number,
+  overlayStacked = false,
 ): EdgeBandLabel[] {
-  if (!(minGapPct > 0) || labels.length < 2) return labels;
+  if (!overlayStacked || !(minGapPct > 0) || labels.length < 2) return labels;
   const picked = labels
     .map((label, index) => ({ label, index }))
     .filter(

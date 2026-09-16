@@ -197,7 +197,9 @@ function applyLivePatch({
   setSlice,
   moduleAlarmsRef,
 }: ApplyLiveArgs): void {
+  let alarmSettings: AlarmSettings | undefined;
   setSlice((prev) => {
+    alarmSettings = prev.controller?.alarmSettings;
     const readings = mergeLiveReadings(prev.readings, data.readings);
     const barnSnapshots = mergeLiveBarnSnapshots(
       prev.barnSnapshots,
@@ -249,17 +251,32 @@ function applyLivePatch({
   });
   schedulePersistLayouts(data.layoutsToPersist);
   moduleAlarmsRef.current = data.moduleAlarms;
-  publishShellAlarms(
-    mergeSituationAlarms(data.moduleAlarms, data.readings ?? []),
+  publishSituationFromRef(
+    moduleAlarmsRef,
+    data.readings ?? [],
+    alarmSettings,
   );
+}
+
+function alarmSettingsFingerprint(
+  settings: AlarmSettings | null | undefined,
+): string {
+  const g = settings?.global;
+  if (!g) return "";
+  return `${g.tempLow}|${g.tempHigh}|${g.humidityLow}|${g.humidityHigh}`;
 }
 
 function publishSituationFromRef(
   moduleAlarmsRef: React.MutableRefObject<AlarmRow[]>,
   readings: BarnReading[],
+  settings?: AlarmSettings | null,
 ): void {
   publishShellAlarms(
-    mergeSituationAlarms(moduleAlarmsRef.current, readings ?? []),
+    mergeSituationAlarms(
+      moduleAlarmsRef.current,
+      readings ?? [],
+      settings,
+    ),
   );
 }
 
@@ -526,7 +543,11 @@ export function FarmLiveRefreshProvider({
           if (seq !== revalidateSeq.current) return;
           moduleAlarmsRef.current = moduleAlarms;
           publishShellAlarms(
-            mergeSituationAlarms(moduleAlarms, fresh.readings ?? []),
+            mergeSituationAlarms(
+              moduleAlarms,
+              fresh.readings ?? [],
+              fresh.controller?.alarmSettings,
+            ),
           );
           return;
         }
@@ -585,7 +606,11 @@ export function FarmLiveRefreshProvider({
     };
   }, [alarmPatch, thermoPatch, slice]);
 
-  /** TopBar/FAB — 모듈 에러(농장 전환 시 fetch) + 통신두절(LIVE readings merge) */
+  const situationSettingsFp = alarmSettingsFingerprint(
+    alarmPatch ?? slice.controller?.alarmSettings,
+  );
+
+  /** TopBar — 모듈 에러 + LIVE 통신두절·알람값 초과·권장 이탈 */
   useEffect(() => {
     if (!farmKey) {
       moduleAlarmsRef.current = [];
@@ -597,7 +622,11 @@ export function FarmLiveRefreshProvider({
       .then((rows) => {
         if (cancelled) return;
         moduleAlarmsRef.current = rows;
-        publishSituationFromRef(moduleAlarmsRef, slice.readings ?? []);
+        publishSituationFromRef(
+          moduleAlarmsRef,
+          sliceRef.current.readings ?? [],
+          alarmPatch ?? sliceRef.current.controller?.alarmSettings,
+        );
       })
       .catch(() => {
         if (!cancelled) {
@@ -608,14 +637,20 @@ export function FarmLiveRefreshProvider({
     return () => {
       cancelled = true;
     };
-    // readings는 아래 effect에서 merge
+    // readings/settings는 아래 effect에서 merge
     // eslint-disable-next-line react-hooks/exhaustive-deps -- farmKey only for fetch
   }, [farmKey]);
 
   useEffect(() => {
     if (!farmKey) return;
-    publishSituationFromRef(moduleAlarmsRef, slice.readings ?? []);
-  }, [farmKey, slice.readings]);
+    publishSituationFromRef(
+      moduleAlarmsRef,
+      sliceRef.current.readings ?? [],
+      alarmPatch ?? sliceRef.current.controller?.alarmSettings,
+    );
+    // alarmPatch·settings 객체 식별자는 situationSettingsFp로만 본다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fingerprint
+  }, [farmKey, slice.readings, situationSettingsFp]);
 
   /** LIVE + 모듈 경보 — 탭 visible 시 주기 갱신 (모바일 push 대비) */
   useEffect(() => {

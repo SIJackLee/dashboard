@@ -1,9 +1,11 @@
+import type { AlarmRow } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
 import {
   formatStallTypeLabel,
   normalizeStallTyCode,
   stallTyCodeSortKey,
 } from "@/lib/data/stall-type";
+import { formatControllerSlotLabel } from "@/lib/ui/controller-labels";
 
 export type PigEnvFit = "ok" | "high" | "low" | "none";
 
@@ -690,4 +692,123 @@ export function pigEnvBadgeAdvice(
   }
 
   return pigEnvAdviceCopy(verdicts);
+}
+
+function situationSpokenLabel(
+  a: Pick<AlarmRow, "stallTyCode" | "stallNo" | "eqpmnNo" | "idx">,
+): string {
+  const ty = a.stallTyCode ? formatStallTypeLabel(a.stallTyCode) : "";
+  const slot = formatControllerSlotLabel({
+    stallNo: a.stallNo,
+    eqpmnNo: a.eqpmnNo,
+    idx: a.idx,
+  });
+  return ty ? `${ty} ${slot}` : slot;
+}
+
+function situationRecommendAside(
+  a: Pick<AlarmRow, "controllerKey">,
+  readings: Pick<
+    BarnReading,
+    "controllerKey" | "stallTyCode" | "tempC" | "humidityPct"
+  >[],
+): string | null {
+  const r = readings.find((x) => x.controllerKey === a.controllerKey);
+  if (!r) return null;
+  const band = pigEnvBandForStallTy(r.stallTyCode);
+  if (!band) return null;
+  const tempOff = pigEnvFitOffBand(
+    pigEnvFitToBand(r.tempC, band.tempMinC, band.tempMaxC),
+  );
+  const humOff = pigEnvFitOffBand(
+    pigEnvFitToBand(
+      r.humidityPct,
+      band.humidityMinPct,
+      band.humidityMaxPct,
+    ),
+  );
+  if (!tempOff && !humOff) return null;
+  return `축사유형 권장은 온도 ${fmtTempSpoken(band.tempMinC)}~${fmtTempSpoken(band.tempMaxC)} · 습도 ${fmtPctSpoken(band.humidityMinPct)}~${fmtPctSpoken(band.humidityMaxPct)}입니다`;
+}
+
+function explainSituationAlarmRow(
+  a: AlarmRow,
+  readings: Pick<
+    BarnReading,
+    "controllerKey" | "stallTyCode" | "tempC" | "humidityPct"
+  >[],
+): string {
+  const label = situationSpokenLabel(a);
+  if (a.source === "module") {
+    return `${label} ${a.alarmType}`;
+  }
+  if (a.alarmType === "통신 두절") {
+    return `${label} 통신이 끊겼습니다`;
+  }
+  if (a.alarmType === "알람값 초과") {
+    const aside = situationRecommendAside(a, readings);
+    const base = `${label} 현장 알람 기준을 벗어났습니다. ${a.detail}`;
+    return aside ? `${base}. ${aside}` : base;
+  }
+  if (a.alarmType === "권장 이탈") {
+    return `${label} 축사유형 권장을 벗어났습니다. ${a.detail}`;
+  }
+  return `${label} ${a.alarmType}`;
+}
+
+/**
+ * 종(이상상황)에 올라온 행만 해설. 두절이 있어도 같은 목록의 알람·권장을 숨기지 않음.
+ * 일령 안내는 ok·권장 이탈만.
+ */
+export function delinExplainSituationAlarms(
+  alarms: AlarmRow[],
+  readings: Pick<
+    BarnReading,
+    "controllerKey" | "stallTyCode" | "tempC" | "humidityPct" | "status"
+  >[],
+  stallTyCode?: string | null,
+): PigEnvAdviceCopy {
+  const focusReadings = pigEnvFocusReadings(readings, stallTyCode);
+  const active = pigEnvFocusReadings(
+    alarms.filter((a) => a.status === "active"),
+    stallTyCode,
+  );
+  if (active.length === 0) {
+    return pigEnvAdviceCopy(pigEnvTypeVerdicts(focusReadings));
+  }
+
+  const items = active.map((a) => explainSituationAlarmRow(a, focusReadings));
+  const hasDanger = active.some(
+    (a) => a.source === "module" || a.alarmType === "통신 두절",
+  );
+  const hasField = active.some((a) => a.alarmType === "알람값 초과");
+  const onlyRecommend = active.every((a) => a.alarmType === "권장 이탈");
+  const n = active.length;
+  const summary = hasDanger
+    ? n === 1
+      ? "이상상황이 있습니다."
+      : `이상상황이 ${n}건 있습니다.`
+    : hasField
+      ? n === 1
+        ? "현장 알람 기준을 벗어났습니다."
+        : `현장 알람 기준을 벗어난 곳이 ${n}곳입니다.`
+      : onlyRecommend
+        ? n === 1
+          ? "축사유형 권장을 벗어났습니다."
+          : `축사유형 권장을 벗어난 곳이 ${n}곳입니다.`
+        : `이상상황이 ${n}건 있습니다.`;
+  const top = active[0]!;
+  const stallLabel = top.stallTyCode
+    ? formatStallTypeLabel(top.stallTyCode)
+    : null;
+  return withAdviceItems(
+    {
+      offBand: true,
+      tier: hasDanger ? "offline" : hasField ? "alarm" : "offband",
+      noticeCount: n,
+      stallLabel,
+      summary,
+    },
+    items,
+  );
 }

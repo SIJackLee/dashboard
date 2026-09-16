@@ -7,6 +7,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -20,6 +21,7 @@ import {
   applyModelViewParams,
   currentFarmSearchParams,
   normalizeLegacyListModeParam,
+  publishLiveFarmHubView,
   replaceFarmUrlShallow,
   resolveFarmHubView,
   subscribeFarmHubViewResync,
@@ -231,6 +233,10 @@ export function useFarmHubViewShell({
     if (barnPlanEnabled(gate)) setModelEverOpened(true);
   }
 
+  useLayoutEffect(() => {
+    publishLiveFarmHubView(view);
+  }, [view]);
+
   useEffect(() => {
     const from = prevViewForKeepAliveRef.current;
     const to = view;
@@ -292,6 +298,7 @@ export function useFarmHubViewShell({
       }
       beginViewSlide(view, target);
       setViewState(target);
+      publishLiveFarmHubView(target);
       if (hubMode) {
         const params = new URLSearchParams(
           currentFarmSearchParams().toString(),

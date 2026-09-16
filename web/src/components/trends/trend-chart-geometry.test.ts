@@ -220,7 +220,7 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   assert.equal(left.some((l) => l.id === "temp-farm-mid" && l.text === "17.5℃"), true);
   assert.equal(left.some((l) => l.id === "hum-farm-mid" && l.text === "50%"), true);
   assert.equal(right.some((l) => l.text === "20℃, 60%"), true);
-  const stacked = stackLeftAlarmBaselineLabels(merged, 8.5);
+  const stacked = stackLeftAlarmBaselineLabels(merged, 8.5, true);
   const stackedLeft = stacked
     .filter((l) => l.side === "left")
     .sort((a, b) => a.topPct - b.topPct);
@@ -229,6 +229,35 @@ assert.ok(tipPinId(3, "온도").startsWith("3::"));
   assert.ok(
     stackedLeft[1]!.topPct - stackedLeft[0]!.topPct >= 8.5 - 1e-6,
     "온·습 기준 세로 간격",
+  );
+  const splitKept = stackLeftAlarmBaselineLabels(
+    [
+      {
+        id: "temp-farm-mid",
+        side: "left",
+        topPct: 22,
+        text: "17.5℃",
+        color: "#000",
+        title: "온도 알람 기준",
+      },
+      {
+        id: "hum-farm-mid",
+        side: "left",
+        topPct: 58,
+        text: "50%",
+        color: "#000",
+        title: "습도 알람 기준",
+      },
+    ],
+    8.5,
+  );
+  assert.equal(
+    splitKept.find((l) => l.id === "temp-farm-mid")?.topPct,
+    22,
+  );
+  assert.equal(
+    splitKept.find((l) => l.id === "hum-farm-mid")?.topPct,
+    58,
   );
 }
 

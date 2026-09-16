@@ -11,6 +11,17 @@ import {
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
 import { applyChartViewParams } from "@/lib/farm/farm-view-url";
+import { formatAlarmBaselinePair } from "@/lib/data/alarm-baseline";
+import {
+  pigEnvBandForStallTy,
+  pigEnvFitOffBand,
+  pigEnvFitToBand,
+} from "@/lib/farm/pig-env-recommend";
+
+/** 종(이상상황) 행 제목 — 델린 해설과 같은 문구 */
+export const SITUATION_OFFLINE_TYPE = "통신 두절";
+export const SITUATION_FIELD_ALARM_TYPE = "알람값 초과";
+export const SITUATION_RECOMMEND_TYPE = "권장 이탈";
 
 export type AlarmSeverity = "warning" | "critical";
 
@@ -42,7 +53,17 @@ export function isModuleAlarmRow(a: AlarmRow): boolean {
   return a.source === "module";
 }
 
-/** 모듈·통신두절 이상상황 행 — 부가 메타 한 줄 */
+/** 모듈 에러코드 외 — 확인(ack) 없음 · 종에서 시각 생략 */
+export function isSituationLiveStateRow(a: AlarmRow): boolean {
+  return !isModuleAlarmRow(a);
+}
+
+/** 일보 PDF — 모듈 에러 + 통신 두절만 (알람값 초과·권장 이탈 제외) */
+export function isDailyReportSituationRow(a: AlarmRow): boolean {
+  return isModuleAlarmRow(a) || a.alarmType === SITUATION_OFFLINE_TYPE;
+}
+
+/** 모듈·통신두절·환경 이상상황 행 — 부가 메타 한 줄 */
 export function situationAlarmMetaLine(a: AlarmRow): string {
   if (isModuleAlarmRow(a)) {
     if (a.stallTyCode && a.stallNo && a.eqpmnNo) {
@@ -59,14 +80,22 @@ export function situationAlarmMetaLine(a: AlarmRow): string {
     }
     return a.farmName?.trim() || a.detail?.trim() || "모듈 경보";
   }
-  return [
+  const parts = [
     a.stallTyCode ? formatStallTypeLabel(a.stallTyCode) : "—",
     formatControllerSlotLabel({
       stallNo: a.stallNo,
       eqpmnNo: a.eqpmnNo,
       idx: a.idx,
     }),
-  ].join(" · ");
+  ];
+  if (
+    (a.alarmType === SITUATION_FIELD_ALARM_TYPE ||
+      a.alarmType === SITUATION_RECOMMEND_TYPE) &&
+    a.detail.trim()
+  ) {
+    parts.push(a.detail.trim());
+  }
+  return parts.join(" · ");
 }
 
 export type AlarmThresholds = {
@@ -134,7 +163,9 @@ export function deriveAlarmsFromReadings(
       }
     }
     if (r.status === "offline") {
-      rows.push(makeAlarm(r, "통신 두절", "critical", "15분 이상 미수신"));
+      rows.push(
+        makeAlarm(r, SITUATION_OFFLINE_TYPE, "critical", "15분 이상 미수신"),
+      );
     }
   }
 
@@ -207,26 +238,125 @@ export function offlineReadingsToAlarmRows(
   const rows: AlarmRow[] = [];
   for (const r of readings) {
     if (r.status !== "offline") continue;
-    rows.push(makeAlarm(r, "통신 두절", "critical", "15분 이상 미수신"));
+    rows.push(
+      makeAlarm(r, SITUATION_OFFLINE_TYPE, "critical", "15분 이상 미수신"),
+    );
+  }
+  return rows;
+}
+
+function situationReadingValueLabel(
+  value: number,
+  unit: "℃" | "%",
+): string {
+  if (unit === "%") return `${Math.round(value)}%`;
+  return Number.isInteger(value) ? `${value}℃` : `${value.toFixed(1)}℃`;
+}
+
+/** 현장 알람 기준±편차 이탈 — 컨트롤러당 1행. 통신두절은 제외. */
+export function fieldAlarmExceedToAlarmRows(
+  readings: BarnReading[],
+  settings: AlarmSettings,
+): AlarmRow[] {
+  const rows: AlarmRow[] = [];
+  for (const r of readings) {
+    if (r.status === "offline") continue;
+    const t = resolveThresholdsForReading(settings, r);
+    const parts: string[] = [];
+    if (r.tempC != null && Number.isFinite(r.tempC)) {
+      if (r.tempC >= t.tempHigh || r.tempC <= t.tempLow) {
+        parts.push(
+          `온도 ${situationReadingValueLabel(r.tempC, "℃")} (${formatAlarmBaselinePair(t.tempLow, t.tempHigh, "℃")})`,
+        );
+      }
+    }
+    if (r.humidityPct != null && Number.isFinite(r.humidityPct)) {
+      if (
+        r.humidityPct >= t.humidityHigh ||
+        r.humidityPct <= t.humidityLow
+      ) {
+        parts.push(
+          `습도 ${situationReadingValueLabel(r.humidityPct, "%")} (${formatAlarmBaselinePair(t.humidityLow, t.humidityHigh, "%")})`,
+        );
+      }
+    }
+    if (parts.length === 0) continue;
+    rows.push(
+      makeAlarm(
+        r,
+        SITUATION_FIELD_ALARM_TYPE,
+        r.tempC != null &&
+          Number.isFinite(r.tempC) &&
+          (r.tempC >= t.tempHigh || r.tempC <= t.tempLow)
+          ? "critical"
+          : "warning",
+        parts.join(" · "),
+      ),
+    );
+  }
+  return rows;
+}
+
+/** 축사유형 권장 이탈 — 현장 알람에 이미 오른 컨트롤러는 제외. */
+export function recommendOffbandToAlarmRows(
+  readings: BarnReading[],
+  skipControllerKeys: ReadonlySet<string>,
+): AlarmRow[] {
+  const rows: AlarmRow[] = [];
+  for (const r of readings) {
+    if (r.status === "offline") continue;
+    if (skipControllerKeys.has(r.controllerKey)) continue;
+    const band = pigEnvBandForStallTy(r.stallTyCode);
+    if (!band) continue;
+    const parts: string[] = [];
+    const tempFit = pigEnvFitToBand(r.tempC, band.tempMinC, band.tempMaxC);
+    if (pigEnvFitOffBand(tempFit) && r.tempC != null) {
+      parts.push(
+        `온도 ${situationReadingValueLabel(r.tempC, "℃")} (권장 ${band.tempMinC}~${band.tempMaxC}℃)`,
+      );
+    }
+    const humFit = pigEnvFitToBand(
+      r.humidityPct,
+      band.humidityMinPct,
+      band.humidityMaxPct,
+    );
+    if (pigEnvFitOffBand(humFit) && r.humidityPct != null) {
+      parts.push(
+        `습도 ${situationReadingValueLabel(r.humidityPct, "%")} (권장 ${band.humidityMinPct}~${band.humidityMaxPct}%)`,
+      );
+    }
+    if (parts.length === 0) continue;
+    rows.push(
+      makeAlarm(r, SITUATION_RECOMMEND_TYPE, "warning", parts.join(" · ")),
+    );
   }
   return rows;
 }
 
 /**
- * 이상상황 = 모듈 에러코드 + 통신두절.
- * 온·습 임계 파생 알람은 포함하지 않음.
+ * 이상상황 종 = 모듈 에러코드 + 통신 두절 + 알람값 초과
+ * (+ 현장 알람에 안 오른 권장 이탈).
  */
 export function mergeSituationAlarms(
   moduleAlarms: AlarmRow[],
   readings: BarnReading[],
+  settings?: AlarmSettings | null,
 ): AlarmRow[] {
   const offline = offlineReadingsToAlarmRows(readings);
+  const field = settings
+    ? fieldAlarmExceedToAlarmRows(readings, settings)
+    : [];
+  const fieldKeys = new Set(field.map((a) => a.controllerKey));
+  const recommend = recommendOffbandToAlarmRows(readings, fieldKeys);
   const seen = new Set(
     moduleAlarms.map((a) => `${a.controllerKey}\0${a.alarmType}`),
   );
-  const extras = offline.filter(
-    (o) => !seen.has(`${o.controllerKey}\0${o.alarmType}`),
-  );
+  const extras = [...offline, ...field, ...recommend].filter((o) => {
+    const key = `${o.controllerKey}\0${o.alarmType}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return [...moduleAlarms, ...extras];
 }
 

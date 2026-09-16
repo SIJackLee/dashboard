@@ -10,7 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAppNavigate } from "@/components/layout/use-app-navigate";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmChartHref, isModuleAlarmRow, situationAlarmMetaLine } from "@/lib/data/alarms";
+import { alarmChartHref, isModuleAlarmRow, isSituationLiveStateRow, situationAlarmMetaLine } from "@/lib/data/alarms";
 import { formatKst } from "@/lib/datetime/kst";
 import type { FarmOverview } from "@/lib/data/iot";
 import {
@@ -91,9 +91,11 @@ function AlarmPanelListItem({
           <span className="block truncate text-[0.65rem] text-muted-foreground">
             {situationAlarmMetaLine(alarm)}
           </span>
-          <span className="block text-[0.65rem] text-muted-foreground">
-            {formatKst(alarm.occurredAt, "short")}
-          </span>
+          {isSituationLiveStateRow(alarm) ? null : (
+            <span className="block text-[0.65rem] text-muted-foreground">
+              {formatKst(alarm.occurredAt, "short")}
+            </span>
+          )}
         </button>
         {isModuleAlarmRow(alarm) ? (
           <div className="mt-1 flex justify-end">

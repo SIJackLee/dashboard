@@ -3,6 +3,7 @@
  */
 
 import {
+  isDailyReportSituationRow,
   isModuleAlarmRow,
   type AlarmRow,
 } from "@/lib/data/alarms";
@@ -14,7 +15,7 @@ export function toDailyReportAlarmRows(
   situationAlarms: AlarmRow[],
 ): DailyReportAlarmRow[] {
   return situationAlarms
-    .filter((a) => a.status === "active")
+    .filter((a) => a.status === "active" && isDailyReportSituationRow(a))
     .map((a) => ({
       stallLabel: a.stallTyCode ? getStallTypeName(a.stallTyCode) : "—",
       stallNo: a.stallNo ?? "—",

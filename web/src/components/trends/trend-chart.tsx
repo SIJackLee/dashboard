@@ -1791,6 +1791,7 @@ export function TrendChart({
       stackLeftAlarmBaselineLabels(
         mergeOverlappingTempHumEdgeLabels(out, 5.5),
         8.5,
+        overlayHoverMerge,
       ),
       5.5,
     );
@@ -1812,6 +1813,7 @@ export function TrendChart({
     rMax,
     innerH,
     edgeEdit?.id,
+    overlayHoverMerge,
   ]);
 
   /** hover 중인 스케일 칩(강조 대상). 없으면 dim 미적용 */

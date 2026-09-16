@@ -36,7 +36,13 @@ import {
 } from "@/components/layout/hub-rail-layout";
 import { Badge } from "@/components/ui/badge";
 import type { AlarmRow } from "@/lib/data/alarms";
-import { alarmChartHref, isModuleAlarmRow, situationAlarmMetaLine } from "@/lib/data/alarms";
+import {
+  alarmChartHref,
+  isModuleAlarmRow,
+  isSituationLiveStateRow,
+  situationAlarmMetaLine,
+} from "@/lib/data/alarms";
+import { useShellAlarms } from "@/lib/navigation/shell-live-alarms-store";
 import type { FarmKey } from "@/lib/data/farm-key";
 import type { FarmOverview } from "@/lib/data/iot";
 import { formatKst } from "@/lib/datetime/kst";
@@ -232,16 +238,17 @@ export function HeaderToolsMenu({
   hubDetailOpenLeft = true,
 }: Props) {
   const isHub = variant === "hub-panel";
+  const liveAlarms = useShellAlarms(alarms);
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const viewportCompact = useHydrationSafeDashboardCompact();
   const { navigate } = useAppNavigate();
   const pathname = usePathname();
 
   const offline = overview?.offlineCount ?? 0;
-  const activeAlarms = alarms.filter((a) => a.status === "active");
+  const activeAlarms = liveAlarms.filter((a) => a.status === "active");
   const alarmCount = activeAlarms.length;
   const alarmList = activeAlarms.slice(0, 12);
-  /** 배지 = 모듈 에러 + 통신두절 행 수 (임계 파생 제외) */
+  /** 배지 = 종 이상상황 건수 */
   const alert = alarmCount > 0 || offline > 0;
 
   const onOps = isAdminOpsNavPath(pathname);
@@ -754,9 +761,11 @@ export function HeaderToolsMenu({
                         <span className="block truncate text-[0.65rem] text-muted-foreground">
                           {situationAlarmMetaLine(a)}
                         </span>
-                        <span className="block text-[0.65rem] text-muted-foreground">
-                          {formatKst(a.occurredAt, "short")}
-                        </span>
+                        {isSituationLiveStateRow(a) ? null : (
+                          <span className="block text-[0.65rem] text-muted-foreground">
+                            {formatKst(a.occurredAt, "short")}
+                          </span>
+                        )}
                       </button>
                       {isModuleAlarmRow(a) ? (
                         <div className="mt-1 flex justify-end">

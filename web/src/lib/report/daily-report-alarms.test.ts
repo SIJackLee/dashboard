@@ -26,8 +26,8 @@ function reading(
     stallNo: partial.stallNo ?? "1",
     stallTyCode: partial.stallTyCode ?? "SP01",
     label: partial.label ?? partial.controllerKey,
-    tempC: partial.tempC ?? 25,
-    humidityPct: partial.humidityPct ?? 50,
+    tempC: partial.tempC ?? 18,
+    humidityPct: partial.humidityPct ?? 55,
     fanSupply: null,
     fanExhaust: null,
     fanIntake: null,
@@ -69,11 +69,12 @@ const moduleRow: AlarmRow = {
     ],
   );
   const rows = toDailyReportAlarmRows(merged);
+  assert.ok(merged.some((a) => a.alarmType === "권장 이탈"));
   assert.equal(rows.length, 2);
   assert.equal(rows[0]!.source, "module");
   assert.equal(rows[1]!.source, "offline");
   assert.equal(rows[1]!.alarmType, "통신 두절");
-  assert.ok(!rows.some((r) => /온도|습도/.test(r.alarmType)));
+  assert.ok(!rows.some((r) => /온도|습도|권장|알람값/.test(r.alarmType)));
   console.log("daily-report-alarms: toDailyReportAlarmRows — ok");
 }
 
