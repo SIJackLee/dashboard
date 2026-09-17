@@ -83,6 +83,41 @@ export function filterReadingsByChartScope(
 }
 
 /**
+ * 타일이 같은 readings를 범위마다 반복 filter하지 않도록 만든 scope index.
+ * 값 배열은 입력 readings가 바뀔 때 한 번만 생성한다.
+ */
+export function indexReadingsByChartScope(
+  readings: BarnReading[],
+): Map<string, BarnReading[]> {
+  const index = new Map<string, BarnReading[]>([["farm", readings]]);
+  const append = (key: string, reading: BarnReading) => {
+    const list = index.get(key);
+    if (list) list.push(reading);
+    else index.set(key, [reading]);
+  };
+
+  for (const reading of readings) {
+    const stallTyCode = normalizeStallTyCode(reading.stallTyCode);
+    const stallNo = stallKeyFromReading(reading);
+    append(farmChartScopeKey({ level: "sp", stallTyCode }), reading);
+    append(
+      farmChartScopeKey({ level: "stall", stallTyCode, stallNo }),
+      reading,
+    );
+    append(
+      farmChartScopeKey({
+        level: "controller",
+        stallTyCode,
+        stallNo,
+        controllerKey: reading.controllerKey,
+      }),
+      reading,
+    );
+  }
+  return index;
+}
+
+/**
  * 차트 집계 범위 → 알람 byScope 키.
  * 농장 전체 = farm만, 유형/축사/컨트롤러는 설정 패널과 동일 계층.
  */
