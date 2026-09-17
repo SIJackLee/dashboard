@@ -102,6 +102,20 @@ function labBatchListClass(compact: boolean): string {
   return "flex flex-wrap content-start gap-2.5 md:gap-3";
 }
 
+function hiddenControllersExceptFirst(
+  controllers: BarnReading[],
+): Set<string> {
+  const first =
+    controllers.find(
+      (reading) => String(reading.eqpmnNo ?? "").replace(/^0+/, "") === "1",
+    ) ?? controllers[0];
+  return new Set(
+    controllers
+      .filter((reading) => reading.controllerKey !== first?.controllerKey)
+      .map((reading) => reading.controllerKey),
+  );
+}
+
 export function FarmChartLabView({
   readings,
   farmKey,
@@ -154,13 +168,13 @@ export function FarmChartLabView({
         : "batch"
       : storedMode;
   const [sharedBrushWindow, setSharedBrushWindow] = useState<BrushWindow>(
-    () => BRUSH_PERIOD_WINDOW["30d"],
+    () => BRUSH_PERIOD_WINDOW[period],
   );
-  const resetLookbackTo30d = useCallback(() => {
-    setSharedBrushWindow(BRUSH_PERIOD_WINDOW["30d"]);
-  }, []);
+  const resetLookback = useCallback(() => {
+    setSharedBrushWindow(BRUSH_PERIOD_WINDOW[period]);
+  }, [period]);
   const ignoreLookbackChange = useCallback((_next: BrushWindow) => {
-    /* 일괄은 30일 고정 */
+    /* 미니그래프는 현재 전역 기간 고정 */
   }, []);
   const [layers, setLayers] = useState(DEFAULT_UNIFIED_LAYERS);
   const [alarmRangeOn, setAlarmRangeOn] = useState({ temp: true, hum: true });
@@ -215,14 +229,32 @@ export function FarmChartLabView({
   const heroStallKey = primaryAnchor
     ? farmChartLabStallKey(primaryAnchor)
     : null;
-  const [hiddenCtrlKeys, setHiddenCtrlKeys] = useState<Set<string>>(
-    () => new Set(),
+  const heroControllers = useMemo(
+    () => {
+      const anchor = primaryKey
+        ? (scopes.find((s) => farmChartLabScopeKey(s) === primaryKey) ?? null)
+        : null;
+      return anchor
+        ? filterReadingsByChartScope(
+            readings,
+            stallScopeFromController(anchor),
+          )
+        : [];
+    },
+    [primaryKey, readings, scopes],
   );
-  const [hiddenForStall, setHiddenForStall] = useState<string | null>(null);
-  if (heroStallKey !== hiddenForStall) {
-    setHiddenForStall(heroStallKey);
-    setHiddenCtrlKeys(new Set());
-  }
+  const defaultHiddenCtrlKeys = useMemo(
+    () => hiddenControllersExceptFirst(heroControllers),
+    [heroControllers],
+  );
+  const [controllerVisibility, setControllerVisibility] = useState<{
+    stallKey: string;
+    hidden: Set<string>;
+  } | null>(null);
+  const hiddenCtrlKeys =
+    controllerVisibility?.stallKey === heroStallKey
+      ? controllerVisibility.hidden
+      : defaultHiddenCtrlKeys;
 
   const labRootRef = useRef<HTMLDivElement>(null);
   const [expandOrigin, setExpandOrigin] = useState<{
@@ -257,6 +289,7 @@ export function FarmChartLabView({
   };
 
   const openSingle = (scope: FarmChartControllerScope) => {
+    setControllerVisibility(null);
     if (urlBound) {
       commitSelection({ mode: "single", primary: scope, partner: null });
       return;
@@ -291,7 +324,7 @@ export function FarmChartLabView({
     });
     if (next.mode === "batch") {
       setOpenSp(normalizeStallTyCode(scope.stallTyCode));
-      resetLookbackTo30d();
+      resetLookback();
     }
     if (urlBound) {
       commitSelection(farmChartLabSelectionFromKeys(scopes, next));
@@ -375,7 +408,7 @@ export function FarmChartLabView({
         hidePeriodBrush
         brushWindow={
           mode === "batch"
-            ? BRUSH_PERIOD_WINDOW["30d"]
+            ? BRUSH_PERIOD_WINDOW[period]
             : sharedBrushWindow
         }
         onBrushWindowChange={
@@ -403,20 +436,6 @@ export function FarmChartLabView({
   };
 
   const heroAnchors = stallAnchors.filter(isHeroAnchor);
-  const heroControllers = useMemo(
-    () => {
-      const anchor = primaryKey
-        ? (scopes.find((s) => farmChartLabScopeKey(s) === primaryKey) ?? null)
-        : null;
-      return anchor
-        ? filterReadingsByChartScope(
-            readings,
-            stallScopeFromController(anchor),
-          )
-        : [];
-    },
-    [primaryKey, readings, scopes],
-  );
   const layerToolbar = layersToolbarActive ? (
     <div
       className="relative inline-flex max-w-full flex-wrap rounded-xl border bg-muted/40 p-2"
@@ -456,11 +475,16 @@ export function FarmChartLabView({
           on: !hiddenCtrlKeys.has(r.controllerKey),
         }))}
         onToggleController={(key) => {
-          setHiddenCtrlKeys((prev) => {
-            const next = new Set(prev);
+          if (!heroStallKey) return;
+          setControllerVisibility((prev) => {
+            const current =
+              prev?.stallKey === heroStallKey
+                ? prev.hidden
+                : hiddenCtrlKeys;
+            const next = new Set(current);
             if (next.has(key)) next.delete(key);
             else next.add(key);
-            return next;
+            return { stallKey: heroStallKey, hidden: next };
           });
         }}
       />

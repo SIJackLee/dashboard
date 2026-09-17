@@ -433,12 +433,12 @@ export function parseChartWidgetSlot(
 ): FarmChartControllerScope | null {
   if (!raw?.trim() || raw.trim() === CHART_WIDGET_EMPTY) return null;
   const decoded = safeDecodeCtrl(raw.trim());
-  const i1 = decoded.indexOf("|");
-  const i2 = decoded.indexOf("|", i1 + 1);
-  if (i1 < 0 || i2 < 0) return null;
-  const stallTyCode = normalizeStallTyCode(decoded.slice(0, i1));
-  const stallNo = decoded.slice(i1 + 1, i2).trim();
-  const controllerKey = decoded.slice(i2 + 1).trim();
+  const parts = decoded.split("|");
+  if (parts.length < 3) return null;
+  const stallTyCode = normalizeStallTyCode(parts[0] ?? "");
+  const stallNo = (parts[1] ?? "").trim();
+  /** 컨트롤러 키는 `|`를 쓰지 않음. 옛 4칸 URL은 앞 3칸만 쓴다. */
+  const controllerKey = safeDecodeCtrl((parts[2] ?? "").trim());
   if (!stallTyCode || !stallNo || !controllerKey) return null;
   return { level: "controller", stallTyCode, stallNo, controllerKey };
 }
@@ -790,12 +790,19 @@ export function resolveFarmChartScope(
   return { level: "sp", stallTyCode };
 }
 
+/** `%3A`·옛 이중 인코딩 `%253A`를 키 원문으로. */
 function safeDecodeCtrl(raw: string): string {
-  try {
-    return decodeURIComponent(raw);
-  } catch {
-    return raw;
+  let value = raw;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const next = decodeURIComponent(value);
+      if (next === value) break;
+      value = next;
+    } catch {
+      break;
+    }
   }
+  return value;
 }
 
 /** 집계 범위 → URL. farm 레벨이면 chart* 제거. */
@@ -809,5 +816,5 @@ export function applyFarmChartScopeParams(
   if (scope.level === "sp") return;
   params.set(CHART_STALL_PARAM, scope.stallNo.trim());
   if (scope.level === "stall") return;
-  params.set(CHART_CTRL_PARAM, encodeURIComponent(scope.controllerKey));
+  params.set(CHART_CTRL_PARAM, scope.controllerKey);
 }

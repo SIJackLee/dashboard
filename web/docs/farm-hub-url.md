@@ -33,7 +33,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
 | `view` | `list` \| `chart` \| `plan` \| `model` \| (`chartlab`→차트, `aria`/`jarvis`/`status`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린·현황 히트맵 주소는 필드. 모델 게이트 off(Production 비관리자·강제 off)면 그리드. 필드에서 DELIN 권장 뱃지(차트·목록·모델은 숨김). `plan`은 `model`로, `chartlab`은 `chart`로 정규화 |
-| `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
+| `trendPeriod` | `24h` \| `7d` \| `30d` | **없음 = 24h** | 그리드·목록·차트 공유 기간. 기본 `24h`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
 | `stall` | 축사번호 | — | 그리드 컨트롤러 포커스 |
@@ -43,8 +43,8 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `alarm` | 알람 id | — | 딥링크 |
 | `chartSp` | 축사유형 코드 | — | 차트 집계 (유형). 맵 `sp`와 분리 |
 | `chartStall` | 축사번호 | — | 차트 집계 (축사). `chartSp` 필요 |
-| `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 트리 선택(컨트롤러). `chartSp`+`chartStall` 필요. 명령 이력 대상 |
-| `chartW1` / `chartW2` | `축사유형\|축사번호\|컨트롤러키` 또는 `-` | — | 목록·펼침 선택. `-`는 빈 칸(집계 딥링크 재시드 방지). 없으면 `chartCtrl`을 위로 시드. 칸 없음=목록(축사유형 평균), `W1`만=그 컨트롤러가 속한 **축사 펼침**(같은 축사 컨트롤러 겹침). `W2` 비교는 보류 |
+| `chartCtrl` | 컨트롤러 키 | — | 차트 집계 트리 선택(컨트롤러). `chartSp`+`chartStall` 필요. 명령 이력 대상. `URLSearchParams`가 인코딩함. 옛 `%253A` 이중 인코딩은 읽기에서 복원 |
+| `chartW1` / `chartW2` | `축사유형\|축사번호\|컨트롤러키` 또는 `-` | — | 목록·펼침 선택. **3칸**. 4칸 이상(키가 한 번 더 붙은 옛 URL)은 앞 3칸만 사용. `-`는 빈 칸(집계 딥링크 재시드 방지). 없으면 `chartCtrl`을 위로 시드. 칸 없음=목록(축사유형 평균), `W1`만=그 컨트롤러가 속한 **축사 펼침**(같은 축사 컨트롤러 겹침). `W2` 비교는 보류 |
 | `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수). 레거시 `command`는 `chartCmd`로 해석 | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
 | `chartCmd` | `1` | — | 컨트롤러 집계에서 온도·모터 본선 **명령 이력**(A/B/C 창·선). 집계 트리 컨트롤러 행 「명령」 토글 |
 | `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |
