@@ -18,6 +18,11 @@ export const farmChartUi = {
   fsBody: "farm-chart-fs-body",
   fsAxis: "farm-chart-fs-axis",
   control: "farm-chart-control",
+  controlIcon: "farm-chart-control-icon",
+  controlAlarm: "farm-chart-control-alarm",
+  controlBadge: "farm-chart-control-badge",
+  controlBadgeIcon: "farm-chart-control-badge-icon",
+  controlRule: "farm-chart-control-rule",
   tickRail: "farm-chart-tick-rail",
   /** 위젯 — 좌측 Y숫자 칸. 브러시·플롯·날짜축이 같은 폭을 씀 */
   yGutter: "farm-chart-y-gutter",

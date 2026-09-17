@@ -38,6 +38,8 @@ export const SPLIT_Y_TEMP_OVERFLOW_FRAC =
   SPLIT_Y_MOTOR_WEIGHT_WITH_TEMP / SPLIT_Y_TEMP_WEIGHT_WITH_MOTOR;
 /** 꺾인 축 사이 빈 구간 (domain 0–100) */
 export const SPLIT_Y_TEMP_BREAK_GAP = 2;
+/** 겹쳐보기 — 모터 하단 보조칸 비율 (Canvas MOTOR_GUTTER) */
+export const OVERLAY_MOTOR_GUTTER_WEIGHT = 0.16;
 
 /**
  * 활성 플롯 밴드 0–100 분배 (단독이면 전폭).
@@ -60,8 +62,7 @@ export function resolveSplitYLayout(
       : visibility;
 
   /**
-   * 오버레이: 켜진 플롯 밴드를 한 슬롯(0–100)에 겹친다.
-   * 시리즈 매핑·엣지라벨·Y스코프는 같은 lo/hi를 공유해 단일 밴드로 동작한다.
+   * 오버레이: 온·습은 본칸에 겹친다. 모터가 있으면 하단 보조칸.
    */
   const plotCount =
     (flags.showMotors ? 1 : 0) +
@@ -71,7 +72,13 @@ export function resolveSplitYLayout(
 
   const parts: { key: "motor" | "hum" | "temp" | "overlay"; w: number }[] = [];
   if (mergeOverlay) {
-    parts.push({ key: "overlay", w: 1 });
+    if (flags.showMotors) {
+      parts.push({ key: "motor", w: OVERLAY_MOTOR_GUTTER_WEIGHT });
+    }
+    parts.push({
+      key: "overlay",
+      w: flags.showMotors ? 1 - OVERLAY_MOTOR_GUTTER_WEIGHT : 1,
+    });
   } else {
     if (flags.showMotors) {
       parts.push({
@@ -124,8 +131,8 @@ export function resolveSplitYLayout(
   if (mergeOverlay) {
     const slot = bands.overlay;
     return {
-      motorLo: flags.showMotors ? slot.lo : 0,
-      motorHi: flags.showMotors ? slot.hi : 0,
+      motorLo: flags.showMotors ? bands.motor.lo : 0,
+      motorHi: flags.showMotors ? bands.motor.hi : 0,
       humLo: flags.showHum ? slot.lo : 0,
       humHi: flags.showHum ? slot.hi : 0,
       tempLo: flags.showTemp ? slot.lo : 0,
@@ -473,8 +480,8 @@ export const UNIFIED_Y_BAND_LABEL: Record<UnifiedYBandId, string> = {
   hum: "습도",
   motor: "모터",
   command: "명령",
-  /** 오버레이: 켜진 온도·습도·모터를 한 밴드에 겹침 */
-  overlay: "온도·습도·모터",
+  /** 오버레이: 본칸에 겹친 온도·습도. 모터는 하단 보조칸 */
+  overlay: "온도·습도",
 };
 
 /** E — UI 칩·스코프 배지: 「온도 집중」 */
@@ -658,8 +665,7 @@ export function listSplitYBands(
 ): { id: UnifiedYBandId; lo: number; hi: number }[] {
   const bands: { id: UnifiedYBandId; lo: number; hi: number }[] = [];
   /**
-   * 오버레이: 켜진 플롯 밴드가 같은 슬롯이면 단일 「overlay」로 노출.
-   * Y스코프가 온도/습도/모터를 분리하지 않고 합친 영역을 포커스한다.
+   * 오버레이: 같은 슬롯의 온·습은 「overlay」, 모터 보조칸은 따로.
    */
   const plotCandidates: { id: UnifiedYBandId; lo: number; hi: number }[] = [];
   if (visibility.showMotors && layout.motorHi - layout.motorLo > 0.5) {
@@ -686,6 +692,13 @@ export function listSplitYBands(
         Math.abs(c.lo - plotCandidates[0]!.lo) < 1e-3 &&
         Math.abs(c.hi - plotCandidates[0]!.hi) < 1e-3,
     );
+  const envShareSlot = (a: { lo: number; hi: number }, b: { lo: number; hi: number }) =>
+    Math.abs(a.lo - b.lo) < 1e-3 && Math.abs(a.hi - b.hi) < 1e-3;
+  const tempBand = plotCandidates.find((c) => c.id === "temp");
+  const humBand = plotCandidates.find((c) => c.id === "hum");
+  const envMerged = Boolean(
+    tempBand && humBand && envShareSlot(tempBand, humBand),
+  );
   if (merged) {
     bands.push({
       id: "overlay",
@@ -696,11 +709,15 @@ export function listSplitYBands(
     if (visibility.showMotors && layout.motorHi - layout.motorLo > 0.5) {
       bands.push({ id: "motor", lo: layout.motorLo, hi: layout.motorHi });
     }
-    if (visibility.showTemp && layout.tempHi - layout.tempLo > 0.5) {
-      bands.push({ id: "temp", lo: layout.tempLo, hi: layout.tempHi });
-    }
-    if (visibility.showHum && layout.humHi - layout.humLo > 0.5) {
-      bands.push({ id: "hum", lo: layout.humLo, hi: layout.humHi });
+    if (envMerged && tempBand) {
+      bands.push({ id: "overlay", lo: tempBand.lo, hi: tempBand.hi });
+    } else {
+      if (visibility.showTemp && layout.tempHi - layout.tempLo > 0.5) {
+        bands.push({ id: "temp", lo: layout.tempLo, hi: layout.tempHi });
+      }
+      if (visibility.showHum && layout.humHi - layout.humLo > 0.5) {
+        bands.push({ id: "hum", lo: layout.humLo, hi: layout.humHi });
+      }
     }
   }
   if (visibility.showCommand) {
@@ -813,7 +830,7 @@ export function visibilityForYBands(
   return {
     showTemp: bands.includes("temp") || hasOverlay,
     showHum: bands.includes("hum") || hasOverlay,
-    showMotors: bands.includes("motor") || hasOverlay,
+    showMotors: bands.includes("motor"),
     showCommand: bands.includes("command"),
   };
 }
@@ -829,10 +846,10 @@ export function maskLayersForYBands(
 ): UnifiedLayerFlags {
   if (!yBands?.length) return layers;
   const allow = new Set(yBands);
-  /** overlay = 켜진 플롯 밴드를 한 슬롯에 겹침 → 온도·습도·모터 유지 */
+  /** overlay = 본칸 온·습 겹침. 모터 보조칸은 motor 밴드만 */
   const keepTemp = allow.has("temp") || allow.has("overlay");
   const keepHum = allow.has("hum") || allow.has("overlay");
-  const keepMotor = allow.has("motor") || allow.has("overlay");
+  const keepMotor = allow.has("motor");
   return {
     ...layers,
     temp: keepTemp && layers.temp,

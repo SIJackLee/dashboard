@@ -289,9 +289,7 @@ type Props = {
   onNeedWindow15m?: (fromMs: number, toMs: number) => void;
   /** 추이 차트 — 희소 칸 값 유지용. 밴드·라벨은 그리지 않음. */
   uplinkCoverage?: UplinkCoverageIndex[];
-  /** 겹쳐보기 초기값 */
-  defaultOverlayView?: boolean;
-  /** 있으면 칸 안 툴바 대신 페이지 공유 레이어·겹쳐보기·알람 띠를 쓴다 */
+  /** 있으면 칸 안 툴바 대신 페이지 공유 레이어·알람 띠를 쓴다 */
   sharedLayers?: SharedChartLayerDisplay;
   /** 펼친 축사 — 속한 컨트롤러 본선을 겹쳐 그림 (평균 칸은 끄기) */
   overlayControllers?: boolean;
@@ -336,7 +334,6 @@ export function UnifiedBarnTrendPanel({
   window15m = null,
   onNeedWindow15m,
   uplinkCoverage = [],
-  defaultOverlayView = false,
   sharedLayers,
   overlayControllers = false,
   onMetricAvailable,
@@ -346,13 +343,11 @@ export function UnifiedBarnTrendPanel({
   const liveRefresh = useFarmLiveRefreshOptional();
   const [ownedLayers, setOwnedLayers] =
     useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
-  const [ownedOverlayView, setOwnedOverlayView] = useState(defaultOverlayView);
   const [ownedAlarmRangeOn, setOwnedAlarmRangeOn] = useState({
     temp: true,
     hum: true,
   });
   const layers = sharedLayers?.layers ?? ownedLayers;
-  const overlayView = sharedLayers?.overlayView ?? ownedOverlayView;
   const alarmRangeOn = sharedLayers?.alarmRangeOn ?? ownedAlarmRangeOn;
   const overview = headingMode === "overview";
   const chartUiScale = overview ? 1 : FARM_CHART_UI_SCALE;
@@ -527,9 +522,9 @@ export function UnifiedBarnTrendPanel({
     () => andSplitYVisibility(layerVisibility, metricAvailable),
     [layerVisibility, metricAvailable],
   );
-  /** 오버레이는 켜진 플롯 밴드가 2개 이상일 때만 유효 */
+  /** 켜진 플롯 밴드가 2개 이상이면 오버레이(분할 보기 없음) */
   const overlayAvailable = countSplitYBands(dataVisibility) >= 2;
-  const overlayActive = overlayView && overlayAvailable;
+  const overlayActive = overlayAvailable;
   const overlayAlign = overlayActive ? OVERLAY_ALIGN_ANCHOR : undefined;
   const scopeVisibility = useMemo(() => {
     const bandVis = visibilityForYBands(xScope?.yBands ?? null);
@@ -1931,11 +1926,11 @@ export function UnifiedBarnTrendPanel({
         <UnifiedTrendLayerToolbar
           layers={layers}
           available={built.available}
+          metricsPending={Boolean(
+            trendLoading || (!controllerTrendByPeriod && !trendError),
+          )}
           onCycleGroup={cycleGroupLayers}
           placement="inline"
-          overlayView={overlayView}
-          overlayAvailable={overlayAvailable}
-          onToggleOverlay={() => setOwnedOverlayView((v) => !v)}
           tempAlarmOn={alarmRangeOn.temp}
           humAlarmOn={alarmRangeOn.hum}
           tempAlarmAvailable={Boolean(
@@ -1952,7 +1947,6 @@ export function UnifiedBarnTrendPanel({
           onToggleHumAlarm={() =>
             setOwnedAlarmRangeOn((prev) => ({ ...prev, hum: !prev.hum }))
           }
-          compact={headingMode === "widget"}
         />
       </div>
     ) : null;

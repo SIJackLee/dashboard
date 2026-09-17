@@ -1596,6 +1596,12 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     both;
 }
 
+.farm-chart-tip-out {
+  animation: farm-chart-tip-out var(--motion-duration-exit) var(--motion-ease-exit)
+    both;
+  pointer-events: none;
+}
+
 @keyframes farm-chart-tip-in {
   from {
     opacity: 0;
@@ -1606,6 +1612,22 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+@keyframes farm-chart-tip-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(var(--motion-chart-travel))
+      scale(var(--motion-chart-scale-exit));
+  }
+}
+
+.farm-chart-crosshair {
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 @keyframes farm-chart-tip-hero {
@@ -1682,10 +1704,24 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   }
 }
 
+@keyframes farm-chart-band-guide-out {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 .farm-chart-band-guide-in {
   animation: farm-chart-band-guide-in var(--motion-duration-moderate)
     var(--motion-ease-enter) both;
   animation-delay: var(--motion-duration-fast);
+}
+
+.farm-chart-band-guide-out {
+  animation: farm-chart-band-guide-out var(--motion-duration-exit)
+    var(--motion-ease-exit) both;
 }
 
 .farm-chart-scope-shell {
@@ -1736,6 +1772,30 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 .farm-chart-control {
   width: calc(2rem * var(--farm-chart-ui-scale, 1));
   height: calc(2rem * var(--farm-chart-ui-scale, 1));
+}
+
+.farm-chart-control-icon {
+  width: calc(1rem * var(--farm-chart-ui-scale, 1));
+  height: calc(1rem * var(--farm-chart-ui-scale, 1));
+}
+
+.farm-chart-control-alarm {
+  width: calc(0.75rem * var(--farm-chart-ui-scale, 1));
+  height: calc(0.75rem * var(--farm-chart-ui-scale, 1));
+}
+
+.farm-chart-control-badge {
+  width: calc(0.875rem * var(--farm-chart-ui-scale, 1));
+  height: calc(0.875rem * var(--farm-chart-ui-scale, 1));
+}
+
+.farm-chart-control-badge-icon {
+  width: calc(0.625rem * var(--farm-chart-ui-scale, 1));
+  height: calc(0.625rem * var(--farm-chart-ui-scale, 1));
+}
+
+.farm-chart-control-rule {
+  height: calc(1.25rem * var(--farm-chart-ui-scale, 1));
 }
 
 .farm-chart-tick-rail {
@@ -2233,10 +2293,12 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
   .farm-chart-scope-shell,
   .farm-chart-panel-shell,
   .farm-chart-tip-in,
+  .farm-chart-tip-out,
   .farm-chart-tip-hero,
   .farm-chart-hover-ring,
   .farm-chart-reflow,
   .farm-chart-band-guide-in,
+  .farm-chart-band-guide-out,
   .farm-chart-layers-enter,
   .farm-chart-layers-exit,
   .farm-chart-layer-icon-enter,
@@ -2264,7 +2326,8 @@ html[data-viewport-preview="mobile"] [data-mobile-viewport-toast] {
 
   .farm-chart-brush-window,
   .farm-chart-alarm-pin,
-  .farm-chart-channel-bar {
+  .farm-chart-channel-bar,
+  .farm-chart-crosshair {
     transition: none;
   }
 }

@@ -29,7 +29,8 @@ import {
 import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
-import { useClipPresence } from "@/lib/ui/use-clip-presence";
+import { useClipPresence, usePresenceValue } from "@/lib/ui/use-clip-presence";
+import { motionDuration } from "@/lib/ui/motion-tokens";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
 import {
   COMMAND_SETTING_COLOR,
@@ -102,6 +103,8 @@ import {
   hoverPairSlotDx,
   nearestByXView,
   pickDraggableScaleEdgeHit,
+  chartTipPresenceClass,
+  chartBandGuideClass,
   type PinnedTip,
 } from "./trend-chart-interaction";
 import { useTrendPinnedTips } from "./use-trend-pinned-tips";
@@ -519,6 +522,17 @@ export function TrendChart({
   const envelopePresence = useClipPresence(
     envelopes,
     (e) => e.legendLabel ?? "envelope",
+    { enabled: clipWipeEnabled },
+  );
+  const pinPresence = useClipPresence(pinnedTips, (p) => p.id, {
+    enterMs: motionDuration.fast,
+    exitMs: motionDuration.exit,
+  });
+  const guidePresence = useClipPresence(
+    splitBandGuides
+      .map((gy, i) => ({ gy, i }))
+      .filter((g) => Number.isFinite(g.gy)),
+    (g) => String(g.i),
     { enabled: clipWipeEnabled },
   );
 
@@ -1851,6 +1865,16 @@ export function TrendChart({
     return out;
   }, [series, rangeBands]);
 
+  const alarmFillBands = useMemo(
+    () => uniqueAlarmBands.filter((b) => b.fillWindow !== false),
+    [uniqueAlarmBands],
+  );
+  const alarmPresence = useClipPresence(
+    alarmFillBands,
+    (b) => b.id ?? `${b.axis}:${b.band.lo}:${b.band.hi}`,
+    { enabled: clipWipeEnabled },
+  );
+
   /** referenceLines 중 알람 band 모서리와 중복되는 점선 제거. */
   const dedupedReferenceLines = useMemo(() => {
     if (uniqueAlarmBands.length === 0) return referenceLines;
@@ -1985,11 +2009,50 @@ export function TrendChart({
     hoveredEdgeId != null
       ? (edgeBandLabels.find((l) => l.id === hoveredEdgeId) ?? null)
       : null;
+  const hoveredEdgePresence = usePresenceValue(hoveredEdge);
+  const draftPresence = usePresenceValue(xDraft);
+
+  const hoverEventVisible =
+    hoverEventMark != null &&
+    !pinnedTips.some((p) => p.eventMark?.id === hoverEventMark.id);
+  const hoverPointVisible =
+    hoverIdx != null &&
+    hoverIdx >= 0 &&
+    hoverIdx < n &&
+    hoverSeries != null &&
+    !hoverSeries.startsWith("event:") &&
+    !pinnedTips.some(
+      (p) =>
+        p.id ===
+        tipPinId(
+          hoverIdx,
+          overlayHoverMerge &&
+            isOverlayMergedHoverGroup(inferHoverMetricGroup(hoverSeries))
+            ? "온도"
+            : hoverSeries,
+        ),
+    );
+  const hoverCardLive = useMemo(() => {
+    if (hoverEventVisible && hoverEventMark) {
+      return { kind: "event" as const, mark: hoverEventMark };
+    }
+    if (hoverPointVisible && hoverIdx != null && hoverSeries) {
+      return { kind: "point" as const, idx: hoverIdx, seriesKey: hoverSeries };
+    }
+    return null;
+  }, [
+    hoverEventVisible,
+    hoverEventMark,
+    hoverPointVisible,
+    hoverIdx,
+    hoverSeries,
+  ]);
+  const hoverCardPresence = usePresenceValue(hoverCardLive);
 
   /** 플롯 위를 보는 중이면 기준 칩을 낮춤. 칩 호버는 제외 */
   const dimPlotValues =
     hoveredEdgeId == null &&
-    (plotHovering || pinnedTips.length > 0);
+    (plotHovering || pinPresence.length > 0);
 
   const edgeValueMaxCh = edgeBandLabels.reduce(
     (max, label) => Math.max(max, label.text.length),
@@ -2401,11 +2464,8 @@ export function TrendChart({
         </defs>
         <g
           key={`${plotEnterKey}:${scopeMotionKey}`}
-          style={{
-            opacity: 1,
-            transition: "opacity 120ms linear",
-          }}
           className={cn(
+            motionClass.farmChartCrosshair,
             animate && scopeMotionKey === 0
               ? motionClass.farmChartPlotReveal
               : undefined,
@@ -2418,7 +2478,14 @@ export function TrendChart({
         >
         <CoverageBandsLayer bands={coverageBands} geom={plotGeom} />
         <NullGapsLayer gaps={nullGapRanges} geom={plotGeom} />
-        <BandGuidesLayer guides={splitBandGuides} geom={plotGeom} />
+        <BandGuidesLayer
+          guides={guidePresence.map(({ item, key, phase }) => ({
+            key,
+            value: item.gy,
+            className: chartBandGuideClass(phase),
+          }))}
+          geom={plotGeom}
+        />
         <TrendChartDataLayers
           mode={mode}
           n={n}
@@ -2441,7 +2508,7 @@ export function TrendChart({
           envelopePresence={envelopePresence}
           seriesPresence={seriesPresence}
           scaleEdgeLabels={scaleEdgeLabels}
-          uniqueAlarmBands={uniqueAlarmBands}
+          uniqueAlarmBands={alarmPresence}
           dedupedReferenceLines={dedupedReferenceLines}
           pinnedTips={pinnedTips}
           plotGeom={plotGeom}
@@ -2490,7 +2557,8 @@ export function TrendChart({
           strokeDasharray="2.5 2"
           vectorEffect="non-scaling-stroke"
           opacity={0}
-          style={{ opacity: 0, transition: "opacity 90ms linear" }}
+          className={motionClass.farmChartCrosshair}
+          style={{ opacity: 0 }}
           pointerEvents="none"
         />
         <line
@@ -2504,11 +2572,12 @@ export function TrendChart({
           strokeDasharray="2.5 2"
           vectorEffect="non-scaling-stroke"
           opacity={0}
-          style={{ opacity: 0, transition: "opacity 90ms linear" }}
+          className={motionClass.farmChartCrosshair}
+          style={{ opacity: 0 }}
           pointerEvents="none"
         />
         {(() => {
-          const win = xDraft;
+          const win = draftPresence.mounted ? draftPresence.value : null;
           if (win == null) return null;
           const x0 = win.a;
           const x1 = win.b;
@@ -2531,7 +2600,11 @@ export function TrendChart({
           const rxEnd = markerRx(5);
           const ryEnd = markerRy(5);
           return (
-            <g pointerEvents="none" aria-hidden>
+            <g
+              pointerEvents="none"
+              aria-hidden
+              className={chartTipPresenceClass(draftPresence.phase)}
+            >
               <rect
                 x={left}
                 y={yBox}
@@ -2606,13 +2679,15 @@ export function TrendChart({
 
       <div
         ref={crossChipRef}
-        className="pointer-events-none absolute z-[5] whitespace-nowrap rounded-sm border border-border/70 bg-background/90 px-1.5 py-0.5 farm-chart-fs-axis tabular-nums"
+        className={cn(
+          "pointer-events-none absolute z-[5] whitespace-nowrap rounded-sm border border-border/70 bg-background/90 px-1.5 py-0.5 farm-chart-fs-axis tabular-nums",
+          motionClass.farmChartCrosshair,
+        )}
         style={{
           opacity: 0,
           left: 0,
           top: 0,
           transform: "translate(calc(-100% - 8px), -50%)",
-          transition: "opacity 90ms linear",
         }}
         aria-hidden
       >
@@ -2947,17 +3022,20 @@ export function TrendChart({
         </span>
       ))}
 
-      {hoveredEdge ? (
+      {hoveredEdgePresence.mounted && hoveredEdgePresence.value ? (
         <div
-          className="pointer-events-none absolute inset-x-0 z-[4] -translate-y-1/2"
-          style={{ top: `${hoveredEdge.topPct}%` }}
+          className={cn(
+            "pointer-events-none absolute inset-x-0 z-[4] -translate-y-1/2",
+            chartTipPresenceClass(hoveredEdgePresence.phase),
+          )}
+          style={{ top: `${hoveredEdgePresence.value.topPct}%` }}
           aria-hidden
         >
           <div
             className="h-[1.5px] w-full rounded-full"
             style={{
-              background: hoveredEdge.color,
-              boxShadow: `0 0 3px 0.5px ${hoveredEdge.color}`,
+              background: hoveredEdgePresence.value.color,
+              boxShadow: `0 0 3px 0.5px ${hoveredEdgePresence.value.color}`,
               opacity: 0.8,
             }}
           />
@@ -3243,12 +3321,12 @@ export function TrendChart({
         );
       })}
 
-      {pinnedTips.length > 0 ? (
+      {pinPresence.length > 0 ? (
         <svg
           className="pointer-events-none absolute inset-0 z-[15] h-full w-full overflow-visible"
           aria-hidden
         >
-          {pinnedTips.map((pin) => {
+          {pinPresence.map(({ item: pin, key, phase }) => {
             if (!pin.eventMark && (pin.idx < 0 || pin.idx >= n)) return null;
             const plotW = plotPx.w || 1;
             const plotH = plotPx.h || 1;
@@ -3275,7 +3353,10 @@ export function TrendChart({
                 ? "var(--status-ok)"
                 : "var(--channel-command)";
             return (
-              <g key={`pin-link-${pin.id}`}>
+              <g
+                key={`pin-link-${key}`}
+                className={chartTipPresenceClass(phase)}
+              >
                 {pin.eventMark ? (
                   <>
                     <ellipse
@@ -3313,7 +3394,7 @@ export function TrendChart({
         </svg>
       ) : null}
 
-      {pinnedTips.map((pin, pinOrd) => {
+      {pinPresence.map(({ item: pin, key, phase }, pinOrd) => {
         if (!pin.eventMark && (pin.idx < 0 || pin.idx >= n)) return null;
         const plotW = plotPx.w || 1;
         const plotH = plotPx.h || 1;
@@ -3333,7 +3414,7 @@ export function TrendChart({
         const top = base.top + pin.oy;
         return (
           <div
-            key={pin.id}
+            key={key}
             ref={(el) => {
               if (!el) return;
               const w = el.offsetWidth;
@@ -3347,7 +3428,7 @@ export function TrendChart({
             }}
             className={cn(
               "pointer-events-auto absolute w-max max-w-[16rem] cursor-grab touch-none select-none active:cursor-grabbing",
-              motionClass.farmChartTipIn,
+              chartTipPresenceClass(phase),
             )}
             style={{ left, top, zIndex: 20 + pinOrd }}
             data-tour-id="trend-chart-pinned-card"
@@ -3416,8 +3497,7 @@ export function TrendChart({
         );
       })}
 
-      {hoverEventMark &&
-      !pinnedTips.some((p) => p.eventMark?.id === hoverEventMark.id) ? (
+      {hoverCardPresence.mounted && hoverCardPresence.value ? (
         <div
           ref={tipRef}
           className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"
@@ -3428,88 +3508,58 @@ export function TrendChart({
           <div
             className={cn(
               "rounded-md border border-border/80 bg-popover/95 px-2.5 py-1.5 text-popover-foreground shadow-lg backdrop-blur-sm",
-              motionClass.farmChartTipIn,
+              chartTipPresenceClass(hoverCardPresence.phase),
             )}
           >
-            <TrendEventCardBody mark={hoverEventMark} />
-          </div>
-        </div>
-      ) : hoverIdx != null &&
-        hoverIdx >= 0 &&
-        hoverIdx < n &&
-        hoverSeries != null &&
-        !hoverSeries.startsWith("event:") &&
-        !(
-          hoverSeries != null &&
-          pinnedTips.some(
-            (p) =>
-              p.id ===
-              tipPinId(
-                hoverIdx,
-                overlayHoverMerge &&
-                  isOverlayMergedHoverGroup(
-                    inferHoverMetricGroup(hoverSeries),
-                  )
-                  ? "온도"
-                  : hoverSeries,
-              ),
-          )
-        ) ? (
-        <div
-          ref={tipRef}
-          className="pointer-events-none absolute left-0 top-0 z-10 w-max max-w-[16rem]"
-          style={{ opacity: 0, willChange: "transform" }}
-          aria-live="polite"
-          data-tour-id="trend-chart-hover-card"
-        >
-          <div
-            className={cn(
-              "rounded-md border border-border/80 bg-popover/95 px-2.5 py-1.5 text-popover-foreground shadow-lg backdrop-blur-sm",
-              motionClass.farmChartTipIn,
+            {hoverCardPresence.value.kind === "event" ? (
+              <TrendEventCardBody mark={hoverCardPresence.value.mark} />
+            ) : (
+              <>
+                {(() => {
+                  const idx = hoverCardPresence.value.idx;
+                  const band = coverageBands.find(
+                    (b) => idx >= b.i0 && idx <= b.i1,
+                  );
+                  return band ? (
+                    <p className="mb-1 farm-chart-fs-legend text-muted-foreground">
+                      {band.label}
+                    </p>
+                  ) : null;
+                })()}
+                {(() => {
+                  const card = hoverCardPresence.value;
+                  if (card.kind !== "point") return null;
+                  const hg = inferHoverMetricGroup(card.seriesKey);
+                  if (overlayHoverMerge && isOverlayMergedHoverGroup(hg)) {
+                    return (
+                      <OverlayMergedPointCards
+                        idx={card.idx}
+                        categories={categories}
+                        series={series}
+                        envelopes={envelopes}
+                        histograms={histograms}
+                        leftUnit={leftUnit}
+                        rightUnit={rightUnit}
+                        onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                      />
+                    );
+                  }
+                  return (
+                    <TrendPointCardBody
+                      idx={card.idx}
+                      seriesKey={card.seriesKey}
+                      categories={categories}
+                      series={series}
+                      envelopes={envelopes}
+                      histograms={histograms}
+                      leftUnit={leftUnit}
+                      rightUnit={rightUnit}
+                      onBreachEquipmentNavigate={onBreachEquipmentNavigate}
+                    />
+                  );
+                })()}
+              </>
             )}
-          >
-            {(() => {
-              const band = coverageBands.find(
-                (b) => hoverIdx != null && hoverIdx >= b.i0 && hoverIdx <= b.i1,
-              );
-              return band ? (
-                <p className="mb-1 farm-chart-fs-legend text-muted-foreground">
-                  {band.label}
-                </p>
-              ) : null;
-            })()}
-            {(() => {
-              const hg = hoverSeries
-                ? inferHoverMetricGroup(hoverSeries)
-                : null;
-              if (overlayHoverMerge && isOverlayMergedHoverGroup(hg)) {
-                return (
-                  <OverlayMergedPointCards
-                    idx={hoverIdx ?? 0}
-                    categories={categories}
-                    series={series}
-                    envelopes={envelopes}
-                    histograms={histograms}
-                    leftUnit={leftUnit}
-                    rightUnit={rightUnit}
-                    onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                  />
-                );
-              }
-              return (
-                <TrendPointCardBody
-                  idx={hoverIdx ?? 0}
-                  seriesKey={hoverSeries}
-                  categories={categories}
-                  series={series}
-                  envelopes={envelopes}
-                  histograms={histograms}
-                  leftUnit={leftUnit}
-                  rightUnit={rightUnit}
-                  onBreachEquipmentNavigate={onBreachEquipmentNavigate}
-                />
-              );
-            })()}
           </div>
         </div>
       ) : null}

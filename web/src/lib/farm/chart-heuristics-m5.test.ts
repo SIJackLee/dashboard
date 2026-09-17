@@ -391,32 +391,52 @@ const layoutAll = resolveSplitYLayout(ALL_VIS);
   );
 }
 
-/* —— 오버레이: 온도·습도·모터 한 밴드 + 2단 보간 —— */
+/* —— 오버레이: 모터 보조칸 + 온·습 본칸 —— */
 {
   const overlayLayout = resolveSplitYLayout(ALL_VIS, true);
-  assert.ok(splitYLayoutIsFullyMerged(overlayLayout));
+  assert.equal(splitYLayoutIsFullyMerged(overlayLayout), false);
   const overlayBands = listSplitYBands(overlayLayout, ALL_VIS).filter(
     (b) => b.id !== "command",
   );
   assert.deepEqual(
     overlayBands.map((b) => b.id),
-    ["overlay"],
+    ["motor", "overlay"],
   );
   const overlayVis = visibilityForYBands(["overlay"]);
   assert.equal(overlayVis?.showHum, true);
   assert.equal(overlayVis?.showTemp, true);
-  assert.equal(overlayVis?.showMotors, true);
+  assert.equal(overlayVis?.showMotors, false);
   const maskedOverlay = maskLayersForYBands(ALL_UNIFIED_LAYERS, ["overlay"]);
   assert.equal(maskedOverlay.hum, true);
-  assert.equal(isOverlayStagedLayoutTransition(layoutAll, overlayLayout), true);
-  const meet = overlayMeetSplitYLayout(layoutAll);
-  assert.ok(Math.abs(meet.tempLo - layoutAll.humLo) < 1e-6);
-  assert.ok(Math.abs(meet.motorHi - layoutAll.humHi) < 1e-6);
-  const mid = lerpSplitYLayoutStaged(layoutAll, overlayLayout, 0.5);
-  assert.ok(Math.abs(mid.tempLo - layoutAll.humLo) < 1e-6);
-  assert.ok(Math.abs(mid.tempHi - layoutAll.humHi) < 1e-6);
-  const end = lerpSplitYLayoutStaged(layoutAll, overlayLayout, 1);
-  assert.ok(Math.abs(end.tempLo - overlayLayout.tempLo) < 1e-6);
+  assert.equal(maskedOverlay.motors, false);
+  assert.equal(isOverlayStagedLayoutTransition(layoutAll, overlayLayout), false);
+}
+
+/* —— 오버레이(온·습만): 한 밴드 + 2단 보간 —— */
+{
+  const visEnv = {
+    showTemp: true,
+    showHum: true,
+    showMotors: false,
+    showCommand: true,
+  } as const;
+  const layoutEnv = resolveSplitYLayout(visEnv);
+  const overlayEnv = resolveSplitYLayout(visEnv, true);
+  assert.ok(splitYLayoutIsFullyMerged(overlayEnv));
+  assert.deepEqual(
+    listSplitYBands(overlayEnv, visEnv)
+      .filter((b) => b.id !== "command")
+      .map((b) => b.id),
+    ["overlay"],
+  );
+  assert.equal(isOverlayStagedLayoutTransition(layoutEnv, overlayEnv), true);
+  const meet = overlayMeetSplitYLayout(layoutEnv);
+  assert.ok(Math.abs(meet.tempLo - layoutEnv.humLo) < 1e-6);
+  const mid = lerpSplitYLayoutStaged(layoutEnv, overlayEnv, 0.5);
+  assert.ok(Math.abs(mid.tempLo - layoutEnv.humLo) < 1e-6);
+  assert.ok(Math.abs(mid.tempHi - layoutEnv.humHi) < 1e-6);
+  const end = lerpSplitYLayoutStaged(layoutEnv, overlayEnv, 1);
+  assert.ok(Math.abs(end.tempLo - overlayEnv.tempLo) < 1e-6);
   assert.ok(Math.abs(end.tempHi - 100) < 1e-6);
 }
 

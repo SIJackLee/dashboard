@@ -1,9 +1,16 @@
 import { Bell, Droplets, Thermometer } from "lucide-react";
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 export type AlarmDomain = "temp" | "humidity";
 
-/** 알람 행·차트 기준 — Bell + 도메인(온도계/물방울). */
+/** 종 본체 · 도메인 아이콘은 우하단 ¼. 겹치는 칸은 종을 그리지 않음. */
+const METRIC_FRAC = "25%";
+const BELL_CLIP: CSSProperties = {
+  clipPath:
+    "polygon(0 0, 100% 0, 100% calc(100% - 25% - 1px), calc(100% - 25% - 1px) calc(100% - 25% - 1px), calc(100% - 25% - 1px) 100%, 0 100%)",
+};
+
 export function AlarmDomainIcon({
   domain,
   className,
@@ -26,11 +33,18 @@ export function AlarmDomainIcon({
 
   return (
     <span
-      className={cn("inline-flex items-center gap-0.5", className)}
+      className={cn("relative inline-block shrink-0", sizeClass, className)}
       aria-hidden
     >
-      <Bell className={cn(sizeClass, inherit ? undefined : "text-foreground")} />
-      <Metric className={cn(sizeClass, metricColor)} />
+      <Bell
+        className={cn("block size-full", inherit ? undefined : "text-foreground")}
+        style={BELL_CLIP}
+      />
+      <Metric
+        className={cn("absolute bottom-0 right-0", metricColor)}
+        style={{ width: METRIC_FRAC, height: METRIC_FRAC }}
+        strokeWidth={2.5}
+      />
     </span>
   );
 }

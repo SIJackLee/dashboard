@@ -92,6 +92,7 @@ export function invertSplitYCrosshairValues(
       ? finiteOrNull(unmapMotorPctFromSplitY(chartY, opts.layout, align))
       : null;
 
+  if (hit.id === "motor") return { ...EMPTY, motorPct: invertMotor() };
   if (opts.overlay || hit.id === "overlay") {
     const zones = tempBrokenAxisPlotZones(opts.layout);
     const inOverflow = Boolean(zones && chartY >= zones.overflow.lo);
@@ -103,6 +104,5 @@ export function invertSplitYCrosshairValues(
   }
   if (hit.id === "temp") return { ...EMPTY, tempC: invertTemp() };
   if (hit.id === "hum") return { ...EMPTY, humidityPct: invertHum() };
-  if (hit.id === "motor") return { ...EMPTY, motorPct: invertMotor() };
   return EMPTY;
 }

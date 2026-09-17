@@ -77,6 +77,21 @@ export function clipWipeClass(phase: ClipPhase): string | undefined {
   return undefined;
 }
 
+/** 호버·핀 카드·칩 — 등장/퇴장 동일 프리셋 */
+export function chartTipPresenceClass(
+  phase: ClipPhase | "enter" | "exit",
+): string | undefined {
+  if (phase === "exit") return motionClass.farmChartTipOut;
+  if (phase === "enter") return motionClass.farmChartTipIn;
+  return undefined;
+}
+
+export function chartBandGuideClass(phase: ClipPhase): string | undefined {
+  if (phase === "enter") return motionClass.farmChartBandGuideIn;
+  if (phase === "exit") return motionClass.farmChartBandGuideOut;
+  return undefined;
+}
+
 export type ScaleEdgeHitGuide = {
   id: string;
   value: number;

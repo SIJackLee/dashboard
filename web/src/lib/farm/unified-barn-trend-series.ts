@@ -222,6 +222,7 @@ export function buildThresholdBreachCorridor(opts: {
 
 export {
   SPLIT_Y_BAND_GAP,
+  OVERLAY_MOTOR_GUTTER_WEIGHT,
   resolveSplitYLayout,
   SPLIT_Y_WITH_HUM,
   SPLIT_Y_TEMP_EXPANDED,
@@ -279,7 +280,6 @@ import {
   countSplitYBands,
   fitTempDisplayDomain,
   resolveSplitYLayout,
-  splitYLayoutIsFullyMerged,
   SPLIT_Y_WITH_HUM,
   tempBrokenAxisPlotZones,
 } from "./unified-barn-trend-layout";
@@ -329,7 +329,7 @@ export const OVERFLOW_FIT_PAD_RATIO = 0.12;
 export const OVERFLOW_FIT_MIN_PAD_C = 0.25;
 /** @deprecated 연속 ℃/px 위칸 최소 폭. 이탈 자체 스케일에서는 쓰지 않음 */
 export const SPLIT_Y_TEMP_OVERFLOW_MIN_C = 5;
-/** 겹쳐보기 권장 구간(꺾임 아래)에서 온·습·모터 상·하한을 같은 높이에 두는 헤드룸 */
+/** 겹쳐보기 권장 구간(꺾임 아래)에서 온·습 상·하한을 같은 높이에 두는 헤드룸 */
 export const OVERLAY_ALIGN_HEAD_FRAC = 0.2;
 
 export function alarmEdgeDomain(
@@ -362,8 +362,8 @@ export function resolveUnifiedPlotLayout(
 ): UnifiedPlotLayoutSpec {
   const n = countSplitYBands(visibility);
   /**
-   * 오버레이 — 켜진 플롯 밴드를 한 슬롯에 겹침.
-   * 단일-네이티브 밴드(원단위 축) 분기를 건너뛰고 병합 레이아웃 + 밴드 엣지라벨 경로 사용.
+   * 오버레이 — 온·습은 본칸에 겹침. 모터가 있으면 하단 보조칸.
+   * 단일-네이티브 밴드(원단위 축) 분기를 건너뛰고 밴드 엣지라벨 경로 사용.
    */
   const mergeOverlay = overlay && n >= 2;
   if (mergeOverlay) {
@@ -557,16 +557,12 @@ function unmapMetricAnchoredFromBand(
   return alarmLo + ((splitY - c.coreLo) / (c.coreHi - c.coreLo)) * alarmSpan;
 }
 
-/** 겹쳐보기 — 온·습·모터 권장 가장자리는 꺾임 아래(선형 칸)에 맞춘다. */
+/** 겹쳐보기 — 온·습 권장 가장자리는 꺾임 아래(선형 칸)에 맞춘다. */
 function overlayBrokenLinearSlot(
   layout: SplitYLayout,
 ): { lo: number; hi: number } | null {
   const zones = tempBrokenAxisPlotZones(layout);
-  if (
-    zones &&
-    splitYLayoutIsFullyMerged(layout) &&
-    zones.linear.hi > zones.linear.lo
-  ) {
+  if (zones && zones.linear.hi > zones.linear.lo) {
     return { lo: zones.linear.lo, hi: zones.linear.hi };
   }
   return null;
@@ -813,23 +809,12 @@ export function unmapTempCFromSplitY(
   return unmapFromValueBand(splitY, vlo, vhi, layout.tempLo, layout.tempHi);
 }
 
-/** 모터% → 모터 밴드 */
+/** 모터% → 모터 밴드 (겹쳐보기 보조칸·분할 칸 모두 0–100 선형) */
 export function mapMotorPctToSplitY(
   pct: number | null | undefined,
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
-  align?: TempBandAnchor,
+  _align?: TempBandAnchor,
 ): number | null {
-  if (align) {
-    return mapOverlayAlignedToSlot(
-      pct,
-      0,
-      100,
-      layout,
-      layout.motorLo,
-      layout.motorHi,
-      align.headFrac,
-    );
-  }
   if (pct == null || !Number.isFinite(pct)) return null;
   const t = Math.max(0, Math.min(100, pct)) / 100;
   return layout.motorLo + t * (layout.motorHi - layout.motorLo);
@@ -839,19 +824,8 @@ export function mapMotorPctToSplitY(
 export function unmapMotorPctFromSplitY(
   splitY: number,
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
-  align?: TempBandAnchor,
+  _align?: TempBandAnchor,
 ): number | null {
-  if (align) {
-    return unmapOverlayAlignedFromSlot(
-      splitY,
-      0,
-      100,
-      layout,
-      layout.motorLo,
-      layout.motorHi,
-      align.headFrac,
-    );
-  }
   return unmapFromValueBand(splitY, 0, 100, layout.motorLo, layout.motorHi);
 }
 
@@ -1326,7 +1300,7 @@ const EMPTY_METRIC_AVAILABILITY: UnifiedMetricAvailability = {
   motors: false,
 };
 
-/** 시계열이 있는 지표만 칸·아이콘을 연다 */
+/** 시계열이 있는 지표만 칸·아이콘을 연다. 툴바 아이콘은 없어도 회색으로 남긴다. */
 export function metricAvailabilityFromSeriesList(
   list: Pick<
     TrendControllerSeries,

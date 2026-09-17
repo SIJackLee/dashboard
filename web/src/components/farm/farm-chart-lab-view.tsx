@@ -59,7 +59,6 @@ import {
 } from "@/lib/farm/use-farm-trend-uplink-coverage";
 import type { UplinkCoverageIndex } from "@/lib/farm/trend-uplink-coverage";
 import {
-  countSplitYBands,
   DEFAULT_UNIFIED_LAYERS,
   splitYVisibilityFromLayers,
   andSplitYVisibility,
@@ -164,7 +163,6 @@ export function FarmChartLabView({
     /* 일괄은 30일 고정 */
   }, []);
   const [layers, setLayers] = useState(DEFAULT_UNIFIED_LAYERS);
-  const [overlayView, setOverlayView] = useState(true);
   const [alarmRangeOn, setAlarmRangeOn] = useState({ temp: true, hum: true });
   const [metricAvailable, setMetricAvailable] =
     useState<UnifiedMetricAvailability>({
@@ -172,7 +170,9 @@ export function FarmChartLabView({
       hum: false,
       motors: false,
     });
+  const [metricsSettled, setMetricsSettled] = useState(false);
   const onMetricAvailable = useCallback((next: UnifiedMetricAvailability) => {
+    setMetricsSettled(true);
     setMetricAvailable((prev) =>
       prev.temp === next.temp &&
       prev.hum === next.hum &&
@@ -189,10 +189,9 @@ export function FarmChartLabView({
     () => andSplitYVisibility(layerVisibility, metricAvailable),
     [layerVisibility, metricAvailable],
   );
-  const overlayAvailable = countSplitYBands(dataVisibility) >= 2;
   const sharedLayers: SharedChartLayerDisplay = useMemo(
-    () => ({ layers, overlayView, alarmRangeOn }),
-    [layers, overlayView, alarmRangeOn],
+    () => ({ layers, alarmRangeOn }),
+    [layers, alarmRangeOn],
   );
   const cycleGroupLayers = useCallback((group: LayerGroupId) => {
     setLayers((prev) => {
@@ -412,7 +411,7 @@ export function FarmChartLabView({
     : [];
   const layerToolbar = layersToolbarActive ? (
     <div
-      className="relative inline-flex max-w-full flex-wrap rounded-xl border bg-muted/40 p-1"
+      className="relative inline-flex max-w-full flex-wrap rounded-xl border bg-muted/40 p-2"
       data-farm-chart-layers-shell=""
     >
       <UnifiedTrendLayerToolbar
@@ -423,10 +422,8 @@ export function FarmChartLabView({
           hum: metricAvailable.hum,
           motors: metricAvailable.motors,
         }}
+        metricsPending={!metricsSettled}
         onCycleGroup={cycleGroupLayers}
-        overlayView={overlayView}
-        overlayAvailable={overlayAvailable}
-        onToggleOverlay={() => setOverlayView((v) => !v)}
         tempAlarmOn={alarmRangeOn.temp}
         humAlarmOn={alarmRangeOn.hum}
         tempAlarmAvailable={Boolean(
@@ -458,7 +455,6 @@ export function FarmChartLabView({
             return next;
           });
         }}
-        compact
       />
     </div>
   ) : null;

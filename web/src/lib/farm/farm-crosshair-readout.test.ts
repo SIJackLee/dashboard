@@ -12,7 +12,10 @@ import {
   resolveSplitYLayout,
   SPLIT_Y_WITH_HUM,
 } from "./unified-barn-trend-series";
-import { SPLIT_Y_BAND_GAP } from "./unified-barn-trend-layout";
+import {
+  SPLIT_Y_BAND_GAP,
+  type SplitYVisibility,
+} from "./unified-barn-trend-layout";
 
 const ALL_PLOT: SplitYVisibility = {
   showTemp: true,
@@ -91,6 +94,21 @@ const THRESH = {
   assert.ok(inv.tempC != null && Math.abs(inv.tempC - 24.6) < 0.08);
   assert.ok(inv.humidityPct != null);
   assert.equal(inv.motorPct, null);
+
+  const yMotor = mapMotorPctToSplitY(40, overlayLayout);
+  assert.ok(yMotor != null);
+  const invMotor = invertSplitYCrosshairValues(yMotor, {
+    layout: overlayLayout,
+    visibility: ALL_PLOT,
+    overlay: true,
+    overlayAlign: OVERLAY_ALIGN_ANCHOR,
+    ...THRESH,
+  });
+  assert.equal(invMotor.tempC, null);
+  assert.equal(invMotor.humidityPct, null);
+  assert.ok(
+    invMotor.motorPct != null && Math.abs(invMotor.motorPct - 40) < 0.05,
+  );
 }
 
 {

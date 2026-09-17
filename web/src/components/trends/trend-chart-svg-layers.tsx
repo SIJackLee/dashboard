@@ -9,6 +9,7 @@
  * 기존과 완전히 동일하다.
  */
 import { Fragment } from "react";
+import { cn } from "@/lib/utils";
 import type { Band } from "@/lib/farm/severity-score";
 import { SEV_COLOR } from "@/lib/farm/severity-score";
 import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
@@ -109,19 +110,19 @@ export function BandGuidesLayer({
   guides,
   geom,
 }: {
-  guides: number[];
+  guides: { key: string; value: number; className?: string }[];
   geom: TrendPlotGeom;
 }) {
   const { yFor, padL, padR, viewW } = geom;
   return (
     <Fragment>
-      {guides.map((gy, gi) => {
-        if (!Number.isFinite(gy)) return null;
-        const y = yFor(gy, "left");
+      {guides.map((guide) => {
+        if (!Number.isFinite(guide.value)) return null;
+        const y = yFor(guide.value, "left");
         if (!Number.isFinite(y)) return null;
         return (
           <line
-            key={`band-guide-${gi}-${gy}`}
+            key={guide.key}
             x1={padL}
             x2={viewW - padR}
             y1={y}
@@ -130,7 +131,7 @@ export function BandGuidesLayer({
             strokeWidth={0.4}
             strokeDasharray="2.5 3"
             vectorEffect="non-scaling-stroke"
-            className="text-muted-foreground"
+            className={cn("text-muted-foreground", guide.className)}
             opacity={0.35}
           />
         );

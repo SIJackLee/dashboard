@@ -56,14 +56,14 @@ export type TrendChartDataLayersProps = {
   envelopePresence: ClipPresenceEntry<TrendEnvelope>[];
   seriesPresence: ClipPresenceEntry<TrendSeries>[];
   scaleEdgeLabels: TrendScaleEdgeLabel[];
-  uniqueAlarmBands: {
+  uniqueAlarmBands: ClipPresenceEntry<{
     band: Band;
     axis: TrendAxis;
     color?: string;
     fillWindow?: boolean;
     fillOpacity?: number;
     id?: string;
-  }[];
+  }>[];
   dedupedReferenceLines: TrendReferenceLine[];
   pinnedTips: PinnedTip[];
   plotGeom: TrendPlotGeom;
@@ -117,9 +117,17 @@ export function TrendChartDataLayers({
 }: TrendChartDataLayersProps) {
   return (
     <>
-      {mode === "line" ? (
-        <AlarmBandsLayer bands={uniqueAlarmBands} geom={plotGeom} />
-      ) : null}
+      {mode === "line"
+        ? uniqueAlarmBands.map(({ item, key, phase }) => (
+            <g
+              key={key}
+              className={clipWipeClass(phase)}
+              data-clip-phase={phase}
+            >
+              <AlarmBandsLayer bands={[item]} geom={plotGeom} />
+            </g>
+          ))
+        : null}
       {mode === "line"
         ? histPresence.map(({ item: h, key: histKey, phase }) => {
             const yBase = yFor(h.baseline, "left");

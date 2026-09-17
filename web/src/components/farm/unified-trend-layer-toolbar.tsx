@@ -3,13 +3,17 @@
 import {
   type ComponentType,
   type CSSProperties,
+  type MouseEvent,
   type ReactNode,
+  useEffect,
+  useRef,
+  useState,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   Check,
   Droplets,
   Fan,
-  Layers,
   Thermometer,
   X,
 } from "lucide-react";
@@ -31,13 +35,23 @@ import type {
 import { AlarmDomainIcon } from "@/components/settings/alarm-domain-icon";
 import { ControllerNoMark } from "@/components/farm/controller-no-marks";
 import { formatControllerNoLabel } from "@/lib/farm/controller-summary-display";
-import { dashboardAffordance, dashboardUi } from "@/lib/ui/dashboard-page-ui";
+import {
+  dashboardAffordance,
+  dashboardElevation,
+  dashboardUi,
+} from "@/lib/ui/dashboard-page-ui";
+import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { motionClass } from "@/lib/ui/motion-classes";
+import { usePresenceValue } from "@/lib/ui/use-clip-presence";
 import { cn } from "@/lib/utils";
 
 type Tone = "temp" | "hum" | "motor" | "command" | "neutral";
 
 export type LayerGroupId = "temp" | "hum" | "motor";
+
+const LAYER_TOOLBAR_GROUPS: readonly LayerGroupId[] = ["temp", "hum", "motor"];
+
+const EMPTY_METRIC_CARD = "데이터가 없습니다";
 
 /** 그룹 토글 사이클: 기본보기(본선+산포) ↔ 끔 */
 export type LayerGroupCycleMode = "base" | "off";
@@ -60,10 +74,9 @@ export const UNIFIED_LAYER_TOOLBAR_AVAILABLE: UnifiedTrendLayerAvailable = {
   thermoMotor: true,
 };
 
-/** 차트 탭 공유 — 모든 칸 그래프에 같은 레이어·겹쳐보기·알람 띠 */
+/** 차트 탭 공유 — 모든 칸 그래프에 같은 레이어·알람 띠 */
 export type SharedChartLayerDisplay = {
   layers: UnifiedLayerFlags;
-  overlayView: boolean;
   alarmRangeOn: { temp: boolean; hum: boolean };
 };
 
@@ -189,12 +202,10 @@ type Props = {
   available: UnifiedTrendLayerAvailable;
   onCycleGroup: (group: LayerGroupId) => void;
   className?: string;
+  /** 시계열 응답 전 — 빈 지표 회색 카드를 아직 띄우지 않음 */
+  metricsPending?: boolean;
   /** @deprecated 헤더 인라인만 사용. hub 무시 */
   placement?: "hub" | "inline";
-  /** 오버레이 — 켜진 온도·습도·모터를 한 밴드에 겹침. 플롯 밴드 2개 이상일 때 노출 */
-  overlayView?: boolean;
-  overlayAvailable?: boolean;
-  onToggleOverlay?: () => void;
   /** 온도·습도 알람 범위 띠 (헤더 ON/OFF) */
   tempAlarmOn?: boolean;
   humAlarmOn?: boolean;
@@ -205,8 +216,6 @@ type Props = {
   /** 펼친 축사 오버레이 — 컨트롤러 번호별 본선 켜기/끄기 */
   controllerToggles?: LayerControllerToggle[];
   onToggleController?: (key: string) => void;
-  /** 위젯 헤더 — 상·좌 여백과 같은 32px 버튼 */
-  compact?: boolean;
 };
 
 function toneActiveClass(tone: Tone): string {
@@ -228,17 +237,19 @@ function iconBtnClass(
   active: boolean,
   muted: boolean,
   tone: Tone,
-  compact = false,
+  empty = false,
 ) {
   return cn(
     "relative inline-flex shrink-0 items-center justify-center overflow-visible rounded-md border",
-    compact ? "size-8" : "size-9 md:size-11",
+    farmChartUi.control,
     motionClass.microInteractive,
-    active
-      ? toneActiveClass(tone)
-      : muted
-        ? cn(dashboardAffordance.chipToggleIdle, "text-muted-foreground/80")
-        : dashboardUi.chartLayerActionBtnIdle,
+    empty
+      ? "border-border bg-muted text-muted-foreground"
+      : active
+        ? toneActiveClass(tone)
+        : muted
+          ? cn(dashboardAffordance.chipToggleIdle, "text-muted-foreground/80")
+          : dashboardUi.chartLayerActionBtnIdle,
   );
 }
 
@@ -247,8 +258,9 @@ function IconTipButton({
   on,
   pressed,
   muted,
+  empty = false,
+  expanded,
   tone = "neutral",
-  compact = false,
   onClick,
   children,
   className,
@@ -258,14 +270,33 @@ function IconTipButton({
   on?: boolean;
   pressed?: boolean;
   muted?: boolean;
+  empty?: boolean;
+  expanded?: boolean;
   tone?: Tone;
-  compact?: boolean;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
 }) {
   const active = Boolean(on ?? pressed);
+  const classNameResolved = cn(
+    iconBtnClass(active, Boolean(muted), tone, empty),
+    className,
+  );
+  if (empty) {
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        aria-expanded={Boolean(expanded)}
+        onClick={onClick}
+        className={classNameResolved}
+        style={style}
+      >
+        {children}
+      </button>
+    );
+  }
   return (
     <Tooltip>
       <TooltipTrigger
@@ -273,10 +304,7 @@ function IconTipButton({
         aria-label={label}
         aria-pressed={pressed}
         onClick={onClick}
-        className={cn(
-          iconBtnClass(active, Boolean(muted), tone, compact),
-          className,
-        )}
+        className={classNameResolved}
         style={style}
       >
         {children}
@@ -288,13 +316,66 @@ function IconTipButton({
   );
 }
 
+function EmptyMetricNoticeCard({
+  anchor,
+  phase,
+}: {
+  anchor: HTMLElement | null;
+  phase: "enter" | "exit";
+}) {
+  const [box, setBox] = useState<{ top: number; left: number } | null>(() => {
+    if (!anchor) return null;
+    const r = anchor.getBoundingClientRect();
+    return { top: r.bottom + 8, left: r.left };
+  });
+  useEffect(() => {
+    if (!anchor) return;
+    const update = () => {
+      const r = anchor.getBoundingClientRect();
+      setBox({ top: r.bottom + 8, left: r.left });
+    };
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [anchor]);
+  if (!box || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      role="status"
+      className={cn(
+        "fixed z-[80]",
+        farmChartUi.root,
+        phase === "exit"
+          ? motionClass.farmChartTipOut
+          : motionClass.farmChartTipIn,
+      )}
+      style={{ top: box.top, left: box.left }}
+    >
+      <div
+        className={cn(
+          dashboardElevation.overlay,
+          "px-3 py-2 text-popover-foreground",
+          farmChartUi.fsBody,
+        )}
+      >
+        {EMPTY_METRIC_CARD}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
   const Icon = mode === "base" ? Check : X;
   return (
     <span
       key={mode}
       className={cn(
-        "pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex size-3.5 items-center justify-center rounded-full border bg-background shadow-sm",
+        "pointer-events-none absolute -right-0.5 -top-0.5 z-[2] flex items-center justify-center rounded-full border bg-background shadow-sm",
+        farmChartUi.controlBadge,
         mode === "off"
           ? "border-muted-foreground/40 text-muted-foreground"
           : "border-current/30 text-current",
@@ -302,7 +383,7 @@ function ModeOverlay({ mode }: { mode: LayerGroupCycleMode }) {
       )}
       aria-hidden
     >
-      <Icon className="size-2.5" strokeWidth={2.5} />
+      <Icon className={farmChartUi.controlBadgeIcon} strokeWidth={2.5} />
     </span>
   );
 }
@@ -316,9 +397,7 @@ export function UnifiedTrendLayerToolbar({
   available,
   onCycleGroup,
   className,
-  overlayView = false,
-  overlayAvailable = false,
-  onToggleOverlay,
+  metricsPending = false,
   tempAlarmOn = true,
   humAlarmOn = true,
   tempAlarmAvailable = false,
@@ -327,25 +406,48 @@ export function UnifiedTrendLayerToolbar({
   onToggleHumAlarm,
   controllerToggles,
   onToggleController,
-  compact = false,
 }: Props) {
-  const groups = (
-    [
-      available.temp ? "temp" : null,
-      available.hum ? "hum" : null,
-      available.motors ? "motor" : null,
-    ] as const
-  ).filter((g): g is LayerGroupId => g != null);
+  const [emptyNotice, setEmptyNotice] = useState<LayerGroupId | null>(null);
+  const [emptyAnchor, setEmptyAnchor] = useState<HTMLElement | null>(null);
+  const emptyPresence = usePresenceValue(emptyAnchor, {
+    open: emptyNotice != null,
+  });
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
-  const hasControllerToggles =
-    Boolean(controllerToggles?.length) && Boolean(onToggleController);
-  if (groups.length === 0 && !hasControllerToggles) return null;
+  useEffect(() => {
+    if (!emptyNotice) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const node = toolbarRef.current;
+      if (node && !node.contains(event.target as Node)) {
+        setEmptyNotice(null);
+        setEmptyAnchor(null);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setEmptyNotice(null);
+        setEmptyAnchor(null);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [emptyNotice]);
+
+  const dismissEmptyNotice = () => {
+    setEmptyNotice(null);
+    setEmptyAnchor(null);
+  };
 
   return (
     <TooltipProvider delay={200}>
       <div
+        ref={toolbarRef}
         className={cn(
-          "inline-flex max-w-full flex-wrap items-center gap-1 overflow-visible",
+          "inline-flex max-w-full flex-wrap items-center gap-2 overflow-visible",
           className,
         )}
         data-tour-id="unified-trend-layer-toolbar"
@@ -353,12 +455,17 @@ export function UnifiedTrendLayerToolbar({
         role="group"
         aria-label="통합 추이 레이어"
       >
-        {groups.map((group) => {
+        {LAYER_TOOLBAR_GROUPS.map((group) => {
           const meta = GROUP_META[group];
           const Icon = meta.Icon;
+          const hasSeries = available[GROUP_MAIN[group]];
+          const empty = !hasSeries && !metricsPending;
           const mode = detectLayerGroupMode(layers, available, group);
-          const on = mode !== "off";
-          const tip = `${modeTooltip(group, mode)} · ${nextModeHint(group, mode)}`;
+          const on = hasSeries && mode !== "off";
+          const emptyOpen = emptyNotice === group;
+          const tip = empty
+            ? `${meta.baseLabel} · ${EMPTY_METRIC_CARD}`
+            : `${modeTooltip(group, mode)} · ${nextModeHint(group, mode)}`;
 
           return (
             <div
@@ -370,45 +477,40 @@ export function UnifiedTrendLayerToolbar({
                 pressed={on}
                 on={on}
                 muted={!on}
+                empty={empty}
+                expanded={emptyOpen}
                 tone={meta.tone}
-                compact={compact}
-                onClick={() => onCycleGroup(group)}
+                onClick={(event) => {
+                  if (metricsPending && !hasSeries) return;
+                  if (empty) {
+                    if (emptyNotice === group) {
+                      dismissEmptyNotice();
+                      return;
+                    }
+                    setEmptyNotice(group);
+                    setEmptyAnchor(event.currentTarget);
+                    return;
+                  }
+                  dismissEmptyNotice();
+                  onCycleGroup(group);
+                }}
               >
                 <Icon
-                  className={compact ? "size-4" : "size-4 md:size-5"}
+                  className={farmChartUi.controlIcon}
                   aria-hidden
                 />
-                <ModeOverlay mode={mode} />
+                {hasSeries ? <ModeOverlay mode={mode} /> : null}
               </IconTipButton>
             </div>
           );
         })}
-        {overlayAvailable && onToggleOverlay ? (
-          <div className="relative overflow-visible">
-            <IconTipButton
-              label={
-                overlayView
-                  ? "오버레이 보기 끔 · 켜진 지표 분리"
-                  : "오버레이 보기 · 켜진 지표 겹쳐보기"
-              }
-              pressed={overlayView}
-              on={overlayView}
-              muted={!overlayView}
-              tone="motor"
-              compact={compact}
-              onClick={onToggleOverlay}
-            >
-              <Layers
-                className={compact ? "size-4" : "size-4 md:size-5"}
-                aria-hidden
-              />
-            </IconTipButton>
-          </div>
-        ) : null}
         {(tempAlarmAvailable && onToggleTempAlarm) ||
         (humAlarmAvailable && onToggleHumAlarm) ? (
           <span
-            className="mx-0.5 h-5 w-px shrink-0 bg-border"
+            className={cn(
+              "mx-1 w-px shrink-0 bg-border",
+              farmChartUi.controlRule,
+            )}
             aria-hidden
           />
         ) : null}
@@ -420,13 +522,15 @@ export function UnifiedTrendLayerToolbar({
               on={tempAlarmOn}
               muted={!tempAlarmOn}
               tone="temp"
-              compact={compact}
-              onClick={onToggleTempAlarm}
+              onClick={() => {
+                dismissEmptyNotice();
+                onToggleTempAlarm();
+              }}
             >
               <AlarmDomainIcon
                 domain="temp"
                 tone="inherit"
-                sizeClass={compact ? "size-3" : "size-3.5 md:size-4"}
+                sizeClass={farmChartUi.controlIcon}
               />
               <ModeOverlay mode={tempAlarmOn ? "base" : "off"} />
             </IconTipButton>
@@ -440,13 +544,15 @@ export function UnifiedTrendLayerToolbar({
               on={humAlarmOn}
               muted={!humAlarmOn}
               tone="hum"
-              compact={compact}
-              onClick={onToggleHumAlarm}
+              onClick={() => {
+                dismissEmptyNotice();
+                onToggleHumAlarm();
+              }}
             >
               <AlarmDomainIcon
                 domain="humidity"
                 tone="inherit"
-                sizeClass={compact ? "size-3" : "size-3.5 md:size-4"}
+                sizeClass={farmChartUi.controlIcon}
               />
               <ModeOverlay mode={humAlarmOn ? "base" : "off"} />
             </IconTipButton>
@@ -457,7 +563,10 @@ export function UnifiedTrendLayerToolbar({
         onToggleController ? (
           <>
             <span
-              className="mx-0.5 h-5 w-px shrink-0 bg-border"
+              className={cn(
+              "mx-1 w-px shrink-0 bg-border",
+              farmChartUi.controlRule,
+            )}
               aria-hidden
             />
             {controllerToggles.map((item) => (
@@ -468,15 +577,17 @@ export function UnifiedTrendLayerToolbar({
                   on={item.on}
                   muted={!item.on}
                   tone="neutral"
-                  compact={compact}
-                  onClick={() => onToggleController(item.key)}
+                  onClick={() => {
+                    dismissEmptyNotice();
+                    onToggleController(item.key);
+                  }}
                 >
                   <ControllerNoMark
                     eqpmnNo={item.eqpmnNo}
                     dense
                     onFill
                     className="text-current"
-                    iconClassName={compact ? "size-4" : "size-4 md:size-5"}
+                    iconClassName={farmChartUi.controlIcon}
                   />
                   <ModeOverlay mode={item.on ? "base" : "off"} />
                 </IconTipButton>
@@ -485,6 +596,12 @@ export function UnifiedTrendLayerToolbar({
           </>
         ) : null}
       </div>
+      {emptyPresence.mounted && emptyPresence.value ? (
+        <EmptyMetricNoticeCard
+          anchor={emptyPresence.value}
+          phase={emptyPresence.phase}
+        />
+      ) : null}
     </TooltipProvider>
   );
 }
@@ -503,7 +620,7 @@ export function CommandChannelLayerToolbar({
     <TooltipProvider delay={200}>
       <div
         className={cn(
-          "inline-flex items-center gap-1 overflow-visible",
+          "inline-flex items-center gap-2 overflow-visible",
           className,
         )}
         data-tour-id="chart-command-channel-toolbar"
@@ -525,7 +642,7 @@ export function CommandChannelLayerToolbar({
                 tone="command"
                 onClick={() => onToggle(channel)}
               >
-                <span className="text-[0.7rem] font-semibold md:text-sm" aria-hidden>
+                <span className={cn("font-semibold", farmChartUi.fsTitle)} aria-hidden>
                   {channel}
                 </span>
                 <ModeOverlay mode={on ? "base" : "off"} />

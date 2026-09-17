@@ -122,8 +122,11 @@ import { motionPresetForIntent } from "@/lib/ui/motion-preset";
 | `cover-reveal-*-reverse` / `ghost-fade-in` / `band-glow-out` / `humidity-out` | 덮개 다시 가림 — 걷힘의 역재생. 채움은 테두리에서 차오르고, 값 글자는 구간에서 가운데로 모인다. 명칭·번호는 채움 위에 유지 |
 | `cover-reveal-humidity-in` | 덮개에 없던 상대 채널 막대 등장 |
 | `farm-chart-plot-reveal` | 차트 탭 좌→우 clip reveal |
+| `farm-chart-tip-in` / `farm-chart-tip-out` | 차트 상호작용 오버레이(호버·핀 카드, 빈 지표 안내, 줌 드래프트, 기준선 강조) 등장/퇴장 |
+| `farm-chart-crosshair` | 십자선·칩 opacity (fast 토큰) |
 | `farm-chart-envelope-in` / `farm-chart-line-soft-in` / `farm-chart-marker-pop` | 클라우드·라인·점 등장 |
 | `farm-chart-brush-window` | 기간 브러시 윈도우 transition |
+| `farm-chart-band-guide-in` / `farm-chart-band-guide-out` | 분할 가이드 점선 등장/퇴장 |
 | `farm-chart-scope-shell` / `farm-chart-panel-shell` | 차트 탭 레이아웃 등장 |
 | `farm-detail-carousel` | 컨트롤러 상세 캐러셀 클립 컨테이너 |
 | `farm-detail-slide-enter-next` / `enter-prev` | 캐러셀 enter (버튼 방향에서 진입) |

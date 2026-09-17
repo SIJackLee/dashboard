@@ -155,3 +155,24 @@ export function useOpenPresence(
     phase: open ? "enter" : "exit",
   };
 }
+
+/**
+ * 값이 없어져도 exit 동안 마지막 값을 유지한다.
+ * 차트 호버 카드·드래프트·강조선처럼 등장/퇴장 UI용.
+ */
+export function usePresenceValue<T>(
+  value: T | null | undefined,
+  options?: { exitMs?: number; open?: boolean },
+): { mounted: boolean; phase: "enter" | "exit"; value: T | null } {
+  const open = Boolean(options?.open ?? value != null);
+  const presence = useOpenPresence(open, options?.exitMs);
+  const [held, setHeld] = useState<T | null>(value ?? null);
+  if (value != null && !Object.is(held, value)) {
+    setHeld(value);
+  }
+  return {
+    mounted: presence.mounted,
+    phase: presence.phase,
+    value: value ?? held,
+  };
+}

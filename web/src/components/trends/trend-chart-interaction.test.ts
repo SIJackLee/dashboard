@@ -5,6 +5,8 @@ import {
   nearestByXView,
   pickDraggableScaleEdgeHit,
   pickGutterScaleEdgeId,
+  chartTipPresenceClass,
+  clipWipeClass,
 } from "./trend-chart-interaction";
 
 {
@@ -87,6 +89,15 @@ import {
   );
   assert.equal(pickGutterScaleEdgeId(labels, "left", 99, 0, 100, 20), null);
   assert.equal(pickGutterScaleEdgeId(labels, "right", 40, 0, 100, 28), "temp-hi");
+}
+
+{
+  assert.equal(chartTipPresenceClass("enter"), "farm-chart-tip-in");
+  assert.equal(chartTipPresenceClass("exit"), "farm-chart-tip-out");
+  assert.equal(chartTipPresenceClass("shown"), undefined);
+  assert.equal(clipWipeClass("enter"), "farm-chart-clip-wipe-in");
+  assert.equal(clipWipeClass("exit"), "farm-chart-clip-wipe-out");
+  assert.equal(clipWipeClass("shown"), undefined);
 }
 
 console.log("trend-chart-interaction.test.ts ok");

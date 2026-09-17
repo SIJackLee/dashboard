@@ -27,6 +27,7 @@ import {
   tempDisplayDomainFromRaw,
   buildSplitYBandScaleTicks,
   OVERLAY_ALIGN_ANCHOR,
+  OVERLAY_MOTOR_GUTTER_WEIGHT,
   alarmEdgeDomain,
   SPLIT_Y_TEMP_EDGE_PAD_C,
   tempBrokenAxisPlotZones,
@@ -359,9 +360,14 @@ const layoutTempOnly = resolveSplitYLayout({
   );
   assert.equal(overlayLayout.tempLo, overlayLayout.humLo);
   assert.equal(overlayLayout.tempHi, overlayLayout.humHi);
-  assert.equal(overlayLayout.motorLo, overlayLayout.humLo);
-  assert.ok(Math.abs(overlayLayout.tempLo) < 1e-6);
+  assert.ok(overlayLayout.motorHi < overlayLayout.tempLo);
+  assert.ok(Math.abs(overlayLayout.motorLo) < 1e-6);
   assert.ok(Math.abs(overlayLayout.tempHi - 100) < 1e-6);
+  const overlayUsable = 100 - SPLIT_Y_BAND_GAP;
+  assert.ok(
+    Math.abs(overlayLayout.motorHi / overlayUsable - OVERLAY_MOTOR_GUTTER_WEIGHT) <
+      1e-6,
+  );
   const overlayOnTicks = buildSplitYBandScaleTicks({
     layout: overlayLayout,
     showTemp: true,
@@ -411,10 +417,10 @@ const layoutTempOnly = resolveSplitYLayout({
   const yMotorLo = mapMotorPctToSplitY(0, overlayLayout, OVERLAY_ALIGN_ANCHOR);
   assert.ok(yTempHi != null && yHumHi != null && yMotorHi != null);
   assert.ok(Math.abs(yTempHi - yHumHi) < 1e-6);
-  assert.ok(Math.abs(yTempHi - yMotorHi) < 1e-6);
+  assert.ok(Math.abs(yMotorHi - overlayLayout.motorHi) < 1e-6);
   assert.ok(yTempLo != null && yHumLo != null && yMotorLo != null);
   assert.ok(Math.abs(yTempLo - yHumLo) < 1e-6);
-  assert.ok(Math.abs(yTempLo - yMotorLo) < 1e-6);
+  assert.ok(Math.abs(yMotorLo - overlayLayout.motorLo) < 1e-6);
 }
 
 {
