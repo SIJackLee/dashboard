@@ -1,19 +1,33 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { X } from "lucide-react";
 import { UnifiedBarnTrendPanel } from "@/components/farm/unified-barn-trend-panel";
-import { buildSharedWidgetBrushOverview } from "@/components/farm/unified-barn-trend-panel-helpers";
 import {
   BRUSH_PERIOD_WINDOW,
-  UnifiedTrendPeriodBrush,
   type BrushWindow,
 } from "@/components/farm/unified-trend-period-brush";
+import {
+  UnifiedTrendLayerToolbar,
+  UNIFIED_LAYER_TOOLBAR_AVAILABLE,
+  applyLayerGroupMode,
+  detectLayerGroupMode,
+  nextLayerGroupMode,
+  type LayerGroupId,
+  type SharedChartLayerDisplay,
+} from "@/components/farm/unified-trend-layer-toolbar";
 import type { AlarmSettings } from "@/lib/data/alarms";
 import type { ControllerThermoSettings } from "@/lib/controllers/controller-settings";
 import type { BarnReading } from "@/lib/data/iot";
 import {
-  isContextControllerTrend30d,
   type TrendControllerPeriodData,
   type TrendPeriodId,
   type TrendWindow15m,
@@ -36,6 +50,11 @@ import {
   useFarmTrendUplinkCoverage,
 } from "@/lib/farm/use-farm-trend-uplink-coverage";
 import type { UplinkCoverageIndex } from "@/lib/farm/trend-uplink-coverage";
+import {
+  countSplitYBands,
+  DEFAULT_UNIFIED_LAYERS,
+  splitYVisibilityFromLayers,
+} from "@/lib/farm/unified-barn-trend-series";
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import {
   dashboardAffordance,
@@ -120,16 +139,52 @@ export function FarmChartLabView({
   }
   const mode: FarmChartLabMode = picking ? "compare" : storedMode;
   const [sharedBrushWindow, setSharedBrushWindow] = useState<BrushWindow>(
-    () => BRUSH_PERIOD_WINDOW[period],
+    () => BRUSH_PERIOD_WINDOW["30d"],
   );
-  const [sharedBrushPeriod, setSharedBrushPeriod] = useState(period);
-  if (period !== sharedBrushPeriod) {
-    setSharedBrushPeriod(period);
-    setSharedBrushWindow(BRUSH_PERIOD_WINDOW[period]);
-  }
+  const resetLookbackTo30d = useCallback(() => {
+    setSharedBrushWindow(BRUSH_PERIOD_WINDOW["30d"]);
+  }, []);
+  const ignoreLookbackChange = useCallback((_next: BrushWindow) => {
+    /* 일괄은 30일 고정 */
+  }, []);
+  const [layers, setLayers] = useState(DEFAULT_UNIFIED_LAYERS);
+  const [overlayView, setOverlayView] = useState(true);
+  const [alarmRangeOn, setAlarmRangeOn] = useState({ temp: true, hum: true });
+  const layerVisibility = useMemo(
+    () => splitYVisibilityFromLayers(layers),
+    [layers],
+  );
+  const overlayAvailable = countSplitYBands(layerVisibility) >= 2;
+  const sharedLayers: SharedChartLayerDisplay = useMemo(
+    () => ({ layers, overlayView, alarmRangeOn }),
+    [layers, overlayView, alarmRangeOn],
+  );
+  const cycleGroupLayers = useCallback((group: LayerGroupId) => {
+    setLayers((prev) => {
+      const mode = detectLayerGroupMode(
+        prev,
+        UNIFIED_LAYER_TOOLBAR_AVAILABLE,
+        group,
+      );
+      return applyLayerGroupMode(
+        prev,
+        group,
+        nextLayerGroupMode(mode),
+        UNIFIED_LAYER_TOOLBAR_AVAILABLE,
+      );
+    });
+  }, []);
 
+  const labRootRef = useRef<HTMLDivElement>(null);
   const modeGroupRef = useRef<HTMLDivElement>(null);
   const [modePill, setModePill] = useState({ left: 0, width: 0 });
+  const [expandOrigin, setExpandOrigin] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const settleExpand = useCallback(() => setExpandOrigin(null), []);
   useLayoutEffect(() => {
     const root = modeGroupRef.current;
     if (!root) return;
@@ -158,21 +213,6 @@ export function FarmChartLabView({
   });
   const uplinkCoverage = coverageIndexesFromSnap(uplinkCoverageSnap);
 
-  const useSharedBrush = isContextControllerTrend30d(
-    controllerTrendByPeriod?.["30d"],
-  );
-  const sharedBrushOverview = useMemo(
-    () =>
-      buildSharedWidgetBrushOverview(
-        [],
-        [],
-        readings.map((r) => ({ reading: r })),
-        controllerTrendByPeriod,
-        alarmSettings,
-      ),
-    [readings, controllerTrendByPeriod, alarmSettings],
-  );
-
   const restCount = scopes.filter(
     (s) => farmChartLabScopeKey(s) !== primaryKey,
   ).length;
@@ -198,6 +238,8 @@ export function FarmChartLabView({
 
   const openBatch = () => {
     setPicking(false);
+    setExpandOrigin(null);
+    resetLookbackTo30d();
     if (urlBound) {
       onSelectionChange?.(EMPTY_FARM_CHART_LAB_SELECTION);
       return;
@@ -214,6 +256,23 @@ export function FarmChartLabView({
     setLocalPrimaryKey(key);
     if (localPartnerKey === key) setLocalPartnerKey(null);
     setLocalMode("single");
+  };
+  const expandFromTile = (
+    scope: FarmChartControllerScope,
+    tileEl: HTMLElement | null,
+  ) => {
+    if (tileEl) {
+      const r = tileEl.getBoundingClientRect();
+      setExpandOrigin({
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        height: r.height,
+      });
+    } else {
+      setExpandOrigin(null);
+    }
+    openSingle(scope);
   };
   const openCompare = () => {
     if (storedMode === "batch" || !primaryKey || restCount === 0) return;
@@ -244,6 +303,7 @@ export function FarmChartLabView({
       partnerKey,
     });
     setPicking(false);
+    if (next.mode === "batch") resetLookbackTo30d();
     if (urlBound) {
       commitSelection(farmChartLabSelectionFromKeys(scopes, next));
       return;
@@ -251,18 +311,6 @@ export function FarmChartLabView({
     setLocalPrimaryKey(next.primaryKey);
     setLocalPartnerKey(next.partnerKey);
     setLocalMode(next.mode);
-  };
-
-  const showStoredSingle = () => {
-    if (!primaryKey) return;
-    setPicking(false);
-    if (urlBound) {
-      const primary = selection?.primary ?? scopeByKey(primaryKey);
-      if (!primary) return;
-      commitSelection({ mode: "single", primary, partner: null });
-      return;
-    }
-    setLocalMode("single");
   };
 
   const isHero = (scope: FarmChartControllerScope) => {
@@ -293,12 +341,18 @@ export function FarmChartLabView({
         (mode === "compare" && key === partnerKey && !picking));
     const action =
       mode === "batch"
-        ? { label: "이 칸만 보기", onClick: () => openSingle(scope) }
-        : size === "peer" && mode === "single"
-          ? { label: "이 대로 보기", onClick: () => openSingle(scope) }
-          : size === "peer" && mode === "compare"
-            ? { label: "가져오기", onClick: () => takePartner(scope) }
-            : null;
+        ? {
+            label: "이 칸 펼치기",
+            onClick: (e: MouseEvent<HTMLButtonElement>) => {
+              const tile = e.currentTarget.closest<HTMLElement>(
+                "[data-farm-chart-tile]",
+              );
+              expandFromTile(scope, tile);
+            },
+          }
+        : size === "peer" && mode === "compare"
+          ? { label: "가져오기", onClick: () => takePartner(scope) }
+          : null;
     return (
       <LabTile
         key={key}
@@ -318,13 +372,26 @@ export function FarmChartLabView({
         uplinkCoverage={uplinkCoverage}
         period={period}
         hidePeriodBrush
-        brushWindow={sharedBrushWindow}
-        onBrushWindowChange={setSharedBrushWindow}
+        brushWindow={
+          mode === "batch"
+            ? BRUSH_PERIOD_WINDOW["30d"]
+            : sharedBrushWindow
+        }
+        onBrushWindowChange={
+          mode === "batch" ? ignoreLookbackChange : setSharedBrushWindow
+        }
         alarmSettings={alarmSettings}
         thermoSettings={thermoSettings}
         canCommand={canCommand}
         isMobileStack={isMobileStack}
-        layersToolbarActive={layersToolbarActive}
+        sharedLayers={sharedLayers}
+        layerChrome={
+          size === "hero" && index === 0 && layersToolbarActive
+            ? layerToolbar
+            : null
+        }
+        expandFrom={size === "hero" && index === 0 ? expandOrigin : null}
+        onExpandSettled={settleExpand}
         onDismiss={size === "hero" ? () => dismissHero(scope) : undefined}
       />
     );
@@ -332,9 +399,45 @@ export function FarmChartLabView({
 
   const heroes = scopes.filter(isHero);
   const peers = scopes.filter((s) => !isHero(s));
+  const showPeers = mode === "compare" && peers.length > 0;
+  const layerToolbar = layersToolbarActive ? (
+    <div
+      className="relative inline-flex rounded-xl border bg-muted/40 p-1"
+      data-farm-chart-layers-shell=""
+    >
+      <UnifiedTrendLayerToolbar
+        layers={layers}
+        available={UNIFIED_LAYER_TOOLBAR_AVAILABLE}
+        onCycleGroup={cycleGroupLayers}
+        overlayView={overlayView}
+        overlayAvailable={overlayAvailable}
+        onToggleOverlay={() => setOverlayView((v) => !v)}
+        tempAlarmOn={alarmRangeOn.temp}
+        humAlarmOn={alarmRangeOn.hum}
+        tempAlarmAvailable={Boolean(
+          layerVisibility.showTemp && layers.temp,
+        )}
+        humAlarmAvailable={Boolean(
+          layerVisibility.showHum &&
+            (layers.hum ||
+              layers.humDev ||
+              layers.humBand ||
+              layers.humEma),
+        )}
+        onToggleTempAlarm={() =>
+          setAlarmRangeOn((prev) => ({ ...prev, temp: !prev.temp }))
+        }
+        onToggleHumAlarm={() =>
+          setAlarmRangeOn((prev) => ({ ...prev, hum: !prev.hum }))
+        }
+        compact
+      />
+    </div>
+  ) : null;
 
   return (
     <div
+      ref={labRootRef}
       className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden px-1"
       data-farm-chart-lab=""
       data-tour-id="farm-chart-view"
@@ -363,20 +466,11 @@ export function FarmChartLabView({
           />
           <button
             type="button"
-            aria-pressed={mode === "batch" ? "true" : "false"}
-            className={modeBtn(mode === "batch")}
+            aria-pressed={mode !== "compare" ? "true" : "false"}
+            className={modeBtn(mode !== "compare")}
             onClick={openBatch}
           >
             일괄
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === "single" ? "true" : "false"}
-            className={modeBtn(mode === "single")}
-            disabled={!primaryKey}
-            onClick={showStoredSingle}
-          >
-            단일
           </button>
           <button
             type="button"
@@ -389,19 +483,6 @@ export function FarmChartLabView({
           </button>
         </div>
       </div>
-
-      {useSharedBrush ? (
-        <div className="min-w-0 shrink-0">
-          <UnifiedTrendPeriodBrush
-            window={sharedBrushWindow}
-            onWindowChange={setSharedBrushWindow}
-            overviewValues={sharedBrushOverview.values}
-            overviewSecondaryValues={sharedBrushOverview.secondaryValues}
-            overviewMode={sharedBrushOverview.mode}
-            hoverPlacement="below"
-          />
-        </div>
-      ) : null}
 
       {scopes.length === 0 ? (
         <p className={cn(dashboardTypography.meta, "px-3 py-6")}>
@@ -427,7 +508,7 @@ export function FarmChartLabView({
           <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
             {heroes.map((scope, index) => renderTile(scope, "hero", index))}
           </div>
-          {peers.length ? (
+          {showPeers ? (
             <div
               className={cn(
                 "flex shrink-0 gap-2 overflow-x-auto",
@@ -469,7 +550,10 @@ function LabTile({
   thermoSettings,
   canCommand,
   isMobileStack,
-  layersToolbarActive = true,
+  sharedLayers,
+  layerChrome = null,
+  expandFrom = null,
+  onExpandSettled,
   onDismiss,
 }: {
   scope: FarmChartControllerScope;
@@ -477,7 +561,10 @@ function LabTile({
   size: "cell" | "hero" | "peer";
   selected: boolean;
   index: number;
-  action: { label: string; onClick: () => void } | null;
+  action: {
+    label: string;
+    onClick: (e: MouseEvent<HTMLButtonElement>) => void;
+  } | null;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
   trendError?: boolean;
@@ -494,9 +581,18 @@ function LabTile({
   thermoSettings?: Record<string, ControllerThermoSettings>;
   canCommand?: boolean;
   isMobileStack?: boolean;
-  layersToolbarActive?: boolean;
+  sharedLayers: SharedChartLayerDisplay;
+  layerChrome?: ReactNode;
+  expandFrom?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null;
+  onExpandSettled?: () => void;
   onDismiss?: () => void;
 }) {
+  const tileRef = useRef<HTMLDivElement>(null);
   const overview = size !== "hero";
   const scopedReadings = filterReadingsByChartScope(readings, scope);
   const controllers = scopedReadings.map((r) => ({
@@ -504,8 +600,51 @@ function LabTile({
     reading: r,
   }));
   const label = chartScopeLabel(scope, readings);
+
+  useLayoutEffect(() => {
+    const el = tileRef.current;
+    if (size !== "hero" || !expandFrom || !el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      onExpandSettled?.();
+      return;
+    }
+    const dest = el.getBoundingClientRect();
+    if (!(dest.width > 1) || !(dest.height > 1)) {
+      onExpandSettled?.();
+      return;
+    }
+    const dx = expandFrom.left - dest.left;
+    const dy = expandFrom.top - dest.top;
+    const sx = expandFrom.width / dest.width;
+    const sy = expandFrom.height / dest.height;
+    el.style.transformOrigin = "top left";
+    el.style.transition = "none";
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+    const play = () => {
+      el.style.transition =
+        "transform var(--motion-duration-emphasis) var(--motion-ease-enter)";
+      el.style.transform = "translate(0, 0) scale(1, 1)";
+    };
+    const frame = window.requestAnimationFrame(play);
+    const done = (ev: TransitionEvent) => {
+      if (ev.propertyName !== "transform") return;
+      el.style.transition = "";
+      el.style.transform = "";
+      el.style.transformOrigin = "";
+      onExpandSettled?.();
+    };
+    el.addEventListener("transitionend", done);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      el.removeEventListener("transitionend", done);
+    };
+  }, [size, expandFrom, onExpandSettled]);
+
   return (
     <div
+      ref={tileRef}
+      data-farm-chart-tile=""
       className={cn(
         "relative flex min-h-0 min-w-0 flex-col overflow-hidden",
         overview ? dashboardHubSurface.tile : "rounded-xl border bg-card",
@@ -516,9 +655,11 @@ function LabTile({
             : "h-full min-h-0 flex-1 basis-0",
         size === "hero" && farmChartUi.root,
         isMobileStack && size === "hero" && farmChartUi.yGutterCompact,
-        size === "hero"
+        size === "hero" && !expandFrom
           ? motionClass.farmChartPanelShell
-          : motionClass.staggerIn,
+          : size !== "hero"
+            ? motionClass.staggerIn
+            : null,
         overview && action && dashboardElevation.interactiveHover,
         selected && "border-primary",
       )}
@@ -530,6 +671,9 @@ function LabTile({
           : undefined
       }
     >
+      {layerChrome ? (
+        <div className="flex shrink-0 items-center px-2 pt-2">{layerChrome}</div>
+      ) : null}
       <UnifiedBarnTrendPanel
         label={label}
         controllers={controllers}
@@ -551,8 +695,7 @@ function LabTile({
         hidePeriodBrush={hidePeriodBrush}
         brushWindow={brushWindow}
         onBrushWindowChange={onBrushWindowChange}
-        layersToolbarActive={layersToolbarActive && size === "hero"}
-        defaultOverlayView
+        sharedLayers={sharedLayers}
         canCommand={canCommand}
         isMobileStack={isMobileStack}
         headerActions={

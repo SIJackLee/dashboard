@@ -14,6 +14,7 @@ import {
   BRUSH_PERIOD_WINDOW,
   UnifiedTrendPeriodBrush,
   displayPeriodFromBrushWindow,
+  zoomBrushLookback,
   type BrushWindow,
 } from "@/components/farm/unified-trend-period-brush";
 import {
@@ -22,6 +23,7 @@ import {
   applyLayerGroupMode,
   detectLayerGroupMode,
   nextLayerGroupMode,
+  type SharedChartLayerDisplay,
 } from "@/components/farm/unified-trend-layer-toolbar";
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
 import {
@@ -131,6 +133,7 @@ import {
   type UnifiedLayerFlags,
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
+import { invertSplitYCrosshairValues } from "@/lib/farm/farm-crosshair-readout";
 import { useUnifiedChartBandTransition } from "@/lib/farm/use-split-y-layout-transition";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { motionClass } from "@/lib/ui/motion-classes";
@@ -285,6 +288,8 @@ type Props = {
   uplinkCoverage?: UplinkCoverageIndex[];
   /** 겹쳐보기 초기값 */
   defaultOverlayView?: boolean;
+  /** 있으면 칸 안 툴바 대신 페이지 공유 레이어·겹쳐보기·알람 띠를 쓴다 */
+  sharedLayers?: SharedChartLayerDisplay;
   className?: string;
 };
 
@@ -323,13 +328,20 @@ export function UnifiedBarnTrendPanel({
   onNeedWindow15m,
   uplinkCoverage = [],
   defaultOverlayView = false,
+  sharedLayers,
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
-  const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
-  /** 오버레이 — 켜진 온도·습도·모터를 한 밴드에 겹침 (토글) */
-  const [overlayView, setOverlayView] = useState(defaultOverlayView);
-  const [alarmRangeOn, setAlarmRangeOn] = useState({ temp: true, hum: true });
+  const [ownedLayers, setOwnedLayers] =
+    useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
+  const [ownedOverlayView, setOwnedOverlayView] = useState(defaultOverlayView);
+  const [ownedAlarmRangeOn, setOwnedAlarmRangeOn] = useState({
+    temp: true,
+    hum: true,
+  });
+  const layers = sharedLayers?.layers ?? ownedLayers;
+  const overlayView = sharedLayers?.overlayView ?? ownedOverlayView;
+  const alarmRangeOn = sharedLayers?.alarmRangeOn ?? ownedAlarmRangeOn;
   const overview = headingMode === "overview";
   const chartUiScale = overview ? 1 : FARM_CHART_UI_SCALE;
   const [commandChannels, setCommandChannels] = useState<CommandChannelFlags>(
@@ -358,6 +370,26 @@ export function UnifiedBarnTrendPanel({
     if (brushControlled) onBrushWindowChange(next);
     else setInnerBrushWindow(next);
   };
+  const lookbackWinRef = useRef(brushWindow);
+  useLayoutEffect(() => {
+    lookbackWinRef.current = brushWindow;
+  }, [brushWindow]);
+  const onLookbackWheel = useCallback(
+    (dir: 1 | -1) => {
+      const cur = lookbackWinRef.current;
+      const next = zoomBrushLookback(cur, dir);
+      if (
+        Math.abs(next.width - cur.width) < 1e-12 &&
+        Math.abs(next.start - cur.start) < 1e-12
+      ) {
+        return;
+      }
+      lookbackWinRef.current = next;
+      if (onBrushWindowChange) onBrushWindowChange(next);
+      else setInnerBrushWindow(next);
+    },
+    [onBrushWindowChange],
+  );
   const brushSyncKey = `${brushWindow.start.toFixed(4)}:${brushWindow.width.toFixed(4)}`;
   const [seenBrushKey, setSeenBrushKey] = useState(brushSyncKey);
   if (brushControlled && brushSyncKey !== seenBrushKey) {
@@ -927,6 +959,31 @@ export function UnifiedBarnTrendPanel({
 
   const chartCategories = scoped?.categories ?? [];
   const tempMapDomain = scoped?.tempDomain ?? built?.tempDomain;
+  const crosshairValues = useCallback(
+    (chartY: number) =>
+      invertSplitYCrosshairValues(chartY, {
+        layout,
+        visibility: scopeVisibility,
+        overlay: overlayActive,
+        overlayAlign,
+        tempLow: plotThresholds.tempLow,
+        tempHigh: plotThresholds.tempHigh,
+        humidityLow: plotThresholds.humidityLow,
+        humidityHigh: plotThresholds.humidityHigh,
+        tempDomain: overlayAlign ? undefined : tempMapDomain,
+      }),
+    [
+      layout,
+      scopeVisibility,
+      overlayActive,
+      overlayAlign,
+      plotThresholds.tempLow,
+      plotThresholds.tempHigh,
+      plotThresholds.humidityLow,
+      plotThresholds.humidityHigh,
+      tempMapDomain,
+    ],
+  );
   const tempMapLayout = built?.layout ?? layout;
   const commandOverlayBase =
     commandPaneOpen &&
@@ -1757,8 +1814,8 @@ export function UnifiedBarnTrendPanel({
   ]);
 
   const cycleGroupLayers = (group: "temp" | "hum" | "motor") => {
-    if (!built) return;
-    setLayers((prev) => {
+    if (!built || sharedLayers) return;
+    setOwnedLayers((prev) => {
       const mode = detectLayerGroupMode(prev, built.available, group);
       const nextMode = nextLayerGroupMode(mode);
       return applyLayerGroupMode(prev, group, nextMode, built.available);
@@ -1774,7 +1831,7 @@ export function UnifiedBarnTrendPanel({
   }, [layersToolbarActive, layersToolbarPhase, layersAnimKey]);
 
   const layerToolbar =
-    !overview && built != null && layersToolbarMounted ? (
+    !sharedLayers && !overview && built != null && layersToolbarMounted ? (
       <div
         key={layersAnimKey}
         className={cn(
@@ -1794,7 +1851,7 @@ export function UnifiedBarnTrendPanel({
           placement="inline"
           overlayView={overlayView}
           overlayAvailable={overlayAvailable}
-          onToggleOverlay={() => setOverlayView((v) => !v)}
+          onToggleOverlay={() => setOwnedOverlayView((v) => !v)}
           tempAlarmOn={alarmRangeOn.temp}
           humAlarmOn={alarmRangeOn.hum}
           tempAlarmAvailable={Boolean(
@@ -1805,10 +1862,10 @@ export function UnifiedBarnTrendPanel({
               (layers.hum || layers.humDev || layers.humBand || layers.humEma),
           )}
           onToggleTempAlarm={() =>
-            setAlarmRangeOn((prev) => ({ ...prev, temp: !prev.temp }))
+            setOwnedAlarmRangeOn((prev) => ({ ...prev, temp: !prev.temp }))
           }
           onToggleHumAlarm={() =>
-            setAlarmRangeOn((prev) => ({ ...prev, hum: !prev.hum }))
+            setOwnedAlarmRangeOn((prev) => ({ ...prev, hum: !prev.hum }))
           }
           compact={headingMode === "widget"}
         />
@@ -2093,6 +2150,7 @@ export function UnifiedBarnTrendPanel({
           scaleEdgeLabels={overview ? [] : scaleEdgeLabels}
           rangeBands={overview ? [] : alarmRangeBands}
           xScopeSelect={!overview}
+          onLookbackWheel={onLookbackWheel}
           onXScopeCommit={(range) =>
             commitXScope(range, activeGuidedXScope ? "replace" : "push")
           }
@@ -2119,6 +2177,7 @@ export function UnifiedBarnTrendPanel({
             alarmEditEnabled ? onScaleEdgeNumericCommit : undefined
           }
           overlayHoverMerge={overlayActive}
+          crosshairValues={crosshairValues}
         />
         </div>
         {showCommandOverlay ? (

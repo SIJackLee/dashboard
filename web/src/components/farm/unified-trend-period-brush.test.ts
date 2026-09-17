@@ -12,6 +12,9 @@ import {
   clampBrushWindow,
   displayPeriodFromBrushWindow,
   formatBrushWindowLabel,
+  formatLookbackWindowLabel,
+  zoomBrushLookback,
+  cycleBrushLookbackPreset,
   moveBrushWindow,
   resolveBrushHighlightWindow,
   brushOverviewBarRect,
@@ -102,6 +105,31 @@ import {
   assert.ok(Math.abs(slot.a.width - slot.b.width) < 1e-9);
   const next = brushGroupedBarSlot(1, 10, 0.01, 0.98);
   assert.ok(next.a.x > slot.b.x);
+}
+
+{
+  const seven = BRUSH_PERIOD_WINDOW["7d"];
+  const inWin = zoomBrushLookback(seven, -1);
+  assert.ok(inWin.width < seven.width);
+  assert.ok(Math.abs(inWin.start + inWin.width - 1) < 1e-9);
+  const outWin = zoomBrushLookback(seven, 1);
+  assert.ok(outWin.width > seven.width);
+  assert.ok(Math.abs(outWin.start + outWin.width - 1) < 1e-9);
+  const floor = zoomBrushLookback({ start: 0, width: BRUSH_MIN_WIDTH }, -1);
+  assert.ok(Math.abs(floor.width - BRUSH_MIN_WIDTH) < 1e-12);
+  const full = zoomBrushLookback({ start: 0, width: 1 }, 1);
+  assert.equal(full.width, 1);
+  assert.equal(full.start, 0);
+  assert.equal(formatLookbackWindowLabel(seven), "최근 7일");
+  assert.equal(
+    formatLookbackWindowLabel(BRUSH_PERIOD_WINDOW["24h"]),
+    "최근 1일",
+  );
+  assert.equal(cycleBrushLookbackPreset(seven).width, 1);
+  assert.equal(
+    cycleBrushLookbackPreset(BRUSH_PERIOD_WINDOW["30d"]).width,
+    BRUSH_PERIOD_WINDOW["24h"].width,
+  );
 }
 
 console.log("unified-trend-period-brush.test.ts: ok");

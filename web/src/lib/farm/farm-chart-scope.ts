@@ -449,7 +449,7 @@ export function placeFarmChartWidgetNext(
 }
 
 /**
- * 필드「차트에서 보기」·「차트로 옮기기」— 항상 그 컨트롤러 **단일**.
+ * 필드「차트에서 보기」·「차트로 옮기기」— 그 컨트롤러 그래프를 펼친다.
  * 비교는 차트 탭에서만 켠다.
  */
 export function widgetsAfterOpenControllerChart(
@@ -459,7 +459,7 @@ export function widgetsAfterOpenControllerChart(
 }
 
 /**
- * 차트 일괄·단일·비교 — 위젯 칸을 선택 배열로 읽는다.
+ * 차트 일괄·펼침·비교 — 위젯 칸을 선택 배열로 읽는다.
  * 새 쿼리 키를 만들지 않고 `chartW1`/`chartW2`만 쓴다.
  */
 export type FarmChartLabMode = "batch" | "single" | "compare";

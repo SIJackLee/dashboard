@@ -42,6 +42,29 @@ export type LayerGroupCycleMode = "base" | "off";
 
 export type UnifiedTrendLayerAvailable = Record<UnifiedLayerId, boolean>;
 
+/** 페이지 공유 툴바 — 온도·습도·모터 그룹을 항상 노출 */
+export const UNIFIED_LAYER_TOOLBAR_AVAILABLE: UnifiedTrendLayerAvailable = {
+  motors: true,
+  motorCh: true,
+  temp: true,
+  hum: true,
+  band: true,
+  dev: true,
+  ema: true,
+  humBand: true,
+  humDev: true,
+  humEma: true,
+  thermo: true,
+  thermoMotor: true,
+};
+
+/** 차트 탭 공유 — 모든 칸 그래프에 같은 레이어·겹쳐보기·알람 띠 */
+export type SharedChartLayerDisplay = {
+  layers: UnifiedLayerFlags;
+  overlayView: boolean;
+  alarmRangeOn: { temp: boolean; hum: boolean };
+};
+
 const GROUP_MAIN: Record<LayerGroupId, UnifiedLayerId> = {
   temp: "temp",
   hum: "hum",

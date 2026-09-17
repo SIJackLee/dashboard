@@ -12,6 +12,7 @@ import {
   nudgeEdgeLabelTops,
   stackLeftAlarmBaselineLabels,
   PAD_BOTTOM,
+  PAD_TOP,
   parseScaleEdgeEditSeed,
   parseScaleEdgeValueUnit,
   tipPinId,
@@ -21,6 +22,10 @@ import {
   trendMsToPlotX,
   trendChartHasRenderableContent,
   xScopeTouchesCommandLane,
+  interpolateTimelineMsFromXView,
+  formatCrosshairClock,
+  chartDomainYFromViewY,
+  crosshairChipFlipsRight,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
 import { inferHoverMetricGroup } from "./trend-chart-format";
@@ -339,5 +344,39 @@ assert.equal(inferHoverMetricGroup("환기 설정 변경"), "motor");
 assert.equal(inferHoverMetricGroup("채널 A"), "motor");
 assert.equal(inferHoverMetricGroup("온도 산포"), "temp");
 assert.equal(inferHoverMetricGroup("습도 산포"), "hum");
+
+{
+  const ms = interpolateTimelineMsFromXView(50, 10, 80, [0, 10_000], 2);
+  assert.equal(ms, 5_000);
+  assert.equal(interpolateTimelineMsFromXView(10, 10, 80, [100, 200], 2), 100);
+  assert.equal(interpolateTimelineMsFromXView(90, 10, 80, [100, 200], 2), 200);
+  assert.equal(interpolateTimelineMsFromXView(50, 10, 80, null, 2), null);
+}
+
+{
+  const t = new Date(2026, 8, 17, 9, 40).getTime();
+  assert.equal(formatCrosshairClock(t), "09:40");
+  assert.equal(formatCrosshairClock(t, { withDate: true }), "9/17 09:40");
+}
+
+{
+  const innerH = 100;
+  assert.equal(chartDomainYFromViewY(PAD_TOP, PAD_TOP, innerH, [0, 100]), 100);
+  assert.equal(
+    chartDomainYFromViewY(PAD_TOP + innerH, PAD_TOP, innerH, [0, 100]),
+    0,
+  );
+  assert.equal(
+    chartDomainYFromViewY(PAD_TOP + innerH / 2, PAD_TOP, innerH, [0, 100]),
+    50,
+  );
+  assert.equal(
+    chartDomainYFromViewY(PAD_TOP + innerH + 8, PAD_TOP, innerH, [0, 100]),
+    null,
+  );
+}
+
+assert.equal(crosshairChipFlipsRight(20, 12, 40, 8), true);
+assert.equal(crosshairChipFlipsRight(80, 12, 40, 8), false);
 
 console.log("trend-chart-geometry.test.ts: ok");

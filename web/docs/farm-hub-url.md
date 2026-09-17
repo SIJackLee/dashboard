@@ -17,13 +17,13 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 통합 on일 때 UI:
 - 상위 탭: **필드 · 차트 · 모델**(Production에서는 모델 기본 숨김, 관리자만)
 - 판정 단위는 **컨트롤러 영향범위**(카드 1장). 방 칸 히트맵 탭(`view=status`)은 제거. 옛 주소는 필드로 정규화
-- DELIN: 필드·차트 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 모델 탭에서는 숨김. 전용 탭 없음. `view=aria`/`jarvis` → 필드
+- DELIN: 필드 **우측 하단 뱃지** (`NEXT_PUBLIC_DELIN_ENABLED`). 차트·목록·모델에서는 숨김. 전용 탭 없음. `view=aria`/`jarvis` → 필드
 - PC 필드: ScopeBar 스티키 없음 — 농장 선택은 **계정 메뉴**, 보기 탭은 **TopBar**
 - 모바일 compact: 보기 탭은 **하단 독** (`DashboardViewportShell`)
 - 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
 - 좌 현황 숨기기/나타내기 · 카드 헤더 단일 순환 버튼
 - 모바일: 그리드만 + 카드 탭 시 Bottom sheet 직행 (인라인 상세 없음)
-- 모바일 상세 «차트로 옮기기»: 차트 탭으로 이동하며 그 대를 **단일**로 연다. 비교는 차트 탭에서만. 필드 탭으로 돌아와도 `chartW1`/`chartW2`는 유지
+- 모바일 상세 «차트로 옮기기»: 차트 탭으로 이동하며 그 그래프가 **펼쳐집니다**. 비교는 차트 탭에서만. 필드 탭으로 돌아와도 `chartW1`/`chartW2`는 유지
 
 ---
 
@@ -32,7 +32,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | 키 | 값 | 기본 | 설명 |
 |----|-----|------|------|
 | `lsind` / `item` | 농장 키 | (권한·서버) | 활성 농장. soft home에서 **유지** |
-| `view` | `list` \| `chart` \| `plan` \| `model` \| (`chartlab`→차트, `aria`/`jarvis`/`status`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린·현황 히트맵 주소는 필드. 모델 게이트 off(Production 비관리자·강제 off)면 그리드. 필드·차트에서 DELIN 권장 뱃지(모델 탭은 숨김). `plan`은 `model`로, `chartlab`은 `chart`로 정규화 |
+| `view` | `list` \| `chart` \| `plan` \| `model` \| (`chartlab`→차트, `aria`/`jarvis`/`status`→필드) | **없음 = 그리드(map)** | 상단 탭. 옛 델린·현황 히트맵 주소는 필드. 모델 게이트 off(Production 비관리자·강제 off)면 그리드. 필드에서 DELIN 권장 뱃지(차트·목록·모델은 숨김). `plan`은 `model`로, `chartlab`은 `chart`로 정규화 |
 | `trendPeriod` | `24h` \| `30d` | **없음 = 7d** | 그리드·목록·차트 공유 기간. 기본 `7d`는 URL 생략 |
 | `sp` | 축사유형 코드 | — | 그리드 드릴 (SP 그래프) |
 | `mapLevel` | `stalls` | 없음=sp | 그리드 드릴 단계 |
@@ -44,7 +44,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `chartSp` | 축사유형 코드 | — | 차트 집계 (유형). 맵 `sp`와 분리 |
 | `chartStall` | 축사번호 | — | 차트 집계 (축사). `chartSp` 필요 |
 | `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 트리 선택(컨트롤러). `chartSp`+`chartStall` 필요. 명령 이력 대상 |
-| `chartW1` / `chartW2` | `축사유형\|축사번호\|컨트롤러키` 또는 `-` | — | 일괄·단일·비교 선택. `-`는 빈 칸(집계 딥링크 재시드 방지). 없으면 `chartCtrl`을 위로 시드. 칸 없음=일괄, `W1`만=단일, `W1`+`W2`=비교 |
+| `chartW1` / `chartW2` | `축사유형\|축사번호\|컨트롤러키` 또는 `-` | — | 일괄·비교 선택. `-`는 빈 칸(집계 딥링크 재시드 방지). 없으면 `chartCtrl`을 위로 시드. 칸 없음=일괄, `W1`만=펼침, `W1`+`W2`=비교 |
 | `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수). 레거시 `command`는 `chartCmd`로 해석 | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
 | `chartCmd` | `1` | — | 컨트롤러 집계에서 온도·모터 본선 **명령 이력**(A/B/C 창·선). 집계 트리 컨트롤러 행 「명령」 토글 |
 | `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |

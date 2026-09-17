@@ -40,7 +40,7 @@ cd dashboard/web
 UI_VERIFY_BASE=https://<preview-or-prod>.vercel.app node scripts/farm-hub-url-manual-smoke.mjs
 ```
 
-필드·차트에서 우측 하단 **DELIN 뱃지**가 보이는지 확인.
+필드에서 우측 하단 **DELIN 뱃지**가 보이는지, 차트에서는 없는지 확인.
 
 4. Production 도메인 예: `https://smart.autofankorea.com`
 

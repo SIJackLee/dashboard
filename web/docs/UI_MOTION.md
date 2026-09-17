@@ -215,7 +215,7 @@ hole=`moderate`+`emphasis`, tip=`normal`+`enter`, exit=`exit`+`enter`. accent gl
 신규 채널·정보 UI는 `sky`/`rose`/`amber`(모터) 하드코딩 금지 — `channel-*` 또는 `opsStatus`/`primary` 사용.  
 경고(주의)만 `amber` 유지.
 
-**DELIN 뱃지 (H5)**: 필드·차트 우측 하단만. 오브·도크 모션 없음. 상세=`UI_ARIA_PRESENCE.md`.
+**DELIN 뱃지 (H5)**: 필드 우측 하단만(차트 숨김). 오브·도크 모션 없음. 상세=`UI_ARIA_PRESENCE.md`.
 
 **규칙**: 새 UI는 `motionIntent` / `motionClass`만 사용. 임의 `duration-N`·`transition-all`·차트 리터럴 ms 금지.
 

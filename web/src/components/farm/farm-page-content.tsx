@@ -450,31 +450,21 @@ export function FarmPageContent({
     [shallowParams],
   );
 
-  /** compact 차트는 하단 브러시 터치 확보 — 델린은 맵(및 데스크톱 차트)만 */
+  /** 델린 뱃지는 필드만. 차트·목록·모델에서는 숨김 */
   const showDelinEnvBadge =
-    delinEnabled() &&
-    Boolean(gridFarmKey) &&
-    (view === "map" || (view === "chart" && !viewportCompact));
+    delinEnabled() && Boolean(gridFarmKey) && view === "map";
   const delinBadgeStallTy = useMemo(() => {
     if (!showDelinEnvBadge) return null;
-    if (view === "chart") {
-      return chartLabSelection.primary?.stallTyCode ?? null;
+    if (fieldMerge && fieldSelectedBarnId) {
+      const barn = barnSnapshots.find((b) => b.meta.id === fieldSelectedBarnId);
+      const ty = barn
+        ? parseBarnCatalogKey(barn.meta.id)?.stallTyCode
+        : null;
+      if (ty) return ty;
     }
-    if (view === "map") {
-      if (fieldMerge && fieldSelectedBarnId) {
-        const barn = barnSnapshots.find((b) => b.meta.id === fieldSelectedBarnId);
-        const ty = barn
-          ? parseBarnCatalogKey(barn.meta.id)?.stallTyCode
-          : null;
-        if (ty) return ty;
-      }
-      return shallowParams.get("sp");
-    }
-    return null;
+    return shallowParams.get("sp");
   }, [
     showDelinEnvBadge,
-    view,
-    chartLabSelection,
     fieldMerge,
     fieldSelectedBarnId,
     barnSnapshots,

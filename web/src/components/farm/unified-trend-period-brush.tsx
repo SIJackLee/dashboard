@@ -60,6 +60,9 @@ const BRUSH_CLICK_SPAN = 0.02;
 /** 최소 구간 — 약 6시간 (30일 트랙 기준) */
 export const BRUSH_MIN_WIDTH = 6 / (30 * 24);
 
+/** 휠 연속 룩백 — 한 칸마다 폭 배수. 오른쪽(지금)은 고정 */
+export const BRUSH_WHEEL_ZOOM_FACTOR = 1.18;
+
 export type BrushWindow = { start: number; width: number };
 
 export type BrushHighlightWindow = BrushWindow;
@@ -68,6 +71,25 @@ export function clampBrushWindow(start: number, width: number): BrushWindow {
   const w = Math.min(1, Math.max(BRUSH_MIN_WIDTH, width));
   const s = Math.min(1 - w, Math.max(0, start));
   return { start: s, width: w };
+}
+
+/** 오른쪽 끝(지금)=1 고정. dir<0 확대(폭↓), dir>0 축소(폭↑). */
+export function zoomBrushLookback(
+  win: BrushWindow,
+  dir: 1 | -1,
+  factor = BRUSH_WHEEL_ZOOM_FACTOR,
+): BrushWindow {
+  const nextWidth = dir < 0 ? win.width / factor : win.width * factor;
+  const width = Math.min(1, Math.max(BRUSH_MIN_WIDTH, nextWidth));
+  return { start: 1 - width, width };
+}
+
+/** 칩 탭 — 24시간 ↔ 7일 ↔ 30일 (오른쪽 고정) */
+export function cycleBrushLookbackPreset(win: BrushWindow): BrushWindow {
+  const days = win.width * 30;
+  if (days <= 2) return BRUSH_PERIOD_WINDOW["7d"];
+  if (days <= 10) return BRUSH_PERIOD_WINDOW["30d"];
+  return BRUSH_PERIOD_WINDOW["24h"];
 }
 
 /** 드래그 → 실구간. 거의 클릭이면 null — 호출측에서 창 이동. */
@@ -100,6 +122,15 @@ export function formatBrushWindowLabel(win: BrushWindow): string {
   if (hours < 20) return `약 ${Math.max(1, Math.round(hours))}시간`;
   if (days < 1.6) return "약 1일";
   return `약 ${Math.round(days)}일`;
+}
+
+/** 휠 룩백 칩 — 「최근 N」 */
+export function formatLookbackWindowLabel(win: BrushWindow): string {
+  const days = win.width * 30;
+  const hours = days * 24;
+  if (hours < 20) return `최근 ${Math.max(1, Math.round(hours))}시간`;
+  if (days < 1.6) return "최근 1일";
+  return `최근 ${Math.round(days)}일`;
 }
 
 /** 차트 플롯과 같은 좌·우 패딩으로 브러시 막대·선택창을 맞춘다. */

@@ -6,6 +6,7 @@ import {
   useState,
   useRef,
   useLayoutEffect,
+  useEffect,
   useId,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -87,6 +88,9 @@ import {
   trendChartHasRenderableContent,
   trendMsToPlotX,
   trendPlotPadPx,
+  interpolateTimelineMsFromXView,
+  formatCrosshairClock,
+  chartDomainYFromViewY,
   type EdgeBandLabel,
 } from "./trend-chart-geometry";
 import {
@@ -233,6 +237,11 @@ type TrendChartProps = {
    * y*Ratio: plot 상단=0 · 하단=1
    */
   xScopeSelect?: boolean;
+  /**
+   * 플롯 휠/핀치 — 연속 룩백. dir<0 확대, dir>0 축소.
+   * Ctrl/Meta+휠은 브라우저 페이지 줌에 맡긴다.
+   */
+  onLookbackWheel?: (dir: 1 | -1) => void;
   onXScopeCommit?: (range: {
     start: number;
     end: number;
@@ -288,6 +297,15 @@ type TrendChartProps = {
   scaleEdgeApplyDisabled?: boolean;
   /** 오버레이(온도·습도·모터 겹침): hover 카드에 세 지표를 병합해 표시 */
   overlayHoverMerge?: boolean;
+  /**
+   * 십자선 교차점 칩 — 차트 domain Y → 온도/습도/모터(자).
+   * 없으면 왼쪽 원단위 축만 역산한다.
+   */
+  crosshairValues?: (chartY: number) => {
+    tempC?: number | null;
+    humidityPct?: number | null;
+    motorPct?: number | null;
+  } | null;
   /** 플롯 CSS 너비(px). 차트 탭 다운샘플 밀도용 */
   onPlotWidthChange?: (widthPx: number) => void;
   /**
@@ -378,6 +396,7 @@ export function TrendChart({
   showNullGaps = false,
   coverageBands = [],
   xScopeSelect = false,
+  onLookbackWheel,
   onXScopeCommit,
   guidedXScopeGesture = null,
   onGuidedXScopeComplete,
@@ -394,6 +413,7 @@ export function TrendChart({
   scaleEdgeApplyBusy = false,
   scaleEdgeApplyDisabled = false,
   overlayHoverMerge = false,
+  crosshairValues,
   onPlotWidthChange,
   fillParent = false,
   eventLane = null,
@@ -434,6 +454,13 @@ export function TrendChart({
   const hoverEventMarkRef = useRef<TrendEventMark | null>(null);
   const crossVRef = useRef<SVGLineElement | null>(null);
   const crossHRef = useRef<SVGLineElement | null>(null);
+  const crossChipRef = useRef<HTMLDivElement | null>(null);
+  const crossChipTimeRef = useRef<HTMLSpanElement | null>(null);
+  const crossChipTempRef = useRef<HTMLSpanElement | null>(null);
+  const crossChipHumRef = useRef<HTMLSpanElement | null>(null);
+  const crossChipMotorRef = useRef<HTMLSpanElement | null>(null);
+  const crossChipOtherRef = useRef<HTMLSpanElement | null>(null);
+  const lastCrosshairRef = useRef({ x: 0, y: 0, on: false });
   const tipRef = useRef<HTMLDivElement | null>(null);
   const lastAnchorRef = useRef({ x: 0, y: 0, w: 1, h: 1 });
   const plotRef = useRef<HTMLDivElement | null>(null);
@@ -782,10 +809,98 @@ export function TrendChart({
     }
   }
 
+  const CROSSHAIR_CHIP_GAP_PX = 8;
+
+  const setCrosshairChipVisible = (visible: boolean) => {
+    if (crossChipRef.current) {
+      crossChipRef.current.style.opacity = visible ? "1" : "0";
+    }
+  };
+
+  const setPartText = (node: HTMLSpanElement | null, text: string | null) => {
+    if (!node) return;
+    if (text) {
+      node.textContent = text;
+      node.style.display = "";
+    } else {
+      node.textContent = "";
+      node.style.display = "none";
+    }
+  };
+
+  const fillCrosshairChip = (xView: number, yView: number) => {
+    const el = crossChipRef.current;
+    if (!el) return;
+    lastCrosshairRef.current = { x: xView, y: yView, on: true };
+
+    const ms = interpolateTimelineMsFromXView(
+      xView,
+      padL,
+      innerW,
+      timeAxisMs,
+      n,
+    );
+    let timeLabel = "";
+    if (ms != null) {
+      timeLabel = formatCrosshairClock(ms, { withDate: period !== "24h" });
+    } else if (n > 0) {
+      const u = Math.min(1, Math.max(0, (xView - padL) / Math.max(innerW, 1)));
+      const i = n <= 1 ? 0 : Math.round(u * (n - 1));
+      timeLabel = categories[i] ?? "";
+    }
+    setPartText(crossChipTimeRef.current, timeLabel || null);
+
+    const chartY = chartDomainYFromViewY(yView, PAD_TOP, innerH, [lMin, lMax]);
+    let tempC: number | null = null;
+    let humidityPct: number | null = null;
+    let motorPct: number | null = null;
+    let other: string | null = null;
+    if (chartY != null) {
+      if (crosshairValues) {
+        const v = crosshairValues(chartY);
+        tempC = v?.tempC ?? null;
+        humidityPct = v?.humidityPct ?? null;
+        motorPct = v?.motorPct ?? null;
+      } else if (leftUnit === "℃") {
+        tempC = chartY;
+      } else if (leftUnit) {
+        other = formatTrendBandEdge(chartY, leftUnit);
+      }
+    }
+    setPartText(
+      crossChipTempRef.current,
+      tempC != null ? formatTrendBandEdge(tempC, "℃") : null,
+    );
+    setPartText(
+      crossChipHumRef.current,
+      humidityPct != null ? formatTrendBandEdge(humidityPct, "%") : null,
+    );
+    setPartText(
+      crossChipMotorRef.current,
+      motorPct != null ? formatTrendBandEdge(motorPct, "%") : null,
+    );
+    setPartText(crossChipOtherRef.current, other);
+
+    const plotW = plotRef.current?.getBoundingClientRect().width || plotPx.w || 1;
+    const xPx = (xView / Math.max(viewW, 1)) * plotW;
+    const padLPx = (padL / Math.max(viewW, 1)) * plotW;
+    const chipW = el.offsetWidth || 96;
+    const flip = xPx - padLPx < chipW + CROSSHAIR_CHIP_GAP_PX;
+    el.style.left = `${(xView / Math.max(viewW, 1)) * 100}%`;
+    el.style.top = `${(yView / Math.max(chartH, 1)) * 100}%`;
+    el.style.transform = flip
+      ? `translate(${CROSSHAIR_CHIP_GAP_PX}px, -50%)`
+      : `translate(calc(-100% - ${CROSSHAIR_CHIP_GAP_PX}px), -50%)`;
+  };
+
   const setCrosshairVisible = (visible: boolean) => {
     const op = visible ? "1" : "0";
     if (crossVRef.current) crossVRef.current.style.opacity = op;
     if (crossHRef.current) crossHRef.current.style.opacity = op;
+    if (!visible) {
+      lastCrosshairRef.current.on = false;
+      setCrosshairChipVisible(false);
+    }
   };
 
   const setCrosshairAt = (xView: number, yView: number) => {
@@ -1152,6 +1267,71 @@ export function TrendChart({
     yViewFromClient,
     clearHover,
   });
+
+  useEffect(() => {
+    const el = plotRef.current;
+    if (!el || !onLookbackWheel) return;
+    const pinchFactor = 1.18;
+    const blocked = () =>
+      edgeEdit != null ||
+      edgeDragRef.current != null ||
+      labelDragArmRef.current != null ||
+      Boolean(xScopeDraggingRef.current) ||
+      xDraftRef.current != null;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) return;
+      if (blocked()) return;
+      e.preventDefault();
+      onLookbackWheel(e.deltaY > 0 ? 1 : -1);
+    };
+
+    let pinchDist = 0;
+    const dist = (touches: TouchList) => {
+      if (touches.length < 2) return 0;
+      const a = touches.item(0);
+      const b = touches.item(1);
+      if (!a || !b) return 0;
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    };
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length >= 2) pinchDist = dist(e.touches);
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length < 2 || blocked()) return;
+      const d = dist(e.touches);
+      if (!(pinchDist > 0) || !(d > 0)) {
+        pinchDist = d;
+        return;
+      }
+      const ratio = d / pinchDist;
+      if (ratio >= pinchFactor) {
+        e.preventDefault();
+        pinchDist = d;
+        onLookbackWheel(-1);
+      } else if (ratio <= 1 / pinchFactor) {
+        e.preventDefault();
+        pinchDist = d;
+        onLookbackWheel(1);
+      }
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinchDist = 0;
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [onLookbackWheel, edgeEdit, xDraftRef, xScopeDraggingRef]);
 
   const domainValueFromYView = (yView: number, axis: TrendAxis): number => {
     const [mn, mx] = axis === "right" ? [rMin, rMax] : [lMin, lMax];
@@ -1529,16 +1709,18 @@ export function TrendChart({
     );
     setCrosshairAt(xView, yView);
 
-    // 명령 레인 유지띠 HTML이 호버를 소유한다.
-    if (
+    const overEventMark =
       e.target instanceof Element &&
-      e.target.closest("[data-trend-event-mark]")
-    ) {
+      Boolean(e.target.closest("[data-trend-event-mark]"));
+    if (overEventMark) {
+      setCrosshairChipVisible(false);
       return;
     }
 
     const hit = findDataPointHit(xPx, yPx, rect.width, rect.height);
     if (!hit) {
+      fillCrosshairChip(xView, yView);
+      setCrosshairChipVisible(true);
       if (
         hoverIdxRef.current != null ||
         hoverSeriesRef.current != null ||
@@ -1553,6 +1735,7 @@ export function TrendChart({
       }
       return;
     }
+    setCrosshairChipVisible(false);
     const anchorX = (hit.xView / viewW) * rect.width;
     const anchorY = (hit.yView / chartH) * rect.height;
     lastAnchorRef.current = {
@@ -1582,6 +1765,17 @@ export function TrendChart({
     const a = lastAnchorRef.current;
     placeTipNear(a.x, a.y, a.w, a.h);
   }, [hoverIdx, hoverEventMark]);
+
+  useLayoutEffect(() => {
+    if (hoverIdx != null || hoverEventMark) {
+      setCrosshairChipVisible(false);
+      return;
+    }
+    const last = lastCrosshairRef.current;
+    if (!last.on) return;
+    fillCrosshairChip(last.x, last.y);
+    setCrosshairChipVisible(true);
+  });
 
   const markerStride =
     markerDensity === "sparse" ? Math.max(1, Math.ceil(n / 8)) : 1;
@@ -2409,6 +2603,27 @@ export function TrendChart({
           );
         })()}
       </svg>
+
+      <div
+        ref={crossChipRef}
+        className="pointer-events-none absolute z-[5] whitespace-nowrap rounded-sm border border-border/70 bg-background/90 px-1.5 py-0.5 farm-chart-fs-axis tabular-nums"
+        style={{
+          opacity: 0,
+          left: 0,
+          top: 0,
+          transform: "translate(calc(-100% - 8px), -50%)",
+          transition: "opacity 90ms linear",
+        }}
+        aria-hidden
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <span ref={crossChipTimeRef} className="text-foreground" />
+          <span ref={crossChipTempRef} className="text-channel-temp" />
+          <span ref={crossChipHumRef} className="text-channel-hum" />
+          <span ref={crossChipMotorRef} className="text-channel-motor" />
+          <span ref={crossChipOtherRef} className="text-foreground" />
+        </span>
+      </div>
 
       {eventLane && eventLaneH > 0 ? (
         <EventLaneHtmlOverlay

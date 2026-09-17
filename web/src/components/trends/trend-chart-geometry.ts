@@ -444,3 +444,75 @@ export function domainFor(
   const pad = (max - min) * 0.12;
   return [min - pad, max + pad];
 }
+
+/** view X → 시간축 ms (점 스냅 없이 선형). */
+export function interpolateTimelineMsFromXView(
+  xView: number,
+  padL: number,
+  innerW: number,
+  timeAxisMs: number[] | null | undefined,
+  n: number,
+): number | null {
+  if (!(n > 0) || !(innerW > 0) || !Number.isFinite(xView)) return null;
+  if (!timeAxisMs || timeAxisMs.length !== n) return null;
+  if (n === 1) {
+    const t0 = timeAxisMs[0];
+    return t0 != null && Number.isFinite(t0) ? t0 : null;
+  }
+  const t0 = timeAxisMs[0];
+  const t1 = timeAxisMs[n - 1];
+  if (
+    t0 == null ||
+    t1 == null ||
+    !Number.isFinite(t0) ||
+    !Number.isFinite(t1)
+  ) {
+    return null;
+  }
+  const u = Math.min(1, Math.max(0, (xView - padL) / innerW));
+  return t0 + u * (t1 - t0);
+}
+
+/** 십자선 칩 시각. 7일·30일은 날짜를 붙인다. */
+export function formatCrosshairClock(
+  ms: number,
+  opts?: { withDate?: boolean },
+): string {
+  if (!Number.isFinite(ms)) return "";
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  if (opts?.withDate) {
+    return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
+  }
+  return `${hh}:${mm}`;
+}
+
+/**
+ * view Y → 왼쪽 차트 domain Y. 명령 레인(플롯 아래)은 null.
+ * `yFor`의 역: t = 1 - (yView - padTop) / innerH.
+ */
+export function chartDomainYFromViewY(
+  yView: number,
+  padTop: number,
+  innerH: number,
+  domain: [number, number],
+): number | null {
+  if (!(innerH > 0) || !Number.isFinite(yView)) return null;
+  if (yView > padTop + innerH + 1e-6) return null;
+  const t = 1 - (yView - padTop) / innerH;
+  const u = Math.min(1, Math.max(0, t));
+  const [mn, mx] = domain;
+  if (!Number.isFinite(mn) || !Number.isFinite(mx)) return null;
+  return mn + u * (mx - mn);
+}
+
+/** 칩이 왼쪽 축을 넘으면 교차점 오른쪽으로 뒤집는다. */
+export function crosshairChipFlipsRight(
+  xView: number,
+  padL: number,
+  chipViewW: number,
+  gapView: number,
+): boolean {
+  return xView - padL < chipViewW + gapView;
+}
