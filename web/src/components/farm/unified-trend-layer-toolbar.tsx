@@ -28,6 +28,7 @@ import type {
   UnifiedLayerFlags,
   UnifiedLayerId,
 } from "@/lib/farm/unified-barn-trend-series";
+import { AlarmDomainIcon } from "@/components/settings/alarm-domain-icon";
 import { dashboardAffordance, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -140,6 +141,13 @@ function nextModeHint(group: LayerGroupId, mode: LayerGroupCycleMode): string {
   return `다음: ${modeTooltip(group, nextLayerGroupMode(mode))}`;
 }
 
+function alarmRangeTooltip(kind: "temp" | "hum", on: boolean): string {
+  const name = kind === "temp" ? "온도 알람" : "습도 알람";
+  return on
+    ? `${name} 범위 켜짐 · 다음: 끔`
+    : `${name} 범위 꺼짐 · 다음: 켬`;
+}
+
 type Props = {
   layers: UnifiedLayerFlags;
   available: UnifiedTrendLayerAvailable;
@@ -151,6 +159,13 @@ type Props = {
   overlayView?: boolean;
   overlayAvailable?: boolean;
   onToggleOverlay?: () => void;
+  /** 온도·습도 알람 범위 띠 (헤더 ON/OFF) */
+  tempAlarmOn?: boolean;
+  humAlarmOn?: boolean;
+  tempAlarmAvailable?: boolean;
+  humAlarmAvailable?: boolean;
+  onToggleTempAlarm?: () => void;
+  onToggleHumAlarm?: () => void;
   /** 위젯 헤더 — 상·좌 여백과 같은 32px 버튼 */
   compact?: boolean;
 };
@@ -265,6 +280,12 @@ export function UnifiedTrendLayerToolbar({
   overlayView = false,
   overlayAvailable = false,
   onToggleOverlay,
+  tempAlarmOn = true,
+  humAlarmOn = true,
+  tempAlarmAvailable = false,
+  humAlarmAvailable = false,
+  onToggleTempAlarm,
+  onToggleHumAlarm,
   compact = false,
 }: Props) {
   const groups = (
@@ -338,6 +359,53 @@ export function UnifiedTrendLayerToolbar({
                 className={compact ? "size-4" : "size-4 md:size-5"}
                 aria-hidden
               />
+            </IconTipButton>
+          </div>
+        ) : null}
+        {(tempAlarmAvailable && onToggleTempAlarm) ||
+        (humAlarmAvailable && onToggleHumAlarm) ? (
+          <span
+            className="mx-0.5 h-5 w-px shrink-0 bg-border"
+            aria-hidden
+          />
+        ) : null}
+        {tempAlarmAvailable && onToggleTempAlarm ? (
+          <div className="relative overflow-visible">
+            <IconTipButton
+              label={alarmRangeTooltip("temp", tempAlarmOn)}
+              pressed={tempAlarmOn}
+              on={tempAlarmOn}
+              muted={!tempAlarmOn}
+              tone="temp"
+              compact={compact}
+              onClick={onToggleTempAlarm}
+            >
+              <AlarmDomainIcon
+                domain="temp"
+                tone="inherit"
+                sizeClass={compact ? "size-3" : "size-3.5 md:size-4"}
+              />
+              <ModeOverlay mode={tempAlarmOn ? "base" : "off"} />
+            </IconTipButton>
+          </div>
+        ) : null}
+        {humAlarmAvailable && onToggleHumAlarm ? (
+          <div className="relative overflow-visible">
+            <IconTipButton
+              label={alarmRangeTooltip("hum", humAlarmOn)}
+              pressed={humAlarmOn}
+              on={humAlarmOn}
+              muted={!humAlarmOn}
+              tone="hum"
+              compact={compact}
+              onClick={onToggleHumAlarm}
+            >
+              <AlarmDomainIcon
+                domain="humidity"
+                tone="inherit"
+                sizeClass={compact ? "size-3" : "size-3.5 md:size-4"}
+              />
+              <ModeOverlay mode={humAlarmOn ? "base" : "off"} />
             </IconTipButton>
           </div>
         ) : null}

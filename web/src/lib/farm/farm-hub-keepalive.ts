@@ -6,7 +6,8 @@ export type FarmHubKeepAlivePanel = "list" | "chart";
 /**
  * 이탈 후 언마운트까지 대기.
  * - list: BarnTable·enrich 캐시 가치 있음
- * - chart: DOM/시리즈 무겁고 URL(`chart*`)로 복구 가능
+ * - chart: DOM/시리즈 무겁고 URL(`chart*`)로 복구 가능.
+ *   일괄·단일·비교 셸도 이 패널에 얹힌다.
  */
 export const FARM_HUB_KEEPALIVE_TTL_MS: Record<FarmHubKeepAlivePanel, number> =
   {

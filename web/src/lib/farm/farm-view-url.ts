@@ -106,21 +106,26 @@ export function setListViewMode(
   else params.set("listMode", mode);
 }
 
-/** 허브 탭 — 그리드(map/필드) · 목록 · 차트 · 모델(2D 평면). `plan`은 옛 URL. `aria`·`status`는 필드로 정규화. */
+/** 허브 탭 — 그리드(map/필드) · 목록 · 차트 · 모델(2D 평면). `chartlab`·`plan`은 옛 URL. `aria`·`status`는 필드로 정규화. */
 export type FarmHubView =
   | "map"
   | "list"
   | "chart"
+  | "chartlab"
   | "plan"
   | "model"
   | "aria";
+
+export function isFarmChartWorkspaceView(view: FarmHubView): boolean {
+  return view === "chart" || view === "chartlab";
+}
 
 export function resolveFarmHubView(
   raw: string | null | undefined,
   opts: BarnPlanGateOpts = {},
 ): FarmHubView {
   if (raw === "list") return "list";
-  if (raw === "chart") return "chart";
+  if (raw === "chart" || raw === "chartlab") return "chart";
   if (raw === "plan" || raw === "model") {
     return barnPlanEnabled(opts) ? "model" : "map";
   }
@@ -155,6 +160,11 @@ export function applyChartViewParams(params: URLSearchParams): void {
   clearBarnPlanParams(params);
 }
 
+/** 옛 `view=chartlab` — 차트 탭으로 정규화. */
+export function applyChartLabViewParams(params: URLSearchParams): void {
+  applyChartViewParams(params);
+}
+
 /** 모델 탭 — 2D 부지·건물. `view=plan`은 호환 별칭. 게이트 off면 그리드. */
 export function applyPlanViewParams(
   params: URLSearchParams,
@@ -186,7 +196,7 @@ export function applyAriaViewParams(params: URLSearchParams): void {
   applyMapGridParams(params);
 }
 
-/** 지도 탭 — 그리드 진입(드릴 쿼리 제거). 위젯 칸은 유지(필드로 돌아와도 차트로 옮기기 비교). */
+/** 지도 탭 — 그리드 진입(드릴 쿼리 제거). 위젯 칸은 유지(차트 일괄·단일·비교 선택). */
 export function applyMapGridParams(params: URLSearchParams): void {
   params.delete("view");
   params.delete("listMode");
@@ -236,7 +246,7 @@ export function buildFarmPath(params: URLSearchParams): string {
   return q ? `/farm?${q}` : "/farm";
 }
 
-/** view=list|map|chart|plan|model|aria 전환 (레거시 tab=ops · view=status 쿼리 제거) */
+/** view=list|map|chart|chartlab|plan|model|aria 전환 (레거시 tab=ops · view=status 쿼리 제거) */
 export function applyHubScopedViewParams(
   params: URLSearchParams,
   view: FarmHubView,
@@ -244,7 +254,7 @@ export function applyHubScopedViewParams(
 ): void {
   params.delete("tab");
   if (view === "list") applyListViewParams(params);
-  else if (view === "chart") applyChartViewParams(params);
+  else if (view === "chart" || view === "chartlab") applyChartViewParams(params);
   else if (view === "plan") applyPlanViewParams(params, opts);
   else if (view === "model") applyModelViewParams(params, opts);
   else if (view === "aria") applyAriaViewParams(params);
@@ -262,10 +272,14 @@ export function pinFarmHubViewParam(
   if (
     view === "list" ||
     view === "chart" ||
+    view === "chartlab" ||
     view === "plan" ||
     view === "model"
   ) {
-    params.set("view", view === "plan" ? "model" : view);
+    params.set(
+      "view",
+      view === "plan" ? "model" : view === "chartlab" ? "chart" : view,
+    );
   } else {
     params.delete("view");
   }

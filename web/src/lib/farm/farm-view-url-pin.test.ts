@@ -59,6 +59,12 @@ import {
 }
 
 {
+  const params = new URLSearchParams("lsind=FARM01&item=P00");
+  pinFarmHubViewParam(params, "chartlab");
+  assert.equal(params.get("view"), "chart");
+}
+
+{
   const params = new URLSearchParams("lsind=FARM01&item=P00&view=status");
   assert.equal(resolveFarmHubView(params.get("view")), "map");
   pinFarmHubViewParam(params, "map");

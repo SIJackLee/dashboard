@@ -19,7 +19,7 @@ import { stallKeyFromReading } from "@/lib/data/reading-hierarchy";
 import type { TrendPeriodData, TrendPeriodId } from "@/lib/data/farm-trend-types";
 import { DelinEnvBadge } from "@/components/farm/delin-env-badge";
 import { FarmMapView } from "@/components/farm/farm-map-view";
-import { FarmChartView } from "@/components/farm/farm-chart-view";
+import { FarmChartLabView } from "@/components/farm/farm-chart-lab-view";
 import { FarmPlanView } from "@/components/farm/farm-plan-view";
 import { BarnTable } from "@/components/farm/barn-table";
 import {
@@ -39,21 +39,17 @@ import {
   type FarmHubView,
 } from "@/lib/farm/farm-view-url";
 import {
-  applyFarmChartCmdParam,
+  applyFarmChartLabSelectionParams,
   applyFarmChartScopeParams,
   applyFarmChartWidgetSlotParams,
-  applyFarmChartZoomParams,
   clearFarmChartCmdParam,
+  clearFarmChartScopeParams,
   clearFarmChartZoomParams,
   isFarmChartControllerScope,
-  placeFarmChartWidgetNext,
-  resolveFarmChartCmdParam,
-  resolveFarmChartScope,
-  resolveFarmChartWidgetSlots,
-  resolveFarmChartZoomHint,
-  type ChartTrendZoomHint,
+  widgetsAfterOpenControllerChart,
+  resolveFarmChartLabSelection,
+  type FarmChartLabSelection,
   type FarmChartScope,
-  type FarmChartWidgetSlots,
 } from "@/lib/farm/farm-chart-scope";
 import { isFarmHubPanelLiveActive } from "@/lib/farm/farm-hub-keepalive";
 import { useFarmHubViewShell } from "@/lib/farm/use-farm-hub-view-shell";
@@ -449,17 +445,8 @@ export function FarmPageContent({
     () => resolveTrendPeriodParam(shallowParams),
     [shallowParams],
   );
-  const chartScope = useMemo(
-    () => resolveFarmChartScope(shallowParams),
-    [shallowParams],
-  );
-  const chartZoomHint = useMemo(
-    () => resolveFarmChartZoomHint(shallowParams),
-    [shallowParams],
-  );
-  const chartCommandPaneOpen = resolveFarmChartCmdParam(shallowParams);
-  const chartWidgets = useMemo(
-    () => resolveFarmChartWidgetSlots(shallowParams),
+  const chartLabSelection = useMemo(
+    () => resolveFarmChartLabSelection(shallowParams),
     [shallowParams],
   );
 
@@ -470,8 +457,8 @@ export function FarmPageContent({
     (view === "map" || (view === "chart" && !viewportCompact));
   const delinBadgeStallTy = useMemo(() => {
     if (!showDelinEnvBadge) return null;
-    if (view === "chart" && chartScope.level !== "farm") {
-      return chartScope.stallTyCode;
+    if (view === "chart") {
+      return chartLabSelection.primary?.stallTyCode ?? null;
     }
     if (view === "map") {
       if (fieldMerge && fieldSelectedBarnId) {
@@ -487,7 +474,7 @@ export function FarmPageContent({
   }, [
     showDelinEnvBadge,
     view,
-    chartScope,
+    chartLabSelection,
     fieldMerge,
     fieldSelectedBarnId,
     barnSnapshots,
@@ -506,20 +493,7 @@ export function FarmPageContent({
     [view, setUrlTick],
   );
 
-  const onChartScopeChange = useCallback(
-    (scope: FarmChartScope) => {
-      const params = new URLSearchParams(currentFarmSearchParams().toString());
-      applyFarmChartScopeParams(params, scope);
-      clearFarmChartZoomParams(params);
-      if (scope.level !== "controller") clearFarmChartCmdParam(params);
-      pinFarmHubViewParam(params, "chart");
-      replaceFarmUrlShallow(params);
-      setUrlTick((n) => n + 1);
-    },
-    [setUrlTick],
-  );
-
-  /** 현장 카드 «차트에서 보기» — 컨트롤러 스코프로 차트 탭. 모바일은 위·아래 칸에 순차 배치 */
+  /** 현장 카드 «차트에서 보기» — 그 컨트롤러 단일로 차트 탭. 비교는 차트에서만 */
   const onOpenControllerChart = useCallback(
     (reading: BarnReading) => {
       const sp = normalizeStallTyCode(reading.stallTyCode ?? "");
@@ -539,53 +513,29 @@ export function FarmPageContent({
       applyFarmChartScopeParams(params, scope);
       clearFarmChartZoomParams(params);
       if (scope.level !== "controller") clearFarmChartCmdParam(params);
-      const widgets =
-        viewportCompact && isFarmChartControllerScope(scope)
-          ? placeFarmChartWidgetNext(
-              resolveFarmChartWidgetSlots(params),
-              scope,
-            )
-          : {
-              w1: isFarmChartControllerScope(scope) ? scope : null,
-              w2: null,
-            };
+      const widgets = isFarmChartControllerScope(scope)
+        ? widgetsAfterOpenControllerChart(scope)
+        : { w1: null, w2: null };
       applyFarmChartWidgetSlotParams(params, widgets);
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
       setView("chart");
     },
-    [setUrlTick, setView, viewportCompact],
+    [setUrlTick, setView],
   );
 
-  const onChartZoomChange = useCallback(
-    (zoom: ChartTrendZoomHint | null) => {
+  const onChartLabSelectionChange = useCallback(
+    (next: FarmChartLabSelection) => {
       const params = new URLSearchParams(currentFarmSearchParams().toString());
-      const cmdOpen = resolveFarmChartCmdParam(params);
-      applyFarmChartZoomParams(params, zoom);
-      applyFarmChartCmdParam(params, cmdOpen);
-      pinFarmHubViewParam(params, "chart");
-      replaceFarmUrlShallow(params);
-      setUrlTick((n) => n + 1);
-    },
-    [setUrlTick],
-  );
-
-  const onChartCommandPaneChange = useCallback(
-    (open: boolean) => {
-      const params = new URLSearchParams(currentFarmSearchParams().toString());
-      applyFarmChartCmdParam(params, open);
-      pinFarmHubViewParam(params, "chart");
-      replaceFarmUrlShallow(params);
-      setUrlTick((n) => n + 1);
-    },
-    [setUrlTick],
-  );
-
-  const onChartWidgetsChange = useCallback(
-    (slots: FarmChartWidgetSlots) => {
-      const params = new URLSearchParams(currentFarmSearchParams().toString());
-      applyFarmChartWidgetSlotParams(params, slots);
+      applyFarmChartLabSelectionParams(params, next);
+      clearFarmChartZoomParams(params);
+      if (next.primary) {
+        applyFarmChartScopeParams(params, next.primary);
+      } else {
+        clearFarmChartScopeParams(params);
+        clearFarmChartCmdParam(params);
+      }
       pinFarmHubViewParam(params, "chart");
       replaceFarmUrlShallow(params);
       setUrlTick((n) => n + 1);
@@ -607,7 +557,7 @@ export function FarmPageContent({
     setTabPill((prev) =>
       prev.left === next.left && prev.width === next.width ? prev : next,
     );
-  }, [view, hideViewTabs, gridCompactShell, viewportCompact, scopeToggleSlot]);
+  }, [view, hideViewTabs, gridCompactShell, viewportCompact, scopeToggleSlot, showModelTab]);
 
   const tabNavClass =
     gridCompactShell || viewportCompact || Boolean(scopeToggleSlot)
@@ -993,9 +943,10 @@ export function FarmPageContent({
             aria-hidden={view !== "chart"}
             data-farm-view-panel="chart"
             data-farm-view-active={view === "chart"}
+            data-farm-chart-shell="lab"
           >
             <div className="relative flex min-h-0 flex-1 flex-col">
-              <FarmChartView
+              <FarmChartLabView
                 readings={readings}
                 farmKey={gridFarmKey}
                 controllerTrendByPeriod={gridControllerTrend}
@@ -1006,19 +957,12 @@ export function FarmPageContent({
                 window15m={gridTrendWindow15m}
                 onNeedWindow15m={ensureGridTrendWindow15m}
                 period={trendPeriod}
-                onPeriodChange={onTrendPeriodChange}
-                scope={chartScope}
-                onScopeChange={onChartScopeChange}
-                initialZoom={chartZoomHint}
-                onZoomChange={onChartZoomChange}
-                commandPaneOpen={chartCommandPaneOpen}
-                onCommandPaneChange={onChartCommandPaneChange}
-                widgets={chartWidgets}
-                onWidgetsChange={onChartWidgetsChange}
                 alarmSettings={alarmSettings}
                 thermoSettings={thermoSettings}
                 canCommand={controller?.canCommand ?? false}
                 isMobileStack={viewportCompact}
+                selection={chartLabSelection}
+                onSelectionChange={onChartLabSelectionChange}
                 layersToolbarActive={view === "chart"}
               />
             </div>

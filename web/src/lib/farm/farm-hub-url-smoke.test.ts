@@ -92,7 +92,7 @@ function clone(q: string) {
   );
   assert.equal(keep24.get("trendPeriod"), "24h");
 
-  // 그리드 탭 전환은 집계 정리, 위젯 칸은 유지(차트로 옮기기 비교)
+  // 그리드 탭 전환은 집계 정리, 위젯 칸은 유지
   const leaveChart = clone(source.toString());
   applyMapGridParams(leaveChart);
   assert.equal(leaveChart.get("chartSp"), null);
@@ -132,17 +132,19 @@ function clone(q: string) {
 /** 4) 탭 왕복 — applyHubScopedViewParams 순서 map→list→chart→plan→model→aria→map */
 {
   const params = clone("lsind=FARM01&item=P00&sp=SP01&stall=3&mapLevel=stalls");
-  const order: FarmHubView[] = ["list", "chart", "plan", "model", "aria", "map"];
+  const order: FarmHubView[] = ["list", "chart", "chartlab", "plan", "model", "aria", "map"];
   for (const v of order) {
     applyHubScopedViewParams(params, v);
     const expected =
       v === "aria"
         ? ("map" as FarmHubView)
-        : v === "plan" || v === "model"
-          ? barnPlanEnabled()
-            ? ("model" as FarmHubView)
-            : ("map" as FarmHubView)
-          : v;
+        : v === "chartlab"
+          ? ("chart" as FarmHubView)
+          : v === "plan" || v === "model"
+            ? barnPlanEnabled()
+              ? ("model" as FarmHubView)
+              : ("map" as FarmHubView)
+            : v;
     assert.equal(resolveFarmHubView(params.get("view")), expected);
   }
   // map 홈: view 없음 · 드릴 제거 · 농장 유지
@@ -232,6 +234,9 @@ function clone(q: string) {
     assert.equal(resolveFarmHubView("model", { isAdmin: false }), "map");
     assert.equal(resolveFarmHubView("model", { isAdmin: true }), "model");
     assert.equal(resolveFarmHubView("plan", { isAdmin: true }), "model");
+    assert.equal(resolveFarmHubView("chartlab"), "chart");
+    assert.equal(resolveFarmHubView("chartlab", { isAdmin: false }), "chart");
+    assert.equal(resolveFarmHubView("chartlab", { isAdmin: true }), "chart");
 
     const op = clone("lsind=FARM01&item=P00&view=model");
     applyHubScopedViewParams(op, "model");
@@ -254,6 +259,23 @@ function clone(q: string) {
     else env.NODE_ENV = prev.node;
   }
   console.log("smoke 7: production model is admin-only — ok");
+}
+
+/** 8) 옛 chartlab 주소 — 차트 탭으로 정규화, 위젯 칸 유지 */
+{
+  const params = clone(
+    "lsind=FARM01&item=P00&view=chart&chartW1=SP03%7C1%7Cctrl-a",
+  );
+  applyHubScopedViewParams(params, "chartlab");
+  assert.equal(params.get("view"), "chart");
+  assert.equal(params.get("chartW1"), "SP03|1|ctrl-a");
+  assert.equal(resolveFarmHubView(params.get("view")), "chart");
+  applyHubScopedViewParams(params, "chart");
+  assert.equal(params.get("view"), "chart");
+  assert.equal(params.get("chartW1"), "SP03|1|ctrl-a");
+  pinFarmHubViewParam(params, "chartlab");
+  assert.equal(params.get("view"), "chart");
+  console.log("smoke 8: chartlab aliases chart — ok");
 }
 
 console.log("farm-hub-url-smoke.test.ts: all ok");

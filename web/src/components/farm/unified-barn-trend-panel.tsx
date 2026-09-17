@@ -14,7 +14,6 @@ import {
   BRUSH_PERIOD_WINDOW,
   UnifiedTrendPeriodBrush,
   displayPeriodFromBrushWindow,
-  formatBrushWindowLabel,
   type BrushWindow,
 } from "@/components/farm/unified-trend-period-brush";
 import {
@@ -133,7 +132,6 @@ import {
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
 import { useUnifiedChartBandTransition } from "@/lib/farm/use-split-y-layout-transition";
-import { trendPeriodLabel } from "@/lib/farm/farm-view-url";
 import { useFarmLiveRefreshOptional } from "@/lib/navigation/farm-live-refresh";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { motionDuration } from "@/lib/ui/motion-tokens";
@@ -261,8 +259,8 @@ type Props = {
   plotFill?: boolean;
   /** 차트 탭 활성 시에만 TopBar 레이어 툴바 표시 */
   layersToolbarActive?: boolean;
-  /** 위젯 칸 — 제목을 컨트롤러 명칭만, 헤더 우측 액션 */
-  headingMode?: "full" | "widget";
+  /** 위젯 칸 — 제목을 컨트롤러 명칭만, 헤더 우측 액션. overview는 개요 축소 칸 */
+  headingMode?: "full" | "widget" | "overview";
   headerActions?: ReactNode;
   /** true면 패널 안 기간 브러시를 그리지 않음(공유 브러시) */
   hidePeriodBrush?: boolean;
@@ -285,6 +283,8 @@ type Props = {
   onNeedWindow15m?: (fromMs: number, toMs: number) => void;
   /** 추이 차트 — 희소 칸 값 유지용. 밴드·라벨은 그리지 않음. */
   uplinkCoverage?: UplinkCoverageIndex[];
+  /** 겹쳐보기 초기값 */
+  defaultOverlayView?: boolean;
   className?: string;
 };
 
@@ -322,12 +322,16 @@ export function UnifiedBarnTrendPanel({
   window15m = null,
   onNeedWindow15m,
   uplinkCoverage = [],
+  defaultOverlayView = false,
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
   const [layers, setLayers] = useState<UnifiedLayerFlags>(DEFAULT_UNIFIED_LAYERS);
   /** 오버레이 — 켜진 온도·습도·모터를 한 밴드에 겹침 (토글) */
-  const [overlayView, setOverlayView] = useState(false);
+  const [overlayView, setOverlayView] = useState(defaultOverlayView);
+  const [alarmRangeOn, setAlarmRangeOn] = useState({ temp: true, hum: true });
+  const overview = headingMode === "overview";
+  const chartUiScale = overview ? 1 : FARM_CHART_UI_SCALE;
   const [commandChannels, setCommandChannels] = useState<CommandChannelFlags>(
     DEFAULT_COMMAND_CHANNEL_FLAGS,
   );
@@ -1369,6 +1373,7 @@ export function UnifiedBarnTrendPanel({
         lineHighlight?: boolean;
         showApplyActions?: boolean;
         hideLabel?: boolean;
+        labelIcon?: "temp-alarm" | "hum-alarm";
       },
     ) => {
       if (chartY == null || !Number.isFinite(chartY)) return;
@@ -1391,6 +1396,7 @@ export function UnifiedBarnTrendPanel({
         lineHighlight: opts?.lineHighlight,
         showApplyActions: opts?.showApplyActions,
         hideLabel: opts?.hideLabel,
+        labelIcon: opts?.labelIcon,
       });
     };
 
@@ -1524,7 +1530,12 @@ export function UnifiedBarnTrendPanel({
     if (recommendBand) {
       const tempFarmLayout = overlayAlign ? layout : tempMapLayout;
       const tempFarmDomain = overlayAlign ? undefined : tempMapDomain;
-      if (scopeVisibility.showTemp && layers.temp && built.available.temp) {
+      if (
+        alarmRangeOn.temp &&
+        scopeVisibility.showTemp &&
+        layers.temp &&
+        built.available.temp
+      ) {
         const tempFarmHiY = mapTempCToSplitY(
           mappingThresholds.tempHigh,
           mapLo,
@@ -1563,7 +1574,7 @@ export function UnifiedBarnTrendPanel({
             false,
             farmAlarmEditEnabled,
             tempFarmMid,
-            { side: "left" },
+            { side: "left", labelIcon: "temp-alarm" },
           );
         }
         if (
@@ -1587,6 +1598,7 @@ export function UnifiedBarnTrendPanel({
         }
       }
       if (
+        alarmRangeOn.hum &&
         scopeVisibility.showHum &&
         (layers.hum || layers.humDev || layers.humBand || layers.humEma)
       ) {
@@ -1635,7 +1647,7 @@ export function UnifiedBarnTrendPanel({
             false,
             farmAlarmEditEnabled,
             humFarmMid,
-            { side: "left" },
+            { side: "left", labelIcon: "hum-alarm" },
           );
         }
         if (
@@ -1687,6 +1699,13 @@ export function UnifiedBarnTrendPanel({
         }
         const tickIsAlarmMid =
           tick.id === "band-tick-temp-mid" || tick.id === "band-tick-hum-mid";
+        if (
+          tickIsAlarmMid &&
+          ((tick.unit === "℃" && !alarmRangeOn.temp) ||
+            (tick.unit === "%" && !alarmRangeOn.hum))
+        ) {
+          continue;
+        }
         push(
           tick.id,
           tick.chartY,
@@ -1710,6 +1729,11 @@ export function UnifiedBarnTrendPanel({
             lineStrokeWidth: tickIsAlarmMid ? 0 : 0.35,
             lineDasharray: "solid",
             lineHighlight: false,
+            labelIcon: tickIsAlarmMid
+              ? tick.unit === "℃"
+                ? "temp-alarm"
+                : "hum-alarm"
+              : undefined,
           },
         );
       }
@@ -1729,6 +1753,7 @@ export function UnifiedBarnTrendPanel({
     chartLeftUnit,
     overlayActive,
     overlayAlign,
+    alarmRangeOn,
   ]);
 
   const cycleGroupLayers = (group: "temp" | "hum" | "motor") => {
@@ -1749,7 +1774,7 @@ export function UnifiedBarnTrendPanel({
   }, [layersToolbarActive, layersToolbarPhase, layersAnimKey]);
 
   const layerToolbar =
-    built != null && layersToolbarMounted ? (
+    !overview && built != null && layersToolbarMounted ? (
       <div
         key={layersAnimKey}
         className={cn(
@@ -1770,10 +1795,63 @@ export function UnifiedBarnTrendPanel({
           overlayView={overlayView}
           overlayAvailable={overlayAvailable}
           onToggleOverlay={() => setOverlayView((v) => !v)}
+          tempAlarmOn={alarmRangeOn.temp}
+          humAlarmOn={alarmRangeOn.hum}
+          tempAlarmAvailable={Boolean(
+            scopeVisibility.showTemp && layers.temp && built.available.temp,
+          )}
+          humAlarmAvailable={Boolean(
+            scopeVisibility.showHum &&
+              (layers.hum || layers.humDev || layers.humBand || layers.humEma),
+          )}
+          onToggleTempAlarm={() =>
+            setAlarmRangeOn((prev) => ({ ...prev, temp: !prev.temp }))
+          }
+          onToggleHumAlarm={() =>
+            setAlarmRangeOn((prev) => ({ ...prev, hum: !prev.hum }))
+          }
           compact={headingMode === "widget"}
         />
       </div>
     ) : null;
+
+  const renderHeaderTrailing = (opts?: { spacer?: boolean }) => (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-end gap-1",
+        opts?.spacer && "invisible pointer-events-none",
+      )}
+      aria-hidden={opts?.spacer || undefined}
+    >
+      {isMobileStack && mobileScopeHandle ? (
+        <button
+          type="button"
+          tabIndex={opts?.spacer ? -1 : undefined}
+          className={cn(
+            "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
+            farmChartUi.fsBody,
+            dashboardControlFill.idle,
+            motionClass.microHover,
+          )}
+          data-tour-id={opts?.spacer ? undefined : "farm-chart-scope-handle"}
+          aria-label={`집계 범위 열기 · ${label}`}
+          title={label}
+          aria-expanded={mobileScopeHandle.open}
+          onClick={opts?.spacer ? undefined : mobileScopeHandle.onOpen}
+        >
+          <PanelRight className="size-[1em] shrink-0" aria-hidden />
+        </button>
+      ) : null}
+      {opts?.spacer ? (
+        headerActions ? <div className="size-8" /> : null
+      ) : (
+        headerActions
+      )}
+    </div>
+  );
+  const hasHeaderTrailing = Boolean(
+    headerActions || (isMobileStack && mobileScopeHandle),
+  );
 
   const focusBandActive = isSingleYBandFocus(xScope?.yBands)
     ? xScope.yBands[0]
@@ -1793,19 +1871,24 @@ export function UnifiedBarnTrendPanel({
       className={cn(
         "select-none",
         farmChartUi.root,
-        isMobileStack && farmChartUi.yGutterCompact,
+        (isMobileStack || overview) && farmChartUi.yGutterCompact,
         plotFill
           ? "relative flex min-h-0 flex-1 flex-col gap-2"
-          : "mt-2 space-y-2",
+          : overview
+            ? "mt-0 flex min-h-0 flex-1 flex-col"
+            : "mt-2 space-y-2",
         className,
       )}
       style={
         {
-          ["--farm-chart-ui-scale"]: String(FARM_CHART_UI_SCALE),
+          ["--farm-chart-ui-scale"]: String(chartUiScale),
+          ...(overview
+            ? { ["--farm-chart-y-gutter-width"]: "0px" }
+            : {}),
         } as CSSProperties
       }
       data-tour-id="farm-chart-unified-trend"
-      data-farm-chart-ui-scale={String(FARM_CHART_UI_SCALE)}
+      data-farm-chart-ui-scale={String(chartUiScale)}
       data-farm-chart-y-bands={
         xScope?.yBands?.length ? xScope.yBands.join("+") : "all"
       }
@@ -1815,17 +1898,40 @@ export function UnifiedBarnTrendPanel({
           : "false"
       }
     >
-      <div className="flex w-full shrink-0 flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
-        <div className="flex min-w-0 flex-1 flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
-          {isMobileStack ? (
-            <div className="flex w-full min-w-0 flex-nowrap items-center gap-2">
-              <div
+      {headingMode === "overview" ? (
+        <div className="flex h-7 min-w-0 shrink-0 items-center px-2">
+          <span
+            className="inline-flex min-w-0 items-center truncate text-xs font-medium"
+            title={label}
+          >
+            <ChartScopeTargetMarks
+              chartScope={chartScope}
+              controllers={controllers}
+              fallbackLabel={label}
+              typeClassName="text-xs font-medium"
+            />
+          </span>
+        </div>
+      ) : headingMode === "widget" ? (
+        <div
+          className={cn(
+            "grid w-full min-w-0 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center",
+            isMobileStack ? "min-h-11 px-3 pt-2.5 pb-1" : "h-11 px-2",
+          )}
+        >
+          <div className="invisible pointer-events-none" aria-hidden>
+            {hasHeaderTrailing ? renderHeaderTrailing({ spacer: true }) : null}
+          </div>
+          <div className="flex min-w-0 items-center justify-center gap-2">
+            <div
+              className="flex min-w-0 items-center gap-2 overflow-hidden"
+              title={label}
+            >
+              <span
                 className={cn(
-                  "min-w-0 flex-1 overflow-hidden",
-                  "font-semibold leading-snug",
+                  "inline-flex min-w-0 items-center truncate font-semibold",
                   farmChartUi.fsTitle,
                 )}
-                title={label}
               >
                 <ChartScopeTargetMarks
                   chartScope={chartScope}
@@ -1833,109 +1939,38 @@ export function UnifiedBarnTrendPanel({
                   fallbackLabel={label}
                   typeClassName={cn("font-semibold", farmChartUi.fsTitle)}
                 />
-              </div>
-              <div className="flex shrink-0 flex-nowrap items-center gap-1">
-                {layerToolbar}
-                {headerActions}
-                {mobileScopeHandle ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      "inline-flex shrink-0 items-center justify-center rounded-md border px-2.5 py-1.5",
-                      farmChartUi.fsBody,
-                      dashboardControlFill.idle,
-                      motionClass.microHover,
-                    )}
-                    data-tour-id="farm-chart-scope-handle"
-                    aria-label={`집계 범위 열기 · ${label}`}
-                    title={label}
-                    aria-expanded={mobileScopeHandle.open}
-                    onClick={mobileScopeHandle.onOpen}
-                  >
-                    <PanelRight className="size-[1em] shrink-0" aria-hidden />
-                  </button>
-                ) : null}
-              </div>
+              </span>
             </div>
-          ) : (
-              <div
-                className={cn(
-                  "flex min-w-0 w-full items-center gap-2",
-                  headingMode === "widget" &&
-                    "h-11 shrink-0 overflow-hidden px-1.5",
-                )}
-              >
-              <div
-                className={cn(
-                  "flex min-w-0 flex-1 gap-2",
-                  headingMode === "widget"
-                    ? "h-full flex-nowrap items-center overflow-hidden"
-                    : "flex-wrap items-baseline",
-                )}
-              >
-                  <span
-                    className={cn(
-                      "font-semibold",
-                      headingMode === "widget"
-                        ? "inline-flex min-w-0 items-center truncate"
-                        : "shrink-0",
-                      farmChartUi.fsTitle,
-                    )}
-                  >
-                    {headingMode === "widget" ? (
-                      <ChartScopeTargetMarks
-                        chartScope={chartScope}
-                        controllers={controllers}
-                        fallbackLabel={label}
-                        typeClassName={cn("font-semibold", farmChartUi.fsTitle)}
-                      />
-                    ) : (
-                      "통합 추이"
-                    )}
-                  </span>
-                  {headingMode === "widget" ? (
-                    <span
-                      className={cn(
-                        "shrink-0 leading-snug text-muted-foreground",
-                        farmChartUi.fsMeta,
-                      )}
-                    >
-                      {useBrushCanvas
-                        ? formatBrushWindowLabel(brushWindow)
-                        : trendPeriodLabel(canvasPeriod)}
-                    </span>
-                  ) : (
-                  <span
-                    className={cn(
-                      "leading-snug text-muted-foreground",
-                      farmChartUi.fsMeta,
-                    )}
-                  >
-                    {label} · 집계 {built?.controllerCount ?? 0}대 ·{" "}
-                    {useBrushCanvas
-                      ? formatBrushWindowLabel(brushWindow)
-                      : trendPeriodLabel(canvasPeriod)}
-                    {picked?.trimmed ? " · 실데이터 구간" : ""}
-                  </span>
-                  )}
-                </div>
-              {layerToolbar || headerActions ? (
-                <div
-                  className={cn(
-                    "flex shrink-0 items-center gap-1",
-                    headingMode === "widget" && "h-full",
-                  )}
-                >
-                  {layerToolbar}
-                  {headerActions}
-                </div>
-              ) : null}
-            </div>
-          )}
+            {layerToolbar}
+          </div>
+          {hasHeaderTrailing ? renderHeaderTrailing() : <span />}
         </div>
-      </div>
+      ) : (
+        <div className="flex w-full shrink-0 flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-2">
+            <span className={cn("shrink-0 font-semibold", farmChartUi.fsTitle)}>
+              통합 추이
+            </span>
+            <span
+              className={cn(
+                "leading-snug text-muted-foreground",
+                farmChartUi.fsMeta,
+              )}
+            >
+              {label} · 집계 {built?.controllerCount ?? 0}대
+              {picked?.trimmed ? " · 실데이터 구간" : ""}
+            </span>
+          </div>
+          {layerToolbar || hasHeaderTrailing ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {layerToolbar}
+              {hasHeaderTrailing ? renderHeaderTrailing() : null}
+            </div>
+          ) : null}
+        </div>
+      )}
 
-      {trendExtending || window15mLoading ? (
+      {overview ? null : trendExtending || window15mLoading ? (
         <p
           className={cn("text-muted-foreground", farmChartUi.fsMeta)}
           role="status"
@@ -1990,9 +2025,9 @@ export function UnifiedBarnTrendPanel({
           period={displayPeriod}
           pinResetKey={`${alarmScopeKey ?? ""}|${period ?? ""}`}
           tickEvery={tickEveryForDisplayBars(chartCategories.length, {
-            compact: isMobileStack,
+            compact: isMobileStack || overview,
           })}
-          showLegend={headingMode !== "widget"}
+          showLegend={headingMode !== "widget" && headingMode !== "overview"}
           legendTrailing={
             xScope != null && picked ? (
               <div
@@ -2048,18 +2083,16 @@ export function UnifiedBarnTrendPanel({
               : "full"
           }
           scaleEdgeHitPx={isMobileStack ? chartUiPx(22) : chartUiPx(10)}
-          labelGutter={isMobileStack && !plotFill}
-          showMarkers
+          labelGutter={isMobileStack && !plotFill && !overview}
+          showMarkers={!overview}
           markerDensity={displayPeriod === "24h" ? "all" : "sparse"}
           markerRadiusPx={isMobileStack ? chartUiPx(1.4) : chartUiPx(1.6)}
-          animate
-          layerClipWipe
+          animate={!overview}
+          layerClipWipe={!overview}
           splitBandGuides={splitBandGuides}
-          scaleEdgeLabels={scaleEdgeLabels}
-          rangeBands={alarmRangeBands}
-          yGutterStartCaption="알람"
-          yGutterEndCaption={recommendBand ? "권장" : undefined}
-          xScopeSelect
+          scaleEdgeLabels={overview ? [] : scaleEdgeLabels}
+          rangeBands={overview ? [] : alarmRangeBands}
+          xScopeSelect={!overview}
           onXScopeCommit={(range) =>
             commitXScope(range, activeGuidedXScope ? "replace" : "push")
           }

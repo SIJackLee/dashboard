@@ -12,12 +12,18 @@ import {
   clearFarmChartScopeParams,
   clearFarmChartZoomParams,
   filterFarmChartTreeByType,
+  applyFarmChartLabSelectionParams,
   parseChartWidgetDragPayload,
   parseChartWidgetSlot,
+  EMPTY_FARM_CHART_LAB_SELECTION,
+  farmChartLabSelectionFromWidgetSlots,
   farmChartWidgetSlotGrow,
+  farmChartWidgetSlotsFromLabSelection,
   placeFarmChartWidget,
   placeFarmChartWidgetNext,
+  widgetsAfterOpenControllerChart,
   resolveFarmChartCmdParam,
+  resolveFarmChartLabSelection,
   resolveFarmChartScope,
   resolveFarmChartWidgetSlots,
   resolveFarmChartZoomHint,
@@ -315,6 +321,68 @@ import {
   const replaceBottom = placeFarmChartWidgetNext(second, c);
   assert.ok(replaceBottom.w1 && scopesEqual(replaceBottom.w1, a));
   assert.ok(replaceBottom.w2 && scopesEqual(replaceBottom.w2, c));
+  const replace = widgetsAfterOpenControllerChart(c);
+  assert.ok(replace.w1 && scopesEqual(replace.w1, c));
+  assert.equal(replace.w2, null);
+}
+
+{
+  const a = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "01",
+  };
+  const b = {
+    level: "controller" as const,
+    stallTyCode: "SP07",
+    stallNo: "1",
+    controllerKey: "02",
+  };
+  assert.deepEqual(
+    farmChartLabSelectionFromWidgetSlots({ w1: null, w2: null }),
+    { mode: "batch", primary: null, partner: null },
+  );
+  const single = farmChartLabSelectionFromWidgetSlots({ w1: a, w2: null });
+  assert.equal(single.mode, "single");
+  assert.ok(single.primary && scopesEqual(single.primary, a));
+  assert.equal(single.partner, null);
+  const compare = farmChartLabSelectionFromWidgetSlots({ w1: a, w2: b });
+  assert.equal(compare.mode, "compare");
+  assert.ok(compare.primary && scopesEqual(compare.primary, a));
+  assert.ok(compare.partner && scopesEqual(compare.partner, b));
+  const w2Only = farmChartLabSelectionFromWidgetSlots({ w1: null, w2: b });
+  assert.equal(w2Only.mode, "single");
+  assert.ok(w2Only.primary && scopesEqual(w2Only.primary, b));
+  const normalized = farmChartWidgetSlotsFromLabSelection(w2Only);
+  assert.ok(normalized.w1 && scopesEqual(normalized.w1, b));
+  assert.equal(normalized.w2, null);
+  assert.deepEqual(
+    farmChartWidgetSlotsFromLabSelection({
+      mode: "batch",
+      primary: a,
+      partner: null,
+    }),
+    { w1: null, w2: null },
+  );
+  const params = new URLSearchParams();
+  applyFarmChartLabSelectionParams(params, {
+    mode: "compare",
+    primary: a,
+    partner: b,
+  });
+  const fromUrl = resolveFarmChartLabSelection(params);
+  assert.equal(fromUrl.mode, "compare");
+  assert.ok(fromUrl.primary && scopesEqual(fromUrl.primary, a));
+  assert.ok(fromUrl.partner && scopesEqual(fromUrl.partner, b));
+  applyFarmChartLabSelectionParams(params, EMPTY_FARM_CHART_LAB_SELECTION);
+  assert.equal(resolveFarmChartLabSelection(params).mode, "batch");
+  const seeded = new URLSearchParams(
+    "chartSp=SP07&chartStall=1&chartCtrl=" + encodeURIComponent("a/b"),
+  );
+  const fromCtrl = resolveFarmChartLabSelection(seeded);
+  assert.equal(fromCtrl.mode, "single");
+  assert.equal(fromCtrl.primary?.controllerKey, "a/b");
 }
 
 {

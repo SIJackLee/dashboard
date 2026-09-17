@@ -19,8 +19,6 @@ import {
   pigEnvAgeFollowupOpen,
   pigEnvAdviceStallTyCode,
   delinExplainSituationAlarms,
-  PIG_ENV_AGE_PROMPT,
-  PIG_ENV_AGE_DECLINE,
 } from "./pig-env-recommend";
 import type { AlarmRow } from "@/lib/data/alarms";
 
@@ -63,8 +61,6 @@ import type { AlarmRow } from "@/lib/data/alarms";
   const pregAge = pigEnvAgeStagesForStallTy("SP02");
   assert.equal(pregAge[0]?.label, "임신돈");
   assert.equal(pregAge[0]?.tempMinC, 16);
-  assert.match(PIG_ENV_AGE_PROMPT, /일령별 권장/);
-  assert.equal(PIG_ENV_AGE_DECLINE, "축사유형 권장만 안내했습니다.");
 }
 
 {

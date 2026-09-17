@@ -19,6 +19,7 @@ import {
   applyHubScopedViewParams,
   applyMapGridParams,
   applyModelViewParams,
+  applyChartViewParams,
   currentFarmSearchParams,
   normalizeLegacyListModeParam,
   publishLiveFarmHubView,
@@ -42,9 +43,10 @@ const FARM_HUB_VIEW_ORDER: Record<FarmHubView, number> = {
   map: 0,
   list: 1,
   chart: 2,
-  plan: 3,
-  model: 3,
-  aria: 4,
+  chartlab: 2,
+  plan: 4,
+  model: 4,
+  aria: 5,
 };
 
 /** globals.css farm-view-slide-* (moderate enter + exit) */
@@ -106,7 +108,7 @@ export function useFarmHubViewShell({
   const [viewSlide, setViewSlide] = useState<FarmViewSlide | null>(null);
   const [listEverOpened, setListEverOpened] = useState(bootstrapView === "list");
   const [chartEverOpened, setChartEverOpened] = useState(
-    bootstrapView === "chart",
+    bootstrapView === "chart" || bootstrapView === "chartlab",
   );
   const [planEverOpened, setPlanEverOpened] = useState(
     bootstrapView === "model" && barnPlanEnabled(gate),
@@ -160,6 +162,10 @@ export function useFarmHubViewShell({
           applyModelViewParams(params, gate);
           rewritten = true;
         }
+        if (params.get("view") === "chartlab") {
+          applyChartViewParams(params);
+          rewritten = true;
+        }
         if (rewritten) {
           replaceFarmUrlShallow(params);
           setUrlTick((n) => n + 1);
@@ -180,7 +186,7 @@ export function useFarmHubViewShell({
         return next;
       });
       if (next === "list") setListEverOpened(true);
-      if (next === "chart") setChartEverOpened(true);
+      if (next === "chart" || next === "chartlab") setChartEverOpened(true);
       if (next === "plan" && barnPlanEnabled(gate)) setPlanEverOpened(true);
       if (next === "model" && barnPlanEnabled(gate)) setModelEverOpened(true);
       if (opts?.bumpUrlTick) setUrlTick((n) => n + 1);
@@ -223,7 +229,7 @@ export function useFarmHubViewShell({
   if (view === "list" && !listEverOpened) {
     setListEverOpened(true);
   }
-  if (view === "chart" && !chartEverOpened) {
+  if ((view === "chart" || view === "chartlab") && !chartEverOpened) {
     setChartEverOpened(true);
   }
   if (view === "model" && !planEverOpened) {
@@ -281,13 +287,15 @@ export function useFarmHubViewShell({
             ? barnPlanEnabled(gate)
               ? ("model" as FarmHubView)
               : ("map" as FarmHubView)
-            : next;
+            : next === "chartlab"
+              ? ("chart" as FarmHubView)
+              : next;
       const target = gated;
       if (target === "list") {
         setListEverOpened(true);
         onOpenListRef.current?.();
       }
-      if (target === "chart") {
+      if (target === "chart" || target === "chartlab") {
         setChartEverOpened(true);
       }
       if (target === "plan") {
@@ -313,7 +321,7 @@ export function useFarmHubViewShell({
       params.delete("tab");
       if (target === "list") {
         params.set("view", "list");
-      } else if (target === "chart") {
+      } else if (target === "chart" || target === "chartlab") {
         params.set("view", "chart");
         params.delete("listMode");
       } else if (target === "plan" || target === "model") {

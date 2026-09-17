@@ -204,6 +204,61 @@ export function buildFarmChartTree(readings: BarnReading[]): FarmChartTreeSp[] {
   });
 }
 
+/** 차트 일괄 — 트리 순서로 컨트롤러만 펼침. */
+export function farmChartLabControllerScopes(
+  readings: BarnReading[],
+): FarmChartControllerScope[] {
+  const scopes: FarmChartControllerScope[] = [];
+  for (const sp of buildFarmChartTree(readings)) {
+    for (const stall of sp.stalls) {
+      for (const c of stall.controllers) {
+        scopes.push({
+          level: "controller",
+          stallTyCode: sp.stallTyCode,
+          stallNo: stall.stallNo,
+          controllerKey: c.controllerKey,
+        });
+      }
+    }
+  }
+  return scopes;
+}
+
+export function farmChartLabScopeKey(scope: FarmChartControllerScope): string {
+  return `${scope.stallTyCode}:${scope.stallNo}:${scope.controllerKey}`;
+}
+
+/** 차트 단일/비교 — 큰 칸 X로 끄기 */
+export function dismissFarmChartLabHero(args: {
+  dismissedKey: string;
+  primaryKey: string | null;
+  partnerKey: string | null;
+}): {
+  mode: "batch" | "single" | "compare";
+  primaryKey: string | null;
+  partnerKey: string | null;
+} {
+  const { dismissedKey, primaryKey, partnerKey } = args;
+  if (dismissedKey === partnerKey) {
+    return { mode: "single", primaryKey, partnerKey: null };
+  }
+  if (dismissedKey === primaryKey) {
+    if (partnerKey) {
+      return {
+        mode: "single",
+        primaryKey: partnerKey,
+        partnerKey: null,
+      };
+    }
+    return { mode: "batch", primaryKey, partnerKey: null };
+  }
+  return {
+    mode: partnerKey ? "compare" : "single",
+    primaryKey,
+    partnerKey,
+  };
+}
+
 /** 모델 입구 차트 — 농장 전체를 막고 해당 축사 유형으로 고정 */
 export function clampChartScopeToType(
   scope: FarmChartScope,
@@ -391,6 +446,116 @@ export function placeFarmChartWidgetNext(
   if (slots.w2 && scopesEqual(slots.w2, ctrl)) return slots;
   if (!slots.w1) return placeFarmChartWidget(slots, "w1", ctrl);
   return placeFarmChartWidget(slots, "w2", ctrl);
+}
+
+/**
+ * 필드「차트에서 보기」·「차트로 옮기기」— 항상 그 컨트롤러 **단일**.
+ * 비교는 차트 탭에서만 켠다.
+ */
+export function widgetsAfterOpenControllerChart(
+  ctrl: FarmChartControllerScope,
+): FarmChartWidgetSlots {
+  return { w1: ctrl, w2: null };
+}
+
+/**
+ * 차트 일괄·단일·비교 — 위젯 칸을 선택 배열로 읽는다.
+ * 새 쿼리 키를 만들지 않고 `chartW1`/`chartW2`만 쓴다.
+ */
+export type FarmChartLabMode = "batch" | "single" | "compare";
+
+export type FarmChartLabSelection = {
+  mode: FarmChartLabMode;
+  primary: FarmChartControllerScope | null;
+  partner: FarmChartControllerScope | null;
+};
+
+export const EMPTY_FARM_CHART_LAB_SELECTION: FarmChartLabSelection = {
+  mode: "batch",
+  primary: null,
+  partner: null,
+};
+
+/**
+ * 칸 → 일괄/단일/비교.
+ * 아래칸만 있으면 그 컨트롤러를 기준으로 올린다(쓰기는 위칸).
+ */
+export function farmChartLabSelectionFromWidgetSlots(
+  slots: FarmChartWidgetSlots,
+): FarmChartLabSelection {
+  const primary = slots.w1 ?? slots.w2;
+  if (!primary) return EMPTY_FARM_CHART_LAB_SELECTION;
+  const partner =
+    slots.w1 && slots.w2 && !scopesEqual(slots.w1, slots.w2)
+      ? slots.w2
+      : null;
+  if (partner) {
+    return { mode: "compare", primary, partner };
+  }
+  return { mode: "single", primary, partner: null };
+}
+
+/**
+ * 일괄/단일/비교 → 칸.
+ * 일괄은 빈 칸(`-`)으로 써서 집계 딥링크가 다시 시드하지 않게 한다.
+ */
+export function farmChartWidgetSlotsFromLabSelection(
+  selection: FarmChartLabSelection,
+): FarmChartWidgetSlots {
+  if (selection.mode === "batch") return { w1: null, w2: null };
+  const primary = selection.primary ?? selection.partner;
+  if (!primary) return { w1: null, w2: null };
+  if (
+    selection.mode === "compare" &&
+    selection.partner &&
+    !scopesEqual(primary, selection.partner)
+  ) {
+    return { w1: primary, w2: selection.partner };
+  }
+  return { w1: primary, w2: null };
+}
+
+export function resolveFarmChartLabSelection(
+  params: URLSearchParams,
+): FarmChartLabSelection {
+  return farmChartLabSelectionFromWidgetSlots(
+    resolveFarmChartWidgetSlots(params),
+  );
+}
+
+export function applyFarmChartLabSelectionParams(
+  params: URLSearchParams,
+  selection: FarmChartLabSelection,
+): void {
+  applyFarmChartWidgetSlotParams(
+    params,
+    farmChartWidgetSlotsFromLabSelection(selection),
+  );
+}
+
+/** 테스트 셸 상태(키) → URL 선택. 일괄은 칸을 비운다. */
+export function farmChartLabSelectionFromKeys(
+  scopes: FarmChartControllerScope[],
+  args: {
+    mode: FarmChartLabMode;
+    primaryKey: string | null;
+    partnerKey: string | null;
+  },
+): FarmChartLabSelection {
+  if (args.mode === "batch") return EMPTY_FARM_CHART_LAB_SELECTION;
+  const byKey = new Map(
+    scopes.map((scope) => [farmChartLabScopeKey(scope), scope]),
+  );
+  const primary = args.primaryKey ? (byKey.get(args.primaryKey) ?? null) : null;
+  if (!primary) return EMPTY_FARM_CHART_LAB_SELECTION;
+  const partner =
+    args.mode === "compare" && args.partnerKey
+      ? (byKey.get(args.partnerKey) ?? null)
+      : null;
+  if (partner && !scopesEqual(primary, partner)) {
+    return { mode: "compare", primary, partner };
+  }
+  return { mode: "single", primary, partner: null };
 }
 
 /**

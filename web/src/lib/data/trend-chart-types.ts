@@ -171,6 +171,8 @@ export type TrendScaleEdgeLabel = {
   showApplyActions?: boolean;
   /** true면 가이드 선만 그리고 박스·수치 라벨은 숨김 (보기 모드 알람 경계 등) */
   hideLabel?: boolean;
+  /** 왼쪽 알람 기준 — 숫자 대신 온도/습도 알람 아이콘 */
+  labelIcon?: "temp-alarm" | "hum-alarm";
 };
 
 /** 플롯 안 투명 구간(현장 알람 범위 등). lo/hi는 스케일 가이드와 같은 차트 domain Y. */

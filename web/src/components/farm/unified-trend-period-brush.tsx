@@ -426,7 +426,7 @@ export function UnifiedTrendPeriodBrush({
         <div
           ref={trackRef}
           className={cn(
-            "relative h-[5.5rem] select-none overflow-hidden rounded-xl border border-border/80",
+            "relative h-[calc(5.5rem*2/3)] select-none overflow-hidden rounded-xl border border-border/80",
             "bg-gradient-to-b from-muted/50 via-muted/25 to-background/90",
             "shadow-[inset_0_1px_0_0_hsl(0_0%_100%/_0.04)]",
             "cursor-ew-resize touch-none",

@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { Check, RotateCcw } from "lucide-react";
+import { AlarmDomainIcon } from "@/components/settings/alarm-domain-icon";
 import { cn } from "@/lib/utils";
 import type { TrendPeriodId } from "@/lib/data/farm-trend-types";
 import {
@@ -26,7 +27,6 @@ import {
 } from "@/lib/farm/severity-score";
 import type { UplinkCoverageBand } from "@/lib/farm/trend-uplink-coverage";
 import { motionClass } from "@/lib/ui/motion-classes";
-import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import { isPrimaryPress } from "@/lib/ui/pointer-press";
 import { useClipPresence } from "@/lib/ui/use-clip-presence";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
@@ -98,8 +98,6 @@ import {
   hoverPairSlotDx,
   nearestByXView,
   pickDraggableScaleEdgeHit,
-  pickGutterScaleEdgeId,
-  SCALE_EDGE_GUTTER_HIT_PX,
   type PinnedTip,
 } from "./trend-chart-interaction";
 import { useTrendPinnedTips } from "./use-trend-pinned-tips";
@@ -344,41 +342,6 @@ function TrendYLabelChip({
   );
 }
 
-function TrendYGutterCaption({
-  className,
-  caption,
-  onScaleEdgeActivate,
-}: {
-  className: string;
-  caption?: string;
-  onScaleEdgeActivate?: (clientY: number, rect: DOMRect) => boolean;
-}) {
-  const activate = (e: ReactMouseEvent<HTMLDivElement>) => {
-    if (!onScaleEdgeActivate) return;
-    if (
-      onScaleEdgeActivate(e.clientY, e.currentTarget.getBoundingClientRect())
-    ) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  };
-  return (
-    <div
-      className={cn(className, "relative z-[2]")}
-      aria-hidden
-      onClick={onScaleEdgeActivate ? activate : undefined}
-      onDoubleClick={onScaleEdgeActivate ? activate : undefined}
-      onContextMenu={onScaleEdgeActivate ? activate : undefined}
-    >
-      {caption ? (
-        <span className="pointer-events-none absolute inset-x-0 top-0.5 text-center farm-chart-fs-axis font-medium leading-none text-muted-foreground">
-          {caption}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
 export function TrendChart({
   mode,
   categories,
@@ -447,6 +410,7 @@ export function TrendChart({
   const [hoverEventMark, setHoverEventMark] = useState<TrendEventMark | null>(
     null,
   );
+  const [plotHovering, setPlotHovering] = useState(false);
   /** 윈도우(줌) 도메인 시그니처 — 변경 시 고정 카드 재배치 */
   const [prevWinSig, setPrevWinSig] = useState<string>("");
   /** 고정 카드 실측 크기(px) — 배치·점선 앵커 정확도용 (id별) */
@@ -1325,6 +1289,9 @@ export function TrendChart({
       return;
     }
     if (xScopeSelect) onXScopePointerMove(e);
+    if (e.pointerType === "touch" || e.pointerType === "pen") {
+      setPlotHovering(true);
+    }
   };
 
   const onPlotPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -1464,6 +1431,7 @@ export function TrendChart({
       return;
     }
     onXScopePointerCancel();
+    setPlotHovering(false);
   };
 
   const onPlotDoubleClickHandler = (e: ReactMouseEvent<HTMLDivElement>) => {
@@ -1543,6 +1511,7 @@ export function TrendChart({
       xDraftRef.current != null
     )
       return;
+    setPlotHovering(true);
     if (n === 0 && positionedEventMarks.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
@@ -1785,6 +1754,7 @@ export function TrendChart({
         editValue: guide.editValue,
         labelLane: guide.labelLane ?? "outer",
         showApplyActions: Boolean(guide.showApplyActions),
+        labelIcon: guide.labelIcon,
       });
     }
     return nudgeEdgeLabelTops(
@@ -1822,22 +1792,10 @@ export function TrendChart({
       ? (edgeBandLabels.find((l) => l.id === hoveredEdgeId) ?? null)
       : null;
 
-  const activateGutterScaleEdge = onScaleEdgeNumericCommit
-    ? (side: "left" | "right") =>
-        (clientY: number, rect: DOMRect) => {
-          const id = pickGutterScaleEdgeId(
-            edgeBandLabels,
-            side,
-            clientY,
-            rect.top,
-            rect.height,
-            Math.max(scaleEdgeHitPx, SCALE_EDGE_GUTTER_HIT_PX),
-          );
-          if (!id) return false;
-          beginScaleEdgeEdit(id);
-          return true;
-        }
-    : undefined;
+  /** 플롯 위를 보는 중이면 기준 칩을 낮춤. 칩 호버는 제외 */
+  const dimPlotValues =
+    hoveredEdgeId == null &&
+    (plotHovering || pinnedTips.length > 0);
 
   const edgeValueMaxCh = edgeBandLabels.reduce(
     (max, label) => Math.max(max, label.text.length),
@@ -2195,24 +2153,14 @@ export function TrendChart({
       >
       <div
         className={cn(
-          fillParent && "min-h-0 flex-1 overflow-visible",
-          fillParent && yLabelColumn && "flex",
-          fillParent && !yLabelColumn && "relative",
+          fillParent && "relative min-h-0 flex-1 overflow-visible",
         )}
       >
-      {yLabelColumn ? (
-        <TrendYGutterCaption
-          className={farmChartUi.yGutter}
-          caption={yGutterStartCaption}
-          onScaleEdgeActivate={activateGutterScaleEdge?.("left")}
-        />
-      ) : null}
       <div
         ref={plotRef}
         className={cn(
           "relative touch-none select-none",
-          fillParent && yLabelColumn && "min-h-0 min-w-0 flex-1 overflow-visible",
-          fillParent && !yLabelColumn && "absolute inset-0",
+          fillParent && "absolute inset-0",
           edgeDragId
             ? "cursor-ns-resize"
             : xScopeSelect
@@ -2224,6 +2172,11 @@ export function TrendChart({
           if (xDraftRef.current != null || edgeDragRef.current != null) return;
           clearHover();
           setHoveredEdgeId(null);
+          setPlotHovering(false);
+        }}
+        onPointerLeave={() => {
+          if (xDraftRef.current != null || edgeDragRef.current != null) return;
+          setPlotHovering(false);
         }}
         onPointerDown={onPlotPointerDown}
         onPointerMove={onPlotPointerMove}
@@ -2733,16 +2686,37 @@ export function TrendChart({
           })
         : null}
 
+      {yGutterStartCaption ? (
+        <span
+          className={cn(
+            "pointer-events-none absolute left-1 top-0.5 z-[2] farm-chart-fs-axis font-medium leading-none text-muted-foreground",
+            "transition-opacity duration-motion-fast",
+            dimPlotValues && "opacity-30",
+          )}
+        >
+          {yGutterStartCaption}
+        </span>
+      ) : null}
+      {yGutterEndCaption ? (
+        <span
+          className={cn(
+            "pointer-events-none absolute right-1 top-0.5 z-[2] farm-chart-fs-axis font-medium leading-none text-muted-foreground",
+            "transition-opacity duration-motion-fast",
+            dimPlotValues && "opacity-30",
+          )}
+        >
+          {yGutterEndCaption}
+        </span>
+      ) : null}
+
       {leftAxisTicks.map((tick) => (
         <span
           key={tick.id}
           className={cn(
-            "pointer-events-none absolute z-[1] -translate-y-1/2 leading-none text-muted-foreground",
-            yLabelColumn
-              ? cn("right-full left-auto", farmChartUi.yGutterLabel)
-              : "left-0.5",
-            !yLabelColumn &&
-              (labelGutter ? "farm-chart-fs-legend font-medium" : "farm-chart-fs-axis"),
+            "pointer-events-none absolute left-1 z-[1] -translate-y-1/2 leading-none text-muted-foreground",
+            labelGutter ? "farm-chart-fs-legend font-medium" : "farm-chart-fs-axis",
+            "transition-opacity duration-motion-fast",
+            dimPlotValues && "opacity-30",
           )}
           style={{ top: `${tick.topPct}%` }}
           aria-hidden
@@ -2780,7 +2754,18 @@ export function TrendChart({
         const showActions =
           Boolean(label.showApplyActions) &&
           (onScaleEdgeApply != null || onScaleEdgeRevert != null);
-        const valueText = (
+        const alarmIconDomain =
+          label.labelIcon === "temp-alarm"
+            ? "temp"
+            : label.labelIcon === "hum-alarm"
+              ? "humidity"
+              : null;
+        const valueText = alarmIconDomain ? (
+          <AlarmDomainIcon
+            domain={alarmIconDomain}
+            sizeClass={labelGutter ? "size-4" : "size-3.5"}
+          />
+        ) : (
           <TrendYLabelChip
             text={label.text}
             mark={!editing ? label.mark : undefined}
@@ -2798,11 +2783,14 @@ export function TrendChart({
               "absolute z-[2] -translate-y-1/2 leading-none tabular-nums",
               labelGutter ? "text-xs font-semibold" : "farm-chart-fs-axis",
               showActions && "inline-flex items-center gap-0.5 pr-0",
-              (editing || Boolean(label.leadingText)) &&
+              (editing || Boolean(label.leadingText) || Boolean(label.labelIcon)) &&
                 "inline-flex items-center gap-1 whitespace-nowrap",
               Boolean(label.leadingText) &&
                 !editing &&
                 "shadow-sm ring-1 ring-current/20",
+              Boolean(label.labelIcon) &&
+                !editing &&
+                "rounded-md bg-card/85 px-0.5 py-0.5",
               label.draggable && !editing
                 ? onScaleEdgeDrag
                   ? "pointer-events-auto cursor-ns-resize select-none"
@@ -2812,11 +2800,9 @@ export function TrendChart({
               hoveredEdgeId != null &&
                 hoveredEdgeId !== label.id &&
                 "opacity-45",
+              dimPlotValues && "opacity-30",
               hoveredEdgeId === label.id && "z-[6] font-semibold",
-              label.side === "left" &&
-                yLabelColumn &&
-                cn("right-full left-auto", farmChartUi.yGutterLabel),
-              label.side === "left" && !yLabelColumn && "left-0.5 text-left",
+              label.side === "left" && "left-1 text-left",
               /** 설정 명칭 단독(레거시) — 수치 칩 바로 왼쪽 */
               label.side === "plotStart" &&
                 "left-1/2 z-[3] -translate-x-[calc(100%+0.35rem)] text-right font-medium",
@@ -2826,10 +2812,7 @@ export function TrendChart({
               /** 모바일 거터 — 우측 단일 열(큰 칩). PC 위젯은 플롯 밖 칸 */
               label.side === "right" &&
                 yLabelColumn &&
-                cn(
-                  "left-full right-auto z-[3] whitespace-nowrap",
-                  farmChartUi.yGutterLabel,
-                ),
+                "right-1 z-[3] whitespace-nowrap",
               label.side === "right" &&
                 labelGutter &&
                 "right-1 max-w-[6.5rem] text-center",
@@ -2861,11 +2844,19 @@ export function TrendChart({
             title={
               label.draggable
                 ? onScaleEdgeDrag
-                  ? `${label.title} · 드래그 조절 · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
-                  : `${label.title} · 클릭·더블클릭·우클릭으로 숫자 입력`
-                : label.title
+                  ? `${label.title} ${label.text} · 드래그 조절 · 더블클릭(PC)·더블탭(모바일)·우클릭 숫자 입력`
+                  : `${label.title} ${label.text} · 클릭·더블클릭·우클릭으로 숫자 입력`
+                : `${label.title}${label.labelIcon ? ` ${label.text}` : ""}`
             }
-            onPointerEnter={() => setHoveredEdgeId(label.id)}
+            aria-label={
+              label.labelIcon
+                ? `${label.title} ${label.text}`
+                : undefined
+            }
+            onPointerEnter={() => {
+              clearHover();
+              setHoveredEdgeId(label.id);
+            }}
             onPointerLeave={() =>
               setHoveredEdgeId((cur) => (cur === label.id ? null : cur))
             }
@@ -3308,25 +3299,10 @@ export function TrendChart({
         </div>
       ) : null}
       </div>
-      {yLabelColumn ? (
-        <TrendYGutterCaption
-          className={farmChartUi.yGutterEnd}
-          caption={yGutterEndCaption}
-          onScaleEdgeActivate={activateGutterScaleEdge?.("right")}
-        />
-      ) : null}
       </div>
 
-      <div
-        className={cn(
-          "relative shrink-0 overflow-visible border-t border-border",
-          yLabelColumn && "flex",
-        )}
-      >
-        {yLabelColumn ? (
-          <div className={farmChartUi.yGutter} aria-hidden />
-        ) : null}
-        <div className={cn(yLabelColumn && "relative min-w-0 flex-1")}>
+      <div className="relative shrink-0 overflow-visible border-t border-border">
+        <div className="relative">
         <div className="pointer-events-none absolute inset-x-0 top-0 z-[1]" aria-hidden>
           {axisMarks.minors.map((t) => (
             <span
@@ -3377,9 +3353,6 @@ export function TrendChart({
           )}
         </div>
         </div>
-        {yLabelColumn ? (
-          <div className={farmChartUi.yGutterEnd} aria-hidden />
-        ) : null}
       </div>
       </div>
     </div>

@@ -239,6 +239,8 @@ export type EdgeBandLabel = {
   title: string;
   /** 상한=숫자 위 선, 하한=숫자 아래 선 */
   mark?: "overline" | "underline";
+  /** 알람 기준 — 숫자 대신 아이콘 */
+  labelIcon?: "temp-alarm" | "hum-alarm";
   draggable?: boolean;
   editValue?: number;
   labelLane?: "outer" | "inner";

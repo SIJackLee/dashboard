@@ -188,9 +188,6 @@ const PIG_ENV_AGE_BY_TYPE: Record<string, readonly (keyof typeof PIG_ENV_AGE_STA
   SP09: ["boar"],
 };
 
-export const PIG_ENV_AGE_PROMPT = "일령별 권장 온·습도도 알려드릴까요?";
-export const PIG_ENV_AGE_DECLINE = "축사유형 권장만 안내했습니다.";
-
 export function pigEnvAgeStagesForStallTy(
   stallTyCode: string | null | undefined,
 ): PigEnvAgeStage[] {
@@ -758,7 +755,7 @@ function explainSituationAlarmRow(
 
 /**
  * 종(이상상황)에 올라온 행만 해설. 두절이 있어도 같은 목록의 알람·권장을 숨기지 않음.
- * 일령 안내는 ok·권장 이탈만.
+ * 일령 표는 ok·권장 이탈만 바로 붙인다.
  */
 export function delinExplainSituationAlarms(
   alarms: AlarmRow[],

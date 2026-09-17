@@ -4,7 +4,7 @@
  *
  * 스코프:
  *   field(필드) — 병합 UI(좌 현황·우 목록) PC 1차 루트
- *   chart(차트) — 통합 추이 · 레이어 · 온·습 상하한 · 구간/양호도
+ *   chart(차트) — 일괄·단일·비교 · 레이어 · 온·습 상하한 · 구간/양호도
  *   DELIN 뱃지는 필드·차트 투어에 포함 (전용 탭 없음)
  *
  * 큰 컨테이너는 hole로 쓰지 않음 — 개별 카드/툴바만 스포트라이트.
@@ -23,7 +23,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 32;
+export const TOUR_VERSION = 35;
 
 export type TourScrollPolicy =
   | "none"
@@ -282,14 +282,15 @@ export const TOUR_STEPS: TourStepDef[] = [
     body: "카드 헤더의 차트 아이콘을 누르면 해당 컨트롤러 이력을 차트 탭에서 확인합니다.",
     mobileTitle: "차트로 옮기기",
     mobileBody:
-      "설정 시트의 「차트로 옮기기」를 누르면 그 컨트롤러가 차트 위칸에 들어갑니다. 위칸이 이미 있으면 아래칸에 넣어 두 대를 비교합니다.",
+      "설정 시트의 「차트로 옮기기」를 누르면 그 컨트롤러가 차트 단일로 열립니다. 비교는 차트 탭에서 켭니다.",
     bullets: [
       "온도·습도·채널 추이는 차트 탭에서 확인",
-      "기간·브러시로 원하는 구간을 자세히 탐색",
+      "차트에서 보기 — 항상 그 대만 단일",
+      "비교는 차트 탭에서 비교를 켜고 칸을 고릅니다",
     ],
     mobileBullets: [
-      "첫 대는 위칸, 다음 대는 아래칸",
-      "두 칸으로 컨트롤러를 비교",
+      "차트로 옮기면 그 대만 단일로 엽니다",
+      "비교는 차트 탭에서 켭니다",
     ],
     mobileHideExtra: true,
     skipIfMissing: true,
@@ -329,11 +330,11 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     skipIfMissing: true,
     title: "DELIN",
-    body: "헤더 이상상황에 올라온 통신 두절·알람값 초과·에러코드를 해설합니다. 권장만 있을 때는 이어서 일령별 권장도 물을 수 있습니다.",
+    body: "헤더 이상상황에 올라온 통신 두절·알람값 초과·에러코드를 해설합니다. 권장만 있을 때는 일령별 권장 온·습도를 이어서 보여 줍니다.",
     bullets: [
       "우측 하단 뱃지 · 말풍선",
       "필드·차트·모델에서 동일합니다",
-      "일령 안내는 네·아니요로 이어갑니다",
+      "일령 표는 묻지 않고 바로 붙입니다",
     ],
   },
   {
@@ -362,15 +363,16 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "c-overview",
     scope: "chart",
-    selector: '[data-tour-id="farm-chart-widget-stack"]',
+    selector: '[data-tour-id="farm-chart-lab-modes"]',
     view: "chart",
     scrollPolicy: "anchor-top",
-    title: "통합 추이",
-    body: "왼쪽 두 칸에 컨트롤러를 올려 단건 추이를 비교합니다.",
+    title: "일괄 · 단일 · 비교",
+    body: "컨트롤러 칸을 눌러 자세히 보고, 비교로 한 대를 더 붙입니다. 기간 막대는 모든 칸이 같이 봅니다.",
     bullets: [
-      "오른쪽 집계에서 컨트롤러를 칸으로 끌어다 놓습니다",
-      "컨트롤러 행 오른쪽 명령으로 설정 이력을 온도·모터 그래프에 겹칩니다",
-      "왼쪽 맨 위 기간 막대로 두 칸이 같은 구간을 봅니다",
+      "일괄 — 작은 칸으로 전체를 봅니다",
+      "단일 — 고른 칸을 키웁니다. X로 끄면 일괄로 돌아갑니다",
+      "비교 — 아래 작은 칸에서 한 대를 가져옵니다",
+        "필드에서 차트로 옮기면 그 대만 단일로 엽니다",
     ],
   },
   {
@@ -380,12 +382,13 @@ export const TOUR_STEPS: TourStepDef[] = [
     view: "chart",
     scrollPolicy: "anchor-top",
     title: "표시 레이어",
-    body: "온도·습도·모터 아이콘으로 보고 싶은 지표를 켭니다.",
+    body: "온도·습도·모터 아이콘으로 보고 싶은 지표를 켭니다. 온도·습도 알람 아이콘으로 범위 띠를 켜고 끕니다.",
     skipIfMissing: true,
     bullets: [
       "클릭할 때마다 기본보기(본선·산포) → 끔 순으로 바뀝니다",
       "지표를 하나만 켜면 축 눈금이 해당 단위로 맞춰집니다",
       "오버레이로 온도·습도·모터를 한 칸에 겹쳐 봅니다",
+      "온도·습도 알람 아이콘은 그래프 안 범위 띠만 바꿉니다",
     ],
   },
   {
@@ -395,7 +398,7 @@ export const TOUR_STEPS: TourStepDef[] = [
     view: "chart",
     scrollPolicy: "fit-between",
     title: "온·습 상·하한",
-    body: "왼쪽 온도·습도 숫자를 더블클릭(모바일은 더블탭)하거나 우클릭하면 알람 상·하한을 바로 고칩니다. 오른쪽 숫자는 축사유형 권장이며 고치지 않습니다.",
+    body: "왼쪽 온도·습도 알람 아이콘을 더블클릭(모바일은 더블탭)하거나 우클릭하면 알람 기준을 바로 고칩니다. 오른쪽 숫자는 축사유형 권장이며 고치지 않습니다.",
     skipIfMissing: true,
     bullets: [
       "설정모드 없이 숫자만 입력합니다",
@@ -409,13 +412,13 @@ export const TOUR_STEPS: TourStepDef[] = [
     view: "chart",
     scrollPolicy: "fit-between",
     title: "기간 · 구간 · 양호도",
-    body: "왼쪽 맨 위 30일 바에서 드래그하면 그 구간이 차트에 그대로 열립니다. 칸이 하나면 그 컨트롤러 양호도이고, 두 칸이면 위칸·아래칸 양호도를 나란히 봅니다. 탭은 지금 폭을 유지한 채 위치를 옮기고, 우클릭하면 30일 전체로 돌아갑니다.",
+    body: "맨 위 30일 바에서 드래그하면 그 구간이 차트에 열립니다. 일괄·단일·비교가 같은 기간을 봅니다. 탭은 폭을 유지한 채 위치를 옮기고, 우클릭하면 30일 전체로 돌아갑니다.",
     skipIfMissing: true,
     bullets: [
       "드래그 — 보고 싶은 구간을 직접 고름 (24/7/30으로 접지 않음)",
       "탭 — 같은 폭으로 위치만 이동",
       "우클릭 — 30일 전체",
-      "한 칸 — 양호도 막대 · 점선은 75점. 두 칸 — 위칸·아래칸을 나란히",
+      "단일 — 그 컨트롤러 양호도. 비교 — 두 대를 나란히",
     ],
   },
   {
@@ -426,11 +429,11 @@ export const TOUR_STEPS: TourStepDef[] = [
     scrollPolicy: "none",
     skipIfMissing: true,
     title: "DELIN",
-    body: "지금 집계 중인 축사유형의 이상상황을 해설합니다. 권장만 있을 때는 이어서 일령별 권장도 물을 수 있습니다.",
+    body: "지금 보고 있는 컨트롤러 축사유형의 이상상황을 해설합니다. 일괄에서는 농장 전체를 봅니다.",
     bullets: [
       "우측 하단 뱃지 · 말풍선",
-      "유형을 바꾸면 권장도 따라갑니다",
-      "일령 안내는 네·아니요로 이어갑니다",
+      "칸을 바꾸면 권장도 따라갑니다",
+      "일령 표는 묻지 않고 바로 붙입니다",
     ],
   },
 ];
