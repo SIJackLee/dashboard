@@ -45,6 +45,7 @@ import {
   farmChartLabStallKey,
   farmChartScopeKey,
   filterReadingsByChartScope,
+  indexReadingsByChartScope,
   spScopeFromStallTy,
   stallScopeFromController,
   uniqueFarmChartLabStalls,
@@ -54,7 +55,6 @@ import {
   type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
 import {
-  coverageIndexesFromSnap,
   useFarmTrendUplinkCoverage,
 } from "@/lib/farm/use-farm-trend-uplink-coverage";
 import type { UplinkCoverageIndex } from "@/lib/farm/trend-uplink-coverage";
@@ -140,6 +140,10 @@ export function FarmChartLabView({
     [readings],
   );
   const tree = useMemo(() => buildFarmChartTree(readings), [readings]);
+  const readingsByScope = useMemo(
+    () => indexReadingsByChartScope(readings),
+    [readings],
+  );
   const stallAnchors = useMemo(
     () => uniqueFarmChartLabStalls(scopes),
     [scopes],
@@ -234,14 +238,14 @@ export function FarmChartLabView({
       const anchor = primaryKey
         ? (scopes.find((s) => farmChartLabScopeKey(s) === primaryKey) ?? null)
         : null;
-      return anchor
-        ? filterReadingsByChartScope(
-            readings,
-            stallScopeFromController(anchor),
-          )
-        : [];
+      if (!anchor) return [];
+      const scope = stallScopeFromController(anchor);
+      return (
+        readingsByScope.get(farmChartScopeKey(scope)) ??
+        filterReadingsByChartScope(readings, scope)
+      );
     },
-    [primaryKey, readings, scopes],
+    [primaryKey, readings, readingsByScope, scopes],
   );
   const defaultHiddenCtrlKeys = useMemo(
     () => hiddenControllersExceptFirst(heroControllers),
@@ -255,6 +259,15 @@ export function FarmChartLabView({
     controllerVisibility?.stallKey === heroStallKey
       ? controllerVisibility.hidden
       : defaultHiddenCtrlKeys;
+  const controllerToggles = useMemo(
+    () =>
+      heroControllers.map((reading) => ({
+        key: reading.controllerKey,
+        eqpmnNo: reading.eqpmnNo,
+        on: !hiddenCtrlKeys.has(reading.controllerKey),
+      })),
+    [heroControllers, hiddenCtrlKeys],
+  );
 
   const labRootRef = useRef<HTMLDivElement>(null);
   const [expandOrigin, setExpandOrigin] = useState<{
@@ -272,7 +285,19 @@ export function FarmChartLabView({
     d30: controllerTrendByPeriod?.["30d"],
     window15m,
   });
-  const uplinkCoverage = coverageIndexesFromSnap(uplinkCoverageSnap);
+  const uplinkCoverage = useMemo(
+    () =>
+      [
+        uplinkCoverageSnap.window,
+        uplinkCoverageSnap.h24,
+        uplinkCoverageSnap.d30,
+      ].filter((index): index is UplinkCoverageIndex => index != null),
+    [
+      uplinkCoverageSnap.window,
+      uplinkCoverageSnap.h24,
+      uplinkCoverageSnap.d30,
+    ],
+  );
 
   const commitSelection = (next: FarmChartLabSelection) => {
     if (onSelectionChange) {
@@ -385,6 +410,10 @@ export function FarmChartLabView({
         key={key}
         scope={scope}
         readings={readings}
+        scopedReadings={
+          readingsByScope.get(farmChartScopeKey(scope)) ??
+          filterReadingsByChartScope(readings, scope)
+        }
         size={size}
         selected={selected}
         index={index}
@@ -469,11 +498,7 @@ export function FarmChartLabView({
         onToggleHumAlarm={() =>
           setAlarmRangeOn((prev) => ({ ...prev, hum: !prev.hum }))
         }
-        controllerToggles={heroControllers.map((r) => ({
-          key: r.controllerKey,
-          eqpmnNo: r.eqpmnNo,
-          on: !hiddenCtrlKeys.has(r.controllerKey),
-        }))}
+        controllerToggles={controllerToggles}
         onToggleController={(key) => {
           if (!heroStallKey) return;
           setControllerVisibility((prev) => {
@@ -582,6 +607,7 @@ export function FarmChartLabView({
 function LabTile({
   scope,
   readings,
+  scopedReadings,
   size,
   selected,
   index,
@@ -613,6 +639,7 @@ function LabTile({
 }: {
   scope: FarmChartScope;
   readings: BarnReading[];
+  scopedReadings: BarnReading[];
   size: "cell" | "hero" | "peer";
   selected: boolean;
   index: number;
@@ -652,13 +679,16 @@ function LabTile({
 }) {
   const tileRef = useRef<HTMLDivElement>(null);
   const overview = size !== "hero";
-  const scopedReadings = filterReadingsByChartScope(readings, scope);
-  const controllers = scopedReadings
-    .filter((r) => !hiddenCtrlKeys?.has(r.controllerKey))
-    .map((r) => ({
-      key: r.controllerKey,
-      reading: r,
-    }));
+  const controllers = useMemo(
+    () =>
+      scopedReadings
+        .filter((reading) => !hiddenCtrlKeys?.has(reading.controllerKey))
+        .map((reading) => ({
+          key: reading.controllerKey,
+          reading,
+        })),
+    [hiddenCtrlKeys, scopedReadings],
+  );
   const controllerSelectEmpty =
     Boolean(hiddenCtrlKeys?.size) &&
     scopedReadings.length > 0 &&

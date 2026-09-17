@@ -2236,7 +2236,9 @@ export function UnifiedBarnTrendPanel({
           scaleEdgeHitPx={isMobileStack ? chartUiPx(22) : chartUiPx(10)}
           labelGutter={isMobileStack && !plotFill && !overview}
           showMarkers={!overview}
-          markerDensity={displayPeriod === "24h" ? "all" : "sparse"}
+          markerDensity={
+            (scoped?.categories.length ?? 0) <= 48 ? "all" : "sparse"
+          }
           markerRadiusPx={isMobileStack ? chartUiPx(1.4) : chartUiPx(1.6)}
           animate={!overview}
           layerClipWipe={!overview}
@@ -2244,7 +2246,7 @@ export function UnifiedBarnTrendPanel({
           scaleEdgeLabels={overview ? [] : scaleEdgeLabels}
           rangeBands={overview ? [] : alarmRangeBands}
           xScopeSelect={!overview}
-          onLookbackWheel={onLookbackWheel}
+          onLookbackWheel={overview ? undefined : onLookbackWheel}
           onXScopeCommit={(range) =>
             commitXScope(range, activeGuidedXScope ? "replace" : "push")
           }
