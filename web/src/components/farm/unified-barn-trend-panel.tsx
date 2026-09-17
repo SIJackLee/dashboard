@@ -222,6 +222,8 @@ function ChartScopeTargetMarks({
   );
 }
 
+const EMPTY_CHART_CATEGORIES: string[] = [];
+
 type Props = {
   label: string;
   controllers: UnifiedBarnTrendControllerRef[];
@@ -863,12 +865,20 @@ export function UnifiedBarnTrendPanel({
     overlayAlign,
   ]);
 
-  /** 농장 기간 변경 시 브러시 창·스코프 시드 (render-time sync — effect setState 회피) */
+  /** 농장 기간 변경 시 브러시 창·스코프 시드 (render-time sync — 값이 바뀔 때만) */
   const [scopePeriod, setScopePeriod] = useState(period);
   if (period !== scopePeriod) {
     setScopePeriod(period);
     setXScopeStack([]);
-    if (!brushControlled) applyBrushWindow(BRUSH_PERIOD_WINDOW[period]);
+    if (!brushControlled) {
+      const nextWindow = BRUSH_PERIOD_WINDOW[period];
+      if (
+        Math.abs(brushWindow.start - nextWindow.start) > 1e-12 ||
+        Math.abs(brushWindow.width - nextWindow.width) > 1e-12
+      ) {
+        applyBrushWindow(nextWindow);
+      }
+    }
   }
 
   /** 데이터 길이/인덱스 불일치 시 스택 비우기 */
@@ -1037,7 +1047,7 @@ export function UnifiedBarnTrendPanel({
     overlayAlign,
   ]);
 
-  const chartCategories = scoped?.categories ?? [];
+  const chartCategories = scoped?.categories ?? EMPTY_CHART_CATEGORIES;
   const tempMapDomain = scoped?.tempDomain ?? built?.tempDomain;
   const tempMapOverflow =
     scoped?.tempOverflowDomain ?? built?.tempOverflowDomain ?? null;

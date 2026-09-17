@@ -471,6 +471,7 @@ export function FarmChartLabView({
       data-farm-chart-layers-shell=""
     >
       <UnifiedTrendLayerToolbar
+        compact={isMobileStack}
         layers={layers}
         available={{
           ...UNIFIED_LAYER_TOOLBAR_AVAILABLE,
