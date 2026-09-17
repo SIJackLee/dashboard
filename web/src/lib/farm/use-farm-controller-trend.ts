@@ -40,7 +40,7 @@ type TrendSnapshot = {
 
 const emptySubscribe = () => () => {};
 
-/** map/list 훅 인스턴스 간 공유 — 탭 전환 시 이중 fetch 방지 · TTL 90s */
+/** map/list 훅 인스턴스 간 공유 — 서버 슬롯과 같은 5분 TTL */
 const trendCache = new Map<string, TimedCacheEntry<TrendSnapshot>>();
 const trendInflight = new Map<string, Promise<TrendSnapshot>>();
 const trendRefreshInflight = new Map<string, Promise<TrendSnapshot>>();
@@ -147,11 +147,18 @@ function windowFrom24h(
   return { fromMs, toMs, data };
 }
 
-async function loadProgressiveBundle(farmKey: FarmKey): Promise<TrendSnapshot> {
+async function loadProgressiveBundle(
+  farmKey: FarmKey,
+  include30d: boolean,
+  refresh: boolean,
+): Promise<TrendSnapshot> {
   const scopeId = farmKeyId(farmKey);
   const prev = readTrendCache(scopeId) ?? emptySnapshot();
 
-  const h24 = await fetchPeriod(farmKey, "24h");
+  const h24 =
+    !refresh && prev.bundle["24h"].bucketAts.length > 0
+      ? prev.bundle["24h"]
+      : await fetchPeriod(farmKey, "24h");
   let snap: TrendSnapshot = {
     bundle: {
       ...prev.bundle,
@@ -160,6 +167,8 @@ async function loadProgressiveBundle(farmKey: FarmKey): Promise<TrendSnapshot> {
     window15m: prev.window15m,
   };
   notifyTrend(scopeId, snap);
+
+  if (!include30d) return snap;
 
   try {
     const d30 = await fetchPeriod(farmKey, "30d");
@@ -221,16 +230,24 @@ function fetchTrendShared(
   farmKey: FarmKey,
   scopeId: string,
   refresh: boolean,
+  include30d: boolean,
 ): Promise<TrendSnapshot> {
   if (!refresh) {
     const cached = readTrendCache(scopeId);
-    if (cached && isCompleteControllerTrendBundle(cached.bundle)) {
+    if (
+      cached &&
+      cached.bundle["24h"] &&
+      (!include30d || isCompleteControllerTrendBundle(cached.bundle))
+    ) {
       return Promise.resolve(cached);
     }
   }
 
   const map = refresh ? trendRefreshInflight : trendInflight;
-  return startSharedInflight(map, scopeId, () => loadProgressiveBundle(farmKey));
+  const requestKey = `${scopeId}:${include30d ? "full" : "24h"}`;
+  return startSharedInflight(map, requestKey, () =>
+    loadProgressiveBundle(farmKey, include30d, refresh),
+  );
 }
 
 function fetchWindow15mShared(
@@ -257,7 +274,7 @@ function fetchWindow15mShared(
 
 /** 로그인·농장 LIVE 이후 idle 시 호출 — 그래프 탭 대기 제거 */
 export function prefetchFarmControllerTrend(farmKey: FarmKey): Promise<TrendBundle> {
-  return fetchTrendShared(farmKey, farmKeyId(farmKey), false).then(
+  return fetchTrendShared(farmKey, farmKeyId(farmKey), false, false).then(
     (snap) => snap.bundle,
   );
 }
@@ -265,6 +282,7 @@ export function prefetchFarmControllerTrend(farmKey: FarmKey): Promise<TrendBund
 export function useFarmControllerTrend(params: {
   farmKey: FarmKey | null;
   enabled: boolean;
+  load30d?: boolean;
 }) {
   const scopeId = params.farmKey ? farmKeyId(params.farmKey) : "";
   const active = params.enabled && Boolean(params.farmKey);
@@ -301,7 +319,12 @@ export function useFarmControllerTrend(params: {
     });
     const cached = readTrendCache(scopeId);
     if (!isCompleteControllerTrendBundle(cached?.bundle)) {
-      void fetchTrendShared(params.farmKey, scopeId, false).catch(() => {
+      void fetchTrendShared(
+        params.farmKey,
+        scopeId,
+        false,
+        params.load30d ?? true,
+      ).catch(() => {
         if (token !== applyTokenRef.current) return;
         setError(true);
       });
@@ -310,7 +333,7 @@ export function useFarmControllerTrend(params: {
       unsub();
       applyTokenRef.current += 1;
     };
-  }, [active, scopeId, params.farmKey]);
+  }, [active, scopeId, params.farmKey, params.load30d]);
 
   const ensureWindow15m = useCallback(
     (fromMs: number, toMs: number) => {
@@ -346,7 +369,12 @@ export function useFarmControllerTrend(params: {
     if (!params.farmKey) return Promise.resolve();
     const token = ++applyTokenRef.current;
     setRefreshing(true);
-    return fetchTrendShared(params.farmKey, scopeId, true)
+    return fetchTrendShared(
+      params.farmKey,
+      scopeId,
+      true,
+      params.load30d ?? true,
+    )
       .then((result) => {
         if (token !== applyTokenRef.current) return;
         setSnap({ scopeId, data: result });
@@ -359,7 +387,14 @@ export function useFarmControllerTrend(params: {
       .finally(() => {
         if (token === applyTokenRef.current) setRefreshing(false);
       });
-  }, [params.farmKey, scopeId, setRefreshing, setSnap, setError]);
+  }, [
+    params.farmKey,
+    params.load30d,
+    scopeId,
+    setRefreshing,
+    setSnap,
+    setError,
+  ]);
 
   const data = snap?.scopeId === scopeId ? snap.data.bundle : null;
   const window15m =

@@ -413,6 +413,7 @@ export function FarmPageContent({
         (view === "map" ||
           view === "chart" ||
           view === "list"),
+      load30d: view === "chart",
     });
 
   const shallowParams = useMemo(() => {
