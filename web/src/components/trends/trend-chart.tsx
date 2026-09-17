@@ -80,6 +80,7 @@ import {
   computeTipPlacement,
   domainFor,
   finiteValues,
+  markerRadiusInViewUnits,
   mergeOverlappingTempHumEdgeLabels,
   nudgeEdgeLabelTops,
   stackLeftAlarmBaselineLabels,
@@ -602,8 +603,10 @@ export function TrendChart({
   const eventLaneTop = PAD_TOP + innerH;
 
   /** preserveAspectRatio=none 에서 원이 옆으로 퍼지지 않도록 viewBox rx/ry 보정 */
-  const markerRx = (rPx: number) => (rPx * viewW) / Math.max(1, plotPx.w);
-  const markerRy = (rPx: number) => (rPx * chartH) / Math.max(1, plotPx.h);
+  const markerRx = (rPx: number) =>
+    markerRadiusInViewUnits(rPx, viewW, plotPx.w, 32);
+  const markerRy = (rPx: number) =>
+    markerRadiusInViewUnits(rPx, chartH, plotPx.h, 8);
 
   const usesRight = series.some((s) => s.axis === "right") || referenceLines.some((r) => r.axis === "right");
 
