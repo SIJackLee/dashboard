@@ -235,7 +235,7 @@ export function FarmChartLabView({
 
   const uplinkCoverageSnap = useFarmTrendUplinkCoverage({
     farmKey: farmKey ?? null,
-    enabled: true,
+    enabled: layersToolbarActive,
     h24: controllerTrendByPeriod?.["24h"],
     d30: controllerTrendByPeriod?.["30d"],
     window15m,
@@ -403,12 +403,20 @@ export function FarmChartLabView({
   };
 
   const heroAnchors = stallAnchors.filter(isHeroAnchor);
-  const heroControllers = primaryAnchor
-    ? filterReadingsByChartScope(
-        readings,
-        stallScopeFromController(primaryAnchor),
-      )
-    : [];
+  const heroControllers = useMemo(
+    () => {
+      const anchor = primaryKey
+        ? (scopes.find((s) => farmChartLabScopeKey(s) === primaryKey) ?? null)
+        : null;
+      return anchor
+        ? filterReadingsByChartScope(
+            readings,
+            stallScopeFromController(anchor),
+          )
+        : [];
+    },
+    [primaryKey, readings, scopes],
+  );
   const layerToolbar = layersToolbarActive ? (
     <div
       className="relative inline-flex max-w-full flex-wrap rounded-xl border bg-muted/40 p-2"

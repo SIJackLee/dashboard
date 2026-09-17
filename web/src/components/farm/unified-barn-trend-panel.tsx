@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { PanelRight } from "lucide-react";
 import {
   TrendChart,
@@ -152,6 +152,8 @@ import {
   FARM_CHART_UI_SCALE,
 } from "@/lib/ui/farm-chart-ui-scale";
 import { cn } from "@/lib/utils";
+
+const emptySubscribe = () => () => {};
 
 export type UnifiedBarnTrendControllerRef = {
   key: string;
@@ -781,16 +783,27 @@ export function UnifiedBarnTrendPanel({
     brushWindow,
     uplinkCoverage,
   ]);
+  /** SSR/첫 hydration은 셸만 맞추고 SVG용 집계는 background render에서 계산한다. */
+  const clientReady = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+  const deferredWindowBundle = useDeferredValue(
+    clientReady ? windowBundle : null,
+  );
+  const renderPending =
+    windowBundle !== null && deferredWindowBundle !== windowBundle;
 
   /** M1 — 다운샘플+집계는 layout 무관 1회, 보간은 Y매핑만 */
   const downsampledWindow = useMemo(() => {
-    if (!windowBundle) return null;
+    if (!deferredWindowBundle) return null;
     return downsampleSeriesForChart(
-      windowBundle.seriesList,
-      windowBundle.categories,
+      deferredWindowBundle.seriesList,
+      deferredWindowBundle.categories,
       plotWidthPx,
     );
-  }, [windowBundle, plotWidthPx]);
+  }, [deferredWindowBundle, plotWidthPx]);
 
   const trendRaw = useMemo(() => {
     if (!downsampledWindow) return null;
@@ -949,19 +962,19 @@ export function UnifiedBarnTrendPanel({
         thermoWindows: trendRaw?.thermoWindows ?? null,
       };
     }
-    if (windowBundle) {
+    if (deferredWindowBundle) {
       const span = Math.max(1, picked.categories.length - 1);
       const r0 = xScope.start / span;
       const r1 = xScope.end / span;
-      const dN = windowBundle.categories.length;
+      const dN = deferredWindowBundle.categories.length;
       const from = Math.max(0, Math.floor(r0 * (dN - 1)));
       const to = Math.min(
         dN,
         Math.max(from + 2, Math.ceil(r1 * (dN - 1)) + 1),
       );
-      const cats = windowBundle.categories.slice(from, to);
+      const cats = deferredWindowBundle.categories.slice(from, to);
       if (cats.length >= 2) {
-        const series = windowBundle.seriesList.map((s) =>
+        const series = deferredWindowBundle.seriesList.map((s) =>
           sliceControllerSeries(s, from, to),
         );
         const down = downsampleSeriesForChart(series, cats, plotWidthPx);
@@ -1014,7 +1027,7 @@ export function UnifiedBarnTrendPanel({
   }, [
     picked,
     xScope,
-    windowBundle,
+    deferredWindowBundle,
     plotThresholds,
     layout,
     layers,
@@ -1927,7 +1940,9 @@ export function UnifiedBarnTrendPanel({
           layers={layers}
           available={built.available}
           metricsPending={Boolean(
-            trendLoading || (!controllerTrendByPeriod && !trendError),
+            renderPending ||
+              trendLoading ||
+              (!controllerTrendByPeriod && !trendError),
           )}
           onCycleGroup={cycleGroupLayers}
           placement="inline"
@@ -2289,7 +2304,9 @@ export function UnifiedBarnTrendPanel({
         <p className="py-6 text-center text-xs text-muted-foreground">
           {built
             ? "표시할 레이어를 선택하세요."
-            : trendLoading || (!controllerTrendByPeriod && !trendError)
+            : renderPending ||
+                trendLoading ||
+                (!controllerTrendByPeriod && !trendError)
               ? "통합 추이를 불러오는 중."
                 : trendExtending
                 ? "최근 이력을 이어 받는 중."
