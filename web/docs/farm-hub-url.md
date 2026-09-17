@@ -23,7 +23,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 - 좌 카드 선택 → 우측 **해당 축사 컨트롤러만**. 「전체보기」·같은 카드 재탭으로 전체 복귀
 - 좌 현황 숨기기/나타내기 · 카드 헤더 단일 순환 버튼
 - 모바일: 그리드만 + 카드 탭 시 Bottom sheet 직행 (인라인 상세 없음)
-- 모바일 상세 «차트로 옮기기»: 차트 탭으로 이동하며 그 그래프가 **펼쳐집니다**. 비교는 차트 탭에서만. 필드 탭으로 돌아와도 `chartW1`/`chartW2`는 유지
+- 모바일 상세 «차트로 옮기기»: 차트 탭으로 이동하며 그 그래프가 **펼쳐집니다**. 필드 탭으로 돌아와도 `chartW1`/`chartW2`는 유지
 
 ---
 
@@ -44,7 +44,7 @@ Cursor 규칙: `.cursor/rules/farm-shell-routing.mdc`.
 | `chartSp` | 축사유형 코드 | — | 차트 집계 (유형). 맵 `sp`와 분리 |
 | `chartStall` | 축사번호 | — | 차트 집계 (축사). `chartSp` 필요 |
 | `chartCtrl` | 컨트롤러 키 (URI-encoded) | — | 차트 집계 트리 선택(컨트롤러). `chartSp`+`chartStall` 필요. 명령 이력 대상 |
-| `chartW1` / `chartW2` | `축사유형\|축사번호\|컨트롤러키` 또는 `-` | — | 일괄·비교 선택. `-`는 빈 칸(집계 딥링크 재시드 방지). 없으면 `chartCtrl`을 위로 시드. 칸 없음=일괄, `W1`만=펼침, `W1`+`W2`=비교 |
+| `chartW1` / `chartW2` | `축사유형\|축사번호\|컨트롤러키` 또는 `-` | — | 목록·펼침 선택. `-`는 빈 칸(집계 딥링크 재시드 방지). 없으면 `chartCtrl`을 위로 시드. 칸 없음=목록(축사유형 평균), `W1`만=그 컨트롤러가 속한 **축사 펼침**(같은 축사 컨트롤러 겹침). `W2` 비교는 보류 |
 | `chartYBand` | `temp` \| `hum` \| `motor` (+로 복수). 레거시 `command`는 `chartCmd`로 해석 | — | 지표 집중(Y밴드). 칩·드래그·델린 handoff |
 | `chartCmd` | `1` | — | 컨트롤러 집계에서 온도·모터 본선 **명령 이력**(A/B/C 창·선). 집계 트리 컨트롤러 행 「명령」 토글 |
 | `chartX0` / `chartX1` | 0–1 비율 | — | 집중·줌의 시간 구간(전체면 생략) |
@@ -91,7 +91,7 @@ resolveFarmHubView(raw)
 - 목록·모델·soft home·농장 전환 시 `chart*` 전부 제거. 필드(맵) 전환은 집계·줌·명령만 제거하고 위젯 칸은 유지
 - 예: `/farm?lsind=…&item=…&view=chart&trendPeriod=7d&chartSp=SP03&chartStall=1`
 - 줌 예: `chartYBand=temp+command&chartX0=0.2&chartX1=0.6` — 온도·명령 레인 집중 + 시간 구간
-- 일괄·단일·비교 계약: `farmChartLabSelectionFromWidgetSlots` / `applyFarmChartLabSelectionParams`. 차트 탭이 이 계약을 화면에 쓴다. 아래칸만 있으면 기준으로 올려 위칸에 쓴다. `chartSp`/`chartCmd`/`chartYBand`/`chartX0`는 읽기만 유지
+- 목록·펼침 계약: `farmChartLabSelectionFromWidgetSlots` / `applyFarmChartLabSelectionParams`. 차트 탭이 이 계약을 화면에 쓴다. `W2` 비교는 보류. 아래칸만 있으면 기준으로 올려 위칸에 쓴다. `chartSp`/`chartCmd`/`chartYBand`/`chartX0`는 읽기만 유지
 
 ---
 

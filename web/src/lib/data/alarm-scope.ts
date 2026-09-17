@@ -80,6 +80,52 @@ export function resolveThresholdsForReading(
   return settings.global;
 }
 
+export function alarmThresholdsEqual(
+  a: AlarmThresholds,
+  b: AlarmThresholds,
+): boolean {
+  return (
+    a.tempLow === b.tempLow &&
+    a.tempHigh === b.tempHigh &&
+    a.humidityLow === b.humidityLow &&
+    a.humidityHigh === b.humidityHigh
+  );
+}
+
+function childScopeKeyPrefix(parts: AlarmScopeParts): string | null {
+  if (parts.controllerKey) return null;
+  if (parts.stall && parts.sp) {
+    return `${buildAlarmScopeKey({
+      farmId: parts.farmId,
+      sp: parts.sp,
+      stall: parts.stall,
+    })}|`;
+  }
+  if (parts.sp) {
+    return `${buildAlarmScopeKey({ farmId: parts.farmId, sp: parts.sp })}|`;
+  }
+  return null;
+}
+
+/** 축사·유형에 직접 값이 없고, 하위 컨트롤러만 있으면 그 값이 모두 같을 때 사용 */
+function unanimousChildScopeThresholds(
+  settings: AlarmSettings,
+  parts: AlarmScopeParts,
+): AlarmThresholds | null {
+  const prefix = childScopeKeyPrefix(parts);
+  const byScope = settings.byScope;
+  if (!prefix || !byScope) return null;
+  const children: AlarmThresholds[] = [];
+  for (const [key, value] of Object.entries(byScope)) {
+    if (!key.startsWith(prefix) || !value) continue;
+    children.push(value);
+  }
+  if (!children.length) return null;
+  const first = children[0]!;
+  if (!children.every((t) => alarmThresholdsEqual(t, first))) return null;
+  return first;
+}
+
 export function resolveThresholdsForScope(
   settings: AlarmSettings,
   scopeKey: string | null
@@ -89,41 +135,67 @@ export function resolveThresholdsForScope(
   const parts = parseAlarmScopeKey(scopeKey);
   if (!parts) return settings.global;
 
-  const chain: string[] = [];
+  const specific: string[] = [];
   if (parts.controllerKey && parts.stall && parts.sp) {
-    chain.push(
+    specific.push(
       buildAlarmScopeKey({
         farmId: parts.farmId,
         sp: parts.sp,
         stall: parts.stall,
         controllerKey: parts.controllerKey,
-      })
+      }),
     );
   }
   if (parts.stall && parts.sp) {
-    chain.push(
+    specific.push(
       buildAlarmScopeKey({
         farmId: parts.farmId,
         sp: parts.sp,
         stall: parts.stall,
-      })
+      }),
     );
   }
   if (parts.sp) {
-    chain.push(buildAlarmScopeKey({ farmId: parts.farmId, sp: parts.sp }));
+    specific.push(buildAlarmScopeKey({ farmId: parts.farmId, sp: parts.sp }));
   }
-  chain.push(buildAlarmScopeKey({ farmId: parts.farmId }));
 
-  for (const key of chain) {
+  for (const key of specific) {
     const hit = settings.byScope?.[key];
     if (hit) return hit;
   }
+
+  const childHit = unanimousChildScopeThresholds(settings, parts);
+  if (childHit) return childHit;
+
+  const farmHit = settings.byScope?.[buildAlarmScopeKey({ farmId: parts.farmId })];
+  if (farmHit) return farmHit;
 
   if (parts.sp && settings.byStallTyCode[parts.sp]) {
     return settings.byStallTyCode[parts.sp];
   }
 
   return settings.global;
+}
+
+/**
+ * 차트·집계 칸 — 칸 안 컨트롤러가 필드와 같은 값이면 그걸 쓰고,
+ * 서로 다르면 범위 키(축사→유형→농장)로 돌린다.
+ */
+export function resolveThresholdsForChartScope(
+  settings: AlarmSettings,
+  scopeKey: string | null,
+  readings: BarnReading[],
+): AlarmThresholds {
+  if (readings.length) {
+    const resolved = readings.map((r) =>
+      resolveThresholdsForReading(settings, r),
+    );
+    const first = resolved[0]!;
+    if (resolved.every((t) => alarmThresholdsEqual(t, first))) {
+      return first;
+    }
+  }
+  return resolveThresholdsForScope(settings, scopeKey);
 }
 
 export function activeScopeKeyFromSelection(

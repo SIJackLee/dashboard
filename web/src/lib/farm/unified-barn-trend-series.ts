@@ -12,6 +12,7 @@ import { normalizeEqpmnNo } from "@/lib/data/controller-key";
 import { CHANNEL_SLOT_LABELS } from "@/lib/data/iot-channel";
 import { TREND_CHART_COLORS } from "@/lib/farm/trend-chart-series";
 import {
+  formatControllerNoLabel,
   formatHumidityAlarmRange,
   formatTempAlarmRange,
 } from "@/lib/farm/controller-summary-display";
@@ -278,6 +279,7 @@ import {
   countSplitYBands,
   fitTempDisplayDomain,
   resolveSplitYLayout,
+  splitYLayoutIsFullyMerged,
   SPLIT_Y_WITH_HUM,
   tempBrokenAxisPlotZones,
 } from "./unified-barn-trend-layout";
@@ -321,9 +323,13 @@ export function paddedAlarmDomain(lo: number, hi: number): [number, number] {
 export const SPLIT_Y_TEMP_EDGE_PAD_C = 2;
 /** 분리 밴드 왼쪽 눈금 — 습도 상·하한 바깥 여유(%p) */
 export const SPLIT_Y_HUM_EDGE_PAD_PCT = 2;
-/** 꺾인 축 위칸 최소 폭(℃) — 실측이 권장보다 조금만 높아도 굴곡이 보이게 */
+/** 꺾인 축 위칸 — 이탈 실측 폭에 붙이는 여유 비율 (Canvas 이탈 자체) */
+export const OVERFLOW_FIT_PAD_RATIO = 0.12;
+/** 꺾인 축 위칸 — 최소 패딩(℃). 거의 평탄해도 칸을 비우지 않음 */
+export const OVERFLOW_FIT_MIN_PAD_C = 0.25;
+/** @deprecated 연속 ℃/px 위칸 최소 폭. 이탈 자체 스케일에서는 쓰지 않음 */
 export const SPLIT_Y_TEMP_OVERFLOW_MIN_C = 5;
-/** 오버레이에서 온·습·모터 상·하한을 같은 높이에 두는 헤드룸 */
+/** 겹쳐보기 권장 구간(꺾임 아래)에서 온·습·모터 상·하한을 같은 높이에 두는 헤드룸 */
 export const OVERLAY_ALIGN_HEAD_FRAC = 0.2;
 
 export function alarmEdgeDomain(
@@ -551,37 +557,73 @@ function unmapMetricAnchoredFromBand(
   return alarmLo + ((splitY - c.coreLo) / (c.coreHi - c.coreLo)) * alarmSpan;
 }
 
-function mapTempAnchoredToBand(
-  value: number | null | undefined,
-  tempLow: number,
-  tempHigh: number,
+/** 겹쳐보기 — 온·습·모터 권장 가장자리는 꺾임 아래(선형 칸)에 맞춘다. */
+function overlayBrokenLinearSlot(
   layout: SplitYLayout,
-  anchor: TempBandAnchor,
+): { lo: number; hi: number } | null {
+  const zones = tempBrokenAxisPlotZones(layout);
+  if (
+    zones &&
+    splitYLayoutIsFullyMerged(layout) &&
+    zones.linear.hi > zones.linear.lo
+  ) {
+    return { lo: zones.linear.lo, hi: zones.linear.hi };
+  }
+  return null;
+}
+
+function overlayAlignSlot(
+  layout: SplitYLayout,
+  bandLo: number,
+  bandHi: number,
+): { lo: number; hi: number } {
+  return overlayBrokenLinearSlot(layout) ?? { lo: bandLo, hi: bandHi };
+}
+
+function mapOverlayAlignedToSlot(
+  value: number | null | undefined,
+  alarmLo: number,
+  alarmHi: number,
+  layout: SplitYLayout,
+  bandLo: number,
+  bandHi: number,
+  headFrac: number,
 ): number | null {
+  const slot = overlayAlignSlot(layout, bandLo, bandHi);
+  if (overlayBrokenLinearSlot(layout)) {
+    return mapToValueBand(value, alarmLo, alarmHi, slot.lo, slot.hi);
+  }
   return mapMetricAnchoredToBand(
     value,
-    tempLow,
-    tempHigh,
-    layout.tempLo,
-    layout.tempHi,
-    anchor.headFrac,
+    alarmLo,
+    alarmHi,
+    slot.lo,
+    slot.hi,
+    headFrac,
   );
 }
 
-function unmapTempAnchoredFromBand(
+function unmapOverlayAlignedFromSlot(
   splitY: number,
-  tempLow: number,
-  tempHigh: number,
+  alarmLo: number,
+  alarmHi: number,
   layout: SplitYLayout,
-  anchor: TempBandAnchor,
+  bandLo: number,
+  bandHi: number,
+  headFrac: number,
 ): number | null {
+  const slot = overlayAlignSlot(layout, bandLo, bandHi);
+  if (splitY > slot.hi) return null;
+  if (overlayBrokenLinearSlot(layout)) {
+    return unmapFromValueBand(splitY, alarmLo, alarmHi, slot.lo, slot.hi);
+  }
   return unmapMetricAnchoredFromBand(
     splitY,
-    tempLow,
-    tempHigh,
-    layout.tempLo,
-    layout.tempHi,
-    anchor.headFrac,
+    alarmLo,
+    alarmHi,
+    slot.lo,
+    slot.hi,
+    headFrac,
   );
 }
 
@@ -595,10 +637,11 @@ export function unmapHumPctFromSplitY(
   align?: TempBandAnchor,
 ): number | null {
   if (align) {
-    return unmapMetricAnchoredFromBand(
+    return unmapOverlayAlignedFromSlot(
       splitY,
       humidityLow,
       humidityHigh,
+      layout,
       layout.humLo,
       layout.humHi,
       align.headFrac,
@@ -640,6 +683,61 @@ function resolveTempBrokenMappingDomain(
   return [linear[0], overflowHi];
 }
 
+/** 권장(선형) 밖 실측 min–max + 여유. 위칸만 이 폭으로 채움. */
+export function fitOverflowValueDomain(
+  min: number,
+  max: number,
+): [number, number] {
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  const span = Math.max(hi - lo, OVERFLOW_FIT_MIN_PAD_C * 2);
+  const pad = Math.max(OVERFLOW_FIT_MIN_PAD_C, span * OVERFLOW_FIT_PAD_RATIO);
+  return [lo - pad, hi + pad];
+}
+
+export function overflowExtentAbove(
+  columns: readonly (readonly (number | null | undefined)[])[],
+  linearHi: number,
+): { min: number; max: number } | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const col of columns) {
+    for (const v of col) {
+      if (v == null || !Number.isFinite(v) || !(v > linearHi)) continue;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  return { min, max };
+}
+
+export function resolveTempOverflowFitDomain(
+  tempLow: number,
+  tempHigh: number,
+  columns: readonly (readonly (number | null | undefined)[])[],
+): [number, number] | null {
+  const [, linearHi] = tempBrokenLinearEdge(tempLow, tempHigh);
+  const ext = overflowExtentAbove(columns, linearHi);
+  if (!ext) return null;
+  return fitOverflowValueDomain(ext.min, ext.max);
+}
+
+function tempRawOverflowColumns(
+  raw: Pick<
+    UnifiedBarnTrendRaw,
+    "tempAvg" | "tempMin" | "tempMax" | "emaShortRaw" | "emaLongRaw"
+  >,
+): (readonly (number | null | undefined)[])[] {
+  return [
+    raw.tempAvg,
+    raw.tempMin,
+    raw.tempMax,
+    raw.emaShortRaw,
+    raw.emaLongRaw,
+  ];
+}
+
 /** 온도 밴드 Y → ℃ (드래그 시작 시 고정 도메인 기준) */
 export function unmapTempCFromSplitY(
   splitY: number,
@@ -648,20 +746,57 @@ export function unmapTempCFromSplitY(
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
   domain?: [number, number],
   anchor?: TempBandAnchor,
+  overflowDomain?: [number, number] | null,
 ): number | null {
-  if (anchor) {
-    return unmapTempAnchoredFromBand(splitY, tempLow, tempHigh, layout, anchor);
-  }
+  const zones = tempBrokenAxisPlotZones(layout);
+  const [linearLo, linearHi] = tempBrokenLinearEdge(tempLow, tempHigh);
   const [vlo, vhi] = domain ?? paddedAlarmDomain(tempLow, tempHigh);
-  if (tempBrokenMappingActive(layout, tempLow, tempHigh, [vlo, vhi])) {
-    const zones = tempBrokenAxisPlotZones(layout);
-    if (!zones) return unmapFromValueBand(splitY, vlo, vhi, layout.tempLo, layout.tempHi);
-    const [linearLo, linearHi] = tempBrokenLinearEdge(tempLow, tempHigh);
-    if (splitY >= zones.overflow.lo) {
+  const fit =
+    overflowDomain && overflowDomain[1] > overflowDomain[0]
+      ? overflowDomain
+      : null;
+  if (anchor) {
+    if (zones && splitY >= zones.overflow.lo) {
+      const ov = fit ?? [linearHi, Math.max(linearHi + OVERFLOW_FIT_MIN_PAD_C, vhi)];
       return unmapFromValueBand(
         splitY,
-        linearHi,
-        vhi,
+        ov[0],
+        ov[1],
+        zones.overflow.lo,
+        zones.overflow.hi,
+      );
+    }
+    if (zones && splitY > zones.linear.hi) return linearHi;
+    const slot = overlayAlignSlot(layout, layout.tempLo, layout.tempHi);
+    if (overlayBrokenLinearSlot(layout)) {
+      return unmapFromValueBand(
+        splitY,
+        tempLow,
+        tempHigh,
+        slot.lo,
+        slot.hi,
+      );
+    }
+    return unmapMetricAnchoredFromBand(
+      splitY,
+      tempLow,
+      tempHigh,
+      slot.lo,
+      slot.hi,
+      anchor.headFrac,
+    );
+  }
+  const broken =
+    Boolean(zones) &&
+    (Boolean(fit) ||
+      tempBrokenMappingActive(layout, tempLow, tempHigh, [vlo, vhi]));
+  if (broken && zones) {
+    if (splitY >= zones.overflow.lo) {
+      const ov = fit ?? [linearHi, vhi];
+      return unmapFromValueBand(
+        splitY,
+        ov[0],
+        ov[1],
         zones.overflow.lo,
         zones.overflow.hi,
       );
@@ -685,10 +820,11 @@ export function mapMotorPctToSplitY(
   align?: TempBandAnchor,
 ): number | null {
   if (align) {
-    return mapMetricAnchoredToBand(
+    return mapOverlayAlignedToSlot(
       pct,
       0,
       100,
+      layout,
       layout.motorLo,
       layout.motorHi,
       align.headFrac,
@@ -706,10 +842,11 @@ export function unmapMotorPctFromSplitY(
   align?: TempBandAnchor,
 ): number | null {
   if (align) {
-    return unmapMetricAnchoredFromBand(
+    return unmapOverlayAlignedFromSlot(
       splitY,
       0,
       100,
+      layout,
       layout.motorLo,
       layout.motorHi,
       align.headFrac,
@@ -829,10 +966,11 @@ export function mapHumPctToSplitY(
   align?: TempBandAnchor,
 ): number | null {
   if (align) {
-    return mapMetricAnchoredToBand(
+    return mapOverlayAlignedToSlot(
       value,
       humidityLow,
       humidityHigh,
+      layout,
       layout.humLo,
       layout.humHi,
       align.headFrac,
@@ -844,7 +982,7 @@ export function mapHumPctToSplitY(
 
 /**
  * 온도℃ → 주패널 밴드.
- * `anchor` 지정 시 알람 앵커 구간별 매핑(오버레이),
+ * `anchor` 지정 시 권장 구간은 꺾임 아래에 맞추고, 초과는 위칸 이탈 스케일.
  * 아니면 `domain`(auto-fit) 또는 알람±여유 선형.
  */
 export function mapTempCToSplitY(
@@ -854,15 +992,50 @@ export function mapTempCToSplitY(
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
   domain?: [number, number],
   anchor?: TempBandAnchor,
+  overflowDomain?: [number, number] | null,
 ): number | null {
-  if (anchor) {
-    return mapTempAnchoredToBand(value, tempLow, tempHigh, layout, anchor);
-  }
+  const zones = tempBrokenAxisPlotZones(layout);
+  const [linearLo, linearHi] = tempBrokenLinearEdge(tempLow, tempHigh);
   const [vlo, vhi] = domain ?? paddedAlarmDomain(tempLow, tempHigh);
-  if (tempBrokenMappingActive(layout, tempLow, tempHigh, [vlo, vhi])) {
-    const zones = tempBrokenAxisPlotZones(layout);
-    if (!zones) return mapToValueBand(value, vlo, vhi, layout.tempLo, layout.tempHi);
-    const [linearLo, linearHi] = tempBrokenLinearEdge(tempLow, tempHigh);
+  const fit =
+    overflowDomain && overflowDomain[1] > overflowDomain[0]
+      ? overflowDomain
+      : null;
+  if (anchor) {
+    if (zones && value != null && Number.isFinite(value) && value > linearHi) {
+      const ov = fit ?? [linearHi, Math.max(linearHi + OVERFLOW_FIT_MIN_PAD_C, vhi)];
+      return mapToValueBand(
+        value,
+        ov[0],
+        ov[1],
+        zones.overflow.lo,
+        zones.overflow.hi,
+      );
+    }
+    const slot = overlayAlignSlot(layout, layout.tempLo, layout.tempHi);
+    if (overlayBrokenLinearSlot(layout)) {
+      return mapToValueBand(
+        value,
+        tempLow,
+        tempHigh,
+        slot.lo,
+        slot.hi,
+      );
+    }
+    return mapMetricAnchoredToBand(
+      value,
+      tempLow,
+      tempHigh,
+      slot.lo,
+      slot.hi,
+      anchor.headFrac,
+    );
+  }
+  const broken =
+    Boolean(zones) &&
+    (Boolean(fit) ||
+      tempBrokenMappingActive(layout, tempLow, tempHigh, [vlo, vhi]));
+  if (broken && zones) {
     if (value == null || !Number.isFinite(value)) return null;
     if (value <= linearHi) {
       return mapToValueBand(
@@ -873,10 +1046,11 @@ export function mapTempCToSplitY(
         zones.linear.hi,
       );
     }
+    const ov = fit ?? [linearHi, vhi];
     return mapToValueBand(
       value,
-      linearHi,
-      vhi,
+      ov[0],
+      ov[1],
       zones.overflow.lo,
       zones.overflow.hi,
     );
@@ -895,10 +1069,19 @@ export function mapTempDeviationToSplitY(
   layout: SplitYLayout = SPLIT_Y_WITH_HUM,
   domain?: [number, number],
   anchor?: TempBandAnchor,
+  overflowDomain?: [number, number] | null,
 ): number | null {
   if (deviationC == null || !Number.isFinite(deviationC)) return null;
   const mid = tempAlarmMidpoint(tempLow, tempHigh);
-  return mapTempCToSplitY(mid + deviationC, tempLow, tempHigh, layout, domain, anchor);
+  return mapTempCToSplitY(
+    mid + deviationC,
+    tempLow,
+    tempHigh,
+    layout,
+    domain,
+    anchor,
+    overflowDomain,
+  );
 }
 
 /**
@@ -1131,6 +1314,47 @@ function hasFinite(data: (number | null)[]): boolean {
   return data.some((v) => v != null && Number.isFinite(v));
 }
 
+export type UnifiedMetricAvailability = {
+  temp: boolean;
+  hum: boolean;
+  motors: boolean;
+};
+
+const EMPTY_METRIC_AVAILABILITY: UnifiedMetricAvailability = {
+  temp: false,
+  hum: false,
+  motors: false,
+};
+
+/** 시계열이 있는 지표만 칸·아이콘을 연다 */
+export function metricAvailabilityFromSeriesList(
+  list: Pick<
+    TrendControllerSeries,
+    "temp" | "humidity" | "fanA" | "fanB" | "fanC"
+  >[],
+): UnifiedMetricAvailability {
+  if (!list.length) return EMPTY_METRIC_AVAILABILITY;
+  return {
+    temp: list.some((s) => hasFinite(s.temp)),
+    hum: list.some((s) => hasFinite(s.humidity)),
+    motors: list.some(
+      (s) => hasFinite(s.fanA) || hasFinite(s.fanB) || hasFinite(s.fanC),
+    ),
+  };
+}
+
+export function andSplitYVisibility(
+  visibility: SplitYVisibility,
+  metrics: UnifiedMetricAvailability,
+): SplitYVisibility {
+  return {
+    showTemp: visibility.showTemp && metrics.temp,
+    showHum: visibility.showHum && metrics.hum,
+    showMotors: visibility.showMotors && metrics.motors,
+    showCommand: visibility.showCommand,
+  };
+}
+
 function thermoWindowsFromSeries(
   list: TrendControllerSeries[],
   includeThermo: boolean,
@@ -1173,6 +1397,8 @@ export type UnifiedBarnTrendBuild = {
   rightDomain: [number, number];
   /** 온도 매핑에 쓴 ℃ 도메인 (표시 최솟·최댓값 + 여유) */
   tempDomain: [number, number];
+  /** 꺾인 축 위칸 — 권장 밖 실측 min–max. 없으면 위칸 매핑 없음 */
+  tempOverflowDomain: [number, number] | null;
   controllerCount: number;
   tempRangeLabel: string;
   humidityRangeLabel: string;
@@ -1412,6 +1638,8 @@ export function mapUnifiedBarnTrendRawToSplitY(
   tempDomain?: [number, number],
   /** 오버레이 앵커: 지정 시 데이터 도메인보다 우선(알람 코어 + 헤드룸) */
   tempAnchor?: TempBandAnchor,
+  /** 꺾인 축 위칸 공유 도메인. 컨트롤러 오버레이는 합친 이탈 폭을 넘긴다 */
+  overflowDomainOverride?: [number, number] | null,
 ): UnifiedBarnTrendBuild | null {
   const {
     tempLow,
@@ -1431,12 +1659,27 @@ export function mapUnifiedBarnTrendRawToSplitY(
         domain: fitted,
       }
     : layout;
+  const overflowFit =
+    tempBrokenAxisPlotZones(layout)
+      ? overflowDomainOverride !== undefined
+        ? overflowDomainOverride
+        : resolveTempOverflowFitDomain(
+            tempLow,
+            tempHigh,
+            tempRawOverflowColumns(raw),
+          )
+      : null;
   const mappingTempDomain = tempAnchor
     ? undefined
     : isNativeTempIdentityLayout(layout)
       ? fitted
       : tempBrokenAxisPlotZones(layout)
-        ? resolveTempBrokenMappingDomain(tempLow, tempHigh, fitted[1])
+        ? overflowFit
+          ? ([
+              tempBrokenLinearEdge(tempLow, tempHigh)[0],
+              overflowFit[1],
+            ] as [number, number])
+          : alarmEdgeDomain(tempLow, tempHigh, SPLIT_Y_TEMP_EDGE_PAD_C)
         : alarmEdgeDomain(tempLow, tempHigh, SPLIT_Y_TEMP_EDGE_PAD_C);
   const mappingHumDomain = tempAnchor
     ? undefined
@@ -1456,6 +1699,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
       plotLayout,
       mappingTempDomain,
       tempAnchor,
+      overflowFit,
     );
   const mapHum = (v: number | null | undefined) =>
     mapHumPctToSplitY(
@@ -1491,6 +1735,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
       plotLayout,
       mappingTempDomain,
       tempAnchor,
+      overflowFit,
     );
   });
   const tempMidPlot = mapTempCToSplitY(
@@ -1500,6 +1745,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
     plotLayout,
     mappingTempDomain,
     tempAnchor,
+    overflowFit,
   );
   /** 임계선 split-Y — 본선과 동일 매핑(앵커 포함). 코리도 정합용 */
   const tempHiPlot = mapTemp(tempHigh);
@@ -1752,6 +1998,7 @@ export function mapUnifiedBarnTrendRawToSplitY(
     leftDomain: [...plotLayout.domain],
     rightDomain: [...plotLayout.domain],
     tempDomain: mappingTempDomain ?? fitted,
+    tempOverflowDomain: overflowFit,
     controllerCount: raw.controllerCount,
     tempRangeLabel: raw.tempRangeLabel,
     humidityRangeLabel: raw.humidityRangeLabel,
@@ -1759,11 +2006,10 @@ export function mapUnifiedBarnTrendRawToSplitY(
     tempHiPlot,
     tempLoPlot,
     available: {
-      // 측정 시계열이 없어도 밴드·상하한·환기 가이드는 연다.
-      motors: true,
+      motors: histogramMotorsMax.length > 0 || histogramMotorsChannels.length > 0,
       motorCh: histogramMotorsChannels.length > 0,
       temp: Boolean(seriesByKey.temp),
-      hum: true,
+      hum: Boolean(seriesByKey.hum),
       band: Boolean(envelopesBand),
       dev: Boolean(histogramDev),
       ema: Boolean(seriesByKey.emaShort),
@@ -1847,6 +2093,97 @@ export function pickUnifiedTrendLayers(
   }
 
   return { series, envelopes, histograms };
+}
+
+const CONTROLLER_OVERLAY_DASH = [
+  undefined,
+  "5 4",
+  "2 3",
+  "8 3 2 3",
+  "1 4",
+] as const;
+
+/**
+ * 같은 축사 컨트롤러를 평균 대신 본선 오버레이.
+ * 2대 이상일 때만 시리즈를 만들고, 평균 온도·습도 본선은 호출측에서 걷는다.
+ */
+export function overlayControllerMetricSeries(args: {
+  seriesList: TrendControllerSeries[];
+  categories: string[];
+  thresholds: AlarmThresholds;
+  layout: SplitYLayout;
+  overlayAlign?: TempBandAnchor;
+  layers: UnifiedLayerFlags;
+}): { series: TrendSeries[]; tempOverflowDomain: [number, number] | null } {
+  if (args.seriesList.length < 2) {
+    return { series: [], tempOverflowDomain: null };
+  }
+  const series: TrendSeries[] = [];
+  const raws: (UnifiedBarnTrendRaw | null)[] = args.seriesList.map((item) =>
+    aggregateUnifiedBarnTrendRaw(
+      [item],
+      args.categories,
+      args.thresholds,
+      { includeThermo: false },
+    ),
+  );
+  const overflowShared = !tempBrokenAxisPlotZones(args.layout)
+    ? null
+    : resolveTempOverflowFitDomain(
+        args.thresholds.tempLow,
+        args.thresholds.tempHigh,
+        raws.flatMap((raw) => (raw ? tempRawOverflowColumns(raw) : [])),
+      );
+  args.seriesList.forEach((item, index) => {
+    const raw = raws[index];
+    if (!raw) return;
+    const built = mapUnifiedBarnTrendRawToSplitY(
+      raw,
+      args.layout,
+      undefined,
+      args.overlayAlign,
+      overflowShared,
+    );
+    if (!built) return;
+    const dash = CONTROLLER_OVERLAY_DASH[index % CONTROLLER_OVERLAY_DASH.length];
+    const no = formatControllerNoLabel(item.eqpmnNo);
+    if (args.layers.temp && built.seriesByKey.temp) {
+      series.push({
+        ...built.seriesByKey.temp,
+        name: `${no} 온도`,
+        strokeDasharray: dash,
+      });
+    }
+    if (args.layers.hum && built.seriesByKey.hum) {
+      series.push({
+        ...built.seriesByKey.hum,
+        name: `${no} 습도`,
+        strokeDasharray: dash,
+      });
+    }
+  });
+  return { series, tempOverflowDomain: overflowShared };
+}
+
+export function replaceAverageMetricSeries(
+  series: TrendSeries[],
+  overlay: TrendSeries[],
+): TrendSeries[] {
+  if (!overlay.length) return series;
+  const dropTemp = overlay.some(
+    (item) => item.name === "온도" || item.name.endsWith(" 온도"),
+  );
+  const dropHum = overlay.some(
+    (item) => item.name === "습도" || item.name.endsWith(" 습도"),
+  );
+  return [
+    ...series.filter((item) => {
+      if (dropTemp && item.name === "온도") return false;
+      if (dropHum && item.name === "습도") return false;
+      return true;
+    }),
+    ...overlay,
+  ];
 }
 
 /** X스코프/트림 시 코리도 폴리 x를 [lo,hi]로 자르고 0 기준으로 재배치 */

@@ -12,11 +12,15 @@ import {
   buildUnifiedBarnTrendSeries,
   DEFAULT_UNIFIED_LAYERS,
   mapUnifiedBarnTrendRawToSplitY,
+  overlayControllerMetricSeries,
+  replaceAverageMetricSeries,
+  metricAvailabilityFromSeriesList,
   pickUnifiedTrendLayers,
   resolveSplitYLayout,
   SPLIT_Y_BAND_GAP,
   paddedExtentDomain,
   fitTempDisplayDomain,
+  fitOverflowValueDomain,
   mapTempCToSplitY,
   mapHumPctToSplitY,
   mapMotorPctToSplitY,
@@ -25,7 +29,6 @@ import {
   OVERLAY_ALIGN_ANCHOR,
   alarmEdgeDomain,
   SPLIT_Y_TEMP_EDGE_PAD_C,
-  SPLIT_Y_TEMP_OVERFLOW_MIN_C,
   tempBrokenAxisPlotZones,
   unmapTempCFromSplitY,
 } from "./unified-barn-trend-series";
@@ -180,7 +183,7 @@ const layoutTempOnly = resolveSplitYLayout({
 }
 
 {
-  /** 습도·모터 시계열이 없어도 밴드·가이드용 available 은 연다 */
+  /** 습도·모터 시계열이 없으면 해당 available 은 닫는다 */
   const emptyEnv = [
     {
       stallNo: "1",
@@ -204,11 +207,15 @@ const layoutTempOnly = resolveSplitYLayout({
     { layout: layoutFull },
   );
   assert.ok(builtEmpty);
-  assert.equal(builtEmpty!.available.hum, true);
-  assert.equal(builtEmpty!.available.motors, true);
+  assert.equal(builtEmpty!.available.hum, false);
+  assert.equal(builtEmpty!.available.motors, false);
   assert.equal(builtEmpty!.available.temp, true);
   assert.equal(builtEmpty!.histogramMotorsMax.length, 0);
   assert.equal(builtEmpty!.seriesByKey.hum, undefined);
+  const avail = metricAvailabilityFromSeriesList(emptyEnv);
+  assert.equal(avail.temp, true);
+  assert.equal(avail.hum, false);
+  assert.equal(avail.motors, false);
 }
 
 {
@@ -248,11 +255,8 @@ const layoutTempOnly = resolveSplitYLayout({
     thresholds.tempHigh,
     SPLIT_Y_TEMP_EDGE_PAD_C,
   );
-  assert.equal(mapped.tempDomain[0], linearTemp[0]);
-  assert.ok(
-    mapped.tempDomain[1] >= linearTemp[1] + SPLIT_Y_TEMP_OVERFLOW_MIN_C - 1e-6,
-    "설정 구간은 온도 Y 도메인에 넣지 않음 · 꺾인 축만 위칸",
-  );
+  assert.deepEqual(mapped.tempDomain, linearTemp);
+  assert.equal(mapped.tempOverflowDomain, null);
   assert.equal(mapped!.available.thermo, false);
   assert.equal(mapped!.available.thermoMotor, false);
   const picked = pickUnifiedTrendLayers(mapped!, DEFAULT_UNIFIED_LAYERS);
@@ -428,7 +432,58 @@ const layoutTempOnly = resolveSplitYLayout({
     Math.abs(noMotor.tempHi - noMotor.tempLo - (noMotor.humHi - noMotor.humLo)) <
       1e-6,
   );
-  assert.equal(tempBrokenAxisPlotZones(noMotor), null);
+  const noMotorZones = tempBrokenAxisPlotZones(noMotor);
+  assert.ok(noMotorZones);
+  const yHotNoMotor = mapTempCToSplitY(24, 15, 20, noMotor, [13, 27]);
+  assert.ok(
+    yHotNoMotor != null &&
+      yHotNoMotor >= noMotorZones.overflow.lo &&
+      yHotNoMotor <= noMotorZones.overflow.hi,
+  );
+  const overlayLayout = resolveSplitYLayout(
+    {
+      showTemp: true,
+      showHum: true,
+      showMotors: true,
+      showCommand: true,
+    },
+    true,
+  );
+  const overlayZones = tempBrokenAxisPlotZones(overlayLayout);
+  assert.ok(overlayZones);
+  const yHotOverlay = mapTempCToSplitY(
+    24,
+    15,
+    20,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+    fitOverflowValueDomain(24, 24),
+  );
+  assert.ok(
+    yHotOverlay != null &&
+      yHotOverlay >= overlayZones.overflow.lo &&
+      yHotOverlay <= overlayZones.overflow.hi,
+  );
+  const yEdgeOverlay = mapTempCToSplitY(
+    20,
+    15,
+    20,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+  );
+  const yHumEdge = mapHumPctToSplitY(
+    60,
+    40,
+    60,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+  );
+  assert.ok(yEdgeOverlay != null && yHumEdge != null);
+  assert.ok(Math.abs(yEdgeOverlay - yHumEdge) < 1e-6);
+  assert.ok(Math.abs(yEdgeOverlay - overlayZones.linear.hi) < 1e-6);
 }
 
 {
@@ -443,6 +498,212 @@ const layoutTempOnly = resolveSplitYLayout({
   assert.ok(yHot != null && yHot >= zones.overflow.lo && yHot <= zones.overflow.hi);
   const back = unmapTempCFromSplitY(yHot, 15, 20, layoutFull, domain);
   assert.ok(back != null && Math.abs(back - 24) < 0.05);
+}
+
+{
+  const overlayList = [
+    sampleCtrl([22, 23, 24, 25], [55, 56, 57, 58], {
+      key: "c1",
+      stallNo: "1",
+    }),
+    sampleCtrl([21, 22, 23, 24], [50, 51, 52, 53], {
+      key: "c2",
+      stallNo: "1",
+    }),
+  ];
+  overlayList[0]!.eqpmnNo = "1";
+  overlayList[1]!.eqpmnNo = "2";
+  const overlayPack = overlayControllerMetricSeries({
+    seriesList: overlayList,
+    categories,
+    thresholds,
+    layout: layoutFull,
+    layers: DEFAULT_UNIFIED_LAYERS,
+  });
+  const overlay = overlayPack.series;
+  assert.equal(overlay.filter((s) => s.name.endsWith("온도")).length, 2);
+  assert.equal(overlay.filter((s) => s.name.endsWith("습도")).length, 2);
+  const mapped = mapUnifiedBarnTrendRawToSplitY(
+    aggregateUnifiedBarnTrendRaw(overlayList, categories, thresholds)!,
+    layoutFull,
+  );
+  const picked = pickUnifiedTrendLayers(mapped!, DEFAULT_UNIFIED_LAYERS);
+  const replaced = replaceAverageMetricSeries(picked.series, overlay);
+  assert.equal(
+    replaced.some((s) => s.name === "온도" || s.name === "습도"),
+    false,
+  );
+  assert.ok(replaced.some((s) => s.name === "01번 온도"));
+}
+
+{
+  /** 컨트롤러 오버레이가 온도만 있으면 평균 습도 본선은 남긴다 */
+  const overlayTempOnly = overlayControllerMetricSeries({
+    seriesList: [
+      sampleCtrl([22, 23, 24, 25], [null, null, null, null] as number[], {
+        key: "c1",
+        stallNo: "1",
+      }),
+      sampleCtrl([21, 22, 23, 24], [null, null, null, null] as number[], {
+        key: "c2",
+        stallNo: "1",
+      }),
+    ].map((item, i) => {
+      item.eqpmnNo = i === 0 ? "1" : "2";
+      item.humidity = [null, null, null, null];
+      return item;
+    }),
+    categories,
+    thresholds,
+    layout: layoutFull,
+    layers: DEFAULT_UNIFIED_LAYERS,
+  });
+  assert.ok(overlayTempOnly.series.some((s) => s.name.endsWith("온도")));
+  assert.equal(
+    overlayTempOnly.series.some((s) => s.name.endsWith("습도")),
+    false,
+  );
+  const withHum = replaceAverageMetricSeries(
+    [
+      { name: "온도", data: [1], color: "t", axis: "left" },
+      { name: "습도", data: [2], color: "h", axis: "left" },
+    ],
+    overlayTempOnly.series,
+  );
+  assert.equal(withHum.some((s) => s.name === "습도"), true);
+  assert.equal(withHum.some((s) => s.name === "온도"), false);
+}
+
+{
+  const rec = { ...DEFAULT_ALARM_THRESHOLDS, tempLow: 15, tempHigh: 20 };
+  const fit = fitOverflowValueDomain(24.6, 25.4);
+  const zones = tempBrokenAxisPlotZones(layoutFull);
+  assert.ok(zones);
+  const yLo = mapTempCToSplitY(
+    24.6,
+    15,
+    20,
+    layoutFull,
+    [13, fit[1]],
+    undefined,
+    fit,
+  );
+  const yHi = mapTempCToSplitY(
+    25.4,
+    15,
+    20,
+    layoutFull,
+    [13, fit[1]],
+    undefined,
+    fit,
+  );
+  assert.ok(yLo != null && yHi != null);
+  const fitSpan = yHi - yLo;
+  const zoneSpan = zones.overflow.hi - zones.overflow.lo;
+  assert.ok(fitSpan / zoneSpan > 0.6, "이탈 자체 스케일이 위칸을 채움");
+  const yLoExt = mapTempCToSplitY(24.6, 15, 20, layoutFull, [13, 27]);
+  const yHiExt = mapTempCToSplitY(25.4, 15, 20, layoutFull, [13, 27]);
+  assert.ok(yLoExt != null && yHiExt != null);
+  assert.ok(fitSpan > yHiExt - yLoExt);
+  const back = unmapTempCFromSplitY(
+    yHi,
+    15,
+    20,
+    layoutFull,
+    [13, fit[1]],
+    undefined,
+    fit,
+  );
+  assert.ok(back != null && Math.abs(back - 25.4) < 0.05);
+
+  const clustered = [
+    sampleCtrl([24.6, 25.0, 24.8, 25.4], [55, 56, 57, 58], {
+      key: "fit-cluster",
+    }),
+  ];
+  const mapped = mapUnifiedBarnTrendRawToSplitY(
+    aggregateUnifiedBarnTrendRaw(clustered, categories, rec)!,
+    layoutFull,
+  );
+  assert.ok(mapped?.tempOverflowDomain);
+  const ys = (mapped!.seriesByKey.temp?.data ?? []).filter(
+    (v): v is number => v != null && Number.isFinite(v),
+  );
+  assert.ok(ys.length >= 2);
+  const mappedSpan = Math.max(...ys) - Math.min(...ys);
+  assert.ok(mappedSpan / zoneSpan > 0.6);
+
+  const overlayList = [
+    sampleCtrl([24.6, 24.7, 24.8, 24.9], [55, 56, 57, 58], {
+      key: "fit-c1",
+      stallNo: "1",
+    }),
+    sampleCtrl([29.8, 30.0, 29.9, 30.1], [50, 51, 52, 53], {
+      key: "fit-c2",
+      stallNo: "1",
+    }),
+  ];
+  overlayList[0]!.eqpmnNo = "1";
+  overlayList[1]!.eqpmnNo = "2";
+  const overlayPack = overlayControllerMetricSeries({
+    seriesList: overlayList,
+    categories,
+    thresholds: rec,
+    layout: layoutFull,
+    layers: DEFAULT_UNIFIED_LAYERS,
+  });
+  const yA = overlayPack.series.find((s) => s.name === "01번 온도")?.data[3];
+  const yB = overlayPack.series.find((s) => s.name === "02번 온도")?.data[3];
+  assert.ok(yA != null && yB != null);
+  assert.ok(
+    Math.abs(yA - yB) > zoneSpan * 0.4,
+    "오버레이는 위칸 ℃를 공유한다",
+  );
+
+  const overlayViewLayout = resolveSplitYLayout(
+    {
+      showTemp: true,
+      showHum: true,
+      showMotors: true,
+      showCommand: true,
+    },
+    true,
+  );
+  const overlayViewZones = tempBrokenAxisPlotZones(overlayViewLayout);
+  assert.ok(overlayViewZones);
+  const overlayViewPack = overlayControllerMetricSeries({
+    seriesList: overlayList,
+    categories,
+    thresholds: rec,
+    layout: overlayViewLayout,
+    overlayAlign: OVERLAY_ALIGN_ANCHOR,
+    layers: DEFAULT_UNIFIED_LAYERS,
+  });
+  assert.ok(overlayViewPack.tempOverflowDomain);
+  const yViewA = overlayViewPack.series.find((s) => s.name === "01번 온도")
+    ?.data[3];
+  const yViewB = overlayViewPack.series.find((s) => s.name === "02번 온도")
+    ?.data[3];
+  assert.ok(yViewA != null && yViewB != null);
+  const overlayZoneSpan =
+    overlayViewZones.overflow.hi - overlayViewZones.overflow.lo;
+  assert.ok(
+    Math.abs(yViewA - yViewB) > overlayZoneSpan * 0.4,
+    "겹쳐보기에서도 위칸 ℃를 공유한다",
+  );
+  const overlayMapped = mapUnifiedBarnTrendRawToSplitY(
+    aggregateUnifiedBarnTrendRaw(clustered, categories, rec)!,
+    overlayViewLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+  );
+  assert.ok(overlayMapped?.tempOverflowDomain);
+  const overlayYs = (overlayMapped!.seriesByKey.temp?.data ?? []).filter(
+    (v): v is number => v != null && Number.isFinite(v),
+  );
+  assert.ok(overlayYs.length >= 2);
+  const overlayMappedSpan = Math.max(...overlayYs) - Math.min(...overlayYs);
+  assert.ok(overlayMappedSpan / overlayZoneSpan > 0.6);
 }
 
 console.log("unified-barn-trend-series-m1.test.ts: ok");

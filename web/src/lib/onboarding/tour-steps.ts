@@ -4,7 +4,7 @@
  *
  * 스코프:
  *   field(필드) — 병합 UI(좌 현황·우 목록) PC 1차 루트
- *   chart(차트) — 일괄·비교 · 레이어 · 온·습 상하한 · 구간/양호도
+ *   chart(차트) — 축사유형·축사번호 · 레이어 · 온·습 상하한 · 구간/양호도
  *   DELIN 뱃지는 필드 투어에만 포함 (차트에서는 숨김, 전용 탭 없음)
  *
  * 큰 컨테이너는 hole로 쓰지 않음 — 개별 카드/툴바만 스포트라이트.
@@ -23,7 +23,7 @@ import type { TourGridAction } from "@/lib/onboarding/tour-grid-actions";
 export type { TourGridAction };
 
 /** 투어 개편 시 +1 — 저장된 완료 버전보다 크면 재노출. */
-export const TOUR_VERSION = 39;
+export const TOUR_VERSION = 42;
 
 export type TourScrollPolicy =
   | "none"
@@ -282,15 +282,13 @@ export const TOUR_STEPS: TourStepDef[] = [
     body: "카드 헤더의 차트 아이콘을 누르면 해당 컨트롤러 이력을 차트 탭에서 확인합니다.",
     mobileTitle: "차트로 옮기기",
     mobileBody:
-      "설정 시트의 「차트로 옮기기」를 누르면 그 컨트롤러 그래프가 펼쳐집니다. 비교는 차트 탭에서 켭니다.",
+      "설정 시트의 「차트로 옮기기」를 누르면 그 컨트롤러 그래프가 펼쳐집니다.",
     bullets: [
       "온도·습도·채널 추이는 차트 탭에서 확인",
       "차트에서 보기 — 그 그래프가 펼쳐집니다",
-      "비교는 차트 탭에서 비교를 켜고 칸을 고릅니다",
     ],
     mobileBullets: [
       "차트로 옮기면 그 그래프가 펼쳐집니다",
-      "비교는 차트 탭에서 켭니다",
     ],
     mobileHideExtra: true,
     skipIfMissing: true,
@@ -363,16 +361,16 @@ export const TOUR_STEPS: TourStepDef[] = [
   {
     id: "c-overview",
     scope: "chart",
-    selector: '[data-tour-id="farm-chart-lab-modes"]',
+    selector: '[data-tour-id="farm-chart-view"]',
     view: "chart",
     scrollPolicy: "anchor-top",
-    title: "일괄 · 비교",
-    body: "작은 칸을 누르면 그 그래프가 펼쳐집니다. 비교로 한 대를 더 붙입니다. 일괄 칸은 30일을 봅니다.",
+    title: "차트",
+    body: "축사유형 평균 칸입니다. 유형을 누르면 아래 축사번호 평균이 열리고, 축사를 누르면 그 축사의 컨트롤러 그래프가 겹쳐 펼쳐집니다. 칸은 30일을 봅니다.",
     bullets: [
-      "일괄 — 작은 칸으로 전체를 봅니다",
-      "칸을 누르면 펼쳐진 카드가 됩니다. X로 끄면 일괄로 돌아갑니다",
-      "비교 — 아래 작은 칸에서 한 대를 가져옵니다",
-      "필드에서 차트로 옮기면 그 대가 펼쳐집니다",
+      "축사유형 평균 칸으로 전체를 봅니다",
+      "유형을 누르면 다른 칸이 흐려지고 아래 축사번호 평균이 열립니다",
+      "축사번호 칸을 누르면 그 축사 컨트롤러가 겹쳐 펼쳐집니다. X로 끄면 목록으로 돌아갑니다",
+      "필드에서 차트로 옮기면 그 축사가 펼쳐집니다",
     ],
   },
   {
@@ -389,6 +387,7 @@ export const TOUR_STEPS: TourStepDef[] = [
       "지표를 하나만 켜면 축 눈금이 해당 단위로 맞춰집니다",
       "오버레이로 온도·습도·모터를 한 칸에 겹쳐 봅니다",
       "온도·습도 알람 아이콘은 그래프 안 범위 띠만 바꿉니다",
+      "펼친 카드에서는 컨트롤러 번호 아이콘으로 각 본선을 켜고 끕니다",
     ],
   },
   {

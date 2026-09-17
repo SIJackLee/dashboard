@@ -365,7 +365,7 @@ export function useFarmControllerTrend(params: {
   const window15m =
     snap?.scopeId === scopeId ? snap.data.window15m : null;
   const initialPending = active && data === null && !error;
-  const showInitialLoading = useDeferredLoading(initialPending);
+  /** 초기 빈 화면은 지연 없이 '불러오는 중' — 지연하면 '데이터 없음'으로 오인됨 */
   const showRefreshing = useDeferredLoading(refreshing);
   const isStale = refreshing && data !== null;
   const extending =
@@ -377,7 +377,7 @@ export function useFarmControllerTrend(params: {
   return {
     data,
     window15m,
-    loading: showInitialLoading,
+    loading: initialPending,
     extending,
     window15mLoading,
     refreshing: showRefreshing,

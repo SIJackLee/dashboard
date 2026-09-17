@@ -29,6 +29,8 @@ import type {
   UnifiedLayerId,
 } from "@/lib/farm/unified-barn-trend-series";
 import { AlarmDomainIcon } from "@/components/settings/alarm-domain-icon";
+import { ControllerNoMark } from "@/components/farm/controller-no-marks";
+import { formatControllerNoLabel } from "@/lib/farm/controller-summary-display";
 import { dashboardAffordance, dashboardUi } from "@/lib/ui/dashboard-page-ui";
 import { motionClass } from "@/lib/ui/motion-classes";
 import { cn } from "@/lib/utils";
@@ -171,6 +173,17 @@ function alarmRangeTooltip(kind: "temp" | "hum", on: boolean): string {
     : `${name} 범위 꺼짐 · 다음: 켬`;
 }
 
+function controllerToggleTooltip(eqpmnNo: string, on: boolean): string {
+  const name = `컨트롤러 ${formatControllerNoLabel(eqpmnNo)}`;
+  return on ? `${name} 켬 · 다음: 끔` : `${name} 끔 · 다음: 켬`;
+}
+
+export type LayerControllerToggle = {
+  key: string;
+  eqpmnNo: string;
+  on: boolean;
+};
+
 type Props = {
   layers: UnifiedLayerFlags;
   available: UnifiedTrendLayerAvailable;
@@ -189,6 +202,9 @@ type Props = {
   humAlarmAvailable?: boolean;
   onToggleTempAlarm?: () => void;
   onToggleHumAlarm?: () => void;
+  /** 펼친 축사 오버레이 — 컨트롤러 번호별 본선 켜기/끄기 */
+  controllerToggles?: LayerControllerToggle[];
+  onToggleController?: (key: string) => void;
   /** 위젯 헤더 — 상·좌 여백과 같은 32px 버튼 */
   compact?: boolean;
 };
@@ -309,6 +325,8 @@ export function UnifiedTrendLayerToolbar({
   humAlarmAvailable = false,
   onToggleTempAlarm,
   onToggleHumAlarm,
+  controllerToggles,
+  onToggleController,
   compact = false,
 }: Props) {
   const groups = (
@@ -319,13 +337,15 @@ export function UnifiedTrendLayerToolbar({
     ] as const
   ).filter((g): g is LayerGroupId => g != null);
 
-  if (groups.length === 0) return null;
+  const hasControllerToggles =
+    Boolean(controllerToggles?.length) && Boolean(onToggleController);
+  if (groups.length === 0 && !hasControllerToggles) return null;
 
   return (
     <TooltipProvider delay={200}>
       <div
         className={cn(
-          "inline-flex items-center gap-1 overflow-visible",
+          "inline-flex max-w-full flex-wrap items-center gap-1 overflow-visible",
           className,
         )}
         data-tour-id="unified-trend-layer-toolbar"
@@ -368,8 +388,8 @@ export function UnifiedTrendLayerToolbar({
             <IconTipButton
               label={
                 overlayView
-                  ? "오버레이 보기 끔 · 온도·습도·모터 분리"
-                  : "오버레이 보기 · 온도·습도·모터 겹쳐보기"
+                  ? "오버레이 보기 끔 · 켜진 지표 분리"
+                  : "오버레이 보기 · 켜진 지표 겹쳐보기"
               }
               pressed={overlayView}
               on={overlayView}
@@ -431,6 +451,38 @@ export function UnifiedTrendLayerToolbar({
               <ModeOverlay mode={humAlarmOn ? "base" : "off"} />
             </IconTipButton>
           </div>
+        ) : null}
+        {controllerToggles &&
+        controllerToggles.length > 0 &&
+        onToggleController ? (
+          <>
+            <span
+              className="mx-0.5 h-5 w-px shrink-0 bg-border"
+              aria-hidden
+            />
+            {controllerToggles.map((item) => (
+              <div key={item.key} className="relative overflow-visible">
+                <IconTipButton
+                  label={controllerToggleTooltip(item.eqpmnNo, item.on)}
+                  pressed={item.on}
+                  on={item.on}
+                  muted={!item.on}
+                  tone="neutral"
+                  compact={compact}
+                  onClick={() => onToggleController(item.key)}
+                >
+                  <ControllerNoMark
+                    eqpmnNo={item.eqpmnNo}
+                    dense
+                    onFill
+                    className="text-current"
+                    iconClassName={compact ? "size-4" : "size-4 md:size-5"}
+                  />
+                  <ModeOverlay mode={item.on ? "base" : "off"} />
+                </IconTipButton>
+              </div>
+            ))}
+          </>
         ) : null}
       </div>
     </TooltipProvider>

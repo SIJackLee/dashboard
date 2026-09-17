@@ -152,14 +152,18 @@ export type TempBrokenAxisPlotZones = {
 };
 
 /**
- * 온도+모터 분할 — 온도 칸 위쪽이 더위 초과, 아래가 권장±여유.
- * 오버레이·온도 단독(원단위)에서는 null.
+ * 온도 칸 — 위쪽이 더위 초과, 아래가 권장±여유.
+ * 모터 칸 유무와 무관. 겹쳐보기(한 슬롯)에도 쓴다. 온도 단독(원단위 ℃)에서는 null.
  */
 export function tempBrokenAxisPlotZones(
   layout: SplitYLayout,
 ): TempBrokenAxisPlotZones | null {
   if (!(layout.tempHi > layout.tempLo)) return null;
-  if (!(layout.motorHi > layout.motorLo)) return null;
+  const nativeTemp =
+    layout.tempLo === layout.domain[0] &&
+    layout.tempHi === layout.domain[1] &&
+    !(layout.domain[0] === 0 && layout.domain[1] === 100);
+  if (nativeTemp) return null;
   const span = layout.tempHi - layout.tempLo;
   const overflowSpan = span * SPLIT_Y_TEMP_OVERFLOW_FRAC;
   const gap = Math.min(SPLIT_Y_TEMP_BREAK_GAP, overflowSpan * 0.25);

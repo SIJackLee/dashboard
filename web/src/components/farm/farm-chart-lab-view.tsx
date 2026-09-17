@@ -33,17 +33,25 @@ import {
   type TrendWindow15m,
 } from "@/lib/data/farm-trend-types";
 import type { FarmKey } from "@/lib/data/farm-key";
+import { normalizeStallTyCode } from "@/lib/data/stall-type";
 import {
+  buildFarmChartTree,
   chartScopeLabel,
+  controllersShareStall,
   dismissFarmChartLabHero,
-  EMPTY_FARM_CHART_LAB_SELECTION,
   farmChartLabControllerScopes,
   farmChartLabScopeKey,
   farmChartLabSelectionFromKeys,
+  farmChartLabStallKey,
+  farmChartScopeKey,
   filterReadingsByChartScope,
+  spScopeFromStallTy,
+  stallScopeFromController,
+  uniqueFarmChartLabStalls,
   type FarmChartControllerScope,
   type FarmChartLabMode,
   type FarmChartLabSelection,
+  type FarmChartScope,
 } from "@/lib/farm/farm-chart-scope";
 import {
   coverageIndexesFromSnap,
@@ -54,11 +62,11 @@ import {
   countSplitYBands,
   DEFAULT_UNIFIED_LAYERS,
   splitYVisibilityFromLayers,
+  andSplitYVisibility,
+  type UnifiedMetricAvailability,
 } from "@/lib/farm/unified-barn-trend-series";
 import { farmChartUi } from "@/lib/ui/farm-chart-ui-scale";
 import {
-  dashboardAffordance,
-  dashboardChroma,
   dashboardElevation,
   dashboardHubSurface,
   dashboardTypography,
@@ -118,10 +126,15 @@ export function FarmChartLabView({
     () => farmChartLabControllerScopes(readings),
     [readings],
   );
+  const tree = useMemo(() => buildFarmChartTree(readings), [readings]);
+  const stallAnchors = useMemo(
+    () => uniqueFarmChartLabStalls(scopes),
+    [scopes],
+  );
+  const [openSp, setOpenSp] = useState<string | null>(null);
   const [localMode, setLocalMode] = useState<FarmChartLabMode>("batch");
   const [localPrimaryKey, setLocalPrimaryKey] = useState<string | null>(null);
   const [localPartnerKey, setLocalPartnerKey] = useState<string | null>(null);
-  const [picking, setPicking] = useState(false);
   const urlBound = typeof onSelectionChange === "function";
   const storedMode = urlBound ? (selection?.mode ?? "batch") : localMode;
   const primaryKey = urlBound
@@ -134,10 +147,13 @@ export function FarmChartLabView({
       ? farmChartLabScopeKey(selection.partner)
       : null
     : localPartnerKey;
-  if (urlBound && storedMode === "compare" && picking) {
-    setPicking(false);
-  }
-  const mode: FarmChartLabMode = picking ? "compare" : storedMode;
+  /** 비교 UI는 보류. 옛 비교 URL은 펼친 축사만 연다. */
+  const mode: FarmChartLabMode =
+    storedMode === "compare"
+      ? primaryKey
+        ? "single"
+        : "batch"
+      : storedMode;
   const [sharedBrushWindow, setSharedBrushWindow] = useState<BrushWindow>(
     () => BRUSH_PERIOD_WINDOW["30d"],
   );
@@ -150,11 +166,30 @@ export function FarmChartLabView({
   const [layers, setLayers] = useState(DEFAULT_UNIFIED_LAYERS);
   const [overlayView, setOverlayView] = useState(true);
   const [alarmRangeOn, setAlarmRangeOn] = useState({ temp: true, hum: true });
+  const [metricAvailable, setMetricAvailable] =
+    useState<UnifiedMetricAvailability>({
+      temp: false,
+      hum: false,
+      motors: false,
+    });
+  const onMetricAvailable = useCallback((next: UnifiedMetricAvailability) => {
+    setMetricAvailable((prev) =>
+      prev.temp === next.temp &&
+      prev.hum === next.hum &&
+      prev.motors === next.motors
+        ? prev
+        : next,
+    );
+  }, []);
   const layerVisibility = useMemo(
     () => splitYVisibilityFromLayers(layers),
     [layers],
   );
-  const overlayAvailable = countSplitYBands(layerVisibility) >= 2;
+  const dataVisibility = useMemo(
+    () => andSplitYVisibility(layerVisibility, metricAvailable),
+    [layerVisibility, metricAvailable],
+  );
+  const overlayAvailable = countSplitYBands(dataVisibility) >= 2;
   const sharedLayers: SharedChartLayerDisplay = useMemo(
     () => ({ layers, overlayView, alarmRangeOn }),
     [layers, overlayView, alarmRangeOn],
@@ -175,9 +210,22 @@ export function FarmChartLabView({
     });
   }, []);
 
+  const primaryAnchor = primaryKey
+    ? (scopes.find((s) => farmChartLabScopeKey(s) === primaryKey) ?? null)
+    : null;
+  const heroStallKey = primaryAnchor
+    ? farmChartLabStallKey(primaryAnchor)
+    : null;
+  const [hiddenCtrlKeys, setHiddenCtrlKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [hiddenForStall, setHiddenForStall] = useState<string | null>(null);
+  if (heroStallKey !== hiddenForStall) {
+    setHiddenForStall(heroStallKey);
+    setHiddenCtrlKeys(new Set());
+  }
+
   const labRootRef = useRef<HTMLDivElement>(null);
-  const modeGroupRef = useRef<HTMLDivElement>(null);
-  const [modePill, setModePill] = useState({ left: 0, width: 0 });
   const [expandOrigin, setExpandOrigin] = useState<{
     left: number;
     top: number;
@@ -185,24 +233,6 @@ export function FarmChartLabView({
     height: number;
   } | null>(null);
   const settleExpand = useCallback(() => setExpandOrigin(null), []);
-  useLayoutEffect(() => {
-    const root = modeGroupRef.current;
-    if (!root) return;
-    const sync = () => {
-      const selected = root.querySelector<HTMLElement>(
-        'button[aria-pressed="true"]',
-      );
-      if (!selected) return;
-      const next = { left: selected.offsetLeft, width: selected.offsetWidth };
-      setModePill((prev) =>
-        prev.left === next.left && prev.width === next.width ? prev : next,
-      );
-    };
-    sync();
-    const ro = new ResizeObserver(sync);
-    ro.observe(root);
-    return () => ro.disconnect();
-  }, [mode, primaryKey, isMobileStack]);
 
   const uplinkCoverageSnap = useFarmTrendUplinkCoverage({
     farmKey: farmKey ?? null,
@@ -212,10 +242,6 @@ export function FarmChartLabView({
     window15m,
   });
   const uplinkCoverage = coverageIndexesFromSnap(uplinkCoverageSnap);
-
-  const restCount = scopes.filter(
-    (s) => farmChartLabScopeKey(s) !== primaryKey,
-  ).length;
 
   const commitSelection = (next: FarmChartLabSelection) => {
     if (onSelectionChange) {
@@ -231,23 +257,7 @@ export function FarmChartLabView({
     );
   };
 
-  const scopeByKey = (key: string | null) =>
-    key
-      ? (scopes.find((s) => farmChartLabScopeKey(s) === key) ?? null)
-      : null;
-
-  const openBatch = () => {
-    setPicking(false);
-    setExpandOrigin(null);
-    resetLookbackTo30d();
-    if (urlBound) {
-      onSelectionChange?.(EMPTY_FARM_CHART_LAB_SELECTION);
-      return;
-    }
-    setLocalMode("batch");
-  };
   const openSingle = (scope: FarmChartControllerScope) => {
-    setPicking(false);
     if (urlBound) {
       commitSelection({ mode: "single", primary: scope, partner: null });
       return;
@@ -274,36 +284,16 @@ export function FarmChartLabView({
     }
     openSingle(scope);
   };
-  const openCompare = () => {
-    if (storedMode === "batch" || !primaryKey || restCount === 0) return;
-    if (urlBound) {
-      setPicking(!partnerKey);
-      return;
-    }
-    setLocalMode("compare");
-    setPicking(!localPartnerKey);
-  };
-  const takePartner = (scope: FarmChartControllerScope) => {
-    const key = farmChartLabScopeKey(scope);
-    if (key === primaryKey) return;
-    setPicking(false);
-    if (urlBound) {
-      const primary = selection?.primary ?? scopeByKey(primaryKey);
-      if (!primary) return;
-      commitSelection({ mode: "compare", primary, partner: scope });
-      return;
-    }
-    setLocalPartnerKey(key);
-    setLocalMode("compare");
-  };
   const dismissHero = (scope: FarmChartControllerScope) => {
     const next = dismissFarmChartLabHero({
       dismissedKey: farmChartLabScopeKey(scope),
       primaryKey,
       partnerKey,
     });
-    setPicking(false);
-    if (next.mode === "batch") resetLookbackTo30d();
+    if (next.mode === "batch") {
+      setOpenSp(normalizeStallTyCode(scope.stallTyCode));
+      resetLookbackTo30d();
+    }
     if (urlBound) {
       commitSelection(farmChartLabSelectionFromKeys(scopes, next));
       return;
@@ -313,46 +303,51 @@ export function FarmChartLabView({
     setLocalMode(next.mode);
   };
 
-  const isHero = (scope: FarmChartControllerScope) => {
-    const key = farmChartLabScopeKey(scope);
+  const firstCtrlOfStall = (
+    stall: Extract<FarmChartScope, { level: "stall" }>,
+  ) =>
+    scopes.find(
+      (s) =>
+        farmChartLabStallKey(s) === farmChartLabStallKey(stall),
+    ) ?? null;
+
+  const isHeroAnchor = (scope: FarmChartControllerScope) => {
     if (mode === "batch") return false;
-    if (key === primaryKey) return true;
-    return mode === "compare" && Boolean(partnerKey) && !picking && key === partnerKey;
+    if (!primaryAnchor) return false;
+    return controllersShareStall(scope, primaryAnchor);
   };
 
-  const modeBtn = (active: boolean) =>
-    cn(
-      "relative z-[1] inline-flex min-h-8 items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium",
-      motionClass.microInteractive,
-      active
-        ? dashboardChroma.chromeActiveText
-        : dashboardAffordance.choiceIdle,
-    );
-
   const renderTile = (
-    scope: FarmChartControllerScope,
+    scope: FarmChartScope,
     size: "cell" | "hero" | "peer",
     index = 0,
+    anchor?: FarmChartControllerScope | null,
   ) => {
-    const key = farmChartLabScopeKey(scope);
+    const key = farmChartScopeKey(scope);
     const selected =
       size === "hero" &&
-      (key === primaryKey ||
-        (mode === "compare" && key === partnerKey && !picking));
+      Boolean(anchor && farmChartLabScopeKey(anchor) === primaryKey);
     const action =
-      mode === "batch"
+      mode === "batch" && scope.level === "sp"
         ? {
-            label: "이 칸 펼치기",
-            onClick: (e: MouseEvent<HTMLButtonElement>) => {
-              const tile = e.currentTarget.closest<HTMLElement>(
-                "[data-farm-chart-tile]",
-              );
-              expandFromTile(scope, tile);
+            label: "이 축사유형의 축사 보기",
+            onClick: () => {
+              const ty = normalizeStallTyCode(scope.stallTyCode);
+              setOpenSp((prev) => (prev === ty ? null : ty));
             },
           }
-        : size === "peer" && mode === "compare"
-          ? { label: "가져오기", onClick: () => takePartner(scope) }
-          : null;
+        : mode === "batch" && scope.level === "stall"
+          ? {
+              label: "이 축사 펼치기",
+              onClick: (e: MouseEvent<HTMLButtonElement>) => {
+                const tile = e.currentTarget.closest<HTMLElement>(
+                  "[data-farm-chart-tile]",
+                );
+                const ctrl = firstCtrlOfStall(scope);
+                if (ctrl) expandFromTile(ctrl, tile);
+              },
+            }
+            : null;
     return (
       <LabTile
         key={key}
@@ -362,6 +357,13 @@ export function FarmChartLabView({
         selected={selected}
         index={index}
         action={action}
+        overlayControllers={size === "hero"}
+        hiddenCtrlKeys={
+          size === "hero" && index === 0 ? hiddenCtrlKeys : undefined
+        }
+        onMetricAvailable={
+          size === "hero" && index === 0 ? onMetricAvailable : undefined
+        }
         controllerTrendByPeriod={controllerTrendByPeriod}
         trendLoading={trendLoading}
         trendError={trendError}
@@ -392,22 +394,35 @@ export function FarmChartLabView({
         }
         expandFrom={size === "hero" && index === 0 ? expandOrigin : null}
         onExpandSettled={settleExpand}
-        onDismiss={size === "hero" ? () => dismissHero(scope) : undefined}
+        onDismiss={
+          size === "hero" && anchor
+            ? () => dismissHero(anchor)
+            : undefined
+        }
       />
     );
   };
 
-  const heroes = scopes.filter(isHero);
-  const peers = scopes.filter((s) => !isHero(s));
-  const showPeers = mode === "compare" && peers.length > 0;
+  const heroAnchors = stallAnchors.filter(isHeroAnchor);
+  const heroControllers = primaryAnchor
+    ? filterReadingsByChartScope(
+        readings,
+        stallScopeFromController(primaryAnchor),
+      )
+    : [];
   const layerToolbar = layersToolbarActive ? (
     <div
-      className="relative inline-flex rounded-xl border bg-muted/40 p-1"
+      className="relative inline-flex max-w-full flex-wrap rounded-xl border bg-muted/40 p-1"
       data-farm-chart-layers-shell=""
     >
       <UnifiedTrendLayerToolbar
         layers={layers}
-        available={UNIFIED_LAYER_TOOLBAR_AVAILABLE}
+        available={{
+          ...UNIFIED_LAYER_TOOLBAR_AVAILABLE,
+          temp: metricAvailable.temp,
+          hum: metricAvailable.hum,
+          motors: metricAvailable.motors,
+        }}
         onCycleGroup={cycleGroupLayers}
         overlayView={overlayView}
         overlayAvailable={overlayAvailable}
@@ -415,10 +430,10 @@ export function FarmChartLabView({
         tempAlarmOn={alarmRangeOn.temp}
         humAlarmOn={alarmRangeOn.hum}
         tempAlarmAvailable={Boolean(
-          layerVisibility.showTemp && layers.temp,
+          dataVisibility.showTemp && layers.temp,
         )}
         humAlarmAvailable={Boolean(
-          layerVisibility.showHum &&
+          dataVisibility.showHum &&
             (layers.hum ||
               layers.humDev ||
               layers.humBand ||
@@ -430,10 +445,30 @@ export function FarmChartLabView({
         onToggleHumAlarm={() =>
           setAlarmRangeOn((prev) => ({ ...prev, hum: !prev.hum }))
         }
+        controllerToggles={heroControllers.map((r) => ({
+          key: r.controllerKey,
+          eqpmnNo: r.eqpmnNo,
+          on: !hiddenCtrlKeys.has(r.controllerKey),
+        }))}
+        onToggleController={(key) => {
+          setHiddenCtrlKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+          });
+        }}
         compact
       />
     </div>
   ) : null;
+
+  const openSpNode =
+    openSp == null
+      ? null
+      : (tree.find(
+          (sp) => normalizeStallTyCode(sp.stallTyCode) === openSp,
+        ) ?? null);
 
   return (
     <div
@@ -442,48 +477,6 @@ export function FarmChartLabView({
       data-farm-chart-lab=""
       data-tour-id="farm-chart-view"
     >
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <div
-          ref={modeGroupRef}
-          className="relative inline-flex rounded-xl border bg-muted/40 p-1"
-          role="group"
-          aria-label="차트 배열"
-          data-tour-id="farm-chart-lab-modes"
-        >
-          <span
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute top-1 bottom-1 z-0 rounded-lg",
-              dashboardChroma.viewTabPill,
-              motionClass.viewTabPill,
-              modePill.width <= 0 && "opacity-0",
-            )}
-            style={
-              modePill.width > 0
-                ? { left: modePill.left, width: modePill.width }
-                : undefined
-            }
-          />
-          <button
-            type="button"
-            aria-pressed={mode !== "compare" ? "true" : "false"}
-            className={modeBtn(mode !== "compare")}
-            onClick={openBatch}
-          >
-            일괄
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === "compare" ? "true" : "false"}
-            className={modeBtn(mode === "compare")}
-            disabled={storedMode === "batch" || !primaryKey || restCount === 0}
-            onClick={openCompare}
-          >
-            비교
-          </button>
-        </div>
-      </div>
-
       {scopes.length === 0 ? (
         <p className={cn(dashboardTypography.meta, "px-3 py-6")}>
           컨트롤러가 없습니다.
@@ -492,35 +485,66 @@ export function FarmChartLabView({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={cn(
-              "h-fit max-w-full",
+              "h-fit max-w-full space-y-2.5",
               isMobileStack ? "w-full" : "w-fit",
               dashboardHubSurface.well,
               dashboardHubSurface.gridGap,
             )}
           >
-            <div className={labBatchListClass(isMobileStack)}>
-              {scopes.map((scope, index) => renderTile(scope, "cell", index))}
+            <div
+              className={labBatchListClass(isMobileStack)}
+              data-farm-chart-lab-batch-sp=""
+            >
+              {tree.map((sp, index) => {
+                const scope = spScopeFromStallTy(sp.stallTyCode);
+                const dimmed =
+                  openSp != null &&
+                  openSp !== normalizeStallTyCode(sp.stallTyCode);
+                return (
+                  <div
+                    key={farmChartScopeKey(scope)}
+                    className={cn(
+                      motionClass.transitionOpacity,
+                      "duration-motion-normal",
+                      dimmed && "opacity-40",
+                    )}
+                  >
+                    {renderTile(scope, "cell", index)}
+                  </div>
+                );
+              })}
             </div>
+            {openSpNode ? (
+              <div
+                className={labBatchListClass(isMobileStack)}
+                data-farm-chart-lab-batch-stalls=""
+              >
+                {openSpNode.stalls.map((stall, index) =>
+                  renderTile(
+                    stallScopeFromController({
+                      stallTyCode: openSpNode.stallTyCode,
+                      stallNo: stall.stallNo,
+                    }),
+                    "cell",
+                    index,
+                  ),
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
           <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
-            {heroes.map((scope, index) => renderTile(scope, "hero", index))}
+            {heroAnchors.map((anchor, index) =>
+              renderTile(
+                stallScopeFromController(anchor),
+                "hero",
+                index,
+                anchor,
+              ),
+            )}
           </div>
-          {showPeers ? (
-            <div
-              className={cn(
-                "flex shrink-0 gap-2 overflow-x-auto",
-                dashboardHubSurface.well,
-                "px-3 py-2",
-              )}
-            >
-              {peers.map((scope, index) =>
-                renderTile(scope, "peer", index),
-              )}
-            </div>
-          ) : null}
         </div>
       )}
     </div>
@@ -555,8 +579,11 @@ function LabTile({
   expandFrom = null,
   onExpandSettled,
   onDismiss,
+  overlayControllers = false,
+  hiddenCtrlKeys,
+  onMetricAvailable,
 }: {
-  scope: FarmChartControllerScope;
+  scope: FarmChartScope;
   readings: BarnReading[];
   size: "cell" | "hero" | "peer";
   selected: boolean;
@@ -565,6 +592,9 @@ function LabTile({
     label: string;
     onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   } | null;
+  overlayControllers?: boolean;
+  hiddenCtrlKeys?: Set<string>;
+  onMetricAvailable?: (available: UnifiedMetricAvailability) => void;
   controllerTrendByPeriod?: Record<TrendPeriodId, TrendControllerPeriodData> | null;
   trendLoading?: boolean;
   trendError?: boolean;
@@ -595,10 +625,16 @@ function LabTile({
   const tileRef = useRef<HTMLDivElement>(null);
   const overview = size !== "hero";
   const scopedReadings = filterReadingsByChartScope(readings, scope);
-  const controllers = scopedReadings.map((r) => ({
-    key: r.controllerKey,
-    reading: r,
-  }));
+  const controllers = scopedReadings
+    .filter((r) => !hiddenCtrlKeys?.has(r.controllerKey))
+    .map((r) => ({
+      key: r.controllerKey,
+      reading: r,
+    }));
+  const controllerSelectEmpty =
+    Boolean(hiddenCtrlKeys?.size) &&
+    scopedReadings.length > 0 &&
+    controllers.length === 0;
   const label = chartScopeLabel(scope, readings);
 
   useLayoutEffect(() => {
@@ -690,6 +726,9 @@ function LabTile({
         thermoSettings={thermoSettings}
         chartScope={scope}
         plotFill={size === "hero"}
+        overlayControllers={overlayControllers}
+        onMetricAvailable={size === "hero" ? onMetricAvailable : undefined}
+        controllerSelectEmpty={controllerSelectEmpty}
         chartHeight={overview ? 64 : undefined}
         headingMode={overview ? "overview" : "widget"}
         hidePeriodBrush={hidePeriodBrush}

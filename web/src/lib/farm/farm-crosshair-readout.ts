@@ -3,6 +3,7 @@
  */
 import {
   listSplitYBands,
+  tempBrokenAxisPlotZones,
   type SplitYLayout,
   type SplitYVisibility,
 } from "@/lib/farm/unified-barn-trend-layout";
@@ -29,6 +30,8 @@ export type InvertSplitYCrosshairOpts = {
   humidityLow: number;
   humidityHigh: number;
   tempDomain?: [number, number];
+  /** 꺾인 축 위칸 이탈 자체 스케일. 없으면 연속 ℃/px */
+  tempOverflowDomain?: [number, number] | null;
   humDomain?: [number, number];
 };
 
@@ -67,6 +70,7 @@ export function invertSplitYCrosshairValues(
             opts.layout,
             tempDomain,
             align,
+            opts.tempOverflowDomain,
           ),
         )
       : null;
@@ -89,9 +93,11 @@ export function invertSplitYCrosshairValues(
       : null;
 
   if (opts.overlay || hit.id === "overlay") {
+    const zones = tempBrokenAxisPlotZones(opts.layout);
+    const inOverflow = Boolean(zones && chartY >= zones.overflow.lo);
     return {
       tempC: invertTemp(),
-      humidityPct: invertHum(),
+      humidityPct: inOverflow ? null : invertHum(),
       motorPct: null,
     };
   }

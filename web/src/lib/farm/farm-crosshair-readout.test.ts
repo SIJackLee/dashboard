@@ -7,6 +7,7 @@ import {
   mapHumPctToSplitY,
   mapMotorPctToSplitY,
   mapTempCToSplitY,
+  fitOverflowValueDomain,
   OVERLAY_ALIGN_ANCHOR,
   resolveSplitYLayout,
   SPLIT_Y_WITH_HUM,
@@ -112,6 +113,69 @@ const THRESH = {
     ...THRESH,
   });
   assert.deepEqual(inv, { tempC: null, humidityPct: null, motorPct: null });
+}
+
+{
+  const rec = {
+    tempLow: 15,
+    tempHigh: 20,
+    humidityLow: 50,
+    humidityHigh: 70,
+  };
+  const fit = fitOverflowValueDomain(24.6, 25.4);
+  const layout = resolveSplitYLayout(ALL_PLOT);
+  const y = mapTempCToSplitY(
+    25.0,
+    rec.tempLow,
+    rec.tempHigh,
+    layout,
+    [13, fit[1]],
+    undefined,
+    fit,
+  );
+  assert.ok(y != null);
+  const inv = invertSplitYCrosshairValues(y, {
+    layout,
+    visibility: ALL_PLOT,
+    overlay: false,
+    ...rec,
+    tempDomain: [13, fit[1]],
+    tempOverflowDomain: fit,
+  });
+  assert.ok(inv.tempC != null && Math.abs(inv.tempC - 25) < 0.08);
+  assert.equal(inv.humidityPct, null);
+}
+
+{
+  const rec = {
+    tempLow: 15,
+    tempHigh: 20,
+    humidityLow: 50,
+    humidityHigh: 70,
+  };
+  const overlayLayout = resolveSplitYLayout(ALL_PLOT, true);
+  const fit = fitOverflowValueDomain(24.6, 25.4);
+  const y = mapTempCToSplitY(
+    25.0,
+    rec.tempLow,
+    rec.tempHigh,
+    overlayLayout,
+    undefined,
+    OVERLAY_ALIGN_ANCHOR,
+    fit,
+  );
+  assert.ok(y != null);
+  const inv = invertSplitYCrosshairValues(y, {
+    layout: overlayLayout,
+    visibility: ALL_PLOT,
+    overlay: true,
+    overlayAlign: OVERLAY_ALIGN_ANCHOR,
+    ...rec,
+    tempOverflowDomain: fit,
+  });
+  assert.ok(inv.tempC != null && Math.abs(inv.tempC - 25) < 0.08);
+  assert.equal(inv.humidityPct, null);
+  assert.equal(inv.motorPct, null);
 }
 
 console.log("farm-crosshair-readout.test.ts: ok");

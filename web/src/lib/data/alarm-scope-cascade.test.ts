@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import {
   applyScopeAlarmThresholdsWithCascade,
   buildAlarmScopeKey,
+  resolveThresholdsForChartScope,
   resolveThresholdsForScope,
 } from "./alarm-scope";
 import {
@@ -71,6 +72,47 @@ const base: AlarmSettings = {
   assert.equal(settings.byScope?.[spKey]?.tempHigh, 26);
   assert.equal(settings.byStallTyCode["자돈"], undefined);
   assert.equal(resolveThresholdsForScope(settings, ctrlKey).tempHigh, 26);
+}
+
+{
+  /** 축사 칸 — 컨트롤러에만 저장된 알람을 필드와 같이 쓴다 */
+  const stallOnlyCtrl: AlarmSettings = {
+    ...DEFAULT_ALARM_SETTINGS,
+    byScope: {
+      [farmKey]: { ...DEFAULT_ALARM_THRESHOLDS, tempLow: 23, tempHigh: 27 },
+      [ctrlKey]: { ...DEFAULT_ALARM_THRESHOLDS, tempLow: 16, tempHigh: 19 },
+      [buildAlarmScopeKey({
+        farmId,
+        sp: "자돈",
+        stall: "01",
+        controllerKey: "c07",
+      })]: { ...DEFAULT_ALARM_THRESHOLDS, tempLow: 16, tempHigh: 19 },
+    },
+  };
+  const stallResolved = resolveThresholdsForScope(stallOnlyCtrl, stallKey);
+  assert.equal(stallResolved.tempLow, 16);
+  assert.equal(stallResolved.tempHigh, 19);
+
+  const mixed: AlarmSettings = {
+    ...DEFAULT_ALARM_SETTINGS,
+    byScope: {
+      [farmKey]: { ...DEFAULT_ALARM_THRESHOLDS, tempLow: 23, tempHigh: 27 },
+      [ctrlKey]: { ...DEFAULT_ALARM_THRESHOLDS, tempLow: 16, tempHigh: 19 },
+      [buildAlarmScopeKey({
+        farmId,
+        sp: "자돈",
+        stall: "01",
+        controllerKey: "c07",
+      })]: { ...DEFAULT_ALARM_THRESHOLDS, tempLow: 20, tempHigh: 24 },
+    },
+  };
+  const mixedResolved = resolveThresholdsForScope(mixed, stallKey);
+  assert.equal(mixedResolved.tempLow, 23);
+  assert.equal(mixedResolved.tempHigh, 27);
+  assert.equal(
+    resolveThresholdsForChartScope(stallOnlyCtrl, stallKey, []).tempHigh,
+    19,
+  );
 }
 
 console.log("alarm-scope-cascade: ok");

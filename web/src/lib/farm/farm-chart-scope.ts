@@ -126,6 +126,7 @@ export function chartScopeLabel(
   const tyLabel = formatStallTypeLabel(scope.stallTyCode);
   if (scope.level === "sp") return tyLabel;
   if (scope.level === "stall") {
+    if (scope.stallNo.startsWith("__")) return `${tyLabel} · 축사 미지정`;
     return `${tyLabel} · ${scope.stallNo}번 축사`;
   }
   const hit = readings.find((r) => r.controllerKey === scope.controllerKey);
@@ -226,6 +227,59 @@ export function farmChartLabControllerScopes(
 
 export function farmChartLabScopeKey(scope: FarmChartControllerScope): string {
   return `${scope.stallTyCode}:${scope.stallNo}:${scope.controllerKey}`;
+}
+
+export function farmChartLabStallKey(
+  scope: Pick<FarmChartControllerScope, "stallTyCode" | "stallNo">,
+): string {
+  return `stall:${normalizeStallTyCode(scope.stallTyCode)}:${scope.stallNo.trim()}`;
+}
+
+export function farmChartScopeKey(scope: FarmChartScope): string {
+  if (scope.level === "farm") return "farm";
+  if (scope.level === "sp") {
+    return `sp:${normalizeStallTyCode(scope.stallTyCode)}`;
+  }
+  if (scope.level === "stall") return farmChartLabStallKey(scope);
+  return farmChartLabScopeKey(scope);
+}
+
+export function stallScopeFromController(
+  scope: Pick<FarmChartControllerScope, "stallTyCode" | "stallNo">,
+): Extract<FarmChartScope, { level: "stall" }> {
+  return {
+    level: "stall",
+    stallTyCode: normalizeStallTyCode(scope.stallTyCode),
+    stallNo: scope.stallNo.trim(),
+  };
+}
+
+export function spScopeFromStallTy(
+  stallTyCode: string,
+): Extract<FarmChartScope, { level: "sp" }> {
+  return { level: "sp", stallTyCode: normalizeStallTyCode(stallTyCode) };
+}
+
+export function controllersShareStall(
+  a: Pick<FarmChartControllerScope, "stallTyCode" | "stallNo">,
+  b: Pick<FarmChartControllerScope, "stallTyCode" | "stallNo">,
+): boolean {
+  return farmChartLabStallKey(a) === farmChartLabStallKey(b);
+}
+
+/** 트리 순서로 축사당 대표 컨트롤러 1대(첫 번째). */
+export function uniqueFarmChartLabStalls(
+  scopes: FarmChartControllerScope[],
+): FarmChartControllerScope[] {
+  const seen = new Set<string>();
+  const out: FarmChartControllerScope[] = [];
+  for (const scope of scopes) {
+    const key = farmChartLabStallKey(scope);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(scope);
+  }
+  return out;
 }
 
 /** 차트 단일/비교 — 큰 칸 X로 끄기 */

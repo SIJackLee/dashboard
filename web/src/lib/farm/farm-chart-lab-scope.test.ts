@@ -7,6 +7,9 @@ import {
   farmChartLabControllerScopes,
   farmChartLabScopeKey,
   farmChartLabSelectionFromKeys,
+  farmChartLabStallKey,
+  controllersShareStall,
+  uniqueFarmChartLabStalls,
 } from "./farm-chart-scope";
 
 assert.deepEqual(farmChartLabControllerScopes([]), []);
@@ -80,5 +83,34 @@ const compareSel = farmChartLabSelectionFromKeys([a, b], {
 });
 assert.equal(compareSel.mode, "compare");
 assert.equal(compareSel.partner?.controllerKey, "b");
+
+assert.equal(
+  farmChartLabStallKey({
+    stallTyCode: "SP03",
+    stallNo: "1",
+  }),
+  "stall:SP03:1",
+);
+assert.equal(
+  controllersShareStall(
+    {
+      level: "controller",
+      stallTyCode: "SP03",
+      stallNo: "1",
+      controllerKey: "a",
+    },
+    {
+      level: "controller",
+      stallTyCode: "SP03",
+      stallNo: "1",
+      controllerKey: "b",
+    },
+  ),
+  true,
+);
+assert.deepEqual(
+  uniqueFarmChartLabStalls([a, b]).map((s) => s.controllerKey),
+  ["a"],
+);
 
 console.log("farm-chart-lab-scope.test.ts: ok");

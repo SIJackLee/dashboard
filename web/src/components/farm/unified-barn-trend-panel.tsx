@@ -28,12 +28,11 @@ import {
 import { saveAlarmSettingsInlineAction } from "@/lib/actions/app-settings-actions";
 import {
   applyScopeAlarmThresholdsWithCascade,
-  resolveThresholdsForScope,
+  resolveThresholdsForChartScope,
 } from "@/lib/data/alarm-scope";
 import type { AlarmSettings, AlarmThresholds } from "@/lib/data/alarms";
 import {
   DEFAULT_ALARM_SETTINGS,
-  DEFAULT_ALARM_THRESHOLDS,
   validateAlarmThresholds,
 } from "@/lib/data/alarms";
 import type { BarnReading } from "@/lib/data/iot";
@@ -74,7 +73,6 @@ import {
   formatControllerHeaderPrimary,
   formatControllerHeaderSecondary,
   formatControllerHeaderStallType,
-  resolveReadingAlarmThresholds,
 } from "@/lib/farm/controller-summary-display";
 import {
   ControllerAffiliationMarks,
@@ -113,6 +111,10 @@ import {
   mapTempCToSplitY,
   tempBrokenAxisPlotZones,
   mapUnifiedBarnTrendRawToSplitY,
+  overlayControllerMetricSeries,
+  replaceAverageMetricSeries,
+  metricAvailabilityFromSeriesList,
+  andSplitYVisibility,
   buildSplitYBandScaleTicks,
   pickUnifiedTrendLayers,
   resolveUnifiedPlotLayout,
@@ -131,6 +133,7 @@ import {
   alarmEdgeDomain,
   SPLIT_Y_HUM_EDGE_PAD_PCT,
   type UnifiedLayerFlags,
+  type UnifiedMetricAvailability,
   type UnifiedYBandId,
 } from "@/lib/farm/unified-barn-trend-series";
 import { invertSplitYCrosshairValues } from "@/lib/farm/farm-crosshair-readout";
@@ -290,6 +293,12 @@ type Props = {
   defaultOverlayView?: boolean;
   /** 있으면 칸 안 툴바 대신 페이지 공유 레이어·겹쳐보기·알람 띠를 쓴다 */
   sharedLayers?: SharedChartLayerDisplay;
+  /** 펼친 축사 — 속한 컨트롤러 본선을 겹쳐 그림 (평균 칸은 끄기) */
+  overlayControllers?: boolean;
+  /** 시계열 있는 지표 — 공유 툴바 아이콘 정합 */
+  onMetricAvailable?: (available: UnifiedMetricAvailability) => void;
+  /** 컨트롤러 번호 토글로 모두 끈 상태 */
+  controllerSelectEmpty?: boolean;
   className?: string;
 };
 
@@ -329,6 +338,9 @@ export function UnifiedBarnTrendPanel({
   uplinkCoverage = [],
   defaultOverlayView = false,
   sharedLayers,
+  overlayControllers = false,
+  onMetricAvailable,
+  controllerSelectEmpty = false,
   className,
 }: Props) {
   const liveRefresh = useFarmLiveRefreshOptional();
@@ -454,13 +466,12 @@ export function UnifiedBarnTrendPanel({
 
   const baseThresholds = useMemo(() => {
     const settings = alarmSettings ?? DEFAULT_ALARM_SETTINGS;
-    if (alarmScopeKey) {
-      return resolveThresholdsForScope(settings, alarmScopeKey);
-    }
-    const withReading = controllers.find((c) => c.reading != null)?.reading;
-    if (!withReading) return DEFAULT_ALARM_THRESHOLDS;
-    return resolveReadingAlarmThresholds(withReading, settings);
-  }, [controllers, alarmSettings, alarmScopeKey]);
+    return resolveThresholdsForChartScope(
+      settings,
+      alarmScopeKey,
+      scopedReadings,
+    );
+  }, [alarmSettings, alarmScopeKey, scopedReadings]);
 
   const mappingThresholds = draftThresholds ?? baseThresholds;
   const recommendBand = useMemo(() => {
@@ -485,20 +496,51 @@ export function UnifiedBarnTrendPanel({
     () => splitYVisibilityFromLayers(layers),
     [layers],
   );
+  const metricAvailable = useMemo(() => {
+    const periodId = pickTrendCanvasPeriod(controllerTrendByPeriod, period);
+    const periodData = controllerTrendByPeriod?.[periodId];
+    if (!periodData) {
+      return { temp: false, hum: false, motors: false };
+    }
+    const list = controllers
+      .map((c) => {
+        const r = c.reading;
+        if (!r) return null;
+        return findControllerTrendSeries(
+          controllerTrendByPeriod,
+          periodId,
+          r.stallTyCode,
+          r.stallNo,
+          r.controllerKey,
+        );
+      })
+      .filter((s): s is NonNullable<typeof s> => s != null);
+    if (!list.length) {
+      return { temp: false, hum: false, motors: false };
+    }
+    return metricAvailabilityFromSeriesList(list);
+  }, [controllers, controllerTrendByPeriod, period]);
+  useEffect(() => {
+    onMetricAvailable?.(metricAvailable);
+  }, [metricAvailable, onMetricAvailable]);
+  const dataVisibility = useMemo(
+    () => andSplitYVisibility(layerVisibility, metricAvailable),
+    [layerVisibility, metricAvailable],
+  );
   /** 오버레이는 켜진 플롯 밴드가 2개 이상일 때만 유효 */
-  const overlayAvailable = countSplitYBands(layerVisibility) >= 2;
+  const overlayAvailable = countSplitYBands(dataVisibility) >= 2;
   const overlayActive = overlayView && overlayAvailable;
   const overlayAlign = overlayActive ? OVERLAY_ALIGN_ANCHOR : undefined;
   const scopeVisibility = useMemo(() => {
     const bandVis = visibilityForYBands(xScope?.yBands ?? null);
-    if (!bandVis) return layerVisibility;
+    if (!bandVis) return dataVisibility;
     return {
-      showTemp: layerVisibility.showTemp && bandVis.showTemp,
-      showHum: layerVisibility.showHum && bandVis.showHum,
-      showMotors: layerVisibility.showMotors && bandVis.showMotors,
-      showCommand: layerVisibility.showCommand && bandVis.showCommand,
+      showTemp: dataVisibility.showTemp && bandVis.showTemp,
+      showHum: dataVisibility.showHum && bandVis.showHum,
+      showMotors: dataVisibility.showMotors && bandVis.showMotors,
+      showCommand: dataVisibility.showCommand && bandVis.showCommand,
     };
-  }, [layerVisibility, xScope]);
+  }, [dataVisibility, xScope]);
   const targetPlot = useMemo(
     () => resolveUnifiedPlotLayout(scopeVisibility, plotThresholds, overlayActive),
     [scopeVisibility, plotThresholds, overlayActive],
@@ -746,20 +788,24 @@ export function UnifiedBarnTrendPanel({
   ]);
 
   /** M1 — 다운샘플+집계는 layout 무관 1회, 보간은 Y매핑만 */
-  const trendRaw = useMemo(() => {
+  const downsampledWindow = useMemo(() => {
     if (!windowBundle) return null;
-    const down = downsampleSeriesForChart(
+    return downsampleSeriesForChart(
       windowBundle.seriesList,
       windowBundle.categories,
       plotWidthPx,
     );
+  }, [windowBundle, plotWidthPx]);
+
+  const trendRaw = useMemo(() => {
+    if (!downsampledWindow) return null;
     return aggregateUnifiedBarnTrendRaw(
-      down.seriesList,
-      down.categories,
+      downsampledWindow.seriesList,
+      downsampledWindow.categories,
       plotThresholds,
       { includeThermo: chartScope.level === "controller" },
     );
-  }, [windowBundle, plotThresholds, plotWidthPx, chartScope.level]);
+  }, [downsampledWindow, plotThresholds, chartScope.level]);
 
   const built = useMemo(() => {
     if (!trendRaw) return null;
@@ -775,16 +821,39 @@ export function UnifiedBarnTrendPanel({
     if (!built) return null;
     const pickLayers = maskLayersForYBands(layers, xScope?.yBands ?? null);
     const raw = pickUnifiedTrendLayers(built, pickLayers);
+    const overlayPack =
+      overlayControllers && downsampledWindow
+        ? overlayControllerMetricSeries({
+            seriesList: downsampledWindow.seriesList,
+            categories: downsampledWindow.categories,
+            thresholds: plotThresholds,
+            layout,
+            overlayAlign,
+            layers: pickLayers,
+          })
+        : { series: [], tempOverflowDomain: null };
     /** 스코프 인덱스 안정 — 자동 trim과 X/Y 줌 충돌 방지 */
     return {
       categories: built.categories,
-      series: raw.series,
+      series: replaceAverageMetricSeries(raw.series, overlayPack.series),
       envelopes: raw.envelopes,
       histograms: raw.histograms,
       trimmed: false as const,
       tempDomain: built.tempDomain,
+      tempOverflowDomain: overlayPack.series.length
+        ? overlayPack.tempOverflowDomain
+        : built.tempOverflowDomain,
     };
-  }, [built, layers, xScope?.yBands]);
+  }, [
+    built,
+    layers,
+    xScope?.yBands,
+    overlayControllers,
+    downsampledWindow,
+    plotThresholds,
+    layout,
+    overlayAlign,
+  ]);
 
   /** 농장 기간 변경 시 브러시 창·스코프 시드 (render-time sync — effect setState 회피) */
   const [scopePeriod, setScopePeriod] = useState(period);
@@ -881,6 +950,7 @@ export function UnifiedBarnTrendPanel({
         envelopes: picked.envelopes,
         histograms: picked.histograms,
         tempDomain: picked.tempDomain,
+        tempOverflowDomain: picked.tempOverflowDomain,
         thermoWindows: trendRaw?.thermoWindows ?? null,
       };
     }
@@ -922,6 +992,7 @@ export function UnifiedBarnTrendPanel({
               envelopes: pickedScoped.envelopes,
               histograms: pickedScoped.histograms,
               tempDomain: builtScoped.tempDomain,
+              tempOverflowDomain: builtScoped.tempOverflowDomain,
               thermoWindows: raw.thermoWindows,
             };
           }
@@ -936,6 +1007,7 @@ export function UnifiedBarnTrendPanel({
         xScope.end,
       ),
       tempDomain: picked.tempDomain,
+      tempOverflowDomain: picked.tempOverflowDomain,
       thermoWindows: trendRaw?.thermoWindows
         ? sliceFanControlWindows(
             trendRaw.thermoWindows,
@@ -959,6 +1031,8 @@ export function UnifiedBarnTrendPanel({
 
   const chartCategories = scoped?.categories ?? [];
   const tempMapDomain = scoped?.tempDomain ?? built?.tempDomain;
+  const tempMapOverflow =
+    scoped?.tempOverflowDomain ?? built?.tempOverflowDomain ?? null;
   const crosshairValues = useCallback(
     (chartY: number) =>
       invertSplitYCrosshairValues(chartY, {
@@ -971,6 +1045,7 @@ export function UnifiedBarnTrendPanel({
         humidityLow: plotThresholds.humidityLow,
         humidityHigh: plotThresholds.humidityHigh,
         tempDomain: overlayAlign ? undefined : tempMapDomain,
+        tempOverflowDomain: tempMapOverflow,
       }),
     [
       layout,
@@ -982,6 +1057,7 @@ export function UnifiedBarnTrendPanel({
       plotThresholds.humidityLow,
       plotThresholds.humidityHigh,
       tempMapDomain,
+      tempMapOverflow,
     ],
   );
   const tempMapLayout = built?.layout ?? layout;
@@ -1019,6 +1095,7 @@ export function UnifiedBarnTrendPanel({
             tempMapLayout,
             overlayAlign ? undefined : tempMapDomain,
             overlayAlign,
+            tempMapOverflow,
           ),
           mapTempCToSplitY(
             seg.tempHi,
@@ -1027,6 +1104,7 @@ export function UnifiedBarnTrendPanel({
             tempMapLayout,
             overlayAlign ? undefined : tempMapDomain,
             overlayAlign,
+            tempMapOverflow,
           ),
           layout.tempLo,
           layout.tempHi,
@@ -1075,6 +1153,7 @@ export function UnifiedBarnTrendPanel({
     layout.tempHi,
     tempMapLayout,
     tempMapDomain,
+    tempMapOverflow,
     overlayAlign,
     commandChannels,
   ]);
@@ -1467,6 +1546,7 @@ export function UnifiedBarnTrendPanel({
           tempMapLayout,
           overlayAlign ? undefined : tempMapDomain,
           overlayAlign,
+          tempMapOverflow,
         ),
         formatTrendBandEdge(plotThresholds.tempHigh, "℃"),
         TREND_CHART_COLORS.temp,
@@ -1490,6 +1570,7 @@ export function UnifiedBarnTrendPanel({
           tempMapLayout,
           overlayAlign ? undefined : tempMapDomain,
           overlayAlign,
+          tempMapOverflow,
         ),
         formatTrendBandEdge(plotThresholds.tempLow, "℃"),
         TREND_CHART_COLORS.temp,
@@ -1504,8 +1585,7 @@ export function UnifiedBarnTrendPanel({
           lineHighlight: true,
         },
       );
-      const breakZones =
-        !overlayAlign ? tempBrokenAxisPlotZones(tempMapLayout) : null;
+      const breakZones = tempBrokenAxisPlotZones(tempMapLayout);
       if (breakZones) {
         push(
           "temp-break",
@@ -1600,6 +1680,7 @@ export function UnifiedBarnTrendPanel({
           tempFarmLayout,
           tempFarmDomain,
           overlayAlign,
+          tempMapOverflow,
         );
         const tempFarmLoY = mapTempCToSplitY(
           mappingThresholds.tempLow,
@@ -1608,6 +1689,7 @@ export function UnifiedBarnTrendPanel({
           tempFarmLayout,
           tempFarmDomain,
           overlayAlign,
+          tempMapOverflow,
         );
         const tempFarmMid = farmAlarmMidValue(
           mappingThresholds.tempLow,
@@ -1623,6 +1705,7 @@ export function UnifiedBarnTrendPanel({
               tempFarmLayout,
               tempFarmDomain,
               overlayAlign,
+              tempMapOverflow,
             ),
             formatTrendBandEdge(tempFarmMid, "℃"),
             TREND_CHART_COLORS.temp,
@@ -1807,6 +1890,7 @@ export function UnifiedBarnTrendPanel({
     alarmEditEnabled,
     tempMapLayout,
     tempMapDomain,
+    tempMapOverflow,
     chartLeftUnit,
     overlayActive,
     overlayAlign,
@@ -1859,6 +1943,7 @@ export function UnifiedBarnTrendPanel({
           )}
           humAlarmAvailable={Boolean(
             scopeVisibility.showHum &&
+              built.available.hum &&
               (layers.hum || layers.humDev || layers.humBand || layers.humEma),
           )}
           onToggleTempAlarm={() =>
@@ -2210,7 +2295,7 @@ export function UnifiedBarnTrendPanel({
         <p className="py-6 text-center text-xs text-muted-foreground">
           {built
             ? "표시할 레이어를 선택하세요."
-            : trendLoading
+            : trendLoading || (!controllerTrendByPeriod && !trendError)
               ? "통합 추이를 불러오는 중."
                 : trendExtending
                 ? "최근 이력을 이어 받는 중."
@@ -2218,6 +2303,8 @@ export function UnifiedBarnTrendPanel({
                   ? "선택한 구간을 자세히 불러오는 중."
                   : trendError
                     ? "통합 추이를 불러오지 못했습니다."
+                    : controllerSelectEmpty
+                      ? "표시할 컨트롤러를 선택하세요."
                     : "통합 추이 데이터가 없습니다."}
         </p>
       )}
