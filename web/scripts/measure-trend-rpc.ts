@@ -66,7 +66,7 @@ async function chunkedRpc(
 ): Promise<unknown[]> {
   const fromMs = Date.parse(range.fromIso);
   const toMs = Date.parse(range.toIso);
-  const chunkMs = 7 * HOURS_24_MS;
+  const chunkMs = HOURS_24_MS;
   const rows: unknown[] = [];
   for (let chunkTo = toMs; chunkTo > fromMs; chunkTo -= chunkMs) {
     const chunkFrom = Math.max(fromMs, chunkTo - chunkMs);

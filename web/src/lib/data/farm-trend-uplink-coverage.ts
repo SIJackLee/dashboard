@@ -17,7 +17,7 @@ import {
 } from "@/lib/farm/trend-uplink-coverage";
 
 const CACHE_SLOT_MS = 5 * 60 * 1000;
-const WINDOW_CHUNK_MS = 7 * TREND_PERIODS["24h"].durationMs;
+const WINDOW_CHUNK_MS = TREND_PERIODS["24h"].durationMs;
 
 function alignedToMs(now: number): number {
   return Math.floor(now / CACHE_SLOT_MS) * CACHE_SLOT_MS;

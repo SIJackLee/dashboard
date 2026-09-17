@@ -180,7 +180,7 @@ async function fetchControllerTrendRows(
   );
 }
 
-/** 장기 창은 최대 7일 RPC로 나눠 스캔 — 호출 수와 statement timeout을 함께 제한. */
+/** 장기 창은 24h RPC로 나눠 스캔 — 오래된 고밀도 파티션의 timeout을 제한. */
 async function fetchControllerTrendRowsChunked(
   accessToken: string,
   farmKey: FarmKey,
@@ -188,7 +188,7 @@ async function fetchControllerTrendRowsChunked(
   toMs: number,
   bucket: string,
 ): Promise<ControllerRpcRow[]> {
-  const chunkMs = 7 * TREND_PERIODS["24h"].durationMs;
+  const chunkMs = TREND_PERIODS["24h"].durationMs;
   if (toMs - fromMs <= chunkMs + 1000) {
     return fetchControllerTrendRows(
       accessToken,
